@@ -13,7 +13,8 @@ use crate::config_migrate::migration::defaults::NEWRELIC_INFRA_AGENT_TYPE_CONFIG
 use crate::config_migrate::migration::migrator::{ConfigMigrator, MigratorError};
 use crate::config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
 use crate::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
-use crate::values::file::ConfigRepositoryFile;
+use crate::on_host::file_store::FileStore;
+use crate::values::ConfigRepo;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::{debug, info, warn};
@@ -79,7 +80,10 @@ impl InfraConfigGenerator {
 
     fn create_new_infra_values(&self, infra_config: InfraConfig) -> Result<(), CliError> {
         info!("Creating new infra agent configuration");
-        let vr = ConfigRepositoryFile::new(self.local_dir.clone(), self.remote_dir.clone());
+        let vr = ConfigRepo::new(Arc::new(FileStore::new_local_fs(
+            self.local_dir.clone(),
+            self.remote_dir.clone(),
+        )));
         let sa_local_config_loader = AgentControlConfigStore::new(Arc::new(vr));
 
         let config_getter = AgentConfigGetter::new(sa_local_config_loader);
@@ -118,7 +122,10 @@ impl InfraConfigGenerator {
         let config = MigrationConfig::parse(modified_yaml.as_str())
             .map_err(|err| CliError::Command(format!("error parsing migration config: {err}")))?;
 
-        let vr = ConfigRepositoryFile::new(self.local_dir.clone(), self.remote_dir.clone());
+        let vr = ConfigRepo::new(Arc::new(FileStore::new_local_fs(
+            self.local_dir.clone(),
+            self.remote_dir.clone(),
+        )));
         let sa_local_config_loader = AgentControlConfigStore::new(Arc::new(vr));
         let config_migrator = ConfigMigrator::new(
             ConfigConverter::default(),
@@ -169,7 +176,6 @@ mod tests {
     use crate::agent_control::defaults::{
         AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
     };
-    use crate::opamp::instance_id::on_host::storer::build_config_name;
     use std::fs;
     use std::fs::create_dir_all;
     use tempfile::TempDir;
@@ -195,6 +201,8 @@ agents:
     #[test]
     fn test_migrate_old_infra_config() {
         // Create a temporary directory
+
+        use crate::on_host::file_store::build_config_name;
         let temp_dir = TempDir::new().unwrap();
         let infra_file_path = temp_dir.path().join("newrelic-infra.yml");
         let agents_file_path = temp_dir
@@ -264,6 +272,8 @@ config_agent:
     #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added (DirectoryManager unimplemented)
     #[test]
     fn test_generate_new_infra_config() {
+        use crate::on_host::file_store::build_config_name;
+
         let temp_dir = TempDir::new().unwrap();
         let agents_file_path = temp_dir
             .path()

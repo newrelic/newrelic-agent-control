@@ -7,7 +7,8 @@ use crate::config_migrate::migration::converter::ConfigConverter;
 use crate::config_migrate::migration::converter::ConversionError;
 use crate::config_migrate::migration::persister::values_persister_file::PersistError;
 use crate::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
-use crate::values::file::ConfigRepositoryFile;
+use crate::on_host::file_store::FileStore;
+use crate::values::ConfigRepo;
 use fs::LocalFile;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::FileReader;
@@ -44,7 +45,7 @@ pub struct ConfigMigrator<
 
 impl
     ConfigMigrator<
-        AgentControlConfigStore<ConfigRepositoryFile<LocalFile, DirectoryManagerFs>>,
+        AgentControlConfigStore<ConfigRepo<FileStore<LocalFile, DirectoryManagerFs>>>,
         DirectoryManagerFs,
         LocalFile,
     >
@@ -52,7 +53,7 @@ impl
     pub fn new(
         config_converter: ConfigConverter<LocalFile>,
         agent_config_getter: AgentConfigGetter<
-            AgentControlConfigStore<ConfigRepositoryFile<LocalFile, DirectoryManagerFs>>,
+            AgentControlConfigStore<ConfigRepo<FileStore<LocalFile, DirectoryManagerFs>>>,
         >,
         values_persister: ValuesPersisterFile<DirectoryManagerFs>,
     ) -> Self {
@@ -108,8 +109,6 @@ mod tests {
     use crate::config_migrate::migration::converter::ConfigConverter;
     use crate::config_migrate::migration::migrator::ConfigMigrator;
     use crate::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
-    use crate::opamp::instance_id::on_host::storer::build_config_name;
-    use crate::values::file::ConfigRepositoryFile;
     use std::fs::create_dir_all;
     use std::sync::Arc;
     use tempfile::TempDir;
@@ -133,6 +132,11 @@ agents:
     #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
     #[test]
     fn test_migrate() {
+        use crate::{
+            on_host::file_store::{FileStore, build_config_name},
+            values::ConfigRepo,
+        };
+
         let tmp_dir = TempDir::new().unwrap();
         let infra_file_path = tmp_dir.path().join("newrelic-infra.yml");
         let agents_file_path = tmp_dir
@@ -150,8 +154,10 @@ agents:
         )
         .unwrap();
 
-        let vr =
-            ConfigRepositoryFile::new(tmp_dir.path().to_path_buf(), tmp_dir.path().to_path_buf());
+        let vr = ConfigRepo::new(Arc::new(FileStore::new_local_fs(
+            tmp_dir.path().to_path_buf(),
+            tmp_dir.path().to_path_buf(),
+        )));
         let sa_local_config_loader = AgentControlConfigStore::new(Arc::new(vr));
 
         let config_migrator = ConfigMigrator::new(

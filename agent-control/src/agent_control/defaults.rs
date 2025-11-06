@@ -1,5 +1,5 @@
 use crate::agent_type::agent_type_id::AgentTypeID;
-use crate::k8s::store::StoreKey;
+use crate::data_store::StoreKey;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::sub_agent::identity::AgentIdentity;
 use opamp_client::capabilities;

@@ -1,23 +1,25 @@
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+
 use super::Error;
 #[cfg_attr(test, mockall_double::double)]
 use super::client::SyncK8sClient;
 use super::labels::Labels;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
+use crate::data_store::{DataStore, StoreKey};
+use crate::k8s;
 use std::sync::{Arc, RwLock};
-
-/// The key used to identify the data in the Store.
-pub type StoreKey = str;
 
 /// Represents a Kubernetes persistent store of Agents data such as instance id and configs.
 /// The store is implemented using one ConfigMap per Agent with all the data.
-pub struct K8sStore {
+pub struct ConfigMapStore {
     k8s_client: Arc<SyncK8sClient>,
     namespace: String,
     rw_lock: RwLock<()>,
 }
 
-impl K8sStore {
+impl ConfigMapStore {
     /// Creates a new K8sStore.
     pub fn new(k8s_client: Arc<SyncK8sClient>, namespace: String) -> Self {
         Self {
@@ -27,22 +29,8 @@ impl K8sStore {
         }
     }
 
-    /// get_opamp_data is used to get data from CMs storing data related with opamp:
-    /// Instance IDs, hashes, and remote configs.
-    pub fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        self.get(agent_id, FOLDER_NAME_FLEET_DATA, key)
-    }
-
-    /// get_local_data is used to get data from CMs storing local configurations. I.e. all the CMs
-    /// created by the agent-control-deployment chart.
-    pub fn get_local_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        self.get(agent_id, FOLDER_NAME_LOCAL_DATA, key)
+    pub fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
+        format!("{prefix}-{agent_id}")
     }
 
     /// Retrieves data from an Agent store.
@@ -53,7 +41,7 @@ impl K8sStore {
     {
         let _read_guard = self.rw_lock.read().unwrap();
 
-        let configmap_name = K8sStore::build_cm_name(agent_id, prefix);
+        let configmap_name = ConfigMapStore::build_cm_name(agent_id, prefix);
         if let Some(data) =
             self.k8s_client
                 .get_configmap_key(&configmap_name, self.namespace.as_str(), key)?
@@ -65,22 +53,53 @@ impl K8sStore {
 
         Ok(None)
     }
+}
+
+impl DataStore for ConfigMapStore {
+    type Error = k8s::Error;
+    /// Returns data related with opamp, if it exists.
+    ///
+    /// The data is stored in a ConfigMap and includes: Instance IDs, hashes and remote configs.
+    fn get_remote_data<T>(
+        &self,
+        agent_id: &AgentID,
+        key: &StoreKey,
+    ) -> Result<Option<T>, Self::Error>
+    where
+        T: DeserializeOwned,
+    {
+        self.get(agent_id, FOLDER_NAME_FLEET_DATA, key)
+    }
+
+    /// Returns local data from CMs storing local configurations.
+    ///
+    /// The data is stored in ConfigMaps created by the agent-control-deployment chart.
+    fn get_local_data<T>(
+        &self,
+        agent_id: &AgentID,
+        key: &StoreKey,
+    ) -> Result<Option<T>, Self::Error>
+    where
+        T: DeserializeOwned,
+    {
+        self.get(agent_id, FOLDER_NAME_LOCAL_DATA, key)
+    }
 
     /// Stores data in the specified StoreKey of an Agent store.
-    pub fn set_opamp_data<T>(
+    fn set_remote_data<T>(
         &self,
         agent_id: &AgentID,
         key: &StoreKey,
         data: &T,
-    ) -> Result<(), Error>
+    ) -> Result<(), Self::Error>
     where
-        T: serde::Serialize,
+        T: Serialize,
     {
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
         let data_as_string = serde_yaml::to_string(data)?;
-        let configmap_name = K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
+        let configmap_name = ConfigMapStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
         self.k8s_client.set_configmap_key(
             &configmap_name,
             self.namespace.as_str(),
@@ -91,23 +110,19 @@ impl K8sStore {
     }
 
     /// Delete data in the specified StoreKey of an Agent store.
-    pub fn delete_opamp_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Error> {
+    fn delete_remote_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Self::Error> {
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
-        let configmap_name = K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
+        let configmap_name = ConfigMapStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
         self.k8s_client
             .delete_configmap_key(&configmap_name, self.namespace.as_str(), key)
-    }
-
-    pub fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
-        format!("{prefix}-{agent_id}")
     }
 }
 
 #[cfg(test)]
 pub mod tests {
-    use super::{K8sStore, StoreKey};
+    use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
     use crate::k8s::client::MockSyncK8sClient;
@@ -139,7 +154,10 @@ pub mod tests {
             .expect_set_configmap_key()
             .once()
             .with(
-                predicate::eq(K8sStore::build_cm_name(&agent_id, FOLDER_NAME_FLEET_DATA)),
+                predicate::eq(ConfigMapStore::build_cm_name(
+                    &agent_id,
+                    FOLDER_NAME_FLEET_DATA,
+                )),
                 predicate::eq(TEST_NAMESPACE),
                 predicate::eq(Labels::new(&AgentID::try_from(AGENT_NAME).unwrap()).get()),
                 predicate::eq(STORE_KEY_TEST),
@@ -150,15 +168,18 @@ pub mod tests {
             .expect_delete_configmap_key()
             .once()
             .with(
-                predicate::eq(K8sStore::build_cm_name(&agent_id, FOLDER_NAME_FLEET_DATA)),
+                predicate::eq(ConfigMapStore::build_cm_name(
+                    &agent_id,
+                    FOLDER_NAME_FLEET_DATA,
+                )),
                 predicate::eq(TEST_NAMESPACE),
                 predicate::eq(STORE_KEY_TEST),
             )
             .returning(move |_, _, _| Ok(()));
 
-        let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
+        let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
-        let _ = k8s_store.set_opamp_data(
+        let _ = k8s_store.set_remote_data(
             &agent_id,
             STORE_KEY_TEST,
             &DataToBeStored {
@@ -166,7 +187,7 @@ pub mod tests {
             },
         );
 
-        let _ = k8s_store.delete_opamp_data(&agent_id, STORE_KEY_TEST);
+        let _ = k8s_store.delete_remote_data(&agent_id, STORE_KEY_TEST);
     }
 
     #[test]
@@ -178,27 +199,33 @@ pub mod tests {
         k8s_client
             .expect_get_configmap_key()
             .with(
-                predicate::eq(K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA)),
+                predicate::eq(ConfigMapStore::build_cm_name(
+                    agent_id,
+                    FOLDER_NAME_FLEET_DATA,
+                )),
                 predicate::eq(TEST_NAMESPACE),
                 predicate::eq(STORE_KEY_TEST),
             )
             .returning(move |_, _, _| Ok(Some(DATA_STORED.to_string())));
 
-        _ = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string())
-            .get_opamp_data::<DataToBeStored>(agent_id, STORE_KEY_TEST);
+        _ = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string())
+            .get_remote_data::<DataToBeStored>(agent_id, STORE_KEY_TEST);
 
         // local
         let mut k8s_client = MockSyncK8sClient::default();
         k8s_client
             .expect_get_configmap_key()
             .with(
-                predicate::eq(K8sStore::build_cm_name(agent_id, FOLDER_NAME_LOCAL_DATA)),
+                predicate::eq(ConfigMapStore::build_cm_name(
+                    agent_id,
+                    FOLDER_NAME_LOCAL_DATA,
+                )),
                 predicate::eq(TEST_NAMESPACE),
                 predicate::always(),
             )
             .returning(move |_, _, _| Ok(Some(DATA_STORED.to_string())));
 
-        _ = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string())
+        _ = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string())
             .get_local_data::<DataToBeStored>(
                 &AgentID::try_from(AGENT_NAME).unwrap(),
                 STORE_KEY_TEST,
@@ -213,7 +240,7 @@ pub mod tests {
             .once()
             .returning(move |_, _, _| Err(K8sError::KubeRs(Box::new(kube::Error::TlsRequired))));
 
-        let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
+        let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
         k8s_store
             .get::<DataToBeStored>(
@@ -232,7 +259,7 @@ pub mod tests {
             .once()
             .returning(move |_, _, _| Ok(None));
 
-        let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
+        let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
         let data = k8s_store
             .get::<DataToBeStored>(
@@ -251,7 +278,7 @@ pub mod tests {
             .expect_get_configmap_key()
             .once()
             .returning(move |_, _, _| Ok(Some(DATA_STORED.to_string())));
-        let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
+        let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
         let data = k8s_store
             .get::<DataToBeStored>(
@@ -277,9 +304,9 @@ pub mod tests {
             .returning(move |_, _, _, _, _| {
                 Err(K8sError::KubeRs(Box::new(kube::Error::TlsRequired)))
             });
-        let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
+        let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
-        let id = k8s_store.set_opamp_data(
+        let id = k8s_store.set_remote_data(
             &AgentID::try_from(AGENT_NAME).unwrap(),
             STORE_KEY_TEST,
             &DataToBeStored::default(),
@@ -294,8 +321,8 @@ pub mod tests {
             .expect_set_configmap_key()
             .once()
             .returning(move |_, _, _, _, _| Ok(()));
-        let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
-        let id = k8s_store.set_opamp_data(
+        let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
+        let id = k8s_store.set_remote_data(
             &AgentID::try_from(AGENT_NAME).unwrap(),
             STORE_KEY_TEST,
             &DataToBeStored::default(),
@@ -308,7 +335,7 @@ pub mod tests {
         let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
         assert_eq!(
             "prefix-agent1",
-            K8sStore::build_cm_name(&agent_id, PREFIX_TEST)
+            ConfigMapStore::build_cm_name(&agent_id, PREFIX_TEST)
         );
     }
 }
