@@ -90,53 +90,52 @@ fn k8s_cli_install_agent_control_installation_with_invalid_image_tag() {
     );
     assert.failure(); // The installation check should detect that AC workloads cannot be created due to invalid image
 }
-// /// TODO: Re-enable this test after PR #1752 (this repo) and helm-charts PR #1965 are merged to main.
-// #[test]
-// #[ignore = "needs k8s cluster"]
-// fn k8s_cli_install_agent_control_installation_failed_upgrade() {
-//     let mut k8s_env = block_on(K8sEnv::new());
-//     let ac_namespace = block_on(k8s_env.test_namespace());
-//     let subagents_namespace = block_on(k8s_env.test_namespace());
-//     let opamp_server = FakeServer::start_new();
-//
-//     create_simple_values_secret(
-//         k8s_env.client.clone(),
-//         &ac_namespace,
-//         &subagents_namespace,
-//         "test-secret",
-//         opamp_server.endpoint().as_str(),
-//         "values.yaml",
-//     );
-//
-//     let release_name = "install-ac-installation-failed-upgrade";
-//     let mut cmd = ac_install_cmd(
-//         &ac_namespace,
-//         CHART_VERSION_LATEST_RELEASE,
-//         release_name,
-//         "test-secret=values.yaml",
-//     );
-//     let assert = cmd.assert();
-//     print_cli_output(&assert);
-//     assert.success(); // Install successfully
-//
-//     // The chart version does not exist
-//     let mut cmd = ac_install_cmd(
-//         &ac_namespace,
-//         MISSING_VERSION,
-//         release_name,
-//         "test-secret=values.yaml",
-//     );
-//     let assert = cmd.assert();
-//     print_cli_output(&assert);
-//     assert_stdout_contains(
-//         &assert,
-//         format!(
-//             "no 'agent-control-deployment' chart with version matching '{MISSING_VERSION}' found"
-//         )
-//         .as_str(),
-//     );
-//     assert.failure(); // The installation check should detect that the upgrade failed
-// }
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_cli_install_agent_control_installation_failed_upgrade() {
+    let mut k8s_env = block_on(K8sEnv::new());
+    let ac_namespace = block_on(k8s_env.test_namespace());
+    let subagents_namespace = block_on(k8s_env.test_namespace());
+    let opamp_server = FakeServer::start_new();
+
+    create_simple_values_secret(
+        k8s_env.client.clone(),
+        &ac_namespace,
+        &subagents_namespace,
+        "test-secret",
+        opamp_server.endpoint().as_str(),
+        "values.yaml",
+    );
+
+    let release_name = "install-ac-installation-failed-upgrade";
+    let mut cmd = ac_install_cmd(
+        &ac_namespace,
+        CHART_VERSION_LATEST_RELEASE,
+        release_name,
+        "test-secret=values.yaml",
+    );
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert.success(); // Install successfully
+
+    // The chart version does not exist
+    let mut cmd = ac_install_cmd(
+        &ac_namespace,
+        MISSING_VERSION,
+        release_name,
+        "test-secret=values.yaml",
+    );
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert_stdout_contains(
+        &assert,
+        format!(
+            "no 'agent-control-deployment' chart with version matching '{MISSING_VERSION}' found"
+        )
+        .as_str(),
+    );
+    assert.failure(); // The installation check should detect that the upgrade failed
+}
 
 /// Builds an installation command for testing purposes with a curated set of defaults and the provided arguments.
 pub fn ac_install_cmd(

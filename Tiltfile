@@ -12,7 +12,7 @@ namespace = os.getenv('NAMESPACE','default')
 sa_chart_values_file = os.getenv('SA_CHART_VALUES_FILE','local/agent-control-tilt.yml')
 cluster = os.getenv('CLUSTER', "")
 # Branch of the helm-charts repo to use.
-feature_branch = os.getenv('FEATURE_BRANCH', "change-config-volume-path-for-agent-control")
+feature_branch = os.getenv('FEATURE_BRANCH', "master")
 
 # Remote updates are disabled by default in order to avoid accidental downgrades.
 enable_ac_remote_update = os.getenv('ENABLE_AC_REMOTE_UPDATE', "false")
