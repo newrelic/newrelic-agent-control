@@ -3386,11 +3386,13 @@ dependencies = [
  "konst",
  "mockall",
  "nix",
+ "rstest",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
  "tracing",
  "windows-link 0.2.1",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

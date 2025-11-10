@@ -1,10 +1,8 @@
 //! System resource detector implementation
-use super::{
-    HOSTNAME_KEY, MACHINE_ID_KEY, identifier_machine_id_unix::IdentifierProviderMachineId,
-};
+use super::{HOSTNAME_KEY, MACHINE_ID_KEY};
 use crate::system::hostname::get_hostname;
+use crate::system::machine_identifier::MachineIdentityProvider;
 use crate::{DetectError, Detector, Key, Resource, Value};
-use fs::LocalFile;
 use tracing::{error, instrument};
 
 /// An enumeration of potential errors related to the system detector.
@@ -19,43 +17,102 @@ pub enum SystemDetectorError {
 }
 
 /// The `SystemDetector` struct encapsulates system detection functionality.
-///
-/// # Fields:
-/// - `hostname_getter`: An instance of the `HostnameGetter` struct for retrieving system hostname.
-/// - `machine_id_provider`: An instance of the `IdentifierProviderMachineId` struct for retrieving machine ID.
 pub struct SystemDetector {
-    machine_id_provider: IdentifierProviderMachineId<LocalFile>,
+    machine_id_provider: MachineIdentityProvider,
 }
 
 /// Default implementation for `SystemDetector` struct.
 impl Default for SystemDetector {
     fn default() -> Self {
         Self {
-            machine_id_provider: IdentifierProviderMachineId::default(),
+            machine_id_provider: MachineIdentityProvider::default(),
         }
     }
 }
 
-/// Implementing the `Detect` trait for the `SystemDetector` struct.
+/// Returns the resources detected in the host system
 impl Detector for SystemDetector {
     #[instrument(skip_all, name = "detect_system")]
     fn detect(&self) -> Result<Resource, DetectError> {
-        let mut collected_resources: Vec<(Key, Value)> = vec![];
+        Self::get_system_attributes(get_hostname, || self.machine_id_provider.provide())
+    }
+}
 
-        match get_hostname() {
+impl SystemDetector {
+    /// Helper function to build the Resource according the results of getting the hostname and machine_id
+    /// according to the provided getters.
+    fn get_system_attributes<N, I>(
+        hostname_getter: N,
+        machine_id_getter: I,
+    ) -> Result<Resource, DetectError>
+    where
+        N: Fn() -> Result<String, SystemDetectorError>,
+        I: Fn() -> Result<String, SystemDetectorError>,
+    {
+        let mut collected_resources: Vec<(Key, Value)> = vec![];
+        match hostname_getter() {
             Ok(hostname) => {
                 collected_resources.push((Key::from(HOSTNAME_KEY), Value::from(hostname)))
             }
-            Err(err) => error!(err_msg = %err, "getting hostname"),
+            Err(err) => error!("Failure getting the hostname: {err}"),
         }
 
-        match self.machine_id_provider.provide() {
+        match machine_id_getter() {
             Ok(machine_id) => {
                 collected_resources.push((Key::from(MACHINE_ID_KEY), Value::from(machine_id)))
             }
-            Err(err) => error!(err_msg = %err, "getting machine_id"),
+            Err(err) => error!(err_msg = %err, "Failure getting the machine_id: {err}"),
         }
-
         Ok(Resource::new(collected_resources))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case::both_success(
+        || Ok("test-hostname".to_string()),
+        || Ok("test-machine-id".to_string()),
+        Some("test-hostname"),
+        Some("test-machine-id")
+    )]
+    #[case::hostname_error(
+        || Err(SystemDetectorError::HostnameError("failed".to_string())),
+        || Ok("test-machine-id".to_string()),
+        None,
+        Some("test-machine-id")
+    )]
+    #[case::machine_id_error(
+        || Ok("test-hostname".to_string()),
+        || Err(SystemDetectorError::MachineIDError("failed".to_string())),
+        Some("test-hostname"),
+        None
+    )]
+    #[case::both_error(
+        || Err(SystemDetectorError::HostnameError("failed".to_string())),
+        || Err(SystemDetectorError::MachineIDError("failed".to_string())),
+        None,
+        None
+    )]
+    fn test_get_system_attributes(
+        #[case] hostname_getter: fn() -> Result<String, SystemDetectorError>,
+        #[case] machine_id_getter: fn() -> Result<String, SystemDetectorError>,
+        #[case] expected_hostname: Option<&str>,
+        #[case] expected_machine_id: Option<&str>,
+    ) {
+        let resource = SystemDetector::get_system_attributes(hostname_getter, machine_id_getter)
+            .expect("Unexpected failure");
+
+        assert_eq!(
+            resource.get(Key::from(HOSTNAME_KEY)).map(String::from),
+            expected_hostname.map(|h| h.to_string())
+        );
+        assert_eq!(
+            resource.get(Key::from(MACHINE_ID_KEY)).map(String::from),
+            expected_machine_id.map(|m| m.to_string())
+        );
     }
 }

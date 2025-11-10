@@ -2,7 +2,7 @@
 pub mod detector;
 /// hostname retriever
 pub mod hostname;
-mod identifier_machine_id_unix;
+mod machine_identifier;
 
 /// HOSTNAME_KEY represents the hostname key attribute
 pub const HOSTNAME_KEY: &str = "hostname";
