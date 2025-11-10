@@ -1,4 +1,3 @@
-#![cfg(target_family = "unix")]
 use super::tools::config::{create_file, create_local_config};
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::retry::retry;
@@ -174,6 +173,7 @@ fn test_gcp_cloud_id() {
 }
 
 /// tests that nr-ac:host_id and nr-sub:agent_id are correctly replaced in the agent type.
+#[cfg(target_family = "unix")]
 #[test]
 fn test_sub_sa_vars() {
     use newrelic_agent_control::agent_control::run::Environment;

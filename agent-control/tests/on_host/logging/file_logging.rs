@@ -1,3 +1,4 @@
+#![cfg(target_family = "unix")]
 use super::level::TIME_FORMAT;
 use crate::on_host::cli::cmd_with_config_file;
 use newrelic_agent_control::{

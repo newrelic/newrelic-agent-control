@@ -1,4 +1,3 @@
-#![cfg(target_family = "unix")]
 use assert_cmd::Command;
 use assert_cmd::cargo::cargo_bin_cmd;
 use http::header::{AUTHORIZATION, CONTENT_TYPE};
