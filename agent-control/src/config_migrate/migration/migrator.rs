@@ -129,7 +129,6 @@ agents:
         agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
 "#;
 
-    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
     #[test]
     fn test_migrate() {
         use crate::{
@@ -177,12 +176,16 @@ agents:
 
         let values_file = tmp_dir
             .path()
-            .join("local-data/infra-agent-a/local_config.yaml");
+            .join("local-data")
+            .join("infra-agent-a")
+            .join("local_config.yaml");
         assert!(std::fs::exists(&values_file).unwrap());
 
         let values_file = tmp_dir
             .path()
-            .join("local-data/infra-agent-b/local_config.yaml");
+            .join("local-data")
+            .join("infra-agent-b")
+            .join("local_config.yaml");
         assert!(std::fs::exists(&values_file).unwrap());
     }
 }
