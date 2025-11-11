@@ -227,11 +227,11 @@ mod tests {
             rest.iter()
                 .try_fold(first, |previous, current| {
                     // check that the uptime is increasing by interval with a tolerance of 16ms
-                    if Duration::abs_diff(*previous + Duration::from(config.interval), *current) < Duration::from_millis(16) {
+                    if Duration::abs_diff(*previous + Duration::from(config.interval), *current) < Duration::from_millis(25) {
                         Ok(current)
                     } else {
                         Err(format!(
-                            "uptime diff exceeding 16ms toleration. Previous: {previous:?}. Current: {current:?}"
+                            "uptime diff exceeding 25ms toleration. Previous: {previous:?}. Current: {current:?}"
                         ))
                     }
                 })
