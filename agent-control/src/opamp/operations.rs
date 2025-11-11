@@ -4,7 +4,7 @@ use super::{
     instance_id::getter::InstanceIDGetter,
 };
 use crate::agent_control::defaults::{
-    OPAMP_SERVICE_INSTANCE_ID, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
+    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
     PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, get_custom_capabilities,
 };
 use crate::sub_agent::identity::AgentIdentity;
@@ -95,7 +95,7 @@ pub fn start_settings(
             agent_identity.agent_type_id.namespace().into(),
         ),
         (
-            OPAMP_SERVICE_INSTANCE_ID.to_string(),
+            OPAMP_SUPERVISOR_KEY.to_string(),
             agent_identity.id.to_string().into(),
         ),
     ]);

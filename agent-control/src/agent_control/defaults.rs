@@ -21,8 +21,8 @@ pub const OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY: &str = "cd.chart.version";
 pub const OPAMP_SERVICE_NAME: &str = "service.name";
 pub const OPAMP_SERVICE_VERSION: &str = "service.version";
 pub const OPAMP_SERVICE_NAMESPACE: &str = "service.namespace";
-// we leverage the service.instance.id to send info regarding the agentID (not the ULID)
-pub const OPAMP_SERVICE_INSTANCE_ID: &str = "service.instance.id";
+// This is the key name in the agents{} map of the AC config
+pub const OPAMP_SUPERVISOR_KEY: &str = "supervisor.key";
 
 pub const OPAMP_AGENT_VERSION_ATTRIBUTE_KEY: &str = "agent.version";
 
@@ -35,10 +35,10 @@ pub const HOST_NAME_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::at
 pub const CLUSTER_NAME_ATTRIBUTE_KEY: &str = "cluster.name";
 pub const HOST_ID_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::attribute::HOST_ID;
 pub const FLEET_ID_ATTRIBUTE_KEY: &str = "fleet.guid";
-pub const OS_ATTRIBUTE_KEY: &str = "os.type";
 
+pub const OS_ATTRIBUTE_KEY: &str = "os.type";
 #[cfg(target_os = "macos")]
-pub const OS_ATTRIBUTE_VALUE: &str = "macos";
+pub const OS_ATTRIBUTE_VALUE: &str = "darwin";
 #[cfg(target_os = "linux")]
 pub const OS_ATTRIBUTE_VALUE: &str = "linux";
 #[cfg(target_os = "windows")]

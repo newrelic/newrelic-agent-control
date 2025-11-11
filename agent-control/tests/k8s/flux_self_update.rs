@@ -30,8 +30,8 @@ use kube::{Api, Client};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, AGENT_CONTROL_VERSION, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY,
-    OPAMP_SERVICE_INSTANCE_ID, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME,
+    OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
 };
 use newrelic_agent_control::cli::k8s::install::flux::HELM_REPOSITORY_NAME;
 use opamp_client::opamp::proto::any_value::Value;
@@ -230,7 +230,7 @@ fn expected_identifying_attributes(
 ) -> Vec<KeyValue> {
     convert_to_vec_key_value(Vec::from([
         (
-            OPAMP_SERVICE_INSTANCE_ID,
+            OPAMP_SUPERVISOR_KEY,
             Value::StringValue(AGENT_CONTROL_ID.to_string()),
         ),
         (
