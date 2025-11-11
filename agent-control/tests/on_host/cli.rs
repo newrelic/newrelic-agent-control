@@ -1,5 +1,3 @@
-use crate::common::retry::retry;
-#[cfg(target_family = "unix")]
 use crate::on_host::logging::level::TIME_FORMAT;
 use assert_cmd::Command;
 use assert_cmd::cargo::cargo_bin_cmd;

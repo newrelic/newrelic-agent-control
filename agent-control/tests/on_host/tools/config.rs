@@ -82,6 +82,7 @@ pub fn create_local_config(agent_id: String, config: String, base_dir: PathBuf) 
 
     create_file(config, values_file_path.clone());
 }
+
 /// Creates remote values config for the agent_id provided on the base_dir
 /// with the given content.
 pub fn create_remote_config(agent_id: String, config: String, base_dir: PathBuf) {

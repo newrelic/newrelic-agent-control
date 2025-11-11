@@ -31,16 +31,7 @@ fake_variable:
                 )
                 .unwrap(),
             ),
-            executables: Some(
-                serde_yaml::from_str(
-                    r#"
-- id: "trap-term-sleep"
-  path: "sh"
-  args": "tests/on_host/data/trap_term_sleep_60.sh"
-"#,
-                )
-                .unwrap(),
-            ),
+            executables: Some(Self::default_executables()),
             version: Some(
                 serde_yaml::from_str(
                     r#"
@@ -96,6 +87,30 @@ impl Display for CustomAgentType {
 impl CustomAgentType {
     fn default_agent_type_id() -> AgentTypeID {
         AgentTypeID::try_from("newrelic/com.newrelic.custom_agent:0.1.0").unwrap()
+    }
+
+    #[cfg(target_family = "unix")]
+    fn default_executables() -> serde_yaml::Value {
+        serde_yaml::from_str(
+            r#"
+- id: "trap-term-sleep"
+  path: "sh"
+  args: "tests/on_host/data/trap_term_sleep_60.sh"
+"#,
+        )
+        .unwrap()
+    }
+
+    #[cfg(target_family = "windows")]
+    fn default_executables() -> serde_yaml::Value {
+        serde_yaml::from_str(
+            r#"
+- id: "trap-term-sleep"
+  path: "powershell.exe"
+  args: "-NoProfile -ExecutionPolicy Bypass -File tests\\on_host\\data\\trap_term_sleep_60.ps1"
+"#,
+        )
+        .unwrap()
     }
 
     pub fn empty() -> Self {

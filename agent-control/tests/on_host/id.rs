@@ -1,18 +1,29 @@
 use super::tools::config::{create_file, create_local_config};
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::retry::retry;
+use crate::on_host::consts::AWS_VM_RESPONSE;
+use crate::on_host::consts::AZURE_VM_RESPONSE;
+use crate::on_host::consts::GCP_VM_RESPONSE;
 use crate::on_host::consts::NO_CONFIG;
 use crate::on_host::tools::custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME;
 use assert_cmd::Command;
 use httpmock::Method::GET;
 use httpmock::Method::PUT;
 use httpmock::MockServer;
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+};
+use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::agent_control::run::Environment;
 use newrelic_agent_control::http::client::HttpClient;
 use newrelic_agent_control::http::config::{HttpConfig, ProxyConfig};
+use newrelic_agent_control::on_host::file_store::build_config_name;
 use newrelic_agent_control::opamp::instance_id::on_host::identifiers::IdentifiersProvider;
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use resource_detection::system::detector::SystemDetector;
+use std::time::Duration;
+use tempfile::tempdir;
 
 const UNRESPONSIVE_METADATA_ENDPOINT: &str = "http://localhost:9999";
 
@@ -156,28 +167,12 @@ fn test_gcp_cloud_id() {
 }
 
 /// tests that nr-ac:host_id and nr-sub:agent_id are correctly replaced in the agent type.
-#[cfg(target_family = "unix")]
 #[test]
 fn test_sub_sa_vars() {
-    use crate::common::agent_control::start_agent_control_with_custom_config;
-    use crate::common::retry::retry;
-    use crate::on_host::consts::NO_CONFIG;
-    use crate::on_host::tools::config::create_file;
-    use crate::on_host::tools::config::create_local_config;
-    use crate::on_host::tools::custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME;
-    use assert_cmd::Command;
-    use newrelic_agent_control::agent_control::defaults::{
-        AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
-    };
-    use newrelic_agent_control::agent_control::run::BasePaths;
-    use newrelic_agent_control::agent_control::run::Environment;
-    use newrelic_agent_control::on_host::file_store::build_config_name;
-    use std::time::Duration;
-    use tempfile::tempdir;
-
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
+    #[cfg(target_family = "unix")]
     create_file(
         r#"
 namespace: test
@@ -187,7 +182,7 @@ variables: {}
 deployment:
   on_host:
     executables:
-      - id: sh
+      - id: trap-term-sleep
         path: "sh"
         args: >-
           tests/on_host/data/trap_term_sleep_60.sh
@@ -197,6 +192,29 @@ deployment:
         .to_string(),
         local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
+
+    #[cfg(target_family = "windows")]
+    create_file(
+        r#"
+namespace: test
+name: test
+version: 0.0.0
+variables: {}
+deployment:
+  on_host:
+    executables:
+      - id: trap-term-sleep
+        path: "powershell.exe"
+        args: >-
+          -NoProfile -ExecutionPolicy Bypass
+          -File tests\\on_host\\data\\trap_term_sleep_60.ps1
+          --host_id=${nr-ac:host_id}
+          --agent_id=${nr-sub:agent_id}
+    "#
+        .to_string(),
+        local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),
+    );
+
     let sa_config_path = local_dir
         .path()
         .join(FOLDER_NAME_LOCAL_DATA)
@@ -228,9 +246,15 @@ agents:
 
     retry(30, Duration::from_secs(1), || {
         // Check that the process is running with this exact command
+        #[cfg(target_family = "unix")]
         Command::new("pgrep")
             .arg("-f")
             .arg("sh tests/on_host/data/trap_term_sleep_60.sh --host_id=fixed-host-id --agent_id=test-agent")
+            .assert().try_success()?;
+        #[cfg(target_family = "windows")]
+        Command::new("powershell.exe")
+            .arg("-Command")
+            .arg("if (!(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*tests\\on_host\\data\\trap_term_sleep_60.ps1*' -and $_.CommandLine -like '*--host_id=fixed-host-id*' -and $_.CommandLine -like '*--agent_id=test-agent*' })) { exit 1 }")
             .assert().try_success()?;
         Ok(())
     });
