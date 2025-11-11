@@ -41,7 +41,12 @@ cfg_if::cfg_if! {
         pub const AGENT_CONTROL_DATA_DIR: &str = "/opt/homebrew/var/lib/newrelic-agent-control";
         pub const AGENT_CONTROL_LOG_DIR: &str = "/opt/homebrew/var/log/newrelic-agent-control";
 
-    }else{
+    } else if #[cfg(target_os = "windows")] {
+        pub const AGENT_CONTROL_LOCAL_DATA_DIR: &str = "C:\\Program Files\\New Relic\\newrelic-agent-control";
+        pub const AGENT_CONTROL_DATA_DIR: &str = "C:\\ProgramData\\New Relic\\newrelic-agent-control";
+        pub const AGENT_CONTROL_LOG_DIR: &str = "C:\\ProgramData\\New Relic\\newrelic-agent-control\\logs";
+
+    } else {
         pub const AGENT_CONTROL_LOCAL_DATA_DIR: &str = "/etc/newrelic-agent-control";
         pub const AGENT_CONTROL_DATA_DIR: &str = "/var/lib/newrelic-agent-control";
         pub const AGENT_CONTROL_LOG_DIR: &str = "/var/log/newrelic-agent-control";
