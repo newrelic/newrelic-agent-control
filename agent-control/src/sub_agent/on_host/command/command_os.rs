@@ -126,6 +126,8 @@ impl CommandOSStarted {
 
 #[cfg(target_family = "unix")]
 mod unix {
+    use tracing::warn;
+
     use crate::sub_agent::on_host::command::{command_os::CommandOSStarted, error::CommandError};
 
     use std::time::Duration;
@@ -136,12 +138,13 @@ mod unix {
             let pid = self.get_pid() as i32;
 
             use nix::{sys::signal, unistd::Pid};
-            signal::kill(Pid::from_raw(pid), signal::SIGTERM)
-                .map_err(|err| CommandError::NixError(err.to_string()))?;
+            let graceful_shutdown_result = signal::kill(Pid::from_raw(pid), signal::SIGTERM)
+                .inspect_err(|err| warn!(agent_id = %self.agent_id, "Failed to gracefully exit process {pid}: {err}. Attempting forceful shutdown"));
 
-            if self.is_running_after_timeout(self.shutdown_timeout) {
-                signal::kill(Pid::from_raw(pid), signal::SIGKILL)
-                    .map_err(|err| CommandError::NixError(err.to_string()))?;
+            if graceful_shutdown_result.is_err()
+                || self.is_running_after_timeout(self.shutdown_timeout)
+            {
+                self.process.kill().map_err(CommandError::from)?;
             }
             Ok(())
         }
