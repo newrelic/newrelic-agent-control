@@ -14,7 +14,7 @@ use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_VERSION, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
     HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME,
     OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
-    PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    OPAMP_SUPERVISOR_KEY, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
 use nix::unistd::gethostname;
 use opamp_client::opamp::proto::any_value::Value;
@@ -61,6 +61,10 @@ agents:
     );
 
     let ac_expected_identifying_attributes = convert_to_vec_key_value(Vec::from([
+        (
+            OPAMP_SUPERVISOR_KEY,
+            Value::StringValue("agent-control".to_string()),
+        ),
         (
             OPAMP_SERVICE_NAMESPACE,
             Value::StringValue("newrelic".to_string()),
@@ -110,6 +114,10 @@ agents:
     });
 
     let sub_agent_expected_identifying_attributes = convert_to_vec_key_value(Vec::from([
+        (
+            OPAMP_SUPERVISOR_KEY,
+            Value::StringValue("hello-world".to_string()),
+        ),
         (
             OPAMP_SERVICE_NAMESPACE,
             Value::StringValue("newrelic".to_string()),

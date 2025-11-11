@@ -4,7 +4,7 @@ use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
@@ -198,15 +198,19 @@ pub fn agent_control_opamp_non_identifying_attributes(
     HashMap::from([
         (
             HOST_NAME_ATTRIBUTE_KEY.to_string(),
-            DescriptionValueType::String(identifiers.hostname.clone()),
+            identifiers.hostname.clone().into(),
         ),
         (
             HOST_ID_ATTRIBUTE_KEY.to_string(),
-            DescriptionValueType::String(identifiers.host_id.clone()),
+            identifiers.host_id.clone().into(),
         ),
         (
             FLEET_ID_ATTRIBUTE_KEY.to_string(),
-            DescriptionValueType::String(identifiers.fleet_id.clone()),
+            identifiers.fleet_id.clone().into(),
+        ),
+        (
+            OS_ATTRIBUTE_KEY.to_string(),
+            OS_ATTRIBUTE_VALUE.to_string().into(),
         ),
     ])
 }

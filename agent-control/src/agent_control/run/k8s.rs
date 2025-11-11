@@ -5,9 +5,9 @@ use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::config_validator::k8s::K8sReleaseNamesConfigValidator;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-    OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY,
+    AGENT_CONTROL_VERSION, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
+    HOST_NAME_ATTRIBUTE_KEY, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY,
 };
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
@@ -87,12 +87,9 @@ impl AgentControlRunner {
         let identifiers = get_identifiers(self.k8s_config.cluster_name.clone(), fleet_id);
         info!("Instance Identifiers: {}", identifiers);
 
-        let mut non_identifying_attributes =
+        let non_identifying_attributes =
             agent_control_opamp_non_identifying_attributes(&identifiers);
-        non_identifying_attributes.insert(
-            "cluster.name".to_string(),
-            self.k8s_config.cluster_name.clone().into(),
-        );
+
         let additional_identifying_attributes =
             agent_control_additional_opamp_identifying_attributes(&self.k8s_config);
 
@@ -299,13 +296,14 @@ pub fn agent_control_opamp_non_identifying_attributes(
     });
 
     HashMap::from([
-        (
-            HOST_NAME_ATTRIBUTE_KEY.to_string(),
-            DescriptionValueType::String(hostname),
-        ),
+        (HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname.into()),
         (
             FLEET_ID_ATTRIBUTE_KEY.to_string(),
-            DescriptionValueType::String(identifiers.fleet_id.clone()),
+            identifiers.fleet_id.clone().into(),
+        ),
+        (
+            CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
+            identifiers.cluster_name.clone().into(),
         ),
     ])
 }

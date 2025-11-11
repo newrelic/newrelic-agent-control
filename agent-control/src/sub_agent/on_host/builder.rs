@@ -1,4 +1,6 @@
-use crate::agent_control::defaults::{HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
+use crate::agent_control::defaults::{
+    HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
+};
 use crate::agent_control::run::Environment;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystemEntries;
 use crate::event::SubAgentEvent;
@@ -18,6 +20,7 @@ use crate::{
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{SubAgentBuilder, error::SubAgentBuilderError},
 };
+use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::get_hostname;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -105,7 +108,13 @@ where
                         OPAMP_SERVICE_VERSION.to_string(),
                         agent_identity.agent_type_id.version().to_string().into(),
                     )]),
-                    HashMap::from([(HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname)]),
+                    HashMap::from([
+                        (HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname),
+                        (
+                            OS_ATTRIBUTE_KEY.to_string(),
+                            DescriptionValueType::String(OS_ATTRIBUTE_VALUE.to_string()),
+                        ),
+                    ]),
                 )
                 .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))
             })
@@ -183,9 +192,8 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
 mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
-
     use crate::agent_control::defaults::{
-        OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION,
+        OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
         PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_sub_agent_custom_capabilities,
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
@@ -237,7 +245,7 @@ mod tests {
             &hostname,
             agent_control_instance_id.clone(),
             sub_agent_instance_id.clone(),
-            &agent_identity.agent_type_id,
+            &agent_identity,
         );
 
         let agent_control_id = AgentID::AgentControl;
@@ -354,7 +362,7 @@ mod tests {
             &hostname,
             agent_control_instance_id.clone(),
             sub_agent_instance_id.clone(),
-            &agent_identity.agent_type_id,
+            &agent_identity,
         );
 
         let remote_config_values = RemoteConfig {
@@ -461,17 +469,24 @@ mod tests {
         hostname: &str,
         agent_control_instance_id: InstanceID,
         sub_agent_instance_id: InstanceID,
-        agent_fqn: &AgentTypeID,
+        agent_identity: &AgentIdentity,
     ) -> StartSettings {
         let identifying_attributes = HashMap::<String, DescriptionValueType>::from([
-            (OPAMP_SERVICE_NAME.to_string(), agent_fqn.name().into()),
+            (
+                OPAMP_SERVICE_NAME.to_string(),
+                agent_identity.agent_type_id.name().into(),
+            ),
             (
                 OPAMP_SERVICE_NAMESPACE.to_string(),
-                agent_fqn.namespace().into(),
+                agent_identity.agent_type_id.namespace().into(),
+            ),
+            (
+                OPAMP_SUPERVISOR_KEY.to_string(),
+                agent_identity.id.to_string().into(),
             ),
             (
                 OPAMP_SERVICE_VERSION.to_string(),
-                agent_fqn.version().to_string().into(),
+                agent_identity.agent_type_id.version().to_string().into(),
             ),
         ]);
         StartSettings {
@@ -489,6 +504,7 @@ mod tests {
                         PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
                         DescriptionValueType::Bytes(agent_control_instance_id.into()),
                     ),
+                    (OS_ATTRIBUTE_KEY.to_string(), OS_ATTRIBUTE_VALUE.into()),
                 ]),
             },
         }

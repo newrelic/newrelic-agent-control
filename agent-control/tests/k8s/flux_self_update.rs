@@ -29,11 +29,13 @@ use kube::api::PostParams;
 use kube::{Api, Client};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-    OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
+    AGENT_CONTROL_ID, AGENT_CONTROL_VERSION, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME,
+    OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
 };
 use newrelic_agent_control::cli::k8s::install::flux::HELM_REPOSITORY_NAME;
-use opamp_client::opamp::proto::{self, KeyValue, RemoteConfigStatuses};
+use opamp_client::opamp::proto::any_value::Value;
+use opamp_client::opamp::proto::{KeyValue, RemoteConfigStatuses};
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -228,24 +230,28 @@ fn expected_identifying_attributes(
 ) -> Vec<KeyValue> {
     convert_to_vec_key_value(Vec::from([
         (
+            OPAMP_SUPERVISOR_KEY,
+            Value::StringValue(AGENT_CONTROL_ID.to_string()),
+        ),
+        (
             OPAMP_SERVICE_NAMESPACE,
-            proto::any_value::Value::StringValue("newrelic".to_string()),
+            Value::StringValue("newrelic".to_string()),
         ),
         (
             OPAMP_SERVICE_NAME,
-            proto::any_value::Value::StringValue("com.newrelic.agent_control".to_string()),
+            Value::StringValue("com.newrelic.agent_control".to_string()),
         ),
         (
             OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-            proto::any_value::Value::StringValue(AGENT_CONTROL_VERSION.to_string()),
+            Value::StringValue(AGENT_CONTROL_VERSION.to_string()),
         ),
         (
             OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY,
-            proto::any_value::Value::StringValue(ac_chart_version.to_string()),
+            Value::StringValue(ac_chart_version.to_string()),
         ),
         (
             OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY,
-            proto::any_value::Value::StringValue(cd_chart_version.to_string()),
+            Value::StringValue(cd_chart_version.to_string()),
         ),
     ]))
 }

@@ -13,8 +13,8 @@ use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_NAMESPACE, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION,
-    PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY,
+    OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use nix::unistd::gethostname;
@@ -34,13 +34,13 @@ const DEFAULT_NAME: &str = "name";
 #[test]
 fn test_attributes_from_non_existing_agent_type() {
     let opamp_server = FakeServer::start_new();
-
+    let agent_id = "test-agent";
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
     let agents = format!(
         r#"
-  test-agent:
+  {agent_id}:
     agent_type: "{DEFAULT_NAMESPACE}/{DEFAULT_NAME}:{DEFAULT_VERSION}"
 "#
     );
@@ -62,10 +62,8 @@ fn test_attributes_from_non_existing_agent_type() {
 
     let agent_control_instance_id_ac = get_instance_id(&AgentID::AgentControl, base_paths.clone());
 
-    let agent_control_instance_id = get_instance_id(
-        &AgentID::try_from("test-agent").unwrap(),
-        base_paths.clone(),
-    );
+    let agent_control_instance_id =
+        get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths.clone());
 
     let expected_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
@@ -77,12 +75,20 @@ fn test_attributes_from_non_existing_agent_type() {
             Value::StringValue(DEFAULT_NAME.to_string()),
         ),
         (
+            OPAMP_SUPERVISOR_KEY,
+            Value::StringValue(agent_id.to_string()),
+        ),
+        (
             OPAMP_SERVICE_VERSION,
             Value::StringValue(DEFAULT_VERSION.to_string()),
         ),
     ]));
 
     let expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
+        (
+            OS_ATTRIBUTE_KEY,
+            Value::StringValue(OS_ATTRIBUTE_VALUE.to_string()),
+        ),
         (
             HOST_NAME_ATTRIBUTE_KEY,
             Value::StringValue(gethostname().unwrap_or_default().into_string().unwrap()),
@@ -121,11 +127,12 @@ fn test_attributes_from_an_existing_agent_type(#[case] get_agent_type: impl Fn(P
 
     // Add custom agent_type to registry
     let sleep_agent_type = get_agent_type(local_dir.path().to_path_buf());
+    let agent_id = "nr-sleep-agent";
 
     let agents = format!(
         r#"
 agents:
-  nr-sleep-agent:
+  {agent_id}:
     agent_type: "{sleep_agent_type}"
 "#
     );
@@ -138,7 +145,6 @@ agents:
     );
 
     // And the custom-agent has empty config values
-    let agent_id = "nr-sleep-agent";
     create_local_config(
         agent_id.to_string(),
         NO_CONFIG.to_string(), // local empty config
@@ -171,12 +177,20 @@ agents:
             Value::StringValue("0.1.0".to_string()),
         ),
         (
+            OPAMP_SUPERVISOR_KEY,
+            Value::StringValue(agent_id.to_string()),
+        ),
+        (
             OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
             Value::StringValue("1.0.0".to_string()),
         ),
     ]));
 
     let expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
+        (
+            OS_ATTRIBUTE_KEY,
+            Value::StringValue(OS_ATTRIBUTE_VALUE.to_string()),
+        ),
         (
             HOST_NAME_ATTRIBUTE_KEY,
             Value::StringValue(gethostname().unwrap_or_default().into_string().unwrap()),
