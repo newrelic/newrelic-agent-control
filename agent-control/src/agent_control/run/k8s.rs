@@ -87,10 +87,8 @@ impl AgentControlRunner {
         let identifiers = get_identifiers(self.k8s_config.cluster_name.clone(), fleet_id);
         info!("Instance Identifiers: {}", identifiers);
 
-        let non_identifying_attributes = agent_control_opamp_non_identifying_attributes(
-            &identifiers,
-            self.k8s_config.cluster_name.clone(),
-        );
+        let non_identifying_attributes =
+            agent_control_opamp_non_identifying_attributes(&identifiers);
 
         let additional_identifying_attributes =
             agent_control_additional_opamp_identifying_attributes(&self.k8s_config);
@@ -291,7 +289,6 @@ fn start_cd_version_checker(
 
 pub fn agent_control_opamp_non_identifying_attributes(
     identifiers: &Identifiers,
-    cluster_name: String,
 ) -> HashMap<String, DescriptionValueType> {
     let hostname = get_hostname().unwrap_or_else(|e| {
         error!("cannot retrieve hostname: {}", e.to_string());
@@ -304,7 +301,10 @@ pub fn agent_control_opamp_non_identifying_attributes(
             FLEET_ID_ATTRIBUTE_KEY.to_string(),
             identifiers.fleet_id.clone().into(),
         ),
-        (CLUSTER_NAME_ATTRIBUTE_KEY.to_string(), cluster_name.into()),
+        (
+            CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
+            identifiers.cluster_name.clone().into(),
+        ),
     ])
 }
 
