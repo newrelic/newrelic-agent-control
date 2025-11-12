@@ -254,7 +254,7 @@ deployment:
       interval: 30s
     objects:
       repository:
-        apiVersion: source.toolkit.fluxcd.io/v1
+        apiVersion: source.toolkit.fluxcd.io/v1beta2
         kind: HelmRepository
         metadata:
           name: ${nr-sub:agent_id}
@@ -263,7 +263,7 @@ deployment:
           provider: generic
           url: https://helm-charts.newrelic.com
       release:
-        apiVersion: helm.toolkit.fluxcd.io/v2
+        apiVersion: helm.toolkit.fluxcd.io/v2beta2
         kind: HelmRelease
         metadata:
           name: ${nr-sub:agent_id}
@@ -297,7 +297,7 @@ deployment:
 This is the K8s object whose kind is *HelmRepository*. It contains all the info to retrieve Helm charts.
 
 ```yaml
-apiVersion: source.toolkit.fluxcd.io/v1
+apiVersion: source.toolkit.fluxcd.io/v1beta2
 kind: HelmRepository
 metadata:
   name: open-telemetry
@@ -307,14 +307,14 @@ spec:
   url: https://open-telemetry.github.io/opentelemetry-helm-charts
 ```
 
-Visit [Flux API reference for v1](https://fluxcd.io/flux/components/source/api/v1/#source.toolkit.fluxcd.io/v1.HelmRepository) for detail spec information.
+Visit [Flux API reference for v1](https://fluxcd.io/flux/components/source/api/v1/#source.toolkit.fluxcd.io/v1beta2.HelmRepository) for detail spec information.
 
 ##### Release
 
 This is the K8s object whose kind is *HelmRelease*. It has all the data to deploy a chart (version, values, tests, post-install actions).
 
 ```yaml
-apiVersion: helm.toolkit.fluxcd.io/v2
+apiVersion: helm.toolkit.fluxcd.io/v2beta2
 kind: HelmRelease
 metadata:
   name: otel-collector
@@ -335,7 +335,7 @@ spec:
     mode: deployment
 ```
 
-Visit [Flux API reference for v2](https://fluxcd.io/flux/components/helm/api/v2/#helm.toolkit.fluxcd.io/v2.HelmRelease) for detail spec information.
+Visit [Flux API reference for v2](https://fluxcd.io/flux/components/helm/api/v2/#helm.toolkit.fluxcd.io/v2beta2.HelmRelease) for detail spec information.
 
 #### Kubernetes Health
 

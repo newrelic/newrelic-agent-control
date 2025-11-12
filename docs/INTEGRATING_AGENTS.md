@@ -209,7 +209,7 @@ deployment:
       initial_delay: 30s
     objects:
       release:
-        apiVersion: helm.toolkit.fluxcd.io/v2
+        apiVersion: helm.toolkit.fluxcd.io/v2beta2
         kind: HelmRelease
         metadata:
           name: ${nr-sub:agent_id}

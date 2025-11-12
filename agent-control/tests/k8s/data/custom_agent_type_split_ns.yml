@@ -15,7 +15,7 @@ deployment:
       initial_delay: 2s
     objects:
       repository:
-        apiVersion: source.toolkit.fluxcd.io/v1
+        apiVersion: source.toolkit.fluxcd.io/v1beta2
         kind: HelmRepository
         metadata:
           name: ${nr-sub:agent_id}
@@ -34,7 +34,7 @@ deployment:
           values.yaml: |
             ${nr-var:chart_values}
       release:
-        apiVersion: helm.toolkit.fluxcd.io/v2
+        apiVersion: helm.toolkit.fluxcd.io/v2beta2
         kind: HelmRelease
         metadata:
           name: ${nr-sub:agent_id}

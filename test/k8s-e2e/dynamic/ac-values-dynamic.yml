@@ -15,11 +15,11 @@ agentControlDeployment:
       override:
         k8s:
           cr_type_meta:
-            - apiVersion: "helm.toolkit.fluxcd.io/v2"
+            - apiVersion: "helm.toolkit.fluxcd.io/v2beta2"
               kind: "HelmRelease"
-            - apiVersion: "source.toolkit.fluxcd.io/v1"
+            - apiVersion: "source.toolkit.fluxcd.io/v1beta2"
               kind: "HelmRepository"
-            - apiVersion: "source.toolkit.fluxcd.io/v1"
+            - apiVersion: "source.toolkit.fluxcd.io/v1beta2"
               kind: "GitRepository"
             - apiVersion: "v1"
               kind: "Secret"
