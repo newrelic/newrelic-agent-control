@@ -3,27 +3,19 @@ name: Nightly release
 # Pushes `nightly` image tag as scheduled.
 
 on:
-  workflow_dispatch:
-  schedule:
-    # Scheduled to run at 4 a.m on every day-of-week from Monday through Friday.
-    - cron: "0 4 * * 1-5"
+  push:
+    branches:
+      - poc-flux-previous
 
 jobs:
-  build-packages:
-    name: Build packages
-    uses: ./.github/workflows/component_packages.yml
-    with:
-      pre-release: false
-      tag_name: 0.100.${{ github.run_id }}
-    secrets: inherit
 
   build-image:
     name: Build and Push nightly image
     uses: ./.github/workflows/component_image.yml
     with:
       # the packages are created with 0.100.run_id, however we still push the image with nightly
-      image-tag: nightly
-      ac-version: nightly
+      image-tag: 1.4.0-dev-legacy-flux
+      ac-version: "1.4.0-dev-legacy-flux"
       push: true
     secrets: inherit
 
@@ -33,117 +25,8 @@ jobs:
     uses: ./.github/workflows/component_image_security.yml
     with:
       # the packages are created with 0.100.run_id, however we still push the image with nightly
-      image-tag: nightly
+      image-tag: 1.4.0-dev-legacy-flux
     secrets: inherit
 
   security-source-code:
     uses: ./.github/workflows/component_security.yml
-
-  # This is currently required for canaries
-  upload-packages-s3:
-    runs-on: ubuntu-latest
-    needs: [ build-packages ]
-    name: Upload packages to testing bucket
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: built-binaries-0.100.${{ github.run_id }}
-          path: ./
-
-      - name: Publish deb to S3 action
-        uses: newrelic/infrastructure-publish-action@v1
-        with:
-          tag: 0.100.${{ github.run_id }}
-          app_name: "newrelic-agent-control"
-          repo_name: ${{ github.repository }}
-          schema: "custom-local"
-          schema_path: "./build/upload-schema-linux-deb-nightly.yml"
-          aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_TESTING }}
-          aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_TESTING }}
-          aws_s3_bucket_name: "nr-downloads-ohai-testing"
-          aws_s3_lock_bucket_name: "onhost-ci-lock-testing"
-          access_point_host: "testing"
-          run_id: ${{ github.run_id }}
-          aws_region: "us-east-1"
-          aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_TESTING }}
-          aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_TESTING }}
-          # used for signing package stuff
-          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
-          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
-          disable_lock: false
-          dest_prefix: "preview/"
-          local_packages_path: "/srv/dist/"
-          apt_skip_mirror: true
-
-  onhost-e2e:
-    uses: ./.github/workflows/component_onhost_e2e.yaml
-    secrets:
-      NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
-      NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
-      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
-      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
-      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
-
-  k8s-e2e-tests:
-    uses: ./.github/workflows/component_k8s_e2e.yml
-    with:
-      scenarios: '["apm", "collector", "fleet-control", "ebpf", "dynamic", "custom-repo", "proxy"]'
-      # Network policies needs calico installed,the others do not
-      minikube_start_args: '--cni=calico'
-    secrets:
-      NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
-      NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
-      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
-      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
-      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
-
-  k8s_canaries:
-    uses: ./.github/workflows/component_k8s_canaries.yml
-    needs: [ build-image ]
-    with:
-      image-tag: nightly
-      cluster_name: Agent_Control_Canaries_Staging-Cluster
-      # AC Staging Account `k8s-canaries-staging-1` fleet
-      fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk1ZDE1NC1iNTI0LTdhMTYtYWExYS0wYzQ2Y2VhOGFiMzg"
-      canary_dir: "staging"
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
-
-  onhost_canaries:
-    uses: ./.github/workflows/component_onhost_canaries.yml
-    needs: [ upload-packages-s3 ]
-    with:
-      environment: staging
-      operation: apply
-      package_version: 0.100.${{ github.run_id }}
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
-
-  notify-failure:
-    if: ${{ always() && failure() }}
-    needs:
-      - onhost-e2e
-      - k8s_canaries
-      - security-image
-      - security-source-code
-      - build-image
-      - build-packages
-      - k8s-e2e-tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify failure via Slack
-        uses: slackapi/slack-github-action@v1.22.0
-        with:
-          payload: |
-            {
-              "text": ":warning: [Nightly workflow failed] @hero check <${{ env.GITHUB_JOB_URL }}>"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
-          GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
