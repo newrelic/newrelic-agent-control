@@ -86,12 +86,14 @@ fn k8s_cli_install_agent_control_creates_resources() {
         "install": {
             "disableWait": true,
             "disableWaitForJobs": true,
-            "disableTakeOwnership": true,
+            // not present in the legacy crd
+            // "disableTakeOwnership": true,
         },
         "upgrade": {
             "disableWait": true,
             "disableWaitForJobs": true,
-            "disableTakeOwnership": true,
+            // not present in the legacy crd
+            // "disableTakeOwnership": true,
             "cleanupOnFail": true,
         },
         "rollback": {
