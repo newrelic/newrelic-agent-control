@@ -6,8 +6,10 @@ env:
   - NEWRELIC_INFRA_AGENT_VERSION=1.71.0
   - NR_OTEL_COLLECTOR_VERSION=1.5.0
 builds:
-  - id: newrelic-agent-control
+  # Linux builds using cargo zigbuild
+  - id: newrelic-agent-control-linux
     builder: rust
+    command: zigbuild
     binary: newrelic-agent-control
     targets:
       - x86_64-unknown-linux-musl
@@ -29,8 +31,28 @@ builds:
         - cmd: ./build/scripts/download_collector_config.sh
           env:
             - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
-  - id: newrelic-agent-control-cli
+
+  # Windows builds using cargo xwin
+  - id: newrelic-agent-control-windows
     builder: rust
+    binary: newrelic-agent-control
+    tool: cargo-xwin
+    command: build
+    targets:
+      - x86_64-pc-windows-msvc
+    flags:
+      - --release
+      - --package=newrelic_agent_control
+      - --bin=newrelic-agent-control
+    env:
+      - AGENT_CONTROL_VERSION={{ .Version }}
+      - NEWRELIC_INFRA_AGENT_VERSION={{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}
+      - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
+
+  # Linux builds for CLI
+  - id: newrelic-agent-control-cli-linux
+    builder: rust
+    command: zigbuild
     binary: newrelic-agent-control-cli
     targets:
       - x86_64-unknown-linux-musl
@@ -42,15 +64,35 @@ builds:
     env:
       - AGENT_CONTROL_VERSION={{ .Version }}
 
+  # Windows builds for CLI using cargo xwin
+  - id: newrelic-agent-control-cli-windows
+    builder: rust
+    binary: newrelic-agent-control-cli
+    tool: cargo-xwin
+    command: build
+    targets:
+      - x86_64-pc-windows-msvc
+    flags:
+      - --release
+      - --package=newrelic_agent_control
+      - --bin=newrelic-agent-control-cli
+    env:
+      - AGENT_CONTROL_VERSION={{ .Version }}
+
 archives:
   - formats: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     ids:
-      - newrelic-agent-control
-      - newrelic-agent-control-cli
+      - newrelic-agent-control-linux
+      - newrelic-agent-control-windows
+      - newrelic-agent-control-cli-linux
+      - newrelic-agent-control-cli-windows
 
 nfpms:
   - package_name: newrelic-agent-control
+
+    # Only build packages for Linux targets
+    meta: false
 
     # Replace arch for rpm from amd64 to x86_64 to be consistent with our rpm repo.
     file_name_template: >-
@@ -165,8 +207,8 @@ nfpms:
 
     id: newrelic-agent-control
     ids:
-      - newrelic-agent-control
-      - newrelic-agent-control-cli
+      - newrelic-agent-control-linux
+      - newrelic-agent-control-cli-linux
     formats:
       - deb
       - rpm

@@ -47,7 +47,8 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           targets: >-
             aarch64-unknown-linux-musl,
-            x86_64-unknown-linux-musl
+            x86_64-unknown-linux-musl,
+            x86_64-pc-windows-msvc
 
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
@@ -70,6 +71,16 @@ jobs:
         run: |
           cargo install --locked cargo-zigbuild --force
 
+      # pre-requisite for cross-compilation through cargo-xwin (it also needs cland, cmake and ninja-build which are already included in GitHub runners)
+      - name: Install LLVM
+        uses: KyleMayes/install-llvm-action@98e68e10c96dffcb7bfed8b2144541a66b49aa02
+        with:
+          version: "21"
+
+      - name: Install cargo-xwin
+        run: |
+          cargo install --locked cargo-xwin --force
+
       - name: Set tag and skip_upload=false for pre-release
         if: ${{ inputs.pre-release}}
         run: |
@@ -83,12 +94,12 @@ jobs:
         if: ${{ ! inputs.pre-release }}
         run: |
           git tag ${{ inputs.tag_name }}
-          echo SKIP_UPLOAD=--skip=publish >> $GITHUB_ENV 
-      
+          echo SKIP_UPLOAD=--skip=publish >> $GITHUB_ENV
+
       - name: Skip packages sign
         if: ${{ inputs.skip_sign }}
         run: |
-          echo SKIP_SIGN=--skip=sign >> $GITHUB_ENV 
+          echo SKIP_SIGN=--skip=sign >> $GITHUB_ENV
 
       - name: Release packages with GoReleaser
         uses: goreleaser/goreleaser-action@v6
