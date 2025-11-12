@@ -19,24 +19,24 @@
             monitoring_source: "infra-agent"
             fleet_enabled: "false"
 
+        - name: Set test identifier
+          set_fact:
+            test_id: "onhost-e2e-infra-agent_{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}"
+
         - name: Setup AC config
           include_role:
             name: edit_yaml_config
           vars:
             config_path: "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml"
+            # Setting a custom host id makes the test assertion faster than custom attributes
+            # as skip the attribute decoration on the BE
             update_config:
+              host_id: "{{ test_id }}"
               log:
                 format:
                   formatter: pretty
                   target: true
                 level: debug
-
-        - name: Set test identifier
-          set_fact:
-            test_id: "onhost-e2e-infra-agent_{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}"
-
-        - name: Add infra agent test_id attribute
-          shell: echo 'NRIA_CUSTOM_ATTRIBUTES='\''{"label.test_id":"{{ test_id }}"}'\''' >> {{ agent_control_service_conf }}
 
         - name: Restart Agent Control
           include_role:
@@ -54,9 +54,8 @@
             nrql_query: >-
               SELECT *
               FROM SystemSample
-              WHERE `label.test_id` = '{{ test_id }}'
+              WHERE `host.id` = '{{ test_id }}'
               LIMIT 1
-            # This was taking about 5m when the test was created
             retries: 120
             delay: 10
 

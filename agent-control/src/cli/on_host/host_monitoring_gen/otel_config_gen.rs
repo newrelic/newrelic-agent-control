@@ -1,5 +1,6 @@
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_LOCAL_DATA_DIR, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+    AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_ID_NRDOT, FOLDER_NAME_LOCAL_DATA,
+    STORE_KEY_LOCAL_DATA_CONFIG,
 };
 use crate::cli::error::CliError;
 use crate::on_host::file_store::build_config_name;
@@ -17,10 +18,10 @@ impl Default for OtelConfigGen {
         Self {
             otel_agent_values_path: PathBuf::from(AGENT_CONTROL_LOCAL_DATA_DIR)
                 .join(FOLDER_NAME_LOCAL_DATA)
-                .join("nrdot"),
-            otel_config_source_path: PathBuf::from(
-                "/etc/newrelic-agent-control/examples/values-nr-otel-collector-agent-linux.yaml",
-            ),
+                .join(AGENT_ID_NRDOT),
+            otel_config_source_path: PathBuf::from(AGENT_CONTROL_LOCAL_DATA_DIR)
+                .join("examples")
+                .join("values-nr-otel-collector-agent-linux.yaml"),
         }
     }
 }
