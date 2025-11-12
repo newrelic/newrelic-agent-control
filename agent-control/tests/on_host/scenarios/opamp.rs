@@ -244,7 +244,6 @@ non-existing: {}
 /// The agent control is configured with one agent whose local configuration contains an environment variable
 /// placeholder. This test checks that the effective config is reported as expected (and it does not included
 /// the environment variable expanded).
-#[cfg(target_family = "unix")]
 #[test]
 fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
@@ -317,7 +316,6 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 
 /// The agent-control is configured with on agent with local configuration and a remote configuration was also set for the
 /// corresponding sub-agent. This test checks that the latest effective config reported corresponds to the remote.
-#[cfg(target_family = "unix")]
 #[test]
 fn onhost_opamp_sub_agent_remote_effective_config() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
@@ -453,7 +451,6 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 /// - Effective configuration updates to remote config
 /// - Stored retrieves latest applied remote config
 /// - Healthy status is reported
-#[cfg(target_family = "unix")]
 #[test]
 fn onhost_executable_less_reports_local_effective_config() {
     // Given a agent-control without agents and opamp configured.

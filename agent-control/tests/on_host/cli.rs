@@ -1,4 +1,3 @@
-use crate::on_host::logging::level::TIME_FORMAT;
 use assert_cmd::Command;
 use assert_cmd::cargo::cargo_bin_cmd;
 use newrelic_agent_control::agent_control::defaults::{
@@ -16,6 +15,8 @@ use std::{
     path::{Path, PathBuf},
 };
 use tempfile::TempDir;
+
+use crate::on_host::logging::level::TIME_FORMAT;
 
 pub fn create_temp_file(
     dir: &Path,

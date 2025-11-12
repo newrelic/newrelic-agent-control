@@ -101,7 +101,6 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 /// - That the latest remote config status is failed.
 /// - The failed remote config should not be persisted.
 /// - That latest effective configuration reported is the local one (which is valid).
-#[cfg(target_family = "unix")]
 #[test]
 fn test_invalid_config_executable_less_supervisor() {
     let mut opamp_server = FakeServer::start_new();
@@ -184,7 +183,6 @@ fn test_invalid_config_executable_less_supervisor() {
 /// - That the latest remote config status is failed.
 /// - The failed remote config should not be persisted.
 /// - That latest effective configuration reported is the latest applied valid remote config.
-#[cfg(target_family = "unix")]
 #[test]
 fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
