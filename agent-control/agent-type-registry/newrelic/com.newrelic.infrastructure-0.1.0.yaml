@@ -141,7 +141,7 @@ deployment:
     objects:
       # Flux [HelmRepository](https://fluxcd.io/flux/components/source/helmrepositories/).
       repository:
-        apiVersion: source.toolkit.fluxcd.io/v1
+        apiVersion: source.toolkit.fluxcd.io/v1beta2
         kind: HelmRepository
         metadata:
           # The agent-id is a unique identifier. It is used to have an expected name without collision between agents.
@@ -222,7 +222,7 @@ deployment:
               enabled: false
       # Flux [HelmRelease](https://fluxcd.io/flux/components/helmreleases/) that installs the nri-bundle chart.
       release:
-        apiVersion: helm.toolkit.fluxcd.io/v2
+        apiVersion: helm.toolkit.fluxcd.io/v2beta2
         kind: HelmRelease
         metadata:
           name: ${nr-sub:agent_id}

@@ -244,7 +244,7 @@ pub struct K8sConfig {
 
 pub fn helmrelease_v2_type_meta() -> TypeMeta {
     TypeMeta {
-        api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
+        api_version: "helm.toolkit.fluxcd.io/v2beta2".to_string(),
         kind: "HelmRelease".to_string(),
     }
 }
@@ -258,14 +258,14 @@ pub fn instrumentation_v1beta1_type_meta() -> TypeMeta {
 
 pub fn helmrepository_type_meta() -> TypeMeta {
     TypeMeta {
-        api_version: "source.toolkit.fluxcd.io/v1".to_string(),
+        api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
         kind: "HelmRepository".to_string(),
     }
 }
 
 pub fn helmchart_type_meta() -> TypeMeta {
     TypeMeta {
-        api_version: "source.toolkit.fluxcd.io/v1".to_string(),
+        api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
         kind: "HelmChart".to_string(),
     }
 }
