@@ -438,6 +438,10 @@ jobs:
         shell: bash
         run: make -C agent-control test/onhost
 
+      - name: Run integration tests
+        shell: bash
+        run: make -C agent-control test/onhost/integration
+
   check-all-green:
     name: 🟢 All required checks and tests pass
     if: always()

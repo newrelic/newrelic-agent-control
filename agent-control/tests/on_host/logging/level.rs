@@ -1,3 +1,4 @@
+#![cfg(target_family = "unix")]
 use crate::on_host::cli::cmd_with_config_file;
 use newrelic_agent_control::{
     agent_control::defaults::{
