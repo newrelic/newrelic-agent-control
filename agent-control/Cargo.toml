@@ -115,10 +115,6 @@ name = "newrelic-agent-control"
 path = "src/bin/main_onhost.rs"
 
 [[bin]]
-name = "newrelic-config-migrate"
-path = "src/bin/main_config_migrate.rs"
-
-[[bin]]
 name = "newrelic-agent-control-k8s-cli"
 path = "src/bin/main_agent_control_k8s_cli.rs"
 

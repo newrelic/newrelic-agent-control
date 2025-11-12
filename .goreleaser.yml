@@ -29,18 +29,6 @@ builds:
         - cmd: ./build/scripts/download_collector_config.sh
           env:
             - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
-  - id: newrelic-config-migrate
-    builder: rust
-    binary: newrelic-config-migrate
-    targets:
-      - x86_64-unknown-linux-musl
-      - aarch64-unknown-linux-musl
-    flags:
-      - --release
-      - --package=newrelic_agent_control
-      - --bin=newrelic-config-migrate
-    env:
-      - AGENT_CONTROL_VERSION={{ .Version }}
   - id: newrelic-agent-control-cli
     builder: rust
     binary: newrelic-agent-control-cli
@@ -59,7 +47,6 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     ids:
       - newrelic-agent-control
-      - newrelic-config-migrate
       - newrelic-agent-control-cli
 
 nfpms:
@@ -179,7 +166,6 @@ nfpms:
     id: newrelic-agent-control
     ids:
       - newrelic-agent-control
-      - newrelic-config-migrate
       - newrelic-agent-control-cli
     formats:
       - deb

@@ -3,7 +3,55 @@ use crate::cli::on_host::config_gen::region::Region;
 use std::collections::HashMap;
 
 const INFRA_AGENT_TYPE_FIELD: &str = "config_agent";
+const INTEGRATIONS_TYPE_FIELD: &str = "config_integrations";
+const LOGGING_TYPE_FIELD: &str = "config_logging";
 pub const INFRA_AGENT_TYPE_VERSION: &str = "newrelic/com.newrelic.infrastructure:0.1.0";
+
+const DOCKER_CONFIG: &str = r#"
+docker-config.yml:
+  integrations:
+  - name: nri-docker
+    when:
+      feature: docker_enabled
+      file_exists: /var/run/docker.sock
+    interval: 15s
+  - name: nri-docker
+    when:
+      feature: docker_enabled
+      env_exists:
+        FARGATE: 'true'
+    interval: 15s
+"#;
+
+const LOGGING_CONFIG: &str = r#"
+logging.yml:
+  logs:
+  - name: alternatives.log
+    file: /var/log/alternatives.log
+    attributes:
+      logtype: linux_alternatives
+  - name: cloud-init.log
+    file: /var/log/cloud-init.log
+    attributes:
+      logtype: linux_cloud-init
+  - name: auth.log
+    file: /var/log/auth.log
+    attributes:
+      logtype: linux_auth
+  - name: dpkg.log
+    file: /var/log/dpkg.log
+    attributes:
+      logtype: linux_dpkg
+  - name: syslog
+    file: /var/log/syslog
+    attributes:
+      logtype: linux_syslog
+  - name: newrelic-cli.log
+    file: /root/.newrelic/newrelic-cli.log
+    attributes:
+      newrelic-cli: true
+      logtype: newrelic-cli
+"#;
 
 /// Represents the values to create or migrate an infra-config
 pub struct InfraConfig {
@@ -141,6 +189,16 @@ impl InfraConfig {
             serde_yaml::Value::Mapping(config_agent),
         );
 
+        root_mapping.insert(
+            serde_yaml::Value::String(INTEGRATIONS_TYPE_FIELD.to_string()),
+            serde_yaml::from_str(DOCKER_CONFIG).expect("should be valid"),
+        );
+
+        root_mapping.insert(
+            serde_yaml::Value::String(LOGGING_TYPE_FIELD.to_string()),
+            serde_yaml::from_str(LOGGING_CONFIG).expect("should be valid"),
+        );
+
         serde_yaml::to_string(&serde_yaml::Value::Mapping(root_mapping))
             .map_err(|err| CliError::Command(format!("error generating infra config: {err}")))
     }
@@ -237,17 +295,59 @@ mod tests {
         // Parse the YAML content
         let parsed_values: serde_yaml::Value = serde_yaml::from_str(&result).unwrap();
 
-        let expected = r"#
+        let expected = r#"
 config_agent:
-  status_server_enabled: true
-  enable_process_metrics: true
   license_key: '{{NEW_RELIC_LICENSE_KEY}}'
+  enable_process_metrics: true
+  status_server_enabled: true
   status_server_port: 18003
   staging: true
   proxy: http://proxy.example.com
   custom_attributes:
     custom_key: custom_value
-#";
+config_integrations:
+  docker-config.yml:
+    integrations:
+    - name: nri-docker
+      when:
+        feature: docker_enabled
+        file_exists: /var/run/docker.sock
+      interval: 15s
+    - name: nri-docker
+      when:
+        feature: docker_enabled
+        env_exists:
+          FARGATE: 'true'
+      interval: 15s
+config_logging:
+  logging.yml:
+    logs:
+    - name: alternatives.log
+      file: /var/log/alternatives.log
+      attributes:
+        logtype: linux_alternatives
+    - name: cloud-init.log
+      file: /var/log/cloud-init.log
+      attributes:
+        logtype: linux_cloud-init
+    - name: auth.log
+      file: /var/log/auth.log
+      attributes:
+        logtype: linux_auth
+    - name: dpkg.log
+      file: /var/log/dpkg.log
+      attributes:
+        logtype: linux_dpkg
+    - name: syslog
+      file: /var/log/syslog
+      attributes:
+        logtype: linux_syslog
+    - name: newrelic-cli.log
+      file: /root/.newrelic/newrelic-cli.log
+      attributes:
+        newrelic-cli: true
+        logtype: newrelic-cli
+"#;
         let expected_values: serde_yaml::Value = serde_yaml::from_str(expected).unwrap();
         assert_eq!(parsed_values, expected_values);
     }
