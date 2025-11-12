@@ -113,6 +113,10 @@ pub(crate) fn get_custom_capabilities(agent_type_id: &AgentTypeID) -> Option<Cus
 pub const AGENT_TYPE_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure";
 pub const AGENT_TYPE_NAME_NRDOT: &str = "com.newrelic.opentelemetry.collector";
 
+// Fleet Control auto generated agent id
+pub const AGENT_ID_INFRA_AGENT: &str = "nr-infra";
+pub const AGENT_ID_NRDOT: &str = "nrdot";
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

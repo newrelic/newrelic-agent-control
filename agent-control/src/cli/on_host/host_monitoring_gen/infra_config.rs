@@ -1,5 +1,6 @@
 use crate::cli::error::CliError;
 use crate::cli::on_host::config_gen::region::Region;
+use crate::cli::on_host::systemd_gen::NEW_RELIC_LICENSE_CONFIG_KEY;
 use std::collections::HashMap;
 
 const INFRA_AGENT_TYPE_FIELD: &str = "config_agent";
@@ -17,7 +18,7 @@ impl Default for InfraConfig {
             values: HashMap::from([
                 (
                     "license_key".to_string(),
-                    serde_yaml::Value::String("{{NEW_RELIC_LICENSE_KEY}}".to_string()),
+                    serde_yaml::Value::String(format!("{{{{{NEW_RELIC_LICENSE_CONFIG_KEY}}}}}")),
                 ),
                 (
                     "enable_process_metrics".to_string(),

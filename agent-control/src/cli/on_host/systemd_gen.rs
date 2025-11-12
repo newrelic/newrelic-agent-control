@@ -1,13 +1,15 @@
 //! Implementation of the generate-config command for the on-host cli.
 
+use crate::agent_control::defaults::AGENT_CONTROL_LOCAL_DATA_DIR;
 use crate::cli::error::CliError;
 use crate::cli::on_host::config_gen::region::{Region, region_parser};
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::path::{Path, PathBuf};
 use tracing::info;
 
-const CONFIG_PATH: &str = "/etc/newrelic-agent-control/systemd-env.conf";
-const NEW_RELIC_LICENSE_CONFIG_KEY: &str = "NEW_RELIC_LICENSE_KEY";
+pub const SERVICE_CONFIG_FILE: &str = "systemd-env.conf";
+pub const NEW_RELIC_LICENSE_CONFIG_KEY: &str = "NEW_RELIC_LICENSE_KEY";
 const OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
 
 /// Generates the Agent Control configuration for host environments.
@@ -22,17 +24,27 @@ pub struct Args {
     region: Region,
 }
 
-/// Generates the entries required by agent-control in newrelic-agent-control.conf.
+/// Generates the entries required by agent-control in [SERVICE_CONFIG_FILE].
 pub fn generate_systemd_config(args: Args) -> Result<(), CliError> {
     info!("Adding required values to newrelic-agent-control.conf ");
 
-    update_config(CONFIG_PATH, &args.newrelic_license_key, args.region)?;
+    let config_path = PathBuf::from(AGENT_CONTROL_LOCAL_DATA_DIR).join(SERVICE_CONFIG_FILE);
+
+    update_config(
+        config_path.as_path(),
+        &args.newrelic_license_key,
+        args.region,
+    )?;
 
     info!("Host monitoring values generated successfully");
     Ok(())
 }
 
-fn update_config(config_path: &str, new_license_key: &str, region: Region) -> Result<(), CliError> {
+fn update_config(
+    config_path: &Path,
+    new_license_key: &str,
+    region: Region,
+) -> Result<(), CliError> {
     // Read the content from the configuration file
     let content = std::fs::read_to_string(config_path)
         .map_err(|err| CliError::Command(format!("error reading agent control .conf file: {err}")))?
@@ -90,7 +102,7 @@ mod tests {
         let new_license_key = "new_key";
         let region = Region::EU; // Assuming Region::EU is a valid variant
 
-        let result = update_config(file_path.to_str().unwrap(), new_license_key, region);
+        let result = update_config(file_path.as_path(), new_license_key, region);
         assert!(result.is_ok());
 
         let updated_content = std::fs::read_to_string(&file_path).unwrap();
