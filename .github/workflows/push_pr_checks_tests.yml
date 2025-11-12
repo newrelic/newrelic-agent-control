@@ -190,49 +190,6 @@ jobs:
   security:
     uses: ./.github/workflows/component_security.yml
 
-  generate-release-build:
-    runs-on: ubuntu-latest
-    name: "Build release binaries"
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Obtain Rust version from project
-        run: |
-          RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
-          echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
-
-      - name: Install Rust ${{ env.RUST_VERSION }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-          targets: >-
-            x86_64-unknown-linux-musl
-
-      - name: cargo generate-lockfile
-        if: hashFiles('Cargo.lock') == ''
-        run: cargo generate-lockfile
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-release
-
-      - name: Install Zig
-        uses: mlugg/setup-zig@v2
-
-      - name: Install cargo-zigbuild
-        run: |
-          cargo install --locked cargo-zigbuild --force
-
-      - name: Build k8s in release mode
-        run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control-k8s --target x86_64-unknown-linux-musl
-      - name: Build onhost in release mode
-        run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control --target x86_64-unknown-linux-musl
-
   unit-docs-onhost-integration-tests:
     runs-on: ubuntu-latest
     name: Unit, docs and onhost integration tests
@@ -398,9 +355,9 @@ jobs:
       E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
       E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
 
-  build-windows:
-    name: build-windows-binary
-    runs-on: windows-2025
+  onhost-windows-test:
+    name: "onhost windows tests"
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -421,24 +378,28 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-windows-release
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-windows-test-dev
 
       - name: Install Rust ${{ env.RUST_VERSION }}
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
-
-      - name: Build
-        run: cargo build --all --release --target x86_64-pc-windows-msvc
+          components: clippy
 
       - name: Test fs crate
         run: cargo test --package fs
 
+      - name: cargo clippy with compiler warnings
+        if: '!cancelled()'
+        run: cargo clippy --workspace --all-targets -- -D warnings -D clippy::all
+
       - name: Run tests agent control lib excluding root-required tests (on-host)
+        if: '!cancelled()'
         shell: bash
         run: make -C agent-control test/onhost
 
       - name: Run integration tests
+        if: '!cancelled()'
         shell: bash
         run: make -C agent-control test/onhost/integration
 
@@ -456,9 +417,8 @@ jobs:
       - codespell
       - security
       - coverage
-      - build-windows
+      - onhost-windows-test
       # tests
-      - generate-release-build
       - unit-docs-onhost-integration-tests
       - on-host-root-tests
       - embedded-downloader-tests
