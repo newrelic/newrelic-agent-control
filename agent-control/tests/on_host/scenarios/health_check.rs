@@ -31,7 +31,7 @@ interval: 1s
 initial_delay: 0s
 timeout: 1s
 file:
-  path: {}
+  path: '{}'
 "#,
         health_file_path.to_str().unwrap()
     );
