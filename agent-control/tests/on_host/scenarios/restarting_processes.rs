@@ -1,4 +1,3 @@
-#![cfg(target_family = "unix")]
 use assert_cmd::{Command, cargo::cargo_bin_cmd};
 use newrelic_agent_control::{
     agent_control::defaults::{
