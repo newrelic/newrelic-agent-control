@@ -314,6 +314,48 @@ config_agent:
   enable_process_metrics: true
   license_key: '{{NEW_RELIC_LICENSE_KEY}}'
   status_server_port: 18003
+config_integrations:
+  docker-config.yml:
+    integrations:
+    - name: nri-docker
+      when:
+        feature: docker_enabled
+        file_exists: /var/run/docker.sock
+      interval: 15s
+    - name: nri-docker
+      when:
+        feature: docker_enabled
+        env_exists:
+          FARGATE: 'true'
+      interval: 15s
+config_logging:
+  logging.yml:
+    logs:
+    - name: alternatives.log
+      file: /var/log/alternatives.log
+      attributes:
+        logtype: linux_alternatives
+    - name: cloud-init.log
+      file: /var/log/cloud-init.log
+      attributes:
+        logtype: linux_cloud-init
+    - name: auth.log
+      file: /var/log/auth.log
+      attributes:
+        logtype: linux_auth
+    - name: dpkg.log
+      file: /var/log/dpkg.log
+      attributes:
+        logtype: linux_dpkg
+    - name: syslog
+      file: /var/log/syslog
+      attributes:
+        logtype: linux_syslog
+    - name: newrelic-cli.log
+      file: /root/.newrelic/newrelic-cli.log
+      attributes:
+        newrelic-cli: true
+        logtype: newrelic-cli
 #";
         let expected_values: serde_yaml::Value = serde_yaml::from_str(expected).unwrap();
         assert_eq!(parsed_values, expected_values);
