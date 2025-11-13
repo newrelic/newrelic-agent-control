@@ -20,6 +20,7 @@ pub fn check_latest_identifying_attributes_match_expected(
     .map_err(|e| format!("Identifying attributes don't match {e}:"))
 }
 
+#[cfg(target_family = "unix")]
 pub fn check_latest_non_identifying_attributes_match_expected(
     opamp_server: &FakeServer,
     instance_id: &InstanceID,

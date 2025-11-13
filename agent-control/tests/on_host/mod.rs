@@ -1,9 +1,9 @@
 mod agent_control_cli;
 mod cli;
+mod cloud_id;
 mod command;
 mod config_repository;
 mod consts;
-mod id;
 mod logging;
 mod opamp_auth;
 mod proxy;

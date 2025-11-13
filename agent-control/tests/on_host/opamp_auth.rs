@@ -1,3 +1,4 @@
+use crate::on_host::tools::create_temp_file;
 use assert_cmd::Command;
 use assert_cmd::cargo::cargo_bin_cmd;
 use http::header::{AUTHORIZATION, CONTENT_TYPE};
@@ -20,8 +21,6 @@ const DEFAULT_AUDIENCE: &str = "https://www.newrelic.com/";
 #[test]
 #[ignore = "requires root"]
 fn test_auth_local_provider_as_root() {
-    use crate::on_host::cli::create_temp_file;
-
     let token = "fakeToken";
 
     let dir = TempDir::new().unwrap();
@@ -90,8 +89,6 @@ agents: {{}}
 #[test]
 #[ignore = "requires root"]
 fn test_empty_auth_config_as_root() {
-    use crate::on_host::cli::create_temp_file;
-
     let dir = TempDir::new().unwrap();
 
     let opamp_server = MockServer::start();
@@ -147,8 +144,6 @@ agents: {{}}
 #[test]
 #[ignore = "requires root"]
 fn test_unauthorized_token_retrieve_as_root() {
-    use super::cli::create_temp_file;
-
     let dir = TempDir::new().unwrap();
     let private_key_path = create_temp_file(dir.path(), "priv_key", RS256_PRIVATE_KEY).unwrap();
 

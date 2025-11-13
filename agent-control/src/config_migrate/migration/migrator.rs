@@ -97,6 +97,7 @@ impl
     }
 }
 
+#[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
 #[cfg(test)]
 mod tests {
     use crate::agent_control::config_repository::store::AgentControlConfigStore;
@@ -128,8 +129,6 @@ agents:
     infra-agent-b:
         agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
 "#;
-
-    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
     #[test]
     fn test_migrate() {
         use crate::{

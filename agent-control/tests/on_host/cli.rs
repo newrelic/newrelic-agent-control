@@ -1,5 +1,5 @@
+#![cfg(target_family = "unix")]
 use crate::common::retry::retry;
-#[cfg(target_family = "unix")]
 use crate::on_host::logging::level::TIME_FORMAT;
 use assert_cmd::Command;
 use assert_cmd::assert::OutputAssertExt;
@@ -22,18 +22,6 @@ use std::{
 };
 use tempfile::TempDir;
 
-pub fn create_temp_file(
-    dir: &Path,
-    file_name: &str,
-    data: &str,
-) -> Result<PathBuf, Box<dyn Error>> {
-    create_dir_all(dir)?;
-    let file_path = dir.join(file_name);
-    let mut file = File::create(&file_path)?;
-    writeln!(file, "{data}")?;
-    Ok(file_path)
-}
-
 pub fn cmd_with_config_file(local_dir: &Path) -> Command {
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
     cmd.arg("--local-dir").arg(local_dir);
@@ -54,7 +42,6 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(target_family = "unix")]
 #[test]
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
@@ -73,7 +60,6 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(target_family = "unix")]
 #[test]
 fn basic_startup() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
@@ -121,7 +107,6 @@ logs:
     Ok(())
 }
 
-#[cfg(target_family = "unix")]
 #[test]
 fn custom_logging_format() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
@@ -171,7 +156,6 @@ server:
     Ok(())
 }
 
-#[cfg(target_family = "unix")]
 #[test]
 #[ignore = "requires root"]
 fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>> {
@@ -245,7 +229,6 @@ server:
     Ok(())
 }
 
-#[cfg(target_family = "unix")]
 #[test]
 fn runs_with_no_config() -> Result<(), Box<dyn std::error::Error>> {
     let dir = tempfile::tempdir()?;

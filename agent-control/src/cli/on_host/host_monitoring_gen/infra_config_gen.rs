@@ -170,6 +170,7 @@ impl InfraConfigGenerator {
     }
 }
 
+#[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added (DirectoryManager unimplemented)
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -197,7 +198,6 @@ agents:
 
     const INFRA_AGENT_VALUES: &str = "local-data/infra-test/local_config.yaml";
 
-    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added (DirectoryManager unimplemented)
     #[test]
     fn test_migrate_old_infra_config() {
         // Create a temporary directory
@@ -269,7 +269,6 @@ config_agent:
         assert_eq!(parsed_values, expected_values);
     }
 
-    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added (DirectoryManager unimplemented)
     #[test]
     fn test_generate_new_infra_config() {
         use crate::on_host::file_store::build_config_name;
