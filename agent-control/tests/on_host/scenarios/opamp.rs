@@ -468,7 +468,7 @@ interval: 2s
 initial_delay: 0s
 timeout: 1s
 file:
-  path: "{}"
+  path: '{}'
   should_be_present: true
   unhealthy_string: ".*(unhealthy|fatal|error).*"
 "#,
