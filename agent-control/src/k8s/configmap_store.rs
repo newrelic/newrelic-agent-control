@@ -1,5 +1,6 @@
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use tracing::debug;
 
 use super::Error;
 #[cfg_attr(test, mockall_double::double)]
@@ -68,6 +69,7 @@ impl DataStore for ConfigMapStore {
     where
         T: DeserializeOwned,
     {
+        debug!(%agent_id, "Getting remote data at key '{key}'");
         self.get(agent_id, FOLDER_NAME_FLEET_DATA, key)
     }
 
@@ -82,6 +84,7 @@ impl DataStore for ConfigMapStore {
     where
         T: DeserializeOwned,
     {
+        debug!(%agent_id, "Getting local data at key '{key}'");
         self.get(agent_id, FOLDER_NAME_LOCAL_DATA, key)
     }
 
@@ -95,6 +98,7 @@ impl DataStore for ConfigMapStore {
     where
         T: Serialize,
     {
+        debug!(%agent_id, "Setting remote data at key '{key}'");
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
@@ -111,6 +115,7 @@ impl DataStore for ConfigMapStore {
 
     /// Delete data in the specified StoreKey of an Agent store.
     fn delete_remote_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Self::Error> {
+        debug!(%agent_id, "Deleting remote data at key '{key}'");
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
