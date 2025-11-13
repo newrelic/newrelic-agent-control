@@ -118,7 +118,8 @@ fn test_attributes_from_non_existing_agent_type() {
 /// the "agent.version" related with the agent type.
 #[rstest]
 #[case::with_regex(|local_dir| {CustomAgentType::default().build(local_dir)})]
-#[case::without_regex(|local_dir| {CustomAgentType::default().with_version(Some(r#"{"path": "echo", "args": "-n 1.0.0"}"#)).build(local_dir)})]
+#[cfg_attr(target_family = "unix", case::without_regex(|local_dir| {CustomAgentType::default().with_version(Some(r#"{"path": "echo", "args": "-n 1.0.0"}"#)).build(local_dir)}))]
+#[cfg_attr(target_family = "windows", case::without_regex(|local_dir| {CustomAgentType::default().with_version(Some(r#"{"path": "cmd", "args": "/C set /p=1.0.0<nul"}"#)).build(local_dir)}))]
 fn test_attributes_from_an_existing_agent_type(#[case] get_agent_type: impl Fn(PathBuf) -> String) {
     let opamp_server = FakeServer::start_new();
     let local_dir = tempdir().expect("failed to create local temp dir");

@@ -32,16 +32,7 @@ fake_variable:
                 .unwrap(),
             ),
             executables: Some(Self::default_executables()),
-            version: Some(
-                serde_yaml::from_str(
-                    r#"
-path: "echo"
-args: "Some data 1.0.0 Some data"
-regex: \d+\.\d+\.\d+
-"#,
-                )
-                .unwrap(),
-            ),
+            version: Some(Self::default_version_checker()),
             health: None,
         }
     }
@@ -108,6 +99,30 @@ impl CustomAgentType {
 - id: "trap-term-sleep"
   path: "powershell.exe"
   args: "-NoProfile -ExecutionPolicy Bypass -File tests\\on_host\\data\\trap_term_sleep_60.ps1"
+"#,
+        )
+        .unwrap()
+    }
+
+    #[cfg(target_family = "unix")]
+    fn default_version_checker() -> serde_yaml::Value {
+        serde_yaml::from_str(
+            r#"
+path: "echo"
+args: "Some data 1.0.0 Some data"
+regex: \d+\.\d+\.\d+
+"#,
+        )
+        .unwrap()
+    }
+
+    #[cfg(target_family = "windows")]
+    fn default_version_checker() -> serde_yaml::Value {
+        serde_yaml::from_str(
+            r#"
+path: "cmd"
+args: "/C echo Some data 1.0.0 Some data"
+regex: \d+\.\d+\.\d+
 "#,
         )
         .unwrap()
