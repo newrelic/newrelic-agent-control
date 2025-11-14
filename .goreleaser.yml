@@ -78,6 +78,11 @@ builds:
       - --bin=newrelic-agent-control-cli
     env:
       - AGENT_CONTROL_VERSION={{ .Version }}
+    hooks:
+      pre:
+        # Wait for newrelic-agent-control to be ready (parallel executions of cargo-xwin can be problematic)
+        - cmd: sh -c 'while [ ! -f target/x86_64-pc-windows-msvc/release/newrelic-agent-control.exe ]; do echo "Waiting for newrelic-agent-control-windows build to complete..."; sleep 5; done'
+          output: true
 
 archives:
   - formats: tar.gz
