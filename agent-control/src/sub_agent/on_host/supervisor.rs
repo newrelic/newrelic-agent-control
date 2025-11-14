@@ -426,6 +426,8 @@ pub mod tests {
     use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use rstest::*;
+    use serde::Deserialize;
+    use std::collections::HashMap;
     use std::thread;
     use std::time::{Duration, Instant};
     use tracing_test::internal::logs_with_scope_contain;
@@ -433,21 +435,45 @@ pub mod tests {
 
     const DURATION_DELTA: std::time::Duration = Duration::from_millis(100);
 
+    #[derive(Clone, Deserialize)]
+    struct TextExecutableData {
+        id: String,
+        path: String,
+        #[serde(default)]
+        args: Vec<String>,
+        #[serde(default)]
+        env: HashMap<String, String>,
+    }
+
+    impl From<TextExecutableData> for ExecutableData {
+        fn from(text_exec_data: TextExecutableData) -> Self {
+            ExecutableData::new(text_exec_data.id, text_exec_data.path)
+                .with_args(text_exec_data.args)
+                .with_env(text_exec_data.env)
+        }
+    }
+
+    fn build_test_exec_data(json_str: &str) -> ExecutableData {
+        serde_json::from_str::<TextExecutableData>(json_str)
+            .expect("Test input should be deserializable to an ExecutableData")
+            .into()
+    }
+
     #[traced_test]
     #[rstest]
     #[cfg_attr(target_family = "unix",case::long_running_process_shutdown_after_start(
         "long-running",
-        ExecutableData::new("sleep".to_owned(), "sleep".to_owned()).with_args(vec!["10".to_owned()]),
+        build_test_exec_data(r#"{"id":"sleep","path":"sleep","args":["10"]}"#),
         Some(Duration::from_secs(1)),
         vec!["Stopping executable", "Executable terminated"]))]
     #[cfg_attr(target_family = "windows",case::long_running_process_shutdown_after_start(
         "long-running",
-        ExecutableData::new("cmd".to_owned(), "cmd".to_owned()).with_args(vec!["/C".to_owned(), "timeout".to_owned(), "/T".to_owned(), "10".to_owned(), "/NOBREAK".to_owned()]),
+        build_test_exec_data(r#"{"id":"cmd","path":"cmd","args":["/C","timeout","/T","10","/NOBREAK"]}"#),
         Some(Duration::from_secs(1)),
         vec!["Stopping executable", "Executable terminated"]))]
     #[case::fail_process_shutdown_after_start(
         "wrong-command",
-        ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned()),
+        build_test_exec_data(r#"{"id":"wrong-command","path":"wrong-command"}"#),
         Some(Duration::from_secs(1)),
         vec!["Executable not running"])]
     fn test_supervisor_gracefully_shutdown(
@@ -543,8 +569,7 @@ pub mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let executables = vec![
-            ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
-                .with_args(vec!["x".to_owned()])
+            build_test_exec_data(r#"{"id":"wrong-command","path":"wrong-command","args":["x"]}"#)
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
@@ -583,20 +608,13 @@ pub mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let executables = vec![
-            ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
-                .with_args(vec!["x".to_owned()])
+            build_test_exec_data(r#"{"id":"wrong-command","path":"wrong-command","args":["x"]}"#)
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff.clone()))),
             #[cfg(target_family = "unix")]
-            ExecutableData::new("echo".to_owned(), "echo".to_owned())
-                .with_args(vec!["NR-command".to_owned()])
+            build_test_exec_data(r#"{"id":"echo","path":"echo","args":["NR-command"]}"#)
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
             #[cfg(target_family = "windows")]
-            ExecutableData::new("cmd".to_owned(), "cmd".to_owned())
-                .with_args(vec![
-                    "/C".to_owned(),
-                    "echo".to_owned(),
-                    "NR-command".to_owned(),
-                ])
+            build_test_exec_data(r#"{"id":"cmd","path":"cmd","args":["/C","echo","NR-command"]}"#)
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
@@ -642,8 +660,7 @@ pub mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let executables = vec![
-            ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
-                .with_args(vec!["x".to_owned()])
+            build_test_exec_data(r#"{"id":"wrong-command","path":"wrong-command","args":["x"]}"#)
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
@@ -679,16 +696,10 @@ pub mod tests {
 
         let executables = vec![
             #[cfg(target_family = "unix")]
-            ExecutableData::new("echo".to_owned(), "echo".to_owned())
-                .with_args(vec!["hello!".to_owned()])
+            build_test_exec_data(r#"{"id":"echo","path":"echo","args":["hello!"]}"#)
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
             #[cfg(target_family = "windows")]
-            ExecutableData::new("cmd".to_owned(), "cmd".to_owned())
-                .with_args(vec![
-                    "/C".to_owned(),
-                    "echo".to_owned(),
-                    "hello!".to_owned(),
-                ])
+            build_test_exec_data(r#"{"id":"cmd","path":"cmd","args":["/C","echo","hello!"]}"#)
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
@@ -746,12 +757,10 @@ pub mod tests {
         // the logger output. Why? See https://github.com/dbrgn/tracing-test/pull/19/ for clues.
         let executables = vec![
             #[cfg(target_family = "unix")]
-            ExecutableData::new(exec_id.to_string(), "echo".to_owned())
-                .with_args(vec!["".to_owned()])
+            build_test_exec_data(r#"{"id":"echo-process","path":"echo","args":[""]}"#)
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
             #[cfg(target_family = "windows")]
-            ExecutableData::new(exec_id.to_string(), "cmd".to_owned())
-                .with_args(vec!["/C".to_owned(), "echo".to_owned(), "".to_owned()])
+            build_test_exec_data(r#"{"id":"echo-process","path":"cmd","args":["/C","echo",""]}"#)
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
