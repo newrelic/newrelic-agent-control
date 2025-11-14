@@ -142,13 +142,11 @@ impl CommandOSStarted {
         let deadline = Instant::now() + timeout;
 
         while Instant::now() < deadline {
-            if self.is_running() {
-                std::thread::sleep(POLL_INTERVAL);
-            } else {
+            if !self.is_running() {
                 return false;
             }
+            std::thread::sleep(POLL_INTERVAL);
         }
-
         true
     }
 
