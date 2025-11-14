@@ -87,17 +87,9 @@ builds:
 archives:
   - formats: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    ids:
-      - newrelic-agent-control-linux
-      - newrelic-agent-control-windows
-      - newrelic-agent-control-cli-linux
-      - newrelic-agent-control-cli-windows
 
-nfpms:
+nfpms: # deb and rpm are only built for linux targets
   - package_name: newrelic-agent-control
-
-    # Only build packages for Linux targets
-    meta: false
 
     # Replace arch for rpm from amd64 to x86_64 to be consistent with our rpm repo.
     file_name_template: >-
