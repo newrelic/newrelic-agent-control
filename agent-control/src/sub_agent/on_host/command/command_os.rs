@@ -55,14 +55,7 @@ impl CommandOSNotStarted {
             .stderr(Stdio::piped());
 
         #[cfg(target_family = "windows")]
-        {
-            // Create new process group so we can send CTRL+BREAK events to it
-            use std::os::windows::process::CommandExt;
-
-            use windows::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
-
-            cmd.creation_flags(CREATE_NEW_PROCESS_GROUP.0);
-        }
+        Self::create_process_group(&mut cmd);
 
         Self {
             agent_id,
@@ -87,6 +80,26 @@ impl CommandOSNotStarted {
             loggers,
             shutdown_timeout: self.shutdown_timeout,
         })
+    }
+
+    #[cfg(target_family = "windows")]
+    /// Sets the process creation flags to create a new process group for Windows processes.
+    ///
+    /// This enables sending CTRL+BREAK events to it via the [`GenerateConsoleCtrlEvent`](windows::Win32::System::Console::GenerateConsoleCtrlEvent) function,
+    /// which is the mechanism we use to gracefully shut down the process. Otherwise, the Agent Control process needs to attach itself to the
+    /// console of the process to send a CTRL+C event which would need synchronization (many sub-agents making AC attach and reattach concurrently).
+    ///
+    /// For details, see the [task termination mechanism for GitLab runners](https://gitlab.com/gitlab-org/gitlab-runner/-/blob/397ba5dc2685e7b13feaccbfed4c242646955334/helpers/process/killer_windows.go#L75-108), which can use either mechanism dependent on a flag to use the legacy method (attach and reattach the parent process).
+    ///
+    /// Additional reading:
+    ///   - [`GenerateConsoleCtrlEvent` function](https://learn.microsoft.com/en-us/windows/console/generateconsolectrlevent), see second parameter `dwProcessGroupId`.
+    ///   - [Process Creation Flags](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags)
+    fn create_process_group(cmd: &mut Command) {
+        use std::os::windows::process::CommandExt;
+        use windows::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
+
+        // Create new process group so we can send CTRL+BREAK events to it
+        cmd.creation_flags(CREATE_NEW_PROCESS_GROUP.0);
     }
 }
 
