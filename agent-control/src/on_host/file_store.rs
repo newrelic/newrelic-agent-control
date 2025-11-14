@@ -105,7 +105,7 @@ where
     fn ensure_directory_existence(&self, values_file_path: &Path) -> Result<(), Error> {
         match values_file_path.parent() {
             None => Err(Error::other(format!(
-                "Cannot determine parent directory of path `{}`",
+                "cannot determine parent directory of path `{}`",
                 values_file_path.display()
             ))),
             Some(parent) if !parent.exists() => {
@@ -186,7 +186,7 @@ where
         self.ensure_directory_existence(&remote_values_path)
             .map_err(|err| {
                 Error::other(format!(
-                    "Error ensuring directory existence for path '{}': {}",
+                    "error ensuring directory existence for path '{}': {}",
                     remote_values_path.display(),
                     err
                 ))
@@ -199,7 +199,7 @@ where
             .write(remote_values_path.as_path(), content)
             .map_err(|err| {
                 Error::other(format!(
-                    "Error writing file {}: {}",
+                    "error writing file {}: {}",
                     remote_values_path.display(),
                     err
                 ))
