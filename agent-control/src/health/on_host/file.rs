@@ -2,6 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use serde::Deserialize;
+use tracing::trace;
 
 use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy, Unhealthy};
 use crate::health::with_start_time::HealthWithStartTime;
@@ -19,6 +20,10 @@ impl FileHealthChecker {
 
 impl HealthChecker for FileHealthChecker {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
+        trace!(
+            "Checking health from file at path: '{}'",
+            self.file_path.display()
+        );
         let file_content = fs::read(&self.file_path).map_err(|e| {
             HealthCheckerError::Generic(format!(
                 "reading health file '{}': {}",

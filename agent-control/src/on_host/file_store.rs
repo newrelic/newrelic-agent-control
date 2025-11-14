@@ -121,6 +121,7 @@ where
     where
         T: DeserializeOwned,
     {
+        trace!("Loading data from path '{}'", key.display());
         self.load_file_if_present(&key)
             // TODO: Address the generation of this error by
             // reworking the errors in the `fs` crate so they
@@ -149,6 +150,7 @@ where
     where
         T: DeserializeOwned,
     {
+        debug!(%agent_id, "Getting remote data at key '{key}'");
         let remote_dir = self
             .remote_dir
             .read()
@@ -160,6 +162,7 @@ where
     where
         T: DeserializeOwned,
     {
+        debug!(%agent_id, "Getting local data at key '{key}'");
         self.get(self.local_dir.get_file_path(agent_id, key))
     }
 
@@ -167,6 +170,7 @@ where
     where
         T: Serialize,
     {
+        debug!(%agent_id, "Setting remote data at key '{key}'");
         // I'm writing the locked file, not mutating the path
         // I think the OS will handle concurrent write/delete fine from all
         // threads/subprocesses of the program, but just in case. We can revisit later.
@@ -178,10 +182,11 @@ where
 
         let remote_values_path = remote_dir.get_file_path(agent_id, key);
 
+        trace!(%agent_id, "Ensuring the existence of a containing directory for remote config path '{}'", remote_values_path.display());
         self.ensure_directory_existence(&remote_values_path)
             .map_err(|err| {
                 Error::other(format!(
-                    "error ensuring directory existence for {}: {}",
+                    "error ensuring directory existence for path '{}': {}",
                     remote_values_path.display(),
                     err
                 ))
@@ -189,6 +194,7 @@ where
         let content =
             serde_yaml::to_string(data).map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
+        trace!(%agent_id, "Writing remote data to path '{}'", remote_values_path.display());
         self.file_rw
             .write(remote_values_path.as_path(), content)
             .map_err(|err| {
@@ -201,6 +207,7 @@ where
     }
 
     fn delete_remote_data(&self, agent_id: &AgentID, key: &str) -> Result<(), Self::Error> {
+        debug!(%agent_id, "Deleting remote data at key '{key}'");
         // I'm writing (deleting) the locked file, not mutating the path
         // I think the OS will handle concurrent write/delete fine from all
         // threads/subprocesses of the program, but just in case. We can revisit later.
@@ -212,8 +219,10 @@ where
 
         let remote_path_file = remote_dir.get_file_path(agent_id, key);
         if remote_path_file.exists() {
-            debug!("deleting remote config: {:?}", remote_path_file);
+            trace!(%agent_id, "Deleting remote config at path '{}'", remote_path_file.display());
             std::fs::remove_file(remote_path_file)?;
+        } else {
+            trace!(%agent_id, "Remote config file '{}' does not exist, nothing to delete", remote_path_file.display());
         }
         Ok(())
     }
