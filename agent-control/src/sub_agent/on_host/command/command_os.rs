@@ -152,39 +152,37 @@ impl CommandOSStarted {
 
     pub fn shutdown(&mut self) -> Result<(), CommandError> {
         let pid = self.get_pid();
-
         // Attempt a graceful shutdown (platform-dependent).
-        #[cfg(not(any(target_family = "windows", target_family = "unix")))]
-        let graceful_shutdown_result =
-            Err(io::Error::other("Unsupported platform for graceful shutdown").into());
-        #[cfg(target_family = "windows")]
-        let graceful_shutdown_result = {
-            use windows::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
-            // Graceful shutdown for console applications
-            // <https://stackoverflow.com/a/12899284>
-            // <https://gitlab.com/gitlab-org/gitlab-runner/-/blob/397ba5dc2685e7b13feaccbfed4c242646955334/helpers/process/killer_windows.go#L75-108>
-            unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid) }
-                .map_err(|e| CommandError::from(io::Error::from(e)))
-        };
-        #[cfg(target_family = "unix")]
-        let graceful_shutdown_result = {
-            use nix::{sys::signal, unistd::Pid};
-
-            signal::kill(Pid::from_raw(pid as i32), signal::SIGTERM)
-                .map_err(|e| CommandError::from(io::Error::from(e)))
-        };
+        let graceful_shutdown_result = Self::graceful_shutdown(pid);
 
         if let Err(e) = &graceful_shutdown_result {
             warn!(agent_id = %self.agent_id, "Graceful shutdown failed for process {pid}: {e}");
         }
 
-        // If fails, is unsupported, or the process is still running after the timeout, kill it.
         if graceful_shutdown_result.is_err() || self.is_running_after_timeout(self.shutdown_timeout)
         {
             self.process.kill().map_err(CommandError::from)?;
         }
 
         Ok(())
+    }
+
+    #[cfg(target_family = "unix")]
+    fn graceful_shutdown(pid: u32) -> Result<(), CommandError> {
+        use nix::{sys::signal, unistd::Pid};
+
+        signal::kill(Pid::from_raw(pid as i32), signal::SIGTERM)
+            .map_err(|e| CommandError::from(io::Error::from(e)))
+    }
+
+    #[cfg(target_family = "windows")]
+    fn graceful_shutdown(pid: u32) -> Result<(), CommandError> {
+        use windows::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
+        // Graceful shutdown for console applications
+        // <https://stackoverflow.com/a/12899284>
+        // <https://gitlab.com/gitlab-org/gitlab-runner/-/blob/397ba5dc2685e7b13feaccbfed4c242646955334/helpers/process/killer_windows.go#L75-108>
+        unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid) }
+            .map_err(|e| CommandError::from(io::Error::from(e)))
     }
 }
 
