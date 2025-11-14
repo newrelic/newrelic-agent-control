@@ -1557,8 +1557,8 @@ chart_version: 0.0.2 # not actually used, we rely on a mock
 
         let event_processor = spawn(move || agent_control.run());
 
-        // Leave some time for the health-checker to execute (every 20ms)
-        sleep(Duration::from_millis(100));
+        // Leave some time for the health-checker to execute
+        sleep(Duration::from_millis(250));
 
         // Send the stop signal
         t.channels

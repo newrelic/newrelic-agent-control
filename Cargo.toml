@@ -43,6 +43,7 @@ reqwest = { version = "0.12.24", default-features = false, features = [
   "socks",
 ] }
 rstest = "0.26.1"
+windows = "0.62.2"
 
 [profile.release]
 # remove debug symbols from the release binary

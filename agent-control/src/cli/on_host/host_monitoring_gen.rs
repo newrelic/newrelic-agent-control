@@ -8,6 +8,8 @@ use crate::cli::on_host::host_monitoring_gen::otel_config_gen::OtelConfigGen;
 use tracing::info;
 
 pub mod infra_config;
+// to remove once all code paths are covered for windows
+#[cfg_attr(target_family = "windows", allow(unused_imports, dead_code))]
 pub mod infra_config_gen;
 pub mod otel_config_gen;
 

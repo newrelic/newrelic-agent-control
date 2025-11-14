@@ -91,8 +91,23 @@ mod tests {
     use rstest::rstest;
 
     #[rstest]
-    #[case::command_and_regex("echo", "Some data 1.0.0 Some more data", Some(r"\d+\.\d+\.\d+"))]
-    #[case::command("echo", "-n 1.0.0", None)]
+    #[cfg_attr(
+        target_family = "unix",
+        case::command_and_regex("echo", "Some data 1.0.0 Some more data", Some(r"\d+\.\d+\.\d+"))
+    )]
+    #[cfg_attr(target_family = "unix", case::command("echo", "-n 1.0.0", None))]
+    #[cfg_attr(
+        target_family = "windows",
+        case::command_and_regex(
+            "cmd",
+            "/C echo Some data 1.0.0 Some more data",
+            Some(r"\d+\.\d+\.\d+")
+        )
+    )]
+    #[cfg_attr(
+        target_family = "windows",
+        case::command("cmd", "/C set /p=1.0.0<nul", None)
+    )]
     fn test_check_agent_version(
         #[case] path: &str,
         #[case] args: String,

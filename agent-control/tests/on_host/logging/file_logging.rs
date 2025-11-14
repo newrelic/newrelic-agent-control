@@ -25,6 +25,7 @@ fn build_logging_config(config_path: &Path, log_path: &Path) {
     std::fs::write(config_path, config).unwrap();
 }
 
+#[cfg(all(target_family = "unix", not(feature = "disable-asroot")))]
 #[test]
 fn default_log_level_no_root() {
     let dir = TempDir::new().unwrap();

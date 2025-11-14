@@ -1,8 +1,11 @@
+use tracing::warn;
+
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{STDERR_LOG_PREFIX, STDOUT_LOG_PREFIX};
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{
+    io,
     path::PathBuf,
     process::{Child, Command, ExitStatus, Stdio},
 };
@@ -15,6 +18,8 @@ use super::{
         logger::Logger,
     },
 };
+
+const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started/Sync Command
@@ -49,6 +54,9 @@ impl CommandOSNotStarted {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
+        #[cfg(target_family = "windows")]
+        Self::create_process_group(&mut cmd);
+
         Self {
             agent_id,
             cmd,
@@ -72,6 +80,26 @@ impl CommandOSNotStarted {
             loggers,
             shutdown_timeout: self.shutdown_timeout,
         })
+    }
+
+    #[cfg(target_family = "windows")]
+    /// Sets the process creation flags to create a new process group for Windows processes.
+    ///
+    /// This enables sending CTRL+BREAK events to it via the [`GenerateConsoleCtrlEvent`](windows::Win32::System::Console::GenerateConsoleCtrlEvent) function,
+    /// which is the mechanism we use to gracefully shut down the process. Otherwise, the Agent Control process needs to attach itself to the
+    /// console of the process to send a CTRL+C event which would need synchronization (many sub-agents making AC attach and reattach concurrently).
+    ///
+    /// For details, see the [task termination mechanism for GitLab runners](https://gitlab.com/gitlab-org/gitlab-runner/-/blob/397ba5dc2685e7b13feaccbfed4c242646955334/helpers/process/killer_windows.go#L75-108), which can use either mechanism dependent on a flag to use the legacy method (attach and reattach the parent process).
+    ///
+    /// Additional reading:
+    ///   - [`GenerateConsoleCtrlEvent` function](https://learn.microsoft.com/en-us/windows/console/generateconsolectrlevent), see second parameter `dwProcessGroupId`.
+    ///   - [Process Creation Flags](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags)
+    fn create_process_group(cmd: &mut Command) {
+        use std::os::windows::process::CommandExt;
+        use windows::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
+
+        // Create new process group so we can send CTRL+BREAK events to it
+        cmd.creation_flags(CREATE_NEW_PROCESS_GROUP.0);
     }
 }
 
@@ -122,58 +150,52 @@ impl CommandOSStarted {
 
         Ok(self)
     }
-}
 
-#[cfg(target_family = "unix")]
-mod unix {
-    use tracing::warn;
+    fn is_running_after_timeout(&mut self, timeout: Duration) -> bool {
+        let deadline = Instant::now() + timeout;
 
-    use crate::sub_agent::on_host::command::{command_os::CommandOSStarted, error::CommandError};
-
-    use std::time::Duration;
-    const POLL_INTERVAL: Duration = Duration::from_millis(100);
-
-    impl CommandOSStarted {
-        pub fn shutdown(&mut self) -> Result<(), CommandError> {
-            let pid = self.get_pid() as i32;
-
-            use nix::{sys::signal, unistd::Pid};
-            let graceful_shutdown_result = signal::kill(Pid::from_raw(pid), signal::SIGTERM)
-                .inspect_err(|err| warn!(agent_id = %self.agent_id, "Failed to gracefully exit process {pid}: {err}. Attempting forceful shutdown"));
-
-            if graceful_shutdown_result.is_err()
-                || self.is_running_after_timeout(self.shutdown_timeout)
-            {
-                self.process.kill().map_err(CommandError::from)?;
+        while Instant::now() < deadline {
+            if !self.is_running() {
+                return false;
             }
-            Ok(())
+            std::thread::sleep(POLL_INTERVAL);
         }
-
-        fn is_running_after_timeout(&mut self, timeout: Duration) -> bool {
-            let deadline = std::time::Instant::now() + timeout;
-
-            while std::time::Instant::now() < deadline {
-                if self.is_running() {
-                    std::thread::sleep(POLL_INTERVAL);
-                } else {
-                    return false;
-                }
-            }
-
-            true
-        }
+        true
     }
-}
 
-//TODO Properly design unix/windows shutdown when Windows support is added
-#[cfg(target_family = "windows")]
-mod windows {
-    use crate::sub_agent::on_host::command::{command_os::CommandOSStarted, error::CommandError};
+    pub fn shutdown(&mut self) -> Result<(), CommandError> {
+        let pid = self.get_pid();
+        // Attempt a graceful shutdown (platform-dependent).
+        let graceful_shutdown_result = Self::graceful_shutdown(pid);
 
-    impl CommandOSStarted {
-        pub fn shutdown(&mut self) -> Result<(), CommandError> {
-            self.process.kill().map_err(CommandError::from)
+        if let Err(e) = &graceful_shutdown_result {
+            warn!(agent_id = %self.agent_id, "Graceful shutdown failed for process {pid}: {e}");
         }
+
+        if graceful_shutdown_result.is_err() || self.is_running_after_timeout(self.shutdown_timeout)
+        {
+            self.process.kill().map_err(CommandError::from)?;
+        }
+
+        Ok(())
+    }
+
+    #[cfg(target_family = "unix")]
+    fn graceful_shutdown(pid: u32) -> Result<(), CommandError> {
+        use nix::{sys::signal, unistd::Pid};
+
+        signal::kill(Pid::from_raw(pid as i32), signal::SIGTERM)
+            .map_err(|e| CommandError::from(io::Error::from(e)))
+    }
+
+    #[cfg(target_family = "windows")]
+    fn graceful_shutdown(pid: u32) -> Result<(), CommandError> {
+        use windows::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
+        // Graceful shutdown for console applications
+        // <https://stackoverflow.com/a/12899284>
+        // <https://gitlab.com/gitlab-org/gitlab-runner/-/blob/397ba5dc2685e7b13feaccbfed4c242646955334/helpers/process/killer_windows.go#L75-108>
+        unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid) }
+            .map_err(|e| CommandError::from(io::Error::from(e)))
     }
 }
 

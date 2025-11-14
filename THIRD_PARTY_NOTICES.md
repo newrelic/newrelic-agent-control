@@ -2541,7 +2541,28 @@ Distributed under the following license(s):
 
 * CDLA-Permissive-2.0
 
+## windows <https://crates.io/crates/windows>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## windows-collections <https://crates.io/crates/windows-collections>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## windows-core <https://crates.io/crates/windows-core>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## windows-future <https://crates.io/crates/windows-future>
 
 Distributed under the following license(s):
 
@@ -2563,6 +2584,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## windows-link <https://crates.io/crates/windows-link>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## windows-numerics <https://crates.io/crates/windows-numerics>
 
 Distributed under the following license(s):
 
@@ -2591,6 +2619,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## windows-targets <https://crates.io/crates/windows-targets>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## windows-threading <https://crates.io/crates/windows-threading>
 
 Distributed under the following license(s):
 
