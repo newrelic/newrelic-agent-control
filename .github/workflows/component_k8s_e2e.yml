@@ -46,6 +46,9 @@ jobs:
         group: ${{ fromJSON(inputs.scenarios) }}
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Free up space
+        run: bash .github/workflows/scripts/space_cleanup.sh
 
       - name: Setup Minikube
         uses: manusa/actions-setup-minikube@v2.14.0
