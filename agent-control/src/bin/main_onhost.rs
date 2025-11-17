@@ -12,6 +12,7 @@ use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::instrumentation::tracing::TracingGuardBox;
+use newrelic_agent_control::utils::is_elevated::is_elevated;
 use std::error::Error;
 use std::process::ExitCode;
 use tracing::{error, info, trace};
@@ -36,9 +37,9 @@ fn _main(
     agent_control_run_config: AgentControlRunConfig,
     _tracer: Vec<TracingGuardBox>, // Needs to take ownership of the tracer as it can be shutdown on drop
 ) -> Result<(), Box<dyn Error>> {
-    #[cfg(all(target_family = "unix", not(feature = "disable-asroot")))]
-    if !nix::unistd::Uid::effective().is_root() {
-        return Err("Program must run as root".into());
+    #[cfg(not(feature = "disable-asroot"))]
+    if !is_elevated()? {
+        return Err("Program must run with elevated permissions".into());
     }
 
     #[cfg(not(feature = "multiple-instances"))]

@@ -67,9 +67,9 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
     cmd.arg("--local-dir").arg(dir.path());
-    cmd.assert()
-        .failure()
-        .stdout(predicate::str::contains("Program must run as root"));
+    cmd.assert().failure().stdout(predicate::str::contains(
+        "Program must run with elevated permissions",
+    ));
     Ok(())
 }
 
