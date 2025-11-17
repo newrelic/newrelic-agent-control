@@ -74,7 +74,7 @@ file:
 healthy: true
 status: "healthy-message"
 start_time_unix_nano: 1725444000
-status_time_unix_nano: 1725444001  
+status_time_unix_nano: 1725444200
     "#
         .to_string(),
         health_file_path.clone(),
@@ -98,7 +98,7 @@ healthy: false
 status: "unhealthy-message"
 last_error: "error-message"
 start_time_unix_nano: 1725444000
-status_time_unix_nano: 1725444002 
+status_time_unix_nano: 1725444500
 "#
         .to_string(),
         health_file_path.clone(),
@@ -110,7 +110,7 @@ status_time_unix_nano: 1725444002
             && health_status.status == "unhealthy-message"
             && health_status.last_error == "error-message"
             && health_status.start_time_unix_nano == 1725444000
-            && health_status.status_time_unix_nano == 1725444002
+            && health_status.status_time_unix_nano == 1725444500
         {
             return Ok(());
         }
