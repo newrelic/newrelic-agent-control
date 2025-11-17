@@ -1,16 +1,9 @@
-# What this PR does / why we need it
-
-## Which issue this PR fixes
-
-*(optional, in `fixes #<issue number>(, fixes #<issue_number>, ...)` format, will close that issue when PR gets merged. You can also add Jira ticket references if appropriate.)*
-
-- fixes #
-
-## Special notes for your reviewer
+<!-- Add a detailed description here. -->
 
 ## Checklist
 
-[Place an '[x]' (no spaces) in all applicable fields. Please remove unrelated fields.]
+<!-- Place an '[x]' (no spaces) in all applicable fields
+     and feel free to add/remove depending on what's applicable to this PR. -->
 
 - [ ] Provided a meaningful title following conventional commit style.
 - [ ] Included a detailed description for the Pull Request.
