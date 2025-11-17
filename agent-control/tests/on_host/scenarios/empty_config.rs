@@ -15,6 +15,8 @@ use newrelic_agent_control::agent_control::{
     agent_id::AgentID,
     run::{BasePaths, Environment},
 };
+use opamp_client::opamp::proto::RemoteConfigStatuses;
+use std::thread;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -99,7 +101,6 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
 /// for the sub-agent. The corresponding sub-agent supervisor will not start until a remote configuration is received.
 #[test]
 fn onhost_opamp_sub_agent_with_no_local_config() {
-    use opamp_client::opamp::proto::RemoteConfigStatuses;
     // Given a agent-control with a custom-agent with opamp configured.
     let mut opamp_server = FakeServer::start_new();
 
@@ -130,7 +131,9 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    thread::sleep(Duration::from_secs(1));
+
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
