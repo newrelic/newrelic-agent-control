@@ -8,7 +8,7 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
-use crate::agent_control::run::{AgentControlRunner, RunError};
+use crate::agent_control::run::{AgentControlRunner, Environment, RunError};
 use crate::agent_control::version_updater::updater::NoOpUpdater;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
@@ -40,6 +40,11 @@ use std::time::SystemTime;
 use tracing::{debug, info};
 
 pub const HOST_ID_VARIABLE_NAME: &str = "host_id";
+
+#[cfg(target_family = "windows")]
+pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Windows;
+#[cfg(target_family = "unix")]
+pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Linux;
 
 impl AgentControlRunner {
     pub(super) fn run_onhost(self) -> Result<(), RunError> {
@@ -153,15 +158,16 @@ impl AgentControlRunner {
         ];
         let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
 
-        let sub_agent_builder = OnHostSubAgentBuilder::new(
-            opamp_client_builder.as_ref(),
-            &instance_id_getter,
-            Arc::new(supervisor_builder),
-            Arc::new(remote_config_parser),
+        let sub_agent_builder = OnHostSubAgentBuilder {
+            opamp_builder: opamp_client_builder.as_ref(),
+            instance_id_getter: &instance_id_getter,
+            supervisor_builder: Arc::new(supervisor_builder),
+            remote_config_parser: Arc::new(remote_config_parser),
             yaml_config_repository,
-            agents_assembler,
-            self.sub_agent_publisher,
-        );
+            effective_agents_assembler: agents_assembler,
+            sub_agent_publisher: self.sub_agent_publisher,
+            ac_running_mode: self.ac_running_mode,
+        };
 
         let dynamic_config_validator =
             RegistryDynamicConfigValidator::new(self.agent_type_registry);

@@ -3,9 +3,9 @@
 //! It implements the basic functionality of parsing the command line arguments and either
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
-use newrelic_agent_control::agent_control::run::{
-    AgentControlRunConfig, AgentControlRunner, Environment,
-};
+
+use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use newrelic_agent_control::agent_control::run::{AgentControlRunConfig, AgentControlRunner};
 use newrelic_agent_control::command::Command;
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
@@ -16,10 +16,8 @@ use std::error::Error;
 use std::process::ExitCode;
 use tracing::{error, info, trace};
 
-const AGENT_CONTROL_MODE: Environment = Environment::OnHost;
-
 fn main() -> ExitCode {
-    Command::run(AGENT_CONTROL_MODE, _main)
+    Command::run(AGENT_CONTROL_MODE_ON_HOST, _main)
 }
 
 /// This is the actual main function.
@@ -41,12 +39,11 @@ fn _main(
         return Err("Program must run with elevated permissions".into());
     }
 
-    #[cfg(not(feature = "multiple-instances"))]
+    #[cfg(all(target_family = "unix", not(feature = "multiple-instances")))]
+    if let Err(err) = newrelic_agent_control::agent_control::pid_cache::PIDCache::default()
+        .store(std::process::id())
     {
-        use newrelic_agent_control::agent_control::pid_cache::PIDCache;
-        if let Err(err) = PIDCache::default().store(std::process::id()) {
-            return Err(format!("Error saving main process id: {err}").into());
-        }
+        return Err(format!("Error saving main process id: {err}").into());
     }
 
     install_rustls_default_crypto_provider();
@@ -58,8 +55,7 @@ fn _main(
     create_shutdown_signal_handler(application_event_publisher)?;
 
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-    AgentControlRunner::new(agent_control_run_config, application_event_consumer)?
-        .run(AGENT_CONTROL_MODE)?;
+    AgentControlRunner::new(agent_control_run_config, application_event_consumer)?.run()?;
 
     info!("exiting gracefully");
 

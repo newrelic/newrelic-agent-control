@@ -33,14 +33,16 @@ pub mod on_host;
 /// Defines the supported deployments for agent types
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Environment {
-    OnHost,
+    Linux,
+    Windows,
     K8s,
 }
 
 impl Display for Environment {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Environment::OnHost => write!(f, "host"),
+            Environment::Linux => write!(f, "linux"),
+            Environment::Windows => write!(f, "windows"),
             Environment::K8s => write!(f, "k8s"),
         }
     }
@@ -72,6 +74,7 @@ pub struct AgentControlRunConfig {
     pub proxy: ProxyConfig,
     pub k8s_config: K8sConfig,
     pub agent_type_var_constraints: VariableConstraints,
+    pub ac_running_mode: Environment,
 }
 
 /// Structure with all the data required to run the agent control.
@@ -88,11 +91,9 @@ pub struct AgentControlRunner {
     signature_validator: SignatureValidator,
     #[allow(dead_code, reason = "used by onhost")]
     base_paths: BasePaths,
-
     k8s_config: K8sConfig,
-
     runtime: Arc<Runtime>,
-
+    ac_running_mode: Environment,
     http_server_runner: Option<Runner>,
     agent_type_var_constraints: VariableConstraints,
 }
@@ -177,13 +178,14 @@ impl AgentControlRunner {
             sub_agent_publisher,
             base_paths: config.base_paths,
             signature_validator,
+            ac_running_mode: config.ac_running_mode,
             agent_type_var_constraints: config.agent_type_var_constraints,
         })
     }
 
-    pub fn run(self, mode: Environment) -> Result<(), RunError> {
-        match mode {
-            Environment::OnHost => self.run_onhost(),
+    pub fn run(self) -> Result<(), RunError> {
+        match self.ac_running_mode {
+            Environment::Linux | Environment::Windows => self.run_onhost(),
             Environment::K8s => self.run_k8s(),
         }
     }

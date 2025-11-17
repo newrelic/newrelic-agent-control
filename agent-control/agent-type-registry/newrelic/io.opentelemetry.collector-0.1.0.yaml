@@ -5,7 +5,7 @@ namespace: newrelic
 name: io.opentelemetry.collector
 version: 0.1.0
 variables:
-  on_host:
+  linux:
     config:
       description: "Newrelic otel collector configuration"
       type: yaml
@@ -71,7 +71,7 @@ variables:
         required: false
         default: null
 deployment:
-  on_host:
+  linux:
     health:
       interval: 5s
       initial_delay: 5s

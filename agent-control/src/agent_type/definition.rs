@@ -37,7 +37,9 @@ pub struct AgentTypeVariables {
     #[serde(default)]
     pub k8s: VariableDefinitionTree,
     #[serde(default)]
-    pub on_host: VariableDefinitionTree,
+    pub linux: VariableDefinitionTree,
+    #[serde(default)]
+    pub windows: VariableDefinitionTree,
 }
 
 /// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to execute agents.
@@ -163,6 +165,7 @@ mod agent_type_validation_tests;
 pub mod tests {
     use super::*;
     use crate::agent_control::run::Environment;
+    use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::runtime_config::Deployment;
     use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::{
@@ -180,11 +183,13 @@ pub mod tests {
                 variables: AgentTypeVariables {
                     common: VariableDefinitionTree::default(),
                     k8s: VariableDefinitionTree::default(),
-                    on_host: VariableDefinitionTree::default(),
+                    linux: VariableDefinitionTree::default(),
+                    windows: VariableDefinitionTree::default(),
                 },
                 runtime_config: Runtime {
                     deployment: Deployment {
-                        on_host: None,
+                        windows: None,
+                        linux: None,
                         k8s: None,
                     },
                 },
@@ -236,7 +241,7 @@ variables:
         required: false
         default: nrdot
 deployment:
-  on_host:
+  linux:
     health:
       interval: 3s
       initial_delay: 3s
@@ -264,7 +269,7 @@ spec:
   description:
     name:
 deployment:
-  on_host:
+  linux:
     executables:
       - id: otelcol
         path: ${nr-var:bin}/otelcol
@@ -279,7 +284,7 @@ namespace: newrelic
 version: 0.0.1
 variables: {}
 deployment: 
-  on_host: {}
+  linux: {}
 "#;
 
         let agent: AgentTypeDefinition = serde_yaml::from_str(basic_agent).unwrap();
@@ -305,7 +310,8 @@ deployment:
     #[test]
     fn test_normalize_agent_spec() {
         // create AgentSpec
-        let given_agent = AgentType::build_for_testing(AGENT_GIVEN_YAML, &Environment::OnHost);
+        let given_agent =
+            AgentType::build_for_testing(AGENT_GIVEN_YAML, &AGENT_CONTROL_MODE_ON_HOST);
 
         let expected_map: Map<String, Variable> = Map::from([(
             "description.name".to_string(),
@@ -351,7 +357,7 @@ variables:
       required: false
       default: 8003
 deployment:
-  on_host:
+  linux:
     health:
       interval: 3s
       initial_delay: 3s
@@ -377,7 +383,7 @@ status_server_port: 8004
     fn test_fill_infra_agent_variables_in() {
         // When we fill the agent type variables with the corresponding values
         let input_agent_type =
-            AgentType::build_for_testing(GIVEN_NEWRELIC_INFRA_YAML, &Environment::OnHost);
+            AgentType::build_for_testing(GIVEN_NEWRELIC_INFRA_YAML, &AGENT_CONTROL_MODE_ON_HOST);
         let filled_variables =
             input_agent_type.fill_variables(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML);
 
@@ -428,7 +434,7 @@ variables:
           values: [fixed, linear]
         default: exponential
 deployment:
-  on_host:
+  linux:
       executables:
         - id: echo
           path: /bin/echo
@@ -448,7 +454,7 @@ restart_policy:
     #[test]
     fn test_variables_with_variants() {
         let agent_type =
-            AgentType::build_for_testing(AGENT_TYPE_WITH_VARIANTS, &Environment::OnHost);
+            AgentType::build_for_testing(AGENT_TYPE_WITH_VARIANTS, &AGENT_CONTROL_MODE_ON_HOST);
 
         // Valid variant
         let filled_variables = agent_type.fill_variables(VALUES_VALID_VARIANT);

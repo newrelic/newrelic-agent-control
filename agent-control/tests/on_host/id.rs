@@ -14,7 +14,7 @@ use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
-use newrelic_agent_control::agent_control::run::Environment;
+use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::http::client::HttpClient;
 use newrelic_agent_control::http::config::{HttpConfig, ProxyConfig};
 use newrelic_agent_control::on_host::file_store::build_config_name;
@@ -180,7 +180,7 @@ name: test
 version: 0.0.0
 variables: {}
 deployment:
-  on_host:
+  linux:
     executables:
       - id: trap-term-sleep
         path: "sh"
@@ -201,7 +201,7 @@ name: test
 version: 0.0.0
 variables: {}
 deployment:
-  on_host:
+  windows:
     executables:
       - id: trap-term-sleep
         path: "powershell.exe"
@@ -242,7 +242,8 @@ agents:
         log_dir: local_dir.path().to_path_buf(),
     };
 
-    let _agent_control = start_agent_control_with_custom_config(base_paths, Environment::OnHost);
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths, AGENT_CONTROL_MODE_ON_HOST);
 
     retry(30, Duration::from_secs(1), || {
         // Check that the process is running with this exact command

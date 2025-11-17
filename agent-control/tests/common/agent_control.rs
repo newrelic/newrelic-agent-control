@@ -16,7 +16,7 @@ use std::sync::Arc;
 /// Take into account that some of the logic from main is not present here.
 pub fn start_agent_control_with_custom_config(
     base_paths: BasePaths,
-    mode: Environment,
+    ac_running_mode: Environment,
 ) -> StartedAgentControl {
     install_rustls_default_crypto_provider();
 
@@ -39,22 +39,23 @@ pub fn start_agent_control_with_custom_config(
             opamp: agent_control_config.fleet_control,
             http_server: agent_control_config.server,
             base_paths,
+            ac_running_mode,
             proxy: agent_control_config.proxy,
             agent_type_var_constraints: Default::default(),
 
-            k8s_config: match mode {
+            k8s_config: match ac_running_mode {
                 // This config is not used on the OnHost environment, a blank config is used.
-                Environment::OnHost => K8sConfig::default(),
                 Environment::K8s => agent_control_config
                     .k8s
                     .expect("K8s config must be present when running in K8s"),
+                _ => K8sConfig::default(),
             },
         };
 
         // Create the actual agent control runner with the rest of required configs and the application_event_consumer
         AgentControlRunner::new(run_config, application_event_consumer)
             .unwrap()
-            .run(mode)
+            .run()
             .unwrap();
     });
 

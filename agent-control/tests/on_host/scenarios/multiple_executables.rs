@@ -12,7 +12,7 @@ use crate::{
 };
 use newrelic_agent_control::agent_control::{
     agent_id::AgentID,
-    run::{BasePaths, Environment},
+    run::{BasePaths, on_host::AGENT_CONTROL_MODE_ON_HOST},
 };
 use tempfile::tempdir;
 
@@ -56,7 +56,7 @@ agents:
     };
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let subagent_instance_id = get_instance_id(
         &AgentID::try_from("nr-sleep-agent").unwrap(),
@@ -114,7 +114,7 @@ agents:
     };
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let subagent_instance_id = get_instance_id(
         &AgentID::try_from("nr-sleep-agent").unwrap(),

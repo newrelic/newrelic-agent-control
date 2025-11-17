@@ -36,43 +36,14 @@ where
     Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
-    opamp_builder: Option<&'a O>,
-    instance_id_getter: &'a I,
-    supervisor_builder: Arc<B>,
-    remote_config_parser: Arc<R>,
-    yaml_config_repository: Arc<Y>,
-    effective_agents_assembler: Arc<A>,
-    sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
-}
-
-impl<'a, O, I, B, R, Y, A> OnHostSubAgentBuilder<'a, O, I, B, R, Y, A>
-where
-    O: OpAMPClientBuilder,
-    I: InstanceIDGetter,
-    B: SupervisorBuilder + Send + Sync + 'static,
-    R: RemoteConfigParser + Send + Sync + 'static,
-    Y: ConfigRepository + Send + Sync + 'static,
-    A: EffectiveAgentsAssembler + Send + Sync + 'static,
-{
-    pub fn new(
-        opamp_builder: Option<&'a O>,
-        instance_id_getter: &'a I,
-        supervisor_builder: Arc<B>,
-        remote_config_parser: Arc<R>,
-        yaml_config_repository: Arc<Y>,
-        effective_agents_assembler: Arc<A>,
-        sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
-    ) -> Self {
-        Self {
-            opamp_builder,
-            instance_id_getter,
-            supervisor_builder,
-            remote_config_parser,
-            yaml_config_repository,
-            effective_agents_assembler,
-            sub_agent_publisher,
-        }
-    }
+    pub(crate) opamp_builder: Option<&'a O>,
+    pub(crate) instance_id_getter: &'a I,
+    pub(crate) supervisor_builder: Arc<B>,
+    pub(crate) remote_config_parser: Arc<R>,
+    pub(crate) yaml_config_repository: Arc<Y>,
+    pub(crate) effective_agents_assembler: Arc<A>,
+    pub(crate) sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
+    pub(crate) ac_running_mode: Environment,
 }
 
 impl<O, I, B, R, Y, A> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, B, R, Y, A>
@@ -133,7 +104,7 @@ where
             self.remote_config_parser.clone(),
             self.yaml_config_repository.clone(),
             self.effective_agents_assembler.clone(),
-            Environment::OnHost,
+            self.ac_running_mode,
         ))
     }
 }
@@ -196,6 +167,7 @@ mod tests {
         OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
         PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_sub_agent_custom_capabilities,
     };
+    use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilder;
@@ -310,7 +282,7 @@ mod tests {
         effective_agents_assembler.should_assemble_agent(
             &agent_identity,
             &YAMLConfig::default(),
-            &Environment::OnHost,
+            &AGENT_CONTROL_MODE_ON_HOST,
             effective_agent.clone(),
             1,
         );
@@ -323,15 +295,16 @@ mod tests {
 
         let remote_config_parser = MockRemoteConfigParser::new();
 
-        let on_host_builder = OnHostSubAgentBuilder::new(
-            Some(&opamp_builder),
-            &instance_id_getter,
-            Arc::new(supervisor_builder),
-            Arc::new(remote_config_parser),
-            Arc::new(config_repository),
-            Arc::new(effective_agents_assembler),
-            UnboundedBroadcast::default(),
-        );
+        let on_host_builder = OnHostSubAgentBuilder {
+            opamp_builder: Some(&opamp_builder),
+            instance_id_getter: &instance_id_getter,
+            supervisor_builder: Arc::new(supervisor_builder),
+            remote_config_parser: Arc::new(remote_config_parser),
+            yaml_config_repository: Arc::new(config_repository),
+            effective_agents_assembler: Arc::new(effective_agents_assembler),
+            sub_agent_publisher: UnboundedBroadcast::default(),
+            ac_running_mode: AGENT_CONTROL_MODE_ON_HOST,
+        };
 
         on_host_builder
             .build(&agent_identity)
@@ -433,7 +406,7 @@ mod tests {
         effective_agents_assembler.should_assemble_agent(
             &agent_identity,
             &YAMLConfig::default(),
-            &Environment::OnHost,
+            &AGENT_CONTROL_MODE_ON_HOST,
             effective_agent.clone(),
             1,
         );
@@ -447,15 +420,16 @@ mod tests {
         let remote_config_parser = MockRemoteConfigParser::new();
 
         // Sub Agent Builder
-        let on_host_builder = OnHostSubAgentBuilder::new(
-            Some(&opamp_builder),
-            &instance_id_getter,
-            Arc::new(supervisor_builder),
-            Arc::new(remote_config_parser),
-            Arc::new(config_repository),
-            Arc::new(effective_agents_assembler),
-            UnboundedBroadcast::default(),
-        );
+        let on_host_builder = OnHostSubAgentBuilder {
+            opamp_builder: Some(&opamp_builder),
+            instance_id_getter: &instance_id_getter,
+            supervisor_builder: Arc::new(supervisor_builder),
+            remote_config_parser: Arc::new(remote_config_parser),
+            yaml_config_repository: Arc::new(config_repository),
+            effective_agents_assembler: Arc::new(effective_agents_assembler),
+            sub_agent_publisher: UnboundedBroadcast::default(),
+            ac_running_mode: AGENT_CONTROL_MODE_ON_HOST,
+        };
 
         let sub_agent = on_host_builder
             .build(&agent_identity)

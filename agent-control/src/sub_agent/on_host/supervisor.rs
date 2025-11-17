@@ -425,15 +425,12 @@ pub mod tests {
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
-    use rstest::*;
     use serde::Deserialize;
     use std::collections::HashMap;
     use std::thread;
     use std::time::{Duration, Instant};
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
-
-    const DURATION_DELTA: std::time::Duration = Duration::from_millis(100);
 
     #[derive(Clone, Deserialize)]
     struct TextExecutableData {
@@ -459,8 +456,9 @@ pub mod tests {
             .into()
     }
 
+    #[cfg(target_family = "unix")]
     #[traced_test]
-    #[rstest]
+    #[rstest::rstest]
     #[cfg_attr(target_family = "unix",case::long_running_process_shutdown_after_start(
         "long-running",
         build_test_exec_data(r#"{"id":"sleep","path":"sleep","args":["10"]}"#),
@@ -482,6 +480,8 @@ pub mod tests {
         #[case] run_warmup_time: Option<Duration>,
         #[case] contain_logs: Vec<&'static str>,
     ) {
+        const DURATION_DELTA: std::time::Duration = Duration::from_millis(100);
+
         let backoff = Backoff::default()
             .with_initial_delay(Duration::from_secs(5))
             .with_max_retries(1);
@@ -526,7 +526,7 @@ pub mod tests {
                     "newrelic_agent_control::sub_agent::on_host::supervisor",
                     log,
                 ),
-                "log: {log}"
+                "log not found: {log}"
             );
         }
     }

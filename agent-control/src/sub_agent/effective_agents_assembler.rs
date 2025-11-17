@@ -64,10 +64,18 @@ impl EffectiveAgent {
         }
     }
 
+    // Depending on the environment this method returns either the linux or windows deployment
     pub(crate) fn get_onhost_config(&self) -> Result<&OnHost, EffectiveAgentsAssemblerError> {
-        self.runtime_config.deployment.on_host.as_ref().ok_or(
+        #[cfg(target_family = "windows")]
+        return self.runtime_config.deployment.windows.as_ref().ok_or(
             EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
-                "missing on_host deployment configuration".to_string(),
+                "missing windows deployment configuration".to_string(),
+            ),
+        );
+        #[cfg(target_family = "unix")]
+        self.runtime_config.deployment.linux.as_ref().ok_or(
+            EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
+                "missing linux deployment configuration".to_string(),
             ),
         )
     }
@@ -189,13 +197,23 @@ pub fn build_agent_type(
             definition.variables.k8s,
             Runtime {
                 deployment: Deployment {
-                    on_host: None,
+                    linux: None,
+                    windows: None,
                     ..definition.runtime_config.deployment
                 },
             },
         ),
-        Environment::OnHost => (
-            definition.variables.on_host,
+        Environment::Linux => (
+            definition.variables.linux,
+            Runtime {
+                deployment: Deployment {
+                    k8s: None,
+                    ..definition.runtime_config.deployment
+                },
+            },
+        ),
+        Environment::Windows => (
+            definition.variables.windows,
             Runtime {
                 deployment: Deployment {
                     k8s: None,
@@ -228,7 +246,7 @@ pub fn build_agent_type(
 pub(crate) mod tests {
 
     use super::*;
-    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::{agent_id::AgentID, run::on_host::AGENT_CONTROL_MODE_ON_HOST};
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistry;
     use crate::agent_type::definition::AgentTypeDefinition;
@@ -295,7 +313,6 @@ pub(crate) mod tests {
             AgentID::try_from("some-agent-id").unwrap(),
             AgentTypeID::try_from("ns/name:0.0.1").unwrap(),
         ));
-        let environment = Environment::OnHost;
         let agent_type_definition =
             AgentTypeDefinition::empty_with_metadata("ns/name:0.0.1".try_into().unwrap());
         let values = YAMLConfig::default();
@@ -306,7 +323,7 @@ pub(crate) mod tests {
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(registry);
 
         let effective_agent = assembler
-            .assemble_agent(&agent_identity, values, &environment)
+            .assemble_agent(&agent_identity, values, &AGENT_CONTROL_MODE_ON_HOST)
             .unwrap();
 
         assert_eq!(agent_identity, effective_agent.agent_identity);
@@ -327,8 +344,11 @@ pub(crate) mod tests {
         registry.should_not_get("namespace/name:0.0.1".to_string());
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(registry);
 
-        let result =
-            assembler.assemble_agent(&agent_identity, YAMLConfig::default(), &Environment::OnHost);
+        let result = assembler.assemble_agent(
+            &agent_identity,
+            YAMLConfig::default(),
+            &AGENT_CONTROL_MODE_ON_HOST,
+        );
 
         assert!(result.is_err());
         assert_eq!(
@@ -353,13 +373,17 @@ pub(crate) mod tests {
         let var = k8s_vars.get("config.var").unwrap();
         assert_eq!("K8s var".to_string(), var.description);
         assert!(
-            k8s_agent_type.runtime_config.deployment.on_host.is_none(),
-            "OnHost deployment for k8s should be none"
+            k8s_agent_type.runtime_config.deployment.linux.is_none(),
+            "linux deployment for k8s should be none"
+        );
+        assert!(
+            k8s_agent_type.runtime_config.deployment.windows.is_none(),
+            "windows deployment for k8s should be none"
         );
 
         let on_host_agent_type = build_agent_type(
             definition,
-            &Environment::OnHost,
+            &AGENT_CONTROL_MODE_ON_HOST,
             &VariableConstraints::default(),
         )
         .unwrap();
@@ -410,14 +434,25 @@ variables:
         description: "K8s var"
         type: string
         required: true
-  on_host:
+  linux:
     config:
       var:
-        description: "OnHost var"
+        description: "Linux var"
+        type: string
+        required: true
+  windows:
+    config:
+      var:
+        description: "Windows var"
         type: string
         required: true
 deployment:
-    on_host:
+    linux:
+      executables:
+        - id: my-exec
+          path: /some/path
+          args: "${nr-var:config.really_common} ${config.var}"
+    windows:
       executables:
         - id: my-exec
           path: /some/path
