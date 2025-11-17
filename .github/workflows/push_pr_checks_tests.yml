@@ -455,15 +455,20 @@ jobs:
         if: '!cancelled()'
         run: cargo test --workspace --exclude 'newrelic_agent_control' --all-targets
 
-      - name: Run tests agent control lib excluding root-required tests (on-host)
+      - name: Run tests agent control lib
         if: '!cancelled()'
         shell: bash
         run: make -C agent-control test/onhost
 
-      - name: Run integration tests
+      - name: Run integration tests excluding non root-required tests only available for unix (on-host)
         if: '!cancelled()'
         shell: bash
         run: make -C agent-control test/onhost/integration
+
+      - name: Run onHost root-required integration-tests only (windows runner has elevated permissions)
+        if: '!cancelled()'
+        shell: bash
+        run: make -C agent-control test/onhost/root/integration
 
       - name: Run documentation tests
         if: '!cancelled()'

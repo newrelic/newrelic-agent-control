@@ -46,8 +46,10 @@ fn default_log_level_no_root() {
             .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "ERROR.*Program must run as root")
-                .unwrap(),
+            predicate::str::is_match(
+                TIME_FORMAT.to_owned() + "ERROR.*Program must run with elevated permissions",
+            )
+            .unwrap(),
         );
 }
 
@@ -122,8 +124,10 @@ fn debug_log_level_no_root() {
             .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "ERROR.*Program must run as root")
-                .unwrap(),
+            predicate::str::is_match(
+                TIME_FORMAT.to_owned() + "ERROR.*Program must run with elevated permissions",
+            )
+            .unwrap(),
         );
 }
 

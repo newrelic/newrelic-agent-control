@@ -81,6 +81,9 @@ windows = { workspace = true, features = [
   "Win32_System_Threading",
 ] }
 
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { workspace = true }
+
 [dev-dependencies]
 assert_cmd = { workspace = true }
 predicates = { workspace = true }

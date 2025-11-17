@@ -38,6 +38,8 @@ fn test_auth_local_provider_as_root() {
         then.status(200);
     });
 
+    // The key path is put in single quotes because windows considers paths with double quotes
+    // as Hexadecimals when parsing yaml, same applies for all occurrences in this tests
     let _config_path = create_temp_file(
         &dir.path()
             .join(FOLDER_NAME_LOCAL_DATA)
@@ -51,7 +53,7 @@ fleet_control:
     token_url: "{}"
     client_id: "fake"
     provider: "local"
-    private_key_path: "{}"
+    private_key_path: '{}'
   signature_validation:
     enabled: false
 log:
@@ -71,12 +73,28 @@ agents: {{}}
     let mut cmd = cmd_agent_control(dir.path(), remote_dir.path().into(), log_dir.path().into());
     // cmd_assert is not made for long running programs, so we kill it.
     // Enough time for the SA to start and send at least 1 AgentToServer OpAMP message.
-    cmd.timeout(Duration::from_secs(10));
+    cmd.timeout(Duration::from_secs(20));
 
+    // On Unix, this will return None if the process was terminated by a signal.
+    // Since Windows does not use signals in the same way as Unix-like systems,
+    // there isn't a direct equivalent to a "signal-interrupted"
+    // and we can't do this assertion since there is always an exit code.
+    // Explanation for the condition in previous test
+    #[cfg(target_family = "unix")]
     let output = cmd
         .assert()
         .try_interrupted()
         .expect("shouldn't have crashed")
+        .get_output()
+        .to_owned();
+
+    #[cfg(target_family = "windows")]
+    let output = cmd
+        .assert()
+        .try_interrupted()
+        .expect_err("should have failure because of interruption on windows")
+        .assert()
+        .failure()
         .get_output()
         .to_owned();
 
@@ -130,12 +148,24 @@ agents: {{}}
     let log_dir = TempDir::new().unwrap();
     let mut cmd = cmd_agent_control(dir.path(), remote_dir.path().into(), log_dir.path().into());
     // Enough time for the SA to start and send at least 1 AgentToServer OpAMP message.
-    cmd.timeout(Duration::from_secs(5));
+    cmd.timeout(Duration::from_secs(20));
 
+    // Explanation for the condition in previous test
+    #[cfg(target_family = "unix")]
     let output = cmd
         .assert()
         .try_interrupted()
         .expect("shouldn't have crashed")
+        .get_output()
+        .to_owned();
+
+    #[cfg(target_family = "windows")]
+    let output = cmd
+        .assert()
+        .try_interrupted()
+        .expect_err("should have failure because of interruption on windows")
+        .assert()
+        .failure()
         .get_output()
         .to_owned();
 
@@ -172,7 +202,7 @@ fleet_control:
     token_url: "{}"
     client_id: "fake"
     provider: "local"
-    private_key_path: "{}"
+    private_key_path: '{}'
   signature_validation:
     enabled: false
 log:
