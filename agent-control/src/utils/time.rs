@@ -7,7 +7,7 @@ use std::time::{Duration, SystemTime};
 pub fn sys_time_from_unix_timestamp(nanos: u64) -> SystemTime {
     SystemTime::UNIX_EPOCH + Duration::from_nanos(nanos)
 }
-/// Converts a unix epoch timestamp in nanoseconds to a `SystemTime`.
+/// Converts a `SystemTime` to a unix epoch timestamp in nanoseconds.
 ///
 /// Mind the platform-specific differences on `SystemTime` precision.
 /// For example, on Windows the time is represented in 100 nanosecond intervals
