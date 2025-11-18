@@ -5,6 +5,7 @@ pub(super) mod effective_config;
 pub(super) mod global_logger;
 pub(super) mod health;
 pub(super) mod opamp;
+pub(super) mod process_finder;
 pub(super) mod remote_config_status;
 pub(super) mod retry;
 /// Includes helpers to handle the _async_ code execution in non-tokio-tests.

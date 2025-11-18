@@ -3,52 +3,13 @@
 
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::opamp::FakeServer;
+use crate::common::process_finder::find_processes_by_pattern;
 use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
-use std::process::Command;
 use std::thread;
 use std::time::Duration;
 use tempfile::tempdir;
-
-/// Helper function to find processes by pattern (cross-platform)
-#[cfg(target_family = "unix")]
-fn find_processes_by_pattern(pattern: &str) -> Vec<String> {
-    let output = Command::new("pgrep")
-        .arg("-f")
-        .arg(pattern)
-        .output()
-        .expect("failed to execute pgrep");
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    stdout
-        .lines()
-        .filter(|line| !line.is_empty())
-        .map(|s| s.to_string())
-        .collect()
-}
-
-#[cfg(target_family = "windows")]
-fn find_processes_by_pattern(pattern: &str) -> Vec<String> {
-    let output = Command::new("powershell")
-        .arg("-NoProfile")
-        .arg("-Command")
-        // A sort of `pgrep` that searches for processes by command line pattern,
-        // excluding the search command itself
-        .arg(format!(
-            "Get-CimInstance Win32_Process | Where-Object {{ $_.CommandLine -like '*{}*' -and $_.CommandLine -notlike '*Get-CimInstance*' }} | Select-Object -ExpandProperty ProcessId",
-            pattern
-        ))
-        .output()
-        .expect("failed to execute Get-Process");
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    stdout
-        .lines()
-        .filter(|line| !line.is_empty() && line.chars().all(|c| c.is_ascii_digit()))
-        .map(|s| s.to_string())
-        .collect()
-}
 
 /// Test that verifies no orphan processes are left when Agent Control stops.
 /// This test works on both Unix and Windows platforms.

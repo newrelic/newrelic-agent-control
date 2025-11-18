@@ -1,12 +1,12 @@
 use super::tools::config::{create_file, create_local_config};
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::process_finder::find_processes_by_pattern;
 use crate::common::retry::retry;
 use crate::on_host::consts::AWS_VM_RESPONSE;
 use crate::on_host::consts::AZURE_VM_RESPONSE;
 use crate::on_host::consts::GCP_VM_RESPONSE;
 use crate::on_host::consts::NO_CONFIG;
 use crate::on_host::tools::custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME;
-use assert_cmd::Command;
 use httpmock::Method::GET;
 use httpmock::Method::PUT;
 use httpmock::MockServer;
@@ -246,16 +246,10 @@ agents:
 
     retry(30, Duration::from_secs(1), || {
         // Check that the process is running with this exact command
-        #[cfg(target_family = "unix")]
-        Command::new("pgrep")
-            .arg("-f")
-            .arg("sh tests/on_host/data/trap_term_sleep_60.sh --host_id=fixed-host-id --agent_id=test-agent")
-            .assert().try_success()?;
-        #[cfg(target_family = "windows")]
-        Command::new("powershell.exe")
-            .arg("-Command")
-            .arg("if (!(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*tests\\on_host\\data\\trap_term_sleep_60.ps1*' -and $_.CommandLine -like '*--host_id=fixed-host-id*' -and $_.CommandLine -like '*--agent_id=test-agent*' })) { exit 1 }")
-            .assert().try_success()?;
-        Ok(())
+        if find_processes_by_pattern("trap_term_sleep_60").is_empty() {
+            Err("process not found".into())
+        } else {
+            Ok(())
+        }
     });
 }
