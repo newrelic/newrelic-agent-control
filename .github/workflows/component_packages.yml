@@ -88,11 +88,11 @@ jobs:
             exit 1
           fi
 
-      - name: Skip publish and use snapshot for testing
+      - name: Set tag and skip_upload=true for testing
         if: ${{ ! inputs.pre-release }}
         run: |
+          git tag ${{ inputs.tag_name }}
           echo SKIP_UPLOAD="--skip=publish" >> $GITHUB_ENV
-          echo USE_SNAPSHOT="--snapshot" >> $GITHUB_ENV
 
       - name: Skip packages sign
         if: ${{ inputs.skip_sign }}
@@ -102,7 +102,7 @@ jobs:
       - name: Release packages with GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
-          args: release ${{ env.SKIP_UPLOAD }} ${{ env.SKIP_SIGN }} ${{ env.USE_SNAPSHOT }} --clean --verbose --timeout 2h
+          args: release ${{ env.SKIP_UPLOAD }} ${{ env.SKIP_SIGN }} --clean --verbose --timeout 2h
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
