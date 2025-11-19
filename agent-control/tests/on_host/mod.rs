@@ -6,6 +6,5 @@ mod consts;
 mod id;
 mod logging;
 mod opamp_auth;
-mod proxy;
 mod scenarios;
 mod tools;
