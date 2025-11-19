@@ -64,6 +64,8 @@ jobs:
           components: clippy
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "test-dev"
 
       - name: cargo clippy with compiler warnings
         run: cargo clippy --workspace --all-targets -- -D warnings -D clippy::all
@@ -148,6 +150,8 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "test-dev"
       - name: Generate coverage report
         run: COVERAGE_OUT_FORMAT=json COVERAGE_OUT_FILEPATH=jcov.info make coverage
       - name: Calculate and print total coverage
@@ -201,6 +205,8 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "release"
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
@@ -239,6 +245,8 @@ jobs:
         run: cargo generate-lockfile
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "test-dev"
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
@@ -282,6 +290,8 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "test-dev"
 
       - name: Run onHost root-required integration-tests only
         run: make -C agent-control test/onhost/root/integration
@@ -333,6 +343,8 @@ jobs:
             x86_64-unknown-linux-musl
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "test-dev"
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
@@ -382,6 +394,8 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "test-dev"
 
       - name: Detect unused dependencies
         run: cargo shear

@@ -76,6 +76,8 @@ jobs:
             x86_64-unknown-linux-musl
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "test-dev"
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2

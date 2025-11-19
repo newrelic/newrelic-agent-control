@@ -50,6 +50,8 @@ jobs:
         run: cargo generate-lockfile
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "release"
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
