@@ -63,15 +63,7 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy
 
-      - uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
+      - uses: Swatinem/rust-cache@v2
 
       - name: cargo clippy with compiler warnings
         run: cargo clippy --workspace --all-targets -- -D warnings -D clippy::all
@@ -155,15 +147,7 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
+      - uses: Swatinem/rust-cache@v2
       - name: Generate coverage report
         run: COVERAGE_OUT_FORMAT=json COVERAGE_OUT_FILEPATH=jcov.info make coverage
       - name: Calculate and print total coverage
@@ -216,15 +200,7 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-release
+      - uses: Swatinem/rust-cache@v2
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
@@ -262,15 +238,7 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
 
-      - uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
+      - uses: Swatinem/rust-cache@v2
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
@@ -313,15 +281,7 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
+      - uses: Swatinem/rust-cache@v2
 
       - name: Run onHost root-required integration-tests only
         run: make -C agent-control test/onhost/root/integration
@@ -372,15 +332,7 @@ jobs:
           targets: >-
             x86_64-unknown-linux-musl
 
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
+      - uses: Swatinem/rust-cache@v2
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
@@ -429,15 +381,7 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-windows-test-dev
+      - uses: Swatinem/rust-cache@v2
 
       - name: Detect unused dependencies
         run: cargo shear
