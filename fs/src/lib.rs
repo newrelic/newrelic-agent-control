@@ -2,6 +2,7 @@ pub mod directory_manager;
 pub mod file_reader;
 pub mod file_renamer;
 pub mod utils;
+pub mod win_permissions;
 pub mod writer_file;
 
 #[derive(Debug)]

@@ -232,6 +232,12 @@ $ curl localhost:51200/status | jq
 cargo test --workspace --exclude 'newrelic_agent_control' --all-targets
 ```
 
+On Windows some of the tests need elevated permissions and are ignored by default but can be executed by adding:
+
+```sh
+cargo test --workspace --exclude 'newrelic_agent_control' --all-targets -- --include-ignored
+```
+
 We have `Makefile`s containing targets for testing. [Inspect them](../agent-control/Makefile) for more details.
 
 ### Feature `onhost`
