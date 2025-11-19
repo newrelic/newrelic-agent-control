@@ -59,7 +59,7 @@
             retries: 120
             delay: 10
             
-      always:
+      rescue:
         - name: AC logs
           shell: journalctl -u newrelic-agent-control --no-pager
           register: ac_logs
@@ -68,5 +68,5 @@
           debug:
             var: ac_logs.stdout_lines
 
-        - name: Cleanup
-          include_tasks: ./tasks/clean_all.yaml
+    - name: Cleanup
+      include_tasks: ./tasks/clean_all.yaml
