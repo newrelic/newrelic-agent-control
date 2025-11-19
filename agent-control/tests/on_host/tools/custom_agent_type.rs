@@ -159,6 +159,13 @@ regex: \d+\.\d+\.\d+
         }
     }
 
+    pub fn with_variables(self, variables: &str) -> Self {
+        Self {
+            variables: Some(serde_yaml::from_str(variables).unwrap()),
+            ..self
+        }
+    }
+
     pub fn without_deployment(self) -> Self {
         Self {
             executables: None,
