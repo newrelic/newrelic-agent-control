@@ -279,8 +279,8 @@ jobs:
         run: |
           cargo install --locked cargo-zigbuild --force
 
-      - name: Run workspace tests excluding the agent control package
-        run: cargo test --workspace --exclude 'newrelic_agent_control' --all-targets
+      - name: Run workspace tests excluding the agent control pkg (includes -winAdmin- ignored because it doesn't apply)
+        run: cargo test --workspace --exclude 'newrelic_agent_control' --all-targets -- --include-ignored
 
       - name: Run tests agent control lib excluding root-required tests (on-host)
         run: make -C agent-control test/onhost
@@ -451,9 +451,9 @@ jobs:
         if: '!cancelled()'
         run: cargo build --all --release
 
-      - name: Run workspace tests excluding the agent control package
+      - name: Run workspace tests excluding the agent control pkg (includes -winAdmin- ignored because user is elevated)
         if: '!cancelled()'
-        run: cargo test --workspace --exclude 'newrelic_agent_control' --all-targets
+        run: cargo test --workspace --exclude 'newrelic_agent_control' --all-targets -- --include-ignored
 
       - name: Run tests agent control lib
         if: '!cancelled()'

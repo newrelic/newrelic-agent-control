@@ -14,6 +14,12 @@ mockall = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tracing = "0.1.41"
 
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Security",
+    "Win32_Security_Authorization",
+] }
+
 [dev-dependencies]
 tempfile = { workspace = true }
 

@@ -17,6 +17,9 @@ pub enum WriteError {
 
     #[error("invalid path: {0}")]
     InvalidPath(#[from] FsError),
+
+    #[error("{0}")]
+    GenericError(String),
 }
 
 pub trait FileWriter {
@@ -24,6 +27,9 @@ pub trait FileWriter {
 }
 
 impl FileWriter for LocalFile {
+    /// write a file to disk given a path and content.
+    /// On Unix it sets the file permissions to 600.
+    /// On Windows it removes inheritance and adds Read/Write only to administrators.
     #[instrument(skip_all, fields(path = %path.display()))]
     fn write(&self, path: &Path, content: String) -> Result<(), WriteError> {
         validate_path(path)?;
@@ -39,6 +45,11 @@ impl FileWriter for LocalFile {
         }
 
         file_options.open(path)?.write_all(content.as_bytes())?;
+
+        #[cfg(target_family = "windows")]
+        crate::win_permissions::set_file_permissions_for_administrator(path)
+            .map_err(|err| WriteError::GenericError(err.to_string()))?;
+
         Ok(())
     }
 }
@@ -105,7 +116,11 @@ pub mod tests {
     use std::fs;
     use std::path::PathBuf;
 
+    // These tests need to be executed with administrator rights on windows.
+    // On the GitHub actions the windows runner has elevated permissions so they will pass.
+
     #[test]
+    #[ignore = "requires windows administrator"]
     fn test_file_writer_content_and_permissions() {
         // Prepare temp path and content for the file
         let file_name = "some_file";
@@ -137,6 +152,7 @@ pub mod tests {
     }
 
     #[test]
+    #[ignore = "requires windows administrator"]
     fn test_file_writer_should_not_return_error_if_file_already_exists() {
         // Prepare temp path and content for the file
         let file_name = "some_file";
@@ -155,6 +171,7 @@ pub mod tests {
     }
 
     #[test]
+    #[ignore = "requires windows administrator"]
     fn test_file_writer_truncate_exiting_file() {
         // Prepare temp path and content for the file
         let file_name = "some_file";
