@@ -71,7 +71,8 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
+          key: ${{ runner.os }}-test-dev-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-test-dev-cargo-
 
       - name: cargo clippy with compiler warnings
         run: cargo clippy --workspace --all-targets -- -D warnings -D clippy::all
@@ -163,7 +164,8 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
+          key: ${{ runner.os }}-test-dev-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-test-dev-cargo-
       - name: Generate coverage report
         run: COVERAGE_OUT_FORMAT=json COVERAGE_OUT_FILEPATH=jcov.info make coverage
       - name: Calculate and print total coverage
@@ -224,7 +226,8 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-release
+          key: ${{ runner.os }}-release-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-release-cargo-
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
@@ -270,7 +273,8 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
+          key: ${{ runner.os }}-test-dev-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-test-dev-cargo-
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
@@ -321,7 +325,8 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
+          key: ${{ runner.os }}-test-dev-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-test-dev-cargo-
 
       - name: Run onHost root-required integration-tests only
         run: make -C agent-control test/onhost/root/integration
@@ -380,7 +385,8 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
+          key: ${{ runner.os }}-test-dev-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-test-dev-cargo-
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
@@ -437,7 +443,8 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-windows-test-dev
+          key: ${{ runner.os }}-test-dev-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-test-dev-cargo-
 
       - name: Detect unused dependencies
         run: cargo shear
