@@ -97,7 +97,7 @@ jobs:
       - name: Skip packages sign
         if: ${{ inputs.skip_sign }}
         run: |
-          echo SKIP_SIGN=--skip=sign >> $GITHUB_ENV
+          echo SKIP_SIGN="--skip=sign" >> $GITHUB_ENV
 
       - name: Release packages with GoReleaser
         uses: goreleaser/goreleaser-action@v6
