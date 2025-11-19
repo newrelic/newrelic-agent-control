@@ -4,6 +4,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
+use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
 pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
 
 /// Helper to build a Custom Agent type with defaults ready to use in integration tests
@@ -178,6 +179,20 @@ regex: \d+\.\d+\.\d+
     /// Writes the custom agent type and returns its id as string.
     pub fn build(self, local_dir: PathBuf) -> String {
         let agent_type_file_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
+
+        // Fail early in the test if Self cannot parse into an Agent Type definition or even YAML
+        let parsed_yaml = serde_yaml::from_str::<serde_yaml::Value>(&self.to_string());
+        assert!(
+            parsed_yaml.is_ok(),
+            "CustomAgentType did not produce valid YAML:\n{}",
+            self
+        );
+        let parsed_agent_type = serde_yaml::from_str::<AgentTypeDefinition>(&self.to_string());
+        assert!(
+            parsed_agent_type.is_ok(),
+            "CustomAgentType did not produce valid AgentTypeDefinition:\n{}",
+            self
+        );
 
         std::fs::create_dir_all(agent_type_file_path.parent().unwrap()).unwrap();
         let mut local_file =
