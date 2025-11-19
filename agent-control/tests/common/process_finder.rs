@@ -29,7 +29,7 @@ pub fn find_processes_by_pattern(pattern: &str) -> Vec<String> {
             pattern
         ))
         .output()
-        .expect("failed to execute Get-Process");
+        .expect("failed to execute Get-CimInstance");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     stdout
