@@ -390,7 +390,10 @@ pub(crate) mod tests {
         let on_host_vars = on_host_agent_type.variables.flatten();
         assert!(on_host_vars.contains_key("config.really_common"));
         let var = on_host_vars.get("config.var").unwrap();
-        assert_eq!("OnHost var".to_string(), var.description);
+        #[cfg(target_family = "unix")]
+        assert_eq!("Linux var".to_string(), var.description);
+        #[cfg(target_family = "windows")]
+        assert_eq!("Windows var".to_string(), var.description);
         assert!(
             on_host_agent_type.runtime_config.deployment.k8s.is_none(),
             "K8s deployment for on_host should be none"
