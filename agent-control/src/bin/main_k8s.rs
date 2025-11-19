@@ -66,10 +66,5 @@ pub fn create_shutdown_signal_handler(
             .publish(ApplicationEvent::StopRequested)
             .inspect_err(|e| error!("Could not send agent control stop request: {}", e));
     })
-    .map_err(|e| {
-        error!("Could not set signal handler: {}", e);
-        e
-    })?;
-
-    Ok(())
+    .inspect_err(|e| error!("Could not set signal handler: {e}"))
 }
