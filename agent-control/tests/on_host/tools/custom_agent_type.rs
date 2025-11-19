@@ -87,7 +87,7 @@ impl CustomAgentType {
             r#"
 - id: "trap-term-sleep"
   path: "sh"
-  args: "tests/on_host/data/trap_term_sleep_60.sh"
+  args: "tests/on_host/data/sleep_60.sh"
 "#,
         )
         .unwrap()
@@ -99,7 +99,7 @@ impl CustomAgentType {
             r#"
 - id: "trap-term-sleep"
   path: "powershell.exe"
-  args: "-NoProfile -ExecutionPolicy Bypass -File tests\\on_host\\data\\trap_term_sleep_60.ps1"
+  args: "-NoProfile -ExecutionPolicy Bypass -File tests\\on_host\\data\\sleep_60.ps1"
 "#,
         )
         .unwrap()

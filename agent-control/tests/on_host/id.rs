@@ -185,7 +185,7 @@ deployment:
       - id: trap-term-sleep
         path: "sh"
         args: >-
-          tests/on_host/data/trap_term_sleep_60.sh
+          tests/on_host/data/sleep_60.sh
           --host_id=${nr-ac:host_id}
           --agent_id=${nr-sub:agent_id}
     "#
@@ -207,7 +207,7 @@ deployment:
         path: "powershell.exe"
         args: >-
           -NoProfile -ExecutionPolicy Bypass
-          -File tests\\on_host\\data\\trap_term_sleep_60.ps1
+          -File tests\\on_host\\data\\sleep_60.ps1
           --host_id=${nr-ac:host_id}
           --agent_id=${nr-sub:agent_id}
     "#
@@ -246,7 +246,7 @@ agents:
 
     retry(30, Duration::from_secs(1), || {
         // Check that the process is running with this exact command
-        if find_processes_by_pattern("trap_term_sleep_60").is_empty() {
+        if find_processes_by_pattern("sleep_60").is_empty() {
             Err("process not found".into())
         } else {
             Ok(())
