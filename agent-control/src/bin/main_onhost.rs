@@ -108,10 +108,17 @@ fn _windows_service_main(
     agent_control_run_config: AgentControlRunConfig,
     _tracer: Vec<TracingGuardBox>, // Needs to take ownership of the tracer as it can be shutdown on drop
 ) -> Result<(), Box<dyn Error>> {
+    #[cfg(not(feature = "disable-asroot"))]
+    if !is_elevated()? {
+        return Err("Program must run with elevated permissions".into());
+    }
+
     #[cfg(not(feature = "multiple-instances"))]
     if let Err(err) = PIDCache::default().store(std::process::id()) {
         return Err(format!("Error saving main process id: {err}").into());
     }
+
+    info!("Running as Windows Service");
 
     install_rustls_default_crypto_provider();
 
