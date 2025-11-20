@@ -83,7 +83,8 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
+          key: ${{ runner.os }}-test-dev-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-test-dev-cargo-
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
