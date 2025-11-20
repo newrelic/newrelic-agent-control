@@ -390,6 +390,14 @@ jobs:
             target/
           key: ${{ runner.os }}-test-dev-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-test-dev-cargo-
+      
+      - name: Display cached cargo size
+        run: |
+          du -h ~/.cargo/bin/*
+          du -h ~/.cargo/registry/index/*
+          du -h ~/.cargo/registry/cache/*
+          du -h ~/.cargo/git/db/*
+          du -h target/*
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
@@ -403,6 +411,14 @@ jobs:
           # Tilt configs
           ARCH: amd64
         run: make -C agent-control test/k8s/integration-${{ matrix.group }}
+      
+      - name: Display cached cargo size
+        run: |
+          du -h ~/.cargo/bin/*
+          du -h ~/.cargo/registry/index/*
+          du -h ~/.cargo/registry/cache/*
+          du -h ~/.cargo/git/db/*
+          du -h target/*
 
   k8s-e2e-tests:
     uses: ./.github/workflows/component_k8s_e2e.yml
