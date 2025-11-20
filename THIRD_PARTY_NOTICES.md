@@ -2541,6 +2541,13 @@ Distributed under the following license(s):
 
 * CDLA-Permissive-2.0
 
+## widestring <https://crates.io/crates/widestring>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## windows <https://crates.io/crates/windows>
 
 Distributed under the following license(s):
@@ -2598,6 +2605,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## windows-result <https://crates.io/crates/windows-result>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## windows-service <https://crates.io/crates/windows-service>
 
 Distributed under the following license(s):
 

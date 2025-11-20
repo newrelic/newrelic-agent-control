@@ -3,7 +3,6 @@
 //! It implements the basic functionality of parsing the command line arguments and either
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
-
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::run::{AgentControlRunConfig, AgentControlRunner};
 use newrelic_agent_control::command::Command;
@@ -31,8 +30,6 @@ use windows_service::{
     service_dispatcher,
 };
 
-const AGENT_CONTROL_MODE: Environment = Environment::OnHost;
-
 #[cfg(target_os = "windows")]
 const WINDOWS_SERVICE_NAME: &str = "newrelic-agent-control";
 
@@ -42,22 +39,27 @@ define_windows_service!(ffi_service_main, service_main);
 fn main() -> ExitCode {
     #[cfg(not(target_os = "windows"))]
     {
-        Command::run(AGENT_CONTROL_MODE, _main)
+        Command::run(AGENT_CONTROL_MODE_ON_HOST, _main)
     }
 
     #[cfg(target_os = "windows")]
     {
         if service_dispatcher::start(WINDOWS_SERVICE_NAME, ffi_service_main).is_err() {
-            // Not running as service, run normally
-            return Command::run(AGENT_CONTROL_MODE, _main);
+            // Not running as Windows Service, run normally
+            return Command::run(AGENT_CONTROL_MODE_ON_HOST, |cfg, tracer| {
+                _main(cfg, tracer, false)
+            });
         }
         ExitCode::SUCCESS
     }
 }
 
 #[cfg(target_os = "windows")]
+/// Entry-point for Windows Service
 fn service_main(_arguments: Vec<OsString>) {
-    let _ = Command::run(AGENT_CONTROL_MODE, _windows_service_main);
+    let _ = Command::run(AGENT_CONTROL_MODE_ON_HOST, |cfg, tracer| {
+        _main(cfg, tracer, true)
+    });
 }
 
 /// This is the actual main function.
@@ -73,6 +75,7 @@ fn service_main(_arguments: Vec<OsString>) {
 fn _main(
     agent_control_run_config: AgentControlRunConfig,
     _tracer: Vec<TracingGuardBox>, // Needs to take ownership of the tracer as it can be shutdown on drop
+    #[cfg(target_os = "windows")] as_windows_service: bool,
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(not(feature = "disable-asroot"))]
     if !is_elevated()? {
@@ -94,44 +97,18 @@ fn _main(
     trace!("creating the signal handler");
     create_shutdown_signal_handler(application_event_publisher.clone())?;
 
+    #[cfg(target_os = "windows")]
+    let tear_down_windows_service = as_windows_service
+        .then(|| setup_windows_service(application_event_publisher))
+        .transpose()?;
+
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
     AgentControlRunner::new(agent_control_run_config, application_event_consumer)?.run()?;
 
-    info!("Exiting gracefully");
-
-    Ok(())
-}
-
-// TODO: avoid full duplication of _main
-#[cfg(target_os = "windows")]
-fn _windows_service_main(
-    agent_control_run_config: AgentControlRunConfig,
-    _tracer: Vec<TracingGuardBox>, // Needs to take ownership of the tracer as it can be shutdown on drop
-) -> Result<(), Box<dyn Error>> {
-    #[cfg(not(feature = "multiple-instances"))]
-    if let Err(err) = PIDCache::default().store(std::process::id()) {
-        return Err(format!("Error saving main process id: {err}").into());
+    #[cfg(target_os = "windows")]
+    if let Some(tear_down_fn) = tear_down_windows_service {
+        tear_down_fn()?;
     }
-
-    install_rustls_default_crypto_provider();
-
-    trace!("creating the global context");
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-
-    trace!("creating the signal handler");
-    create_shutdown_signal_handler(application_event_publisher.clone())?;
-
-    let windows_status_handler = service_control_handler::register(
-        WINDOWS_SERVICE_NAME,
-        windows_event_handler(application_event_publisher),
-    )?;
-    set_windows_service_status(&windows_status_handler, WindowsServiceStatus::Running)?;
-
-    // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-    AgentControlRunner::new(agent_control_run_config, application_event_consumer)?.run()?;
-
-    // TODO: check if we should inform of stop-requested in case the graceful shutdown takes too long.
-    set_windows_service_status(&windows_status_handler, WindowsServiceStatus::Stopped)?;
 
     info!("Exiting gracefully");
 
@@ -152,6 +129,29 @@ pub fn create_shutdown_signal_handler(
             .inspect_err(|e| error!("Could not send agent control stop request: {}", e));
     })
     .inspect_err(|e| error!("Could not set signal handler: {e}"))
+}
+
+#[cfg(target_os = "windows")]
+/// Type alias to simplify [setup_windows_service] definition.
+type WinServiceResult = Result<(), Box<dyn Error>>;
+
+#[cfg(target_os = "windows")]
+/// Sets up the Windows Service by creating the status handler and setting the service status as [WindowsServiceStatus::Running].
+/// It returns a function to tear the service down when the Agent Control finishes its execution.
+fn setup_windows_service(
+    application_event_publisher: EventPublisher<ApplicationEvent>,
+) -> Result<impl Fn() -> WinServiceResult, Box<dyn Error>> {
+    let windows_status_handler = service_control_handler::register(
+        WINDOWS_SERVICE_NAME,
+        windows_event_handler(application_event_publisher),
+    )?;
+    set_windows_service_status(&windows_status_handler, WindowsServiceStatus::Running)?;
+
+    Ok(move || {
+        // TODO: check if we should inform of stop-requested in case the graceful shutdown takes too long.
+        set_windows_service_status(&windows_status_handler, WindowsServiceStatus::Stopped)?;
+        Ok(())
+    })
 }
 
 #[cfg(target_os = "windows")]
