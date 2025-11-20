@@ -53,6 +53,28 @@ To compile and run locally:
 
 8. Execute the binary with the config file with `sudo ./target/debug/newrelic-agent-control`
 
+#### Cross-compilation for Windows
+
+The steps below work for the `x86_64-pc-windows-msvc` target only. It is also possible to compile the project for the `x86_64-pc-windows-gnu` target using `cargo-zigbuild`.
+
+1. Install the [Rust toolchain](https://www.rust-lang.org/tools/install): `rustup target add x86_64-pc-windows-msvc`
+2. Install [cargo-xwin](https://github.com/rust-cross/cargo-xwin) and dependencies.
+   Example for macOs:
+
+   ```bash
+   ❯ brew install cmake ninja llvm
+   ❯ cargo install --locked cargo-xwin
+   ```
+
+3. Compile agent-control:
+
+   ```bash
+   ❯ cargo xwin build --bin newrelic-agent-control --target x86_64-pc-windows-msvc --release
+   ```
+
+   ⚠️ This method doesn't work for building debug binaries (`--release` is required). As `cargo-xwin` doesn't provide `msvcrtd.lib` (the debug version of the C runtime library).
+
+
 #### Filesystem layout and persistence
 
 The following shows the directory structure used by Agent Control, assuming an existing sub-agent with the ID `newrelic-infra`:
