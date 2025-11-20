@@ -5,6 +5,10 @@
   become: true
   gather_facts: yes
 
+  vars:
+    # to be enable on local vm tests as it makes GH runner to hang
+    enable_firewall: false
+
   tasks:
     - name: Cleanup
       include_tasks: ./tasks/clean_all.yaml 
@@ -67,20 +71,21 @@
             interface: docker0
 
         - name: Enable UFW
+          when: enable_firewall == true
           community.general.ufw:
             state: enabled
 
-        - name: Verify UFW rules with bash script
+        - name: Verify direct traffic is blocked
+          when: enable_firewall == true
           shell: |
-            # Test that direct traffic is blocked
             curl -s --max-time 5 https://www.newrelic.com
             direct=$?
             if [ $direct -eq 0 ]; then
               echo "ERROR: Direct traffic is not blocked"
               exit 1
             fi
-            
-            # Test that proxied traffic works
+        - name: Verify that proxied traffic works
+          shell: |
             curl -s --max-time 5 --proxy http://localhost:8080 https://www.newrelic.com
             proxy=$?
             if [ $proxy -ne 0 ]; then
@@ -160,6 +165,7 @@
                 var: ac_logs.stdout_lines
       always:
         - name: Restore firewall rules
+          when: enable_firewall == true
           shell: |
             cp /tmp/user.rules.backup /etc/ufw/user.rules
             cp /tmp/user6.rules.backup /etc/ufw/user6.rules
