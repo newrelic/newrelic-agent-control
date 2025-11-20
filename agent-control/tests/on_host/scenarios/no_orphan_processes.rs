@@ -4,13 +4,26 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::opamp::FakeServer;
 use crate::common::process_finder::find_processes_by_pattern;
+use crate::common::retry::retry;
+use crate::on_host::cli::create_temp_file;
 use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
+use assert_cmd::cargo::cargo_bin_cmd;
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_CONTROL_ID, DYNAMIC_AGENT_TYPE_DIR, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+};
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use newrelic_agent_control::on_host::file_store::build_config_name;
 use std::thread;
 use std::time::Duration;
-use tempfile::tempdir;
+use tempfile::{TempDir, tempdir};
+
+#[cfg(target_family = "unix")]
+use nix::{
+    sys::signal::{self, Signal},
+    unistd::Pid,
+};
 
 /// Test that verifies no orphan processes are left when Agent Control stops.
 /// This test works on both Unix and Windows platforms.
@@ -106,4 +119,169 @@ agents:
         "Expected no orphan processes after Agent Control stops, but found: {:?}",
         pids_after
     );
+}
+
+/// Test that verifies no orphan processes are left when the Agent Control binary is killed.
+/// This test spawns the actual binary using assert_cmd and validates cleanup on termination.
+#[test]
+#[ignore = "requires root"]
+fn test_no_orphan_processes_when_binary_killed_as_root() -> Result<(), Box<dyn std::error::Error>> {
+    let local_dir = TempDir::new()?;
+
+    // Create agent type YAML with platform-specific sleep commands
+    #[cfg(target_family = "unix")]
+    let agent_type_yaml = r#"
+namespace: newrelic
+name: com.newrelic.test-agent
+version: 0.0.1
+variables:
+  on_host:
+    duration:
+      description: "time to sleep"
+      type: string
+      required: false
+      default: "3600"
+deployment:
+  on_host:
+    enable_file_logging: false
+    executables:
+      - id: long-sleep
+        path: sleep
+        args: "${nr-var:duration}"
+"#;
+
+    #[cfg(target_family = "windows")]
+    let agent_type_yaml = r#"
+namespace: newrelic
+name: com.newrelic.test-agent
+version: 0.0.1
+variables:
+  on_host:
+    duration:
+      description: "time to sleep"
+      type: string
+      required: false
+      default: "3600"
+deployment:
+  on_host:
+    enable_file_logging: false
+    executables:
+      - id: long-sleep
+        path: powershell
+        args: "-Command Start-Sleep -Seconds ${nr-var:duration}"
+"#;
+
+    let _agent_type_def = create_temp_file(
+        local_dir.path().join(DYNAMIC_AGENT_TYPE_DIR).as_path(),
+        "test-agent.yaml",
+        agent_type_yaml,
+    )?;
+
+    let _values_file = create_temp_file(
+        local_dir
+            .path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join("test-agent")
+            .as_path(),
+        build_config_name(STORE_KEY_LOCAL_DATA_CONFIG).as_str(),
+        r#"duration: "12345""#,
+    )
+    .unwrap();
+
+    let _config_path = create_temp_file(
+        &local_dir
+            .path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID),
+        build_config_name(STORE_KEY_LOCAL_DATA_CONFIG).as_str(),
+        r#"
+log:
+  level: debug
+  file:
+    enabled: true
+agents:
+  test-agent:
+    agent_type: newrelic/com.newrelic.test-agent:0.0.1
+server:
+  enabled: false
+"#,
+    )?;
+
+    // Spawn agent control in a background thread
+    let local_dir_path = local_dir.path().to_path_buf();
+    let agent_control_handle = thread::spawn(move || {
+        let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
+        cmd.arg("--local-dir").arg(local_dir_path);
+        // run for at most 5 mins, else error out
+        // but this "blinds" us to the kill command failing to take effect. Review.
+        cmd.timeout(Duration::from_secs(300));
+        cmd.output()
+    });
+
+    // Wait for the process to start and find the spawned sub-agent
+    #[cfg(target_family = "unix")]
+    let process_pattern = "sleep 12345";
+    #[cfg(target_family = "windows")]
+    let process_pattern = "Start-Sleep -Seconds 12345";
+
+    // Give time for AC setup
+    thread::sleep(Duration::from_secs(10));
+    let _sleep_pid = retry(30, Duration::from_secs(1), || {
+        let pids = find_processes_by_pattern(process_pattern);
+        if pids.is_empty() {
+            Err("Sub-agent sleep process not found yet".into())
+        } else {
+            Ok(pids[0].clone())
+        }
+    });
+
+    // Find the agent control process itself
+    // For the search pattern we use the path to the local dir. If we used something like
+    // `newrelic-agent-control` we might kill the integration test itself!
+    let local_dir_path_str = local_dir.path().display().to_string();
+    let ac_pid = retry(30, Duration::from_secs(1), || {
+        let pids = find_processes_by_pattern(&local_dir_path_str);
+        if pids.is_empty() {
+            Err("Agent Control process not found".into())
+        } else {
+            Ok(pids[0].clone())
+        }
+    });
+
+    // Kill the agent control process
+    #[cfg(target_family = "unix")]
+    {
+        signal::kill(
+            Pid::from_raw(ac_pid.trim().parse::<i32>().unwrap()),
+            Signal::SIGKILL,
+        )
+        .expect("failed to kill agent control process");
+    }
+
+    #[cfg(target_family = "windows")]
+    {
+        use std::process::Command;
+        Command::new("taskkill")
+            .args(["/F", "/PID", &ac_pid])
+            .output()
+            .expect("failed to kill agent control process");
+    }
+
+    // Wait for the spawned thread to complete
+    // we don't check for errors as the process was killed intentionally
+    let _ = agent_control_handle.join();
+    // Give some time for cleanup
+    thread::sleep(Duration::from_secs(10));
+
+    // Verify the sub-agent process was also terminated
+    retry(30, Duration::from_secs(1), || {
+        let pids = find_processes_by_pattern(process_pattern);
+        if pids.is_empty() {
+            Ok(())
+        } else {
+            Err(format!("Orphan sub-agent processes still running. PIDs {pids:?}").into())
+        }
+    });
+
+    Ok(())
 }
