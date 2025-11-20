@@ -75,16 +75,9 @@ jobs:
           targets: >-
             x86_64-unknown-linux-musl
 
-      - uses: actions/cache/restore@v4
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-test-dev-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-test-dev-cargo-
+          shared-key: "test-dev-cargo-"
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
