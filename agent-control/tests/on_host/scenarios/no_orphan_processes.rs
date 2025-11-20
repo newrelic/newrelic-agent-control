@@ -235,7 +235,16 @@ server:
     // Wait for the spawned thread to complete
     let ac_process_assert = agent_control_handle.join().unwrap();
     // Assert that the process was indeed interrupted (killed)
-    ac_process_assert.interrupted();
+    let ac_process_assert = ac_process_assert.interrupted();
+    // print output for debugging
+    println!(
+        "Agent Control STDOUT: {}",
+        String::from_utf8_lossy(&ac_process_assert.get_output().stdout)
+    );
+    println!(
+        "Agent Control STDERR: {}",
+        String::from_utf8_lossy(&ac_process_assert.get_output().stderr)
+    );
     // Give some more time for cleanup
     thread::sleep(Duration::from_secs(10));
 
