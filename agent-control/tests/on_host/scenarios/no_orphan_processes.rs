@@ -19,12 +19,6 @@ use std::thread;
 use std::time::Duration;
 use tempfile::{TempDir, tempdir};
 
-#[cfg(target_family = "unix")]
-use nix::{
-    sys::signal::{self, Signal},
-    unistd::Pid,
-};
-
 /// Test that verifies no orphan processes are left when Agent Control stops.
 /// This test works on both Unix and Windows platforms.
 #[test]
@@ -125,8 +119,8 @@ agents:
 /// This test spawns the actual binary using assert_cmd and validates cleanup on termination.
 #[test]
 #[ignore = "requires root"]
-fn test_no_orphan_processes_when_binary_killed_as_root() -> Result<(), Box<dyn std::error::Error>> {
-    let local_dir = TempDir::new()?;
+fn test_no_orphan_processes_when_binary_killed_as_root() {
+    let local_dir = TempDir::new().unwrap();
 
     // Create agent type YAML with platform-specific sleep commands
     #[cfg(target_family = "unix")]
@@ -175,7 +169,8 @@ deployment:
         local_dir.path().join(DYNAMIC_AGENT_TYPE_DIR).as_path(),
         "test-agent.yaml",
         agent_type_yaml,
-    )?;
+    )
+    .unwrap();
 
     let _values_file = create_temp_file(
         local_dir
@@ -205,17 +200,19 @@ agents:
 server:
   enabled: false
 "#,
-    )?;
+    )
+    .unwrap();
 
     // Spawn agent control in a background thread
     let local_dir_path = local_dir.path().to_path_buf();
     let agent_control_handle = thread::spawn(move || {
         let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
         cmd.arg("--local-dir").arg(local_dir_path);
-        // run for at most 5 mins, else error out
-        // but this "blinds" us to the kill command failing to take effect. Review.
-        cmd.timeout(Duration::from_secs(300));
-        cmd.output()
+        // Run for a limited time. Using `timeout` from `assert_cmd`, if
+        // the process does not complete before the timeout then it will be terminated
+        // using [std::process::Child::kill], which on Unix sends a `SIGKILL`.
+        cmd.timeout(Duration::from_secs(60));
+        cmd.assert()
     });
 
     // Wait for the process to start and find the spawned sub-agent
@@ -235,42 +232,11 @@ server:
         }
     });
 
-    // Find the agent control process itself
-    // For the search pattern we use the path to the local dir. If we used something like
-    // `newrelic-agent-control` we might kill the integration test itself!
-    let local_dir_path_str = local_dir.path().display().to_string();
-    let ac_pid = retry(30, Duration::from_secs(1), || {
-        let pids = find_processes_by_pattern(&local_dir_path_str);
-        if pids.is_empty() {
-            Err("Agent Control process not found".into())
-        } else {
-            Ok(pids[0].clone())
-        }
-    });
-
-    // Kill the agent control process
-    #[cfg(target_family = "unix")]
-    {
-        signal::kill(
-            Pid::from_raw(ac_pid.trim().parse::<i32>().unwrap()),
-            Signal::SIGKILL,
-        )
-        .expect("failed to kill agent control process");
-    }
-
-    #[cfg(target_family = "windows")]
-    {
-        use std::process::Command;
-        Command::new("taskkill")
-            .args(["/F", "/PID", &ac_pid])
-            .output()
-            .expect("failed to kill agent control process");
-    }
-
     // Wait for the spawned thread to complete
-    // we don't check for errors as the process was killed intentionally
-    let _ = agent_control_handle.join();
-    // Give some time for cleanup
+    let ac_process_assert = agent_control_handle.join().unwrap();
+    // Assert that the process was indeed interrupted (killed)
+    ac_process_assert.interrupted();
+    // Give some more time for cleanup
     thread::sleep(Duration::from_secs(10));
 
     // Verify the sub-agent process was also terminated
@@ -282,6 +248,4 @@ server:
             Err(format!("Orphan sub-agent processes still running. PIDs {pids:?}").into())
         }
     });
-
-    Ok(())
 }
