@@ -393,11 +393,7 @@ jobs:
       
       - name: Display cached cargo size
         run: |
-          du -h ~/.cargo/bin/*
-          du -h ~/.cargo/registry/index/*
-          du -h ~/.cargo/registry/cache/*
-          du -h ~/.cargo/git/db/*
-          du -h target/*
+          du -h target/debug/deps/*
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
@@ -414,11 +410,7 @@ jobs:
       
       - name: Display cached cargo size
         run: |
-          du -h ~/.cargo/bin/*
-          du -h ~/.cargo/registry/index/*
-          du -h ~/.cargo/registry/cache/*
-          du -h ~/.cargo/git/db/*
-          du -h target/*
+          du -h target/debug/deps/*
 
   k8s-e2e-tests:
     uses: ./.github/workflows/component_k8s_e2e.yml
