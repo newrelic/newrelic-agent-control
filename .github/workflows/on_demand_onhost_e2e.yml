@@ -3,11 +3,16 @@ name: ⏯️🚀💾 OnHost E2E test on demand
 on:
   workflow_dispatch:
     inputs:
-      scenarios:
-        description: 'JSON array of test scenarios from test/onhost_e2e/ansible to run'
+      linux_scenarios:
+        description: 'JSON array of test scenarios from test/onhost_e2e/ansible to run on linux'
         required: false
         type: string
-        default: '["migration.yaml", "remote_config.yaml", "ebpf_agent.yaml"]'
+        default: '["migration.yaml", "remote_config.yaml", "ebpf_agent.yaml", "infra_agent.yaml", "nrdot_agent.yaml"]'
+      windows_scenarios:
+        description: 'JSON array of test scenarios from test/onhost_e2e/ansible to run on windows'
+        required: false
+        type: string
+        default: '["version"]'
 
 permissions:
   contents: read
@@ -16,7 +21,8 @@ jobs:
   onhost-e2e:
     uses: ./.github/workflows/component_onhost_e2e.yaml
     with:
-      scenarios: ${{ inputs.scenarios }}
+      linux_scenarios: ${{ inputs.linux_scenarios }}
+      windows_scenarios: ${{ inputs.windows_scenarios }}
     secrets:
       NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
       NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
