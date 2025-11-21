@@ -1,20 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
-    "helpers:pinGitHubActionDigests"
-  ],
-  "labels": [
-    "dependencies"
-  ],
-  "automerge": false,
-  "lockFileMaintenance": {
-    "enabled": true
-  },
-  "enabledManagers": [
-    "cargo",
-    "custom.regex",
-    "gomod"
+    "github>newrelic/agent-control:.github/renovate-shared-base.json"
   ],
   "customManagers": [
     {
@@ -73,56 +60,6 @@
       "datasourceTemplate": "github-tags",
       "depNameTemplate": "newrelic-opamp-rs",
       "packageNameTemplate": "newrelic/newrelic-opamp-rs"
-    }
-  ],
-  "rangeStrategy": "bump",
-  "prConcurrentLimit": 0,
-  "printConfig": true,
-  "prHourlyLimit": 0,
-  "packageRules": [
-    {
-      "groupName": "github actions",
-      "matchManagers": [
-        "github-actions"
-      ],
-      "schedule": [
-        "before 4am on Monday"
-      ]
-    },
-    {
-      "enabled": false,
-      "matchPackageNames": [
-        "/serde_yaml/"
-      ]
-    },
-    {
-      "groupName": "kubernetes crates",
-      "matchManagers": [
-        "cargo"
-      ],
-      "matchPackageNames": [
-        "kube",
-        "k8s",
-        "schemars"
-      ]
-    },
-    {
-      "matchManagers": [
-        "gomod"
-      ],
-      "matchUpdateTypes": [
-        "minor"
-      ],
-      "groupName": "go minor and patch updates"
-    },
-    {
-      "matchManagers": [
-        "gomod"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "groupName": "go major updates"
     }
   ]
 }
