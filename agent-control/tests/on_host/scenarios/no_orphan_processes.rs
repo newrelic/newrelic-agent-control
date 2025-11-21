@@ -194,6 +194,7 @@ log:
   level: debug
   file:
     enabled: true
+host_id: "no-orphan-processes-integration-test"
 agents:
   test-agent:
     agent_type: newrelic/com.newrelic.test-agent:0.0.1
