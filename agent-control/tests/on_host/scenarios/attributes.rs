@@ -15,7 +15,8 @@ use newrelic_agent_control::agent_control::defaults::{
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY,
     OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
-use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
+use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
 use resource_detection::system::hostname::get_hostname;
@@ -57,7 +58,7 @@ fn test_attributes_from_non_existing_agent_type() {
         log_dir: local_dir.path().to_path_buf(),
     };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let agent_control_instance_id_ac = get_instance_id(&AgentID::AgentControl, base_paths.clone());
 
@@ -158,7 +159,7 @@ agents:
     };
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
     let agent_control_instance_id_ac = get_instance_id(&AgentID::AgentControl, base_paths.clone());
     let agent_control_instance_id =
         get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths.clone());

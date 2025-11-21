@@ -8,7 +8,8 @@ use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::STORE_KEY_OPAMP_DATA_CONFIG;
-use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
+use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::on_host::file_store::build_config_name;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;
@@ -61,7 +62,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
     };
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 
@@ -140,7 +141,7 @@ fn test_invalid_config_executable_less_supervisor() {
         log_dir: local_dir.path().to_path_buf(),
     };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 
@@ -225,7 +226,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
     };
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 

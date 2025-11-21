@@ -39,7 +39,7 @@ variables:
       type: map[string]yaml
       required: false
       default: {}
-  on_host:
+  linux:
     backoff_delay:
       description: "seconds until next retry if agent fails to start"
       type: string
@@ -123,7 +123,7 @@ For on-host deployment, use the following format:
 
 ```yaml
 deployment:
-  on_host:
+  linux:
     enable_file_logging: ${nr-var:enable_file_logging}
     health:
       interval: 5s
@@ -394,7 +394,7 @@ This guideline shows how to build a custom agent type and integrate it with the 
     #       default: "default value"
     
     variables:
-      on_host:
+      linux:
         config_file:
           description: "Telegraf config file path"
           type: string
@@ -407,7 +407,7 @@ This guideline shows how to build a custom agent type and integrate it with the 
           default: 20s
     
     deployment:
-      on_host:
+      linux:
         executables:
           - id: telegraf
             path: /usr/bin/telegraf

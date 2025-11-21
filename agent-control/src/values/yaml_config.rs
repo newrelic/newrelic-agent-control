@@ -75,18 +75,15 @@ pub fn has_remote_management(capabilities: &Capabilities) -> bool {
 
 #[cfg(test)]
 mod tests {
-
-    use serde_yaml::{Mapping, Value};
-
+    use super::*;
     use crate::{
-        agent_control::run::Environment,
+        agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST,
         agent_type::{
             definition::AgentType,
             variable::{Variable, tree::Tree},
         },
     };
-
-    use super::*;
+    use serde_yaml::{Mapping, Value};
 
     impl YAMLConfig {
         pub(crate) fn new(values: HashMap<String, Value>) -> Self {
@@ -176,7 +173,7 @@ verbose: true
 
     const EXAMPLE_CONFIG_REPLACE: &str = r#"
 deployment:
-  on_host:
+  test:
     path: "/etc"
     args: --verbose true
 config: |
@@ -192,7 +189,7 @@ version: 0.1.0
 variables:
   common:
     deployment:
-      on_host:
+      test:
         path:
           description: "Path to the agent"
           type: string
@@ -202,7 +199,12 @@ variables:
           type: string
           required: true
 deployment:
-  on_host:
+  linux:
+    executables:
+      - id: otelcol
+        path: ${deployment.on_host.path}/otelcol
+        args: "-c ${deployment.on_host.args}"
+  windows:
     executables:
       - id: otelcol
         path: ${deployment.on_host.path}/otelcol
@@ -213,12 +215,12 @@ deployment:
     fn test_update_specs() {
         let input_structure = serde_yaml::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
         let agent_type =
-            AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &Environment::OnHost);
+            AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &AGENT_CONTROL_MODE_ON_HOST);
 
         let expected = HashMap::from([(
             "deployment".to_string(),
             Tree::Mapping(HashMap::from([(
-                "on_host".to_string(),
+                "test".to_string(),
                 Tree::Mapping(HashMap::from([
                     (
                         "path".to_string(),
@@ -254,7 +256,7 @@ deployment:
     config: |
       test
     deployment:
-      on_host:
+      test:
         path: true
         args: --verbose true
     integrations: {}
@@ -265,7 +267,7 @@ deployment:
         let input_structure =
             serde_yaml::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
         let agent_type =
-            AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &Environment::OnHost);
+            AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &AGENT_CONTROL_MODE_ON_HOST);
 
         let result = agent_type.variables.fill_with_values(input_structure);
 

@@ -14,7 +14,8 @@ use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_FLEET_DATA, STORE_KEY_OPAMP_DATA_CONFIG,
 };
-use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
+use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_type::variable::namespace::Namespace;
 use newrelic_agent_control::on_host::file_store::build_config_name;
 use newrelic_agent_control::values::config::RemoteConfig;
@@ -52,7 +53,7 @@ fn onhost_opamp_agent_control_local_effective_config() {
     let base_paths = base_paths.clone();
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, base_paths);
 
@@ -101,7 +102,7 @@ fn onhost_opamp_agent_control_remote_effective_config() {
     let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
 
@@ -189,7 +190,7 @@ fn onhost_opamp_agent_control_remote_config_with_unknown_field() {
     };
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, base_paths);
 
@@ -292,7 +293,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
         log_dir: local_dir.path().to_path_buf(),
     };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
     let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
 
     retry(60, Duration::from_secs(1), || {
@@ -366,7 +367,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
         log_dir: local_dir.path().to_path_buf(),
     };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
 
@@ -424,7 +425,7 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
         log_dir: local_dir.path().to_path_buf(),
     };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
 
@@ -521,7 +522,7 @@ status_time_unix_nano: 1725444001
         log_dir: local_dir.path().to_path_buf(),
     };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 

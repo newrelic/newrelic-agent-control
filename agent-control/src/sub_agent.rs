@@ -722,6 +722,7 @@ pub mod tests {
     use super::supervisor::stopper::tests::MockSupervisorStopper;
     use super::{NotStartedSubAgent, StartedSubAgent};
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::embedded_registry::EmbeddedRegistry;
     use crate::agent_type::render::TemplateRenderer;
@@ -875,7 +876,11 @@ variables:
       required: false
       default: ""
 deployment:
-  on_host:
+  linux:
+    executables:
+      - id: exec
+        path: ${nr-var:var}
+  windows:
     executables:
       - id: exec
         path: ${nr-var:var}
@@ -897,7 +902,7 @@ variables:
       type: string
       required: true
 deployment:
-  on_host:
+  linux:
     executables:
       - id: exec
         path: ${nr-var:var}
@@ -1012,7 +1017,7 @@ deployment:
             )),
             config_repository,
             effective_agents_assembler,
-            Environment::OnHost,
+            AGENT_CONTROL_MODE_ON_HOST,
         )
     }
 
@@ -1097,7 +1102,7 @@ deployment:
             )),
             config_repository,
             effective_agents_assembler,
-            Environment::OnHost,
+            AGENT_CONTROL_MODE_ON_HOST,
         );
 
         sub_agent.run().stop().unwrap();

@@ -108,7 +108,10 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::{
-        agent_control::{agent_id::AgentID, run::Environment},
+        agent_control::{
+            agent_id::AgentID,
+            run::{Environment, on_host::AGENT_CONTROL_MODE_ON_HOST},
+        },
         agent_type::{
             definition::AgentType,
             runtime_config::{
@@ -132,7 +135,8 @@ pub(crate) mod tests {
     #[test]
     fn test_render() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
+        let agent_type =
+            AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &AGENT_CONTROL_MODE_ON_HOST);
         let values = testing_values(SIMPLE_AGENT_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
 
@@ -150,7 +154,7 @@ pub(crate) mod tests {
         let mut bin_stack = vec!["/opt/first", "/opt/second"].into_iter();
         runtime_config
             .deployment
-            .on_host
+            .linux
             .unwrap()
             .executables
             .iter()
@@ -166,7 +170,8 @@ pub(crate) mod tests {
     #[test]
     fn test_render_with_empty_but_required_values() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
+        let agent_type =
+            AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &AGENT_CONTROL_MODE_ON_HOST);
         let values = YAMLConfig::default();
         let attributes = testing_agent_attributes(&agent_id);
 
@@ -186,7 +191,8 @@ pub(crate) mod tests {
     #[test]
     fn test_render_with_missing_values() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
+        let agent_type =
+            AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &AGENT_CONTROL_MODE_ON_HOST);
         let values = testing_values(SIMPLE_AGENT_VALUES_REQUIRED_MISSING);
         let attributes = testing_agent_attributes(&agent_id);
 
@@ -207,7 +213,7 @@ pub(crate) mod tests {
     fn test_render_agent_type_with_backoff_config() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
         let agent_type =
-            AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF, &Environment::OnHost);
+            AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF, &AGENT_CONTROL_MODE_ON_HOST);
         let values = testing_values(BACKOFF_VALUES_YAML);
         let attributes = testing_agent_attributes(&agent_id);
 
@@ -222,7 +228,7 @@ pub(crate) mod tests {
             )
             .unwrap();
 
-        let on_host_deployment = runtime_config.deployment.on_host.unwrap();
+        let on_host_deployment = runtime_config.deployment.linux.unwrap();
         let backoff_strategy = &on_host_deployment
             .executables
             .first()
@@ -248,7 +254,7 @@ pub(crate) mod tests {
     fn test_render_agent_type_with_backoff_config_and_string_durations() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
         let agent_type =
-            AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF, &Environment::OnHost);
+            AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF, &AGENT_CONTROL_MODE_ON_HOST);
         let values = testing_values(BACKOFF_VALUES_STRING_DURATION);
         let attributes = testing_agent_attributes(&agent_id);
 
@@ -263,7 +269,7 @@ pub(crate) mod tests {
             )
             .unwrap();
 
-        let on_host_deployment = runtime_config.deployment.on_host.unwrap();
+        let on_host_deployment = runtime_config.deployment.linux.unwrap();
         let backoff_strategy = &on_host_deployment
             .executables
             .first()
@@ -290,7 +296,7 @@ pub(crate) mod tests {
         // This is testing agent-type definition and values, but it is included here because it its related to
         // test_render_agent_type_with_backoff_config.
         let agent_type =
-            AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF, &Environment::OnHost);
+            AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF, &AGENT_CONTROL_MODE_ON_HOST);
 
         let wrong_backoff_yamls = vec![
             WRONG_RETRIES_BACKOFF_CONFIG_YAML,
@@ -545,13 +551,13 @@ name: first
 version: 0.1.0
 variables: {}
 deployment:
-  on_host:
+  linux:
     executables:
       - id: first
         path: /opt/first
         args: "${nr-ac:sa-fake-var}"
 "#,
-            &Environment::OnHost,
+            &AGENT_CONTROL_MODE_ON_HOST,
         );
         let values = testing_values("");
         let attributes = testing_agent_attributes(&agent_id);
@@ -576,7 +582,7 @@ deployment:
             Args("fake_value".into()),
             runtime_config
                 .deployment
-                .on_host
+                .linux
                 .unwrap()
                 .executables
                 .first()
@@ -604,7 +610,7 @@ variables:
       required: false
       default: bar
 deployment:
-  on_host:
+  linux:
     executables:
       - id: first
         path: /opt/first
@@ -627,7 +633,7 @@ name: nrdot
 namespace: newrelic
 version: 0.1.0
 variables:
-  on_host:
+  common:
     backoff:
       delay:
         description: "Backoff delay"
@@ -649,10 +655,21 @@ variables:
         type: string
         required: true
 deployment:
-  on_host:
+  linux:
     executables:
       - id: otelcol
-        path: /bin/otelcol
+        path: /just-an-example
+        args: "-c some-arg"
+        restart_policy:
+          backoff_strategy:
+            type: ${nr-var:backoff.type}
+            backoff_delay: ${nr-var:backoff.delay}
+            max_retries: ${nr-var:backoff.retries}
+            last_retry_interval: ${nr-var:backoff.interval}
+  windows:
+    executables:
+      - id: otelcol
+        path: \just-an-example
         args: "-c some-arg"
         restart_policy:
           backoff_strategy:

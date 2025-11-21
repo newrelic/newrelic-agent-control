@@ -10,7 +10,8 @@ use crate::on_host::tools::instance_id::get_instance_id;
 use httpmock::Method::GET;
 use httpmock::MockServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
+use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -65,7 +66,7 @@ file:
         log_dir: local_dir.path().to_path_buf(),
     };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let agent_control_instance_id = get_instance_id(&sub_agent_id, base_paths);
 
@@ -178,7 +179,7 @@ http:
     let base_paths = base_paths.clone();
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let agent_control_instance_id = get_instance_id(&sub_agent_id, base_paths);
 

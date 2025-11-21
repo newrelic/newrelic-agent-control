@@ -42,7 +42,7 @@ variables:
         type: yaml
         required: false
         default: null
-  on_host:
+  linux:
     config_agent:
       DEPLOYMENT_NAME:
         description: "Unique name for the deployment to identify data posting via eBPF Agent."
@@ -244,7 +244,7 @@ variables:
       required: false
       default: false
 deployment:
-  on_host:
+  linux:
     enable_file_logging: ${nr-var:enable_file_logging}
     version:
       path: /usr/bin/nr-ebpf-agent-client

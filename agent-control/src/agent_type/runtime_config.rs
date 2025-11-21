@@ -28,7 +28,8 @@ pub struct Runtime {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Deployment {
-    pub on_host: Option<OnHost>,
+    pub windows: Option<OnHost>,
+    pub linux: Option<OnHost>,
     pub k8s: Option<K8s>,
 }
 
@@ -41,19 +42,29 @@ impl<'de> Deserialize<'de> for Deployment {
         #[serde(deny_unknown_fields)]
         struct DeploymentInner {
             #[serde(default)]
-            on_host: Option<OnHost>,
+            linux: Option<OnHost>,
+            #[serde(default)]
+            windows: Option<OnHost>,
             #[serde(default)]
             k8s: Option<K8s>,
         }
         // Deployment cannot have both fields empty
-        let DeploymentInner { on_host, k8s } = DeploymentInner::deserialize(deserializer)?;
+        let DeploymentInner {
+            linux,
+            windows,
+            k8s,
+        } = DeploymentInner::deserialize(deserializer)?;
 
-        if on_host.is_none() && k8s.is_none() {
+        if windows.is_none() && linux.is_none() && k8s.is_none() {
             Err(serde::de::Error::custom(
-                "field `deployment` must have at least one of the fields `on_host` or `k8s`",
+                "field `deployment` must have at least one of the fields `linux`, windows or `k8s`",
             ))
         } else {
-            Ok(Deployment { on_host, k8s })
+            Ok(Deployment {
+                linux,
+                windows,
+                k8s,
+            })
         }
     }
 }
@@ -86,15 +97,23 @@ impl Templateable for Deployment {
         With `?` I get rid of the original Result<_,_> wrapper type and get the Option<_> (or else the error bubbles up if it contained the Err(_) variant). Then I am able to store that Option<_>, be it None or Some(_), back into the Deployment object which contains the Option<_> field.
         */
 
-        let oh = self
-            .on_host
-            .map(|oh| oh.template_with(variables))
+        let linux = self
+            .linux
+            .map(|lin| lin.template_with(variables))
+            .transpose()?;
+        let windows = self
+            .windows
+            .map(|win| win.template_with(variables))
             .transpose()?;
         let k8s = self
             .k8s
             .map(|k8s| k8s.template_with(variables))
             .transpose()?;
-        Ok(Self::Output { on_host: oh, k8s })
+        Ok(Self::Output {
+            linux,
+            windows,
+            k8s,
+        })
     }
 }
 
@@ -117,14 +136,14 @@ mod tests {
         let rtc = serde_yaml::from_str::<Runtime>("deployment: {}");
         assert!(rtc.is_err_and(|e| {
             e.to_string().contains(
-                "field `deployment` must have at least one of the fields `on_host` or `k8s`",
+                "field `deployment` must have at least one of the fields `linux`, windows or `k8s`",
             )
         }));
 
         let rtc = serde_yaml::from_str::<Runtime>("deployment: ");
         assert!(rtc.is_err_and(|e| {
             e.to_string().contains(
-                "field `deployment` must have at least one of the fields `on_host` or `k8s`",
+                "field `deployment` must have at least one of the fields `linux`, windows or `k8s`",
             )
         }));
 

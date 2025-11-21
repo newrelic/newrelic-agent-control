@@ -4,7 +4,8 @@ use crate::common::process_finder::find_processes_by_pattern;
 use crate::common::retry::retry;
 use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
-use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
+use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use std::thread;
 use std::time::Duration;
 use tempfile::tempdir;
@@ -115,7 +116,8 @@ duration-2: "2000000"
     };
 
     // Start Agent Control
-    let _agent_control = start_agent_control_with_custom_config(base_paths, Environment::OnHost);
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths, AGENT_CONTROL_MODE_ON_HOST);
 
     // Find the process id of both sleep/timeout commands
     // It is expected that only one such process is found!

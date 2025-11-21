@@ -81,7 +81,7 @@ impl Command {
 
     /// Runs the provided main function or shows the binary information according to flags
     pub fn run<F: Fn(AgentControlRunConfig, Vec<TracingGuardBox>) -> Result<(), Box<dyn Error>>>(
-        mode: Environment,
+        ac_running_mode: Environment,
         main_fn: F,
     ) -> ExitCode {
         // Get command line args
@@ -95,18 +95,18 @@ impl Command {
 
         // Handle flags requiring different execution mode
         if flags.print_version() {
-            println!("{}", binary_metadata(mode));
+            println!("{}", binary_metadata(ac_running_mode));
             return ExitCode::SUCCESS;
         }
         if flags.print_debug_info() {
             println!("Printing debug info");
-            println!("Agent Control Mode: {mode:?}");
+            println!("Agent Control Mode: {ac_running_mode:?}");
             println!("FLAGS: {flags:#?}");
             return ExitCode::SUCCESS;
         }
 
-        let Ok((run_config, tracer)) =
-            Self::init_agent_control(mode, base_paths).inspect_err(|err| {
+        let Ok((run_config, tracer)) = Self::init_agent_control(ac_running_mode, base_paths)
+            .inspect_err(|err| {
                 // Using print because the tracer might have failed to start
                 println!("Error on Agent Control initialization: {err}");
             })
@@ -128,7 +128,7 @@ impl Command {
 
     /// Builds the Agent Control configuration required to execute the application.
     fn init_agent_control(
-        mode: Environment,
+        ac_running_mode: Environment,
         base_paths: BasePaths,
     ) -> Result<(AgentControlRunConfig, Vec<TracingGuardBox>), InitError> {
         let file_store = Arc::new(FileStore::new_local_fs(
@@ -163,7 +163,7 @@ impl Command {
             );
         let tracer = try_init_tracing(tracing_config)?;
 
-        info!("{}", binary_metadata(mode));
+        info!("{}", binary_metadata(ac_running_mode));
         info!(
             "Starting NewRelic Agent Control with config folder '{}'",
             base_paths.local_dir.to_string_lossy().to_string()
@@ -174,16 +174,16 @@ impl Command {
         let agent_type_var_constraints = agent_control_config.agent_type_var_constraints;
 
         let run_config = AgentControlRunConfig {
+            ac_running_mode,
             opamp,
             http_server,
             base_paths,
             proxy,
-
-            k8s_config: match mode {
+            k8s_config: match ac_running_mode {
                 // This config is not used on the OnHost environment, a blank config is used.
                 // K8sConfig has not "default" since cluster_name is a required.
-                Environment::OnHost => K8sConfig::default(),
                 Environment::K8s => agent_control_config.k8s.ok_or(InitError::K8sConfig())?,
+                _ => K8sConfig::default(),
             },
             agent_type_var_constraints,
         };

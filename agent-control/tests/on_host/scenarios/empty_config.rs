@@ -11,10 +11,8 @@ use crate::{
         instance_id::get_instance_id,
     },
 };
-use newrelic_agent_control::agent_control::{
-    agent_id::AgentID,
-    run::{BasePaths, Environment},
-};
+use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use newrelic_agent_control::agent_control::{agent_id::AgentID, run::BasePaths};
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::thread;
 use std::time::Duration;
@@ -71,7 +69,7 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
         log_dir: local_dir.path().to_path_buf(),
     };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
 
@@ -135,7 +133,7 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
     thread::sleep(Duration::from_secs(1));
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
 

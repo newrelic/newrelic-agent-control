@@ -13,9 +13,10 @@ pub struct Runtime {
 /// Deployment definition for an agent type after it has been completely rendered by the templating
 /// process.
 ///
-/// Specifies if there are `on_host` instructions, `k8s` instructions, both or none.
+/// Specifies if there are `linux`, `windows`, `k8s` instructions, some or none.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Deployment {
-    pub on_host: Option<OnHost>,
+    pub linux: Option<OnHost>,
+    pub windows: Option<OnHost>,
     pub k8s: Option<K8s>,
 }
