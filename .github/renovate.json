@@ -1,0 +1,65 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>newrelic/agent-control:.github/renovate-shared-base.json"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^Dockerfiles/Dockerfile_agent_control_cli$/"
+      ],
+      "depNameTemplate": "helm/helm",
+      "datasourceTemplate": "github-releases",
+      "matchStrings": [
+        "ARG HELM_VERSION=(?<currentValue>.+)"
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^.goreleaser.yml$/"
+      ],
+      "depNameTemplate": "newrelic/infrastructure-agent",
+      "datasourceTemplate": "github-releases",
+      "matchStrings": [
+        " *- NEWRELIC_INFRA_AGENT_VERSION=(?<currentValue>.+)"
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^.goreleaser.yml$/"
+      ],
+      "depNameTemplate": "newrelic/nrdot-collector-releases",
+      "datasourceTemplate": "github-releases",
+      "matchStrings": [
+        " *- NR_OTEL_COLLECTOR_VERSION=(?<currentValue>.+)"
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "**/Cargo.toml"
+      ],
+      "matchStrings": [
+        "nr-auth = { git = \"https://github\\.com/newrelic/newrelic-auth-rs\\.git\", tag = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\" }"
+      ],
+      "datasourceTemplate": "github-tags",
+      "depNameTemplate": "newrelic-auth-rs",
+      "packageNameTemplate": "newrelic/newrelic-auth-rs"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "**/Cargo.toml"
+      ],
+      "matchStrings": [
+        "opamp-client = { git = \"https://github\\.com/newrelic/newrelic-opamp-rs\\.git\", tag = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\" }"
+      ],
+      "datasourceTemplate": "github-tags",
+      "depNameTemplate": "newrelic-opamp-rs",
+      "packageNameTemplate": "newrelic/newrelic-opamp-rs"
+    }
+  ]
+}
