@@ -3,7 +3,7 @@
   tempfile:
     state: directory
   register: tmp_repo
-  when: local_package_path is defined
+  when: local_package_path != ""
 # Adds a local folder to the trusted repo list. The folder contains the local .deb packages that will be 
 # scanned and added to the repo (building the required metadata). After that is done these packages are 
 # available to installed with apt. 
@@ -25,7 +25,7 @@
     dpkg-scanpackages -m . > Packages
     
     apt-get update
-  when: local_package_path is defined
+  when: local_package_path != ""
 
 - name: Create recipe temp folder
   tempfile:
@@ -56,6 +56,8 @@
       NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED={{ fleet_enabled }} \
       NR_AC_MIGRATE_INFRA_CONFIG={{ migrate_infra_config }} \
       NEW_RELIC_AGENT_CONTROL=true \
+      NEW_RELIC_AGENT_CONTROL_PROXY_URL={{ ac_proxy_url }} \
+      HTTPS_PROXY={{ ac_proxy_url }} \
       /usr/local/bin/newrelic install \
       -y \
       --localRecipes {{ tmp_recipes.path }}\
