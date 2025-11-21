@@ -1,4 +1,3 @@
-#![cfg(target_family = "unix")]
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::attributes::{
     check_latest_identifying_attributes_match_expected,
@@ -17,9 +16,9 @@ use newrelic_agent_control::agent_control::defaults::{
     OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
-use nix::unistd::gethostname;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
+use resource_detection::system::hostname::get_hostname;
 use rstest::rstest;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -91,7 +90,7 @@ fn test_attributes_from_non_existing_agent_type() {
         ),
         (
             HOST_NAME_ATTRIBUTE_KEY,
-            Value::StringValue(gethostname().unwrap_or_default().into_string().unwrap()),
+            Value::StringValue(get_hostname().unwrap_or_default()),
         ),
         (
             PARENT_AGENT_ID_ATTRIBUTE_KEY,
@@ -119,7 +118,8 @@ fn test_attributes_from_non_existing_agent_type() {
 /// the "agent.version" related with the agent type.
 #[rstest]
 #[case::with_regex(|local_dir| {CustomAgentType::default().build(local_dir)})]
-#[case::without_regex(|local_dir| {CustomAgentType::default().with_version(Some(r#"{"path": "echo", "args": "-n 1.0.0"}"#)).build(local_dir)})]
+#[cfg_attr(target_family = "unix", case::without_regex(|local_dir| {CustomAgentType::default().with_version(Some(r#"{"path": "echo", "args": "-n 1.0.0"}"#)).build(local_dir)}))]
+#[cfg_attr(target_family = "windows", case::without_regex(|local_dir| {CustomAgentType::default().with_version(Some(r#"{"path": "cmd", "args": "/C set /p=1.0.0<nul"}"#)).build(local_dir)}))]
 fn test_attributes_from_an_existing_agent_type(#[case] get_agent_type: impl Fn(PathBuf) -> String) {
     let opamp_server = FakeServer::start_new();
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -193,7 +193,7 @@ agents:
         ),
         (
             HOST_NAME_ATTRIBUTE_KEY,
-            Value::StringValue(gethostname().unwrap_or_default().into_string().unwrap()),
+            Value::StringValue(get_hostname().unwrap_or_default()),
         ),
         (
             PARENT_AGENT_ID_ATTRIBUTE_KEY,

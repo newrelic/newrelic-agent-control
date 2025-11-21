@@ -4,6 +4,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
+use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
 pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
 
 /// Helper to build a Custom Agent type with defaults ready to use in integration tests
@@ -31,26 +32,8 @@ fake_variable:
                 )
                 .unwrap(),
             ),
-            executables: Some(
-                serde_yaml::from_str(
-                    r#"
-- id: "trap-term-sleep"
-  path: "sh"
-  args": "tests/on_host/data/trap_term_sleep_60.sh"
-"#,
-                )
-                .unwrap(),
-            ),
-            version: Some(
-                serde_yaml::from_str(
-                    r#"
-path: "echo"
-args: "Some data 1.0.0 Some data"
-regex: \d+\.\d+\.\d+
-"#,
-                )
-                .unwrap(),
-            ),
+            executables: Some(Self::default_executables()),
+            version: Some(Self::default_version_checker()),
             health: None,
         }
     }
@@ -98,6 +81,54 @@ impl CustomAgentType {
         AgentTypeID::try_from("newrelic/com.newrelic.custom_agent:0.1.0").unwrap()
     }
 
+    #[cfg(target_family = "unix")]
+    fn default_executables() -> serde_yaml::Value {
+        serde_yaml::from_str(
+            r#"
+- id: "trap-term-sleep"
+  path: "sh"
+  args: "tests/on_host/data/sleep_60.sh"
+"#,
+        )
+        .unwrap()
+    }
+
+    #[cfg(target_family = "windows")]
+    fn default_executables() -> serde_yaml::Value {
+        serde_yaml::from_str(
+            r#"
+- id: "trap-term-sleep"
+  path: "powershell.exe"
+  args: "-NoProfile -ExecutionPolicy Bypass -File tests\\on_host\\data\\sleep_60.ps1"
+"#,
+        )
+        .unwrap()
+    }
+
+    #[cfg(target_family = "unix")]
+    fn default_version_checker() -> serde_yaml::Value {
+        serde_yaml::from_str(
+            r#"
+path: "echo"
+args: "Some data 1.0.0 Some data"
+regex: \d+\.\d+\.\d+
+"#,
+        )
+        .unwrap()
+    }
+
+    #[cfg(target_family = "windows")]
+    fn default_version_checker() -> serde_yaml::Value {
+        serde_yaml::from_str(
+            r#"
+path: "cmd"
+args: "/C echo Some data 1.0.0 Some data"
+regex: \d+\.\d+\.\d+
+"#,
+        )
+        .unwrap()
+    }
+
     pub fn empty() -> Self {
         Self {
             agent_type_id: Self::default_agent_type_id(),
@@ -129,6 +160,13 @@ impl CustomAgentType {
         }
     }
 
+    pub fn with_variables(self, variables: &str) -> Self {
+        Self {
+            variables: Some(serde_yaml::from_str(variables).unwrap()),
+            ..self
+        }
+    }
+
     pub fn without_deployment(self) -> Self {
         Self {
             executables: None,
@@ -141,6 +179,20 @@ impl CustomAgentType {
     /// Writes the custom agent type and returns its id as string.
     pub fn build(self, local_dir: PathBuf) -> String {
         let agent_type_file_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
+
+        // Fail early in the test if Self cannot parse into an Agent Type definition or even YAML
+        let parsed_yaml = serde_yaml::from_str::<serde_yaml::Value>(&self.to_string());
+        assert!(
+            parsed_yaml.is_ok(),
+            "CustomAgentType did not produce valid YAML:\n{}",
+            self
+        );
+        let parsed_agent_type = serde_yaml::from_str::<AgentTypeDefinition>(&self.to_string());
+        assert!(
+            parsed_agent_type.is_ok(),
+            "CustomAgentType did not produce valid AgentTypeDefinition:\n{}",
+            self
+        );
 
         std::fs::create_dir_all(agent_type_file_path.parent().unwrap()).unwrap();
         let mut local_file =

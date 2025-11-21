@@ -27,7 +27,7 @@ fn onhost_subagent_multiple_executables_some_failed_launching() {
     let sleep_agent_type = CustomAgentType::default()
         .with_executables(Some(
             r#"[
-                {"id": "trap-term-sleep", "path": "sh", "args": "tests/on_host/data/trap_term_sleep_60.sh"},
+                {"id": "trap-term-sleep", "path": "sh", "args": "tests/on_host/data/sleep_60.sh"},
                 {"id": "unknown", "path": "unknown-command"}
             ]"#,
         ))
@@ -83,7 +83,7 @@ fn onhost_subagent_multiple_executables_some_commands_failed_after_max_retries()
     let sleep_agent_type = CustomAgentType::default()
         .with_executables(Some(
             r#"[
-                {"id": "trap-term-sleep", "path": "sh", "args": "tests/on_host/data/trap_term_sleep_60.sh"},
+                {"id": "trap-term-sleep", "path": "sh", "args": "tests/on_host/data/sleep_60.sh"},
                 {"id": "failing-process", "path": "sh", args: "tests/on_host/data/sleep_and_fail.sh",
                  "restart_policy": {"backoff_strategy": {"type": "fixed", "backoff_delay": "1s", "max_retries": 2}}
                 }

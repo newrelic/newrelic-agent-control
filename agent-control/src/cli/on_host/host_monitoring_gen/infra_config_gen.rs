@@ -176,6 +176,7 @@ mod tests {
     use crate::agent_control::defaults::{
         AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
     };
+    use crate::on_host::file_store::build_config_name;
     use std::fs;
     use std::fs::create_dir_all;
     use tempfile::TempDir;
@@ -197,12 +198,9 @@ agents:
 
     const INFRA_AGENT_VALUES: &str = "local-data/infra-test/local_config.yaml";
 
-    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added (DirectoryManager unimplemented)
     #[test]
     fn test_migrate_old_infra_config() {
         // Create a temporary directory
-
-        use crate::on_host::file_store::build_config_name;
         let temp_dir = TempDir::new().unwrap();
         let infra_file_path = temp_dir.path().join("newrelic-infra.yml");
         let agents_file_path = temp_dir
@@ -269,11 +267,8 @@ config_agent:
         assert_eq!(parsed_values, expected_values);
     }
 
-    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added (DirectoryManager unimplemented)
     #[test]
     fn test_generate_new_infra_config() {
-        use crate::on_host::file_store::build_config_name;
-
         let temp_dir = TempDir::new().unwrap();
         let agents_file_path = temp_dir
             .path()

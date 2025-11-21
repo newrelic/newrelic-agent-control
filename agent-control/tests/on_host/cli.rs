@@ -1,11 +1,5 @@
-use crate::common::retry::retry;
-#[cfg(target_family = "unix")]
-use crate::on_host::logging::level::TIME_FORMAT;
 use assert_cmd::Command;
-use assert_cmd::assert::OutputAssertExt;
 use assert_cmd::cargo::cargo_bin_cmd;
-use httpmock::Method::POST;
-use httpmock::MockServer;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
 };
@@ -21,6 +15,8 @@ use std::{
     path::{Path, PathBuf},
 };
 use tempfile::TempDir;
+
+use crate::on_host::logging::level::TIME_FORMAT;
 
 pub fn create_temp_file(
     dir: &Path,
@@ -73,7 +69,6 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(target_family = "unix")]
 #[test]
 fn basic_startup() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
@@ -121,7 +116,6 @@ logs:
     Ok(())
 }
 
-#[cfg(target_family = "unix")]
 #[test]
 fn custom_logging_format() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
@@ -175,6 +169,12 @@ server:
 #[test]
 #[ignore = "requires root"]
 fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>> {
+    use assert_cmd::assert::OutputAssertExt;
+    use httpmock::Method::POST;
+    use httpmock::MockServer;
+
+    use crate::common::retry::retry;
+
     let dir = TempDir::new()?;
 
     // simple mock that returns 200 so the agent can start and create the directories.
@@ -245,7 +245,6 @@ server:
     Ok(())
 }
 
-#[cfg(target_family = "unix")]
 #[test]
 fn runs_with_no_config() -> Result<(), Box<dyn std::error::Error>> {
     let dir = tempfile::tempdir()?;

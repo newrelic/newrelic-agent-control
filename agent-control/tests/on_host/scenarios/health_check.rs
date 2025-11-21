@@ -1,4 +1,3 @@
-#![cfg(target_family = "unix")]
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
@@ -32,7 +31,7 @@ interval: 1s
 initial_delay: 0s
 timeout: 1s
 file:
-  path: {}
+  path: '{}'
 "#,
         health_file_path.to_str().unwrap()
     );
@@ -75,7 +74,7 @@ file:
 healthy: true
 status: "healthy-message"
 start_time_unix_nano: 1725444000
-status_time_unix_nano: 1725444001  
+status_time_unix_nano: 1725444200
     "#
         .to_string(),
         health_file_path.clone(),
@@ -99,7 +98,7 @@ healthy: false
 status: "unhealthy-message"
 last_error: "error-message"
 start_time_unix_nano: 1725444000
-status_time_unix_nano: 1725444002 
+status_time_unix_nano: 1725444500
 "#
         .to_string(),
         health_file_path.clone(),
@@ -111,7 +110,7 @@ status_time_unix_nano: 1725444002
             && health_status.status == "unhealthy-message"
             && health_status.last_error == "error-message"
             && health_status.start_time_unix_nano == 1725444000
-            && health_status.status_time_unix_nano == 1725444002
+            && health_status.status_time_unix_nano == 1725444500
         {
             return Ok(());
         }

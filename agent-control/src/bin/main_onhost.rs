@@ -3,7 +3,6 @@
 //! It implements the basic functionality of parsing the command line arguments and either
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
-use newrelic_agent_control::agent_control::pid_cache::PIDCache;
 use newrelic_agent_control::agent_control::run::{
     AgentControlRunConfig, AgentControlRunner, Environment,
 };
@@ -43,8 +42,11 @@ fn _main(
     }
 
     #[cfg(not(feature = "multiple-instances"))]
-    if let Err(err) = PIDCache::default().store(std::process::id()) {
-        return Err(format!("Error saving main process id: {err}").into());
+    {
+        use newrelic_agent_control::agent_control::pid_cache::PIDCache;
+        if let Err(err) = PIDCache::default().store(std::process::id()) {
+            return Err(format!("Error saving main process id: {err}").into());
+        }
     }
 
     install_rustls_default_crypto_provider();

@@ -1,4 +1,3 @@
-#![cfg(target_family = "unix")]
 use crate::on_host::cli::cmd_with_config_file;
 use newrelic_agent_control::{
     agent_control::defaults::{
@@ -10,8 +9,6 @@ use predicates::prelude::predicate;
 use tempfile::TempDir;
 
 const EMPTY_CONFIG: &str = "# Empty config\nagents: {}";
-
-const DEBUG_LEVEL_CONFIG: &str = "agents: {}\nlog:\n  level: debug";
 
 const TRACE_LEVEL_CONFIG: &str = "agents: {}\nlog:\n  level: trace";
 
@@ -98,6 +95,8 @@ fn default_log_level_as_root() {
 #[cfg(all(target_family = "unix", not(feature = "disable-asroot")))]
 #[test]
 fn debug_log_level_no_root() {
+    const DEBUG_LEVEL_CONFIG: &str = "agents: {}\nlog:\n  level: debug";
+
     let dir = TempDir::new().unwrap();
 
     let config_path = dir
