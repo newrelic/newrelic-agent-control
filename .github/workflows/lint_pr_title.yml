@@ -6,6 +6,9 @@ on:
       - opened
       - edited
 
+permissions:
+  contents: read
+
 jobs:
   commitlint:
     runs-on: ubuntu-latest

@@ -1,23 +1,26 @@
 name: 🐤 Plan onhost canaries infrastructure changes
 
-permissions:
-  id-token: write
-  contents: read
 on:
   pull_request:
     paths:
       - test/onhost-canaries/terraform/**
+
+permissions:
+  contents: read
+
 concurrency:
   group: "${{ github.workflow }}-${{ github.head_ref || github.run_id }}"
   cancel-in-progress: false
 
 jobs:
   onhost_canaries:
+    uses: ./.github/workflows/component_onhost_canaries.yml
     strategy:
       matrix:
         environment: [ staging, production ]
-
-    uses: ./.github/workflows/component_onhost_canaries.yml
+    permissions:
+      # required to oidc AWS
+      id-token: write
     with:
       environment: ${{ matrix.environment }}
       operation: plan

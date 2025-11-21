@@ -1,13 +1,13 @@
-#permissions:
-#  contents: read
+name: pre-release
 
 on:
   release:
     types:
       - prereleased
 
-# See https://docs.github.com/en/actions/using-jobs/using-concurrency
-name: pre-release
+permissions:
+  contents: read
+
 jobs:
   build-packages:
     name: Build packages
@@ -134,6 +134,8 @@ jobs:
   k8s_canaries:
     uses: ./.github/workflows/component_k8s_canaries.yml
     needs: [ build-image ]
+    permissions:
+      id-token: write
     with:
       image-tag: ${{ github.event.release.tag_name }}-rc
       cluster_name: Agent_Control_Canaries_Production-Cluster
@@ -147,6 +149,8 @@ jobs:
   onhost_canaries:
     uses: ./.github/workflows/component_onhost_canaries.yml
     needs: [ upload ]
+    permissions:
+      id-token: write
     with:
       environment: production
       operation: apply

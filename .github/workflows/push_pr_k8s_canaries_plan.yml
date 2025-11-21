@@ -1,12 +1,13 @@
 name: 🐤 Plan k8s canaries infrastructure changes
 
-permissions:
-  id-token: write
-  contents: read
 on:
   pull_request:
     paths:
       - test/k8s-canaries/terraform/**
+
+permissions:
+  contents: read
+
 concurrency:
   group: "${{ github.workflow }}-${{ github.head_ref || github.run_id }}"
   cancel-in-progress: false
@@ -15,6 +16,9 @@ jobs:
   infra:
     name: Prepare infra
     runs-on: ubuntu-latest
+    permissions:
+      # required to oidc AWS
+      id-token: write
     steps:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
