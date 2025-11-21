@@ -17,15 +17,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Codespell test
-        uses: codespell-project/actions-codespell@94259cd8be02ad2903ba34a22d9c13de21a74461
+        uses: codespell-project/actions-codespell@94259cd8be02ad2903ba34a22d9c13de21a74461 # 94259cd8be02ad2903ba34a22d9c13de21a74461
 
   cargo-fmt:
     runs-on: ubuntu-latest
     name: cargo fmt
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Obtain Rust version from project
         shell: bash
@@ -34,7 +34,7 @@ jobs:
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
 
       - name: Install Rust ${{ env.RUST_VERSION }}
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@0b1efabc08b657293548b77fb76cc02d26091c7e # master
         with:
           components: rustfmt
           toolchain: ${{ env.RUST_VERSION }}
@@ -49,7 +49,7 @@ jobs:
       contents: read
       checks: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Obtain Rust version from project
         shell: bash
@@ -58,12 +58,12 @@ jobs:
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
 
       - name: Install Rust ${{ env.RUST_VERSION }}
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@0b1efabc08b657293548b77fb76cc02d26091c7e # master
         with:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/bin/
@@ -81,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     name: cargo doc
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Obtain Rust version from project
         shell: bash
@@ -90,7 +90,7 @@ jobs:
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
 
       - name: Install Rust ${{ env.RUST_VERSION }}
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@0b1efabc08b657293548b77fb76cc02d26091c7e # master
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
@@ -103,7 +103,7 @@ jobs:
     runs-on: ubuntu-latest
     name: ⚖️ Check third party licenses
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Obtain Rust version from project
         run: |
@@ -111,7 +111,7 @@ jobs:
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
 
       - name: Install Rust ${{ env.RUST_VERSION }}
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@0b1efabc08b657293548b77fb76cc02d26091c7e # master
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
@@ -126,9 +126,9 @@ jobs:
     name: cargo shear (unused dependencies)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: taiki-e/install-action@575f713d0233afba556737a7b85080563be14186
+      - uses: taiki-e/install-action@575f713d0233afba556737a7b85080563be14186 # 575f713d0233afba556737a7b85080563be14186
         with:
           tool: cargo-shear@1.1.11
 
@@ -138,7 +138,7 @@ jobs:
     runs-on: ubuntu-latest
     name: ubuntu / stable / coverage
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Obtain Rust version from project
         run: |
@@ -146,17 +146,17 @@ jobs:
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
 
       - name: Install Rust ${{ env.RUST_VERSION }}
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@0b1efabc08b657293548b77fb76cc02d26091c7e # master
         with:
           components: llvm-tools-preview
           toolchain: ${{ env.RUST_VERSION }}
       - name: cargo install cargo-llvm-cov
-        uses: taiki-e/install-action@71765c00dd3e08a5484a5b9e82a4c88b86520e0e
+        uses: taiki-e/install-action@71765c00dd3e08a5484a5b9e82a4c88b86520e0e # 71765c00dd3e08a5484a5b9e82a4c88b86520e0e
         # uses: taiki-e/install-action@cargo-llvm-cov
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/bin/
@@ -200,7 +200,7 @@ jobs:
     runs-on: ubuntu-latest
     name: "Build release binaries"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Obtain Rust version from project
         shell: bash
@@ -209,7 +209,7 @@ jobs:
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
 
       - name: Install Rust ${{ env.RUST_VERSION }}
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@0b1efabc08b657293548b77fb76cc02d26091c7e # master
         with:
           toolchain: ${{ env.RUST_VERSION }}
           targets: >-
@@ -218,7 +218,7 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/bin/
@@ -230,7 +230,7 @@ jobs:
           restore-keys: ${{ runner.os }}-release-cargo-
 
       - name: Install Zig
-        uses: mlugg/setup-zig@v2
+        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2
 
       - name: Install cargo-zigbuild
         run: |
@@ -245,7 +245,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Unit, docs and onhost integration tests
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Obtain Rust version from project
         shell: bash
@@ -254,7 +254,7 @@ jobs:
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
 
       - name: Install Rust ${{ matrix.toolchain }}
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@0b1efabc08b657293548b77fb76cc02d26091c7e # master
         with:
           toolchain: ${{ env.RUST_VERSION }}
           targets: >-
@@ -265,7 +265,7 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
 
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/bin/
@@ -277,7 +277,7 @@ jobs:
           restore-keys: ${{ runner.os }}-test-dev-cargo-
 
       - name: Install Zig
-        uses: mlugg/setup-zig@v2
+        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2
 
       - name: Install cargo-zigbuild
         run: |
@@ -305,7 +305,7 @@ jobs:
     container: rust:latest
     name: tests as root
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Obtain Rust version from project
         run: |
@@ -313,11 +313,11 @@ jobs:
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
 
       - name: Install Rust ${{ env.RUST_VERSION }}
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@0b1efabc08b657293548b77fb76cc02d26091c7e # master
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/bin/
@@ -335,9 +335,9 @@ jobs:
     name: Unit test for embedded downloader
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
         with:
           go-version-file: "build/embedded/go.mod"
       - name: run tests for embedded downloader
@@ -351,13 +351,13 @@ jobs:
       matrix:
         group: [ part1, part2, flux-self-update ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Free up space
         run: bash .github/workflows/scripts/space_cleanup.sh
 
       - name: Setup Minikube
-        uses: manusa/actions-setup-minikube@v2.14.0
+        uses: manusa/actions-setup-minikube@b589f2d61bf96695c546929c72b38563e856059d # v2.14.0
         with:
           minikube version: v1.35.0
           kubernetes version: "v1.30.14"
@@ -374,13 +374,13 @@ jobs:
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
 
       - name: Install Rust ${{ env.RUST_VERSION }}
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@0b1efabc08b657293548b77fb76cc02d26091c7e # master
         with:
           toolchain: ${{ env.RUST_VERSION }}
           targets: >-
             x86_64-unknown-linux-musl
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/bin/
@@ -392,7 +392,7 @@ jobs:
           restore-keys: ${{ runner.os }}-test-dev-cargo-
 
       - name: Install Zig
-        uses: mlugg/setup-zig@v2
+        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2
 
       - name: Install cargo-zigbuild
         run: |
@@ -417,7 +417,7 @@ jobs:
     name: "On-host Windows tests"
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Obtain Rust version from project
         shell: bash
@@ -426,19 +426,19 @@ jobs:
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
 
       - name: Install Rust ${{ env.RUST_VERSION }}
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@0b1efabc08b657293548b77fb76cc02d26091c7e # master
         with:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy
 
-      - uses: taiki-e/install-action@575f713d0233afba556737a7b85080563be14186
+      - uses: taiki-e/install-action@575f713d0233afba556737a7b85080563be14186 # 575f713d0233afba556737a7b85080563be14186
         with:
           tool: cargo-shear@1.1.11
 
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/bin/
@@ -516,7 +516,7 @@ jobs:
 
     steps:
       - name: Decide whether the needed jobs succeeded or failed
-        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
+        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # 05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
         with:
           # allowed-failures: docs, linters
           # allowed-skips: non-voting-flaky-job

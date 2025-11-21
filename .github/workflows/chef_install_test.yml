@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up and execute Chef installation
         run: |
@@ -82,7 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Notify failure via Slack
-        uses: slackapi/slack-github-action@v1.22.0
+        uses: slackapi/slack-github-action@ebd044f149bf27a2817c0eee26e98d797fa5cffd # v1.22.0
         with:
           payload: |
             {
