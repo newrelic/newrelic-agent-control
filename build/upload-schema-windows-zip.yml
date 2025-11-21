@@ -1,0 +1,18 @@
+---
+- src: "newrelic-agent-control_{version}_windows_{arch}.zip"
+  uploads:
+    - type: file
+      dest: "{dest_prefix}binaries/windows/{arch}/{src}"
+  arch:
+    - amd64
+
+  #########################
+  # UPLOAD CHECKSUMS #
+#########################
+
+- src: "newrelic-agent-control_{version}_windows_{arch}.zip.sum"
+  uploads:
+    - type: file
+      dest: "{dest_prefix}binaries/windows/{arch}/{src}"
+  arch:
+    - amd64

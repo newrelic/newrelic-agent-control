@@ -12,8 +12,8 @@ on:
         type: boolean
         required: false
         default: false
-      skip_upload_artifact:
-        description: 'skip uploading the artifact'
+      skip_upload_pipeline:
+        description: 'skip uploading the artifact to the github pipeline'
         type: boolean
         required: false
         default: false
@@ -83,7 +83,7 @@ jobs:
         run: |
           cargo install --locked cargo-xwin --force
 
-      - name: Set tag and skip_upload=false for pre-release
+      - name: If pre-release set and verify tag matches Cargo.toml version
         if: ${{ inputs.pre-release}}
         run: |
           NEWRELIC_AGENT_CONTROL_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' agent-control/Cargo.toml)
@@ -92,11 +92,11 @@ jobs:
             exit 1
           fi
 
-      - name: Set tag and skip_upload=true for testing
+      - name: If not pre-release, set tag and SKIP_UPLOAD_RELEASE=true
         if: ${{ ! inputs.pre-release }}
         run: |
           git tag ${{ inputs.tag_name }}
-          echo SKIP_UPLOAD="--skip=publish" >> $GITHUB_ENV
+          echo SKIP_UPLOAD_RELEASE="--skip=publish" >> $GITHUB_ENV
 
       - name: Skip packages sign
         if: ${{ inputs.skip_sign }}
@@ -106,7 +106,7 @@ jobs:
       - name: Release packages with GoReleaser
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
         with:
-          args: release ${{ env.SKIP_UPLOAD }} ${{ env.SKIP_SIGN }} --clean --verbose --timeout 2h
+          args: release ${{ env.SKIP_UPLOAD_RELEASE }} ${{ env.SKIP_SIGN }} --clean --verbose --timeout 2h
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
@@ -116,7 +116,7 @@ jobs:
           GORELEASER_CURRENT_TAG: ${{ inputs.tag_name }}
 
       - name: Upload assets to pipeline
-        if: ${{ !inputs.skip_upload_artifact }}
+        if: ${{ !inputs.skip_upload_pipeline }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           retention-days: 1

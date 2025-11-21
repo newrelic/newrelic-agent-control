@@ -25,6 +25,31 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Publish windows artifacts
+        uses: newrelic/infrastructure-publish-action@v1
+        with:
+          tag: ${{ github.event.inputs.tag }}
+          app_name: "newrelic-agent-control"
+          repo_name: ${{ github.repository }}
+          schema: "custom-local"
+          schema_path: "/srv/build/upload-schema-windows-zip.yml"
+          aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
+          aws_secret_access_key: ${{ secrets.TMP_OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
+          aws_s3_bucket_name: "nr-downloads-main"
+          aws_s3_lock_bucket_name: "onhost-ci-lock"
+          access_point_host: "production"
+          run_id: ${{ github.run_id }}
+          aws_region: "us-east-1"
+          aws_role_session_name: ${{ secrets.TMP_OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
+          aws_role_arn: ${{ secrets.TMP_OHAI_AWS_ROLE_ARN_PRODUCTION }}
+          # used for signing package stuff
+          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          disable_lock: false
+          dest_prefix: "preview/"
+          local_packages_path: "/srv/dist/"
+          apt_skip_mirror: false
+
       - name: Publish deb to S3 action
         uses: newrelic/infrastructure-publish-action@v1
         with:
