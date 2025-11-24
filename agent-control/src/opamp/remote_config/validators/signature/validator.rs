@@ -302,7 +302,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn test_signature_is_missing_for_agent_control_agent() {
+    pub fn test_missing_signature_for_agent_control_agent() {
         let pub_key_server = FakePubKeyServer::new();
 
         let signature_validator = SignatureValidator::new(
@@ -318,13 +318,12 @@ pub mod tests {
             AgentID::AgentControl,
             Hash::from("test"),
             ConfigState::Applying,
-            ConfigurationMap::default(),
+            ConfigurationMap::new(HashMap::from([("key".to_string(), "value".to_string())])),
         );
-        // Signature custom capability is not set for agent-control agent, therefore signature is not checked
-        assert!(
-            signature_validator
-                .validate(&AgentIdentity::new_agent_control_identity(), &rc)
-                .is_ok()
+
+        assert_matches!(
+            signature_validator.validate(&AgentIdentity::new_agent_control_identity(), &rc),
+            Err(SignatureValidatorError::VerifySignature(_))
         );
     }
 }
