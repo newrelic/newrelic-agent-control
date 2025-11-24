@@ -1,16 +1,19 @@
-permissions:
-  contents: read
+name: Checks and tests
+
 on:
   pull_request:
   merge_group:
   push:
     branches:
       - main
+
+permissions:
+  contents: read
+  
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-name: Checks and tests
 jobs:
   codespell:
     name: codespell

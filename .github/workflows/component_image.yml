@@ -19,6 +19,9 @@ on:
         type: boolean
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   build-image:
     runs-on: ubuntu-latest

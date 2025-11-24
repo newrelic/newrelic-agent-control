@@ -8,6 +8,9 @@ on:
     # Scheduled to run at 4 a.m on every day-of-week from Monday through Friday.
     - cron: "0 4 * * 1-5"
 
+permissions:
+  contents: read
+
 jobs:
   build-packages:
     name: Build packages
@@ -104,6 +107,8 @@ jobs:
   k8s_canaries:
     uses: ./.github/workflows/component_k8s_canaries.yml
     needs: [ build-image ]
+    permissions:
+      id-token: write
     with:
       image-tag: nightly
       cluster_name: Agent_Control_Canaries_Staging-Cluster
@@ -117,6 +122,8 @@ jobs:
   onhost_canaries:
     uses: ./.github/workflows/component_onhost_canaries.yml
     needs: [ upload-packages-s3 ]
+    permissions:
+      id-token: write
     with:
       environment: staging
       operation: apply
