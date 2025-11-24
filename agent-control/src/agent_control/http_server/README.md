@@ -21,7 +21,7 @@ $ curl localhost:127.0.0.1/status
     "endpoint": "https://example.com/opamp/v1",
     "reachable": true
   },
-  "sub_agents": [
+  "agents": [
     {
       "agent_id": "infrastructure_agent_id_1",
       "agent_type": "newrelic/com.newrelic.infrastructure:0.0.1",
