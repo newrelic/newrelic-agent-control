@@ -248,7 +248,7 @@ deployment:
     config: |
       test
     deployment:
-      test:
+      whatever:
         path: true
         args: --verbose true
     integrations: {}
