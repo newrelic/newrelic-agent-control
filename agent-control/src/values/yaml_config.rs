@@ -247,8 +247,8 @@ deployment:
     const EXAMPLE_CONFIG_REPLACE_WRONG_TYPE: &str = r#"
     config: |
       test
-    deployment:
-      whatever:
+    whatever:
+      test:
         path: true
         args: --verbose true
     integrations: {}
