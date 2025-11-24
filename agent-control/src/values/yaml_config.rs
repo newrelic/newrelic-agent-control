@@ -172,7 +172,7 @@ verbose: true
     }
 
     const EXAMPLE_CONFIG_REPLACE: &str = r#"
-deployment:
+whatever:
   test:
     path: "/etc"
     args: --verbose true
@@ -188,7 +188,7 @@ namespace: newrelic
 version: 0.1.0
 variables:
   common:
-    deployment:
+    whatever:
       test:
         path:
           description: "Path to the agent"
@@ -199,16 +199,8 @@ variables:
           type: string
           required: true
 deployment:
-  linux:
-    executables:
-      - id: otelcol
-        path: ${deployment.on_host.path}/otelcol
-        args: "-c ${deployment.on_host.args}"
-  windows:
-    executables:
-      - id: otelcol
-        path: ${deployment.on_host.path}/otelcol
-        args: "-c ${deployment.on_host.args}"
+  linux: {}
+  windows: {}
 "#;
 
     #[test]
@@ -218,7 +210,7 @@ deployment:
             AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &AGENT_CONTROL_MODE_ON_HOST);
 
         let expected = HashMap::from([(
-            "deployment".to_string(),
+            "whatever".to_string(),
             Tree::Mapping(HashMap::from([(
                 "test".to_string(),
                 Tree::Mapping(HashMap::from([
@@ -255,7 +247,7 @@ deployment:
     const EXAMPLE_CONFIG_REPLACE_WRONG_TYPE: &str = r#"
     config: |
       test
-    deployment:
+    whatever:
       test:
         path: true
         args: --verbose true
