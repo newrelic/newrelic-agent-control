@@ -21,6 +21,7 @@ jobs:
     permissions:
       # required to oidc AWS
       id-token: write
+      contents: read
     with:
       environment: ${{ matrix.environment }}
       operation: plan

@@ -20,6 +20,7 @@ jobs:
     permissions:
       # required to oidc AWS
       id-token: write
+      contents: read
     strategy:
       matrix:
         environment: [ staging, production ]

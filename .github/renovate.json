@@ -1,7 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "github>newrelic/newrelic-agent-control:.github/renovate-shared-base.json"
+    "github>newrelic/newrelic-agent-control//.github/renovate-shared-base.json"
   ],
   "customManagers": [
     {
