@@ -1,7 +1,5 @@
-use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::data_store::StoreKey;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
-use crate::sub_agent::identity::AgentIdentity;
 use opamp_client::capabilities;
 use opamp_client::opamp::proto::{AgentCapabilities, CustomCapabilities};
 use opamp_client::operation::capabilities::Capabilities;
@@ -95,19 +93,10 @@ pub fn default_capabilities() -> Capabilities {
     )
 }
 
-pub fn default_sub_agent_custom_capabilities() -> CustomCapabilities {
+pub fn default_custom_capabilities() -> CustomCapabilities {
     CustomCapabilities {
         capabilities: vec![SIGNATURE_CUSTOM_CAPABILITY.to_string()],
     }
-}
-
-pub(crate) fn get_custom_capabilities(agent_type_id: &AgentTypeID) -> Option<CustomCapabilities> {
-    if agent_type_id.eq(&AgentIdentity::new_agent_control_identity().agent_type_id) {
-        // Agent_Control does not have custom capabilities for now
-        return None;
-    }
-
-    Some(default_sub_agent_custom_capabilities())
 }
 
 pub const AGENT_TYPE_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure";

@@ -165,7 +165,7 @@ mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::{
         OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
-        PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_sub_agent_custom_capabilities,
+        PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_custom_capabilities,
     };
     use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::agent_type_id::AgentTypeID;
@@ -466,7 +466,7 @@ mod tests {
         StartSettings {
             instance_uid: sub_agent_instance_id.into(),
             capabilities: default_capabilities(),
-            custom_capabilities: Some(default_sub_agent_custom_capabilities()),
+            custom_capabilities: Some(default_custom_capabilities()),
             agent_description: AgentDescription {
                 identifying_attributes,
                 non_identifying_attributes: HashMap::from([
