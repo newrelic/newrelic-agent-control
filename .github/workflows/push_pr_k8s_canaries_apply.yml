@@ -21,6 +21,7 @@ jobs:
     permissions:
       # required to oidc AWS
       id-token: write
+      contents: read
     steps:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
