@@ -6,7 +6,8 @@ use crate::common::opamp::FakeServer;
 use crate::common::process_finder::find_processes_by_pattern;
 use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
-use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
+use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use std::thread;
 use std::time::Duration;
 use tempfile::tempdir;
@@ -68,7 +69,8 @@ agents:
     };
 
     // Start Agent Control
-    let agent_control = start_agent_control_with_custom_config(base_paths, Environment::OnHost);
+    let agent_control =
+        start_agent_control_with_custom_config(base_paths, AGENT_CONTROL_MODE_ON_HOST);
 
     // Wait for processes to start
     thread::sleep(Duration::from_secs(10));

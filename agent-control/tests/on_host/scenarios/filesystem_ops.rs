@@ -10,10 +10,8 @@ use crate::{
         custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME,
     },
 };
-use newrelic_agent_control::agent_control::{
-    defaults::GENERATED_FOLDER_NAME,
-    run::{BasePaths, Environment},
-};
+use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use newrelic_agent_control::agent_control::{defaults::GENERATED_FOLDER_NAME, run::BasePaths};
 use tempfile::tempdir;
 
 /// An on-host agent definition that includes filesystem entries should result in the entries being
@@ -39,7 +37,11 @@ name: test
 version: 0.0.0
 variables: {{}}
 deployment:
-  on_host:
+  linux:
+    filesystem:
+      {dir_entry}:
+        {file_path}: "{expected_file_contents}"
+  windows:
     filesystem:
       {dir_entry}:
         {file_path}: "{expected_file_contents}"
@@ -73,7 +75,7 @@ deployment:
         log_dir: local_dir.to_path_buf(),
     };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let search_path = base_paths
         .remote_dir
@@ -137,7 +139,7 @@ namespace: test
 name: test
 version: 0.0.0
 variables:
-  on_host:
+  common:
     yaml_file_contents:
       description: "Contents of the YAML file"
       type: yaml
@@ -151,7 +153,18 @@ variables:
       type: map[string]yaml
       required: true
 deployment:
-  on_host:
+  windows:
+    filesystem:
+      randomdir:
+        "{yaml_file_path}": |-
+          ${{nr-var:yaml_file_contents}}
+        "{string_file_path}": "Some string contents with a rendered variable: ${{nr-var:some_string}}"
+      {dir_path}:
+        file1.txt: "File 1 contents"
+        file2.txt: |
+          File 2 contents with a variable: ${{nr-var:some_string}}
+      "{fully_templated_dir}": ${{nr-var:some_mapstringyaml}}
+  linux:
     filesystem:
       randomdir:
         "{yaml_file_path}": |-
@@ -210,7 +223,7 @@ some_mapstringyaml:
         log_dir: local_dir.to_path_buf(),
     };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     // Rendered files
     let yaml_search_path = base_paths

@@ -12,7 +12,7 @@ use crate::agent_control::defaults::{
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
-use crate::agent_control::run::{AgentControlRunner, RunError};
+use crate::agent_control::run::{AgentControlRunner, Environment, RunError};
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
@@ -50,6 +50,8 @@ use tracing::{debug, error, info, warn};
 
 pub const NAMESPACE_VARIABLE_NAME: &str = "namespace";
 pub const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
+
+pub const AGENT_CONTROL_MODE_K8S: Environment = Environment::K8s;
 
 impl AgentControlRunner {
     pub(super) fn run_k8s(self) -> Result<(), RunError> {
@@ -169,16 +171,17 @@ impl AgentControlRunner {
 
         let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
 
-        let sub_agent_builder = K8sSubAgentBuilder::new(
-            opamp_client_builder.as_ref(),
-            &instance_id_getter,
-            self.k8s_config.clone(),
-            Arc::new(supervisor_builder),
-            Arc::new(remote_config_parser),
-            yaml_config_repository.clone(),
-            agents_assembler,
-            self.sub_agent_publisher,
-        );
+        let sub_agent_builder = K8sSubAgentBuilder {
+            opamp_builder: opamp_client_builder.as_ref(),
+            instance_id_getter: &instance_id_getter,
+            k8s_config: self.k8s_config.clone(),
+            supervisor_builder: Arc::new(supervisor_builder),
+            remote_config_parser: Arc::new(remote_config_parser),
+            config_repository: yaml_config_repository.clone(),
+            effective_agents_assembler: agents_assembler,
+            sub_agent_publisher: self.sub_agent_publisher,
+            ac_running_mode: self.ac_running_mode,
+        };
 
         let garbage_collector = K8sGarbageCollector {
             k8s_client: k8s_client.clone(),

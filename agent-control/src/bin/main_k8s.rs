@@ -4,9 +4,8 @@
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
 
-use newrelic_agent_control::agent_control::run::{
-    AgentControlRunConfig, AgentControlRunner, Environment,
-};
+use newrelic_agent_control::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
+use newrelic_agent_control::agent_control::run::{AgentControlRunConfig, AgentControlRunner};
 use newrelic_agent_control::command::Command;
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
@@ -16,10 +15,8 @@ use std::error::Error;
 use std::process::ExitCode;
 use tracing::{error, info, trace};
 
-const AGENT_CONTROL_MODE: Environment = Environment::K8s;
-
 fn main() -> ExitCode {
-    Command::run(AGENT_CONTROL_MODE, _main)
+    Command::run(AGENT_CONTROL_MODE_K8S, _main)
 }
 
 /// This is the actual main function.
@@ -45,8 +42,7 @@ fn _main(
     create_shutdown_signal_handler(application_event_publisher)?;
 
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-    AgentControlRunner::new(agent_control_run_config, application_event_consumer)?
-        .run(AGENT_CONTROL_MODE)?;
+    AgentControlRunner::new(agent_control_run_config, application_event_consumer)?.run()?;
 
     info!("exiting gracefully");
 

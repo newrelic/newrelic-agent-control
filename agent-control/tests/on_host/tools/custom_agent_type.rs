@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 
+use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
 use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
 pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
@@ -54,7 +55,7 @@ impl Display for CustomAgentType {
         let mut content: serde_yaml::Mapping = serde_yaml::from_str(&content).unwrap();
         let mut variables = serde_yaml::Mapping::new();
         if let Some(v) = self.variables.as_ref() {
-            variables.insert("on_host".into(), v.clone());
+            variables.insert("common".into(), v.clone());
         }
         let mut deployment_content = serde_yaml::Mapping::new();
         if let Some(executables) = self.executables.as_ref() {
@@ -67,7 +68,10 @@ impl Display for CustomAgentType {
             deployment_content.insert("version".into(), version.clone());
         }
         let mut deployment = serde_yaml::Mapping::new();
-        deployment.insert("on_host".into(), deployment_content.into());
+        deployment.insert(
+            AGENT_CONTROL_MODE_ON_HOST.to_string().into(),
+            deployment_content.into(),
+        );
         content.insert("variables".into(), variables.into());
         content.insert("deployment".into(), deployment.into());
         let content = serde_yaml::Value::from(content);

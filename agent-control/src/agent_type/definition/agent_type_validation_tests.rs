@@ -9,7 +9,7 @@
 use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
 
 use crate::agent_control::run::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_VARIABLE_NAME};
-use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
+use crate::agent_control::run::on_host::{AGENT_CONTROL_MODE_ON_HOST, HOST_ID_VARIABLE_NAME};
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::{
     agent_control::{agent_id::AgentID, run::Environment},
@@ -30,7 +30,8 @@ type YamlContents = &'static str;
 struct AgentTypeValuesTestCase {
     agent_type: &'static str,
     values_k8s: Option<AgentTypeValues>,
-    values_onhost: Option<AgentTypeValues>,
+    values_windows: Option<AgentTypeValues>,
+    values_linux: Option<AgentTypeValues>,
 }
 
 #[derive(Debug, Default)]
@@ -211,7 +212,27 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
             ]),
         }
         .into(),
-        values_onhost: AgentTypeValues {
+        values_linux: AgentTypeValues {
+            cases: HashMap::from([
+                ("mandatory fields only", ""),
+                (
+                    "check all value types are correct",
+                    r#"
+                config_agent: "some file contents"
+                config_integrations:
+                    map_string: "some file contents"
+                config_logging:
+                    map_string: "some file contents"
+                backoff_delay: "10s"
+                enable_file_logging: true
+                health_port: 12345
+                "#,
+                ),
+            ]),
+            ..Default::default()
+        }
+        .into(),
+        values_windows: AgentTypeValues {
             cases: HashMap::from([
                 ("mandatory fields only", ""),
                 (
@@ -390,7 +411,7 @@ static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
             ]),
         }
         .into(),
-        values_onhost: AgentTypeValues {
+        values_linux: AgentTypeValues {
             cases: HashMap::from([
                 ("mandatory fields only", ""),
                 (
@@ -406,6 +427,7 @@ static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
             ..Default::default()
         }
         .into(),
+        ..Default::default()
     });
 
 static AGENT_TYPE_OTEL_COLLECTOR_OLD: LazyLock<AgentTypeValuesTestCase> =
@@ -449,7 +471,7 @@ static AGENT_TYPE_OTEL_COLLECTOR_OLD: LazyLock<AgentTypeValuesTestCase> =
             ]),
         }
         .into(),
-        values_onhost: AgentTypeValues {
+        values_linux: AgentTypeValues {
             cases: HashMap::from([
                 ("mandatory fields only", ""),
                 (
@@ -465,6 +487,7 @@ static AGENT_TYPE_OTEL_COLLECTOR_OLD: LazyLock<AgentTypeValuesTestCase> =
             ..Default::default()
         }
         .into(),
+        ..Default::default()
     });
 
 static AGENT_TYPE_PIPELINE_CONTROL_GATEWAY: LazyLock<AgentTypeValuesTestCase> =
@@ -619,7 +642,7 @@ fn all_agent_type_definitions_are_resilient_k8s() {
 
 #[test]
 fn all_agent_type_definitions_are_resilient_onhost() {
-    iterate_test_cases(&Environment::OnHost);
+    iterate_test_cases(&AGENT_CONTROL_MODE_ON_HOST);
 }
 
 fn iterate_test_cases(environment: &Environment) {
@@ -628,7 +651,8 @@ fn iterate_test_cases(environment: &Environment) {
         // Skip cases where values for the environment are not provided
         let Some(values) = (match environment {
             Environment::K8s => &case.values_k8s,
-            Environment::OnHost => &case.values_onhost,
+            Environment::Linux => &case.values_linux,
+            Environment::Windows => &case.values_windows,
         }) else {
             continue;
         };
@@ -650,12 +674,11 @@ fn iterate_test_cases(environment: &Environment) {
                 ])
                 .into_iter(),
             ),
-            Environment::OnHost => {
-                TemplateRenderer::default().with_agent_control_variables(iter::once((
+            Environment::Linux | Environment::Windows => TemplateRenderer::default()
+                .with_agent_control_variables(iter::once((
                     HOST_ID_VARIABLE_NAME.to_string(),
                     Variable::new_final_string_variable("my-namespace".to_string()),
-                )))
-            }
+                ))),
         };
 
         values.cases.iter().for_each(|(scenario, yaml)| {
@@ -664,6 +687,7 @@ fn iterate_test_cases(environment: &Environment) {
                 build_agent_type(definition, environment, &VariableConstraints::default()).unwrap();
             let attributes = testing_agent_attributes(&agent_id);
             let variables = serde_yaml::from_str::<YAMLConfig>(yaml).unwrap();
+
             let result = renderer.render(
                 agent_type,
                 variables,

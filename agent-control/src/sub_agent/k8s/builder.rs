@@ -33,48 +33,15 @@ where
     Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
-    opamp_builder: Option<&'a O>,
-    instance_id_getter: &'a I,
-    k8s_config: K8sConfig,
-    supervisor_builder: Arc<B>,
-    remote_config_parser: Arc<R>,
-    config_repository: Arc<Y>,
-    effective_agents_assembler: Arc<A>,
-    sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
-}
-
-impl<'a, O, I, B, R, Y, A> K8sSubAgentBuilder<'a, O, I, B, R, Y, A>
-where
-    O: OpAMPClientBuilder,
-    I: InstanceIDGetter,
-    B: SupervisorBuilder + Send + Sync + 'static,
-    R: RemoteConfigParser + Send + Sync + 'static,
-    Y: ConfigRepository + Send + Sync + 'static,
-    A: EffectiveAgentsAssembler + Send + Sync + 'static,
-{
-    // TODO refactor this new function
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        opamp_builder: Option<&'a O>,
-        instance_id_getter: &'a I,
-        k8s_config: K8sConfig,
-        supervisor_builder: Arc<B>,
-        remote_config_parser: Arc<R>,
-        config_repository: Arc<Y>,
-        effective_agents_assembler: Arc<A>,
-        sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
-    ) -> Self {
-        Self {
-            opamp_builder,
-            instance_id_getter,
-            k8s_config,
-            supervisor_builder,
-            remote_config_parser,
-            config_repository,
-            effective_agents_assembler,
-            sub_agent_publisher,
-        }
-    }
+    pub(crate) opamp_builder: Option<&'a O>,
+    pub(crate) instance_id_getter: &'a I,
+    pub(crate) k8s_config: K8sConfig,
+    pub(crate) supervisor_builder: Arc<B>,
+    pub(crate) remote_config_parser: Arc<R>,
+    pub(crate) config_repository: Arc<Y>,
+    pub(crate) effective_agents_assembler: Arc<A>,
+    pub(crate) sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
+    pub(crate) ac_running_mode: Environment,
 }
 
 impl<O, I, B, R, Y, A> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, B, R, Y, A>
@@ -128,7 +95,7 @@ where
             self.remote_config_parser.clone(),
             self.config_repository.clone(),
             self.effective_agents_assembler.clone(),
-            Environment::K8s,
+            self.ac_running_mode,
         ))
     }
 }
@@ -192,6 +159,7 @@ pub mod tests {
     use crate::agent_control::agent_id::AgentID;
 
     use crate::agent_control::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
+    use crate::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
@@ -238,16 +206,17 @@ pub mod tests {
 
         let effective_agents_assembler = MockEffectiveAgentAssembler::new();
 
-        let builder = K8sSubAgentBuilder::new(
-            Some(&opamp_builder),
-            &instance_id_getter,
+        let builder = K8sSubAgentBuilder {
+            opamp_builder: Some(&opamp_builder),
+            instance_id_getter: &instance_id_getter,
             k8s_config,
-            Arc::new(supervisor_assembler),
-            Arc::new(remote_config_parser),
-            Arc::new(MockConfigRepository::new()),
-            Arc::new(effective_agents_assembler),
-            UnboundedBroadcast::default(),
-        );
+            supervisor_builder: Arc::new(supervisor_assembler),
+            remote_config_parser: Arc::new(remote_config_parser),
+            config_repository: Arc::new(MockConfigRepository::new()),
+            effective_agents_assembler: Arc::new(effective_agents_assembler),
+            sub_agent_publisher: UnboundedBroadcast::default(),
+            ac_running_mode: AGENT_CONTROL_MODE_K8S,
+        };
 
         builder.build(&agent_identity).unwrap();
     }
@@ -273,16 +242,17 @@ pub mod tests {
 
         let effective_agents_assembler = MockEffectiveAgentAssembler::new();
 
-        let builder = K8sSubAgentBuilder::new(
-            Some(&opamp_builder),
-            &instance_id_getter,
+        let builder = K8sSubAgentBuilder {
+            opamp_builder: Some(&opamp_builder),
+            instance_id_getter: &instance_id_getter,
             k8s_config,
-            Arc::new(supervisor_assembler),
-            Arc::new(remote_config_parser),
-            Arc::new(MockConfigRepository::new()),
-            Arc::new(effective_agents_assembler),
-            UnboundedBroadcast::default(),
-        );
+            supervisor_builder: Arc::new(supervisor_assembler),
+            remote_config_parser: Arc::new(remote_config_parser),
+            config_repository: Arc::new(MockConfigRepository::new()),
+            effective_agents_assembler: Arc::new(effective_agents_assembler),
+            sub_agent_publisher: UnboundedBroadcast::default(),
+            ac_running_mode: AGENT_CONTROL_MODE_K8S,
+        };
 
         let result = builder.build(&agent_identity);
         assert_matches!(
@@ -302,7 +272,8 @@ pub mod tests {
             agent_identity,
             Runtime {
                 deployment: Deployment {
-                    on_host: None,
+                    linux: None,
+                    windows: None,
                     k8s: Some(k8s_sample_runtime_config(true)),
                 },
             },
@@ -326,7 +297,8 @@ pub mod tests {
             agent_identity,
             Runtime {
                 deployment: Deployment {
-                    on_host: None,
+                    linux: None,
+                    windows: None,
                     k8s: Some(k8s_sample_runtime_config(false)),
                 },
             },
