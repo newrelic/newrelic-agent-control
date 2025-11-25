@@ -32,7 +32,7 @@ jobs:
       - name: Create system identity file
         run: |
           DEST_DIR="/tmp/newrelic-agent-control"
-          DEST_FILE="$DEST_DIR/priv.key"
+          DEST_FILE="$DEST_DIR/auth_key.key"
           
           if [ ! -d "$DEST_DIR" ]; then
             mkdir -p "$DEST_DIR"
@@ -54,7 +54,7 @@ jobs:
           ]
           default['newrelic_install']['env']['NEW_RELIC_CLI_SKIP_CORE'] = '1'
           default['newrelic_install']['env']['NEW_RELIC_AUTH_PROVISIONED_CLIENT_ID']='${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}'
-          default['newrelic_install']['env']['NEW_RELIC_AUTH_PRIVATE_KEY_PATH']='/tmp/newrelic-agent-control/priv.key'
+          default['newrelic_install']['env']['NEW_RELIC_AUTH_PRIVATE_KEY_PATH']='/tmp/newrelic-agent-control/auth_key.key'
           default['newrelic_install']['env']['NR_CLI_FLEET_ID']='NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg'
           default['newrelic_install']['env']['NEW_RELIC_AGENT_CONTROL_HOST_MONITORING_SOURCE']='infra-agent'
           default['newrelic_install']['env']['NEW_RELIC_AGENT_CONTROL_PROXY_URL']=''
