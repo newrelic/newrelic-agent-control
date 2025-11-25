@@ -1,9 +1,7 @@
-use crate::agent_control::defaults::get_custom_capabilities;
 use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
 use crate::opamp::remote_config::OpampRemoteConfig;
-use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::validators::signature::public_key::PublicKey;
 use crate::opamp::remote_config::validators::signature::public_key_fetcher::PublicKeyFetcher;
@@ -104,22 +102,13 @@ impl RemoteConfigValidator for SignatureValidator {
 
     fn validate(
         &self,
-        agent_identity: &AgentIdentity,
+        _: &AgentIdentity,
         opamp_remote_config: &OpampRemoteConfig,
     ) -> Result<(), Self::Err> {
         // Noop validation
         let Some(public_key_store) = &self.public_key_store else {
             return Ok(());
         };
-
-        // custom capabilities are got from the agent-type (currently hard-coded)
-        // If the capability is not set, no validation is performed
-        if !get_custom_capabilities(&agent_identity.agent_type_id).is_some_and(|c| {
-            c.capabilities
-                .contains(&SIGNATURE_CUSTOM_CAPABILITY.to_string())
-        }) {
-            return Ok(());
-        }
 
         let signature = opamp_remote_config
             .get_default_signature()
@@ -170,10 +159,11 @@ pub mod tests {
         .unwrap();
 
         let config = "value";
-
         let encoded_signature = pub_key_server.sign(config.as_bytes());
+
+        // agent remote config
         let remote_config = OpampRemoteConfig::new(
-            AgentID::AgentControl,
+            AgentIdentity::default().id,
             Hash::from("test"),
             ConfigState::Applying,
             ConfigurationMap::new(HashMap::from([(
@@ -189,6 +179,26 @@ pub mod tests {
 
         signature_validator
             .validate(&AgentIdentity::default(), &remote_config)
+            .unwrap();
+
+        // agent-control remote config
+        let remote_config = OpampRemoteConfig::new(
+            AgentIdentity::new_agent_control_identity().id,
+            Hash::from("test"),
+            ConfigState::Applying,
+            ConfigurationMap::new(HashMap::from([(
+                DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
+                config.to_string(),
+            )])),
+        )
+        .with_signature(Signatures::new_default(
+            encoded_signature.as_str(),
+            ED25519,
+            pub_key_server.key_id.as_str(),
+        ));
+
+        signature_validator
+            .validate(&AgentIdentity::new_agent_control_identity(), &remote_config)
             .unwrap()
     }
 
@@ -302,7 +312,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn test_signature_is_missing_for_agent_control_agent() {
+    pub fn test_missing_signature_for_agent_control_agent() {
         let pub_key_server = FakePubKeyServer::new();
 
         let signature_validator = SignatureValidator::new(
@@ -318,13 +328,12 @@ pub mod tests {
             AgentID::AgentControl,
             Hash::from("test"),
             ConfigState::Applying,
-            ConfigurationMap::default(),
+            ConfigurationMap::new(HashMap::from([("key".to_string(), "value".to_string())])),
         );
-        // Signature custom capability is not set for agent-control agent, therefore signature is not checked
-        assert!(
-            signature_validator
-                .validate(&AgentIdentity::new_agent_control_identity(), &rc)
-                .is_ok()
+
+        assert_matches!(
+            signature_validator.validate(&AgentIdentity::new_agent_control_identity(), &rc),
+            Err(SignatureValidatorError::VerifySignature(_))
         );
     }
 }
