@@ -35,10 +35,6 @@ pub enum OpampRemoteConfigError {
     InvalidConfig(String, String),
 }
 
-/// This structure represents the actual configuration values that are stored in the remote config.
-#[derive(Debug, Default, PartialEq, Clone)]
-pub struct ConfigurationMap(HashMap<String, String>);
-
 impl OpampRemoteConfig {
     pub fn new(
         agent_id: AgentID,
@@ -54,11 +50,18 @@ impl OpampRemoteConfig {
             signatures: None,
         }
     }
+
+    /// Add signature data to the remote config
     pub fn with_signature(self, signatures: Signatures) -> Self {
         Self {
             signatures: Some(signatures),
             ..self
         }
+    }
+
+    /// Get all configuration values
+    pub fn configs(&self) -> &ConfigurationMap {
+        &self.config_map
     }
 
     /// Get configuration value at the
@@ -73,25 +76,31 @@ impl OpampRemoteConfig {
             ))
     }
 
-    /// Get the signature data for the default config
-    pub fn get_default_signature(&self) -> Result<Option<SignatureData>, OpampRemoteConfigError> {
-        if let Some(signatures) = &self.signatures {
-            Ok(Some(
-                signatures
-                    .signatures
-                    .get(DEFAULT_AGENT_CONFIG_IDENTIFIER)
-                    .cloned()
-                    .ok_or(OpampRemoteConfigError::InvalidConfig(
-                        self.hash.to_string(),
-                        "missing signature for default config".to_string(),
-                    ))?,
-            ))
-        } else {
-            // Agent control config is not signed
-            Ok(None)
-        }
+    /// Get the signature data for a config key
+    pub fn signature(&self, config_name: &str) -> Result<SignatureData, OpampRemoteConfigError> {
+        let Some(signatures) = &self.signatures else {
+            return Err(OpampRemoteConfigError::InvalidConfig(
+                self.hash.to_string(),
+                "missing signatures".to_string(),
+            ));
+        };
+
+        signatures
+            .signatures
+            .get(config_name)
+            .cloned()
+            .ok_or_else(|| {
+                OpampRemoteConfigError::InvalidConfig(
+                    self.hash.to_string(),
+                    format!("missing signature for config: {}", config_name),
+                )
+            })
     }
 }
+
+/// This structure represents the actual configuration values that are stored in the remote config.
+#[derive(Debug, Default, PartialEq, Clone)]
+pub struct ConfigurationMap(HashMap<String, String>);
 
 impl ConfigurationMap {
     pub fn new(config_map: HashMap<String, String>) -> Self {

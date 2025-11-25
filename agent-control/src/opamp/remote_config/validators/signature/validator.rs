@@ -110,26 +110,31 @@ impl RemoteConfigValidator for SignatureValidator {
             return Ok(());
         };
 
-        let signature = opamp_remote_config
-            .get_default_signature()
-            .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))?
-            .ok_or(SignatureValidatorError::VerifySignature(
-                "Signature is missing".to_string(),
-            ))?;
+        // Iterate over all remote configs and verify signatures
+        for (config_name, config_content) in opamp_remote_config.configs().0.iter() {
+            let signature = opamp_remote_config.signature(config_name).map_err(|e| {
+                SignatureValidatorError::VerifySignature(format!(
+                    "getting signature for config '{}' config signature: {}",
+                    config_name, e
+                ))
+            })?;
 
-        let config_content = opamp_remote_config
-            .get_default()
-            .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))?
-            .as_bytes();
+            public_key_store
+                .verify_signature(
+                    signature.signature_algorithm(),
+                    signature.key_id(),
+                    config_content.as_bytes(),
+                    signature.signature(),
+                )
+                .map_err(|e| {
+                    SignatureValidatorError::VerifySignature(format!(
+                        "verifying signature for config '{}': {}",
+                        config_name, e
+                    ))
+                })?;
+        }
 
-        public_key_store
-            .verify_signature(
-                signature.signature_algorithm(),
-                signature.key_id(),
-                config_content,
-                signature.signature(),
-            )
-            .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))
+        Ok(())
     }
 }
 
@@ -137,16 +142,89 @@ impl RemoteConfigValidator for SignatureValidator {
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
+    use crate::opamp::remote_config::ConfigurationMap;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
-    use crate::opamp::remote_config::signature::{ED25519, SignatureData, Signatures};
+    use crate::opamp::remote_config::signature::{
+        ED25519, SignatureFields, Signatures, SigningAlgorithm,
+    };
     use crate::opamp::remote_config::validators::signature::public_key_fetcher::tests::FakePubKeyServer;
-    use crate::opamp::remote_config::{ConfigurationMap, DEFAULT_AGENT_CONFIG_IDENTIFIER};
     use crate::sub_agent::identity::AgentIdentity;
     use assert_matches::assert_matches;
     use std::collections::HashMap;
 
+    const DEFAULT_CONFIG_KEY: &str = "test_key";
+
+    #[rstest::rstest]
+    #[case::single_valid_signature(
+        AgentIdentity::default(),
+        HashMap::from([("config1".to_string(), "value".to_string())])
+    )]
+    #[case::agent_control_single_valid_signature(
+        AgentIdentity::new_agent_control_identity(),
+        HashMap::from([("config1".to_string(), "value".to_string())])
+    )]
+    #[case::multiple_valid_signatures(
+        AgentIdentity::default(),
+        HashMap::from([
+            ("config1".to_string(), "value1".to_string()),
+            ("config2".to_string(), "value2".to_string()),
+            ("config3".to_string(), "value3".to_string()),
+        ])
+    )]
+    #[case::agent_control_multiple_valid_signatures(
+        AgentIdentity::new_agent_control_identity(),
+        HashMap::from([
+            ("config1".to_string(), "value1".to_string()),
+            ("config2".to_string(), "value2".to_string()),
+            ("config3".to_string(), "value3".to_string()),
+        ])
+    )]
+    pub fn test_valid_signature(
+        #[case] agent_identity: AgentIdentity,
+        #[case] configs: HashMap<String, String>,
+    ) {
+        let pub_key_server = FakePubKeyServer::new();
+
+        let signature_validator = SignatureValidator::new(
+            SignatureValidatorConfig {
+                public_key_server_url: Some(pub_key_server.url.clone()),
+                ..Default::default()
+            },
+            ProxyConfig::default(),
+        )
+        .unwrap();
+
+        // Create signatures for all configs
+        let mut signatures = Signatures {
+            signatures: HashMap::new(),
+        };
+        for (config_name, config_content) in &configs {
+            let encoded_signature = pub_key_server.sign(config_content.as_bytes());
+            signatures.signatures.insert(
+                config_name.clone(),
+                SignatureFields {
+                    signature: encoded_signature,
+                    key_id: pub_key_server.key_id.clone(),
+                    signing_algorithm: SigningAlgorithm::ED25519,
+                },
+            );
+        }
+
+        let remote_config = OpampRemoteConfig::new(
+            agent_identity.id.clone(),
+            Hash::from("test"),
+            ConfigState::Applying,
+            ConfigurationMap::new(configs),
+        )
+        .with_signature(signatures);
+
+        signature_validator
+            .validate(&agent_identity, &remote_config)
+            .unwrap();
+    }
+
     #[test]
-    pub fn test_valid_signature() {
+    pub fn test_partial_valid() {
         let pub_key_server = FakePubKeyServer::new();
 
         let signature_validator = SignatureValidator::new(
@@ -161,45 +239,29 @@ pub mod tests {
         let config = "value";
         let encoded_signature = pub_key_server.sign(config.as_bytes());
 
-        // agent remote config
         let remote_config = OpampRemoteConfig::new(
             AgentIdentity::default().id,
             Hash::from("test"),
             ConfigState::Applying,
-            ConfigurationMap::new(HashMap::from([(
-                DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
-                config.to_string(),
-            )])),
+            ConfigurationMap::new(HashMap::from([
+                (DEFAULT_CONFIG_KEY.to_string(), config.to_string()),
+                (
+                    "config-with-missing-signature".to_string(),
+                    config.to_string(),
+                ),
+            ])),
         )
         .with_signature(Signatures::new_default(
+            DEFAULT_CONFIG_KEY,
             encoded_signature.as_str(),
             ED25519,
             pub_key_server.key_id.as_str(),
         ));
 
-        signature_validator
-            .validate(&AgentIdentity::default(), &remote_config)
-            .unwrap();
-
-        // agent-control remote config
-        let remote_config = OpampRemoteConfig::new(
-            AgentIdentity::new_agent_control_identity().id,
-            Hash::from("test"),
-            ConfigState::Applying,
-            ConfigurationMap::new(HashMap::from([(
-                DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
-                config.to_string(),
-            )])),
-        )
-        .with_signature(Signatures::new_default(
-            encoded_signature.as_str(),
-            ED25519,
-            pub_key_server.key_id.as_str(),
-        ));
-
-        signature_validator
-            .validate(&AgentIdentity::new_agent_control_identity(), &remote_config)
-            .unwrap()
+        assert_matches!(
+            signature_validator.validate(&AgentIdentity::default(), &remote_config),
+            Err(SignatureValidatorError::VerifySignature(_))
+        );
     }
 
     #[test]
@@ -221,98 +283,66 @@ pub mod tests {
         )
     }
 
-    #[test]
-    pub fn test_signature_validator_errors() {
-        struct TestCase {
-            name: &'static str,
-            remote_config: OpampRemoteConfig,
-        }
-
-        impl TestCase {
-            fn run(self) {
-                let pub_key_server = FakePubKeyServer::new();
-
-                let signature_validator = SignatureValidator::new(
-                    SignatureValidatorConfig {
-                        public_key_server_url: Some(pub_key_server.url.clone()),
-                        ..Default::default()
-                    },
-                    ProxyConfig::default(),
-                )
-                .unwrap();
-
-                let result =
-                    signature_validator.validate(&AgentIdentity::default(), &self.remote_config);
-                assert_matches!(
-                    result,
-                    Err(SignatureValidatorError::VerifySignature(_)),
-                    "{}",
-                    self.name
-                );
-            }
-        }
-
-        let test_cases = [
-            TestCase {
-                name: "Signature is missing",
-                remote_config: OpampRemoteConfig::new(
-                    AgentID::try_from("test").unwrap(),
-                    Hash::from("test_payload"),
-                    ConfigState::Applying,
-                    ConfigurationMap::default(),
-                ),
-            },
-            TestCase {
-                name: "Signature cannot be retrieved because multiple signatures are defined",
-                remote_config: OpampRemoteConfig::new(
-                    AgentID::try_from("test").unwrap(),
-                    Hash::from("test_payload"),
-                    ConfigState::Applying,
-                    ConfigurationMap::default(),
-                )
-                .with_signature(Signatures::new_multiple([
-                    SignatureData::new("first", ED25519, "fake_key_id"),
-                    SignatureData::new("second", ED25519, "fake_key_id"),
-                ])),
-            },
-            TestCase {
-                name: "Config is empty",
-                remote_config: OpampRemoteConfig::new(
-                    AgentID::try_from("test").unwrap(),
-                    Hash::from("test_payload"),
-                    ConfigState::Applying,
-                    ConfigurationMap::default(),
-                )
-                .with_signature(Signatures::new_default(
-                    "",
-                    ED25519,
-                    "fake_key_id",
-                )),
-            },
-            TestCase {
-                name: "Invalid signature",
-                remote_config: OpampRemoteConfig::new(
-                    AgentID::try_from("test").unwrap(),
-                    Hash::from("test_payload"),
-                    ConfigState::Applying,
-                    ConfigurationMap::new(HashMap::from([(
-                        "key".to_string(),
-                        "value".to_string(),
-                    )])),
-                )
-                .with_signature(Signatures::new_default(
-                    "invalid signature",
-                    ED25519,
-                    "fake_key_id",
-                )),
-            },
-        ];
-
-        test_cases.into_iter().for_each(|tc| tc.run());
-    }
-
-    #[test]
-    pub fn test_missing_signature_for_agent_control_agent() {
+    #[rstest::rstest]
+    #[case::all_signatures_missing(
+        AgentIdentity::default(),
+        OpampRemoteConfig::new(
+            AgentID::try_from("test").unwrap(),
+            Hash::from("test_payload"),
+            ConfigState::Applying,
+            ConfigurationMap::new(HashMap::from([
+                ("key".to_string(), "value".to_string()),
+                ("key2".to_string(), "value".to_string()),
+            ])),
+        )
+    )]
+    #[case::signature_missing(
+        AgentIdentity::default(),
+        OpampRemoteConfig::new(
+            AgentID::try_from("test").unwrap(),
+            Hash::from("test_payload"),
+            ConfigState::Applying,
+            ConfigurationMap::new(HashMap::from([(
+                "some-key".to_string(),
+                "value".to_string(),
+            )])),
+        )
+        .with_signature(Signatures::new_default(DEFAULT_CONFIG_KEY,
+            "invalid signature",
+            ED25519,
+            "fake_key_id",
+        ))
+    )]
+    #[case::invalid_sub_agent_signature(
+        AgentIdentity::default(),
+        OpampRemoteConfig::new(
+            AgentID::try_from("test").unwrap(),
+            Hash::from("test_payload"),
+            ConfigState::Applying,
+            ConfigurationMap::new(HashMap::from([(
+                DEFAULT_CONFIG_KEY.to_string(),
+                "value".to_string(),
+            )])),
+        )
+        .with_signature(Signatures::new_default(DEFAULT_CONFIG_KEY,
+            "invalid signature",
+            ED25519,
+            "fake_key_id",
+        ))
+    )]
+    #[case::missing_signature_for_agent_control(
+        AgentIdentity::new_agent_control_identity(),
+        OpampRemoteConfig::new(
+            AgentID::AgentControl,
+            Hash::from("test"),
+            ConfigState::Applying,
+            ConfigurationMap::new(HashMap::from([("key".to_string(), "value".to_string())])),
+        )
+    )]
+    pub fn test_signature_validator_errors(
+        #[case] agent_identity: AgentIdentity,
+        #[case] remote_config: OpampRemoteConfig,
+    ) {
         let pub_key_server = FakePubKeyServer::new();
 
         let signature_validator = SignatureValidator::new(
@@ -324,15 +354,8 @@ pub mod tests {
         )
         .unwrap();
 
-        let rc = OpampRemoteConfig::new(
-            AgentID::AgentControl,
-            Hash::from("test"),
-            ConfigState::Applying,
-            ConfigurationMap::new(HashMap::from([("key".to_string(), "value".to_string())])),
-        );
-
         assert_matches!(
-            signature_validator.validate(&AgentIdentity::new_agent_control_identity(), &rc),
+            signature_validator.validate(&agent_identity, &remote_config),
             Err(SignatureValidatorError::VerifySignature(_))
         );
     }

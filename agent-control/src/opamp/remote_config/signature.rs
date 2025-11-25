@@ -214,31 +214,26 @@ impl TryFrom<&CustomMessage> for Signatures {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::SignatureData;
     use super::Signatures;
-    use crate::opamp::remote_config::DEFAULT_AGENT_CONFIG_IDENTIFIER;
     use crate::opamp::remote_config::signature::SigningAlgorithm;
     use opamp_client::opamp::proto::CustomMessage;
     use std::collections::HashMap;
 
     impl Signatures {
-        pub fn new_default(signature: &str, signing_algorithm: &str, key_id: &str) -> Self {
+        pub fn new_default(
+            config_key: &str,
+            signature: &str,
+            signing_algorithm: &str,
+            key_id: &str,
+        ) -> Self {
             Self {
                 signatures: HashMap::from([(
-                    DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
+                    config_key.to_string(),
                     SignatureData::new(signature, signing_algorithm, key_id),
                 )]),
             }
-        }
-
-        pub fn new_multiple(signatures: impl IntoIterator<Item = SignatureData>) -> Self {
-            let signatures: HashMap<String, SignatureData> = signatures
-                .into_iter()
-                .enumerate()
-                .map(|(k, signature)| (format!("{k}"), signature))
-                .collect();
-            Self { signatures }
         }
     }
 
