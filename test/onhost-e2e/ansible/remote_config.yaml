@@ -41,8 +41,7 @@
             name: install_ac_recipe
           vars:
             monitoring_source: "infra-agent"
-            # ac-e2e-onhost-2 fleet on canaries account
-            fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg
+            fleet_id: "{{ fleet_id }}"
             agent_control_private_key: "/etc/newrelic-agent-control/priv.key"
 
         - name: Setup AC config

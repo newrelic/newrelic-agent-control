@@ -7,6 +7,8 @@ RECIPE_BRANCH ?= main
 # Variables dependent on the New Relic platform region.
 OPAMP_ENDPOINT = "https://opamp.staging-service.newrelic.com/v1/opamp"
 NEW_RELIC_API_ENDPOINT = "https://staging-api.newrelic.com"
+# ac-e2e-onhost-2 fleet on canaries account
+FLEET_ID ?= "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZ"
 ifeq ($(ENVIRONMENT), production)
 	OPAMP_ENDPOINT = "https://opamp.service.newrelic.com/v1/opamp"
 	NEW_RELIC_API_ENDPOINT = "https://api.newrelic.com"
@@ -70,6 +72,7 @@ e2e:
 		-e local_package_path=$(LOCAL_PACKAGE_PATH) \
 		-e agent_control_version=${PACKAGE_VERSION} \
 		-e system_identity_client_id=${NR_SYSTEM_IDENTITY_CLIENT_ID} \
+		-e fleet_id=${FLEET_ID} \
 		$(ANSIBLE_FOLDER)/$(ANSIBLE_PLAYBOOK)
 
 .PHONY: clean

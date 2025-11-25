@@ -18,6 +18,9 @@ feature_branch = os.getenv('FEATURE_BRANCH', "master")
 enable_ac_remote_update = os.getenv('ENABLE_AC_REMOTE_UPDATE', "false")
 enable_cd_remote_update = os.getenv('ENABLE_CD_REMOTE_UPDATE', "false")
 
+# Fleet with name 'ac-e2e-3'. The sub-agent reports data to the 'Agent Control Canaries' account.
+fleet_id = os.getenv('FLEET_ID', "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyODk4LTg0OWMtNzdmZC1iN2Y1LWMwYjNiNDRmNzlkNw")
+
 # Enables basic auth in chartmuseum (for testing reasons)
 # 
 chartmuseum_basic_auth = os.getenv('CHARTMUSEUM_BASIC_AUTH', "")
@@ -115,6 +118,7 @@ ac_flags = [
   '--set=agentControlDeployment.chartVersion=0.0.1',
   '--set=agentControlDeployment.chartValues.config.acRemoteUpdate=' + enable_ac_remote_update,
   '--set=agentControlDeployment.chartValues.config.cdRemoteUpdate=' + enable_cd_remote_update,
+  '--set=agentControlDeployment.chartValues.config.fleet_control.fleet_id=' + fleet_id,
   '--version=>=0.0.0-beta',
   '--set=agentControlDeployment.chartValues.image.imagePullPolicy=Always',
   '--values=' + sa_chart_values_file,
