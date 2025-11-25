@@ -8,6 +8,7 @@ agentControlDeployment:
     subAgentsNamespace: "newrelic-agents"
     verboseLog: true
     config:
+      secretPrivateKeyName: "agent-control-auth"
       fleet_control:
         enabled: false
       log:

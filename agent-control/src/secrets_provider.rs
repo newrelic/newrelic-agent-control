@@ -1,4 +1,5 @@
 pub mod env;
+pub mod file;
 pub mod k8s_secret;
 pub mod vault;
 

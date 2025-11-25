@@ -11,6 +11,7 @@ use crate::k8s::tools::opamp::get_minikube_opamp_url_from_fake_server;
 use assert_cmd::Command;
 use assert_cmd::cargo::cargo_bin_cmd;
 use kube::Client;
+use newrelic_agent_control::agent_control::defaults::K8S_PRIVATE_KEY_SECRET;
 use std::time::Duration;
 
 // NOTE: The tests below are using the latest '*' chart version, and they will likely fail
@@ -174,6 +175,7 @@ pub(crate) fn create_simple_values_secret(
         "subAgentsNamespace": subagents_ns,
         "config": {
             "cdRemoteUpdate": false,
+            "secretPrivateKeyName": K8S_PRIVATE_KEY_SECRET,
             "fleet_control": {
                 "enabled": false,
             },
@@ -207,6 +209,7 @@ fn create_values_secret_with_invalid_image_tag(
     let values = serde_json::json!({
         "subAgentsNamespace": subagents_ns,
         "config": {
+            "secretPrivateKeyName": K8S_PRIVATE_KEY_SECRET,
             "fleet_control": {
                 "enabled": false,
             },
