@@ -117,3 +117,36 @@
       processes_running:
         - "^/usr/bin/newrelic-agent-control"
         - "^/usr/bin/newrelic-infra"
+
+- name: installation-windows
+  hosts: testing_hosts_windows
+  gather_facts: yes
+
+  pre_tasks:
+    - name: Initial cleanup
+      include_role:
+        name: caos.ansible_roles.infra_agent
+      vars:
+        uninstall: true
+
+  tasks:
+    - name: Installation tests suite
+      vars:
+        target_agent_version: "1.71.1"
+
+      block:
+
+        - name: install agent
+          include_role:
+            name: caos.ansible_roles.infra_agent
+          vars:
+            target_version: "{{ target_agent_version }}"
+            repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent"
+
+        - name: Assert version
+          include_role:
+            name: caos.ansible_roles.assert_version
+          vars:
+            target_versions:
+              - exec: '"C:\Program Files\New Relic\newrelic-infra\newrelic-infra.exe" "--version"'
+                version: "{{ target_agent_version }}"

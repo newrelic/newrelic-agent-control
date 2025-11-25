@@ -1,8 +1,26 @@
+[testing_hosts:children]
+testing_hosts_linux
+testing_hosts_windows
+
 [testing_hosts_linux]
 %{ for index, vms in agent-ids ~}
-${vms} ansible_user=${agent-user[index]} ansible_host=${agent-private-ip[index]} ansible_python_interpreter=${agent-python[index]}
+%{ if platform[index] == "linux" }${vms} ansible_user=${agent-user[index]} ansible_host=${agent-private-ip[index]} ansible_python_interpreter=${agent-python[index]}%{ endif }
+%{ endfor ~}
+
+[testing_hosts_windows]
+%{ for index, vms in agent-ids ~}
+%{ if platform[index] == "windows" }${vms} ansible_user=${agent-user[index]} ansible_host=${agent-private-ip[index]}%{ endif }
 %{ endfor ~}
 
 [testing_hosts_linux:vars]
 ansible_ssh_private_key_file=~/.ssh/caos-dev-arm.cer
 ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+[testing_hosts_windows:vars]
+ansible_winrm_transport=basic
+ansible_user=Administrator
+ansible_password=${windows_password}
+ansible_connection=winrm
+ansible_winrm_server_cert_validation=ignore
+ansible_winrm_scheme=https
+ansible_port=5986
