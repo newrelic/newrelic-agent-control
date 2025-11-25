@@ -11,7 +11,8 @@ use crate::k8s::tools::{
 };
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
+    AGENT_CONTROL_VERSION, CD_EXTERNAL_ENABLED_ATTRIBUTE_KEY,
+    CD_REMOTE_UPDATE_ENABLED_ATTRIBUTE_KEY, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
     HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME,
     OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
     OPAMP_SUPERVISOR_KEY, PARENT_AGENT_ID_ATTRIBUTE_KEY,
@@ -95,6 +96,11 @@ agents:
         (
             CLUSTER_NAME_ATTRIBUTE_KEY,
             Value::StringValue("minikube".to_string()),
+        ),
+        (CD_EXTERNAL_ENABLED_ATTRIBUTE_KEY, Value::BoolValue(false)),
+        (
+            CD_REMOTE_UPDATE_ENABLED_ATTRIBUTE_KEY,
+            Value::BoolValue(false),
         ),
     ]));
 
