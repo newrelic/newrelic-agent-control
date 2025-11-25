@@ -105,7 +105,7 @@
 
             - name: Import the L2 private key from env-var
               copy:
-                dest: "/etc/newrelic-agent-control/priv.key"
+                dest: "/etc/newrelic-agent-control/auth_key"
                 # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
                 content: "{{ lookup('ansible.builtin.env', 'NR_SYSTEM_IDENTITY_PRIVATE_KEY') }}"
                 
@@ -117,7 +117,7 @@
                 monitoring_source: "infra-agent"
                 # ac-e2e-host-no-deployment fleet on canaries account
                 fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWE5NjY2LTkxYzQtN2M0My1hNzZhLWY0YWVmODE4NWM4NA
-                agent_control_private_key: "/etc/newrelic-agent-control/priv.key"
+                agent_control_private_key: "/etc/newrelic-agent-control/auth_key"
             
             - name: Set test identifier
               set_fact:

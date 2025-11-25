@@ -2,6 +2,7 @@ k8s:
   namespace: <ns>
   namespace_agents: <agents-ns>
   cluster_name: <cluster-name>
+  secret_private_key_name: agent-control-auth
 agents:
   hello-world:
     agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"

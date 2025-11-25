@@ -3,8 +3,9 @@ use crate::agent_control::config_repository::repository::AgentControlConfigLoade
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
+    AGENT_CONTROL_VERSION, AUTH_PRIVATE_KEY_FILE_NAME, FLEET_ID_ATTRIBUTE_KEY,
+    HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
@@ -17,6 +18,7 @@ use crate::event::channel::pub_sub;
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::on_host::file_store::FileStore;
+use crate::opamp::builder::build_opamp_client;
 use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
@@ -25,7 +27,8 @@ use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
-use crate::secrets_provider::SecretsProviders;
+use crate::secrets_provider::file::FileSecretProvider;
+use crate::secrets_provider::{SecretsProvider, SecretsProviders};
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
@@ -53,9 +56,21 @@ impl AgentControlRunner {
             self.base_paths.remote_dir.clone(),
         ));
 
+        let opamp_http_builder = if let Some(opamp_config) = &self.opamp {
+            let file_secret_provider = FileSecretProvider::new(self.base_paths.local_dir.clone());
+            let secret = file_secret_provider.get_secret(AUTH_PRIVATE_KEY_FILE_NAME)?;
+            Some(build_opamp_client(
+                opamp_config.clone(),
+                self.proxy.clone(),
+                secret,
+            )?)
+        } else {
+            None
+        };
+
         debug!("Initializing yaml_config_repository");
         let config_repository = ConfigRepo::new(file_store.clone());
-        let yaml_config_repository = Arc::new(if self.opamp_http_builder.is_some() {
+        let yaml_config_repository = Arc::new(if opamp_http_builder.is_some() {
             config_repository.with_remote()
         } else {
             config_repository
@@ -100,7 +115,7 @@ impl AgentControlRunner {
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
-        let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
+        let opamp_client_builder = opamp_http_builder.map(|http_builder| {
             DefaultOpAMPClientBuilder::new(
                 http_builder,
                 DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),

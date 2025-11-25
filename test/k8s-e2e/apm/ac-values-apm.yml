@@ -10,6 +10,7 @@ agentControlDeployment:
       create: false
       secretName: "sys-identity"
     config:
+      secretPrivateKeyName: "agent-control-auth"
       fleet_control:
         enabled: true
         # Fleet with name 'ac-e2e-apm'.

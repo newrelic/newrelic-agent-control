@@ -31,6 +31,8 @@ pub const AUTH_PRIVATE_KEY_FILE_NAME: &str = "auth_key";
 
 // Keys non-identifying attributes
 pub const PARENT_AGENT_ID_ATTRIBUTE_KEY: &str = "parent.agent.id";
+pub const K8S_PRIVATE_KEY_SECRET: &str = "agent-control-auth";
+pub const K8S_KEY_SECRET: &str = "private_key";
 pub const HOST_NAME_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::attribute::HOST_NAME;
 pub const CLUSTER_NAME_ATTRIBUTE_KEY: &str = "cluster.name";
 pub const HOST_ID_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::attribute::HOST_ID;

@@ -1,10 +1,6 @@
-use std::path::PathBuf;
-
 use http::Uri;
 use nr_auth::ClientID;
 use serde::Deserialize;
-
-use crate::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
 
 /// Authorization configuration used by the OpAmp connection to NewRelic.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -36,21 +32,21 @@ pub enum ProviderConfig {
 /// Uses a local private key to sign the access token request.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct LocalConfig {
-    /// Private key absolute path.
-    pub private_key_path: PathBuf,
+    /// Private key value (in memory).
+    pub private_key_value: String,
 }
 
 impl LocalConfig {
-    pub fn new(local_data_dir: PathBuf) -> Self {
+    pub fn new(value: String) -> Self {
         Self {
-            private_key_path: local_data_dir.join(AUTH_PRIVATE_KEY_FILE_NAME),
+            private_key_value: value,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{path::PathBuf, str::FromStr};
+    use std::str::FromStr;
 
     use http::Uri;
 
@@ -70,24 +66,6 @@ mod tests {
         }
 
         let tests: Vec<Test> = vec![
-            Test {
-                content: String::from(
-                    r#"
-token_url: "http://fake.com/oauth2/v1/token"
-client_id: "fake"
-provider: "local"
-private_key_path: "path/to/key"
-                "#,
-                ),
-                expected: AuthConfig {
-                    client_id: "fake".into(),
-                    token_url: Uri::from_str("http://fake.com/oauth2/v1/token").unwrap(),
-                    provider: Some(ProviderConfig::Local(LocalConfig {
-                        private_key_path: PathBuf::from("path/to/key"),
-                    })),
-                    retries: 0u8,
-                },
-            },
             Test {
                 content: String::from(
                     r#"
@@ -115,6 +93,24 @@ retries: 3
                     token_url: Uri::from_str("http://fake.com/oauth2/v1/token").unwrap(),
                     provider: None,
                     retries: 3u8,
+                },
+            },
+            Test {
+                content: String::from(
+                    r#"
+token_url: "http://fake.com/oauth2/v1/token"
+client_id: "fake_client_id"
+provider: "local"
+private_key_value: "secret"
+                    "#,
+                ),
+                expected: AuthConfig {
+                    client_id: "fake_client_id".into(),
+                    token_url: Uri::from_str("http://fake.com/oauth2/v1/token").unwrap(),
+                    provider: Some(ProviderConfig::Local(LocalConfig {
+                        private_key_value: "secret".to_string(),
+                    })),
+                    retries: 0u8,
                 },
             },
         ];

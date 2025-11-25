@@ -6,6 +6,7 @@ use crate::common::opamp::FakeServer;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::retry::retry;
 use crate::common::runtime::block_on;
+use crate::k8s::tools::agent_control::DUMMY_PRIVATE_KEY;
 use crate::k8s::tools::instance_id;
 use crate::k8s::tools::local_chart::{LOCAL_CHART_REPOSITORY, agent_control_deploymet::*};
 use crate::k8s::tools::logs::{AC_LABEL_SELECTOR, print_pod_logs};
@@ -15,7 +16,9 @@ use k8s_openapi::api::core::v1::Pod;
 use kube::api::ListParams;
 use kube::{Api, Client};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY;
+use newrelic_agent_control::agent_control::defaults::{
+    K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET, OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
+};
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::{AnyValue, KeyValue, RemoteConfigStatuses};
@@ -358,6 +361,14 @@ fn bootstrap_ac(
     create_values_secret(
         client.clone(),
         namespace,
+        K8S_PRIVATE_KEY_SECRET,
+        K8S_KEY_SECRET,
+        DUMMY_PRIVATE_KEY.to_string(),
+    );
+
+    create_values_secret(
+        client.clone(),
+        namespace,
         SECRET_NAME,
         VALUES_KEY,
         ac_chart_values(opamp_endpoint, namespace),
@@ -402,6 +413,7 @@ fn ac_chart_values(opamp_endpoint: Url, name_override: &str) -> String {
           },
           "acRemoteUpdate": true,
           "cdRemoteUpdate": false,
+          "secretPrivateKeyName": K8S_PRIVATE_KEY_SECRET,
           "override": {
             "log": {
                "level":"debug",

@@ -1,4 +1,4 @@
-use super::k8s_api::check_config_map_exist;
+use super::k8s_api::{check_config_map_exist, create_values_secret};
 use crate::common::{
     agent_control::{StartedAgentControl, start_agent_control_with_custom_config},
     retry::retry,
@@ -10,6 +10,7 @@ use kube::{
     Client,
     api::{Api, DeleteParams, PostParams},
 };
+use newrelic_agent_control::agent_control::defaults::{K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET};
 use newrelic_agent_control::agent_control::{agent_id::AgentID, run::Environment};
 use newrelic_agent_control::{
     agent_control::defaults::{
@@ -32,6 +33,10 @@ pub const FOO_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/foo_cr_agent_type.yml";
 pub const BAR_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/bar_cr_agent_type.yml";
 
 pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
+
+pub const DUMMY_PRIVATE_KEY: &str = r#"-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDCt
+-----END PRIVATE KEY-----"#;
 
 /// Starts the agent-control through [start_agent_control] after setting up the corresponding configuration file
 /// and config map according to the provided `folder_name` and the provided `file_names`.
@@ -74,6 +79,15 @@ pub fn start_agent_control_with_testdata_config(
             file_name,
         ))
     }
+
+    create_values_secret(
+        client.clone(),
+        ac_ns,
+        K8S_PRIVATE_KEY_SECRET,
+        K8S_KEY_SECRET,
+        DUMMY_PRIVATE_KEY.to_string(),
+    );
+
     start_agent_control_with_custom_config(
         BasePaths {
             local_dir: local_dir.to_path_buf(),

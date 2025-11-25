@@ -7,7 +7,7 @@ use crate::agent_control::config_validator::k8s::K8sReleaseNamesConfigValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, CD_EXTERNAL_ENABLED_ATTRIBUTE_KEY,
     CD_REMOTE_UPDATE_ENABLED_ATTRIBUTE_KEY, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
-    HOST_NAME_ATTRIBUTE_KEY, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY,
+    HOST_NAME_ATTRIBUTE_KEY, K8S_KEY_SECRET, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY,
 };
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
@@ -26,6 +26,7 @@ use crate::event::AgentControlInternalEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::opamp::builder::build_opamp_client;
 use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
@@ -34,7 +35,8 @@ use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
-use crate::secrets_provider::SecretsProviders;
+use crate::secrets_provider::k8s_secret::K8sSecretProvider;
+use crate::secrets_provider::{SecretsProvider, SecretsProviders};
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
@@ -66,9 +68,28 @@ impl AgentControlRunner {
             self.k8s_config.namespace.clone(),
         ));
 
+        let opamp_http_builder = if let Some(opamp_config) = &self.opamp {
+            let k8s_secret_provider = K8sSecretProvider::new(k8s_client.clone());
+
+            let secret_path = format!(
+                "{}:{}:{}",
+                self.k8s_config.namespace, self.k8s_config.secret_private_key_name, K8S_KEY_SECRET
+            );
+
+            let secret = k8s_secret_provider.get_secret(&secret_path)?;
+
+            Some(build_opamp_client(
+                opamp_config.clone(),
+                self.proxy.clone(),
+                secret,
+            )?)
+        } else {
+            None
+        };
+
         debug!("Initializing yaml_config_repository");
         let config_repository = ConfigRepo::new(k8s_store.clone());
-        let yaml_config_repository = Arc::new(if self.opamp_http_builder.is_some() {
+        let yaml_config_repository = Arc::new(if opamp_http_builder.is_some() {
             config_repository.with_remote()
         } else {
             config_repository
@@ -100,7 +121,7 @@ impl AgentControlRunner {
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
-        let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
+        let opamp_client_builder = opamp_http_builder.map(|http_builder| {
             DefaultOpAMPClientBuilder::new(
                 http_builder,
                 DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),

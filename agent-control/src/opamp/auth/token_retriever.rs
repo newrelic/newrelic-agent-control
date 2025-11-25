@@ -1,8 +1,8 @@
 use super::config::{AuthConfig, LocalConfig, ProviderConfig};
+use crate::http::client::HttpBuildError;
 use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
-use crate::{agent_control::run::BasePaths, http::client::HttpBuildError};
 use chrono::DateTime;
 use nr_auth::{
     TokenRetriever, TokenRetrieverError,
@@ -50,7 +50,7 @@ impl TokenRetriever for TokenRetrieverImpl {
 impl TokenRetrieverImpl {
     pub fn try_build(
         auth_config: Option<AuthConfig>,
-        base_paths: BasePaths,
+        private_key: String,
         proxy_config: ProxyConfig,
     ) -> Result<Self, TokenRetrieverImplError> {
         let Some(ac) = auth_config else {
@@ -59,9 +59,7 @@ impl TokenRetrieverImpl {
 
         let provider = ac
             .provider
-            .unwrap_or(ProviderConfig::Local(LocalConfig::new(
-                base_paths.local_dir.clone(),
-            )));
+            .unwrap_or(ProviderConfig::Local(LocalConfig::new(private_key)));
 
         let jwt_signer = JwtSignerImpl::try_from(provider)?;
 
@@ -110,9 +108,11 @@ impl TryFrom<ProviderConfig> for JwtSignerImpl {
     type Error = JwtSignerImplError;
     fn try_from(value: ProviderConfig) -> Result<Self, Self::Error> {
         match value {
-            ProviderConfig::Local(local_config) => Ok(JwtSignerImpl::Local(
-                LocalPrivateKeySigner::try_from(local_config.private_key_path.as_path())?,
-            )),
+            ProviderConfig::Local(local_config) => {
+                let signer =
+                    LocalPrivateKeySigner::try_from(local_config.private_key_value.as_bytes())?;
+                Ok(JwtSignerImpl::Local(signer))
+            }
         }
     }
 }

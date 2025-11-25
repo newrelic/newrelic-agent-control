@@ -306,6 +306,10 @@ pub struct K8sConfig {
     /// agent_control_cd release name
     #[serde(default)]
     pub cd_release_name: String,
+    /// Specifies the key name within the Kubernetes Secret
+    /// used to retrieve the required secret for credentials.
+    #[serde(default)]
+    pub secret_private_key_name: String,
 }
 
 pub fn helmrelease_v2_type_meta() -> TypeMeta {
@@ -387,6 +391,7 @@ impl Default for K8sConfig {
             ac_release_name: Default::default(),
             cd_remote_update: Default::default(),
             cd_release_name: Default::default(),
+            secret_private_key_name: Default::default(),
         }
     }
 }
