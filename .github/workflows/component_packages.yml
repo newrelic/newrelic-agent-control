@@ -12,11 +12,6 @@ on:
         type: boolean
         required: false
         default: false
-      skip_upload_pipeline:
-        description: 'skip uploading the artifact to the github pipeline'
-        type: boolean
-        required: false
-        default: false
       tag_name:
         description: 'tag name for the packages'
         type: string
@@ -116,7 +111,6 @@ jobs:
           GORELEASER_CURRENT_TAG: ${{ inputs.tag_name }}
 
       - name: Upload assets to pipeline
-        if: ${{ !inputs.skip_upload_pipeline }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           retention-days: 1

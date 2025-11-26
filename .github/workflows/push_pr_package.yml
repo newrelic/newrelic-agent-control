@@ -21,7 +21,6 @@ jobs:
     uses: ./.github/workflows/component_packages.yml
     with:
       pre-release: false
-      skip_upload_pipeline: true
       skip_sign: true
       tag_name: 0.100.0
 
