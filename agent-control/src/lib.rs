@@ -16,6 +16,7 @@ pub mod instrumentation;
 pub mod k8s;
 pub mod on_host;
 pub mod opamp;
+pub mod packages;
 pub mod secrets_provider;
 pub mod sub_agent;
 pub mod utils;

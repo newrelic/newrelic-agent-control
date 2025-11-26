@@ -78,7 +78,7 @@ jobs:
         run: |
           cargo install --locked cargo-xwin --force
 
-      - name: If pre-release set and verify tag matches Cargo.toml version
+      - name: If pre-release, set tag and verify it matches Cargo.toml version
         if: ${{ inputs.pre-release}}
         run: |
           NEWRELIC_AGENT_CONTROL_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' agent-control/Cargo.toml)
