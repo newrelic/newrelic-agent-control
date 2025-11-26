@@ -59,9 +59,9 @@ impl OpampRemoteConfig {
         }
     }
 
-    /// Get all configuration values
-    pub fn configs(&self) -> &ConfigurationMap {
-        &self.config_map
+    /// Returns an iterator over the configuration key-value pairs.
+    pub fn configs_iter(&self) -> impl Iterator<Item = (&String, &String)> {
+        self.config_map.0.iter()
     }
 
     /// Get configuration value at the

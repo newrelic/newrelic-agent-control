@@ -12,8 +12,31 @@ use thiserror::Error;
 #[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
 pub struct YAMLConfig(HashMap<String, serde_yaml::Value>);
 
+impl YAMLConfig {
+    /// Appends another YAMLConfig into this one, returning an error if there are any duplicate keys.
+    pub fn append(&mut self, other: YAMLConfig) -> Result<(), YAMLConfigError> {
+        if let Some(key) = other.0.keys().find(|key| self.0.contains_key(*key)) {
+            return Err(YAMLConfigError::YAMLConfigError(format!(
+                "cannot append duplicated key: {}",
+                key
+            )));
+        }
+        for (key, value) in other.0 {
+            self.0.insert(key, value);
+        }
+        Ok(())
+    }
+
+    /// Returns true if the YAMLConfig is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum YAMLConfigError {
+    #[error("{0}")]
+    YAMLConfigError(String),
     #[error("invalid agent values format: {0}")]
     FormatError(#[from] serde_yaml::Error),
 }

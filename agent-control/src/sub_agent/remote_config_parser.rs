@@ -76,18 +76,22 @@ where
 fn extract_remote_config_values(
     opamp_remote_config: &OpampRemoteConfig,
 ) -> Result<Option<RemoteConfig>, RemoteConfigParserError> {
-    let remote_config_value = opamp_remote_config.get_default().map_err(|err| {
-        RemoteConfigParserError::InvalidValues(format!(
-            "could not load remote configuration values: {err}"
-        ))
-    })?;
+    let config = opamp_remote_config.configs_iter().try_fold(
+        YAMLConfig::default(),
+        |mut acc, (_, content)| {
+            let cfg = YAMLConfig::try_from(content.as_str()).map_err(|err| {
+                RemoteConfigParserError::InvalidValues(format!("decoding config: {err}"))
+            })?;
+            acc.append(cfg).map_err(|err| {
+                RemoteConfigParserError::InvalidValues(format!("appending config: {err}"))
+            })?;
+            Ok(acc)
+        },
+    )?;
 
-    if remote_config_value.is_empty() {
+    if config.is_empty() {
         return Ok(None);
     }
-
-    let config = YAMLConfig::try_from(remote_config_value.to_string())
-        .map_err(|err| RemoteConfigParserError::InvalidValues(err.to_string()))?;
 
     Ok(Some(RemoteConfig {
         config,
@@ -195,11 +199,17 @@ pub mod tests {
     }
 
     #[rstest]
-    #[case::mutiple_configs(
-        r#"{"config1": "{\"key\": \"value\"}", "config2": "{\"key\": \"value\"}"}"#
-    )]
     #[case::invalid_yaml_config_single_value(r#"{"config": "single-value"}"#)]
     #[case::invalid_yaml_config_array(r#"{"config": "[1, 2, 3]"}"#)]
+    #[case::mutiple_configs_duplicated_keys(
+        r#"{"config1": "{\"key\": \"value\"}", "config2": "{\"key\": \"value2\"}"}"#
+    )]
+    #[case::mutiple_configs_config_single_value(
+        r#"{"config1": "{\"key\": \"value\"}", "config2": "single-value"}"#
+    )]
+    #[case::mutiple_configs_config_array(
+        r#"{"config1": "{\"key\": \"value\"}", "config2": "[1, 2, 3]"}"#
+    )]
     fn test_agent_remote_config_parser_config_invalid_values(#[case] config: &str) {
         let agent_identity = AgentIdentity::default();
 
@@ -216,16 +226,26 @@ pub mod tests {
         assert_matches!(result, Err(RemoteConfigParserError::InvalidValues(_)));
     }
 
-    #[test]
-    fn test_agent_remote_config_parser_some_config() {
+    #[rstest]
+    #[case::single_config(r#"{"config": "key: value"}"#, "key: value")]
+    #[case::multiple_configs(
+        r#"{"config1": "key1: value1", "config2": "key2: value2"}"#,
+        "key1: value1\nkey2: value2"
+    )]
+    #[case::multiple_configs_empty_config(
+        r#"{"config1": "key1: value1", "empty": ""}"#,
+        "key1: value1"
+    )]
+    fn test_agent_remote_config_parser_some_config(
+        #[case] config: &str,
+        #[case] expected_yaml: &str,
+    ) {
         let agent_identity = AgentIdentity::default();
 
         let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
-        let config_map = ConfigurationMap::new(HashMap::from([(
-            DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
-            "key: value".to_string(),
-        )]));
+        let config_map =
+            ConfigurationMap::new(serde_json::from_str::<HashMap<String, String>>(config).unwrap());
         let opamp_remote_config = OpampRemoteConfig::new(
             agent_identity.id.clone(),
             hash.clone(),
@@ -239,7 +259,7 @@ pub mod tests {
         let handler = AgentRemoteConfigParser::new(vec![validator]);
 
         let expected = RemoteConfig {
-            config: serde_yaml::from_str("key: value").unwrap(),
+            config: serde_yaml::from_str(expected_yaml).unwrap(),
             hash,
             state,
         };

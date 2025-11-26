@@ -111,7 +111,7 @@ impl RemoteConfigValidator for SignatureValidator {
         };
 
         // Iterate over all remote configs and verify signatures
-        for (config_name, config_content) in opamp_remote_config.configs().0.iter() {
+        for (config_name, config_content) in opamp_remote_config.configs_iter() {
             let signature = opamp_remote_config.signature(config_name).map_err(|e| {
                 SignatureValidatorError::VerifySignature(format!(
                     "getting signature for config '{}' config signature: {}",
