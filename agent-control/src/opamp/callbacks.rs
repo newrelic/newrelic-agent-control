@@ -508,7 +508,7 @@ pub(crate) mod tests {
                 expected_remote_config_config_map: expected_remote_config_map.clone(),
                 expected_remote_config_hash: Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Applying,
-                expected_signature: Some(Signatures::new_default(
+                expected_signature: Some(Signatures::new_default(DEFAULT_AGENT_CONFIG_IDENTIFIER,
                     "fake config",
                     ED25519,
                     "fake keyid",
