@@ -20,9 +20,9 @@ jobs:
     name: Build packages
     uses: ./.github/workflows/component_packages.yml
     with:
-      pre-release: false
       skip_sign: true
-      tag_name: 0.100.0
+      pre-release: false
+      tag_name: 0.100.${{ github.run_id }}
 
   build-image:
     name: Build image
