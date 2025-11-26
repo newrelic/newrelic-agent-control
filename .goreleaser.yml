@@ -85,8 +85,18 @@ builds:
           output: true
 
 archives:
-  - formats: tar.gz
+  - id: linux
+    formats: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    builds:
+      - newrelic-agent-control-linux
+      - newrelic-agent-control-cli-linux
+  - id: windows
+    formats: zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    builds:
+      - newrelic-agent-control-windows
+      - newrelic-agent-control-cli-windows
 
 nfpms: # deb and rpm are only built for linux targets
   - package_name: newrelic-agent-control
@@ -218,7 +228,7 @@ signs:
 
     # Path to the checksum command.
     cmd: ./build/scripts/generate_checksum.sh
-    args: ["-f", "{{ .Env.artifact }}"]
+    args: [ "-f", "{{ .Env.artifact }}" ]
     artifacts: all
   - id: signing
 

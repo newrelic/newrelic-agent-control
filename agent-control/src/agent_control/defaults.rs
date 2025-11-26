@@ -14,7 +14,7 @@ pub const AGENT_CONTROL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Keys identifying attributes
 pub const OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY: &str = "chart.version";
-pub const OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY: &str = "chart.version"; // TODO `ac.chart.version`?
+pub const OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY: &str = "chart.version";
 pub const OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY: &str = "cd.chart.version";
 pub const OPAMP_SERVICE_NAME: &str = "service.name";
 pub const OPAMP_SERVICE_VERSION: &str = "service.version";
