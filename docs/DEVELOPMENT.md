@@ -209,7 +209,7 @@ There is a service that ultimately exposes a `/status` endpoint for Agent Contro
     "endpoint": "https://opamp.service.newrelic.com/v1/opamp",
     "reachable": true
   },
-  "sub_agents": {
+  "agents": {
     "nr-otel-collector": {
       "agent_id": "nr-otel-collector",
       "agent_type": "newrelic/com.newrelic.opentelemetry.collector:0.1.0",

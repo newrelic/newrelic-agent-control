@@ -58,7 +58,7 @@ async fn update_agent_control_status(
             status.agent_control.set_health(health);
         }
         AgentControlEvent::SubAgentRemoved(agent_id) => {
-            status.sub_agents.remove(&agent_id);
+            status.agents.remove(&agent_id);
         }
         AgentControlEvent::AgentControlStopped => {
             unreachable!("AgentControlStopped is controlled outside");
@@ -88,7 +88,7 @@ async fn update_sub_agent_status(sub_agent_event: SubAgentEvent, status: Arc<RwL
             }
 
             status
-                .sub_agents
+                .agents
                 .entry(agent_identity.id.clone())
                 .or_insert_with(|| {
                     warn!(agent_id = %agent_identity.id,"Event sub_agent_health_info received before sub_agent_started");
@@ -97,7 +97,7 @@ async fn update_sub_agent_status(sub_agent_event: SubAgentEvent, status: Arc<RwL
         }
         SubAgentEvent::SubAgentStarted(agent_identity, start_time) => {
             status
-                .sub_agents
+                .agents
                 .entry(agent_identity.id.clone())
                 .or_insert_with(|| {
                     SubAgentStatus::with_identity(agent_identity).with_start_time(start_time)
@@ -186,12 +186,12 @@ mod tests {
                         String::from("some error"),
                     ),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: sub_agents_status_random.clone(),
+                    agents: sub_agents_status_random.clone(),
                 })),
                 expected_status: Status {
                     agent_control: AgentControlStatus::new_healthy(String::from("some status")),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: sub_agents_status_random.clone(),
+                    agents: sub_agents_status_random.clone(),
                 },
             },
             Test {
@@ -210,7 +210,7 @@ mod tests {
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: AgentControlStatus::new_healthy(String::from("some status")),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: sub_agents_status_random.clone(),
+                    agents: sub_agents_status_random.clone(),
                 })),
                 expected_status: Status {
                     agent_control: AgentControlStatus::new_unhealthy(
@@ -218,7 +218,7 @@ mod tests {
                         String::from("some error message for agent control unhealthy"),
                     ),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: sub_agents_status_random.clone(),
+                    agents: sub_agents_status_random.clone(),
                 },
             },
             Test {
@@ -234,12 +234,12 @@ mod tests {
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: SubAgentsStatus::default(),
+                    agents: SubAgentsStatus::default(),
                 })),
                 expected_status: Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: SubAgentsStatus::from([(
+                    agents: SubAgentsStatus::from([(
                         AgentID::try_from("some-agent-id").unwrap(),
                         SubAgentStatus::new(
                             AgentID::try_from("some-agent-id").unwrap(),
@@ -268,12 +268,12 @@ mod tests {
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: SubAgentsStatus::default(),
+                    agents: SubAgentsStatus::default(),
                 })),
                 expected_status: Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: SubAgentsStatus::from([(
+                    agents: SubAgentsStatus::from([(
                         AgentID::try_from("some-agent-id").unwrap(),
                         SubAgentStatus::new(
                             AgentID::try_from("some-agent-id").unwrap(),
@@ -308,7 +308,7 @@ mod tests {
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: SubAgentsStatus::from([
+                    agents: SubAgentsStatus::from([
                         (
                             AgentID::try_from("some-agent-id").unwrap(),
                             SubAgentStatus::new(
@@ -344,7 +344,7 @@ mod tests {
                 expected_status: Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: SubAgentsStatus::from([
+                    agents: SubAgentsStatus::from([
                         (
                             AgentID::try_from("some-agent-id").unwrap(),
                             SubAgentStatus::new(
@@ -387,7 +387,7 @@ mod tests {
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: SubAgentsStatus::from([
+                    agents: SubAgentsStatus::from([
                         (
                             AgentID::try_from("some-agent-id").unwrap(),
                             SubAgentStatus::new(
@@ -423,7 +423,7 @@ mod tests {
                 expected_status: Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random,
-                    sub_agents: SubAgentsStatus::from([(
+                    agents: SubAgentsStatus::from([(
                         AgentID::try_from("some-other-id").unwrap(),
                         SubAgentStatus::new(
                             AgentID::try_from("some-other-id").unwrap(),
@@ -446,7 +446,7 @@ mod tests {
                     fleet: OpAMPStatus::enabled_and_reachable(Some(
                         Url::try_from("http://127.0.0.1").unwrap(),
                     )),
-                    sub_agents: sub_agents_status_random.clone(),
+                    agents: sub_agents_status_random.clone(),
                 })),
                 expected_status: Status {
                     agent_control: agent_control_status_random.clone(),
@@ -455,7 +455,7 @@ mod tests {
                         404,
                         String::from("some error msg"),
                     ),
-                    sub_agents: sub_agents_status_random.clone(),
+                    agents: sub_agents_status_random.clone(),
                 },
             },
         ];

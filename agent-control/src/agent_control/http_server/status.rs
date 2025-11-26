@@ -99,7 +99,7 @@ impl OpAMPStatus {
 /// Example:
 /// ```json
 /// {
-///   "sub_agents": [
+///   "agents": [
 ///     {
 ///       "agent_id": "infrastructure_agent_id_1",
 ///       "agent_type": "newrelic/com.newrelic.infrastructure:0.0.1",
@@ -215,7 +215,7 @@ pub(super) type SubAgentsStatus = HashMap<AgentID, SubAgentStatus>;
 pub(super) struct Status {
     pub(super) agent_control: AgentControlStatus,
     pub(super) fleet: OpAMPStatus,
-    pub(super) sub_agents: SubAgentsStatus,
+    pub(super) agents: SubAgentsStatus,
 }
 
 impl Status {
@@ -246,7 +246,10 @@ pub mod tests {
 
     impl Status {
         pub fn with_sub_agents(self, sub_agents: SubAgentsStatus) -> Self {
-            Self { sub_agents, ..self }
+            Self {
+                agents: sub_agents,
+                ..self
+            }
         }
     }
 
@@ -361,7 +364,7 @@ pub mod tests {
                 error_code: None,
                 error_message: None,
             },
-            sub_agents: SubAgentsStatus::from([
+            agents: SubAgentsStatus::from([
                 (
                     AgentID::try_from("agent-id-1").unwrap(),
                     SubAgentStatus {
@@ -412,7 +415,7 @@ pub mod tests {
                 "endpoint": "https://opamp.server/v1/opamp",
                 "reachable": true,
             },
-            "sub_agents": {
+            "agents": {
                 "agent-id-1": {
                     "agent_id": "agent-id-1",
                     "agent_type": "ns/some.type:1.2.3",
