@@ -97,6 +97,11 @@ archives:
     builds:
       - newrelic-agent-control-windows
       - newrelic-agent-control-cli-windows
+    files:
+      - src: build/package/windows/install.ps1
+        dst: install.ps1
+      - src: build/package/windows/uninstall.ps1
+        dst: uninstall.ps1
 
 nfpms: # deb and rpm are only built for linux targets
   - package_name: newrelic-agent-control

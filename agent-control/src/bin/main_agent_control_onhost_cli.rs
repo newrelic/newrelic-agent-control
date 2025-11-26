@@ -6,9 +6,6 @@ use newrelic_agent_control::cli::on_host::{host_monitoring_gen, systemd_gen};
 use newrelic_agent_control::cli::{logs, on_host::config_gen};
 use tracing::{Level, error};
 
-#[cfg(target_os = "windows")]
-use newrelic_agent_control::cli::on_host::windows;
-
 #[derive(Debug, clap::Parser)]
 #[command()]
 struct Cli {
@@ -31,9 +28,6 @@ enum Commands {
     SystemdConfig(systemd_gen::Args),
     /// Migrate from the older on host folders to the new ones. DON'T USE IT
     FilesBackwardsCompatibilityMigrationFromV120,
-    /// Install New Relic Agent Control as a Windows service
-    #[cfg(target_os = "windows")]
-    Install,
 }
 
 fn main() -> ExitCode {
@@ -59,8 +53,6 @@ fn main() -> ExitCode {
         }
         Commands::SystemdConfig(args) => systemd_gen::generate_systemd_config(args),
         Commands::FilesBackwardsCompatibilityMigrationFromV120 => migrate_folders::migrate(),
-        #[cfg(target_os = "windows")]
-        Commands::Install => windows::install::install_agent_control_as_windows_service(),
     };
 
     if let Err(err) = result {
