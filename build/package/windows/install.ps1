@@ -45,17 +45,11 @@ $versionData = (& ".\newrelic-agent-control.exe" --version) -replace ',.*$', ''
 Write-Host "Installing $versionData"
 
 Write-Host "Creating New Relic Agent Control directories..."
-Function Create-Directory ($dir) {
-    if (-Not (Test-Path -Path $dir))
-    {
-        "  Creating $dir"
-        New-Item -ItemType directory -Path $dir | Out-Null
-    }
-}
-Create-Directory $acDir
-Create-Directory $acDataDir
-Create-Directory $acLogsDir
-Create-Directory $acLocalConfigDir
+
+[System.IO.Directory]::CreateDirectory("$acDir") | Out-Null
+[System.IO.Directory]::CreateDirectory("$acDataDir") | Out-Null
+[System.IO.Directory]::CreateDirectory("$acLogsDir") | Out-Null
+[System.IO.Directory]::CreateDirectory("$acLocalConfigDir") | Out-Null
 
 Write-Host "Copying New Relic Agent Control program files..."
 Copy-Item -Path ".\newrelic-agent-control.exe" -Destination "$acDir"
