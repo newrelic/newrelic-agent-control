@@ -5,7 +5,6 @@ use crate::event::ApplicationEvent;
 use crate::event::channel::EventPublisher;
 use std::error::Error;
 use tracing::error;
-use windows_service::service_control_handler::ServiceStatusHandle;
 use windows_service::{
     service::{
         ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
@@ -29,11 +28,11 @@ pub fn setup_windows_service(
         WINDOWS_SERVICE_NAME,
         windows_event_handler(application_event_publisher),
     )?;
-    set_windows_service_status(&windows_status_handler, WindowsServiceStatus::Running)?;
+    windows_status_handler.set_service_status(WindowsServiceStatus::Running.into())?;
 
     Ok(move || {
         // TODO: check if we should inform of stop-requested in case the graceful shutdown takes too long.
-        set_windows_service_status(&windows_status_handler, WindowsServiceStatus::Stopped)?;
+        windows_status_handler.set_service_status(WindowsServiceStatus::Stopped.into())?;
         Ok(())
     })
 }
@@ -69,33 +68,18 @@ pub enum WindowsServiceStatus {
 
 impl From<WindowsServiceStatus> for ServiceStatus {
     fn from(value: WindowsServiceStatus) -> Self {
-        match value {
-            WindowsServiceStatus::Running => ServiceStatus {
-                service_type: ServiceType::OWN_PROCESS,
-                current_state: ServiceState::Running,
-                controls_accepted: ServiceControlAccept::STOP,
-                exit_code: ServiceExitCode::Win32(0),
-                checkpoint: 0,
-                wait_hint: std::time::Duration::default(),
-                process_id: None,
-            },
-            WindowsServiceStatus::Stopped => ServiceStatus {
-                service_type: ServiceType::OWN_PROCESS,
-                current_state: ServiceState::Stopped,
-                controls_accepted: ServiceControlAccept::empty(),
-                exit_code: ServiceExitCode::Win32(0),
-                checkpoint: 0,
-                wait_hint: std::time::Duration::default(),
-                process_id: None,
-            },
+        let (current_state, controls_accepted) = match value {
+            WindowsServiceStatus::Running => (ServiceState::Running, ServiceControlAccept::STOP),
+            WindowsServiceStatus::Stopped => (ServiceState::Stopped, ServiceControlAccept::empty()),
+        };
+        ServiceStatus {
+            service_type: ServiceType::OWN_PROCESS,
+            current_state,
+            controls_accepted,
+            exit_code: ServiceExitCode::Win32(0),
+            checkpoint: 0,
+            wait_hint: std::time::Duration::default(),
+            process_id: None,
         }
     }
-}
-
-/// Helper to set the application service status for Windows services.
-pub fn set_windows_service_status(
-    status_handler: &ServiceStatusHandle,
-    status: WindowsServiceStatus,
-) -> windows_service::Result<()> {
-    status_handler.set_service_status(status.into())
 }
