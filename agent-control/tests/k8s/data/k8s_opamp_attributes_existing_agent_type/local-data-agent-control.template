@@ -8,4 +8,5 @@ k8s:
   namespace_agents: <agents-ns>
   cluster_name: <cluster-name>
   current_chart_version: 1.2.3-beta
+  cd_release_name: agent-control-cd
 agents: {}

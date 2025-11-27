@@ -312,7 +312,7 @@ pub fn agent_control_opamp_non_identifying_attributes(
         ),
         (
             CD_EXTERNAL_ENABLED_ATTRIBUTE_KEY.to_string(),
-            (!k8s_config.cd_release_name.is_empty()).into(),
+            (k8s_config.cd_release_name.is_empty()).into(),
         ),
         (
             CD_REMOTE_UPDATE_ENABLED_ATTRIBUTE_KEY.to_string(),
