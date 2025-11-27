@@ -25,4 +25,8 @@ pub enum AgentTypeError {
     RenderingTemplate(String),
     #[error("conflicting variable definition: {0}")]
     ConflictingVariableDefinition(String),
+    #[error("unsupported package type: {0}")]
+    UnsupportedPackageType(String),
+    #[error("error parsing oci reference: {0}")]
+    OCIReferenceParsingError(String),
 }
