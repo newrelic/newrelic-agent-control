@@ -91,7 +91,6 @@ The value type that is accepted for this variable. As of now, the following type
 - `string`.
 - `bool`.
 - `number`: Integer or floating point are supported.
-- `map[string]string`: i.e. key-value pairs.
 - `yaml`: An arbitrary YAML value, like an array, an object or even a scalar.
 - `map[string]yaml`: A YAML value where the top-level is guaranteed to consist on string keys for other values.
 
