@@ -15,11 +15,10 @@ use crate::{
 pub fn init(log_level: Level) -> Result<Vec<TracingGuardBox>, CliError> {
     let log_config = format!(
         r#"
-level: {}
+level: {log_level}
 format:
   formatter: pretty
-    "#,
-        log_level
+    "#
     );
     let logging_config: LoggingConfig =
         serde_yaml::from_str(&log_config).expect("Logging config should be valid");

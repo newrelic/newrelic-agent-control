@@ -1,3 +1,4 @@
+use crate::agent_type::runtime_config::on_host::package::PackageType;
 use flate2::read::GzDecoder;
 use std::fs::File;
 use std::path::Path;
@@ -10,20 +11,15 @@ use zip::ZipArchive;
 #[error("extract error: {0}")]
 pub struct ExtractError(String);
 
-pub enum SupportedArchive {
-    TarGz,
-    Zip,
-}
-
 #[instrument(skip_all, fields(archive_path = %archive_path.to_string_lossy()),name = "extracting_archive")]
 pub fn extract(
     archive_path: &Path,
     destination_path: &Path,
-    archive_type: SupportedArchive,
+    archive_type: PackageType,
 ) -> Result<(), ExtractError> {
     match archive_type {
-        SupportedArchive::TarGz => extract_tar_gz(archive_path, destination_path),
-        SupportedArchive::Zip => extract_zip(archive_path, destination_path),
+        PackageType::Tar => extract_tar_gz(archive_path, destination_path),
+        PackageType::Zip => extract_zip(archive_path, destination_path),
     }
 }
 
@@ -34,11 +30,11 @@ fn extract_tar_gz(archive_path: &Path, destination_path: &Path) -> Result<(), Ex
     debug!("Extracting tar.gz archive to '{:?}'", destination_path);
 
     let tar_gz = File::open(archive_path)
-        .map_err(|e| ExtractError(format!("opening tar.gz file: {:?}", e.to_string())))?;
+        .map_err(|e| ExtractError(format!("opening tar.gz file: {}", e)))?;
     let tar = GzDecoder::new(tar_gz);
     Archive::new(tar)
         .unpack(destination_path)
-        .map_err(|e| ExtractError(format!("extracting tar.gz file: {:?}", e.to_string())))
+        .map_err(|e| ExtractError(format!("extracting tar.gz file: {}", e)))
 }
 
 /// Extracts a zip archive located at `zip_path` into the directory at `destination`.
@@ -47,20 +43,21 @@ fn extract_tar_gz(archive_path: &Path, destination_path: &Path) -> Result<(), Ex
 fn extract_zip(zip_path: &Path, destination: &Path) -> Result<(), ExtractError> {
     debug!("Extracting zip archive to '{:?}'", destination);
 
-    let file = File::open(zip_path)
-        .map_err(|e| ExtractError(format!("opening zip file: {:?}", e.to_string())))?;
+    let file =
+        File::open(zip_path).map_err(|e| ExtractError(format!("opening zip file: {}", e)))?;
     let mut archive =
-        ZipArchive::new(file).map_err(|e| ExtractError(format!("reading zip file: {:?}", e)))?;
+        ZipArchive::new(file).map_err(|e| ExtractError(format!("reading zip file: {}", e)))?;
 
     archive
         .extract(destination)
-        .map_err(|e| ExtractError(format!("extracting zip file: {:?}", e)))
+        .map_err(|e| ExtractError(format!("extracting zip file: {}", e)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packages::extract::SupportedArchive::{TarGz, Zip};
+    use crate::packages::extract::PackageType::{Tar, Zip};
+    use assert_matches::assert_matches;
     use flate2::Compression;
     use flate2::write::GzEncoder;
     use std::fs::File;
@@ -72,16 +69,15 @@ mod tests {
         let archive_path = Path::new("not-existing");
         let destination_path = Path::new("");
 
-        let result = extract(archive_path, destination_path, TarGz);
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "extract error: opening tar.gz file: \"No such file or directory (os error 2)\""
-        );
+        let result = extract(archive_path, destination_path, Tar);
+        assert_matches!(result, Err(ExtractError(e)) => {
+            assert!(e.contains("opening tar.gz file"));
+        });
+
         let result = extract(archive_path, destination_path, Zip);
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "extract error: opening zip file: \"No such file or directory (os error 2)\""
-        );
+        assert_matches!(result, Err(ExtractError(e)) => {
+            assert!(e.contains("opening zip file"));
+        });
     }
 
     #[test]
@@ -91,18 +87,16 @@ mod tests {
         let archive_path = archive_dir.path().join("not_a_tar_gz_file.tar.gz");
         File::create(archive_path.clone()).unwrap();
 
-        let result = extract(&archive_path, destination_path, TarGz);
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "extract error: extracting tar.gz file: \"failed to iterate over archive\""
-        );
+        let result = extract(&archive_path, destination_path, Tar);
+        assert_matches!(result, Err(ExtractError(e)) => {
+            assert!(e.contains("extracting tar.gz file"));
+        });
 
         std::fs::write(archive_path.clone(), "this is not a valid tar.gz content").unwrap();
-        let result = extract(&archive_path, destination_path, TarGz);
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "extract error: extracting tar.gz file: \"failed to iterate over archive\""
-        );
+        let result = extract(&archive_path, destination_path, Tar);
+        assert_matches!(result, Err(ExtractError(e)) => {
+            assert!(e.contains("extracting tar.gz file"));
+        });
     }
 
     #[test]
@@ -111,11 +105,11 @@ mod tests {
         let tmp_dir_archive = tempdir().unwrap();
         let tmp_file_archive = tmp_dir_archive.path().join("my.tar.gz");
 
-        create_data_to_compress(&tmp_dir_to_compress.path());
-        compress_tar_gz(&tmp_dir_to_compress.path(), tmp_file_archive.as_path());
+        create_data_to_compress(tmp_dir_to_compress.path());
+        compress_tar_gz(tmp_dir_to_compress.path(), tmp_file_archive.as_path());
 
         let tmp_dir_extracted = tempdir().unwrap();
-        let result = extract(&tmp_file_archive, &tmp_dir_extracted.path(), TarGz);
+        let result = extract(&tmp_file_archive, tmp_dir_extracted.path(), Tar);
         result.unwrap();
 
         assert!(tmp_dir_extracted.path().join("./file1.txt").exists());
@@ -130,17 +124,15 @@ mod tests {
         File::create(archive_path.clone()).unwrap();
 
         let result = extract(&archive_path, destination_path, Zip);
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "extract error: reading zip file: InvalidArchive(\"Could not find EOCD\")"
-        );
+        assert_matches!(result, Err(ExtractError(e)) => {
+            assert!(e.contains("reading zip file"));
+        });
 
         std::fs::write(archive_path.clone(), "this is not a valid zip content").unwrap();
         let result = extract(&archive_path, destination_path, Zip);
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "extract error: reading zip file: InvalidArchive(\"Could not find EOCD\")"
-        );
+        assert_matches!(result, Err(ExtractError(e)) => {
+            assert!(e.contains("reading zip file"));
+        });
     }
 
     #[test]
@@ -149,11 +141,11 @@ mod tests {
         let tmp_dir_archive = tempdir().unwrap();
         let tmp_file_archive = tmp_dir_archive.path().join("my.zip");
 
-        create_data_to_compress(&tmp_dir_to_compress.path());
-        compress_zip(&tmp_dir_to_compress.path(), tmp_file_archive.as_path());
+        create_data_to_compress(tmp_dir_to_compress.path());
+        compress_zip(tmp_dir_to_compress.path(), tmp_file_archive.as_path());
 
         let tmp_dir_extracted = tempdir().unwrap();
-        let result = extract(&tmp_file_archive, &tmp_dir_extracted.path(), Zip);
+        let result = extract(&tmp_file_archive, tmp_dir_extracted.path(), Zip);
         result.unwrap();
 
         assert!(tmp_dir_extracted.path().join("./file1.txt").exists());
@@ -161,7 +153,6 @@ mod tests {
     }
 
     /// Helpers ///
-
     pub fn compress_zip(source_path: &Path, tmp_file_archive: &Path) {
         let file = File::create(tmp_file_archive).unwrap();
         let mut zip = zip::ZipWriter::new(file);
@@ -193,7 +184,7 @@ mod tests {
         let file_path_2 = tmp_dir_to_compress.join("file2.txt");
         File::create(file_path_2.clone()).unwrap();
 
-        std::fs::write(&file_path_1.as_path(), "important content").unwrap();
-        std::fs::write(&file_path_2.as_path(), "important content").unwrap();
+        std::fs::write(file_path_1.as_path(), "important content").unwrap();
+        std::fs::write(file_path_2.as_path(), "important content").unwrap();
     }
 }
