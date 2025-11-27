@@ -369,6 +369,14 @@ deployment:
       - id: newrelic-infra
         path: /usr/bin/newrelic-infra
         args: "--config ${nr-var:config} --config2 ${nr-var:config2}"
+    packages:
+      infra-agent:
+        type: tar.gz
+        download:
+          oci:
+            registry: ${nr-var:registry}
+            repository: ${nr-var:repository}
+            version: ${nr-var:version}
 "#;
 
     const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"

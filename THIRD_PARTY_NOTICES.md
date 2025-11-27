@@ -468,6 +468,18 @@ Distributed under the following license(s):
 
 * MIT
 
+## const_format <https://crates.io/crates/const_format>
+
+Distributed under the following license(s):
+
+* Zlib
+
+## const_format_proc_macros <https://crates.io/crates/const_format_proc_macros>
+
+Distributed under the following license(s):
+
+* Zlib
+
 ## const_panic <https://crates.io/crates/const_panic>
 
 Distributed under the following license(s):
@@ -617,6 +629,27 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## deranged <https://crates.io/crates/deranged>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## derive_builder <https://crates.io/crates/derive_builder>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## derive_builder_core <https://crates.io/crates/derive_builder_core>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## derive_builder_macro <https://crates.io/crates/derive_builder_macro>
 
 Distributed under the following license(s):
 
@@ -893,6 +926,12 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## getset <https://crates.io/crates/getset>
+
+Distributed under the following license(s):
+
+* MIT
 
 ## glob <https://crates.io/crates/glob>
 
@@ -1463,6 +1502,12 @@ Distributed under the following license(s):
 
 * MIT
 
+## oci-spec <https://crates.io/crates/oci-spec>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+
 ## oid-registry <https://crates.io/crates/oid-registry>
 
 Distributed under the following license(s):
@@ -1692,6 +1737,20 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## prettyplease <https://crates.io/crates/prettyplease>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## proc-macro-error-attr2 <https://crates.io/crates/proc-macro-error-attr2>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## proc-macro-error2 <https://crates.io/crates/proc-macro-error2>
 
 Distributed under the following license(s):
 
@@ -2115,6 +2174,18 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## strsim <https://crates.io/crates/strsim>
+
+Distributed under the following license(s):
+
+* MIT
+
+## strum <https://crates.io/crates/strum>
+
+Distributed under the following license(s):
+
+* MIT
+
+## strum_macros <https://crates.io/crates/strum_macros>
 
 Distributed under the following license(s):
 

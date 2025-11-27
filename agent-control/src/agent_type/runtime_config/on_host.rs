@@ -1,19 +1,20 @@
-use std::collections::HashSet;
-
-use serde::{Deserialize, Deserializer};
-
-use crate::agent_type::definition::Variables;
-use crate::agent_type::error::AgentTypeError;
-use crate::agent_type::runtime_config::on_host::executable::Executable;
-use crate::agent_type::runtime_config::on_host::filesystem::FileSystem;
-use crate::agent_type::templates::Templateable;
+use std::collections::{HashMap, HashSet};
 
 use super::health_config::OnHostHealthConfig;
 use super::templateable_value::TemplateableValue;
 use super::version_config::OnHostVersionConfig;
+use crate::agent_type::definition::Variables;
+use crate::agent_type::error::AgentTypeError;
+use crate::agent_type::runtime_config::on_host::executable::Executable;
+use crate::agent_type::runtime_config::on_host::filesystem::FileSystem;
+use crate::agent_type::runtime_config::on_host::package::Package;
+use crate::agent_type::runtime_config::on_host::package::rendered::Package as RenderedPackage;
+use crate::agent_type::templates::Templateable;
+use serde::{Deserialize, Deserializer};
 
 pub mod executable;
 pub mod filesystem;
+pub mod package;
 pub mod rendered;
 
 /// The definition for an on-host supervisor.
@@ -32,6 +33,8 @@ pub struct OnHost {
     version: Option<OnHostVersionConfig>,
     #[serde(default)]
     filesystem: FileSystem,
+    #[serde(default)]
+    packages: HashMap<String, Package>,
 }
 
 fn deserialize_executables<'de, D>(deserializer: D) -> Result<Vec<Executable>, D::Error>
@@ -70,6 +73,11 @@ impl Templateable for OnHost {
                 .map(|v| v.template_with(variables))
                 .transpose()?,
             filesystem: self.filesystem.template_with(variables)?,
+            packages: self
+                .packages
+                .into_iter()
+                .map(|(agent_id, package)| Ok((agent_id, package.template_with(variables)?)))
+                .collect::<Result<HashMap<String, RenderedPackage>, AgentTypeError>>()?,
         })
     }
 }
@@ -80,6 +88,7 @@ mod tests {
 
     use crate::agent_type::runtime_config::health_config::HealthCheckTimeout;
     use crate::agent_type::runtime_config::on_host::executable::{Args, Env};
+    use crate::agent_type::runtime_config::on_host::package::{Download, Oci};
     use crate::agent_type::runtime_config::restart_policy::{
         self, BackoffDelay, BackoffLastRetryInterval, BackoffStrategyConfig, BackoffStrategyType,
         RestartPolicyConfig,
@@ -137,6 +146,25 @@ mod tests {
                 .restart_policy
                 .backoff_strategy
         );
+
+        let pkg = Package {
+            package_type: TemplateableValue::from_template("tar.gz".to_string()),
+            download: Download {
+                oci: Oci {
+                    registry: TemplateableValue::from_template("${nr-var:registry}".to_string()),
+                    repository: TemplateableValue::from_template(
+                        "${nr-var:repository}".to_string(),
+                    ),
+                    version: TemplateableValue::from_template("${nr-var:version}".to_string()),
+                },
+            },
+        };
+
+        let expected_packages = HashMap::from([
+            ("otel-first".to_string(), pkg.clone()),
+            ("otel-second".to_string(), pkg),
+        ]);
+        assert_eq!(expected_packages, on_host.packages)
     }
 
     #[test]
@@ -447,7 +475,7 @@ restart_policy:
     }
 
     #[test]
-    fn test_default_health_config_when_omitted() {
+    fn test_default_health_and_package_config_when_omitted() {
         let yaml_without_health = r#"
 executables:
   - id: otelcol
@@ -493,6 +521,7 @@ executables:
             health: default_health_config,
             version: None,
             filesystem: FileSystem::default(),
+            packages: Default::default(),
         };
 
         // Compare the default OnHost instance with the parsed instance
@@ -561,5 +590,20 @@ executables:
         backoff_delay: 1s
         max_retries: 3
         last_retry_interval: 30s
+packages:
+  otel-first:
+    type: tar.gz
+    download:
+      oci:
+        registry: ${nr-var:registry}
+        repository: ${nr-var:repository}
+        version: ${nr-var:version}
+  otel-second:
+    type: tar.gz
+    download:
+      oci:
+        registry: ${nr-var:registry}
+        repository: ${nr-var:repository}
+        version: ${nr-var:version}
 "#;
 }
