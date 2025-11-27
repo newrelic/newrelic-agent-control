@@ -1,0 +1,101 @@
+//! This module contains functions to handle the Windows version of the main, which involves a Windows Service
+//! running mode.
+
+use crate::event::ApplicationEvent;
+use crate::event::channel::EventPublisher;
+use std::error::Error;
+use tracing::error;
+use windows_service::service_control_handler::ServiceStatusHandle;
+use windows_service::{
+    service::{
+        ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
+        ServiceType,
+    },
+    service_control_handler::{self, ServiceControlHandlerResult},
+};
+
+/// Defines the name for the Windows Service.
+pub const WINDOWS_SERVICE_NAME: &str = "newrelic-agent-control";
+
+/// Type alias to simplify [setup_windows_service] definition.
+type WinServiceResult = Result<(), Box<dyn Error>>;
+
+/// Sets up the Windows Service by creating the status handler and setting the service status as [WindowsServiceStatus::Running].
+/// It returns a function to tear the service down when the Agent Control finishes its execution.
+pub fn setup_windows_service(
+    application_event_publisher: EventPublisher<ApplicationEvent>,
+) -> Result<impl Fn() -> WinServiceResult, Box<dyn Error>> {
+    let windows_status_handler = service_control_handler::register(
+        WINDOWS_SERVICE_NAME,
+        windows_event_handler(application_event_publisher),
+    )?;
+    set_windows_service_status(&windows_status_handler, WindowsServiceStatus::Running)?;
+
+    Ok(move || {
+        // TODO: check if we should inform of stop-requested in case the graceful shutdown takes too long.
+        set_windows_service_status(&windows_status_handler, WindowsServiceStatus::Stopped)?;
+        Ok(())
+    })
+}
+
+/// Handles windows services events and stops the Agent Control if the specific events are received.
+/// See the '[Service Control Handler Function](https://learn.microsoft.com/en-us/windows/win32/services/service-control-handler-function)'
+/// page for details.
+pub fn windows_event_handler(
+    publisher: EventPublisher<ApplicationEvent>,
+) -> impl Fn(ServiceControl) -> ServiceControlHandlerResult {
+    move |event: ServiceControl| -> ServiceControlHandlerResult {
+        match event {
+            ServiceControl::Stop => {
+                let _ = publisher
+                    .publish(ApplicationEvent::StopRequested)
+                    .inspect_err(|err| error!("Could not send agent control stop request {err}"));
+                ServiceControlHandlerResult::NoError
+            }
+            // Interrogate needs to return `NoError` even if it is a No-Op operation.
+            ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
+            _ => ServiceControlHandlerResult::NotImplemented,
+        }
+    }
+}
+
+/// Internal, simplified representation of [ServiceStatus]
+pub enum WindowsServiceStatus {
+    /// Represents that the service is running
+    Running,
+    /// Represents that the service is stopped
+    Stopped,
+}
+
+impl From<WindowsServiceStatus> for ServiceStatus {
+    fn from(value: WindowsServiceStatus) -> Self {
+        match value {
+            WindowsServiceStatus::Running => ServiceStatus {
+                service_type: ServiceType::OWN_PROCESS,
+                current_state: ServiceState::Running,
+                controls_accepted: ServiceControlAccept::STOP,
+                exit_code: ServiceExitCode::Win32(0),
+                checkpoint: 0,
+                wait_hint: std::time::Duration::default(),
+                process_id: None,
+            },
+            WindowsServiceStatus::Stopped => ServiceStatus {
+                service_type: ServiceType::OWN_PROCESS,
+                current_state: ServiceState::Stopped,
+                controls_accepted: ServiceControlAccept::empty(),
+                exit_code: ServiceExitCode::Win32(0),
+                checkpoint: 0,
+                wait_hint: std::time::Duration::default(),
+                process_id: None,
+            },
+        }
+    }
+}
+
+/// Helper to set the application service status for Windows services.
+pub fn set_windows_service_status(
+    status_handler: &ServiceStatusHandle,
+    status: WindowsServiceStatus,
+) -> windows_service::Result<()> {
+    status_handler.set_service_status(status.into())
+}

@@ -16,25 +16,10 @@ use std::process::ExitCode;
 use tracing::{error, info, trace};
 
 #[cfg(target_os = "windows")]
-use std::ffi::OsString;
-#[cfg(target_os = "windows")]
-use windows_service::service_control_handler::ServiceStatusHandle;
-#[cfg(target_os = "windows")]
-use windows_service::{
-    define_windows_service,
-    service::{
-        ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
-        ServiceType,
-    },
-    service_control_handler::{self, ServiceControlHandlerResult},
-    service_dispatcher,
-};
+use newrelic_agent_control::command::windows::{WINDOWS_SERVICE_NAME, setup_windows_service};
 
 #[cfg(target_os = "windows")]
-const WINDOWS_SERVICE_NAME: &str = "newrelic-agent-control";
-
-#[cfg(target_os = "windows")]
-define_windows_service!(ffi_service_main, service_main);
+windows_service::define_windows_service!(ffi_service_main, service_main);
 
 fn main() -> ExitCode {
     #[cfg(not(target_os = "windows"))]
@@ -44,7 +29,9 @@ fn main() -> ExitCode {
 
     #[cfg(target_os = "windows")]
     {
-        if service_dispatcher::start(WINDOWS_SERVICE_NAME, ffi_service_main).is_err() {
+        if windows_service::service_dispatcher::start(WINDOWS_SERVICE_NAME, ffi_service_main)
+            .is_err()
+        {
             // Not running as Windows Service, run normally
             return Command::run(AGENT_CONTROL_MODE_ON_HOST, |cfg, tracer| {
                 _main(cfg, tracer, false)
@@ -56,7 +43,7 @@ fn main() -> ExitCode {
 
 #[cfg(target_os = "windows")]
 /// Entry-point for Windows Service
-fn service_main(_arguments: Vec<OsString>) {
+fn service_main(_arguments: Vec<std::ffi::OsString>) {
     let _ = Command::run(AGENT_CONTROL_MODE_ON_HOST, |cfg, tracer| {
         _main(cfg, tracer, true)
     });
@@ -129,90 +116,4 @@ pub fn create_shutdown_signal_handler(
             .inspect_err(|e| error!("Could not send agent control stop request: {}", e));
     })
     .inspect_err(|e| error!("Could not set signal handler: {e}"))
-}
-
-#[cfg(target_os = "windows")]
-/// Type alias to simplify [setup_windows_service] definition.
-type WinServiceResult = Result<(), Box<dyn Error>>;
-
-#[cfg(target_os = "windows")]
-/// Sets up the Windows Service by creating the status handler and setting the service status as [WindowsServiceStatus::Running].
-/// It returns a function to tear the service down when the Agent Control finishes its execution.
-fn setup_windows_service(
-    application_event_publisher: EventPublisher<ApplicationEvent>,
-) -> Result<impl Fn() -> WinServiceResult, Box<dyn Error>> {
-    let windows_status_handler = service_control_handler::register(
-        WINDOWS_SERVICE_NAME,
-        windows_event_handler(application_event_publisher),
-    )?;
-    set_windows_service_status(&windows_status_handler, WindowsServiceStatus::Running)?;
-
-    Ok(move || {
-        // TODO: check if we should inform of stop-requested in case the graceful shutdown takes too long.
-        set_windows_service_status(&windows_status_handler, WindowsServiceStatus::Stopped)?;
-        Ok(())
-    })
-}
-
-#[cfg(target_os = "windows")]
-/// Handles windows services events and stops the Agent Control if the specific events are received.
-/// See the '[Service Control Handler Function](https://learn.microsoft.com/en-us/windows/win32/services/service-control-handler-function)'
-/// page for details.
-fn windows_event_handler(
-    publisher: EventPublisher<ApplicationEvent>,
-) -> impl Fn(ServiceControl) -> ServiceControlHandlerResult {
-    move |event: ServiceControl| -> ServiceControlHandlerResult {
-        match event {
-            ServiceControl::Stop => {
-                let _ = publisher
-                    .publish(ApplicationEvent::StopRequested)
-                    .inspect_err(|err| error!("Could not send agent control stop request {err}"));
-                ServiceControlHandlerResult::NoError
-            }
-            // Interrogate needs to return `NoError` even if it is a No-Op operation.
-            ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
-            _ => ServiceControlHandlerResult::NotImplemented,
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-enum WindowsServiceStatus {
-    Running,
-    Stopped,
-}
-
-#[cfg(target_os = "windows")]
-impl From<WindowsServiceStatus> for ServiceStatus {
-    fn from(value: WindowsServiceStatus) -> Self {
-        match value {
-            WindowsServiceStatus::Running => ServiceStatus {
-                service_type: ServiceType::OWN_PROCESS,
-                current_state: ServiceState::Running,
-                controls_accepted: ServiceControlAccept::STOP,
-                exit_code: ServiceExitCode::Win32(0),
-                checkpoint: 0,
-                wait_hint: std::time::Duration::default(),
-                process_id: None,
-            },
-            WindowsServiceStatus::Stopped => ServiceStatus {
-                service_type: ServiceType::OWN_PROCESS,
-                current_state: ServiceState::Stopped,
-                controls_accepted: ServiceControlAccept::empty(),
-                exit_code: ServiceExitCode::Win32(0),
-                checkpoint: 0,
-                wait_hint: std::time::Duration::default(),
-                process_id: None,
-            },
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-/// Helper to set the application service status for Windows services.
-fn set_windows_service_status(
-    status_handler: &ServiceStatusHandle,
-    status: WindowsServiceStatus,
-) -> windows_service::Result<()> {
-    status_handler.set_service_status(status.into())
 }
