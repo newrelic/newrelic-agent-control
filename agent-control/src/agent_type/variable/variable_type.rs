@@ -26,8 +26,6 @@ pub enum VariableTypeDefinition {
     Bool(FieldsDefinition<bool>),
     #[serde(rename = "number")]
     Number(FieldsDefinition<serde_yaml::Number>),
-    #[serde(rename = "map[string]string")]
-    MapStringString(FieldsDefinition<HashMap<String, String>>),
     #[serde(rename = "map[string]yaml")]
     MapStringYaml(FieldsDefinition<HashMap<String, serde_yaml::Value>>),
     #[serde(rename = "yaml")]
@@ -40,7 +38,6 @@ pub enum VariableType {
     String(StringFields),
     Bool(Fields<bool>),
     Number(Fields<serde_yaml::Number>),
-    MapStringString(Fields<HashMap<String, String>>),
     MapStringYaml(Fields<HashMap<String, serde_yaml::Value>>),
     Yaml(Fields<serde_yaml::Value>),
 }
@@ -52,9 +49,6 @@ impl VariableTypeDefinition {
             VariableTypeDefinition::String(v) => VariableType::String(v.with_config(constraints)),
             VariableTypeDefinition::Bool(v) => VariableType::Bool(v.with_config(constraints)),
             VariableTypeDefinition::Number(v) => VariableType::Number(v.with_config(constraints)),
-            VariableTypeDefinition::MapStringString(v) => {
-                VariableType::MapStringString(v.with_config(constraints))
-            }
             VariableTypeDefinition::MapStringYaml(v) => {
                 VariableType::MapStringYaml(v.with_config(constraints))
             }
@@ -71,7 +65,6 @@ impl VariableType {
             VariableType::String(f) => f.inner.required,
             VariableType::Bool(f) => f.required,
             VariableType::Number(f) => f.required,
-            VariableType::MapStringString(f) => f.required,
             VariableType::MapStringYaml(f) => f.required,
             VariableType::Yaml(f) => f.required,
         }
@@ -85,7 +78,6 @@ impl VariableType {
             VariableType::String(f) => f.set_final_value(serde_yaml::from_value(value)?),
             VariableType::Bool(f) => f.set_final_value(serde_yaml::from_value(value)?),
             VariableType::Number(f) => f.set_final_value(serde_yaml::from_value(value)?),
-            VariableType::MapStringString(f) => f.set_final_value(serde_yaml::from_value(value)?),
             VariableType::MapStringYaml(f) => f.set_final_value(serde_yaml::from_value(value)?),
             VariableType::Yaml(f) => f.set_final_value(value),
         }?;
@@ -108,12 +100,6 @@ impl VariableType {
                 .or(f.default.as_ref())
                 .cloned()
                 .map(TrivialValue::Number),
-            VariableType::MapStringString(f) => f
-                .final_value
-                .as_ref()
-                .or(f.default.as_ref())
-                .cloned()
-                .map(TrivialValue::MapStringString),
             VariableType::MapStringYaml(f) => f
                 .final_value
                 .as_ref()

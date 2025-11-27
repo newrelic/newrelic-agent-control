@@ -349,7 +349,7 @@ variables:
   common:
     config3:
       description: "Newrelic infra configuration yaml"
-      type: map[string]string
+      type: map[string]yaml
       required: true
     status_server_port:
       description: "Newrelic infra health status port"
@@ -388,9 +388,9 @@ status_server_port: 8004
             input_agent_type.fill_variables(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML);
 
         // Then, we expect the corresponding final values.
-        let expected_config_3 = TrivialValue::MapStringString(HashMap::from([
-            ("log_level".to_string(), "trace".to_string()),
-            ("forward".to_string(), "true".to_string()),
+        let expected_config_3 = TrivialValue::MapStringYaml(HashMap::from([
+            ("log_level".to_string(), "trace".into()),
+            ("forward".to_string(), "true".into()),
         ]));
         // Number
         let expected_status_server = TrivialValue::Number(Number::from(8004));
