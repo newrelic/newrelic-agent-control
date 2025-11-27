@@ -11,15 +11,13 @@ use zip::ZipArchive;
 #[error("extract error: {0}")]
 pub struct ExtractError(String);
 
-#[instrument(skip_all, fields(archive_path = %archive_path.to_string_lossy()),name = "extracting_archive")]
-pub fn extract(
-    archive_path: &Path,
-    destination_path: &Path,
-    archive_type: PackageType,
-) -> Result<(), ExtractError> {
-    match archive_type {
-        PackageType::Tar => extract_tar_gz(archive_path, destination_path),
-        PackageType::Zip => extract_zip(archive_path, destination_path),
+impl PackageType {
+    #[instrument(skip_all, fields(archive_path = %archive_path.to_string_lossy()),name = "extracting_archive")]
+    pub fn extract(self, archive_path: &Path, destination_path: &Path) -> Result<(), ExtractError> {
+        match self {
+            PackageType::Tar => extract_tar_gz(archive_path, destination_path),
+            PackageType::Zip => extract_zip(archive_path, destination_path),
+        }
     }
 }
 
@@ -69,12 +67,12 @@ mod tests {
         let archive_path = Path::new("not-existing");
         let destination_path = Path::new("");
 
-        let result = extract(archive_path, destination_path, Tar);
+        let result = Tar.extract(archive_path, destination_path);
         assert_matches!(result, Err(ExtractError(e)) => {
             assert!(e.contains("opening tar.gz file"));
         });
 
-        let result = extract(archive_path, destination_path, Zip);
+        let result = Zip.extract(archive_path, destination_path);
         assert_matches!(result, Err(ExtractError(e)) => {
             assert!(e.contains("opening zip file"));
         });
@@ -87,13 +85,13 @@ mod tests {
         let archive_path = archive_dir.path().join("not_a_tar_gz_file.tar.gz");
         File::create(archive_path.clone()).unwrap();
 
-        let result = extract(&archive_path, destination_path, Tar);
+        let result = Tar.extract(&archive_path, destination_path);
         assert_matches!(result, Err(ExtractError(e)) => {
             assert!(e.contains("extracting tar.gz file"));
         });
 
         std::fs::write(archive_path.clone(), "this is not a valid tar.gz content").unwrap();
-        let result = extract(&archive_path, destination_path, Tar);
+        let result = Tar.extract(&archive_path, destination_path);
         assert_matches!(result, Err(ExtractError(e)) => {
             assert!(e.contains("extracting tar.gz file"));
         });
@@ -109,7 +107,7 @@ mod tests {
         compress_tar_gz(tmp_dir_to_compress.path(), tmp_file_archive.as_path());
 
         let tmp_dir_extracted = tempdir().unwrap();
-        let result = extract(&tmp_file_archive, tmp_dir_extracted.path(), Tar);
+        let result = Tar.extract(&tmp_file_archive, tmp_dir_extracted.path());
         result.unwrap();
 
         assert!(tmp_dir_extracted.path().join("./file1.txt").exists());
@@ -123,13 +121,13 @@ mod tests {
         let archive_path = tmp_dir.path().join("not_a_zip_file.zip");
         File::create(archive_path.clone()).unwrap();
 
-        let result = extract(&archive_path, destination_path, Zip);
+        let result = Zip.extract(&archive_path, destination_path);
         assert_matches!(result, Err(ExtractError(e)) => {
             assert!(e.contains("reading zip file"));
         });
 
         std::fs::write(archive_path.clone(), "this is not a valid zip content").unwrap();
-        let result = extract(&archive_path, destination_path, Zip);
+        let result = Zip.extract(&archive_path, destination_path);
         assert_matches!(result, Err(ExtractError(e)) => {
             assert!(e.contains("reading zip file"));
         });
@@ -145,7 +143,7 @@ mod tests {
         compress_zip(tmp_dir_to_compress.path(), tmp_file_archive.as_path());
 
         let tmp_dir_extracted = tempdir().unwrap();
-        let result = extract(&tmp_file_archive, tmp_dir_extracted.path(), Zip);
+        let result = Zip.extract(&tmp_file_archive, tmp_dir_extracted.path());
         result.unwrap();
 
         assert!(tmp_dir_extracted.path().join("./file1.txt").exists());
