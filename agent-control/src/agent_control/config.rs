@@ -7,7 +7,7 @@ use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
 use crate::opamp::client_builder::PollInterval;
-use crate::opamp::remote_config::OpampRemoteConfigError;
+use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
 use crate::secrets_provider::SecretsProvidersConfig;
 use crate::values::yaml_config::YAMLConfig;
@@ -65,6 +65,14 @@ pub struct AgentControlConfig {
     pub secrets_providers: Option<SecretsProvidersConfig>,
 }
 
+impl TryFrom<YAMLConfig> for AgentControlConfig {
+    type Error = serde_yaml::Error;
+
+    fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
+        serde_yaml::from_value(serde_yaml::to_value(value)?)
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum AgentControlConfigError {
     #[error("deleting agent control config: {0}")]
@@ -81,11 +89,9 @@ pub enum AgentControlConfigError {
     SubAgentNotFound(String),
     #[error("configuration is not valid YAML: {0}")]
     InvalidYamlConfiguration(#[from] serde_yaml::Error),
-    #[error("remote config error: {0}")]
-    RemoteConfigError(#[from] OpampRemoteConfigError),
-    #[error("remote config error: {0}")]
-    IOError(#[from] std::io::Error),
 }
+
+pub type SubAgentsMap = HashMap<AgentID, SubAgentConfig>;
 
 /// AgentControlDynamicConfig represents the dynamic part of the agentControl config.
 /// The dynamic configuration can be changed remotely.
@@ -98,30 +104,10 @@ pub struct AgentControlDynamicConfig {
     pub cd_chart_version: Option<String>,
 }
 
-pub type SubAgentsMap = HashMap<AgentID, SubAgentConfig>;
-
-/// Return elements of the first map not existing in the second map.
-pub fn sub_agents_difference<'a>(
-    old_sub_agents: &'a SubAgentsMap,
-    new_sub_agents: &'a SubAgentsMap,
-) -> impl Iterator<Item = (&'a AgentID, &'a SubAgentConfig)> {
-    old_sub_agents
-        .iter()
-        .filter(|(agent_id, _)| !new_sub_agents.contains_key(agent_id))
-}
-
 impl TryFrom<&str> for AgentControlDynamicConfig {
     type Error = AgentControlConfigError;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Ok(serde_yaml::from_str(value)?)
-    }
-}
-
-impl TryFrom<YAMLConfig> for AgentControlConfig {
-    type Error = serde_yaml::Error;
-
-    fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
-        serde_yaml::from_value(serde_yaml::to_value(value)?)
     }
 }
 
@@ -139,6 +125,16 @@ impl TryFrom<YAMLConfig> for AgentControlDynamicConfig {
     fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
         serde_yaml::from_value(serde_yaml::to_value(value)?)
     }
+}
+
+/// Return elements of the first map not existing in the second map.
+pub fn sub_agents_difference<'a>(
+    old_sub_agents: &'a SubAgentsMap,
+    new_sub_agents: &'a SubAgentsMap,
+) -> impl Iterator<Item = (&'a AgentID, &'a SubAgentConfig)> {
+    old_sub_agents
+        .iter()
+        .filter(|(agent_id, _)| !new_sub_agents.contains_key(agent_id))
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]

@@ -206,7 +206,7 @@ where
     //  * Build a Stopped Sub Agent
     //  * Run the Sub Agent and add it to the Running Sub Agents
     #[instrument(skip_all)]
-    pub(super) fn recreate_sub_agent(
+    fn recreate_sub_agent(
         &self,
         agent_identity: &AgentIdentity,
         running_sub_agents: &mut StartedSubAgents<BuilderStartedSubAgent<S>>,
@@ -367,7 +367,7 @@ where
     /// Configuration will be reported as applying to OpAMP
     /// Valid configuration will be applied and reported as applied to OpAMP
     /// If the configuration is invalid, it will be reported as error to OpAMP
-    pub(crate) fn handle_remote_config(
+    fn handle_remote_config(
         &self,
         opamp_remote_config: OpampRemoteConfig,
         sub_agents: &mut StartedSubAgents<
@@ -419,7 +419,7 @@ where
         }
     }
 
-    pub(super) fn validate_apply_store_remote_config(
+    fn validate_apply_store_remote_config(
         &self,
         opamp_remote_config: &OpampRemoteConfig,
         running_sub_agents: &mut StartedSubAgents<
@@ -497,7 +497,7 @@ where
     /// that are no longer present in the new configuration.
     /// Attempts to apply as much of the configuration as possible. If an agent fails to be recreated, updated, or removed,
     /// that specific agent will be skipped, but the rest of the configuration changes will still be applied.
-    pub(super) fn apply_remote_config_agents(
+    fn apply_remote_config_agents(
         &self,
         current_dynamic_config: &AgentControlDynamicConfig,
         new_dynamic_config: &AgentControlDynamicConfig,
