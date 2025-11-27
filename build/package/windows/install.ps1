@@ -14,12 +14,14 @@ if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Adm
 }
 
 $serviceName = "newrelic-agent-control"
+$serviceDisplayName = "New Relic Agent Control"
+
 $acDir = [IO.Path]::Combine($env:ProgramFiles, 'New Relic\newrelic-agent-control')
+$acLocalConfigDir = [IO.Path]::Combine($acDir, 'local-data\agent-control')
+$acExecPath = [IO.Path]::Combine($acDir, 'newrelic-agent-control.exe')
+
 $acDataDir = [IO.Path]::Combine($env:ProgramData, 'New Relic\newrelic-agent-control')
 $acLogsDir = [IO.Path]::Combine($acDataDir, 'logs')
-$acLocalConfigDir = [IO.Path]::Combine($acDir, 'local-data\agent-control')
-$serviceDisplayName = "New Relic Agent Control"
-$acExecPath = [IO.Path]::Combine($acDir, 'newrelic-agent-control.exe')
 
 # If the service already exists and overwriting is allowed, the service is stopped and removed.
 $existingService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
