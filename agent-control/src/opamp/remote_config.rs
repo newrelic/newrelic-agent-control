@@ -74,16 +74,14 @@ impl OpampRemoteConfig {
             .filter(|(k, _)| k.starts_with(AGENT_CONFIG_PREFIX))
     }
 
-    /// Get configuration value at the
-    pub fn get_default(&self) -> Result<&str, OpampRemoteConfigError> {
-        self.config_map
+    /// Returns true if there are no agent configuration key-value pairs that start with [AGENT_CONFIG_PREFIX]
+    /// or all such key-value pairs have empty values.
+    pub fn is_agent_configs_empty(&self) -> bool {
+        !self
+            .config_map
             .0
-            .get(AGENT_CONFIG_PREFIX)
-            .map(|s| s.as_str())
-            .ok_or(OpampRemoteConfigError::InvalidConfig(
-                self.hash.to_string(),
-                "missing default config".to_string(),
-            ))
+            .iter()
+            .any(|(k, v)| k.starts_with(AGENT_CONFIG_PREFIX) && !v.is_empty())
     }
 
     /// Get the signature data for a config key

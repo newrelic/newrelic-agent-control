@@ -444,21 +444,15 @@ where
             )
             .map_err(|err| AgentControlError::RemoteConfigValidator(err.to_string()))?;
 
-        let remote_config_value = opamp_remote_config.get_default()?;
-
-        let new_dynamic_config = if remote_config_value.is_empty() {
+        let new_dynamic_config = if opamp_remote_config.is_agent_configs_empty() {
             // Use the local configuration if the content of the remote config is empty.
             // Do not confuse with an empty list of 'agents', which is a valid remote configuration.
             self.sa_dynamic_config_store.delete()?;
             self.sa_dynamic_config_store.load()?
         } else {
-            AgentControlDynamicConfig::try_from(remote_config_value)?
+            AgentControlDynamicConfig::try_from(opamp_remote_config)?
         };
 
-        debug!(
-            "Performing validation for Agent Control remote configuration: {}",
-            remote_config_value
-        );
         self.dynamic_config_validator
             .validate(&new_dynamic_config)
             .map_err(|err| AgentControlError::RemoteConfigValidator(err.to_string()))?;
@@ -473,9 +467,9 @@ where
         //   and probably happened due to sub-agent OpAMP build errors.
         // - In case of a AC reset , the state will be the same as the current or even better with the config correctly applied.
         // - The effective config will be more similar to the current in execution.
-        if !remote_config_value.is_empty() {
+        if !opamp_remote_config.is_agent_configs_empty() {
             let config = RemoteConfigValues {
-                config: YAMLConfig::try_from(remote_config_value.to_string())?,
+                config: YAMLConfig::try_from(&new_dynamic_config)?,
                 hash: opamp_remote_config.hash.clone(),
                 state: opamp_remote_config.state.clone(),
             };

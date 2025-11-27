@@ -69,36 +69,39 @@ pub(crate) mod tests {
         fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError> {
             let config = self
                 .values_repository
-                .load_remote_fallback_local(&AgentID::AgentControl, &Capabilities::default())?;
-            Ok(config
+                .load_remote_fallback_local(&AgentID::AgentControl, &Capabilities::default())
+                .map_err(|e| {
+                    AgentControlConfigError(format!("loading Agent Control config: {e}"))
+                })?;
+            config
                 .unwrap_or_default()
                 .get_yaml_config()
                 .to_owned()
-                .try_into()?)
+                .try_into()
         }
 
         fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError> {
-            Ok(self
-                .values_repository
-                .store_remote(&AgentID::AgentControl, config)?)
+            self.values_repository
+                .store_remote(&AgentID::AgentControl, config)
+                .map_err(|e| AgentControlConfigError(e.to_string()))
         }
 
         fn update_state(&self, state: ConfigState) -> Result<(), AgentControlConfigError> {
-            Ok(self
-                .values_repository
-                .update_state(&AgentID::AgentControl, state)?)
+            self.values_repository
+                .update_state(&AgentID::AgentControl, state)
+                .map_err(|e| AgentControlConfigError(e.to_string()))
         }
 
         fn get_remote_config(&self) -> Result<Option<RemoteConfig>, AgentControlConfigError> {
-            Ok(self
-                .values_repository
-                .get_remote_config(&AgentID::AgentControl)?)
+            self.values_repository
+                .get_remote_config(&AgentID::AgentControl)
+                .map_err(|e| AgentControlConfigError(e.to_string()))
         }
 
         fn delete(&self) -> Result<(), AgentControlConfigError> {
-            Ok(self
-                .values_repository
-                .delete_remote(&AgentID::AgentControl)?)
+            self.values_repository
+                .delete_remote(&AgentID::AgentControl)
+                .map_err(|e| AgentControlConfigError(e.to_string()))
         }
     }
 }

@@ -1,9 +1,11 @@
+use crate::agent_control::config::AgentControlDynamicConfig;
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
+use serde_yaml::Value;
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -16,6 +18,11 @@ impl YAMLConfig {
     /// Returns true if the YAMLConfig is empty.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    /// Removes a key from the YAMLConfig returning it if it exists.
+    pub fn remove_key(&mut self, key: &str) -> Option<Value> {
+        self.0.remove(key)
     }
 
     /// Tries to append one YAMLConfig into another, returning an error if there are any duplicate keys.
@@ -62,6 +69,18 @@ impl Templateable for HashMap<String, serde_yaml::Value> {
 impl From<YAMLConfig> for HashMap<String, serde_yaml::Value> {
     fn from(values: YAMLConfig) -> Self {
         values.0
+    }
+}
+
+impl TryFrom<&AgentControlDynamicConfig> for YAMLConfig {
+    type Error = YAMLConfigError;
+
+    fn try_from(value: &AgentControlDynamicConfig) -> Result<Self, Self::Error> {
+        serde_yaml::from_value(
+            serde_yaml::to_value(value)
+                .map_err(|e| YAMLConfigError(format!("serializing dynamic config: {e}")))?,
+        )
+        .map_err(|e| YAMLConfigError(format!("decoding config: {e}")))
     }
 }
 
@@ -116,7 +135,6 @@ mod tests {
             Self(values)
         }
 
-        #[allow(dead_code)]
         pub(crate) fn get(&self, key: &str) -> Option<&Value> {
             self.0.get(key)
         }

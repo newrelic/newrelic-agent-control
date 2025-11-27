@@ -8,7 +8,7 @@ use crate::agent_control::config_repository::repository::{
 use crate::agent_control::defaults::{AGENT_CONTROL_CONFIG_ENV_VAR_PREFIX, default_capabilities};
 use crate::opamp::remote_config::hash::ConfigState;
 use crate::values::config::RemoteConfig;
-use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
+use crate::values::config_repository::ConfigRepository;
 use crate::values::yaml_config::YAMLConfigError;
 use config::builder::DefaultState;
 use config::{Config, ConfigBuilder, Environment, File, FileFormat};
@@ -45,26 +45,26 @@ where
 
     fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError> {
         self.values_repository
-            .store_remote(&self.agent_control_id, config)?;
-        Ok(())
+            .store_remote(&self.agent_control_id, config)
+            .map_err(|e| AgentControlConfigError(format!("storing Agent Control config: {e}")))
     }
 
     fn update_state(&self, state: ConfigState) -> Result<(), AgentControlConfigError> {
         self.values_repository
-            .update_state(&self.agent_control_id, state)?;
-        Ok(())
+            .update_state(&self.agent_control_id, state)
+            .map_err(|e| AgentControlConfigError(format!("updating Agent Control config: {e}")))
     }
 
     fn delete(&self) -> Result<(), AgentControlConfigError> {
         self.values_repository
-            .delete_remote(&self.agent_control_id)?;
-        Ok(())
+            .delete_remote(&self.agent_control_id)
+            .map_err(|e| AgentControlConfigError(format!("deleting Agent Control config: {e}")))
     }
 
     fn get_remote_config(&self) -> Result<Option<RemoteConfig>, AgentControlConfigError> {
-        Ok(self
-            .values_repository
-            .get_remote_config(&self.agent_control_id)?)
+        self.values_repository
+            .get_remote_config(&self.agent_control_id)
+            .map_err(|e| AgentControlConfigError(format!("loading Agent Control config: {e}")))
     }
 }
 
@@ -89,14 +89,17 @@ where
     fn _load_config(&self) -> Result<AgentControlConfig, AgentControlConfigError> {
         let local_config_string: String = self
             .values_repository
-            .load_local(&self.agent_control_id)?
-            .ok_or(AgentControlConfigError::Load(
+            .load_local(&self.agent_control_id)
+            .map_err(|e| {
+                AgentControlConfigError(format!("loading Agent Control local config: {e}"))
+            })?
+            .ok_or(AgentControlConfigError(
                 "missing local agent control config".to_string(),
             ))?
             .get_yaml_config()
             .clone()
             .try_into()
-            .map_err(|e: YAMLConfigError| AgentControlConfigError::Load(e.to_string()))?;
+            .map_err(|e: YAMLConfigError| AgentControlConfigError(e.to_string()))?;
 
         let mut config = self
             .config_builder
@@ -113,14 +116,19 @@ where
                     .prefix_separator("_")
                     .separator("__"),
             )
-            .build()?
-            .try_deserialize::<AgentControlConfig>()?;
+            .build()
+            .map_err(|e| AgentControlConfigError(format!("building config: {e}")))?
+            .try_deserialize::<AgentControlConfig>()
+            .map_err(|e| AgentControlConfigError(format!("deserializing: {e}")))?;
 
         config.dynamic = sanitize_local_dynamic_config(config.dynamic);
 
         if let Some(remote_config) = self
             .values_repository
-            .load_remote(&self.agent_control_id, &self.agent_control_capabilities)?
+            .load_remote(&self.agent_control_id, &self.agent_control_capabilities)
+            .map_err(|e| {
+                AgentControlConfigError(format!("loading Agent Control remote config: {e}"))
+            })?
         {
             let dynamic_config: AgentControlDynamicConfig =
                 remote_config.get_yaml_config().clone().try_into()?;
@@ -146,17 +154,6 @@ fn sanitize_local_dynamic_config(
     AgentControlDynamicConfig {
         chart_version: None,
         ..dynamic_config
-    }
-}
-
-impl From<ConfigRepositoryError> for AgentControlConfigError {
-    fn from(e: ConfigRepositoryError) -> Self {
-        match e {
-            ConfigRepositoryError::LoadError(e) => AgentControlConfigError::Load(e),
-            ConfigRepositoryError::StoreError(e) => AgentControlConfigError::Store(e),
-            ConfigRepositoryError::DeleteError(e) => AgentControlConfigError::Delete(e),
-            ConfigRepositoryError::UpdateHashStateError(e) => AgentControlConfigError::Update(e),
-        }
     }
 }
 
