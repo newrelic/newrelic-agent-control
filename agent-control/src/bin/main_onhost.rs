@@ -22,7 +22,7 @@ use newrelic_agent_control::command::windows::{WINDOWS_SERVICE_NAME, setup_windo
 windows_service::define_windows_service!(ffi_service_main, service_main);
 
 fn main() -> ExitCode {
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_family = "unix")]
     {
         Command::run(AGENT_CONTROL_MODE_ON_HOST, _main)
     }
