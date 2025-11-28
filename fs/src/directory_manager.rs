@@ -41,14 +41,22 @@ impl DirectoryManager for DirectoryManagerFs {
             directory_builder.mode(DirectoryManagerFs::get_directory_permissions().mode());
         }
 
-        let directory_creation = directory_builder.create(path);
-        match directory_creation {
-            Err(e) => Err(DirectoryManagementError::ErrorCreatingDirectory(
-                path.to_str().unwrap().to_string(),
-                e.to_string(),
-            )),
-            _ => Ok(()),
-        }
+        if let Err(err) = directory_builder.create(path) {
+            return Err(DirectoryManagementError::ErrorCreatingDirectory(
+                path.to_string_lossy().to_string(),
+                err.to_string(),
+            ));
+        };
+
+        #[cfg(target_family = "windows")]
+        crate::win_permissions::set_file_permissions_for_administrator(path).map_err(|err| {
+            DirectoryManagementError::ErrorCreatingDirectory(
+                path.to_string_lossy().to_string(),
+                err.to_string(),
+            )
+        })?;
+
+        Ok(())
     }
 
     #[instrument(skip_all, fields(path = %path.display()))]
