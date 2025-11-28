@@ -5,7 +5,8 @@ Agent Control supports using an existing Flux installation. In other words, we c
 ## Requirements
 
 > [!WARNING]  
-> Ensure the cluster complies with the following requirements. Otherwise, we are not responsible for any malfunction of the product or any potential breakage of the cluster.
+> **Unsupported Configuration**\
+> Ensure the cluster complies with the following requirements. Configurations that deviate from these specifications are not validated or supported and may result in unexpected behavior or instability.
 
 * Flux version 2
     * Helm Controller component
