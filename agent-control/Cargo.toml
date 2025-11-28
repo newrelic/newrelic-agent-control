@@ -84,6 +84,7 @@ windows = { workspace = true, features = [
   "Win32_System_Console",
   "Win32_System_Threading",
 ] }
+windows-service = "0.8.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { workspace = true }

@@ -25,6 +25,9 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use tracing::{error, info};
 
+#[cfg(target_os = "windows")]
+pub mod windows;
+
 /// All possible errors that can happen while running the initialization.
 #[derive(Debug, thiserror::Error)]
 pub enum InitError {
