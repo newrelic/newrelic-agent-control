@@ -1,6 +1,6 @@
-# Support existing flux
+# Support existing Flux
 
-Agent Control supports using an existing flux installation. In other words, we can install Agent Control in a k8s cluster where flux is already present. However, we **DON’T HAVE** extensive and complete support for that. There are some limitations to that feature.
+Agent Control supports using an existing Flux installation. In other words, we can install Agent Control in a k8s cluster where Flux is already present. However, we **DON’T HAVE** extensive and complete support for that. There are some limitations to that feature.
 
 ## Requirements
 
@@ -56,12 +56,12 @@ This depends on the agents that we plan to install with Agent Control. The permi
 * Agent Control
 * Every agent we want to install
 
-Alternatively, we can use `cluster-admin`. This grants root privileges and it's [used by default in the flux chart](https://github.com/fluxcd-community/helm-charts/tree/main/charts/flux2).
+Alternatively, we can use `cluster-admin`. This grants root privileges and it's [used by default in the Flux chart](https://github.com/fluxcd-community/helm-charts/tree/main/charts/flux2).
 
-## How does flux watched namespaces influence Agent Control?
+## How does Flux watched namespaces influence Agent Control?
 
-Agent Control must be installed on a namespace watched by flux. Otherwise, agents won't be installed. Now, we can find ourselves in two situations.
+Agent Control must be installed on a namespace watched by Flux. Otherwise, agents won't be installed. Now, we can find ourselves in two situations.
 
-First, flux is configured to watch every namespace (`--watch-all-namespaces` is true). In that case, we can install Agent Control in any namespace and it will work out of the box.
+First, Flux is configured to watch every namespace (`--watch-all-namespaces` is true). In that case, we can install Agent Control in any namespace and it will work out of the box.
 
-Second, flux is configured to only watch the runtime namespace (`--watch-all-namespaces` is false). Then, we need to install Agent Control in the same namespace where flux was installed.
+Second, Flux is configured to only watch the runtime namespace (`--watch-all-namespaces` is false). Then, we need to install Agent Control in the same namespace where Flux was installed.
