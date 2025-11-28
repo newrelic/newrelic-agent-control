@@ -218,6 +218,10 @@ pub mod tests {
                 metadata(&path).unwrap().permissions().mode() & 0o777
             );
         }
+
+        #[cfg(target_family = "windows")]
+        crate::win_permissions::tests::verify_windows_permissions(&path);
+
         assert!(path.exists());
     }
 

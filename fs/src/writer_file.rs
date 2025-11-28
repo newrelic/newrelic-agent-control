@@ -148,6 +148,9 @@ pub mod tests {
             );
         }
 
+        #[cfg(target_family = "windows")]
+        crate::win_permissions::tests::verify_windows_permissions(&path);
+
         assert!(path.exists());
     }
 
