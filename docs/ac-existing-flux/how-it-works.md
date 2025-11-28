@@ -1,6 +1,6 @@
 # Support existing Flux
 
-Agent Control supports using an existing Flux installation. In other words, we can install Agent Control in a k8s cluster where Flux is already present. However, we **DON’T HAVE** extensive and complete support for that. There are some limitations to that feature.
+Agent Control supports using an existing Flux installation. In other words, we can install Agent Control in a k8s cluster where Flux is already present. However, for the moment, we **DON’T HAVE** extensive and complete support for that. There are some limitations to that feature.
 
 ## Requirements
 
