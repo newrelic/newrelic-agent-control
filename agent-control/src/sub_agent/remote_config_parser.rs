@@ -76,13 +76,13 @@ where
 fn extract_remote_config_values(
     opamp_remote_config: &OpampRemoteConfig,
 ) -> Result<Option<RemoteConfig>, RemoteConfigParserError> {
-    let config = opamp_remote_config.configs_iter().try_fold(
+    let config = opamp_remote_config.agent_configs_iter().try_fold(
         YAMLConfig::default(),
         |mut acc, (_, content)| {
             let cfg = YAMLConfig::try_from(content.as_str()).map_err(|err| {
                 RemoteConfigParserError::InvalidValues(format!("decoding config: {err}"))
             })?;
-            acc.append(cfg).map_err(|err| {
+            acc = YAMLConfig::try_append(acc, cfg).map_err(|err| {
                 RemoteConfigParserError::InvalidValues(format!("appending config: {err}"))
             })?;
             Ok(acc)
@@ -210,13 +210,17 @@ pub mod tests {
     #[case::mutiple_configs_config_array(
         r#"{"config1": "{\"key\": \"value\"}", "config2": "[1, 2, 3]"}"#
     )]
-    fn test_agent_remote_config_parser_config_invalid_values(#[case] config: &str) {
+    fn test_invalid_agent_configs_remote_values(#[case] config: &str) {
         let agent_identity = AgentIdentity::default();
 
         let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
-        let config_map =
-            ConfigurationMap::new(serde_json::from_str::<HashMap<String, String>>(config).unwrap());
+        let map: HashMap<String, String> = serde_json::from_str::<HashMap<String, String>>(config)
+            .unwrap()
+            .into_iter()
+            .map(|(k, v)| (format!("{}-{}", DEFAULT_AGENT_CONFIG_IDENTIFIER, k), v))
+            .collect();
+        let config_map = ConfigurationMap::new(map);
         let remote_config =
             OpampRemoteConfig::new(agent_identity.id.clone(), hash, state, config_map);
 
@@ -227,25 +231,27 @@ pub mod tests {
     }
 
     #[rstest]
-    #[case::single_config(r#"{"config": "key: value"}"#, "key: value")]
-    #[case::multiple_configs(
-        r#"{"config1": "key1: value1", "config2": "key2: value2"}"#,
-        "key1: value1\nkey2: value2"
+    #[case::single_agent_config(format!("{{\"{DEFAULT_AGENT_CONFIG_IDENTIFIER}\": \"key: value\"}}"), format!("key: value"))]
+    #[case::multiple_agent_configs(
+        format!("{{\"{DEFAULT_AGENT_CONFIG_IDENTIFIER}\": \"key1: value1\", \"{DEFAULT_AGENT_CONFIG_IDENTIFIER}-2\": \"key2: value2\"}}"),
+        format!("key1: value1\nkey2: value2")
     )]
-    #[case::multiple_configs_empty_config(
-        r#"{"config1": "key1: value1", "empty": ""}"#,
-        "key1: value1"
+    #[case::multiple_agent_configs_empty_config(
+        format!("{{\"{DEFAULT_AGENT_CONFIG_IDENTIFIER}\": \"key1: value1\", \"{DEFAULT_AGENT_CONFIG_IDENTIFIER}-empty\": \"\"}}"),
+        format!("key1: value1")
     )]
-    fn test_agent_remote_config_parser_some_config(
-        #[case] config: &str,
-        #[case] expected_yaml: &str,
-    ) {
+    #[case::multiple_config(
+        format!("{{\"{DEFAULT_AGENT_CONFIG_IDENTIFIER}\": \"key1: value1\", \"non-agent-config\": \"key2: value2\"}}"),
+        format!("key1: value1")
+    )]
+    fn test_valid_remote_config_values(#[case] config: String, #[case] expected_yaml: String) {
         let agent_identity = AgentIdentity::default();
 
         let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
-        let config_map =
-            ConfigurationMap::new(serde_json::from_str::<HashMap<String, String>>(config).unwrap());
+        let config_map = ConfigurationMap::new(
+            serde_json::from_str::<HashMap<String, String>>(&config).unwrap(),
+        );
         let opamp_remote_config = OpampRemoteConfig::new(
             agent_identity.id.clone(),
             hash.clone(),
@@ -259,7 +265,7 @@ pub mod tests {
         let handler = AgentRemoteConfigParser::new(vec![validator]);
 
         let expected = RemoteConfig {
-            config: serde_yaml::from_str(expected_yaml).unwrap(),
+            config: serde_yaml::from_str(&expected_yaml).unwrap(),
             hash,
             state,
         };

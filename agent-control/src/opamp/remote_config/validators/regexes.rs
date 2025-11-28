@@ -37,7 +37,7 @@ impl RemoteConfigValidator for RegexValidator {
     ) -> Result<(), RegexValidatorError> {
         // This config will fail further on the event processor.
         opamp_remote_config
-            .configs_iter()
+            .agent_configs_iter()
             .try_for_each(|(_, raw_config)| {
                 self.validate_regex_rules(&agent_identity.agent_type_id, raw_config)
             })?;

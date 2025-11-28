@@ -13,33 +13,33 @@ use thiserror::Error;
 pub struct YAMLConfig(HashMap<String, serde_yaml::Value>);
 
 impl YAMLConfig {
-    /// Appends another YAMLConfig into this one, returning an error if there are any duplicate keys.
-    pub fn append(&mut self, other: YAMLConfig) -> Result<(), YAMLConfigError> {
-        if let Some(key) = other.0.keys().find(|key| self.0.contains_key(*key)) {
-            return Err(YAMLConfigError::YAMLConfigError(format!(
-                "cannot append duplicated key: {}",
-                key
-            )));
-        }
-        for (key, value) in other.0 {
-            self.0.insert(key, value);
-        }
-        Ok(())
-    }
-
     /// Returns true if the YAMLConfig is empty.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    /// Tries to append one YAMLConfig into another, returning an error if there are any duplicate keys.
+    ///
+    /// # Errors
+    /// Returns an error if there are any duplicate keys between the two YAMLConfig instances.
+    pub fn try_append(a: Self, b: Self) -> Result<Self, YAMLConfigError> {
+        let mut result = a;
+        for (key, value) in b.0 {
+            if result.0.contains_key(&key) {
+                return Err(YAMLConfigError(format!(
+                    "cannot append duplicated key: {}",
+                    key
+                )));
+            }
+            result.0.insert(key, value);
+        }
+        Ok(result)
+    }
 }
 
 #[derive(Error, Debug)]
-pub enum YAMLConfigError {
-    #[error("{0}")]
-    YAMLConfigError(String),
-    #[error("invalid agent values format: {0}")]
-    FormatError(#[from] serde_yaml::Error),
-}
+#[error("{0}")]
+pub struct YAMLConfigError(pub String);
 
 impl Templateable for YAMLConfig {
     type Output = Self;
@@ -69,14 +69,16 @@ impl TryFrom<String> for YAMLConfig {
     type Error = YAMLConfigError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Ok(serde_yaml::from_str::<YAMLConfig>(value.as_str())?)
+        serde_yaml::from_str::<YAMLConfig>(value.as_str())
+            .map_err(|e| YAMLConfigError(format!("decoding config: {e}")))
     }
 }
 impl TryFrom<&str> for YAMLConfig {
     type Error = YAMLConfigError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Ok(serde_yaml::from_str::<YAMLConfig>(value)?)
+        serde_yaml::from_str::<YAMLConfig>(value)
+            .map_err(|e| YAMLConfigError(format!("decoding config: {e}")))
     }
 }
 
@@ -88,7 +90,7 @@ impl TryFrom<YAMLConfig> for String {
         if value.0.is_empty() {
             return Ok("".to_string());
         }
-        Ok(serde_yaml::to_string(&value)?)
+        serde_yaml::to_string(&value).map_err(|e| YAMLConfigError(format!("decoding config: {e}")))
     }
 }
 
@@ -106,6 +108,7 @@ mod tests {
             variable::{Variable, tree::Tree},
         },
     };
+    use rstest::rstest;
     use serde_yaml::{Mapping, Value};
 
     impl YAMLConfig {
@@ -290,6 +293,50 @@ deployment:
         assert_eq!(
             format!("{}", result.unwrap_err()),
             "error while parsing: invalid type: boolean `true`, expected a string"
+        );
+    }
+
+    #[rstest]
+    #[case::single_key_each(
+        r#"{"key1": "value1"}"#,
+        r#"{"key2": "value2"}"#,
+        r#"{"key1": "value1", "key2": "value2"}"#
+    )]
+    #[case::multiple_keys_no_overlap(
+        r#"{"key1": "value1", "key2": "value2"}"#,
+        r#"{"key3": "value3", "key4": "value4"}"#,
+        r#"{"key1": "value1", "key2": "value2", "key3": "value3", "key4": "value4"}"#
+    )]
+    #[case::empty("{}", "{}", "{}")]
+    #[case::empty_first("{}", r#"{"key1": "value1"}"#, r#"{"key1": "value1"}"#)]
+    #[case::empty_second(r#"{"key1": "value1"}"#, "{}", r#"{"key1": "value1"}"#)]
+    fn test_try_append_success(#[case] a: &str, #[case] b: &str, #[case] expected: &str) {
+        let config_a = serde_json::from_str::<YAMLConfig>(a).unwrap();
+        let config_b = serde_json::from_str::<YAMLConfig>(b).unwrap();
+        let expected_config = serde_json::from_str::<YAMLConfig>(expected).unwrap();
+
+        let result = YAMLConfig::try_append(config_a, config_b);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), expected_config);
+    }
+
+    #[rstest]
+    #[case::duplicate_key(r#"{"key1": "value1"}"#, r#"{"key1": "value2"}"#)]
+    #[case::multiple_keys_with_duplicate(
+        r#"{"key1": "value1", "key2": "value2"}"#,
+        r#"{"key2": "value3", "key3": "value4"}"#
+    )]
+    fn test_try_append_duplicate_key_error(#[case] a: &str, #[case] b: &str) {
+        let config_a = serde_json::from_str::<YAMLConfig>(a).unwrap();
+        let config_b = serde_json::from_str::<YAMLConfig>(b).unwrap();
+
+        let result = YAMLConfig::try_append(config_a, config_b);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .0
+                .contains("cannot append duplicated key")
         );
     }
 }
