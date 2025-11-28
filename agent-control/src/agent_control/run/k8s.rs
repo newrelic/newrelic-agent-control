@@ -5,7 +5,8 @@ use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::config_validator::k8s::K8sReleaseNamesConfigValidator;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
+    AGENT_CONTROL_VERSION, CD_EXTERNAL_ENABLED_ATTRIBUTE_KEY,
+    CD_REMOTE_UPDATE_ENABLED_ATTRIBUTE_KEY, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
     HOST_NAME_ATTRIBUTE_KEY, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY,
 };
@@ -90,7 +91,7 @@ impl AgentControlRunner {
         info!("Instance Identifiers: {}", identifiers);
 
         let non_identifying_attributes =
-            agent_control_opamp_non_identifying_attributes(&identifiers);
+            agent_control_opamp_non_identifying_attributes(&identifiers, &self.k8s_config);
 
         let additional_identifying_attributes =
             agent_control_additional_opamp_identifying_attributes(&self.k8s_config);
@@ -292,6 +293,7 @@ fn start_cd_version_checker(
 
 pub fn agent_control_opamp_non_identifying_attributes(
     identifiers: &Identifiers,
+    k8s_config: &K8sConfig,
 ) -> HashMap<String, DescriptionValueType> {
     let hostname = get_hostname().unwrap_or_else(|e| {
         error!("cannot retrieve hostname: {}", e.to_string());
@@ -307,6 +309,14 @@ pub fn agent_control_opamp_non_identifying_attributes(
         (
             CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
             identifiers.cluster_name.clone().into(),
+        ),
+        (
+            CD_EXTERNAL_ENABLED_ATTRIBUTE_KEY.to_string(),
+            (k8s_config.cd_release_name.is_empty()).into(),
+        ),
+        (
+            CD_REMOTE_UPDATE_ENABLED_ATTRIBUTE_KEY.to_string(),
+            k8s_config.cd_remote_update.into(),
         ),
     ])
 }
