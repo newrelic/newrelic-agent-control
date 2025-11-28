@@ -9,7 +9,7 @@ use windows_sys::Win32::Security::Authorization::{
 };
 use windows_sys::Win32::Security::{
     ACL, CreateWellKnownSid, DACL_SECURITY_INFORMATION, NO_INHERITANCE,
-    PROTECTED_DACL_SECURITY_INFORMATION, WinBuiltinAdministratorsSid,
+    PROTECTED_DACL_SECURITY_INFORMATION, SECURITY_MAX_SID_SIZE, WinBuiltinAdministratorsSid,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -17,29 +17,12 @@ use windows_sys::Win32::Security::{
 pub struct PermissionError(String);
 
 fn get_administrator_sid() -> Result<Vec<u8>, PermissionError> {
+    let mut sid_size = SECURITY_MAX_SID_SIZE as u32;
+    let mut sid: Vec<u8> = vec![0; sid_size as usize];
+
     unsafe {
-        let mut sid_size = 0;
-
-        // https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-createwellknownsid
-        // A Security Identifier (SID) is used to identify a security principal or group.
-        // CreateWellKnownSid allow creating a SID for predefined aliases, in this case administrators.
-        // This first call is done to get the size of the buffer to be used on the next call.
-        CreateWellKnownSid(
-            WinBuiltinAdministratorsSid,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            &mut sid_size,
-        );
-
-        if sid_size == 0 {
-            return Err(PermissionError(format!(
-                "Failed to determine SID size. Error: {}",
-                GetLastError()
-            )));
-        }
-
         // We define the buffer with the right size to be retrieved avoiding an error 122 (ERROR_INSUFICIENT_BUFFER)
-        let mut sid: Vec<u8> = vec![0; sid_size as usize];
+
         if CreateWellKnownSid(
             WinBuiltinAdministratorsSid,
             ptr::null_mut(),
@@ -52,9 +35,9 @@ fn get_administrator_sid() -> Result<Vec<u8>, PermissionError> {
                 GetLastError()
             )));
         }
-
-        Ok(sid)
     }
+
+    Ok(sid)
 }
 
 /// set_file_permissions_for_administrator removes any other ACL from a file only granting
