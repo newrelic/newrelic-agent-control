@@ -13,18 +13,8 @@ pub mod signature;
 pub mod validators;
 
 /// Prefix that identifies the agent configuration keys within the OpAMP [opamp_client::opamp::proto::AgentConfigMap].
-/// Any key that starts with this prefix is considered part of the agent configuration.
-///
-/// All entries with this prefix will be appended into a final configuration which will be applied
-/// to the Agent. Key collisions are not allowed, except for the 'agents' key in Agent Control config which
-/// will be merged (collisions not allowed)
-///
-/// Agent example:
-/// in: { "agentConfig-1": { "some-key": "some-value" }, "agentConfig-2": { "another-key": "another-value" }}
-/// out: { "some-key": "some-value", "another-key": "another-value" }
-/// Agent Control example:
-/// in: { "agentConfig-agents1": { "agents": { "some-agent": {}}}, "agentConfig-agents2": { "agents": { "another-agent": {}}}}
-/// out: { "agents": { "some-agent": {}, "another-agent": {}}}
+/// Any key that starts with this prefix is considered part of the agent configuration. See parsing implementation
+/// for each case.
 pub const AGENT_CONFIG_PREFIX: &str = "agentConfig";
 
 /// This structure represents the remote configuration that we would retrieve from a server via OpAMP.

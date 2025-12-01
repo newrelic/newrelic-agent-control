@@ -72,9 +72,40 @@ where
     }
 }
 
-/// Extracts the opamp remote configuration values and parses them to [YAMLConfig], if the values are empty it returns None.
-/// Check [crate::opamp::remote_config::AGENT_CONFIG_PREFIX] for multi configuration process behavior.
-fn extract_remote_config_values(
+/// Extracts and merges OpAMP remote configuration values into a single [YAMLConfig].
+///
+/// This function processes all configuration entries that start with the
+/// [AGENT_CONFIG_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_PREFIX) identifier.
+/// Multiple configuration entries are merged into a single configuration, with key collisions
+/// being treated as errors to ensure configuration integrity.
+///
+/// # Behavior
+///
+/// - Filters configuration entries by [AGENT_CONFIG_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_PREFIX)
+/// - Parses each entry as YAML and appends it to an accumulated configuration
+/// - Returns `None` if the final merged configuration is empty
+/// - Returns an error if any configuration cannot be parsed or if duplicate keys are found
+///
+/// ```json
+/// // Input:
+/// {
+///   "<AGENT_CONFIG_PREFIX>-1": "key1: value1",
+///   "<AGENT_CONFIG_PREFIX>-2": "key2: value2"
+/// }
+///
+/// // Output:
+/// {
+///   "key1": "value1",
+///   "key2": "value2"
+/// }
+/// ```
+///
+/// # Errors
+///
+/// Returns [`RemoteConfigParserError::InvalidValues`] if:
+/// - Any configuration entry contains invalid YAML
+/// - Duplicate keys are found when merging configurations
+pub fn extract_remote_config_values(
     opamp_remote_config: &OpampRemoteConfig,
 ) -> Result<Option<RemoteConfig>, RemoteConfigParserError> {
     let config = opamp_remote_config.agent_configs_iter().try_fold(
@@ -198,28 +229,29 @@ pub mod tests {
     }
 
     #[rstest]
-    #[case::invalid_yaml_config_single_value(r#"{"config": "single-value"}"#)]
-    #[case::invalid_yaml_config_array(r#"{"config": "[1, 2, 3]"}"#)]
+    #[case::invalid_yaml_config_single_value(
+        format!("{{\"{AGENT_CONFIG_PREFIX}\": \"single-value\"}}")
+    )]
+    #[case::invalid_yaml_config_array(
+        format!("{{\"{AGENT_CONFIG_PREFIX}\": \"[1, 2, 3]\"}}")
+    )]
     #[case::mutiple_configs_duplicated_keys(
-        r#"{"config1": "{\"key\": \"value\"}", "config2": "{\"key\": \"value2\"}"}"#
+        format!("{{\"{AGENT_CONFIG_PREFIX}-1\": \"key: value\", \"{AGENT_CONFIG_PREFIX}-2\": \"key: value2\"}}")
     )]
     #[case::mutiple_configs_config_single_value(
-        r#"{"config1": "{\"key\": \"value\"}", "config2": "single-value"}"#
+        format!("{{\"{AGENT_CONFIG_PREFIX}-1\": \"key: value\", \"{AGENT_CONFIG_PREFIX}-2\": \"single-value\"}}")
     )]
     #[case::mutiple_configs_config_array(
-        r#"{"config1": "{\"key\": \"value\"}", "config2": "[1, 2, 3]"}"#
+        format!("{{\"{AGENT_CONFIG_PREFIX}-1\": \"key: value\", \"{AGENT_CONFIG_PREFIX}-2\": \"[1, 2, 3]\"}}")
     )]
-    fn test_invalid_agent_configs_remote_values(#[case] config: &str) {
+    fn test_invalid_agent_configs_remote_values(#[case] config: String) {
         let agent_identity = AgentIdentity::default();
 
         let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
-        let map: HashMap<String, String> = serde_json::from_str::<HashMap<String, String>>(config)
-            .unwrap()
-            .into_iter()
-            .map(|(k, v)| (format!("{}-{}", AGENT_CONFIG_PREFIX, k), v))
-            .collect();
-        let config_map = ConfigurationMap::new(map);
+        let config_map = ConfigurationMap::new(
+            serde_json::from_str::<HashMap<String, String>>(&config).unwrap(),
+        );
         let remote_config =
             OpampRemoteConfig::new(agent_identity.id.clone(), hash, state, config_map);
 
