@@ -12,8 +12,20 @@ pub mod report;
 pub mod signature;
 pub mod validators;
 
-/// Identifier key for the primary agent configuration within the OpAMP [opamp_client::opamp::proto::AgentConfigMap].
-pub const DEFAULT_AGENT_CONFIG_IDENTIFIER: &str = "agentConfig";
+/// Prefix that identifies the agent configuration keys within the OpAMP [opamp_client::opamp::proto::AgentConfigMap].
+/// Any key that starts with this prefix is considered part of the agent configuration.
+///
+/// All entries with this prefix will be appended into a final configuration which will be applied
+/// to the Agent. Key collisions are not allowed, except for the 'agents' key in Agent Control config which
+/// will be merged (collisions not allowed)
+///
+/// Agent example:
+/// in: { "agentConfig-1": { "some-key": "some-value" }, "agentConfig-2": { "another-key": "another-value" }}
+/// out: { "some-key": "some-value", "another-key": "another-value" }
+/// Agent Control example:
+/// in: { "agentConfig-agents1": { "agents": { "some-agent": {}}}, "agentConfig-agents2": { "agents": { "another-agent": {}}}}
+/// out: { "agents": { "some-agent": {}, "another-agent": {}}}
+pub const AGENT_CONFIG_PREFIX: &str = "agentConfig";
 
 /// This structure represents the remote configuration that we would retrieve from a server via OpAMP.
 /// Contains identifying metadata and the actual configuration values
@@ -64,19 +76,19 @@ impl OpampRemoteConfig {
         self.config_map.0.iter()
     }
 
-    /// Returns an iterator over the configuration key-value pairs that start with the default agent config identifier.
+    /// Returns an iterator over the configuration key-value pairs that start with [AGENT_CONFIG_PREFIX].
     pub fn agent_configs_iter(&self) -> impl Iterator<Item = (&String, &String)> {
         self.config_map
             .0
             .iter()
-            .filter(|(k, _)| k.starts_with(DEFAULT_AGENT_CONFIG_IDENTIFIER))
+            .filter(|(k, _)| k.starts_with(AGENT_CONFIG_PREFIX))
     }
 
     /// Get configuration value at the
     pub fn get_default(&self) -> Result<&str, OpampRemoteConfigError> {
         self.config_map
             .0
-            .get(DEFAULT_AGENT_CONFIG_IDENTIFIER)
+            .get(AGENT_CONFIG_PREFIX)
             .map(|s| s.as_str())
             .ok_or(OpampRemoteConfigError::InvalidConfig(
                 self.hash.to_string(),

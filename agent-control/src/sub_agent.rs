@@ -732,9 +732,7 @@ pub mod tests {
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
-    use crate::opamp::remote_config::{
-        ConfigurationMap, DEFAULT_AGENT_CONFIG_IDENTIFIER, OpampRemoteConfig,
-    };
+    use crate::opamp::remote_config::{AGENT_CONFIG_PREFIX, ConfigurationMap, OpampRemoteConfig};
     use crate::secrets_provider::SecretsProviders;
     use crate::values::config::RemoteConfig;
     use crate::values::config_repository::tests::InMemoryConfigRepository;
@@ -955,7 +953,7 @@ deployment:
                 Self::hash(),
                 ConfigState::Applying,
                 ConfigurationMap::new(HashMap::from([(
-                    DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
+                    AGENT_CONFIG_PREFIX.to_string(),
                     Self::valid_config_yaml().try_into().unwrap(),
                 )])),
             )
@@ -967,7 +965,7 @@ deployment:
                 Self::hash(),
                 ConfigState::Applying,
                 ConfigurationMap::new(HashMap::from([(
-                    DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
+                    AGENT_CONFIG_PREFIX.to_string(),
                     // Reset signal
                     "".to_string(),
                 )])),
@@ -982,7 +980,7 @@ deployment:
                     error_message: "error_message".to_string(),
                 },
                 ConfigurationMap::new(HashMap::from([(
-                    DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
+                    AGENT_CONFIG_PREFIX.to_string(),
                     "broken config:".to_string(),
                 )])),
             )
