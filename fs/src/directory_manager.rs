@@ -41,14 +41,17 @@ impl DirectoryManager for DirectoryManagerFs {
             directory_builder.mode(DirectoryManagerFs::get_directory_permissions().mode());
         }
 
-        let directory_creation = directory_builder.create(path);
-        match directory_creation {
-            Err(e) => Err(DirectoryManagementError::ErrorCreatingDirectory(
-                path.to_str().unwrap().to_string(),
-                e.to_string(),
-            )),
-            _ => Ok(()),
-        }
+        let path_str = |path: &Path| path.to_string_lossy().to_string();
+        directory_builder.create(path).map_err(|err| {
+            DirectoryManagementError::ErrorCreatingDirectory(path_str(path), err.to_string())
+        })?;
+
+        #[cfg(target_family = "windows")]
+        crate::win_permissions::set_file_permissions_for_administrator(path).map_err(|err| {
+            DirectoryManagementError::ErrorCreatingDirectory(path_str(path), err.to_string())
+        })?;
+
+        Ok(())
     }
 
     #[instrument(skip_all, fields(path = %path.display()))]
@@ -210,6 +213,10 @@ pub mod tests {
                 metadata(&path).unwrap().permissions().mode() & 0o777
             );
         }
+
+        #[cfg(target_family = "windows")]
+        crate::win_permissions::tests::assert_windows_permissions(&path);
+
         assert!(path.exists());
     }
 
