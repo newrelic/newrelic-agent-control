@@ -113,7 +113,13 @@ pub mod tests {
 
     use super::*;
 
-    pub fn verify_windows_permissions(path: &Path) {
+    /// Asserts directory permissions are set to only allow Administrators read and write access on Windows.
+    ///
+    /// This is a helper function that checks the following:
+    /// 1. The DACL of the file contains exactly one ACE.
+    /// 2. The ACE is for the Administrators SID.
+    /// 3. The ACE grants FILE_GENERIC_READ and FILE_GENERIC_WRITE permissions.
+    pub fn assert_windows_permissions(path: &Path) {
         let mut admin_sid_size = SECURITY_MAX_SID_SIZE;
         let mut admin_sid: Vec<u8> = vec![0; admin_sid_size as usize];
 
