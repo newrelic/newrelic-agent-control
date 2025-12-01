@@ -307,12 +307,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## bindgen <https://crates.io/crates/bindgen>
-
-Distributed under the following license(s):
-
-* BSD-3-Clause
-
 ## bitflags <https://crates.io/crates/bitflags>
 
 Distributed under the following license(s):
@@ -388,13 +382,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## cexpr <https://crates.io/crates/cexpr>
-
-Distributed under the following license(s):
-
-* Apache-2.0
-* MIT
-
 ## cfg-if <https://crates.io/crates/cfg-if>
 
 Distributed under the following license(s):
@@ -420,12 +407,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
-* Apache-2.0
-
-## clang-sys <https://crates.io/crates/clang-sys>
-
-Distributed under the following license(s):
-
 * Apache-2.0
 
 ## clap <https://crates.io/crates/clap>
@@ -1411,12 +1392,6 @@ Distributed under the following license(s):
 
 * MIT
 
-## libloading <https://crates.io/crates/libloading>
-
-Distributed under the following license(s):
-
-* ISC
-
 ## libredox <https://crates.io/crates/libredox>
 
 Distributed under the following license(s):
@@ -2034,13 +2009,6 @@ Distributed under the following license(s):
 
 * MIT
 
-## rustc-hash <https://crates.io/crates/rustc-hash>
-
-Distributed under the following license(s):
-
-* Apache-2.0
-* MIT
-
 ## rusticata-macros <https://crates.io/crates/rusticata-macros>
 
 Distributed under the following license(s):
@@ -2252,8 +2220,8 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 
-* Apache-2.0
 * MIT
+* Apache-2.0
 
 ## simd-adler32 <https://crates.io/crates/simd-adler32>
 
