@@ -6,8 +6,8 @@ use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use std::sync::Arc;
 use tracing::{debug, error};
 
-/// Builds the OpAMP client if the configuration is present.
-pub fn build_opamp_client(
+/// Returns the OpAMP client builder corresponding to the provided arguments.
+pub fn opamp_client_builder(
     opamp_config: OpAMPClientConfig,
     proxy_config: ProxyConfig,
     private_key: String,
@@ -20,7 +20,7 @@ pub fn build_opamp_client(
             private_key,
             proxy_config.clone(),
         )
-        .inspect_err(|err| error!(error_msg=%err, "Building token retriever failed"))
+        .inspect_err(|err| error!("Could not build OpAMP's token retriever: {err}"))
         .map_err(RunError::from)?,
     );
 
