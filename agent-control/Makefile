@@ -26,6 +26,11 @@ test/onhost/root/integration:
 	@echo "testing-machine-id" > /tmp/machine-id
 	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=multiple-instances --test integration_tests _as_root -- --ignored --skip no_root --skip k8s
 
+.PHONY: test/onhost/oci-registry/integration
+test/onhost/oci-registry/integration:
+	@echo "testing-machine-id" > /tmp/machine-id
+	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=multiple-instances --test integration_tests _with_oci_registry -- --ignored
+
 # K8S
 
 .PHONY: test/k8s
