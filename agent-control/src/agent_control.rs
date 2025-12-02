@@ -598,9 +598,7 @@ mod tests {
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::validators::tests::TestRemoteConfigValidator;
-    use crate::opamp::remote_config::{
-        ConfigurationMap, DEFAULT_AGENT_CONFIG_IDENTIFIER, OpampRemoteConfig,
-    };
+    use crate::opamp::remote_config::{AGENT_CONFIG_PREFIX, ConfigurationMap, OpampRemoteConfig};
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::error::SubAgentBuilderError;
     use crate::sub_agent::identity::AgentIdentity;
@@ -725,7 +723,7 @@ agents:
                 hash,
                 ConfigState::Applying,
                 ConfigurationMap::new(HashMap::from([(
-                    DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
+                    AGENT_CONFIG_PREFIX.to_string(),
                     s.to_string(),
                 )])),
             )

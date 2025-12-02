@@ -37,9 +37,7 @@ impl RemoteConfigValidator for RegexValidator {
     ) -> Result<(), RegexValidatorError> {
         // This config will fail further on the event processor.
         opamp_remote_config
-            .configs()
-            .0
-            .iter()
+            .agent_configs_iter()
             .try_for_each(|(_, raw_config)| {
                 self.validate_regex_rules(&agent_identity.agent_type_id, raw_config)
             })?;
@@ -147,7 +145,7 @@ pub(super) mod tests {
     use crate::agent_control::defaults::AGENT_TYPE_NAME_INFRA_AGENT;
     use crate::agent_control::defaults::AGENT_TYPE_NAME_NRDOT;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::opamp::remote_config::DEFAULT_AGENT_CONFIG_IDENTIFIER;
+    use crate::opamp::remote_config::AGENT_CONFIG_PREFIX;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::validators::RemoteConfigValidator;
     use crate::opamp::remote_config::validators::regexes::{RegexValidator, RegexValidatorError};
@@ -197,7 +195,7 @@ pub(super) mod tests {
             Hash::from("this-is-a-hash"),
             ConfigState::Applying,
             ConfigurationMap::new(HashMap::from([(
-                DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
+                AGENT_CONFIG_PREFIX.to_string(),
                 content.to_string(),
             )])),
         );
@@ -509,7 +507,7 @@ config:
             Hash::from("this-is-a-hash"),
             ConfigState::Applying,
             ConfigurationMap::new(HashMap::from([(
-                DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
+                AGENT_CONFIG_PREFIX.to_string(),
                 config.to_string(),
             )])),
         )
