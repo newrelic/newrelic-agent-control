@@ -58,25 +58,43 @@ impl ServerState {
 pub struct RemoteConfig(AgentRemoteConfig);
 
 impl RemoteConfig {
-    pub fn new_agent_config(config_content: &str) -> Self {
-        let mut hasher = DefaultHasher::new();
-        config_content.to_string().hash(&mut hasher);
-        let config_file = AgentConfigFile {
-            body: config_content.as_bytes().to_vec(),
-            content_type: "text/yaml".to_string(),
-        };
+    pub fn new(config_map: HashMap<String, String>) -> Self {
+        // Build an AgentConfigMap from raw entries (keys and YAML bodies as &str)
+        let built_map: HashMap<String, AgentConfigFile> = config_map
+            .into_iter()
+            .map(|(key, body)| {
+                (
+                    key,
+                    AgentConfigFile {
+                        body: body.as_bytes().to_vec(),
+                        content_type: "text/yaml".to_string(),
+                    },
+                )
+            })
+            .collect();
+
         let config_map = AgentConfigMap {
-            config_map: HashMap::from([(AGENT_CONFIG_PREFIX.to_string(), config_file)]),
+            config_map: built_map,
         };
+
         Self(AgentRemoteConfig {
+            config_hash: Self::compute_hash(&config_map.config_map),
             config: Some(config_map),
-            config_hash: hasher.finish().to_string().into_bytes(),
         })
+    }
+
+    // Do not assume this replicate FC hashing.
+    fn compute_hash(map: &HashMap<String, AgentConfigFile>) -> Vec<u8> {
+        let mut hasher = DefaultHasher::new();
+        for agent_config_file in map.values() {
+            agent_config_file.body.hash(&mut hasher);
+        }
+        hasher.finish().to_string().into_bytes()
     }
 }
 
 #[derive(Clone, Debug, Default)]
-/// Represents a remote configuration signature custome message
+/// Represents a remote configuration signature custom message
 pub struct RemoteConfigSignature(CustomMessage);
 impl RemoteConfigSignature {
     pub fn new(key_pair: &Ed25519KeyPair, remote_config: RemoteConfig) -> Self {
@@ -171,7 +189,24 @@ impl FakeServer {
             .agent_state
             .entry(identifier)
             .or_default()
-            .remote_config = Some(RemoteConfig::new_agent_config(response.as_ref()));
+            .remote_config = Some(RemoteConfig::new(HashMap::from([(
+            AGENT_CONFIG_PREFIX.to_string(),
+            response.as_ref().to_string(),
+        )])));
+    }
+
+    /// Same as `set_config_response` but accepts multiple configurations.
+    pub fn set_multi_config_response(
+        &mut self,
+        identifier: &InstanceID,
+        config_map: HashMap<String, String>,
+    ) {
+        let mut state = self.state.lock().unwrap();
+        state
+            .agent_state
+            .entry(identifier.clone())
+            .or_default()
+            .remote_config = Some(RemoteConfig::new(config_map));
     }
 
     pub fn get_health_status(&self, identifier: &InstanceID) -> Option<ComponentHealth> {

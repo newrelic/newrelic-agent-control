@@ -4,6 +4,7 @@ mod filesystem_ops;
 mod health_check;
 mod invalid_remote_config;
 mod multiple_executables;
+mod multiple_remote_config;
 mod no_orphan_processes;
 mod opamp;
 mod restarting_processes;
