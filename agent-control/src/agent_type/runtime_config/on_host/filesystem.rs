@@ -153,6 +153,13 @@ impl Templateable for FileSystem {
     }
 }
 
+impl FileSystem {
+    /// Returns the list of directory paths (keys) defined in this filesystem configuration.
+    pub fn dir_paths(&self) -> impl Iterator<Item = &SafePath> {
+        self.0.keys()
+    }
+}
+
 impl Templateable for DirEntriesType {
     type Output = rendered::DirEntriesType;
     /// Replaces placeholders in the content with values from the `Variables` map.
