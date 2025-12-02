@@ -9,3 +9,4 @@ mod oci_registry;
 mod opamp_auth;
 mod scenarios;
 mod tools;
+mod oci_registry;
