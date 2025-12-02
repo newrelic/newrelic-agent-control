@@ -26,7 +26,7 @@ use crate::event::AgentControlInternalEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::opamp::builder::build_opamp_client;
+use crate::opamp::builder::opamp_client_builder;
 use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
@@ -71,14 +71,15 @@ impl AgentControlRunner {
         let opamp_http_builder = if let Some(opamp_config) = &self.opamp {
             let k8s_secret_provider = K8sSecretProvider::new(k8s_client.clone());
 
-            let secret_path = format!(
-                "{}:{}:{}",
-                self.k8s_config.namespace, self.k8s_config.secret_private_key_name, K8S_KEY_SECRET
+            let secret_path = K8sSecretProvider::build_secret_path(
+                &self.k8s_config.namespace,
+                &self.k8s_config.secret_private_key_name,
+                K8S_KEY_SECRET,
             );
 
             let secret = k8s_secret_provider.get_secret(&secret_path)?;
 
-            Some(build_opamp_client(
+            Some(opamp_client_builder(
                 opamp_config.clone(),
                 self.proxy.clone(),
                 secret,

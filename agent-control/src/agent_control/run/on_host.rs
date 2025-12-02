@@ -18,7 +18,7 @@ use crate::event::channel::pub_sub;
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::on_host::file_store::FileStore;
-use crate::opamp::builder::build_opamp_client;
+use crate::opamp::builder::opamp_client_builder;
 use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
@@ -58,11 +58,11 @@ impl AgentControlRunner {
 
         let opamp_http_builder = if let Some(opamp_config) = &self.opamp {
             let file_secret_provider = FileSecretProvider::new(self.base_paths.local_dir.clone());
-            let secret = file_secret_provider.get_secret(AUTH_PRIVATE_KEY_FILE_NAME)?;
-            Some(build_opamp_client(
+            let private_key = file_secret_provider.get_secret(AUTH_PRIVATE_KEY_FILE_NAME)?;
+            Some(opamp_client_builder(
                 opamp_config.clone(),
                 self.proxy.clone(),
-                secret,
+                private_key,
             )?)
         } else {
             None

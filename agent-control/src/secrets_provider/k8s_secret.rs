@@ -19,6 +19,12 @@ impl K8sSecretProvider {
     pub fn new(k8s_client: Arc<SyncK8sClient>) -> Self {
         K8sSecretProvider { k8s_client }
     }
+
+    /// Helper to construct the secret path string expected by get_secret.
+    /// Format: namespace:name:key
+    pub fn build_secret_path(namespace: &str, name: &str, key: &str) -> String {
+        format!("{namespace}:{name}:{key}")
+    }
 }
 
 impl SecretsProvider for K8sSecretProvider {
