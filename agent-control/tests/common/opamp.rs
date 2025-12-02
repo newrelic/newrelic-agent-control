@@ -55,19 +55,58 @@ impl ServerState {
 
 #[derive(Clone, Debug, Default)]
 /// Represents a remote configuration that can be sent to the agent.
-pub struct RemoteConfig {
-    raw_body: String,
-    hash: String,
+pub struct RemoteConfig(AgentRemoteConfig);
+
+impl RemoteConfig {
+    pub fn new_agent_config(config_content: &str) -> Self {
+        let mut hasher = DefaultHasher::new();
+        config_content.to_string().hash(&mut hasher);
+        let config_file = AgentConfigFile {
+            body: config_content.as_bytes().to_vec(),
+            content_type: "text/yaml".to_string(),
+        };
+        let config_map = AgentConfigMap {
+            config_map: HashMap::from([(AGENT_CONFIG_PREFIX.to_string(), config_file)]),
+        };
+        Self(AgentRemoteConfig {
+            config: Some(config_map),
+            config_hash: hasher.finish().to_string().into_bytes(),
+        })
+    }
 }
 
-impl From<&str> for RemoteConfig {
-    fn from(value: &str) -> Self {
-        let mut hasher = DefaultHasher::new();
-        value.to_string().hash(&mut hasher);
-        Self {
-            raw_body: value.to_string(),
-            hash: hasher.finish().to_string(),
+#[derive(Clone, Debug, Default)]
+/// Represents a remote configuration signature custome message
+pub struct RemoteConfigSignature(CustomMessage);
+impl RemoteConfigSignature {
+    pub fn new(key_pair: &Ed25519KeyPair, remote_config: RemoteConfig) -> Self {
+        let mut custom_message_data = HashMap::new();
+
+        let config_map = remote_config.0.config.unwrap_or_default().config_map;
+
+        for (cfg_key, cfg_content) in config_map {
+            // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
+            // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
+            // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
+            // the signature against that.
+            let digest = digest::digest(&digest::SHA256, &cfg_content.body);
+            let msg = BASE64_STANDARD.encode(digest);
+            let signature = key_pair.sign(msg.as_bytes());
+
+            custom_message_data.insert(
+                cfg_key,
+                vec![SignatureFields {
+                    signature: BASE64_STANDARD.encode(signature),
+                    signing_algorithm: ED25519,
+                    key_id: JWKS_PUBLIC_KEY_ID.to_string(),
+                }],
+            );
         }
+        Self(CustomMessage {
+            capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+            r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
+            data: serde_json::to_vec(&custom_message_data).unwrap(),
+        })
     }
 }
 
@@ -132,7 +171,7 @@ impl FakeServer {
             .agent_state
             .entry(identifier)
             .or_default()
-            .remote_config = Some(response.as_ref().into());
+            .remote_config = Some(RemoteConfig::new_agent_config(response.as_ref()));
     }
 
     pub fn get_health_status(&self, identifier: &InstanceID) -> Option<ComponentHealth> {
@@ -223,7 +262,7 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<ServerState>>>, req: web::Byte
             .remote_config
             .as_ref()
             .is_some_and(|config_response| {
-                config_response.hash.encode_to_vec() == cfg_status.last_remote_config_hash
+                config_response.0.config_hash == cfg_status.last_remote_config_hash
             })
         {
             agent_state.remote_config = None;
@@ -262,54 +301,21 @@ async fn jwks_handler(state: web::Data<Arc<Mutex<ServerState>>>, _req: web::Byte
 
 fn build_response(
     instance_id: InstanceID,
-    agent_remote_config: Option<RemoteConfig>,
+    maybe_remote_config: Option<RemoteConfig>,
     key_pair: &Ed25519KeyPair,
     flags: u64,
 ) -> Vec<u8> {
-    let mut remote_config = None;
-    let mut custom_message = None;
+    let mut maybe_agent_remote_config = None;
+    let mut maybe_custom_message = None;
 
-    if let Some(config) = agent_remote_config {
-        remote_config = Some(AgentRemoteConfig {
-            config_hash: config.hash.encode_to_vec(),
-            config: Some(AgentConfigMap {
-                config_map: HashMap::from([(
-                    AGENT_CONFIG_PREFIX.to_string(),
-                    AgentConfigFile {
-                        body: config.raw_body.clone().into_bytes(),
-                        content_type: " text/yaml".to_string(),
-                    },
-                )]),
-            }),
-        });
-
-        // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
-        // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
-        // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
-        // the signature against that.
-        let digest = digest::digest(&digest::SHA256, config.raw_body.as_bytes());
-        let msg = BASE64_STANDARD.encode(digest);
-        let signature = key_pair.sign(msg.as_bytes());
-
-        let custom_message_data = HashMap::from([(
-            AGENT_CONFIG_PREFIX.to_string(),
-            vec![SignatureFields {
-                signature: BASE64_STANDARD.encode(signature),
-                signing_algorithm: ED25519,
-                key_id: JWKS_PUBLIC_KEY_ID.to_string(),
-            }],
-        )]);
-
-        custom_message = Some(CustomMessage {
-            capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
-            r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
-            data: serde_json::to_vec(&custom_message_data).unwrap(),
-        });
+    if let Some(remote_config) = maybe_remote_config {
+        maybe_custom_message = Some(RemoteConfigSignature::new(key_pair, remote_config.clone()).0);
+        maybe_agent_remote_config = Some(remote_config.0);
     }
     ServerToAgent {
         instance_uid: instance_id.into(),
-        remote_config,
-        custom_message,
+        remote_config: maybe_agent_remote_config,
+        custom_message: maybe_custom_message,
         flags,
         ..Default::default()
     }
