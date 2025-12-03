@@ -91,6 +91,60 @@ fn onhost_ac_multiconfig_agents_append() {
 }
 
 #[test]
+fn onhost_ac_multiconfig_agents_append_fails() {
+    let mut opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
+
+    create_agent_control_config(
+        opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
+        "{}".to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+
+    let config = format!(
+        r#"
+        agents:
+          agent-a:
+            agent_type: "{sleep_agent_type}"
+        "#
+    );
+
+    opamp_server.set_multi_config_response(
+        &ac_instance_id,
+        HashMap::from([
+            // Both configs define agent-a, causing a conflict.
+            (format!("{AGENT_CONFIG_PREFIX}-a"), config.clone()),
+            (format!("{AGENT_CONFIG_PREFIX}-b"), config),
+        ]),
+    );
+
+    retry(60, Duration::from_secs(1), || {
+        check_latest_remote_config_status_is_expected(
+            &opamp_server,
+            &ac_instance_id,
+            RemoteConfigStatuses::Failed as i32,
+        )?;
+
+        Ok(())
+    });
+}
+
+#[test]
 fn onhost_sub_agent_multiconfig() {
     let mut opamp_server = FakeServer::start_new();
 
