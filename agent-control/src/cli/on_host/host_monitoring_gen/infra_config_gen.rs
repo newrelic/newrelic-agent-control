@@ -6,6 +6,7 @@ use crate::cli::on_host::config_gen::region::Region;
 use crate::cli::on_host::host_monitoring_gen::infra_config::{
     INFRA_AGENT_TYPE_VERSION, InfraConfig,
 };
+use crate::cli::on_host::proxy_config::ProxyConfig;
 use crate::config_migrate::migration::agent_config_getter::AgentConfigGetter;
 use crate::config_migrate::migration::config::{MappingType, MigrationConfig};
 use crate::config_migrate::migration::converter::ConfigConverter;
@@ -59,7 +60,7 @@ impl InfraConfigGenerator {
         &self,
         region: Region,
         custom_attributes: Option<String>,
-        proxy: Option<String>,
+        proxy: Option<ProxyConfig>,
     ) -> Result<(), CliError> {
         info!("Generating infra agent configuration");
 
@@ -67,9 +68,7 @@ impl InfraConfigGenerator {
         if let Some(ca) = custom_attributes {
             infra_config = infra_config.with_custom_attributes(ca.as_str())?;
         }
-        if let Some(px) = proxy {
-            infra_config = infra_config.with_proxy(px.as_str());
-        }
+        infra_config = infra_config.setup_proxy(proxy);
 
         if self.infra_config_path.is_file() {
             return self.migrate_old_infra(infra_config);
@@ -232,7 +231,10 @@ configs:
             infra_file_path.to_str().unwrap()
         );
 
-        let new_proxy = "https://new-proxy.com".to_string();
+        let new_proxy = ProxyConfig {
+            proxy_url: Some("https://new-proxy.com".to_string()),
+            ..Default::default()
+        };
 
         let infra_config_generator = InfraConfigGenerator::new(
             temp_dir.path().to_path_buf(),
