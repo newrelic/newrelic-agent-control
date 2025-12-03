@@ -13,8 +13,6 @@ use crate::http::config::ProxyConfig;
 use crate::opamp::auth::token_retriever::TokenRetrieverImplError;
 use crate::opamp::client_builder::PollInterval;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
-use crate::secrets_provider::file::FileSecretProviderError;
-use crate::secrets_provider::k8s_secret::K8sSecretProviderError;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
@@ -37,16 +35,6 @@ pub enum Environment {
     Linux,
     Windows,
     K8s,
-}
-impl From<K8sSecretProviderError> for RunError {
-    fn from(e: K8sSecretProviderError) -> Self {
-        RunError(format!("K8s secret error: {}", e))
-    }
-}
-impl From<FileSecretProviderError> for RunError {
-    fn from(e: FileSecretProviderError) -> Self {
-        RunError(format!("File Secret Provider Error: {}", e))
-    }
 }
 impl From<TokenRetrieverImplError> for RunError {
     fn from(e: TokenRetrieverImplError) -> Self {

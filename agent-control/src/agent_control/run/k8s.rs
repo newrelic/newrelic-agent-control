@@ -7,7 +7,7 @@ use crate::agent_control::config_validator::k8s::K8sReleaseNamesConfigValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, CD_EXTERNAL_ENABLED_ATTRIBUTE_KEY,
     CD_REMOTE_UPDATE_ENABLED_ATTRIBUTE_KEY, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
-    HOST_NAME_ATTRIBUTE_KEY, K8S_KEY_SECRET, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY,
+    HOST_NAME_ATTRIBUTE_KEY, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY,
 };
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
@@ -73,11 +73,13 @@ impl AgentControlRunner {
 
             let secret_path = K8sSecretProvider::build_secret_path(
                 &self.k8s_config.namespace,
-                &self.k8s_config.secret_private_key_name,
-                K8S_KEY_SECRET,
+                &self.k8s_config.auth_secret.secret_name,
+                &self.k8s_config.auth_secret.secret_key_name,
             );
 
-            let secret = k8s_secret_provider.get_secret(&secret_path)?;
+            let secret = k8s_secret_provider
+                .get_secret(&secret_path)
+                .map_err(|e| RunError(format!("K8s secret error: {}", e)))?;
 
             Some(opamp_client_builder(
                 opamp_config.clone(),

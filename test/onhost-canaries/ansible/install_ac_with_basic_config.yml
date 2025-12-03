@@ -9,7 +9,7 @@
     # Pre-release version of the agent control is used by default
     repo_endpoint: http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview
     agent_control_service_conf: /etc/newrelic-agent-control/systemd-env.conf
-    agent_control_private_key: /etc/newrelic-agent-control/auth_key.key
+    agent_control_private_key: /etc/newrelic-agent-control/priv.key
     infra_staging: true
 
   tasks:

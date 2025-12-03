@@ -11,7 +11,9 @@ agentControlDeployment:
       secretName: "sys-identity"
 
     config:
-      secretPrivateKeyName: "sys-identity"
+      authSecret:
+        secretName: "sys-identity"
+        secretKeyName: "private_key"
       fleet_control:
         enabled: true
         # Fleet with name 'ac-e2e-3'. The sub-agent reports data to the 'Agent Control Canaries' account.
