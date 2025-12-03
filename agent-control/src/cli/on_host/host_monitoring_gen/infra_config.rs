@@ -122,12 +122,17 @@ impl InfraConfig {
 
     pub fn setup_proxy(mut self, proxy: Option<ProxyConfig>) -> Self {
         // Delete previous proxy configuration
-        ["proxy", "ca_bundle_dir", "ca_bundle_file"]
-            .into_iter()
-            .for_each(|proxy_key| {
-                self.deletions
-                    .push(serde_yaml::Value::String(proxy_key.to_string()));
-            });
+        [
+            "proxy",
+            "ca_bundle_dir",
+            "ca_bundle_file",
+            "ignore_system_proxy",
+        ]
+        .into_iter()
+        .for_each(|proxy_key| {
+            self.deletions
+                .push(serde_yaml::Value::String(proxy_key.to_string()));
+        });
         if let Some(proxy_config) = proxy
             && !proxy_config.is_empty()
         {
