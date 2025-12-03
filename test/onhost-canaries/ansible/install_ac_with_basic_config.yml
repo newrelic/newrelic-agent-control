@@ -54,6 +54,12 @@
       config_path: "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml"
       update_config:
         fleet_control:
+          auth_config:
+            client_id: "{{ system_identity_client_id }}"
+            private_key_path: "{{ agent_control_private_key }}"
+            provider: local
+            token_url: "{{ token_endpoint }}"
+          endpoint: "{{ opamp_endpoint }}"
           fleet_id: "{{ fleet_id }}"
         log:
           level: debug
