@@ -15,6 +15,7 @@ pub enum Namespace {
     // These are loaded every time a remote config is received.
     EnvironmentVariable,
     Vault,
+    File,
     K8sSecret,
 }
 
@@ -35,6 +36,7 @@ impl Namespace {
     const VAULT_SECRET: &'static str = "vault";
     /// Encapsulates the secrets retrieved from K8s Secrets
     const K8S_SECRET: &'static str = "kubesec";
+    const FILE_SECRET: &'static str = "file";
 
     pub fn namespaced_name(&self, name: impl AsRef<str>) -> NamespacedVariableName {
         format!("{}{}{}", self, Self::PREFIX_NS_SEPARATOR, name.as_ref())
@@ -44,6 +46,7 @@ impl Namespace {
         [
             Namespace::Vault,
             Namespace::K8sSecret,
+            Namespace::File,
             Namespace::EnvironmentVariable,
         ]
         .iter()
@@ -59,6 +62,7 @@ impl Display for Namespace {
             Self::AgentControl => Self::AC,
             Self::EnvironmentVariable => Self::ENVIRONMENT_VARIABLE,
             Self::Vault => Self::VAULT_SECRET,
+            Self::File => Self::FILE_SECRET,
             Self::K8sSecret => Self::K8S_SECRET,
         };
         write!(f, "{}{ns}", Self::PREFIX)
@@ -93,6 +97,10 @@ mod tests {
         assert_eq!(
             "nr-kubesec:test".to_string(),
             Namespace::K8sSecret.namespaced_name("test")
+        );
+        assert_eq!(
+            "nr-file:test".to_string(),
+            Namespace::File.namespaced_name("test")
         );
     }
 }

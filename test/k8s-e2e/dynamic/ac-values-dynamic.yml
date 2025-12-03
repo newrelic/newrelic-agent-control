@@ -8,7 +8,9 @@ agentControlDeployment:
     subAgentsNamespace: "newrelic-agents"
     verboseLog: true # It is propagated to some agents (same as licenseKey and cluster)
     config:
-      secretPrivateKeyName: "agent-control-auth"
+      authSecret:
+        secretName: "agent-control-auth"
+        secretKeyName: "private_key"
       fleet_control:
         enabled: false
       log:

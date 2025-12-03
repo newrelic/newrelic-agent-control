@@ -407,34 +407,36 @@ fn ac_chart_values(opamp_endpoint: Url, name_override: &str) -> String {
         // give a unique name per test to the cluster role to avoid collisions
         "nameOverride": name_override,
         "config": {
-          // Disable the SI creation
-          "fleet_control": {
-            "enabled": false,
-          },
-          "acRemoteUpdate": true,
-          "cdRemoteUpdate": false,
-          "secretPrivateKeyName": K8S_PRIVATE_KEY_SECRET,
-          "override": {
-            "log": {
-               "level":"debug",
-            },
-              // To make health assertions faster
-            "health_check":{
-              "initial_delay": "1s",
-              "interval": "20s",
-            },
+            // Disable the SI creation
             "fleet_control": {
-              "endpoint": opamp_endpoint.as_str(),
-              "poll_interval": format!("{POLL_INTERVAL}s"),
-              "signature_validation": {
-                "enabled": "false",
-              },
+                "enabled": false,
             },
-          }
+            "acRemoteUpdate": true,
+            "cdRemoteUpdate": false,
+            "authSecret": {
+                "secretName": K8S_PRIVATE_KEY_SECRET,
+                "secretKeyName": K8S_KEY_SECRET,
+            },
+            "override": {
+                "log": {
+                    "level": "debug",
+                },
+                "health_check": {
+                    "initial_delay": "1s",
+                    "interval": "20s",
+                },
+                "fleet_control": {
+                    "endpoint": opamp_endpoint.as_str(),
+                    "poll_interval": format!("{POLL_INTERVAL}s"),
+                    "signature_validation": {
+                        "enabled": "false",
+                    },
+                },
+            }
         },
         "global": {
-          "cluster": "test-cluster",
-          "licenseKey": "***",
+            "cluster": "test-cluster",
+            "licenseKey": "***",
         },
     })
     .to_string()

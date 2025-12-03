@@ -29,7 +29,10 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
         "cleanupManagedResources": false,
         "subAgentsNamespace": subagents_namespace,
         "config": {
-            "secretPrivateKeyName": K8S_PRIVATE_KEY_SECRET,
+            "authSecret": {
+                "secretName": K8S_PRIVATE_KEY_SECRET,
+                "secretKeyName": K8S_KEY_SECRET,
+            },
             "fleet_control": {
                 "enabled": false,
             },

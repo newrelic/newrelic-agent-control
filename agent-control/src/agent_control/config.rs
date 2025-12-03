@@ -214,6 +214,19 @@ pub struct SubAgentConfig {
     pub agent_type: AgentTypeID,
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Default)]
+pub struct AuthSecret {
+    /// The name of the Kubernetes Secret resource.
+    /// Defaults to "newrelic-agent-control-secret" if not specified.
+    #[serde(default)]
+    pub secret_name: String,
+
+    /// The key within the Secret data map where the value is stored.
+    /// Defaults to "api-key" if not specified.
+    #[serde(default)]
+    pub secret_key_name: String,
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct OpAMPClientConfig {
     /// OpAMP server endpoint.
@@ -243,6 +256,7 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
             poll_interval: PollInterval,
             #[serde(default, with = "http_serde::header_map")]
             headers: HeaderMap,
+            #[serde(default)]
             auth_config: Option<AuthConfig>,
             #[serde(default)]
             fleet_id: String,
@@ -309,7 +323,7 @@ pub struct K8sConfig {
     /// Specifies the key name within the Kubernetes Secret
     /// used to retrieve the required secret for credentials.
     #[serde(default)]
-    pub secret_private_key_name: String,
+    pub auth_secret: AuthSecret,
 }
 
 pub fn helmrelease_v2_type_meta() -> TypeMeta {
@@ -391,7 +405,10 @@ impl Default for K8sConfig {
             ac_release_name: Default::default(),
             cd_remote_update: Default::default(),
             cd_release_name: Default::default(),
-            secret_private_key_name: Default::default(),
+            auth_secret: AuthSecret {
+                secret_name: Default::default(),
+                secret_key_name: Default::default(),
+            },
         }
     }
 }
@@ -482,8 +499,12 @@ agents:
 k8s:
   namespace: default
   cluster_name: some-cluster
-  ac_remote_update: true,
-  cd_remote_update: true,
+  namespace_agents: default
+  ac_remote_update: true
+  cd_remote_update: true
+  auth_secret:
+    secret_name: "secret-name"
+    secret_key_name: "secret-key"
 "#;
 
     const AGENTCONTROL_CONFIG_WRONG_AGENT_ID: &str = r#"
@@ -537,7 +558,11 @@ agents: {}
         assert!(
             serde_yaml::from_str::<AgentControlDynamicConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok()
         );
-        assert!(serde_yaml::from_str::<AgentControlDynamicConfig>(EXAMPLE_K8S_CONFIG).is_ok());
+        let k8s_config = serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_K8S_CONFIG);
+        assert!(k8s_config.is_ok());
+        let k8s = k8s_config.unwrap().k8s.unwrap();
+        assert_eq!(k8s.auth_secret.secret_name, "secret-name");
+        assert_eq!(k8s.auth_secret.secret_key_name, "secret-key");
         assert!(
             serde_yaml::from_str::<AgentControlDynamicConfig>(
                 EXAMPLE_AGENTCONTROL_CONFIG_EMPTY_AGENTS
