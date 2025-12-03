@@ -10,10 +10,11 @@ scenarios:
       # we need wait and retry since the resource might me not created yet
       - timeout 600s bash -c "until kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 deploy/operator-k8s-agents-operator -n newrelic-agents; do sleep 5; echo waiting on operator ; done"
       - sleep 60
-      - kubectl run ${SCENARIO_TAG}-python --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-python:main -o yaml | kubectl label app=pythonapp -f - --local -o yaml | kubectl create -f -
-      - kubectl run ${SCENARIO_TAG}-java --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java:main -o yaml | kubectl label app=javaapp -f - --local -o yaml | kubectl create -f -
-      - kubectl run ${SCENARIO_TAG}-dotnet --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-dotnet:main -o yaml | kubectl label app=dotneteapp -f - --local -o yaml | kubectl create -f -
-      - kubectl run ${SCENARIO_TAG}-node --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-nodejs:main -o yaml | kubectl label app=nodeapp -f - --local -o yaml | kubectl create -f -
+      # Pinned digest to the 'main' tag at 2025/12/02
+      - kubectl run ${SCENARIO_TAG}-python --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-python@sha256:bed9586c6ad919365ce165026717c2eaa81a439fdf5fb1d24872a58aeeaf45a1 -o yaml | kubectl label app=pythonapp -f - --local -o yaml | kubectl create -f -
+      - kubectl run ${SCENARIO_TAG}-java --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java@sha256:c7dd7b82a124ed358fac83fb609ccd9346bee32c1f4de7863cf810b80f0c8f18 -o yaml | kubectl label app=javaapp -f - --local -o yaml | kubectl create -f -
+      - kubectl run ${SCENARIO_TAG}-dotnet --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-dotnet@sha256:def752e3e4f9b1f40b6f943c376dc8cb7f0f8a204be9ef810448ea1de7b52419 -o yaml | kubectl label app=dotneteapp -f - --local -o yaml | kubectl create -f -
+      - kubectl run ${SCENARIO_TAG}-node --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-nodejs@sha256:5a07647c580c8fc49c0173b00d9c159c05451ca1fa122a81036648832546e7bf -o yaml | kubectl label app=nodeapp -f - --local -o yaml | kubectl create -f -
       - kubectl create -f ./rubyapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-ruby/ | kubectl create -f -
 
       # Generate some traffic
