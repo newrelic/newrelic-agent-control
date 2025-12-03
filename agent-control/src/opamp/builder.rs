@@ -17,7 +17,7 @@ pub fn opamp_client_builder(
     let token_retriever = Arc::new(
         TokenRetrieverImpl::try_build(
             opamp_config.clone().auth_config,
-            private_key,
+            Some(private_key),
             proxy_config.clone(),
         )
         .inspect_err(|err| error!("Could not build OpAMP's token retriever: {err}"))

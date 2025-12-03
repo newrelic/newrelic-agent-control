@@ -27,8 +27,7 @@ use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
-use crate::secrets_provider::file::FileSecretProvider;
-use crate::secrets_provider::{SecretsProvider, SecretsProviders};
+use crate::secrets_provider::SecretsProviders;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
@@ -38,6 +37,7 @@ use crate::values::ConfigRepo;
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, info};
@@ -57,8 +57,10 @@ impl AgentControlRunner {
         ));
 
         let opamp_http_builder = if let Some(opamp_config) = &self.opamp {
-            let file_secret_provider = FileSecretProvider::new(self.base_paths.local_dir.clone());
-            let private_key = file_secret_provider.get_secret(AUTH_PRIVATE_KEY_FILE_NAME)?;
+            let private_key = get_secret(
+                self.base_paths.local_dir.clone(),
+                AUTH_PRIVATE_KEY_FILE_NAME,
+            )?;
             Some(opamp_client_builder(
                 opamp_config.clone(),
                 self.proxy.clone(),
@@ -211,6 +213,11 @@ impl AgentControlRunner {
         .run()
         .map_err(|err| RunError(err.to_string()))
     }
+}
+fn get_secret(base_path: PathBuf, secret_name: &str) -> Result<String, RunError> {
+    let full_path = base_path.join(secret_name);
+
+    std::fs::read_to_string(&full_path).map_err(|err| RunError(err.to_string()))
 }
 
 pub fn agent_control_opamp_non_identifying_attributes(
