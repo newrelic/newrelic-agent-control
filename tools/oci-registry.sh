@@ -54,11 +54,21 @@ function download_zot() {
 
 function create_zot_configuration() {
     touch $LOG_FILE
+    
+    STORAGE_PATH="$CONFIG_FOLDER/storage"
+    LOG_PATH="$LOG_FILE"
+
+    # Make sure paths are compatible with Windows mingw, when using that environment
+    if [ "$OS" = "windows" ]; then
+        STORAGE_PATH=$(cygpath -m "$STORAGE_PATH")
+        LOG_PATH=$(cygpath -m "$LOG_PATH")
+    fi
+    
     cat > "$CONFIG_FILE" << EOF
 {
     "distSpecVersion": "1.0.1",
     "storage": {
-        "rootDirectory": "$CONFIG_FOLDER/storage"
+        "rootDirectory": "$STORAGE_PATH"
     },
     "http": {
         "address": "0.0.0.0",
@@ -66,7 +76,7 @@ function create_zot_configuration() {
     },
     "log": {
         "level": "debug",
-        "output": "$LOG_FILE"
+        "output": "$LOG_PATH"
     }
 }
 EOF
@@ -101,16 +111,16 @@ if [[ ! -d ~/.zot ]]; then
 fi
 
 
+OS=$(detect_os)
+if [ "$OS" = "unknown" ]; then
+    echo "Error: Unsupported operating system"
+    exit 1
+fi
+echo "Detected OS: $OS"
+
+
 echo "Downloading zot $VERSION..."
 if [[ ! -f $CONFIG_FOLDER/zot ]]; then
-    OS=$(detect_os)
-    if [ "$OS" = "unknown" ]; then
-        echo "Error: Unsupported operating system"
-        exit 1
-    fi
-    echo "Detected OS: $OS"
-
-
     ARCH=$(detect_arch)
     if [ "$ARCH" = "unknown" ]; then
         echo "Error: Unsupported architecture"
