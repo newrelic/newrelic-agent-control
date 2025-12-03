@@ -12,7 +12,7 @@ fn test_oci_registry_is_running_with_oci_registry() {
         .expect("Failed to create HTTP client");
 
     let response = client
-        .get(&format!("{}/v2/", registry_url))
+        .get(format!("{}/v2/", registry_url))
         .send()
         .expect("Failed to connect to OCI registry");
 
