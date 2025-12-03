@@ -153,6 +153,8 @@ jobs:
       contents: read
     with:
       environment: staging
+      # AC Staging Account `host-canaries-staging` fleet
+      fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlhZTNiNS01Yjg5LTdkNjYtYWU0MC1lNmZkOTY2ZDFhMDA"
       operation: apply
       package_version: 0.100.${{ github.run_id }}
     secrets:

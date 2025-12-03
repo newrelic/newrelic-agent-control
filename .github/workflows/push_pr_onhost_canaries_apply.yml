@@ -23,9 +23,16 @@ jobs:
       contents: read
     strategy:
       matrix:
-        environment: [ staging, production ]
+        include:
+          - environment: staging
+            # AC Staging Account `host-canaries-staging` fleet
+            fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlhZTNiNS01Yjg5LTdkNjYtYWU0MC1lNmZkOTY2ZDFhMDA"
+          - environment: production
+            # AC US Production Account `host-canaries-production` fleet
+            fleet_id: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWFlM2EyLTA3OTctNzczYS05Y2JjLWMzNzZkMjAwMWFkZg"
     with:
       environment: ${{ matrix.environment }}
+      fleet_id: ${{ matrix.fleet_id }}
       operation: apply
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
