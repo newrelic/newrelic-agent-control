@@ -53,8 +53,19 @@
     vars:
       config_path: "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml"
       update_config:
+        fleet_control:
+          fleet_id: "{{ fleet_id }}"
         log:
-          level: info
+          level: debug
+        self_instrumentation:
+          opentelemetry:
+            endpoint: "{{ otlp_endpoint }}"
+            headers:
+              api-key: "{{ nr_license_key }}"
+            traces:
+              enabled: true
+            logs:
+              enabled: true
         agents:
           infra:
             agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
