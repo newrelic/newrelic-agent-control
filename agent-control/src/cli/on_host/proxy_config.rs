@@ -27,13 +27,32 @@ pub struct ProxyConfig {
     #[arg(long, required = false)]
     pub proxy_ca_bundle_file: Option<String>,
 
+    #[serde(skip_serializing_if = "is_false")]
     #[arg(long, default_value_t = false, value_parser = ignore_system_proxy_parser, action = clap::ArgAction::Set)]
     pub ignore_system_proxy: bool,
+}
+
+impl ProxyConfig {
+    pub fn is_empty(&self) -> bool {
+        [
+            self.proxy_url.as_ref(),
+            self.proxy_ca_bundle_dir.as_ref(),
+            self.proxy_ca_bundle_file.as_ref(),
+        ]
+        .iter()
+        .all(|v| v.map(|v| v.is_empty()).unwrap_or(true))
+            && !self.ignore_system_proxy
+    }
 }
 
 // Helper to avoid serializing empty values
 fn is_none_or_empty_string(v: &Option<String>) -> bool {
     v.as_ref().map(|s| s.is_empty()).unwrap_or(true)
+}
+
+// Helper to avoid serializing false values
+fn is_false(v: &bool) -> bool {
+    !v
 }
 
 // Custom parser to allow empty values as false booleans
@@ -60,8 +79,7 @@ mod tests {
         };
 
         let serialized = serde_yaml::to_string(&proxy_config).unwrap();
-        // Only ignore_system_proxy should be present
-        assert_eq!(serialized.trim(), "ignore_system_proxy: false");
+        assert_eq!(serialized.trim(), "{}");
     }
 
     #[test]

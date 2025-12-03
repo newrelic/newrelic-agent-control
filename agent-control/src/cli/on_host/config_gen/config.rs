@@ -44,7 +44,7 @@ pub struct Config {
 
     pub server: Server,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "is_none_or_empty")]
     pub proxy: Option<ProxyConfig>,
 
     pub agents: HashMap<String, Agent>,
@@ -81,6 +81,11 @@ pub struct Agent {
     pub agent_type: String,
 }
 
+/// Helper to avoid deserializing proxy values when empty or default
+fn is_none_or_empty(v: &Option<ProxyConfig>) -> bool {
+    v.as_ref().map(|v| v.is_empty()).unwrap_or(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,5 +113,38 @@ mod tests {
             .collect();
 
         assert_eq!(result, expected_map);
+    }
+
+    #[rstest]
+    #[case(
+        Config {
+            fleet_control: None,
+            server: Server { enabled: true },
+            proxy: None,
+            agents: HashMap::new(),
+        },
+        r#"{"server":{"enabled":true},"agents":{}}"#
+    )]
+    #[case(
+        Config {
+            fleet_control: None,
+            server: Server { enabled: false },
+            proxy: Some(ProxyConfig::default()),
+            agents: HashMap::new(),
+        },
+        r#"{"server":{"enabled":false},"agents":{}}"#
+    )]
+    #[case(
+        Config {
+            fleet_control: None,
+            server: Server { enabled: true },
+            proxy: Some(ProxyConfig { proxy_url: Some("http://proxy:8080".to_string()), ..Default::default() }),
+            agents: AgentSet::InfraAgent.into(),
+        },
+        r#"{"server":{"enabled":true},"proxy":{"url":"http://proxy:8080"},"agents":{"nr-infra":{"agent_type":"newrelic/com.newrelic.infrastructure:0.1.0"}}}"#
+    )]
+    fn test_config_serialization(#[case] config: Config, #[case] expected_json: &str) {
+        let serialized = serde_json::to_string(&config).unwrap();
+        assert_eq!(serialized, expected_json);
     }
 }
