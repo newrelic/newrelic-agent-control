@@ -1,6 +1,5 @@
 pub mod attributes;
 pub mod auth;
-pub mod builder;
 pub mod callbacks;
 pub mod client_builder;
 pub mod effective_config;

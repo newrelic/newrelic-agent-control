@@ -3,9 +3,8 @@ use crate::agent_control::config_repository::repository::AgentControlConfigLoade
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, AUTH_PRIVATE_KEY_FILE_NAME, FLEET_ID_ATTRIBUTE_KEY,
-    HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-    OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
+    AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
@@ -18,7 +17,6 @@ use crate::event::channel::pub_sub;
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::on_host::file_store::FileStore;
-use crate::opamp::builder::opamp_client_builder;
 use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
@@ -27,8 +25,9 @@ use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
+use crate::secret_retriever::on_host::retrieve::OnHostSecretRetriever;
+use crate::secrets_provider::SecretsProviders;
 use crate::secrets_provider::file::FileSecretProvider;
-use crate::secrets_provider::{SecretsProvider, SecretsProviders};
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
@@ -56,17 +55,11 @@ impl AgentControlRunner {
             self.base_paths.remote_dir.clone(),
         ));
 
-        let opamp_http_builder = if let Some(opamp_config) = &self.opamp {
-            let file_secret_provider = FileSecretProvider::new(self.base_paths.local_dir.clone());
-            let private_key = file_secret_provider.get_secret(AUTH_PRIVATE_KEY_FILE_NAME)?;
-            Some(opamp_client_builder(
-                opamp_config.clone(),
-                self.proxy.clone(),
-                private_key,
-            )?)
-        } else {
-            None
-        };
+        let secret_retriever =
+            OnHostSecretRetriever::new(self.base_paths.clone(), FileSecretProvider::new());
+
+        let opamp_http_builder =
+            Self::build_opamp_http_builder(self.opamp, self.proxy.clone(), secret_retriever)?;
 
         debug!("Initializing yaml_config_repository");
         let config_repository = ConfigRepo::new(file_store.clone());
@@ -212,7 +205,6 @@ impl AgentControlRunner {
         .map_err(|err| RunError(err.to_string()))
     }
 }
-
 pub fn agent_control_opamp_non_identifying_attributes(
     identifiers: &Identifiers,
 ) -> HashMap<String, DescriptionValueType> {

@@ -1,6 +1,7 @@
 use http::Uri;
 use nr_auth::ClientID;
 use serde::Deserialize;
+use std::path::PathBuf;
 
 /// Authorization configuration used by the OpAmp connection to NewRelic.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -32,25 +33,41 @@ pub enum ProviderConfig {
 /// Uses a local private key to sign the access token request.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct LocalConfig {
-    /// Private key value (in memory).
-    pub private_key_value: String,
+    /// The absolute file path to the private key.
+    /// This field is mandatory.
+    pub private_key_path: PathBuf,
+
+    /// The actual content of the private key loaded in memory.
+    /// This is optional and defaults to `None` upon initialization.
+    pub private_key_value: Option<String>,
 }
 
 impl LocalConfig {
-    pub fn new(value: String) -> Self {
+    /// Creates a new `LocalConfig` with the specified file path.
+    /// The `private_key_value` is initialized as `None`.
+    pub fn new_with_path(path: PathBuf) -> Self {
         Self {
-            private_key_value: value,
+            private_key_path: path,
+            private_key_value: None,
+        }
+    }
+
+    /// Builder method to set the in-memory private key value.
+    /// if the key content is already known
+    pub fn new_with_value(value: String) -> Self {
+        Self {
+            private_key_path: PathBuf::default(),
+            private_key_value: Some(value),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use http::Uri;
-
     use crate::opamp::auth::config::{AuthConfig, LocalConfig, ProviderConfig};
+    use http::Uri;
+    use std::path::PathBuf;
+    use std::str::FromStr;
 
     #[test]
     fn test_deserialize_default() {
@@ -101,6 +118,7 @@ retries: 3
 token_url: "http://fake.com/oauth2/v1/token"
 client_id: "fake_client_id"
 provider: "local"
+private_key_path: "/tmp/fake.key"
 private_key_value: "secret"
                     "#,
                 ),
@@ -108,7 +126,8 @@ private_key_value: "secret"
                     client_id: "fake_client_id".into(),
                     token_url: Uri::from_str("http://fake.com/oauth2/v1/token").unwrap(),
                     provider: Some(ProviderConfig::Local(LocalConfig {
-                        private_key_value: "secret".to_string(),
+                        private_key_path: PathBuf::from("/tmp/fake.key"),
+                        private_key_value: Some("secret".to_string()),
                     })),
                     retries: 0u8,
                 },

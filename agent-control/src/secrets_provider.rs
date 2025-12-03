@@ -7,6 +7,7 @@ use crate::agent_type::variable::namespace::Namespace;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::secrets_provider::env::{Env, EnvError};
+use crate::secrets_provider::file::{FileSecretProvider, FileSecretProviderError};
 use crate::secrets_provider::k8s_secret::{K8sSecretProvider, K8sSecretProviderError};
 use crate::secrets_provider::vault::{Vault, VaultConfig, VaultError};
 use serde::Deserialize;
@@ -50,6 +51,9 @@ pub enum SecretsProvidersError {
 
     #[error("env var provider failed: {0}")]
     EnvError(#[from] EnvError),
+
+    #[error("file secret provider failed: {0}")]
+    FileError(#[from] FileSecretProviderError),
 }
 
 /// Trait for operating with secrets providers.
@@ -73,6 +77,7 @@ pub trait SecretsProvider {
 pub enum SecretsProviderType {
     Vault(Vault),
     K8sSecret(K8sSecretProvider),
+    File(FileSecretProvider),
     Env(Env),
 }
 
@@ -83,6 +88,7 @@ impl SecretsProvider for SecretsProviderType {
         match self {
             SecretsProviderType::Vault(provider) => Ok(provider.get_secret(secret_path)?),
             SecretsProviderType::K8sSecret(provider) => Ok(provider.get_secret(secret_path)?),
+            SecretsProviderType::File(provider) => Ok(provider.get_secret(secret_path)?),
             SecretsProviderType::Env(provider) => Ok(provider.get_secret(secret_path)?),
         }
     }
@@ -118,6 +124,14 @@ impl Registry<SecretsProviderType> {
         self.0.insert(
             Namespace::K8sSecret,
             SecretsProviderType::K8sSecret(K8sSecretProvider::new(k8s_client)),
+        );
+        self
+    }
+
+    pub fn with_file(mut self) -> Self {
+        self.0.insert(
+            Namespace::File,
+            SecretsProviderType::File(FileSecretProvider::new()),
         );
         self
     }

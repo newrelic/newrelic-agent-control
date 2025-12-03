@@ -32,7 +32,7 @@
 
         - name: Import the L2 private key from env-var
           copy:
-            dest: "/etc/newrelic-agent-control/auth_key"
+            dest: "/etc/newrelic-agent-control/priv.key"
             # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
             content: "{{ lookup('ansible.builtin.env', 'NR_SYSTEM_IDENTITY_PRIVATE_KEY') }}"
 
@@ -43,7 +43,7 @@
             monitoring_source: "infra-agent"
             # ac-e2e-onhost-2 fleet on canaries account
             fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg
-            agent_control_private_key: "/etc/newrelic-agent-control/auth_key"
+            agent_control_private_key: "/etc/newrelic-agent-control/priv.key"
 
         - name: Setup AC config
           include_role:

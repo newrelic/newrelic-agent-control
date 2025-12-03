@@ -10,11 +10,11 @@ use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
 use crate::http::config::ProxyConfig;
-use crate::opamp::auth::token_retriever::TokenRetrieverImplError;
+use crate::opamp::auth::token_retriever::{TokenRetrieverImpl, TokenRetrieverImplError};
 use crate::opamp::client_builder::PollInterval;
+use crate::opamp::http::builder::{HttpClientBuilder, OpAMPHttpClientBuilder};
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
-use crate::secrets_provider::file::FileSecretProviderError;
-use crate::secrets_provider::k8s_secret::K8sSecretProviderError;
+use crate::secret_retriever::OpampSecretRetriever;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
@@ -24,7 +24,7 @@ use tracing::{debug, error};
 
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
-pub struct RunError(String);
+pub struct RunError(pub String);
 
 // k8s and on_host need to be public to allow integration tests to access the fn run_agent_control.
 
@@ -37,16 +37,6 @@ pub enum Environment {
     Linux,
     Windows,
     K8s,
-}
-impl From<K8sSecretProviderError> for RunError {
-    fn from(e: K8sSecretProviderError) -> Self {
-        RunError(format!("K8s secret error: {}", e))
-    }
-}
-impl From<FileSecretProviderError> for RunError {
-    fn from(e: FileSecretProviderError) -> Self {
-        RunError(format!("File Secret Provider Error: {}", e))
-    }
 }
 impl From<TokenRetrieverImplError> for RunError {
     fn from(e: TokenRetrieverImplError) -> Self {
@@ -183,6 +173,37 @@ impl AgentControlRunner {
         match self.ac_running_mode {
             Environment::Linux | Environment::Windows => self.run_onhost(),
             Environment::K8s => self.run_k8s(),
+        }
+    }
+
+    pub fn build_opamp_http_builder<R>(
+        opamp_config: Option<OpAMPClientConfig>,
+        proxy: ProxyConfig,
+        retriever: R,
+    ) -> Result<Option<impl HttpClientBuilder>, RunError>
+    where
+        R: OpampSecretRetriever,
+    {
+        if let Some(opamp_config) = opamp_config {
+            debug!("OpAMP configuration found, creating an OpAMP client builder");
+
+            let private_key = retriever.retrieve(&opamp_config)?;
+
+            let token_retriever = Arc::new(
+                TokenRetrieverImpl::try_build(
+                    opamp_config.clone().auth_config,
+                    Some(private_key),
+                    proxy.clone(),
+                )
+                .inspect_err(|err| error!("Could not build OpAMP's token retriever: {err}"))
+                .map_err(RunError::from)?,
+            );
+
+            let http_builder = OpAMPHttpClientBuilder::new(opamp_config, proxy, token_retriever);
+
+            Ok(Some(http_builder))
+        } else {
+            Ok(None)
         }
     }
 }

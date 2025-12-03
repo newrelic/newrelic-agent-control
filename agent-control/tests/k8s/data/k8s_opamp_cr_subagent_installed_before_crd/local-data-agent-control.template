@@ -7,7 +7,9 @@ k8s:
   namespace: <ns>
   namespace_agents: <agents-ns>
   cluster_name: <cluster-name>
-  secret_private_key_name: agent-control-auth
+  auth_secret:
+    secret_name: agent-control-auth
+    secret_key_name: private_key
   cr_type_meta:
   - apiVersion: newrelic.com/v1
     kind: Bar
