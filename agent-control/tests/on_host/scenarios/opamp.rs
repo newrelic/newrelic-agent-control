@@ -167,7 +167,7 @@ agents:
 /// Given a agent-control whose local configuration has no agents and then a valid remote configuration with no agents
 /// and an unknown field is set. The unknown should be ignored and the corresponding effective configuration reported.
 #[test]
-fn onhost_opamp_agent_control_remote_config_with_unknown_field() {
+fn onhost_opamp_agent_control_accepts_unknown_fields_on_remote_config() {
     // Given a agent-control without agents and opamp configured.
 
     let mut opamp_server = FakeServer::start_new();
@@ -205,23 +205,6 @@ non-existing: {}
 
     retry(60, Duration::from_secs(1), || {
         {
-            // Then the config should be updated in the remote filesystem.
-            let expected_containing = "non-existing: {}";
-
-            let remote_file = remote_dir
-                .path()
-                .join(FOLDER_NAME_FLEET_DATA)
-                .join(AGENT_CONTROL_ID)
-                .join(build_config_name(STORE_KEY_OPAMP_DATA_CONFIG));
-            let remote_config =
-                std::fs::read_to_string(remote_file.as_path()).unwrap_or("agents:".to_string());
-            if !remote_config.contains(expected_containing) {
-                return Err(format!(
-                    "Agent Control config not as expected, Expected containing: {expected_containing:?}, Config Found: {remote_config:?}",
-                )
-                .into());
-            }
-
             // And effective_config should return the initial local one
             let expected_config = "agents: {}\n";
 

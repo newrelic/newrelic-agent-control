@@ -17,6 +17,7 @@ pub trait DynamicConfigValidator {
     ) -> Result<(), DynamicConfigValidatorError>;
 }
 
+/// Validator that checks the agent type exists in the agent type registry.
 pub struct RegistryDynamicConfigValidator<R: AgentRegistry> {
     agent_type_registry: Arc<R>,
 }

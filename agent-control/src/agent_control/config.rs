@@ -7,7 +7,7 @@ use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
 use crate::opamp::client_builder::PollInterval;
-use crate::opamp::remote_config::OpampRemoteConfigError;
+use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
 use crate::secrets_provider::SecretsProvidersConfig;
 use crate::values::yaml_config::YAMLConfig;
@@ -65,27 +65,23 @@ pub struct AgentControlConfig {
     pub secrets_providers: Option<SecretsProvidersConfig>,
 }
 
-#[derive(Error, Debug)]
-pub enum AgentControlConfigError {
-    #[error("deleting agent control config: {0}")]
-    Delete(String),
-    #[error("loading agent control config: {0}")]
-    Load(String),
-    #[error("storing agent control config: {0}")]
-    Store(String),
-    #[error("updating agent control config: {0}")]
-    Update(String),
-    #[error("building source to parse environment variables: {0}")]
-    ConfigError(#[from] config::ConfigError),
-    #[error("sub agent configuration '{0}' not found")]
-    SubAgentNotFound(String),
-    #[error("configuration is not valid YAML: {0}")]
-    InvalidYamlConfiguration(#[from] serde_yaml::Error),
-    #[error("remote config error: {0}")]
-    RemoteConfigError(#[from] OpampRemoteConfigError),
-    #[error("remote config error: {0}")]
-    IOError(#[from] std::io::Error),
+impl TryFrom<YAMLConfig> for AgentControlConfig {
+    type Error = serde_yaml::Error;
+
+    fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
+        serde_yaml::from_value(serde_yaml::to_value(value)?)
+    }
 }
+
+#[derive(Error, Debug)]
+#[error("{0}")]
+pub struct AgentControlConfigError(pub String);
+
+pub type SubAgentsMap = HashMap<AgentID, SubAgentConfig>;
+
+/// Key for the agents section in the configuration.
+/// There is an special merge behavior for this key when processing remote configs.
+const AGENTS_KEY: &str = "agents";
 
 /// AgentControlDynamicConfig represents the dynamic part of the agentControl config.
 /// The dynamic configuration can be changed remotely.
@@ -93,12 +89,113 @@ pub enum AgentControlConfigError {
 pub struct AgentControlDynamicConfig {
     pub agents: SubAgentsMap,
     /// chart_version represent the AC version that needs to be executed.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub chart_version: Option<String>,
     /// cd_chart_version represent the agent control cd chart version that needs to be executed.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cd_chart_version: Option<String>,
 }
 
-pub type SubAgentsMap = HashMap<AgentID, SubAgentConfig>;
+/// This implementation reads all configuration entries whose keys start with
+/// [AGENT_CONFIG_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_PREFIX) and produces
+/// a single dynamic config:
+/// - Merges top-level YAML keys across configs, erroring on duplicate non-`agents` keys.
+/// - Applies special merge semantics for the `agents` key: combines agent maps and errors
+///   on duplicate agent IDs.
+/// - Preserves optional version fields like `chart_version` and `cd_chart_version`, failing
+///   if multiple different configs define the same version key.
+///
+/// # Example
+///
+/// ```json
+/// // Input (OpAMP config map):
+/// {
+///   "agentConfig-config1": "{\"agents\": {\"agent-a\": {\"agent_type\": \"foo/bar:0.0.1\"}}}",
+///   "agentConfig-config2": "{\"agents\": {\"agent-b\": {\"agent_type\": \"foo/bar:0.0.1\"}}}"
+/// }
+///
+/// // Resulting dynamic config:
+/// {
+///   "agents": {
+///     "agent-a": {"agent_type": "foo/bar:0.0.1"},
+///     "agent-b": {"agent_type": "foo/bar:0.0.1"}
+///   }
+/// }
+/// ```
+impl TryFrom<&OpampRemoteConfig> for AgentControlDynamicConfig {
+    type Error = AgentControlConfigError;
+    fn try_from(value: &OpampRemoteConfig) -> Result<Self, Self::Error> {
+        let mut merged_agents = SubAgentsMap::new();
+        let mut remaining_config = YAMLConfig::try_from(&AgentControlDynamicConfig::default())
+            .map_err(|err| {
+                AgentControlConfigError(format!("initializing default config: {}", err))
+            })?;
+
+        for (config_name, config_content) in value.agent_configs_iter() {
+            let mut yaml_configuration =
+                YAMLConfig::try_from(config_content.as_str()).map_err(|err| {
+                    AgentControlConfigError(format!("invalid config '{}': {}", config_name, err))
+                })?;
+
+            if let Some(agents_value) = yaml_configuration.remove_key(AGENTS_KEY) {
+                merged_agents = try_append_agents(merged_agents, agents_value).map_err(|err| {
+                    AgentControlConfigError(format!(
+                        "appending agents from config '{}': {}",
+                        config_name, err
+                    ))
+                })?;
+            }
+
+            remaining_config = YAMLConfig::try_append(remaining_config.clone(), yaml_configuration)
+                .map_err(|err| AgentControlConfigError(format!("appending config: {err}")))?;
+        }
+
+        let remaining_config_appended = AgentControlDynamicConfig::try_from(remaining_config)
+            .map_err(|err| AgentControlConfigError(format!("encoding config: {}", err)))?;
+
+        Ok(AgentControlDynamicConfig {
+            agents: merged_agents,
+            ..remaining_config_appended
+        })
+    }
+}
+
+/// Tries to append agents from a YAML value into the agents map, erroring on duplicates.
+fn try_append_agents(
+    merged_agents: SubAgentsMap,
+    agents_value: serde_yaml::Value,
+) -> Result<SubAgentsMap, AgentControlConfigError> {
+    let sub_agents_map: SubAgentsMap = serde_yaml::from_value(agents_value)
+        .map_err(|err| AgentControlConfigError(format!("invalid agents: {}", err)))?;
+
+    let mut merged_agents = merged_agents;
+
+    for (agent_id, agent_config) in sub_agents_map {
+        if merged_agents
+            .insert(agent_id.clone(), agent_config)
+            .is_some()
+        {
+            return Err(AgentControlConfigError(format!(
+                "duplicated agent: {}",
+                agent_id
+            )));
+        }
+    }
+
+    Ok(merged_agents)
+}
+
+impl TryFrom<YAMLConfig> for AgentControlDynamicConfig {
+    type Error = AgentControlConfigError;
+
+    fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
+        serde_yaml::from_value(
+            serde_yaml::to_value(value)
+                .map_err(|e| AgentControlConfigError(format!("deserializing: {e}")))?,
+        )
+        .map_err(|e| AgentControlConfigError(format!("serializing: {e}")))
+    }
+}
 
 /// Return elements of the first map not existing in the second map.
 pub fn sub_agents_difference<'a>(
@@ -108,37 +205,6 @@ pub fn sub_agents_difference<'a>(
     old_sub_agents
         .iter()
         .filter(|(agent_id, _)| !new_sub_agents.contains_key(agent_id))
-}
-
-impl TryFrom<&str> for AgentControlDynamicConfig {
-    type Error = AgentControlConfigError;
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Ok(serde_yaml::from_str(value)?)
-    }
-}
-
-impl TryFrom<YAMLConfig> for AgentControlConfig {
-    type Error = serde_yaml::Error;
-
-    fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
-        serde_yaml::from_value(serde_yaml::to_value(value)?)
-    }
-}
-
-impl TryFrom<&AgentControlDynamicConfig> for YAMLConfig {
-    type Error = serde_yaml::Error;
-
-    fn try_from(value: &AgentControlDynamicConfig) -> Result<Self, Self::Error> {
-        serde_yaml::from_value(serde_yaml::to_value(value)?)
-    }
-}
-
-impl TryFrom<YAMLConfig> for AgentControlDynamicConfig {
-    type Error = serde_yaml::Error;
-
-    fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
-        serde_yaml::from_value(serde_yaml::to_value(value)?)
-    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -328,6 +394,8 @@ impl Default for K8sConfig {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::{AGENT_CONFIG_PREFIX, ConfigurationMap, OpampRemoteConfig};
     use crate::{
         instrumentation::config::logs::{
             file_logging::{FileLoggingConfig, LogFilePath},
@@ -335,7 +403,17 @@ pub(crate) mod tests {
         },
         sub_agent::identity::AgentIdentity,
     };
+    use assert_matches::assert_matches;
+    use rstest::rstest;
     use std::path::PathBuf;
+
+    impl TryFrom<&str> for AgentControlDynamicConfig {
+        type Error = AgentControlConfigError;
+        fn try_from(value: &str) -> Result<Self, Self::Error> {
+            serde_yaml::from_str(value)
+                .map_err(|e| AgentControlConfigError(format!("serializing: {e}")))
+        }
+    }
 
     impl Default for OpAMPClientConfig {
         fn default() -> Self {
@@ -701,6 +779,140 @@ k8s:
         let diff: Vec<_> = sub_agents_difference(&old_sub_agents, &new_sub_agents).collect();
 
         assert!(diff.is_empty());
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Tests for TryFrom<OpampRemoteConfig> for AgentControlDynamicConfig
+    ////////////////////////////////////////////////////////////////////////////////////
+
+    #[rstest]
+    #[case::single_config_multiple_agents(
+        r#"{"config1": "{\"agents\": {\"agent-a\": {\"agent_type\": \"foo/bar:0.0.1\"}, \"agent-b\": {\"agent_type\": \"foo/bar:0.0.1\"}}}"}"#,
+        r#"{"agents": {"agent-a": {"agent_type": "foo/bar:0.0.1"}, "agent-b": {"agent_type": "foo/bar:0.0.1"}}}"#
+    )]
+    #[case::multiple_configs_different_agents(
+        r#"{"config1": "{\"agents\": {\"agent-a\": {\"agent_type\": \"foo/bar:0.0.1\"}}}", "config2": "{\"agents\": {\"agent-b\": {\"agent_type\": \"foo/bar:0.0.1\"}}}"}"#,
+        r#"{"agents": {"agent-a": {"agent_type": "foo/bar:0.0.1"}, "agent-b": {"agent_type": "foo/bar:0.0.1"}}}"#
+    )]
+    #[case::config_with_both_versions(
+        r#"{"config1": "{\"agents\": {\"agent-a\": {\"agent_type\": \"foo/bar:0.0.1\"}}, \"chart_version\": \"1\", \"cd_chart_version\": \"2\"}"}"#,
+        r#"{"agents": {"agent-a": {"agent_type": "foo/bar:0.0.1"}}, "chart_version": "1", "cd_chart_version": "2"}"#
+    )]
+    #[case::multiple_configs_split_versions(
+        r#"{"config1": "{\"agents\": {\"agent-a\": {\"agent_type\": \"foo/bar:0.0.1\"}}, \"chart_version\": \"1\"}", "config2": "{\"agents\": {\"agent-b\": {\"agent_type\": \"foo/bar:0.0.1\"}}, \"cd_chart_version\": \"2\"}"}"#,
+        r#"{"agents": {"agent-a": {"agent_type": "foo/bar:0.0.1"}, "agent-b": {"agent_type": "foo/bar:0.0.1"}}, "chart_version": "1", "cd_chart_version": "2"}"#
+    )]
+    #[case::config_with_versions_and_another_with_agent(
+        r#"{"config1": "{\"agents\": {}, \"chart_version\": \"1\", \"cd_chart_version\": \"2\"}", "config2": "{\"agents\": {\"agent-b\": {\"agent_type\": \"foo/bar:0.0.1\"}}}"}"#,
+        r#"{"agents": {"agent-b": {"agent_type": "foo/bar:0.0.1"}}, "chart_version": "1", "cd_chart_version": "2"}"#
+    )]
+    #[case::empty_agents(r#"{"config1": "{\"agents\": {}}"}"#, r#"{"agents": {}}"#)]
+    fn test_opamp_remote_config_to_dynamic_config_success(
+        #[case] config_json: &str,
+        #[case] expected_json: &str,
+    ) {
+        let map: HashMap<String, String> =
+            serde_json::from_str::<HashMap<String, String>>(config_json)
+                .unwrap()
+                .into_iter()
+                .map(|(k, v)| (format!("{}-{}", AGENT_CONFIG_PREFIX, k), v))
+                .collect();
+        let config_map = ConfigurationMap::new(map);
+
+        let opamp_config = OpampRemoteConfig::new(
+            AgentID::try_from("test-agent").unwrap(),
+            Hash::default(),
+            crate::opamp::remote_config::hash::ConfigState::Applying,
+            config_map,
+        );
+
+        let result = AgentControlDynamicConfig::try_from(&opamp_config);
+
+        assert!(
+            result.is_ok(),
+            "Expected success but got error: {:?}",
+            result.err()
+        );
+        let config = result.unwrap();
+
+        let expected: AgentControlDynamicConfig = serde_json::from_str(expected_json).unwrap();
+        assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_opamp_remote_config_ignores_non_agent_config_entries() {
+        let mut map = HashMap::new();
+        // Valid agent config entries
+        map.insert(
+            format!("{}-config1", AGENT_CONFIG_PREFIX),
+            r#"{"agents": {"agent-a": {"agent_type": "foo/bar:0.0.1"}}}"#.to_string(),
+        );
+        // Invalid entries (not starting with AGENT_CONFIG_PREFIX)
+        map.insert(
+            "some-other-prefix-config2".to_string(),
+            r#"{"agents": {"agent-b": {"agent_type": "foo/bar:0.0.1"}}}"#.to_string(),
+        );
+
+        let config_map = ConfigurationMap::new(map);
+
+        let opamp_config = OpampRemoteConfig::new(
+            AgentID::try_from("test-agent").unwrap(),
+            Hash::default(),
+            crate::opamp::remote_config::hash::ConfigState::Applying,
+            config_map,
+        );
+
+        let result = AgentControlDynamicConfig::try_from(&opamp_config);
+
+        assert!(
+            result.is_ok(),
+            "Expected success but got error: {:?}",
+            result.err()
+        );
+        let config = result.unwrap();
+
+        // Only agent-a should be present, agent-b and agent-c should be ignored
+        assert_eq!(config.agents.len(), 1);
+        assert!(
+            config
+                .agents
+                .contains_key(&AgentID::try_from("agent-a").unwrap())
+        );
+        assert!(
+            !config
+                .agents
+                .contains_key(&AgentID::try_from("agent-b").unwrap())
+        );
+    }
+
+    #[rstest]
+    #[case::duplicate_agent_id(
+        r#"{"config1": "{\"agents\": {\"agent-a\": {\"agent_type\": \"foo/bar:0.0.1\"}}}", "config2": "{\"agents\": {\"agent-a\": {\"agent_type\": \"foo/bar:0.0.1\"}}}"}"#
+    )]
+    #[case::duplicate_chart_version(
+        r#"{"config1": "{\"agents\": {\"agent-a\": {\"agent_type\": \"foo/bar:0.0.1\"}}, \"chart_version\": \"1\"}", "config2": "{\"agents\": {\"agent-b\": {\"agent_type\": \"foo/bar:0.0.1\"}}, \"chart_version\": \"2\"}"}"#
+    )]
+    #[case::duplicate_cd_chart_version(
+        r#"{"config1": "{\"agents\": {\"agent-a\": {\"agent_type\": \"foo/bar:0.0.1\"}}, \"cd_chart_version\": \"1\"}", "config2": "{\"agents\": {\"agent-b\": {\"agent_type\": \"foo/bar:0.0.1\"}}, \"cd_chart_version\": \"2\"}"}"#
+    )]
+    fn test_opamp_remote_config_to_dynamic_config_error(#[case] config_json: &str) {
+        let map: HashMap<String, String> =
+            serde_json::from_str::<HashMap<String, String>>(config_json)
+                .unwrap()
+                .into_iter()
+                .map(|(k, v)| (format!("{}-{}", AGENT_CONFIG_PREFIX, k), v))
+                .collect();
+        let config_map = ConfigurationMap::new(map);
+
+        let opamp_config = OpampRemoteConfig::new(
+            AgentID::try_from("test-agent").unwrap(),
+            Hash::default(),
+            crate::opamp::remote_config::hash::ConfigState::Applying,
+            config_map,
+        );
+
+        let result = AgentControlDynamicConfig::try_from(&opamp_config);
+        assert_matches!(result, Err(AgentControlConfigError(_)));
     }
 
     ////////////////////////////////////////////////////////////////////////////////////

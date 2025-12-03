@@ -2,6 +2,8 @@ use crate::agent_control::config::AgentControlDynamicConfig;
 
 use super::{DynamicConfigValidator, DynamicConfigValidatorError};
 
+/// Validates that the Kubernetes release names for AC and AC CD do not collide with agent IDs
+/// to avoid modification of agent CRs during AC self-update
 pub struct K8sReleaseNamesConfigValidator<V: DynamicConfigValidator> {
     inner: V,
     ac_release_name: String,
