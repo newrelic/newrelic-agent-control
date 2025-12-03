@@ -77,11 +77,7 @@
         agents:
           infra:
             agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
-          prometheus:
-            agent_type: "newrelic/com.newrelic.prometheus:0.1.0"
-          logs:
-            agent_type: "newrelic/io.fluentbit:0.1.0"
-      
+
   - name: Infra Agent config folder
     file:
       path: /etc/newrelic-agent-control/local-data/infra/
