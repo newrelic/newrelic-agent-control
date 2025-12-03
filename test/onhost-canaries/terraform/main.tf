@@ -155,7 +155,7 @@ module "alerts" {
       name = "Memory usage (bytes)"
       metric = "memoryResidentSizeBytes"
       sample = "ProcessSample"
-      threshold = 15000000
+      threshold = 20000000
       duration = 600
       operator = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
@@ -182,7 +182,7 @@ module "alerts" {
       name = "Disk usage (written bytes)"
       metric = "ioTotalWriteBytes"
       sample = "ProcessSample"
-      threshold = 10000
+      threshold = 20000
       duration = 600
       operator = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
