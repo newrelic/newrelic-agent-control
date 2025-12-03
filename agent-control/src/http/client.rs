@@ -287,7 +287,7 @@ fn certs_from_file(path: &Path) -> Result<Vec<Certificate>, HttpBuildError> {
 }
 
 /// Returns all paths to be considered to load certificates under the provided directory path.
-fn cert_paths_from_dir(dir_path: &Path) -> Result<Vec<PathBuf>, HttpBuildError> {
+pub fn cert_paths_from_dir(dir_path: &Path) -> Result<Vec<PathBuf>, HttpBuildError> {
     if dir_path.as_os_str().is_empty() {
         return Ok(Vec::new());
     }
@@ -308,7 +308,7 @@ fn cert_paths_from_dir(dir_path: &Path) -> Result<Vec<PathBuf>, HttpBuildError> 
 }
 
 /// Helper to build a [HttpBuildError::CertificateError] more concisely.
-fn certificate_error<E: Display>(path: &Path, err: E) -> HttpBuildError {
+pub fn certificate_error<E: Display>(path: &Path, err: E) -> HttpBuildError {
     HttpBuildError::CertificateError {
         path: path.to_string_lossy().into(),
         err: err.to_string(),
