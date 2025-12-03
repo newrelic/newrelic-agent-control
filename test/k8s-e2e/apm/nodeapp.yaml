@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: placeholder
+  labels:
+    app: nodeapp
+spec:
+  containers:
+    - name: placeholder
+      image: ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-nodejs@sha256:5a07647c580c8fc49c0173b00d9c159c05451ca1fa122a81036648832546e7bf
+      ports:
+        - containerPort: 3000
+    - name: trafficgen
+      image: alpine/curl:latest
+      command: ["/bin/sh","-c"]
+      args:
+        - |
+          until curl -sS 127.0.0.1:3000/rolldice; do echo "Node app not ready yet"; sleep 5; done;
+          while true; do curl -sS 127.0.0.1:3000/rolldice; sleep 1; done
+  restartPolicy: Always

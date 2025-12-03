@@ -1,4 +1,4 @@
-use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta};
+use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta2_type_meta};
 use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
@@ -84,7 +84,7 @@ pub fn health_checkers_for_type_meta(
             )),
         ]
     // Instrumentation (Newrelic CR)
-    } else if type_meta == instrumentation_v1beta1_type_meta() {
+    } else if type_meta == instrumentation_v1beta2_type_meta() {
         vec![K8sResourceHealthChecker::NewRelic(
             K8sHealthNRInstrumentation::new(k8s_client, type_meta, name, namespace, start_time),
         )]
@@ -168,7 +168,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::agent_control::config::{
-        helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta,
+        helmrelease_v2_type_meta, instrumentation_v1beta2_type_meta,
     };
     use crate::health::health_checker::HealthChecker;
     use crate::health::health_checker::HealthCheckerError::K8sError;
@@ -321,7 +321,7 @@ pub mod tests {
         let start_time = StartTime::now();
 
         let test_object = DynamicObject {
-            types: Some(instrumentation_v1beta1_type_meta()),
+            types: Some(instrumentation_v1beta2_type_meta()),
             metadata: kube::core::ObjectMeta {
                 name: Some("test-instrumentation".to_string()),
                 namespace: Some("test-namespace".to_string()),

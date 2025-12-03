@@ -23,8 +23,6 @@ agentControlDeployment:
               kind: "GitRepository"
             - apiVersion: "v1"
               kind: "Secret"
-            - apiVersion: "newrelic.com/v1beta1"
-              kind: "Instrumentation"
       agents:
         logs:
           agent_type: newrelic/io.fluentbit:0.1.0 # these agent-types are overwritten yb the e2e test

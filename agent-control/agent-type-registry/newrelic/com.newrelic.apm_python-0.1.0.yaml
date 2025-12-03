@@ -3,13 +3,13 @@ name: com.newrelic.apm_python
 version: 0.1.0
 variables:
   k8s:
-    version:
-      description: "Python Agent init container version"
-      type: string
-      default: "latest"
-      required: false
     podLabelSelector:
       description: "Pod label selector"
+      type: yaml
+      default: { }
+      required: false
+    containerSelector:
+      description: "Container selector"
       type: yaml
       default: { }
       required: false
@@ -18,11 +18,33 @@ variables:
       type: yaml
       default: { }
       required: false
+    # All 'agent' side-car related variables are flattened.
+    version:
+      description: "Python Agent init container version"
+      type: string
+      default: "latest"
+      required: false
     env:
       description: "environment variables to pass to Python agent"
       type: yaml
       default: [ ]
       required: false
+    imagePullPolicy:
+      description: "image pull policy for the Python agent init container"
+      type: string
+      default: "Always"
+      required: false
+    resourceRequirements:
+      description: "resource requirements for the Python agent init container"
+      type: yaml
+      default: { }
+      required: false
+    securityContext:
+      description: "security context for the Python agent init container"
+      type: yaml
+      default: { }
+      required: false
+    # All health sidecar related variables are flattened and prefixed with "health_"
     health_env:
       description: "environment variables to pass to health sidecar"
       type: yaml
@@ -33,6 +55,21 @@ variables:
       type: string
       default: "latest"
       required: false
+    health_imagePullPolicy:
+      description: "image pull policy for the health sidecar"
+      type: string
+      default: "Always"
+      required: false
+    health_resourceRequirements:
+      description: "resource requirements for the health sidecar"
+      type: yaml
+      default: { }
+      required: false
+    health_securityContext:
+      description: "security context for the health sidecar"
+      type: yaml
+      default: { }
+      required: false
 deployment:
   k8s:
     health:
@@ -40,7 +77,7 @@ deployment:
       initial_delay: 30s
     objects:
       instrumentation:
-        apiVersion: newrelic.com/v1beta1
+        apiVersion: newrelic.com/v1beta2
         kind: Instrumentation
         metadata:
           name: ${nr-sub:agent_id}
@@ -54,8 +91,15 @@ deployment:
             language: python
             image: newrelic/newrelic-python-init:${nr-var:version}
             env: ${nr-var:env}
+            imagePullPolicy: ${nr-var:imagePullPolicy}
+            resources: ${nr-var:resourceRequirements}
+            securityContext: ${nr-var:securityContext}
           healthAgent:
             image: newrelic/k8s-apm-agent-health-sidecar:${nr-var:health_version}
             env: ${nr-var:health_env}
+            imagePullPolicy: ${nr-var:health_imagePullPolicy}
+            resources: ${nr-var:health_resourceRequirements}
+            securityContext: ${nr-var:health_securityContext}
           podLabelSelector: ${nr-var:podLabelSelector}
           namespaceLabelSelector: ${nr-var:namespaceLabelSelector}
+          containerSelector: ${nr-var:containerSelector}
