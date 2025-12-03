@@ -119,7 +119,6 @@ fi
 echo "Detected OS: $OS"
 
 
-echo "Downloading zot $VERSION..."
 if [[ ! -f $CONFIG_FOLDER/zot ]]; then
     ARCH=$(detect_arch)
     if [ "$ARCH" = "unknown" ]; then
@@ -127,6 +126,8 @@ if [[ ! -f $CONFIG_FOLDER/zot ]]; then
         exit 1
     fi
     echo "Detected architecture: $ARCH"
+
+    echo "Downloading zot $VERSION..."
     download_zot
 else
     echo "zot binary already exists, skipping download"
