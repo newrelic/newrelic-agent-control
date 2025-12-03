@@ -61,6 +61,8 @@
             token_url: "{{ token_endpoint }}"
           endpoint: "{{ opamp_endpoint }}"
           fleet_id: "{{ fleet_id }}"
+          signature_validation:
+            public_key_server_url: "{{ signature_validation_endpoint }}"
         log:
           level: debug
         self_instrumentation:

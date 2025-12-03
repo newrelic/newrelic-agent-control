@@ -4,4 +4,5 @@ repository_endpoint = "http://nr-downloads-ohai-testing.s3-website-us-east-1.ama
 nr_region = "Staging"
 opamp_endpoint = "https://opamp.staging-service.newrelic.com/v1/opamp"
 token_endpoint = "https://system-identity-oauth.staging-service.newrelic.com/oauth2/token"
+signature_validation_endpoint = "https://staging-publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json"
 otlp_endpoint = "https://staging-otlp.nr-data.net:4318"
