@@ -2,7 +2,7 @@
 
 # Helper script to set up a local OCI registry using zot.
 # The script is prepared to work in local environments and the CI.
-# Supports: Linux, macOS, Windows WSL and Windows mingw
+# Supports: Linux, macOS and Windows mingw
 
 # -e: Exit on error
 # -u: Exit if undefined variable is used
@@ -11,20 +11,24 @@ set -euo pipefail
 
 
 # ----- CONSTANTS -----
-readonly OS=$(case "$(uname -s)" in
-    Linux*)     echo "linux";;
-    Darwin*)    echo "darwin";;
-    MINGW**)    echo "windows";;
-    *)          echo "unknown";;
-esac)
+UNAME_S=$(uname -s)
+case "$UNAME_S" in
+    Linux*)     OS="linux";;
+    Darwin*)    OS="darwin";;
+    MINGW*)     OS="windows";;
+    *)          OS="unknown";;
+esac
+readonly OS
 
-readonly ARCH=$(case "$(uname -m)" in
-    x86_64*)    echo "amd64";;
-    amd64*)     echo "amd64";;
-    aarch64*)   echo "arm64";;
-    arm64*)     echo "arm64";;
-    *)          echo "unknown";;
-esac)
+UNAME_M=$(uname -m)
+case "$UNAME_M" in
+    x86_64*)    ARCH="amd64";;
+    amd64*)     ARCH="amd64";;
+    aarch64*)   ARCH="arm64";;
+    arm64*)     ARCH="arm64";;
+    *)          ARCH="unknown";;
+esac
+readonly ARCH
 
 readonly CONFIG_FOLDER="$HOME/.zot"
 readonly CONFIG_FILE="$CONFIG_FOLDER/config.json"
@@ -47,10 +51,12 @@ PORT="${PORT:-5000}"
 
 # ----- HELPER FUNCTIONS -----
 function print_usage() {
-  echo "Usage: $0 [run|clean|help]"
-  echo "  run   - Run zot (if not present, it will be downloaded and configured)"
-  echo "  clean - Remove zot registry and all associated files"
-  echo "  help  - Display this help message"
+  echo "Usage: $0 [install|run|uninstall|killall|help]"
+  echo "  install    - Download and install zot registry"
+  echo "  run        - Run zot registry"
+  echo "  uninstall  - Remove zot registry and all associated files"
+  echo "  killall    - Kill all running zot processes"
+  echo "  help       - Display this help message"
 }
 
 function install() {
@@ -104,7 +110,7 @@ function run() {
 
 
 # ----- MAIN -----
-if [[ $OPTION != "help" && $OPTION != "install" && $OPTION != "run" && $OPTION != "uninstall" ]]; then
+if [[ $OPTION != "help" && $OPTION != "install" && $OPTION != "uninstall" && $OPTION != "run" && $OPTION != "killall" ]]; then
     echo "Invalid option: $OPTION"
     print_usage
     exit 1
@@ -115,6 +121,15 @@ elif [[ $OPTION == "uninstall" ]]; then
     echo "Uninstalling zot registry..."
     rm -rf ~/.zot
     echo "Uninstalled completed"
+    exit 0
+elif [[ $OPTION == "killall" ]]; then
+    echo "Killing all zot processes..."
+    if [ "$OS" = "windows" ]; then
+        taskkill //F //IM zot* || echo "No zot processes found"
+    else
+        pkill -f zot || echo "No zot processes found"
+    fi
+    echo "Killed all zot processes"
     exit 0
 fi
 
