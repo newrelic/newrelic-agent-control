@@ -1059,6 +1059,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## http-auth <https://crates.io/crates/http-auth>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## http-body <https://crates.io/crates/http-body>
 
 Distributed under the following license(s):
@@ -1300,6 +1307,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## jsonwebtoken <https://crates.io/crates/jsonwebtoken>
+
+Distributed under the following license(s):
+
+* MIT
+
+## jwt <https://crates.io/crates/jwt>
 
 Distributed under the following license(s):
 
@@ -1585,6 +1598,12 @@ Distributed under the following license(s):
 
 * MIT
 
+## oci-client <https://crates.io/crates/oci-client>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+
 ## oci-spec <https://crates.io/crates/oci-spec>
 
 Distributed under the following license(s):
@@ -1592,6 +1611,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## oid-registry <https://crates.io/crates/oid-registry>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## olpc-cjson <https://crates.io/crates/olpc-cjson>
 
 Distributed under the following license(s):
 
@@ -2373,6 +2399,22 @@ Distributed under the following license(s):
 
 * Unicode-3.0
 
+## tinyvec <https://crates.io/crates/tinyvec>
+
+Distributed under the following license(s):
+
+* Zlib
+* Apache-2.0
+* MIT
+
+## tinyvec_macros <https://crates.io/crates/tinyvec_macros>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+* Zlib
+
 ## tokio <https://crates.io/crates/tokio>
 
 Distributed under the following license(s):
@@ -2555,6 +2597,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## unicase <https://crates.io/crates/unicase>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## unicode-ident <https://crates.io/crates/unicode-ident>
 
 Distributed under the following license(s):
@@ -2562,6 +2611,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 * Unicode-3.0
+
+## unicode-normalization <https://crates.io/crates/unicode-normalization>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
 
 ## unicode-segmentation <https://crates.io/crates/unicode-segmentation>
 
@@ -2682,6 +2738,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## wasm-bindgen-shared <https://crates.io/crates/wasm-bindgen-shared>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## wasm-streams <https://crates.io/crates/wasm-streams>
 
 Distributed under the following license(s):
 
