@@ -145,7 +145,9 @@ impl InfraConfig {
             ]
             .into_iter()
             .for_each(|(key, value)| {
-                if let Some(v) = value {
+                if let Some(v) = value
+                    && !v.is_empty()
+                {
                     self.values
                         .insert(key.to_string(), serde_yaml::Value::String(v));
                 }
@@ -319,6 +321,7 @@ mod tests {
             .with_region(Region::STAGING)
             .setup_proxy(Some(ProxyConfig {
                 proxy_url: Some("http://proxy.example.com".to_string()),
+                proxy_ca_bundle_dir: Some("".to_string()), // check that empty doesn't set anything
                 ..Default::default()
             }));
         let result = infra_config.generate_infra_config_values().unwrap();
