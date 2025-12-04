@@ -29,7 +29,10 @@ test/onhost/root/integration:
 .PHONY: test/onhost/oci-registry/integration
 test/onhost/oci-registry/integration:
 	@echo "testing-machine-id" > /tmp/machine-id
+	@../tools/oci-registry.sh install
+	@../tools/oci-registry.sh run > /dev/null 2>&1 &
 	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=multiple-instances --test integration_tests _with_oci_registry -- --ignored
+	@../tools/oci-registry.sh killall
 
 # K8S
 
