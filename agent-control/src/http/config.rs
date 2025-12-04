@@ -218,6 +218,20 @@ pub(crate) mod tests {
                 ..Default::default()
             }
         }
+
+        pub(crate) fn new(
+            url: &str,
+            ca_bundle_dir: Option<String>,
+            ca_bundle_file: Option<String>,
+            ignore_system_proxy: bool,
+        ) -> Self {
+            Self {
+                url: url.try_into().unwrap(),
+                ca_bundle_dir: PathBuf::from(ca_bundle_dir.unwrap_or_default()),
+                ca_bundle_file: PathBuf::from(ca_bundle_file.unwrap_or_default()),
+                ignore_system_proxy,
+            }
+        }
     }
 
     #[test]
