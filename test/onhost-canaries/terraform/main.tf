@@ -135,7 +135,7 @@ module "alerts" {
   conditions = [
     {
       name = "CPU usage (percentage)"
-      metric = "cpuPercent"
+      metric = "max(cpuPercent) OR 0"
       sample = "ProcessSample"
       threshold = 0.06
       duration = 3600
@@ -144,7 +144,7 @@ module "alerts" {
     },
     {
       name = "CPU usage (percentage)"
-      metric = "cpuPercent"
+      metric = "max(cpuPercent) OR 0"
       sample = "ProcessSample"
       threshold = 0
       duration = 3600
@@ -153,7 +153,7 @@ module "alerts" {
     },
     {
       name = "Memory usage (bytes)"
-      metric = "memoryResidentSizeBytes"
+      metric = "max(memoryResidentSizeBytes) OR 0"
       sample = "ProcessSample"
       threshold = 20000000
       duration = 600
@@ -162,7 +162,7 @@ module "alerts" {
     },
     {
       name = "Memory usage (bytes)"
-      metric = "memoryResidentSizeBytes"
+      metric = "max(memoryResidentSizeBytes) OR 0"
       sample = "ProcessSample"
       threshold = 0
       duration = 600
@@ -171,7 +171,7 @@ module "alerts" {
     },
     {
       name = "Disk usage (read bytes)"
-      metric = "ioTotalReadBytes"
+      metric = "max(ioTotalReadBytes) OR 0"
       sample = "ProcessSample"
       threshold = 500000
       duration = 600
@@ -180,7 +180,7 @@ module "alerts" {
     },
     {
       name = "Disk usage (written bytes)"
-      metric = "ioTotalWriteBytes"
+      metric = "max(ioTotalWriteBytes) OR 0"
       sample = "ProcessSample"
       threshold = 20000
       duration = 600
