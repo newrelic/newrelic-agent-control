@@ -166,6 +166,7 @@ jobs:
     needs:
       - onhost-e2e
       - k8s_canaries
+      - onhost_canaries
       - security-image
       - security-source-code
       - build-image
