@@ -7,4 +7,4 @@ mod id;
 mod logging;
 mod opamp_auth;
 mod scenarios;
-mod tools;
+pub mod tools;

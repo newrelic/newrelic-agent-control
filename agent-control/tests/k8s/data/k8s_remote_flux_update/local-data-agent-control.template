@@ -2,6 +2,9 @@ k8s:
   namespace: <ns>
   namespace_agents: <agents-ns>
   cluster_name: <cluster-name>
+  auth_secret:
+    secret_name: agent-control-auth
+    secret_key_name: private_key
   cd_remote_update: true
   ac_remote_update: false
   cd_release_name: test-agent-control-cd

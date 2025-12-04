@@ -1,8 +1,8 @@
 use super::config::{AuthConfig, LocalConfig, ProviderConfig};
+use crate::http::client::HttpBuildError;
 use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
-use crate::{agent_control::run::BasePaths, http::client::HttpBuildError};
 use chrono::DateTime;
 use nr_auth::{
     TokenRetriever, TokenRetrieverError,
@@ -24,6 +24,9 @@ pub enum TokenRetrieverImplError {
 
     #[error("error building http client: {0}")]
     HTTPBuildingClientError(String),
+
+    #[error("configuration error: {0}")]
+    ConfigurationError(String),
 }
 
 // Just an alias to make the code more readable
@@ -51,18 +54,25 @@ impl TokenRetriever for TokenRetrieverImpl {
 impl TokenRetrieverImpl {
     pub fn try_build(
         auth_config: Option<AuthConfig>,
-        base_paths: BasePaths,
+        private_key: Option<String>,
         proxy_config: ProxyConfig,
     ) -> Result<Self, TokenRetrieverImplError> {
         let Some(ac) = auth_config else {
             return Ok(Self::Noop(TokenRetrieverNoop));
         };
 
-        let provider = ac
-            .provider
-            .unwrap_or(ProviderConfig::Local(LocalConfig::new(
-                base_paths.local_dir.clone(),
-            )));
+        let provider = match ac.provider {
+            Some(provider) => provider,
+            None => {
+                let key = private_key.ok_or_else(|| {
+                    TokenRetrieverImplError::ConfigurationError(
+                        "Cannot load key: neither provider config or private string provided"
+                            .to_string(),
+                    )
+                })?;
+                ProviderConfig::Local(LocalConfig::new_with_value(key))
+            }
+        };
 
         let jwt_signer = JwtSignerImpl::try_from(provider)?;
 
@@ -109,11 +119,21 @@ impl TokenRetriever for TokenRetrieverNoop {
 
 impl TryFrom<ProviderConfig> for JwtSignerImpl {
     type Error = JwtSignerImplError;
+
     fn try_from(value: ProviderConfig) -> Result<Self, Self::Error> {
         match value {
-            ProviderConfig::Local(local_config) => Ok(JwtSignerImpl::Local(
-                LocalPrivateKeySigner::try_from(local_config.private_key_path.as_path())?,
-            )),
+            ProviderConfig::Local(local_config) => {
+                if let Some(key_content) = local_config.private_key_value {
+                    let sanitized_key = key_content.replace("\\n", "\n");
+
+                    let signer = LocalPrivateKeySigner::try_from(sanitized_key.as_bytes())?;
+                    return Ok(JwtSignerImpl::Local(signer));
+                }
+
+                let signer =
+                    LocalPrivateKeySigner::try_from(local_config.private_key_path.as_path())?;
+                Ok(JwtSignerImpl::Local(signer))
+            }
         }
     }
 }

@@ -5,7 +5,8 @@ use httpmock::Method::POST;
 use httpmock::{MockServer, When};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+    AGENT_CONTROL_ID, AUTH_PRIVATE_KEY_FILE_NAME, FOLDER_NAME_LOCAL_DATA,
+    STORE_KEY_LOCAL_DATA_CONFIG,
 };
 use newrelic_agent_control::on_host::file_store::build_config_name;
 use nr_auth::authenticator::{AuthCredential, TokenRetrievalRequest, TokenRetrievalResponse};
@@ -25,7 +26,8 @@ fn test_auth_local_provider_as_root() {
     let token = "fakeToken";
 
     let dir = TempDir::new().unwrap();
-    let private_key_path = create_temp_file(dir.path(), "priv_key", RS256_PRIVATE_KEY).unwrap();
+    let private_key_path =
+        create_temp_file(dir.path(), AUTH_PRIVATE_KEY_FILE_NAME, RS256_PRIVATE_KEY).unwrap();
 
     let auth_server = auth_server(token.to_string());
 
@@ -111,6 +113,7 @@ fn test_empty_auth_config_as_root() {
     use crate::on_host::cli::create_temp_file;
 
     let dir = TempDir::new().unwrap();
+    create_temp_file(dir.path(), AUTH_PRIVATE_KEY_FILE_NAME, RS256_PRIVATE_KEY).unwrap();
 
     let opamp_server = MockServer::start();
     let opamp_server_mock = opamp_server.mock(|when, then| {
@@ -180,7 +183,8 @@ fn test_unauthorized_token_retrieve_as_root() {
     use super::cli::create_temp_file;
 
     let dir = TempDir::new().unwrap();
-    let private_key_path = create_temp_file(dir.path(), "priv_key", RS256_PRIVATE_KEY).unwrap();
+    let private_key_path =
+        create_temp_file(dir.path(), AUTH_PRIVATE_KEY_FILE_NAME, RS256_PRIVATE_KEY).unwrap();
 
     let auth_server = MockServer::start();
 
