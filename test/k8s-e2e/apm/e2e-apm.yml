@@ -3,6 +3,11 @@ description: E2E Test
 custom_test_key: appName
 
 scenarios:
+    # This test spawns AC along with the APM operator and five sample apps (Java, Python, Node.js, Ruby and .NET).
+    # Each app is instrumented with its corresponding APM agent via an Instrumentation CR created by AC.
+    # The test validates that each agent is healthy via the AC /status endpoint and that data is being reported to New Relic.
+    # Sample apps are basic web servers that respond to HTTP requests. Each Pod includes a lightweight sidecar that waits for 
+    # readiness and continuously generates local traffic to help validate agent instrumentation.
   - description: Deploy SA with APM operator and Java, Python and Node.js agents
     before:
       - echo The cluster name of the test is ${SCENARIO_TAG}
