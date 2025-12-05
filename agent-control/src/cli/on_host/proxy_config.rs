@@ -40,14 +40,14 @@ impl ProxyConfig {
             self.proxy_ca_bundle_file.as_ref(),
         ]
         .iter()
-        .all(|v| v.map(|v| v.is_empty()).unwrap_or(true))
+        .all(|v| v.is_none_or(|s| s.is_empty()))
             && !self.ignore_system_proxy
     }
 }
 
 // Helper to avoid serializing empty values
 fn is_none_or_empty_string(v: &Option<String>) -> bool {
-    v.as_ref().map(|s| s.is_empty()).unwrap_or(true)
+    v.as_ref().is_none_or(|s| s.is_empty())
 }
 
 // Helper to avoid serializing false values

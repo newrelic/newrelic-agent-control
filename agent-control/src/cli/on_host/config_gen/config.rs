@@ -83,7 +83,7 @@ pub struct Agent {
 
 /// Helper to avoid deserializing proxy values when empty or default
 fn is_none_or_empty(v: &Option<ProxyConfig>) -> bool {
-    v.as_ref().map(|v| v.is_empty()).unwrap_or(true)
+    v.as_ref().is_none_or(|v| v.is_empty())
 }
 
 #[cfg(test)]
@@ -116,7 +116,7 @@ mod tests {
     }
 
     #[rstest]
-    #[case(
+    #[case::no_proxy_config(
         Config {
             fleet_control: None,
             server: Server { enabled: true },
@@ -125,7 +125,7 @@ mod tests {
         },
         r#"{"server":{"enabled":true},"agents":{}}"#
     )]
-    #[case(
+    #[case::empty_proxy_config(
         Config {
             fleet_control: None,
             server: Server { enabled: false },
@@ -134,7 +134,7 @@ mod tests {
         },
         r#"{"server":{"enabled":false},"agents":{}}"#
     )]
-    #[case(
+    #[case::some_proxy_config(
         Config {
             fleet_control: None,
             server: Server { enabled: true },
