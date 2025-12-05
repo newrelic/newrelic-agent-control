@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: placeholder
+  labels:
+    app: dotneteapp
+spec:
+  containers:
+    - name: placeholder
+      image: ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-dotnet@sha256:def752e3e4f9b1f40b6f943c376dc8cb7f0f8a204be9ef810448ea1de7b52419
+      ports:
+        - containerPort: 8080
+    - name: trafficgen
+      image: alpine/curl:latest
+      command: ["/bin/sh","-c"]
+      args:
+        - |
+          until curl -sS -o /dev/null 127.0.0.1:8080/rolldice; do echo "Dotnet app not ready yet"; sleep 5; done;
+          while true; do curl -sS -o /dev/null 127.0.0.1:8080/rolldice; sleep 1; done
+  restartPolicy: Always

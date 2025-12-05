@@ -10,7 +10,7 @@ agentControlDeployment:
       fleet_control:
         enabled: false
       log:
-        level: trace
+        level: debug
       agents:
         operator:
           agent_type: newrelic/com.newrelic.k8s_agent_operator:0.1.0
@@ -35,6 +35,11 @@ agentControlDeployment:
             - key: "app"
               operator: "In"
               values: [ "javaapp" ]
+        containerSelector:
+          envSelector:
+            matchExpressions:
+              - key: NRI
+                operator: Exists
       python-agent:
         podLabelSelector:
           matchExpressions:
