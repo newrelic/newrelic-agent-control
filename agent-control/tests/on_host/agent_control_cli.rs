@@ -53,8 +53,6 @@ server:
 agents:
   nr-infra:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
-proxy:
-  ignore_system_proxy: false
     "#,
     )
     .unwrap();

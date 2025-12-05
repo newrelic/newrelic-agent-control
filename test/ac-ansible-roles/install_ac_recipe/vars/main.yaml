@@ -18,7 +18,7 @@ migrate_infra_config: "true"
 local_package_path: ""
 
 # Git branch name to use when fetching recipes from the repository
-recipe_repo_branch: "main"
+recipe_repo_branch: "feat/infra-agent-config-proxy" # TODO: back to main when the feature is ready
 
 # Specific version of the agent control software to install
 agent_control_version: ""

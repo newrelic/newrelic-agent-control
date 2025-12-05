@@ -1,5 +1,6 @@
 use crate::cli::error::CliError;
 use crate::cli::on_host::config_gen::region::Region;
+use crate::cli::on_host::proxy_config::ProxyConfig;
 use crate::cli::on_host::systemd_gen::NEW_RELIC_LICENSE_CONFIG_KEY;
 use std::collections::HashMap;
 
@@ -119,14 +120,42 @@ impl InfraConfig {
         self
     }
 
-    pub fn with_proxy(mut self, proxy: &str) -> Self {
-        if !proxy.trim().is_empty() {
+    pub fn setup_proxy(mut self, proxy: Option<ProxyConfig>) -> Self {
+        // Delete previous proxy configuration
+        [
+            "proxy",
+            "ca_bundle_dir",
+            "ca_bundle_file",
+            "ignore_system_proxy",
+        ]
+        .into_iter()
+        .for_each(|proxy_key| {
             self.deletions
-                .push(serde_yaml::Value::String("proxy".to_string()));
-            self.values.insert(
-                "proxy".to_string(),
-                serde_yaml::Value::String(proxy.to_string()),
-            );
+                .push(serde_yaml::Value::String(proxy_key.to_string()));
+        });
+        if let Some(proxy_config) = proxy
+            && !proxy_config.is_empty()
+        {
+            // Check infrastructure-agent configuration for details:
+            // <https://github.com/newrelic/infrastructure-agent/blob/51a177270690b1880ffc261a2ec6387a94d59c29/assets/examples/infrastructure/newrelic-infra-template.yml.example#L522>
+            [
+                ("proxy", proxy_config.proxy_url),
+                ("ca_bundle_dir", proxy_config.proxy_ca_bundle_dir),
+                ("ca_bundle_file", proxy_config.proxy_ca_bundle_file),
+            ]
+            .into_iter()
+            .for_each(|(key, value)| {
+                if let Some(v) = value
+                    && !v.is_empty()
+                {
+                    self.values
+                        .insert(key.to_string(), serde_yaml::Value::String(v));
+                }
+            });
+            if proxy_config.ignore_system_proxy {
+                self.values
+                    .insert("ignore_system_proxy".into(), serde_yaml::Value::Bool(true));
+            }
         }
         self
     }
@@ -290,7 +319,11 @@ mod tests {
             .with_custom_attributes(custom_attributes)
             .unwrap()
             .with_region(Region::STAGING)
-            .with_proxy("http://proxy.example.com");
+            .setup_proxy(Some(ProxyConfig {
+                proxy_url: Some("http://proxy.example.com".to_string()),
+                proxy_ca_bundle_dir: Some("".to_string()), // check that empty doesn't set anything
+                ..Default::default()
+            }));
         let result = infra_config.generate_infra_config_values().unwrap();
 
         // Parse the YAML content

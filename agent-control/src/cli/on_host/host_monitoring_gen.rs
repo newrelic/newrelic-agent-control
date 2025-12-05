@@ -5,6 +5,7 @@ use crate::cli::on_host::config_gen::config::AgentSet;
 use crate::cli::on_host::config_gen::region::{Region, region_parser};
 use crate::cli::on_host::host_monitoring_gen::infra_config_gen::InfraConfigGenerator;
 use crate::cli::on_host::host_monitoring_gen::otel_config_gen::OtelConfigGen;
+use crate::cli::on_host::proxy_config::ProxyConfig;
 use tracing::info;
 
 pub mod infra_config;
@@ -23,8 +24,8 @@ pub struct Args {
     custom_attributes: Option<String>,
 
     /// Proxy configuration
-    #[arg(long)]
-    proxy: Option<String>,
+    #[command(flatten)]
+    proxy: Option<ProxyConfig>,
 
     /// New Relic region
     #[arg(long, value_parser = region_parser(), required = true)]

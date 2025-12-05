@@ -6,12 +6,13 @@ use tracing::info;
 
 use crate::cli::{
     error::CliError,
-    on_host::config_gen::{
-        config::{
-            AgentSet, AuthConfig, Config, FleetControl, ProxyConfig, Server, SignatureValidation,
+    on_host::{
+        config_gen::{
+            config::{AgentSet, AuthConfig, Config, FleetControl, Server, SignatureValidation},
+            identity::{Identity, provide_identity},
+            region::{Region, region_parser},
         },
-        identity::{Identity, provide_identity},
-        region::{Region, region_parser},
+        proxy_config::ProxyConfig,
     },
 };
 

@@ -23,7 +23,7 @@ use nr_auth::{
 };
 use tracing::info;
 
-use crate::cli::{error::CliError, on_host::config_gen::config::ProxyConfig};
+use crate::cli::{error::CliError, on_host::proxy_config::ProxyConfig};
 
 use super::Args;
 
