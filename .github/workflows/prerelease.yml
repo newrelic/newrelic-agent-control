@@ -180,6 +180,8 @@ jobs:
       contents: read
     with:
       environment: production
+      # AC US Production Account `host-canaries-production` fleet
+      fleet_id: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWFlM2EyLTA3OTctNzczYS05Y2JjLWMzNzZkMjAwMWFkZg"
       operation: apply
       package_version: ${{ github.event.inputs.tag || github.event.release.tag_name }}
     secrets:

@@ -1,31 +1,56 @@
 variable "system_identity_client_id" {
   description = "NR System Identity Client ID"
-  type = string
+  type        = string
 }
 
 variable "license_key" {
   description = "NR License Key"
-  type = string
+  type        = string
 }
 
 variable "ec2_prefix" {
   description = "Prefix for EC2 instances"
-  type = string
+  type        = string
 }
 
 variable "inventory_output" {
   description = "Path to write the inventory file"
-  type = string
+  type        = string
 }
 
 variable "repository_endpoint" {
   description = "Agent Control Repository Endpoint"
-  type = string
+  type        = string
 }
 
 variable "package_version" {
   description = "Agent Control Package Version"
-  type = string
+  type        = string
+}
+
+variable "fleet_id" {
+  description = "New Relic Fleet ID"
+  type        = string
+}
+
+variable "otlp_endpoint" {
+  description = "OTLP endpoint for the region"
+  type        = string
+}
+
+variable "opamp_endpoint" {
+  description = "OpAMP endpoint for the region"
+  type        = string
+}
+
+variable "token_endpoint" {
+  description = "Token renewal endpoint for the region"
+  type        = string
+}
+
+variable "signature_validation_endpoint" {
+  description = "Signature validation endpoint for the region"
+  type        = string
 }
 
 locals {
@@ -55,7 +80,7 @@ locals {
   // If env-provisioner changes the way it computes the hostnames, we need to change
   // it here too. However, terraform plan will properly list all the resources that
   // will be created and we can spot any problems with the hostnames.
-  hostnames = [for k, v in local.ec2_instances : "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}" ]
+  hostnames = [for k, v in local.ec2_instances : "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}"]
 
   infra_staging = var.nr_region == "Staging" ? "true" : "false"
 }
@@ -70,28 +95,28 @@ module "agent_control-canary-env-provisioner" {
   ssh_pub_key        = "AAAAB3NzaC1yc2EAAAADAQABAAABAQDH9C7BS2XrtXGXFFyL0pNku/Hfy84RliqvYKpuslJFeUivf5QY6Ipi8yXfXn6TsRDbdxfGPi6oOR60Fa+4cJmCo6N5g57hBS6f2IdzQBNrZr7i1I/a3cFeK6XOc1G1tQaurx7Pu+qvACfJjLXKG66tHlaVhAHd/1l2FocgFNUDFFuKS3mnzt9hKys7sB4aO3O0OdohN/0NJC4ldV8/OmeXqqfkiPWcgPx3C8bYyXCX7QJNBHKrzbX1jW51Px7SIDWFDV6kxGwpQGGBMJg/k79gjjM+jhn4fg1/VP/Fx37mAnfLqpcTfiOkzSE80ORGefQ1XfGK/Dpa3ITrzRYW8xlR caos-dev-arm"
   inventory_template = "../ansible/inventory-template.tmpl"
   inventory_output   = var.inventory_output
-  ansible_playbook   = "-e system_identity_client_id=${var.system_identity_client_id} -e nr_license_key=${var.license_key} -e repo_endpoint=${var.repository_endpoint} -e package_version=${var.package_version} -e infra_staging=${local.infra_staging} ../ansible/install_ac_with_basic_config.yml"
+  ansible_playbook   = "-e system_identity_client_id=${var.system_identity_client_id} -e nr_license_key=${var.license_key} -e repo_endpoint=${var.repository_endpoint} -e package_version=${var.package_version} -e fleet_id=${var.fleet_id} -e opamp_endpoint=${var.opamp_endpoint} -e token_endpoint=${var.token_endpoint} -e signature_validation_endpoint=${var.signature_validation_endpoint} -e otlp_endpoint=${var.otlp_endpoint} -e infra_staging=${local.infra_staging} ../ansible/install_ac_with_basic_config.yml"
   ec2_otels          = local.ec2_instances
 }
 
 
 variable "account_id" {
   description = "New Relic Account ID"
-  type = string
+  type        = string
 }
 variable "api_key" {
   description = "New Relic API Key"
-  type = string
+  type        = string
 }
 
 variable "slack_webhook_url" {
   description = "Slack Webhook URL where alerts notifications will be sent"
-  type = string
+  type        = string
 }
 
 variable "nr_region" {
   description = "New Relic Region"
-  type = string
+  type        = string
 }
 
 module "alerts" {
@@ -99,67 +124,67 @@ module "alerts" {
 
   for_each = toset(local.hostnames)
 
-  api_key    = var.api_key
-  account_id = var.account_id
+  api_key           = var.api_key
+  account_id        = var.account_id
   slack_webhook_url = var.slack_webhook_url
 
   policies_prefix = "Agent Control canaries metric monitoring"
 
-  region = var.nr_region
+  region      = var.nr_region
   instance_id = each.value
   conditions = [
     {
-      name = "CPU usage (percentage)"
-      metric = "cpuPercent"
-      sample = "ProcessSample"
-      threshold = 0.06
-      duration = 3600
-      operator = "above"
+      name          = "CPU usage (percentage)"
+      metric        = "max(cpuPercent) OR 0"
+      sample        = "ProcessSample"
+      threshold     = 0.06
+      duration      = 3600
+      operator      = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
     {
-      name = "CPU usage (percentage)"
-      metric = "cpuPercent"
-      sample = "ProcessSample"
-      threshold = 0
-      duration = 3600
-      operator = "below_or_equals"
+      name          = "CPU usage (percentage)"
+      metric        = "max(cpuPercent) OR 0"
+      sample        = "ProcessSample"
+      threshold     = 0
+      duration      = 3600
+      operator      = "below_or_equals"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
     {
-      name = "Memory usage (bytes)"
-      metric = "memoryResidentSizeBytes"
-      sample = "ProcessSample"
-      threshold = 15000000
-      duration = 600
-      operator = "above"
+      name          = "Memory usage (bytes)"
+      metric        = "max(memoryResidentSizeBytes) OR 0"
+      sample        = "ProcessSample"
+      threshold     = 20000000
+      duration      = 600
+      operator      = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
     {
-      name = "Memory usage (bytes)"
-      metric = "memoryResidentSizeBytes"
-      sample = "ProcessSample"
-      threshold = 0
-      duration = 600
-      operator = "below_or_equals"
+      name          = "Memory usage (bytes)"
+      metric        = "max(memoryResidentSizeBytes) OR 0"
+      sample        = "ProcessSample"
+      threshold     = 0
+      duration      = 600
+      operator      = "below_or_equals"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
     {
-      name = "Disk usage (read bytes)"
-      metric = "ioTotalReadBytes"
-      sample = "ProcessSample"
-      threshold = 500000
-      duration = 600
-      operator = "above"
+      name          = "Disk usage (read bytes)"
+      metric        = "max(ioTotalReadBytes) OR 0"
+      sample        = "ProcessSample"
+      threshold     = 500000
+      duration      = 600
+      operator      = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
     {
-      name = "Disk usage (written bytes)"
-      metric = "ioTotalWriteBytes"
-      sample = "ProcessSample"
-      threshold = 10000
-      duration = 600
-      operator = "above"
+      name          = "Disk usage (written bytes)"
+      metric        = "max(ioTotalWriteBytes) OR 0"
+      sample        = "ProcessSample"
+      threshold     = 20000
+      duration      = 600
+      operator      = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
   ]

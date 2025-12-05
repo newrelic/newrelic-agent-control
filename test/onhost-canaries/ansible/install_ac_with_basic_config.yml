@@ -53,16 +53,31 @@
     vars:
       config_path: "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml"
       update_config:
+        fleet_control:
+          auth_config:
+            client_id: "{{ system_identity_client_id }}"
+            private_key_path: "{{ agent_control_private_key }}"
+            provider: local
+            token_url: "{{ token_endpoint }}"
+          endpoint: "{{ opamp_endpoint }}"
+          fleet_id: "{{ fleet_id }}"
+          signature_validation:
+            public_key_server_url: "{{ signature_validation_endpoint }}"
         log:
-          level: info
+          level: debug
+        self_instrumentation:
+          opentelemetry:
+            endpoint: "{{ otlp_endpoint }}"
+            headers:
+              api-key: "{{ nr_license_key }}"
+            traces:
+              enabled: true
+            logs:
+              enabled: true
         agents:
           infra:
             agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
-          prometheus:
-            agent_type: "newrelic/com.newrelic.prometheus:0.1.0"
-          logs:
-            agent_type: "newrelic/io.fluentbit:0.1.0"
-      
+
   - name: Infra Agent config folder
     file:
       path: /etc/newrelic-agent-control/local-data/infra/
