@@ -170,20 +170,20 @@ module "alerts" {
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
     {
-      name          = "Disk usage (read bytes)"
-      metric        = "max(ioTotalReadBytes) OR 0"
+      name          = "Read bytes rate"
+      metric        = "max(ioReadBytesPerSecond) OR 0"
       sample        = "ProcessSample"
       threshold     = 500000
-      duration      = 600
+      duration      = 500
       operator      = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
     {
-      name          = "Disk usage (written bytes)"
-      metric        = "max(ioTotalWriteBytes) OR 0"
+      name          = "Written bytes rate"
+      metric        = "max(ioWriteBytesPerSecond) OR 0"
       sample        = "ProcessSample"
       threshold     = 20000
-      duration      = 600
+      duration      = 500
       operator      = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
