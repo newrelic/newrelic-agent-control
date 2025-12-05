@@ -7,8 +7,10 @@ use rustls_pki_types::pem::PemObject;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use thiserror::Error;
 use tokio;
+use tokio::runtime::Runtime;
 use tracing::debug;
 use url::Url;
 
@@ -23,6 +25,7 @@ pub enum OCIDownloaderError {
 pub struct OCIDownloader {
     client: Client,
     auth: RegistryAuth,
+    runtime: Arc<Runtime>,
 }
 
 #[allow(dead_code, reason = "still unused")]
@@ -30,13 +33,18 @@ impl OCIDownloader {
     /// try_new requires a package dir where the artifacts will be downloaded and a proxy_config
     /// that if url is empty will be ignored. By default, Auth is set to Anonymous, but it can be
     /// modified with the with_auth method.
-    pub fn try_new(proxy_config: ProxyConfig) -> Result<Self, OCIDownloaderError> {
-        let mut client_config = ClientConfig::default();
+    pub fn try_new(
+        proxy_config: ProxyConfig,
+        runtime: Arc<Runtime>,
+        client_config: Option<ClientConfig>,
+    ) -> Result<Self, OCIDownloaderError> {
+        let mut client_config = client_config.unwrap_or(ClientConfig::default());
         Self::proxy_setup(proxy_config, &mut client_config)?;
 
         Ok(OCIDownloader {
             client: Client::new(client_config),
             auth: RegistryAuth::Anonymous,
+            runtime,
         })
     }
 
@@ -76,11 +84,23 @@ impl OCIDownloader {
     /// all the required data to first pull the image manifest if it exists and then iterate all the
     /// layers downloading each one and downloading the found package into a file where the name
     /// is the digest. Tokio file is used for async_write so the blob can be read in chunks.
-    pub async fn download_artifact(
+    pub fn download_artifact(
         &self,
         reference: Reference,
         package_dir: PathBuf,
     ) -> Result<(), OCIDownloaderError> {
+
+        self.runtime.block_on(
+            self.oci_download_file(reference, package_dir)
+        )
+    }
+
+    async fn oci_download_file(
+        &self,
+        reference: Reference,
+        package_dir: PathBuf,
+    ) -> Result<(), OCIDownloaderError> {
+
         let (image_manifest, _) = self
             .client
             .pull_image_manifest(&reference, &self.auth)

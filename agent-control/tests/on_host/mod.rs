@@ -8,3 +8,4 @@ mod logging;
 mod opamp_auth;
 mod scenarios;
 mod tools;
+mod oci;
