@@ -64,6 +64,19 @@
         "major"
       ],
       "groupName": "go major updates"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "**/Cargo.toml"
+      ],
+      "matchStrings": [
+        "rust-version\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+(?:\\.\\d+)?)\""
+      ],
+      "datasourceTemplate": "github-tags",
+      "depNameTemplate": "rust",
+      "packageNameTemplate": "rust-lang/rust",
+      "versioningTemplate": "semver"
     }
   ]
 }
