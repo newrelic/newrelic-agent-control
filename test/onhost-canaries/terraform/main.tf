@@ -174,7 +174,7 @@ module "alerts" {
       metric        = "max(ioReadBytesPerSecond) OR 0"
       sample        = "ProcessSample"
       threshold     = 500000
-      duration      = 500
+      duration      = 300
       operator      = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
@@ -183,7 +183,7 @@ module "alerts" {
       metric        = "max(ioWriteBytesPerSecond) OR 0"
       sample        = "ProcessSample"
       threshold     = 20000
-      duration      = 500
+      duration      = 300
       operator      = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
