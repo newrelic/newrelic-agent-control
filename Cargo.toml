@@ -36,7 +36,7 @@ semver = "1.0.27"
 chrono = "0.4.42"
 jsonwebtoken = "9.3.1"
 # reqwest's default-features enables default-tls and we are not including it since we are using rustls only.
-reqwest = { version = "0.12.24", default-features = false, features = [
+reqwest = { version = "0.12.25", default-features = false, features = [
   "blocking",
   "rustls-tls",
   "rustls-tls-native-roots",
