@@ -85,6 +85,7 @@ jobs:
         if: ${{ inputs.skip_sign }}
         run: |
           echo SKIP_SIGN="--skip=sign" >> $GITHUB_ENV
+          echo SKIP_WINDOWS_SIGN="true" >> $GITHUB_ENV
 
       - name: Release packages with GoReleaser
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
@@ -93,10 +94,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          PFX_CERTIFICATE_BASE64: ${{ secrets.OHAI_PFX_CERTIFICATE_BASE64 }} # base64 encoded
+          PFX_PASSPHRASE: ${{ secrets.OHAI_PFX_PASSPHRASE }}
           GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           GPG_MAIL: 'infrastructure-eng@newrelic.com'
           NR_RELEASE_TAG: ${{ inputs.tag_name }}
           GORELEASER_CURRENT_TAG: ${{ inputs.tag_name }}
+          SKIP_WINDOWS_SIGN: ${{ env.SKIP_WINDOWS_SIGN }}
 
       - name: Upload assets to pipeline
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
