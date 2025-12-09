@@ -14,7 +14,8 @@
   "enabledManagers": [
     "cargo",
     "custom.regex",
-    "gomod"
+    "gomod",
+    "github-actions"
   ],
   "rangeStrategy": "bump",
   "prConcurrentLimit": 0,
