@@ -261,6 +261,12 @@ cargo test --workspace --exclude 'newrelic_agent_control' --all-targets -- --inc
 ```
 
 We have `Makefile`s containing targets for testing. [Inspect them](../agent-control/Makefile) for more details.
+Those `Makefile`s are not prepared to use `Powershell` or `cmd`. They assume bash is present in the system.
+On Windows, we can use `Git Bash` for example. If it's installed, the following command will start the bash shell.
+
+```Powershell
+.'C:\Program Files\Git\bin\bash.exe'
+```
 
 ### Feature `onhost`
 
