@@ -75,7 +75,7 @@ jobs:
           targets: >-
             x86_64-unknown-linux-musl
 
-      - uses: ./.github/actions/rust-cache-composite-action
+      - uses: ./.github/actions/rust-cache
         with:
           identifier: 'test-dev'
           restore-strategy: 'nearest'

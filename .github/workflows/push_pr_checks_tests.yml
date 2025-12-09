@@ -66,7 +66,7 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy
 
-      - uses: ./.github/actions/rust-cache-composite-action
+      - uses: ./.github/actions/rust-cache
         with:
           identifier: 'clippy'
           restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}
@@ -154,7 +154,7 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - uses: ./.github/actions/rust-cache-composite-action
+      - uses: ./.github/actions/rust-cache
         with:
           identifier: 'coverage'
           restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}
@@ -211,7 +211,7 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - uses: ./.github/actions/rust-cache-composite-action
+      - uses: ./.github/actions/rust-cache
         with:
           identifier: 'release'
           restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}
@@ -253,7 +253,7 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
 
-      - uses: ./.github/actions/rust-cache-composite-action
+      - uses: ./.github/actions/rust-cache
         with:
           identifier: 'test-dev'
           restore-strategy: 'nearest'
@@ -300,7 +300,7 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - uses: ./.github/actions/rust-cache-composite-action
+      - uses: ./.github/actions/rust-cache
         with:
           identifier: 'test-dev'
           restore-strategy: 'nearest'
@@ -358,7 +358,7 @@ jobs:
           targets: >-
             x86_64-unknown-linux-musl
 
-      - uses: ./.github/actions/rust-cache-composite-action
+      - uses: ./.github/actions/rust-cache
         with:
           identifier: 'test-dev'
           restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}
@@ -411,7 +411,7 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - uses: ./.github/actions/rust-cache-composite-action
+      - uses: ./.github/actions/rust-cache
         with:
           identifier: 'test-dev'
           restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}

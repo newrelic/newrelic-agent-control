@@ -52,7 +52,7 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
 
-      - uses: ./.github/actions/rust-cache-composite-action
+      - uses: ./.github/actions/rust-cache
         with:
           identifier: 'release'
           restore-strategy: 'nearest'
