@@ -186,11 +186,11 @@ impl ProxyConfig {
     }
 }
 
-impl TryFrom<crate::cli::on_host::config_gen::config::ProxyConfig> for ProxyConfig {
+impl TryFrom<crate::cli::on_host::proxy_config::ProxyConfig> for ProxyConfig {
     type Error = ProxyError;
 
     fn try_from(
-        value: crate::cli::on_host::config_gen::config::ProxyConfig,
+        value: crate::cli::on_host::proxy_config::ProxyConfig,
     ) -> Result<Self, Self::Error> {
         let url = value.proxy_url.unwrap_or_default();
         Ok(Self {
@@ -216,6 +216,20 @@ pub(crate) mod tests {
             ProxyConfig {
                 url: url.as_str().try_into().unwrap(),
                 ..Default::default()
+            }
+        }
+
+        pub(crate) fn new(
+            url: &str,
+            ca_bundle_dir: Option<String>,
+            ca_bundle_file: Option<String>,
+            ignore_system_proxy: bool,
+        ) -> Self {
+            Self {
+                url: url.try_into().unwrap(),
+                ca_bundle_dir: PathBuf::from(ca_bundle_dir.unwrap_or_default()),
+                ca_bundle_file: PathBuf::from(ca_bundle_file.unwrap_or_default()),
+                ignore_system_proxy,
             }
         }
     }

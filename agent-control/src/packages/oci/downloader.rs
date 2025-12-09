@@ -234,17 +234,15 @@ pub(crate) mod tests {
         let mut file = File::create(&file_path).unwrap();
         writeln!(file, "{INVALID_TESTING_CERT}").unwrap();
 
-        let proxy_config = crate::cli::on_host::config_gen::config::ProxyConfig {
-            proxy_url: Some("valid.proxy.url".to_string()),
-            proxy_ca_bundle_dir: Some(ca_bundle_dir.to_str().unwrap().to_string()),
-            proxy_ca_bundle_file: None,
-            ignore_system_proxy: false,
-        };
-
-        let proxy_config_parsed = ProxyConfig::try_from(proxy_config).unwrap();
+        let proxy_config = ProxyConfig::new(
+            "valid.proxy.url",
+            Some(ca_bundle_dir.to_string_lossy().to_string()),
+            None,
+            false,
+        );
 
         let mut client_config = ClientConfig::default();
-        let proxy_result = OCIDownloader::proxy_setup(proxy_config_parsed, &mut client_config);
+        let proxy_result = OCIDownloader::proxy_setup(proxy_config, &mut client_config);
         assert!(proxy_result.is_ok());
 
         assert_eq!(
