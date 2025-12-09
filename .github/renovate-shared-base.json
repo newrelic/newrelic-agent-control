@@ -14,7 +14,8 @@
   "enabledManagers": [
     "cargo",
     "custom.regex",
-    "gomod"
+    "gomod",
+    "github-actions"
   ],
   "rangeStrategy": "bump",
   "prConcurrentLimit": 0,
@@ -75,8 +76,7 @@
       ],
       "datasourceTemplate": "github-tags",
       "depNameTemplate": "rust",
-      "packageNameTemplate": "rust-lang/rust",
-      "versioningTemplate": "semver"
+      "packageNameTemplate": "rust-lang/rust"
     }
   ]
 }
