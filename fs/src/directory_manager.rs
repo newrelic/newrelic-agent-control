@@ -238,6 +238,7 @@ pub mod tests {
     }
 
     #[test]
+    #[ignore = "requires windows administrator"]
     fn test_folder_deletion() {
         // Prepare temp path and folder name
         let folder_name = "some_file";
