@@ -1,0 +1,58 @@
+name: 'Rust Cache'
+description: 'Caches Rust build artifacts to speed up workflow runs'
+inputs:
+  identifier:
+    description: 'A unique identifier that will be used as part of the cache key'
+    required: true
+    type: string
+  restore-strategy:
+    description: 'The strategy to use when restoring the cache (exact or nearest)'
+    required: true
+    type: choice
+    options:
+      - exact
+      - nearest
+  save-cache:
+    description: 'If true, save the cache after the workflow run'
+    required: true
+    type: boolean
+runs:
+  using: "composite"
+  steps:
+    - name: Restore rust cache (nearest match)
+      if: ${{ inputs.restore-strategy == 'nearest' }}
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-${{ inputs.identifier }}-cargo-
+    
+    - name: Restore rust cache (exact match)
+      if: ${{ inputs.restore-strategy == 'exact' }}
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Save rust cache
+      if: ${{ inputs.save-cache == true }}
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
