@@ -2035,6 +2035,13 @@ Distributed under the following license(s):
 
 * MIT
 
+## rustc_version <https://crates.io/crates/rustc_version>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## rusticata-macros <https://crates.io/crates/rusticata-macros>
 
 Distributed under the following license(s):
