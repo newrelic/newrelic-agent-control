@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: placeholder
+  labels:
+    app: javaapp
+spec:
+  containers:
+    - name: placeholder
+      image: ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java@sha256:c7dd7b82a124ed358fac83fb609ccd9346bee32c1f4de7863cf810b80f0c8f18
+      ports:
+        - containerPort: 8080
+      env:
+        - name: NRI
+          value: "true"
+    - name: trafficgen
+      image: alpine/curl:latest
+      command: ["/bin/sh","-c"]
+      args:
+        - |
+          until curl -sS 127.0.0.1:8080; do echo "Java app not ready yet"; sleep 5; done;
+          while true; do curl -sS 127.0.0.1:8080; sleep 1; done
+  restartPolicy: Always

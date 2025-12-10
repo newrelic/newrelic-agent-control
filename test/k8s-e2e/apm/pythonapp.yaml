@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: placeholder
+  labels:
+    app: pythonapp
+spec:
+  containers:
+    - name: placeholder
+      image: ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-python@sha256:bed9586c6ad919365ce165026717c2eaa81a439fdf5fb1d24872a58aeeaf45a1
+      ports:
+        - containerPort: 8080
+    - name: trafficgen
+      image: alpine/curl:latest
+      command: ["/bin/sh","-c"]
+      args:
+        - |
+          until curl -sS 127.0.0.1:8080; do echo "Python app not ready yet"; sleep 5; done;
+          while true; do curl -sS 127.0.0.1:8080; sleep 1; done
+  restartPolicy: Always

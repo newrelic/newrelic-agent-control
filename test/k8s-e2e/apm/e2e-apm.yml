@@ -3,44 +3,29 @@ description: E2E Test
 custom_test_key: appName
 
 scenarios:
+    # This test spawns AC along with the APM operator and five sample apps (Java, Python, Node.js, Ruby and .NET).
+    # Each app is instrumented with its corresponding APM agent via an Instrumentation CR created by AC.
+    # The test validates that each agent is healthy via the AC /status endpoint and that data is being reported to New Relic.
+    # Sample apps are basic web servers that respond to HTTP requests. Each Pod includes a lightweight sidecar that waits for 
+    # readiness and continuously generates local traffic to help validate agent instrumentation.
   - description: Deploy SA with APM operator and Java, Python and Node.js agents
     before:
       - echo The cluster name of the test is ${SCENARIO_TAG}
       - cd ../../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/apm/ac-values-apm.yml" CLUSTER=${SCENARIO_TAG} USE_LATEST_FLUX=${USE_LATEST_FLUX} tilt ci
-      # we need wait and retry since the resource might me not created yet
-      - timeout 600s bash -c "until kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 deploy/operator-k8s-agents-operator -n newrelic-agents; do sleep 5; echo waiting on operator ; done"
-      - sleep 60
-      # Pinned digest to the 'main' tag at 2025/12/02
-      - kubectl run ${SCENARIO_TAG}-python --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-python@sha256:bed9586c6ad919365ce165026717c2eaa81a439fdf5fb1d24872a58aeeaf45a1 -o yaml | kubectl label app=pythonapp -f - --local -o yaml | kubectl create -f -
-      - kubectl run ${SCENARIO_TAG}-java --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java@sha256:c7dd7b82a124ed358fac83fb609ccd9346bee32c1f4de7863cf810b80f0c8f18 -o yaml | kubectl label app=javaapp -f - --local -o yaml | kubectl create -f -
-      - kubectl run ${SCENARIO_TAG}-dotnet --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-dotnet@sha256:def752e3e4f9b1f40b6f943c376dc8cb7f0f8a204be9ef810448ea1de7b52419 -o yaml | kubectl label app=dotneteapp -f - --local -o yaml | kubectl create -f -
-      - kubectl run ${SCENARIO_TAG}-node --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-nodejs@sha256:5a07647c580c8fc49c0173b00d9c159c05451ca1fa122a81036648832546e7bf -o yaml | kubectl label app=nodeapp -f - --local -o yaml | kubectl create -f -
+      # Before spawn the apps, wait for the operator and the Instrumentation CRs to be created.
+      - kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 deploy/operator-k8s-agents-operator -n newrelic-agents --timeout=600s
+      - kubectl wait --for=create instrumentation/python-agent instrumentation/java-agent instrumentation/node-agent instrumentation/ruby-agent instrumentation/dotnet-agent --timeout=60s -n newrelic-agents
+      # At this point the operator should be ready and AC should have created the Instrumentation resources.
+      - kubectl create -f ./pythonapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-python/ | kubectl create -f -
+      - kubectl create -f ./javaapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-java/ | kubectl create -f -
+      - kubectl create -f ./nodeapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-node/ | kubectl create -f -
       - kubectl create -f ./rubyapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-ruby/ | kubectl create -f -
-
-      # Generate some traffic
-      - kubectl wait --for=condition=Ready --all pods --timeout 5m
-      - timeout 60s bash -c "until kubectl exec ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- wget -qO /dev/null 127.0.0.1:8080; do echo 'Python not ready yet. Retrying...';sleep 5;done"
-      - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- wget -qO /dev/null 127.0.0.1:8080
-      - timeout 60s bash -c "until kubectl exec ${SCENARIO_TAG}-node -c ${SCENARIO_TAG}-node -- wget -qO /dev/null 127.0.0.1:3000/rolldice; do echo 'Node not ready yet. Retrying...';sleep 5;done"
-      - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-node -c ${SCENARIO_TAG}-node -- wget -qO /dev/null 127.0.0.1:3000/rolldice
-      - timeout 60s bash -c "until kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null 127.0.0.1:9292; do echo 'Ruby not ready yet. Retrying...';sleep 5;done"
-      - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null 127.0.0.1:9292
-      # dotnet image does not have wget available, we use one from a different pod
-      - timeout 60s bash -c "until kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null `kubectl get pod ${SCENARIO_TAG}-dotnet -o json | jq -r .status.podIP`:8080/rolldice; do echo 'Dotnet not ready yet. Retrying...';sleep 5;done"
-      - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null `kubectl get pod ${SCENARIO_TAG}-dotnet -o json | jq -r .status.podIP`:8080/rolldice
-
-      # Show app logs
-      - kubectl logs --tail=-1 -l app=pythonapp --all-containers --prefix=true -n newrelic-agents
-      - kubectl logs --tail=-1 -l app=javaapp --all-containers --prefix=true -n newrelic-agents
-      - kubectl logs --tail=-1 -l app=dotneteapp --all-containers --prefix=true -n newrelic-agents
-      - kubectl logs --tail=-1 -l app=nodeapp --all-containers --prefix=true -n newrelic-agents
-      - kubectl logs --tail=-1 -l app=rubyapp --all-containers --prefix=true -n newrelic-agents
-
+        # the dotnet container for linux/arm64 is broken, it doesn't have the binary. Do not expect this to work in Mac MX minikube.
+      - kubectl create -f ./dotnetapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-dotnet/ | kubectl create -f -
     after:
       - kubectl logs --tail=-1 -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
       - kubectl logs --tail=-1 -l app.kubernetes.io/instance=operator --all-containers --prefix=true -n newrelic-agents
       - kubectl get all -o wide --all-namespaces --show-labels
-      - cd ../../../ && tilt down
     tests:
       nrqls:
         # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.
