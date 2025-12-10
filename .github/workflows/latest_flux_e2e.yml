@@ -28,13 +28,6 @@ jobs:
       - k8s-e2e-tests-latest-flux
     runs-on: ubuntu-latest
     steps:
-      - name: Notify failure via Slack
-        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
-        with:
-          payload: |
-            {
-              "text": ":warning: [Latest Flux e2e workflow failed] @hero check <${{ env.GITHUB_JOB_URL }}>"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
-          GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    - uses: ./.github/actions/send-warning-via-slack
+      with:
+        message: "Latest Flux e2e workflow failed"
