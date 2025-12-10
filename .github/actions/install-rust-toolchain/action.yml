@@ -1,0 +1,24 @@
+name: 'Install Rust Toolchain'
+description: 'Installs the Rust toolchain version specified in Cargo.toml'
+inputs:
+  targets:
+    description: 'Comma-separated list of additional targets to install'
+    required: false
+  components:
+    description: 'Comma-separated list of additional components to install'
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - name: Obtain Rust version from project
+      shell: bash
+      run: |
+        RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
+        echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
+
+    - name: Install Rust ${{ env.RUST_VERSION }}
+      uses: dtolnay/rust-toolchain@0b1efabc08b657293548b77fb76cc02d26091c7e # master
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+        targets: ${{ inputs.targets }}
+        components: ${{ inputs.components }}
