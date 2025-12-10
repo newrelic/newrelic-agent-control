@@ -12,6 +12,8 @@ jobs:
   build-packages:
     name: Build packages
     uses: ./.github/workflows/component_packages.yml
+    permissions:
+      contents: write
     with:
       pre-release: true
       tag_name: ${{ github.event.release.tag_name }}
