@@ -1,7 +1,8 @@
 use super::errors::K8sCliError;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use std::collections::BTreeMap;
+use kube::api::TypeMeta;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 use tracing::debug;
 
@@ -32,6 +33,28 @@ pub fn parse_key_value_pairs(data: impl AsRef<str>) -> BTreeMap<String, String> 
     valid_key_values
         .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
         .collect()
+}
+
+/// Returns a list of all available API resources in the Kubernetes cluster.
+pub fn retrieve_api_resources(
+    k8s_client: &SyncK8sClient,
+) -> Result<HashSet<TypeMeta>, K8sCliError> {
+    let mut tm_available = HashSet::new();
+
+    let all_api_resource_list = k8s_client
+        .list_api_resources()
+        .map_err(|err| K8sCliError::Generic(format!("failed to retrieve api_resources: {err}")))?;
+
+    for api_resource_list in &all_api_resource_list {
+        for resource in &api_resource_list.resources {
+            tm_available.insert(TypeMeta {
+                api_version: api_resource_list.group_version.clone(),
+                kind: resource.kind.clone(),
+            });
+        }
+    }
+
+    Ok(tm_available)
 }
 
 pub fn try_new_k8s_client() -> Result<SyncK8sClient, K8sCliError> {
