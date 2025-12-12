@@ -12,6 +12,110 @@ permissions:
   contents: read
 
 jobs:
+  build-clean-caches-clippy:
+    name: Build clean caches
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest ]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: ./.github/actions/install-rust-toolchain
+        with:
+          components: clippy
+
+      - uses: ./.github/actions/rust-cache
+        with:
+          identifier: 'clippy'
+          restore-strategy: 'exact'
+          save-cache: true
+      
+      - name: cargo clippy with compiler warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings -D clippy::all
+
+  build-clean-caches-test-dev:
+    name: Build clean caches
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest ]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: ./.github/actions/rust-cache
+        with:
+          identifier: 'test-dev'
+          restore-strategy: 'exact'
+          save-cache: true
+
+      - uses: ./.github/actions/install-rust-toolchain
+      
+      - name: cargo clippy with compiler warnings
+        run: |
+          cargo test --no-run --workspace --exclude 'newrelic_agent_control' --all-targets -- --include-ignored
+          make -C agent-control test/cache
+
+  build-clean-caches-coverage:
+    name: Build clean caches
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: ./.github/actions/rust-cache
+        with:
+          identifier: 'coverage'
+          restore-strategy: 'exact'
+          save-cache: true
+
+      - uses: ./.github/actions/install-rust-toolchain
+        with:
+          components: llvm-tools-preview
+
+      - name: cargo install cargo-llvm-cov
+        uses: taiki-e/install-action@71765c00dd3e08a5484a5b9e82a4c88b86520e0e # 71765c00dd3e08a5484a5b9e82a4c88b86520e0e
+      
+      - name: Generate coverage report
+        run: COVERAGE_OUT_FORMAT=json COVERAGE_OUT_FILEPATH=jcov.info make coverage
+  
+  build-clean-caches-release:
+    name: Build clean caches
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest ]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: ./.github/actions/rust-cache
+        with:
+          identifier: 'release'
+          restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}
+          save-cache: true
+
+      - uses: ./.github/actions/install-rust-toolchain
+        with:
+          targets: >-
+            aarch64-unknown-linux-musl,
+            x86_64-unknown-linux-musl,
+            x86_64-pc-windows-msvc
+      
+      - name: Install Zig
+        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2
+
+      - name: Install cargo-zigbuild
+        run: cargo install --locked cargo-zigbuild --force
+          
+      - name: Build in release mode
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control-k8s --target x86_64-unknown-linux-musl
+          cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control --target x86_64-unknown-linux-musl
+      
+      - name: Build in release mode
+        if: ${{ matrix.os == 'windows-latest' }}
+        run: cargo build --all --release
+
   build-packages:
     name: Build packages
     uses: ./.github/workflows/component_packages.yml
@@ -174,13 +278,6 @@ jobs:
       - k8s-e2e-tests
     runs-on: ubuntu-latest
     steps:
-      - name: Notify failure via Slack
-        uses: slackapi/slack-github-action@ebd044f149bf27a2817c0eee26e98d797fa5cffd # v1.22.0
+      - uses: ./.github/actions/send-warning-via-slack
         with:
-          payload: |
-            {
-              "text": ":warning: [Nightly workflow failed] @hero check <${{ env.GITHUB_JOB_URL }}>"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
-          GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          message: "Nightly workflow failed"

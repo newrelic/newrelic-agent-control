@@ -91,13 +91,6 @@ jobs:
     needs: [puppet-install]
     runs-on: ubuntu-latest
     steps:
-      - name: Notify failure via Slack
-        uses: slackapi/slack-github-action@ebd044f149bf27a2817c0eee26e98d797fa5cffd # v1.22.0
+      - uses: ./.github/actions/send-warning-via-slack
         with:
-          payload: |
-            {
-              "text": ":warning: [Puppet installation workflow failed] @hero check <${{ env.GITHUB_JOB_URL }}>"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
-          GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          message: "Puppet installation workflow failed"

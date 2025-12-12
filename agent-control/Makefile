@@ -1,10 +1,23 @@
 .DEFAULT_GOAL := onhost/cargo
 
 CARGO_ARGS ?= ""
-CARGO_CMD ?= "test"
+CARGO_CMD ?= test
 PACKAGE_SA = --locked --package newrelic_agent_control
 
 TEST_FIXTURES = TEST_MACHINE_ID_PATH="/tmp/machine-id"
+
+.PHONY: test/cache
+test/cache:
+	# Precompile all relevant tests by invoking existing targets with --no-run
+	$(MAKE) CARGO_CMD="test --no-run" test/onhost
+	$(MAKE) CARGO_CMD="test --no-run" test/onhost/integration
+	$(MAKE) CARGO_CMD="test --no-run" test/onhost/root/integration
+	$(MAKE) CARGO_CMD="test --no-run" test/k8s
+# K8s specific test binaries
+	cargo test --no-run k8s::scenarios -- --nocapture --ignored --test-threads=10
+	cargo test --no-run k8s::agent_control_cli -- --nocapture --ignored --test-threads=10
+	cargo test --no-run k8s::flux_self_update -- --nocapture --ignored  --test-threads=10
+	cargo test k8s_ --no-run --  --skip k8s::scenarios --skip k8s::agent_control_cli --skip k8s::flux_self_update --nocapture --ignored --test-threads=10
 
 .PHONY: onhost/cargo
 onhost/cargo:
