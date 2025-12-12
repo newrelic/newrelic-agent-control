@@ -21,18 +21,40 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+      - uses: ./.github/actions/install-rust-toolchain
+        with:
+          components: clippy
+
       - uses: ./.github/actions/rust-cache
         with:
           identifier: 'clippy'
           restore-strategy: 'exact'
           save-cache: true
-
-      - uses: ./.github/actions/install-rust-toolchain
-        with:
-          components: clippy
       
       - name: cargo clippy with compiler warnings
         run: cargo clippy --workspace --all-targets -- -D warnings -D clippy::all
+
+  build-clean-caches-test-dev:
+    name: Build clean caches
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest ]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: ./.github/actions/rust-cache
+        with:
+          identifier: 'test-dev'
+          restore-strategy: 'exact'
+          save-cache: true
+
+      - uses: ./.github/actions/install-rust-toolchain
+      
+      - name: cargo clippy with compiler warnings
+        run: |
+          cargo test --no-run --workspace --exclude 'newrelic_agent_control' --all-targets -- --include-ignored
+          make -C agent-control test/cache
 
   build-clean-caches-coverage:
     name: Build clean caches
@@ -55,32 +77,13 @@ jobs:
       
       - name: Generate coverage report
         run: COVERAGE_OUT_FORMAT=json COVERAGE_OUT_FILEPATH=jcov.info make coverage
-
-  build-clean-caches-test-dev:
+  
+  build-clean-caches-release:
     name: Build clean caches
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ ubuntu-latest, windows-latest ]
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - uses: ./.github/actions/rust-cache
-        with:
-          identifier: 'test-dev'
-          restore-strategy: 'exact'
-          save-cache: true
-
-      - uses: ./.github/actions/install-rust-toolchain
-      
-      - name: compile tests without running
-        run: |
-          cargo test --no-run --workspace --exclude 'newrelic_agent_control' --all-targets -- --include-ignored
-          make -C agent-control test/cache
-  
-  build-clean-caches-release:
-    name: Build clean caches
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -93,7 +96,9 @@ jobs:
       - uses: ./.github/actions/install-rust-toolchain
         with:
           targets: >-
-            x86_64-unknown-linux-musl
+            aarch64-unknown-linux-musl,
+            x86_64-unknown-linux-musl,
+            x86_64-pc-windows-msvc
       
       - name: Install Zig
         uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2
@@ -101,10 +106,15 @@ jobs:
       - name: Install cargo-zigbuild
         run: cargo install --locked cargo-zigbuild --force
           
-      - name: Build k8s in release mode
-        run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control-k8s --target x86_64-unknown-linux-musl
-      - name: Build onhost in release mode
-        run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control --target x86_64-unknown-linux-musl
+      - name: Build in release mode
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control-k8s --target x86_64-unknown-linux-musl
+          cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control --target x86_64-unknown-linux-musl
+      
+      - name: Build in release mode
+        if: ${{ matrix.os == 'windows-latest' }}
+        run: cargo build --all --release
 
   build-packages:
     name: Build packages
