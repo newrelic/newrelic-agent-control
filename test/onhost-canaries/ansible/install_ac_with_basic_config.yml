@@ -122,31 +122,48 @@
   hosts: testing_hosts_windows
   gather_facts: yes
 
-  pre_tasks:
-    - name: Initial cleanup
-      include_role:
-        name: caos.ansible_roles.infra_agent
-      vars:
-        uninstall: true
+  vars:
+    # Pre-release version of the agent control is used by default
+    repo_endpoint: http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview
+    extract_dest: "C:\\temp\\newrelic-agent-control"
 
   tasks:
-    - name: Installation tests suite
-      vars:
-        target_agent_version: "1.71.1"
+    - name: Ensure temp directory exists
+      ansible.windows.win_file:
+        path: C:\temp
+        state: directory
 
-      block:
+    - name: Download Agent Control zip
+      ansible.windows.win_get_url:
+        url: "{{ repo_endpoint }}/binaries/windows/amd64/newrelic-agent-control_{{ package_version }}_windows_amd64.zip"
+        dest: "C:\\temp\\newrelic-agent-control_0.100.19917356190_windows_amd64.zip"
+        force: yes
 
-        - name: install agent
-          include_role:
-            name: caos.ansible_roles.infra_agent
-          vars:
-            target_version: "{{ target_agent_version }}"
-            repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent"
+    - name: Extract Agent Control zip
+      ansible.windows.win_powershell:
+        script: |
+          $zipPath = "C:\temp\newrelic-agent-control_{{ package_version }}_windows_amd64.zip"
+          $extractPath = "{{ extract_dest }}"
 
-        - name: Assert version
-          include_role:
-            name: caos.ansible_roles.assert_version
-          vars:
-            target_versions:
-              - exec: '"C:\Program Files\New Relic\newrelic-infra\newrelic-infra.exe" "--version"'
-                version: "{{ target_agent_version }}"
+          if (Test-Path $extractPath) {
+            Remove-Item -Path $extractPath -Recurse -Force
+          }
+
+          Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+
+    - name: Execute install.ps1
+      ansible.windows.win_powershell:
+        chdir: "{{ extract_dest }}"
+        script: |
+          .\install.ps1
+
+    - name: Register agent control version
+      ansible.windows.win_powershell:
+        script: |
+          $acPath = [IO.Path]::Combine($env:ProgramFiles, 'New Relic', 'newrelic-agent-control', 'newrelic-agent-control.exe')
+          & $acPath --version
+      register: version
+
+    - name: Debug agent control version
+      ansible.builtin.debug:
+        var: version.output

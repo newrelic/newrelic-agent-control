@@ -101,8 +101,16 @@ locals {
   // If env-provisioner changes the way it computes the hostnames, we need to change
   // it here too. However, terraform plan will properly list all the resources that
   // will be created and we can spot any problems with the hostnames.
+  // At the moment windows is not installing infra-agent so we only add the alerts to linux hosts
+  // so we use the linux_hostnames variable instead of this one.
   hostnames = [for k, v in local.ec2_instances : "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}"]
 
+  # Filtered list for linux hostnames
+  linux_hostnames = [
+    for k, v in local.ec2_instances :
+    "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}"
+    if v.platform == "linux"
+  ]
   infra_staging = var.nr_region == "Staging" ? "true" : "false"
 }
 
@@ -144,7 +152,7 @@ variable "nr_region" {
 module "alerts" {
   source = "../../terraform/modules/nr_alerts"
 
-  for_each = toset(local.hostnames)
+  for_each = toset(local.linux_hostnames)
 
   api_key           = var.api_key
   account_id        = var.account_id
