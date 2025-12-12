@@ -20,7 +20,7 @@ runs:
   using: "composite"
   steps:
     - name: Restore rust cache (nearest match)
-      if: ${{ inputs.restore-strategy == 'nearest' }}
+      if: ${{ inputs.save-cache == 'false' && inputs.restore-strategy == 'nearest' }}
       uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5
       with:
         path: |
@@ -33,7 +33,7 @@ runs:
         restore-keys: ${{ runner.os }}-${{ inputs.identifier }}-cargo-
     
     - name: Restore rust cache (exact match)
-      if: ${{ inputs.restore-strategy == 'exact' }}
+      if: ${{ inputs.save-cache == 'false' && inputs.restore-strategy == 'exact' }}
       uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5
       with:
         path: |
@@ -45,8 +45,8 @@ runs:
         key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     
     - name: Save rust cache
-      if: ${{ inputs.save-cache == true }}
-      uses: actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb # v5
+      if: ${{ inputs.save-cache == 'true' }}
+      uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5
       with:
         path: |
           ~/.cargo/bin/
@@ -55,4 +55,3 @@ runs:
           ~/.cargo/git/db/
           target/
         key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
