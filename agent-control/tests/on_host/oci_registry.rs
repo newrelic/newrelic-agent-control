@@ -22,6 +22,7 @@ use tokio::runtime::Runtime;
 #[error("{0}")]
 struct DigestNotfoundError(String);
 
+// Registry created in the make target executing oci-registry.sh
 const REGISTRY_URL: &str = "localhost:5000";
 
 async fn push_artifact(artifact: &str, reference: &Reference) -> Result<String, Box<dyn Error>> {
@@ -118,7 +119,7 @@ fn runtime_and_run_tag() -> (Arc<Runtime>, String) {
 fn test_download_artifact_from_local_registry_with_oci_registry() {
     let (runtime, run_tag) = runtime_and_run_tag();
 
-    let reference = Reference::try_from(format!("localhost:5000/test:{}", run_tag)).unwrap();
+    let reference = Reference::try_from(format!("{}/test:{}", REGISTRY_URL, run_tag)).unwrap();
     const ARTIFACT: &str = "artifact.txt";
 
     let push_result = runtime.block_on(push_artifact(ARTIFACT, &reference));
