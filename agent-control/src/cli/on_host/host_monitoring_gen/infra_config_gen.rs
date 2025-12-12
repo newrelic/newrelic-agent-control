@@ -4,7 +4,7 @@ use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::cli::error::CliError;
 use crate::cli::on_host::config_gen::region::Region;
 use crate::cli::on_host::host_monitoring_gen::infra_config::{
-    INFRA_AGENT_TYPE_VERSION, InfraConfig,
+    InfraConfig, INFRA_AGENT_TYPE_VERSION,
 };
 use crate::cli::on_host::proxy_config::ProxyConfig;
 use crate::config_migrate::migration::agent_config_getter::AgentConfigGetter;
@@ -29,7 +29,10 @@ pub struct InfraConfigGenerator {
     infra_config_path: PathBuf,
 }
 
+#[cfg(not(target_os = "windows"))]
 const INFRA_CONFIG_PATH: &str = "/etc/newrelic-infra.yml";
+#[cfg(target_os = "windows")]
+const INFRA_CONFIG_PATH: &str = "C:\\Program Files\\New Relic\\newrelic-infra\\newrelic-infra.yml";
 
 impl Default for InfraConfigGenerator {
     fn default() -> Self {
