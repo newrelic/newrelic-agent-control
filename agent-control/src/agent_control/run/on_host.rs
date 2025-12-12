@@ -3,8 +3,9 @@ use crate::agent_control::config_repository::repository::AgentControlConfigLoade
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
+    AGENT_CONTROL_VERSION, AUTH_PRIVATE_KEY_FILE_NAME, FLEET_ID_ATTRIBUTE_KEY,
+    HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
@@ -17,6 +18,8 @@ use crate::health::noop::NoOpHealthChecker;
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::on_host::file_store::FileStore;
+use crate::opamp::auth::config::ProviderConfig;
+use crate::opamp::builder::opamp_client_builder;
 use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
@@ -35,6 +38,7 @@ use crate::values::ConfigRepo;
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, info};
@@ -53,9 +57,39 @@ impl AgentControlRunner {
             self.base_paths.remote_dir.clone(),
         ));
 
+        let opamp_http_builder = if let Some(opamp_config) = &self.opamp {
+            let private_key = if let Some(auth_config) = &opamp_config.auth_config {
+                if let Some(ProviderConfig::Local(local_config)) = &auth_config.provider {
+                    get_secret(local_config.private_key_path.clone())?
+                } else {
+                    get_secret(
+                        self.base_paths
+                            .local_dir
+                            .clone()
+                            .join(AUTH_PRIVATE_KEY_FILE_NAME),
+                    )?
+                }
+            } else {
+                get_secret(
+                    self.base_paths
+                        .local_dir
+                        .clone()
+                        .join(AUTH_PRIVATE_KEY_FILE_NAME),
+                )?
+            };
+
+            Some(opamp_client_builder(
+                opamp_config.clone(),
+                self.proxy.clone(),
+                private_key,
+            )?)
+        } else {
+            None
+        };
+
         debug!("Initializing yaml_config_repository");
         let config_repository = ConfigRepo::new(file_store.clone());
-        let yaml_config_repository = Arc::new(if self.opamp_http_builder.is_some() {
+        let yaml_config_repository = Arc::new(if opamp_http_builder.is_some() {
             config_repository.with_remote()
         } else {
             config_repository
@@ -100,7 +134,7 @@ impl AgentControlRunner {
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
-        let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
+        let opamp_client_builder = opamp_http_builder.map(|http_builder| {
             DefaultOpAMPClientBuilder::new(
                 http_builder,
                 DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
@@ -196,6 +230,15 @@ impl AgentControlRunner {
         .run()
         .map_err(|err| RunError(err.to_string()))
     }
+}
+fn get_secret(base_path: PathBuf) -> Result<String, RunError> {
+    std::fs::read_to_string(&base_path).map_err(|e| {
+        RunError(format!(
+            "error reading secret from  base path:{}, err:{},",
+            base_path.to_string_lossy(),
+            e
+        ))
+    })
 }
 
 pub fn agent_control_opamp_non_identifying_attributes(

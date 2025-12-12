@@ -64,6 +64,9 @@ agentControlDeployment:
     proxy:
       url: https://mitmproxy-service:8080
     config:
+      authSecret:
+        secretName: "agent-control-auth"
+        secretKeyName: "private_key"
       log:
         level: trace
       fleet_control:
