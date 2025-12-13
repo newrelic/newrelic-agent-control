@@ -1,5 +1,5 @@
 use super::LocalFile;
-use std::fs::{read_dir, read_to_string};
+use std::fs::{self, read_dir};
 use std::io::Error as ioError;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -34,10 +34,9 @@ impl FileReader for LocalFile {
                 file_path.display()
             )));
         }
-        match read_to_string(file_path) {
-            Err(e) => Err(FileReaderError::Read(e)),
-            Ok(content) => Ok(content),
-        }
+
+        let file_contents = fs::read(file_path)?;
+        Ok(String::from_utf8_lossy(&file_contents).to_string())
     }
 
     fn dir_entries(&self, dir_path: &Path) -> Result<Vec<PathBuf>, FileReaderError> {
