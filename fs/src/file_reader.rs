@@ -1,13 +1,13 @@
 use super::LocalFile;
-use std::fs::{read_dir, read_to_string};
-use std::io::Error as ioError;
+use std::fs::{self, read_dir};
+use std::io;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum FileReaderError {
     #[error("error reading contents: {0}")]
-    Read(#[from] ioError),
+    Read(#[from] io::Error),
     #[error("file not found: {0}")]
     FileNotFound(String),
     #[error("dir not found: {0}")]
@@ -34,9 +34,31 @@ impl FileReader for LocalFile {
                 file_path.display()
             )));
         }
-        match read_to_string(file_path) {
-            Err(e) => Err(FileReaderError::Read(e)),
-            Ok(content) => Ok(content),
+
+        let file_contents = fs::read(file_path)?;
+
+        match str::from_utf8(&file_contents) {
+            Ok(s) => Ok(s.to_string()),
+            #[cfg(target_family = "unix")]
+            Err(e) => Err(FileReaderError::Read(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("UTF-8 decoding error: {e}"),
+            ))),
+            #[cfg(target_family = "windows")]
+            Err(_) => {
+                // 2. Fallback to Windows-1252 if UTF-8 fails
+                tracing::warn!("UTF-8 decoding failed, falling back to Windows-1252...");
+                let (cow, _encoding_used, errors_happened) =
+                    encoding_rs::WINDOWS_1252.decode(&file_contents);
+                if errors_happened {
+                    Err(FileReaderError::Read(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "UTF-8 and Windows-1252 decoding errors, file may be corrupted",
+                    )))
+                } else {
+                    Ok(cow.to_string())
+                }
+            }
         }
     }
 
