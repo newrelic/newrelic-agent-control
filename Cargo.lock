@@ -1546,6 +1546,7 @@ checksum = "28dd6caf6059519a65843af8fe2a3ae298b14b80179855aeb4adc2c1934ee619"
 name = "fs"
 version = "0.1.0"
 dependencies = [
+ "encoding_rs",
  "mockall",
  "tempfile",
  "thiserror 2.0.17",

@@ -11,7 +11,7 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 use thiserror::Error;
-use tracing::error;
+use tracing::{debug, error};
 
 #[derive(Error, Debug)]
 pub enum ConversionError {
@@ -61,15 +61,18 @@ impl<F: FileReader> ConfigConverter<F> {
         migration_agent_config
             .filesystem_mappings
             .iter()
-            .map(|(k, v)| match v {
-                MappingType::File(file_info) => Ok((
-                    k.to_string(),
-                    retrieve_file_mapping_value(file_reader, file_info)?,
-                )),
-                MappingType::Dir(dir_info) => Ok((
-                    k.to_string(),
-                    retrieve_dir_mapping_values(file_reader, dir_info)?,
-                )),
+            .map(|(k, v)| {
+                debug!("Processing mapping key: {}", k);
+                match v {
+                    MappingType::File(file_info) => Ok((
+                        k.to_string(),
+                        retrieve_file_mapping_value(file_reader, file_info)?,
+                    )),
+                    MappingType::Dir(dir_info) => Ok((
+                        k.to_string(),
+                        retrieve_dir_mapping_values(file_reader, dir_info)?,
+                    )),
+                }
             })
             .collect::<Result<HashMap<_, _>, ConversionError>>()
     }
@@ -79,6 +82,7 @@ fn retrieve_file_mapping_value<F: FileReader>(
     file_reader: &F,
     file_info: &FileInfo,
 ) -> Result<serde_yaml::Value, ConversionError> {
+    debug!("Reading file mapping from: {:?}", file_info.file_path);
     let yaml_value = file_reader.read(file_info.file_path.as_path())?;
     let mut parsed_yaml: serde_yaml::Value = serde_yaml::from_str(&yaml_value)?;
     // Overwrite or add attributes from the HashMap

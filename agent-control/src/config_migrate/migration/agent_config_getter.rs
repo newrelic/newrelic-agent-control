@@ -3,6 +3,7 @@ use crate::agent_control::config_repository::repository::AgentControlDynamicConf
 use crate::agent_type::agent_type_id::AgentTypeID;
 use semver::VersionReq;
 use thiserror::Error;
+use tracing::debug;
 
 #[derive(Error, Debug)]
 pub enum ConversionError {
@@ -35,6 +36,12 @@ where
         agent_type_min: AgentTypeID,
         agent_type_max: Option<AgentTypeID>,
     ) -> Result<AgentControlDynamicConfig, ConversionError> {
+        debug!(
+            "Loading agents of type {} between versions {} and {:?}",
+            agent_type_min,
+            agent_type_min.version(),
+            agent_type_max.as_ref().map(|at| at.version())
+        );
         let mut agent_control_dynamic_config = self.sub_agents_config_loader.load()?;
         let agent_type_namespace = agent_type_min.namespace();
         let agent_type_name = agent_type_min.name();

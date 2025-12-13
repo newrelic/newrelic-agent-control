@@ -4,7 +4,7 @@ use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::cli::error::CliError;
 use crate::cli::on_host::config_gen::region::Region;
 use crate::cli::on_host::host_monitoring_gen::infra_config::{
-    InfraConfig, INFRA_AGENT_TYPE_VERSION,
+    INFRA_AGENT_TYPE_VERSION, InfraConfig,
 };
 use crate::cli::on_host::proxy_config::ProxyConfig;
 use crate::config_migrate::migration::agent_config_getter::AgentConfigGetter;
@@ -74,10 +74,18 @@ impl InfraConfigGenerator {
         infra_config = infra_config.setup_proxy(proxy);
 
         if self.infra_config_path.is_file() {
-            return self.migrate_old_infra(infra_config);
+            info!(
+                "Found existing infra agent config at {}, migrating",
+                self.infra_config_path.display()
+            );
+            self.migrate_old_infra(infra_config)
+        } else {
+            info!(
+                "No existing infra agent config found at {}, generating new config",
+                self.infra_config_path.display()
+            );
+            self.create_new_infra_values(infra_config)
         }
-
-        self.create_new_infra_values(infra_config)
     }
 
     fn create_new_infra_values(&self, infra_config: InfraConfig) -> Result<(), CliError> {
