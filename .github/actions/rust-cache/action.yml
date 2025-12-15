@@ -5,6 +5,51 @@ inputs:
     description: 'A unique identifier that will be used as part of the cache key'
     required: true
     type: string
+  # Why do we need a "restore-strategy" input field?
+  #
+  # Before going straight to the explanation, please read how Github Action Caches work.
+  # https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache
+  #
+  # We had a couple of problems we wanted to overcome.
+  # 
+  # 1. Github Actions Cache size limit is of 10GB
+  #
+  # The current limit is of 10GB and we can't change it. That's a pity because
+  # rust caches are huge and we have several PRs running each day. Thus, caches
+  # are removed every day. Making the first run of the pipeline the following
+  # day slower. We wanted improve that.
+  #
+  # 2. Cache misses are common when changing dependencies
+  #
+  # Every time we change dependencies in our Rust projects, the Cargo.lock hash changes.
+  # This triggers a cache miss and we have to build everything from scratch again. Making
+  # some PRs slower than they should be. We came up with an idea. We could restore
+  # a cache that was "similar" if no exact match was found. An exact match is found if
+  # the Cargo.lock hash is the same that was used to create one of the caches stored
+  # in the repository.
+  #
+  # 3. Rust caches don't clean themselves
+  #
+  # Whenever we run "cargo build" or any other command that builds artifacts,
+  # cargo doesn't clean old unused artifacts nor duplicated ones. For that reason,
+  # restoring a similar cache may lead to a larger cache size. Let's imagine that we
+  # have a cache in the "main" branch that takes 1.5GB and that we implemented the
+  # proposal to solve issue number 2. We then merge a PR with new dependencies.
+  # The Cargo.lock hash changes, we restore a "similar" cache and build on top of it.
+  # This ends up creating a cache of 3GB because we have both the old and the new
+  # artifacts in it. To solve that, we decided to restore "similar" caches only in branches.
+  # In the main branch, we always restore exact matches.
+  #
+  # With all that in mind, we created the "restore-strategy" solution. Basically, we always
+  # restore the "exact" match based on the Cargo.lock in main. Thus, avoiding the ever growing
+  # caches problem. This also makes sure that branches don't have to start from scratch.
+  # In branches, we restore "nearest" matches to speed up builds at the cost of potential
+  # bigger caches.
+  # 
+  # The only open issue we have at the moment is that caches in main could be evicted, while
+  # some branch caches stay in the system. This would trigger every other branch to build
+  # from scratch again for the first time. This is a minor issue we can live with. It can be
+  # improved by building caches every night.
   restore-strategy:
     description: 'The strategy to use when restoring the cache (exact or nearest)'
     required: true
