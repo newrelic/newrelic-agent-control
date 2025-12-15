@@ -157,13 +157,16 @@
         script: |
           .\install.ps1
 
-    - name: Register agent control version
+    - name: Wait for Agent Control to start
+      pause:
+        seconds: 30
+
+    - name: Check if agent-control is running
       ansible.windows.win_powershell:
         script: |
-          $acPath = [IO.Path]::Combine($env:ProgramFiles, 'New Relic', 'newrelic-agent-control', 'newrelic-agent-control.exe')
-          & $acPath --version
-      register: version
-
-    - name: Debug agent control version
-      ansible.builtin.debug:
-        var: version.output
+          $status = Invoke-RestMethod -Uri http://localhost:51200/status -Method Get
+          $isHealthy = $status.agent_control.healthy
+    
+          if (-not $isHealthy) {
+              exit 1
+          }
