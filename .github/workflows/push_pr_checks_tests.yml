@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - name: Codespell test
         uses: codespell-project/actions-codespell@94259cd8be02ad2903ba34a22d9c13de21a74461 # 94259cd8be02ad2903ba34a22d9c13de21a74461
 
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     name: cargo fmt
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - uses: ./.github/actions/install-rust-toolchain
         with:
@@ -44,7 +44,7 @@ jobs:
       contents: read
       checks: write
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - uses: ./.github/actions/install-rust-toolchain
         with:
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     name: cargo doc
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - uses: ./.github/actions/install-rust-toolchain
 
@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     name: ⚖️ Check third party licenses
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - uses: ./.github/actions/install-rust-toolchain
 
@@ -91,7 +91,7 @@ jobs:
     name: cargo shear (unused dependencies)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - uses: taiki-e/install-action@575f713d0233afba556737a7b85080563be14186 # 575f713d0233afba556737a7b85080563be14186
         with:
@@ -103,7 +103,7 @@ jobs:
     runs-on: ubuntu-latest
     name: ubuntu / stable / coverage
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - uses: ./.github/actions/install-rust-toolchain
         with:
@@ -154,7 +154,7 @@ jobs:
     runs-on: ubuntu-latest
     name: "Build release binaries"
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - uses: ./.github/actions/install-rust-toolchain
         with:
@@ -186,7 +186,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Unit, docs and onhost integration tests
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - uses: ./.github/actions/install-rust-toolchain
         with:
@@ -233,7 +233,7 @@ jobs:
     container: rust:latest
     name: tests as root
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - uses: ./.github/actions/install-rust-toolchain
 
@@ -250,9 +250,9 @@ jobs:
     name: Unit test for embedded downloader
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - name: Install Go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
         with:
           go-version-file: "build/embedded/go.mod"
       - name: run tests for embedded downloader
@@ -266,7 +266,7 @@ jobs:
       matrix:
         group: [ part1, part2, flux-self-update ]
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - name: Free up space
         run: bash .github/workflows/scripts/space_cleanup.sh
@@ -320,7 +320,7 @@ jobs:
     name: "On-host Windows tests"
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - uses: ./.github/actions/install-rust-toolchain
         with:
