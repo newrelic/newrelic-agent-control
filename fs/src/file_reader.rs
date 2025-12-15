@@ -48,15 +48,16 @@ impl FileReader for LocalFile {
             Err(_) => {
                 // 2. Fallback to Windows-1252 if UTF-8 fails
                 tracing::warn!("UTF-8 decoding failed, falling back to Windows-1252...");
-                let (cow, _encoding_used, errors_happened) =
+                let (output, encoding_used, errors_happened) =
                     encoding_rs::WINDOWS_1252.decode(&file_contents);
+                tracing::debug!("Decoded using: {}", encoding_used.name());
                 if errors_happened {
                     Err(FileReaderError::Read(io::Error::new(
                         io::ErrorKind::InvalidData,
                         "UTF-8 and Windows-1252 decoding errors, file may be corrupted",
                     )))
                 } else {
-                    Ok(cow.to_string())
+                    Ok(output.to_string())
                 }
             }
         }
