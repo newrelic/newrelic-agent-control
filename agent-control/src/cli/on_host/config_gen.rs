@@ -407,7 +407,7 @@ agents:
 
     const EXPECTED_NONE_STAGING: &str = r#"
 fleet_control:
-  endpoint: https://staging-service.newrelic.com/v1/opamp
+  endpoint: https://opamp.staging-service.newrelic.com/v1/opamp
   signature_validation:
     public_key_server_url: https://staging-publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json
   fleet_id: test-fleet-id
