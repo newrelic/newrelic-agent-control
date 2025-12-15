@@ -2,6 +2,22 @@ name: 📞 Build binaries and create packages
 
 on:
   workflow_call:
+    secrets:
+      gh_token:
+        description: 'Github token for uploading packages to release'
+        required: false
+      gpg_private_key_base64:
+        description: 'Private key for signing packages'
+        required: false
+      gpg_passphrase:
+        description: 'Passphrase the GPG private key'
+        required: false
+      pfx_certificate_base64:
+        description: 'Pfx for signing windows executables'
+        required: false
+      pfx_passphrase:
+        description: 'Passphrase of the PFX certificate'
+        required: false
     inputs:
       pre-release:
         description: 'set to true if running a real pre-release'
@@ -92,11 +108,11 @@ jobs:
         with:
           args: release ${{ env.SKIP_UPLOAD_RELEASE }} ${{ env.SKIP_SIGN }} --clean --verbose --timeout 2h
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
-          PFX_CERTIFICATE_BASE64: ${{ secrets.OHAI_PFX_CERTIFICATE_BASE64 }} # base64 encoded
-          PFX_PASSPHRASE: ${{ secrets.OHAI_PFX_PASSPHRASE }}
-          GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          GITHUB_TOKEN: ${{ secrets.gh_token }}
+          GPG_PRIVATE_KEY_BASE64: ${{ secrets.gpg_private_key_base64 }} # base64 encoded
+          GPG_PASSPHRASE: ${{ secrets.gpg_passphrase }}
+          PFX_CERTIFICATE_BASE64: ${{ secrets.pfx_certificate_base64 }} # base64 encoded
+          PFX_PASSPHRASE: ${{ secrets.pfx_passphrase }}
           GPG_MAIL: 'infrastructure-eng@newrelic.com'
           NR_RELEASE_TAG: ${{ inputs.tag_name }}
           GORELEASER_CURRENT_TAG: ${{ inputs.tag_name }}
