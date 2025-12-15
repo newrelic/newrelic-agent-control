@@ -75,14 +75,14 @@ jobs:
           save-cache: false
 
       - name: Install Zig
-        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2
+        uses: mlugg/setup-zig@fa65c4058643678a4e4a9a60513944a7d8d35440 # v2
 
       - name: Install cargo-zigbuild
         run: |
           cargo install --locked cargo-zigbuild --force
 
       - name: Run k8s e2e-test ${{ matrix.group }}
-        uses: newrelic/newrelic-integration-e2e-action@v1
+        uses: newrelic/newrelic-integration-e2e-action@c548a33a0c2941a4db4899ded766923eb3178e0e # v1
         env:
           # SI L2->L2 for AC
           NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}

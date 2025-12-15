@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Run Trivy in table mode
         # Table output is only useful when running on a pull request or push.
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # 0.28.0
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
           image-ref: ${{ env.DOCKER_IMAGE }}:${{ inputs.image-tag }}
           format: table
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run Trivy in report mode
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # 0.28.0
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
           image-ref: ${{ env.DOCKER_IMAGE }}:${{ inputs.image-tag }}
           format: 'template'

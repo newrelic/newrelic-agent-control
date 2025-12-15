@@ -58,7 +58,7 @@ jobs:
           path: ./
 
       - name: Publish deb to S3 action
-        uses: newrelic/infrastructure-publish-action@v1
+        uses: newrelic/infrastructure-publish-action@ecba9f25fc8c7badc3c4e7d2c2aed51c26d52f2b # v1
         with:
           tag: 0.100.${{ github.run_id }}
           app_name: "newrelic-agent-control"
@@ -83,7 +83,7 @@ jobs:
           apt_skip_mirror: true
 
       - name: Publish windows artifacts
-        uses: newrelic/infrastructure-publish-action@v1
+        uses: newrelic/infrastructure-publish-action@ecba9f25fc8c7badc3c4e7d2c2aed51c26d52f2b # v1
         with:
           tag: 0.100.${{ github.run_id }}
           app_name: "newrelic-agent-control"

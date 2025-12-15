@@ -83,7 +83,7 @@ jobs:
       - name: Fetch dependencies
         run: cargo fetch
 
-      - uses: newrelic/rust-licenses-noticer@v1
+      - uses: newrelic/rust-licenses-noticer@9da6eb161e6fa15cf315a3012096447513015224 # v1
         with:
           template-file: THIRD_PARTY_NOTICES.md.tmpl
 
@@ -171,7 +171,7 @@ jobs:
           save-cache: true
 
       - name: Install Zig
-        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2
+        uses: mlugg/setup-zig@fa65c4058643678a4e4a9a60513944a7d8d35440 # v2
 
       - name: Install cargo-zigbuild
         run: |
@@ -205,7 +205,7 @@ jobs:
           save-cache: false
 
       - name: Install Zig
-        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2
+        uses: mlugg/setup-zig@fa65c4058643678a4e4a9a60513944a7d8d35440 # v2
 
       - name: Install cargo-zigbuild
         run: |
@@ -295,7 +295,7 @@ jobs:
           save-cache: true
 
       - name: Install Zig
-        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2
+        uses: mlugg/setup-zig@fa65c4058643678a4e4a9a60513944a7d8d35440 # v2
 
       - name: Install cargo-zigbuild
         run: |
