@@ -361,18 +361,12 @@ jobs:
             target/
           key: ${{ runner.os }}-test-dev-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-test-dev-cargo-
-      
-      - name: Set up OCI registry
-        uses: ./.github/actions/set-up-oci-registry
-        id: oci-registry
-        with:
-          os: linux
 
       - name: Run onHost root-required integration-tests only
         run: make -C agent-control test/onhost/oci-registry/integration
       
       - name: Show zot logs
-        run: cat ${{ steps.oci-registry.outputs.log-file }}
+        run: cat ~/.zot/zot.log
 
   embedded-downloader-tests:
     name: Unit test for embedded downloader
@@ -522,13 +516,6 @@ jobs:
         if: '!cancelled()'
         shell: bash
         run: make -C agent-control test/onhost/root/integration
-      
-      - name: Set up OCI registry
-        if: '!cancelled()'
-        uses: ./.github/actions/set-up-oci-registry
-        id: oci-registry
-        with:
-          os: windows
 
       - name: Run onHost oci-registry-required integration-tests only
         if: '!cancelled()'
@@ -538,7 +525,7 @@ jobs:
       - name: Show zot logs
         if: '!cancelled()'
         shell: bash
-        run: cat ${{ steps.oci-registry.outputs.log-file }}
+        run: cat ~/.zot/zot.log
 
       - name: Run documentation tests
         if: '!cancelled()'
