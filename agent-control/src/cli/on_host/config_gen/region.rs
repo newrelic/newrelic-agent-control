@@ -7,7 +7,7 @@ use nr_auth::{
 
 const OPAMP_ENDPOINT_US: &str = "https://opamp.service.newrelic.com/v1/opamp";
 const OPAMP_ENDPOINT_EU: &str = "https://opamp.service.eu.newrelic.com/v1/opamp";
-const OPAMP_ENDPOINT_STAGING: &str = "https://staging-service.newrelic.com/v1/opamp";
+const OPAMP_ENDPOINT_STAGING: &str = "https://opamp.staging-service.newrelic.com/v1/opamp";
 
 const PUBLIC_KEY_ENDPOINT_US: &str =
     "https://publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json";
@@ -110,7 +110,7 @@ mod tests {
     #[rstest]
     #[case(Region::US, "https://opamp.service.newrelic.com/v1/opamp")]
     #[case(Region::EU, "https://opamp.service.eu.newrelic.com/v1/opamp")]
-    #[case(Region::STAGING, "https://staging-service.newrelic.com/v1/opamp")]
+    #[case(Region::STAGING, "https://opamp.staging-service.newrelic.com/v1/opamp")]
     fn test_opamp_endpoint(#[case] region: Region, #[case] expected_endpoint: &str) {
         assert_eq!(
             region.opamp_endpoint().to_string(),
