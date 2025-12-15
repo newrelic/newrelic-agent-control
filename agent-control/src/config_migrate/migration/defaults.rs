@@ -1,6 +1,6 @@
 // We are not disallowing by code to put two config entries with the same agent_type_fqn,
 // but there should be only one entry for each because the last one will overwrite the previous ones.
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_family = "unix")]
 pub const NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING: &str = r#"
 configs:
   -
@@ -22,7 +22,7 @@ configs:
           - "yaml"
 "#;
 
-#[cfg(target_os = "windows")]
+#[cfg(target_family = "windows")]
 pub const NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING: &str = r#"
 configs:
   -

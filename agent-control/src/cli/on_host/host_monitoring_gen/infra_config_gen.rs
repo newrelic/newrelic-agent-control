@@ -29,9 +29,9 @@ pub struct InfraConfigGenerator {
     infra_config_path: PathBuf,
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_family = "unix")]
 const INFRA_CONFIG_PATH: &str = "/etc/newrelic-infra.yml";
-#[cfg(target_os = "windows")]
+#[cfg(target_family = "windows")]
 const INFRA_CONFIG_PATH: &str = "C:\\Program Files\\New Relic\\newrelic-infra\\newrelic-infra.yml";
 
 impl Default for InfraConfigGenerator {

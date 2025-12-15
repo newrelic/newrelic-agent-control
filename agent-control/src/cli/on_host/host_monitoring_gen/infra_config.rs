@@ -275,7 +275,7 @@ mod tests {
 - agent_type_fqn: newrelic/com.newrelic.infrastructure:0.1.0
   filesystem_mappings:
     config_agent:
-      file_path: "C:\\Program Files\\New Relic\\newrelic-infra\\newrelic-infra.yml"
+      file_path: C:\Program Files\New Relic\newrelic-infra\newrelic-infra.yml
       overwrites:
         custom_attributes:
           test: '123'
@@ -288,12 +288,12 @@ mod tests {
       - custom_attributes
       - is_integrations_only
     config_integrations:
-      dir_path: "C:\\Program Files\\New Relic\\newrelic-infra\\integrations.d"
+      dir_path: C:\Program Files\New Relic\newrelic-infra\integrations.d
       extensions:
       - yml
       - yaml
     config_logging:
-      dir_path: "C:\\Program Files\\New Relic\\newrelic-infra\\logging.d"
+      dir_path: C:\Program Files\New Relic\newrelic-infra\logging.d
       extensions:
       - yml
       - yaml
