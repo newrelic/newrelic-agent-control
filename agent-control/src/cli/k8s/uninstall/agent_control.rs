@@ -4,7 +4,7 @@ use crate::agent_control::config::{
 use crate::cli::k8s::errors::K8sCliError;
 use crate::cli::k8s::install::agent_control::REPOSITORY_NAME;
 use crate::cli::k8s::uninstall::Deleter;
-use crate::cli::k8s::utils::try_new_k8s_client;
+use crate::cli::k8s::utils::{retrieve_api_resources, try_new_k8s_client};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
@@ -42,25 +42,6 @@ pub fn uninstall_agent_control(
     delete_owned_objects(&k8s_client, &kinds_available, namespace_agents)?;
 
     Ok(())
-}
-
-fn retrieve_api_resources(k8s_client: &SyncK8sClient) -> Result<HashSet<TypeMeta>, K8sCliError> {
-    let mut tm_available = HashSet::new();
-
-    let all_api_resource_list = k8s_client
-        .list_api_resources()
-        .map_err(|err| K8sCliError::Generic(format!("failed to retrieve api_resources: {err}")))?;
-
-    for api_resource_list in &all_api_resource_list {
-        for resource in &api_resource_list.resources {
-            tm_available.insert(TypeMeta {
-                api_version: api_resource_list.group_version.clone(),
-                kind: resource.kind.clone(),
-            });
-        }
-    }
-
-    Ok(tm_available)
 }
 
 fn delete_owned_objects(

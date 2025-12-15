@@ -16,7 +16,7 @@ use crate::agent_control::config::{
 use crate::cli::k8s::errors::K8sCliError;
 use crate::cli::k8s::install::flux::HELM_REPOSITORY_NAME;
 use crate::cli::k8s::uninstall::Deleter;
-use crate::cli::k8s::utils::try_new_k8s_client;
+use crate::cli::k8s::utils::{retrieve_api_resources, try_new_k8s_client};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::utils::retry::retry;
@@ -37,24 +37,34 @@ pub fn remove_flux_crs(namespace: &str, release_name: &str) -> Result<(), K8sCli
     let k8s_client = try_new_k8s_client()?;
     let helmrelease_type_meta = helmrelease_v2_type_meta();
     let helmrepository_type_meta = helmrepository_type_meta();
-
-    let helmrelease =
-        get_helmrelease(&k8s_client, &helmrelease_type_meta, release_name, namespace)?;
-
-    suspend_helmrelease(
-        &k8s_client,
-        release_name,
-        namespace,
-        &helmrelease_type_meta,
-        &helmrelease,
-        SUSPEND_CHECK_MAX_RETRIES,
-        SUSPEND_CHECK_INTERVAL,
-    )?;
-
     let deleter = Deleter::with_default_retry_setup(&k8s_client);
-    deleter.delete_object_with_retry(&helmrelease_type_meta, release_name, namespace)?;
-    delete_helmchart_object(&deleter, release_name, &helmrelease)?;
-    deleter.delete_object_with_retry(&helmrepository_type_meta, HELM_REPOSITORY_NAME, namespace)?;
+    let all_api_resources = retrieve_api_resources(&k8s_client)?;
+
+    if all_api_resources.contains(&helmrelease_type_meta) {
+        let helmrelease =
+            get_helmrelease(&k8s_client, &helmrelease_type_meta, release_name, namespace)?;
+
+        suspend_helmrelease(
+            &k8s_client,
+            release_name,
+            namespace,
+            &helmrelease_type_meta,
+            &helmrelease,
+            SUSPEND_CHECK_MAX_RETRIES,
+            SUSPEND_CHECK_INTERVAL,
+        )?;
+
+        deleter.delete_object_with_retry(&helmrelease_type_meta, release_name, namespace)?;
+        delete_helmchart_object(&deleter, release_name, &helmrelease)?;
+    }
+
+    if all_api_resources.contains(&helmrepository_type_meta) {
+        deleter.delete_object_with_retry(
+            &helmrepository_type_meta,
+            HELM_REPOSITORY_NAME,
+            namespace,
+        )?;
+    }
 
     Ok(())
 }
