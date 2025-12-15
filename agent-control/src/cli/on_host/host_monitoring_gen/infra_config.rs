@@ -241,6 +241,7 @@ mod tests {
     use crate::config_migrate::migration::defaults::NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING;
     use serde_yaml::Value;
 
+    #[cfg(target_family = "unix")]
     const EXPECTED_AGENT_TYPE_CONFIG: &str = r#"configs:
 - agent_type_fqn: newrelic/com.newrelic.infrastructure:0.1.0
   filesystem_mappings:
@@ -264,6 +265,35 @@ mod tests {
       - yaml
     config_logging:
       dir_path: /etc/newrelic-infra/logging.d
+      extensions:
+      - yml
+      - yaml
+"#;
+
+    #[cfg(target_family = "windows")]
+    const EXPECTED_AGENT_TYPE_CONFIG: &str = r#"configs:
+- agent_type_fqn: newrelic/com.newrelic.infrastructure:0.1.0
+  filesystem_mappings:
+    config_agent:
+      file_path: "C:\\Program Files\\New Relic\\newrelic-infra\\newrelic-infra.yml"
+      overwrites:
+        custom_attributes:
+          test: '123'
+      deletions:
+      - staging
+      - enable_process_metrics
+      - status_server_enabled
+      - status_server_port
+      - license_key
+      - custom_attributes
+      - is_integrations_only
+    config_integrations:
+      dir_path: "C:\\Program Files\\New Relic\\newrelic-infra\\integrations.d"
+      extensions:
+      - yml
+      - yaml
+    config_logging:
+      dir_path: "C:\\Program Files\\New Relic\\newrelic-infra\\logging.d"
       extensions:
       - yml
       - yaml
