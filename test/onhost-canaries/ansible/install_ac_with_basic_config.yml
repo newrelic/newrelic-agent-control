@@ -165,8 +165,13 @@
       ansible.windows.win_powershell:
         script: |
           $status = Invoke-RestMethod -Uri http://localhost:51200/status -Method Get
+          $pattern = 'agent_control":{"healthy":(\w+)'
           $isHealthy = $status.agent_control.healthy
-    
-          if (-not $isHealthy) {
-              exit 1
+          $match = $isHealthy | Select-String -Pattern $pattern
+          if ($match) {
+            $healthyStatus = $match.Matches.Groups[1].Value
+            if ($healthyStatus -eq "true")
+              exit 0
+            } 
           }
+          exit 1
