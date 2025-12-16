@@ -9,8 +9,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum RegexValidatorError {
-    #[error("invalid config: restricted values detected")]
-    InvalidConfig,
+    #[error("invalid config: restricted values detected via regex: {0}")]
+    InvalidConfig(String),
 
     #[error("error compiling regex: {0}")]
     RegexError(#[from] regex::Error),
@@ -73,7 +73,7 @@ impl RegexValidator {
 
         for regex in self.rules[&agent_type_name].iter() {
             if regex.is_match(raw_config) {
-                return Err(RegexValidatorError::InvalidConfig);
+                return Err(RegexValidatorError::InvalidConfig(regex.to_string()));
             }
         }
 
@@ -111,14 +111,15 @@ impl Default for RegexValidator {
 //       path: '/path/to/my-custom-auth-json'
 //       args: ["--domain", "myDomain", "--other_param", "otherValue"]
 //       ttl: 24h
-pub static REGEX_COMMAND_FIELD: &str = "command\\s*:";
+pub static REGEX_COMMAND_FIELD: &str =
+    r"(c|\\x63)(o|\\x6f)(m|\\x6d)(m|\\x6d)(a|\\x61)(n|\\x6e)(d|\\x64)\s*:";
 
 // deny integrations arbitrary command execution
 // https://docs.newrelic.com/docs/infrastructure/host-integrations/infrastructure-integrations-sdk/specifications/host-integrations-standard-configuration-format/#exec
 // Example:
 // - name: my-integration
 //   exec: /usr/bin/python /opt/integrations/my-script.py --host=127.0.0.1
-pub static REGEX_EXEC_FIELD: &str = "exec\\s*:";
+pub static REGEX_EXEC_FIELD: &str = r"(e|\\x65)(x|\\x78)(e|\\x65)(c|\\x63)\s*:";
 
 // deny specific binary paths (i.e. nri-apache)
 // https://github.com/newrelic/nri-apache/blob/v1.12.6/apache-config.yml.sample#L35
@@ -134,10 +135,11 @@ pub static REGEX_EXEC_FIELD: &str = "exec\\s*:";
 //     # BINARY_PATH: ""
 // (?i:exp)       case-insensitive
 // (?flags:exp)   set flags for exp (non-capturing)
-pub static REGEX_BINARY_PATH_FIELD: &str = "(?i:BINARY_PATH)";
+pub static REGEX_BINARY_PATH_FIELD: &str = r"(?i:(b|\\x62)(i|\\x69)(n|\\x6e)(a|\\x61)(r|\\x72)(y|\\x79)(_|\x5f)(p|\\x70)(a|\\x61)(t|\\x74)(h|\\x68))";
 
 // deny using nri-flex
-pub static REGEX_NRI_FLEX: &str = "nri-flex";
+pub static REGEX_NRI_FLEX: &str =
+    r"(n|\\x6e)(r|\\x72)(i|\\x69)(\-|\\x2d)(f|\\x66)(l|\\x6c)(e|\\x65)(x|\\x78)";
 
 #[cfg(test)]
 pub(super) mod tests {
@@ -211,7 +213,7 @@ pub(super) mod tests {
         let validation_result = validator.validate(&agent_identity, &remote_config);
         assert_eq!(
             validation_result.unwrap_err().to_string(),
-            "invalid config: restricted values detected"
+            "invalid config: restricted values detected via regex: (e|\\\\x65)(x|\\\\x78)(e|\\\\x65)(c|\\\\x63)\\s*:"
         );
     }
 
@@ -438,7 +440,7 @@ config:
                     .validate(&self.agent_identity, &remote_config)
                     .unwrap_err();
 
-                assert_matches!(err, RegexValidatorError::InvalidConfig);
+                assert_matches!(err, RegexValidatorError::InvalidConfig(_));
             }
         }
         let test_cases = vec![
@@ -446,6 +448,11 @@ config:
                 _name: "infra-agent config with nri-flex should be invalid",
                 agent_identity: infra_agent(),
                 config: CONFIG_WITH_NRI_FLEX,
+            },
+            TestCase {
+                _name: "infra-agent config with hexadecimal nri-flex should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_NRI_FLEX_HEXADECIMAL,
             },
             TestCase {
                 _name: "infra-agent config with command should be invalid",
@@ -456,6 +463,11 @@ config:
                 _name: "infra-agent config with exec should be invalid",
                 agent_identity: infra_agent(),
                 config: CONFIG_WITH_EXEC,
+            },
+            TestCase {
+                _name: "infra-agent config with exec hexadecimal should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_EXEC_HEXADECIMAL,
             },
             TestCase {
                 _name: "infra-agent config with binary_path uppercase should be invalid",
@@ -543,20 +555,38 @@ config_integrations:
               url: https://jsonplaceholder.typicode.com/todos/1
               math:
                 sum: ${id} + ${userId} + 1
-  mysql.yml: |
+"#;
+
+    // config containing nri-flex via hexadecimal  to be denied
+    const CONFIG_WITH_NRI_FLEX_HEXADECIMAL: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+
+# Configuration for New Relic Integrations
+config_integrations:
+  flex.yml:
     integrations:
-      - name: nri-mysql
-        env:
-          HOSTNAME: the-mysql-host
-          PORT: the-mysql-port
-          USERNAME: ${nr-env:MYSQL_USER}
-          PASSWORD: ${nr-env:MYSQL_PASSWORD}
-          REMOTE_MONITORING: true
-        interval: 10s
-        labels:
-          env: production
-          role: write-replica
-        inventory_source: config/mysql
+      - name: nri\x2dflex
+        offset: 10s
+        config:
+          name: RandomNumbers
+          apis:
+            - name: someService
+              entity: someEntity
+              url: https://jsonplaceholder.typicode.com/todos/1
+              math:
+                sum: ${id} + ${userId} + 1
 "#;
 
     // config with `command` field to be denied
@@ -625,20 +655,33 @@ config_integrations:
         config:
           name: RandomNumbers
           exec: an extra command
+"#;
+
+    // config with `exec` hexadecimal field to be denied
+    const CONFIG_WITH_EXEC_HEXADECIMAL: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+
+# Configuration for New Relic Integrations
+config_integrations:
   mysql.yml:
     integrations:
       - name: nri-mysql
-        env:
-          HOSTNAME: the-mysql-host
-          PORT: the-mysql-port
-          USERNAME: ${nr-env:MYSQL_USER}
-          PASSWORD: ${nr-env:MYSQL_PASSWORD}
-          REMOTE_MONITORING: true
-        interval: 10s
-        labels:
-          env: production
-          role: write-replica
-        inventory_source: config/mysql
+        offset: 10s
+        config:
+          name: RandomNumbers
+          \x65\x78\x65\x63: an extra command
 "#;
 
     // config with `binary_path` field to be denied
