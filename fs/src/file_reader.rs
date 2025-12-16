@@ -45,21 +45,7 @@ impl FileReader for LocalFile {
                 format!("UTF-8 decoding error: {e}"),
             ))),
             #[cfg(target_family = "windows")]
-            Err(_) => {
-                // 2. Fallback to Windows-1252 if UTF-8 fails
-                tracing::warn!("UTF-8 decoding failed, falling back to Windows-1252...");
-                let (output, encoding_used, errors_happened) =
-                    encoding_rs::WINDOWS_1252.decode(&file_contents);
-                tracing::debug!("Decoded using: {}", encoding_used.name());
-                if errors_happened {
-                    Err(FileReaderError::Read(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "UTF-8 and Windows-1252 decoding errors, file may be corrupted",
-                    )))
-                } else {
-                    Ok(output.to_string())
-                }
-            }
+            Err(_) => fallback_decode_windows_1252(&file_contents),
         }
     }
 
@@ -76,6 +62,24 @@ impl FileReader for LocalFile {
             file_paths.push(path?.path());
         }
         Ok(file_paths)
+    }
+}
+
+#[cfg(target_family = "windows")]
+/// Fallback function that decodes data assuming Windows-1252 encoding.
+/// Used if UTF-8 assumptions about the input file fail.
+fn fallback_decode_windows_1252(data: &[u8]) -> Result<String, FileReaderError> {
+    let (output, encoding_used, errors_happened) = encoding_rs::WINDOWS_1252.decode(data);
+    // Emit the actual encoding used, which might vary form the attempted due to BOM sniffing
+    // Ref: <https://docs.rs/encoding_rs/latest/encoding_rs/struct.Encoding.html#method.decode>
+    tracing::debug!("Decoded using: {}", encoding_used.name());
+    if errors_happened {
+        Err(FileReaderError::Read(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "UTF-8 and Windows-1252 decoding errors, file may be corrupted",
+        )))
+    } else {
+        Ok(output.to_string())
     }
 }
 
