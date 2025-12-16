@@ -1,7 +1,7 @@
 use crate::sub_agent::error::SubAgentError;
 use opamp_client::StartedClient;
 use opamp_client::opamp::proto::any_value::Value;
-use opamp_client::opamp::proto::{AnyValue, KeyValue};
+use opamp_client::opamp::proto::{AgentDescription, AnyValue, KeyValue};
 
 /// Represents an agent attribute
 ///
@@ -52,20 +52,55 @@ pub fn update_identifying_attributes<C>(
 where
     C: StartedClient,
 {
-    let new_attributes: Vec<KeyValue> = new_attributes.into_iter().map(|attr| attr.0).collect();
+    let agent_description = opamp_client.get_agent_description()?;
+    let updated_agent_description =
+        update_agent_description_attributes(agent_description, true, new_attributes);
 
-    let mut agent_description = opamp_client.get_agent_description()?;
-    agent_description.identifying_attributes =
-        update_attributes(agent_description.identifying_attributes, new_attributes);
-
-    Ok(opamp_client.set_agent_description(agent_description)?)
+    Ok(opamp_client.set_agent_description(updated_agent_description)?)
 }
 
-/// Updates a list of attributes
+/// Updates the non-identifying attributes of the OpAMP agent
 ///
 /// If an attribute already exists, it will be updated. If it doesn't, it will be added.
 /// If the `new_attributes` contain duplicates, the last occurrence will be kept.
-fn update_attributes(
+pub fn update_non_identifying_attributes<C>(
+    opamp_client: &C,
+    new_attributes: Vec<Attribute>,
+) -> Result<(), SubAgentError>
+where
+    C: StartedClient,
+{
+    let agent_description = opamp_client.get_agent_description()?;
+    let updated_agent_description =
+        update_agent_description_attributes(agent_description, false, new_attributes);
+
+    Ok(opamp_client.set_agent_description(updated_agent_description)?)
+}
+
+fn update_agent_description_attributes(
+    agent_description: AgentDescription,
+    identifying_attributes: bool,
+    new_attributes: Vec<Attribute>,
+) -> AgentDescription {
+    let new_attributes: Vec<KeyValue> = new_attributes.into_iter().map(|attr| attr.0).collect();
+
+    let mut updated_description = agent_description;
+    let attributes = if identifying_attributes {
+        &mut updated_description.identifying_attributes
+    } else {
+        &mut updated_description.non_identifying_attributes
+    };
+
+    *attributes = merge_attributes(std::mem::take(attributes), new_attributes);
+
+    updated_description
+}
+
+/// Merges new attributes into old attributes
+///
+/// If an attribute already exists, it will be updated. If it doesn't, it will be added.
+/// If the `new_attributes` contain duplicates, the last occurrence will be kept.
+fn merge_attributes(
     mut old_attributes: Vec<KeyValue>,
     new_attributes: Vec<KeyValue>,
 ) -> Vec<KeyValue> {
@@ -83,30 +118,63 @@ fn update_attributes(
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_update_key_values() {
-        let new_key_value = |key: &str, value: &str| Attribute::from((key, value)).0;
+    fn new_key_value(key: &str, value: &str) -> KeyValue {
+        Attribute::from((key, value)).0
+    }
 
-        let old_attributes = vec![
-            new_key_value("key1", "value1"),
-            new_key_value("key3", "value3"),
-            new_key_value("key5", "value5"),
-        ];
-        let new_attributes = vec![
-            new_key_value("key2", "new_value2"),
-            new_key_value("key3", "new_value3"),
-            new_key_value("key4", "new_value4"),
-            new_key_value("key4", "duplicated_value4"),
-        ];
-        let updated_attributes = update_attributes(old_attributes, new_attributes);
+    #[test]
+    fn test_update_agent_attributes() {
+        // Create base agent description
+        let agent_description = AgentDescription {
+            identifying_attributes: vec![
+                new_key_value("identifying1", "value1"),
+                new_key_value("identifying3", "value3"),
+                new_key_value("identifying5", "value5"),
+            ],
+            non_identifying_attributes: vec![new_key_value("non_identifying1", "value1")],
+            ..Default::default()
+        };
+
+        // Check identifying attributes are correctly updated
+        // Here we check behaviour like order and duplicates
+        let updated_description = update_agent_description_attributes(
+            agent_description.clone(),
+            true,
+            vec![
+                Attribute::from(("identifying2", "new_value2")),
+                Attribute::from(("identifying3", "new_value3")),
+                Attribute::from(("identifying4", "new_value4")),
+                Attribute::from(("identifying4", "duplicated_value4")),
+            ],
+        );
 
         let expected_attributes = vec![
-            new_key_value("key1", "value1"),
-            new_key_value("key3", "new_value3"),
-            new_key_value("key5", "value5"),
-            new_key_value("key2", "new_value2"),
-            new_key_value("key4", "duplicated_value4"),
+            new_key_value("identifying1", "value1"),
+            new_key_value("identifying3", "new_value3"),
+            new_key_value("identifying5", "value5"),
+            new_key_value("identifying2", "new_value2"),
+            new_key_value("identifying4", "duplicated_value4"),
         ];
-        assert_eq!(expected_attributes, updated_attributes);
+        assert_eq!(
+            expected_attributes,
+            updated_description.identifying_attributes
+        );
+
+        // Check non-identifying attributes are correctly updated
+        // We already checked behaviour, so we focus on a simple case here
+        let updated_description = update_agent_description_attributes(
+            agent_description,
+            false,
+            vec![Attribute::from(("non_identifying2", "new_value2"))],
+        );
+
+        let expected_attributes = vec![
+            new_key_value("non_identifying1", "value1"),
+            new_key_value("non_identifying2", "new_value2"),
+        ];
+        assert_eq!(
+            expected_attributes,
+            updated_description.non_identifying_attributes
+        );
     }
 }
