@@ -83,6 +83,8 @@ proxy:
 
 Configuring a proxy in Agent Control does not automatically configure the same proxy settings for the agents it manages. Each agent has its own proxy configuration that must be set separately according to that agent's specific configuration format and requirements.
 
+The only exception is the infrastructure agent, which will inherit the proxy settings from Agent Control whenever the configuration is generated via the Cli.
+
 ### server
 
 Agent Control status server allows consulting the status of Agent Control and any controlled agent. It can be configured as follows:

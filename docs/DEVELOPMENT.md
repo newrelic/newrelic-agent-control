@@ -119,6 +119,17 @@ The remote configurations and in general any files expected to dynamically chang
 
 The directory inside `/var/log/newrelic-agent-control` will store the logs if file logging was configured, following a similar directory structure for AC and the sub-agents.
 
+Notice that in windows the paths will be different, since everything will be under `C:\\Program Files\\New Relic\\newrelic-agent-control` for static data dynamic data. Everything else applies the same.
+
+#### AC Service Windows vs Linux
+
+On Linux, Agent Control is expected to run as a system service, managed by `systemd`. 
+There is a service file at `package/newrelic-agent-control.service` and `package/newrelic-agent-control.conf` that can be used to template when installing AC on a system by the recipe that calls the AC cli command `systemd-config` to inject region, licenseKey and OTEL endpoint.
+Such service file is packaged in the `.deb` and `.rpm` installers by goreleaser and it is installed and enabled by the `postinstall.sh` script.
+
+On the other hand, on Windows, Agent Control is expected to run as a Windows Service that is installed using the `install.ps1` script that takes care of registering the service and install AC.
+
+
 ### Kubernetes
 
 We use [`minikube`](https://minikube.sigs.k8s.io/docs/) and [`tilt`](https://tilt.dev/) to launch a local cluster and deploy the Agent Control [charts](https://github.com/newrelic/helm-charts/tree/master/charts/agent-control).
