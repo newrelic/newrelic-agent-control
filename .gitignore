@@ -55,3 +55,6 @@ coverage/
 
 # this is the key created by the e2e proxy test dumping the secret
 **/.key.temp
+
+# zig compiler
+.zig-cache/
