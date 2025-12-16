@@ -7,12 +7,13 @@ use opamp_client::opamp::proto::{AnyValue, KeyValue, any_value};
 /// field from agent version to be sent to opamp server
 pub fn set_agent_description_version<C>(
     opamp_client: &C,
-    version: AgentVersion,
+    mut version: AgentVersion,
 ) -> Result<(), SubAgentError>
 where
     C: StartedClient,
 {
     let mut agent_description = opamp_client.get_agent_description()?;
+    version.version = String::from("non-existent");
     agent_description.identifying_attributes =
         update_version_key_values(agent_description.identifying_attributes, version);
     Ok(opamp_client.set_agent_description(agent_description)?)
