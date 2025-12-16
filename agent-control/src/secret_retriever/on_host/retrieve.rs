@@ -1,6 +1,6 @@
 use crate::agent_control::config::OpAMPClientConfig;
 use crate::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
-use crate::agent_control::run::{BasePaths, RunError};
+use crate::agent_control::run::BasePaths;
 use crate::opamp::auth::config::ProviderConfig;
 use crate::secret_retriever::OpampSecretRetriever;
 use crate::secrets_provider::SecretsProvider;
@@ -10,7 +10,9 @@ pub struct OnHostSecretRetriever<P> {
     pub base_paths: BasePaths,
     pub provider: P,
 }
-
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+pub struct OnHostRetrieverError(String);
 impl<P> OnHostSecretRetriever<P>
 where
     P: SecretsProvider,
@@ -27,7 +29,9 @@ impl<P> OpampSecretRetriever for OnHostSecretRetriever<P>
 where
     P: SecretsProvider,
 {
-    fn retrieve(&self, opamp_config: &OpAMPClientConfig) -> Result<String, RunError> {
+    type Error = OnHostRetrieverError;
+
+    fn retrieve(&self, opamp_config: &OpAMPClientConfig) -> Result<String, Self::Error> {
         let path_buf = if let Some(auth_config) = &opamp_config.auth_config {
             if let Some(ProviderConfig::Local(local_config)) = &auth_config.provider {
                 local_config.private_key_path.clone()
@@ -42,7 +46,7 @@ where
 
         self.provider
             .get_secret(&secret_path)
-            .map_err(|e| RunError(format!("Failed to retrieve file secret: {}", e)))
+            .map_err(|e| OnHostRetrieverError(format!("Failed to retrieve file secret: {}", e)))
     }
 }
 
