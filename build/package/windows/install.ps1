@@ -132,7 +132,7 @@ if (-not $FleetEnabled) {
     if ($AuthClientId) { $cliArgs += @('--auth-client-id', $AuthClientId) }
 }
 
-Write-Host "Generating configuration with: $($cliArgs -join ' ')"
+Write-Host "Generating configuration..."
 & ".\newrelic-agent-control-cli.exe" @cliArgs
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Configuration generation failed with exit code $LASTEXITCODE"
