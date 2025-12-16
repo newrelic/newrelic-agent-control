@@ -3,7 +3,39 @@
 
 param(
     [Parameter(Mandatory=$false)]
-    [switch]$ServiceOverwrite = $false
+    [switch]$ServiceOverwrite = $false,
+
+    # Configuration generation inputs
+    [Parameter(Mandatory=$false)]
+    [switch]$FleetEnabled = $false,
+
+    [Parameter(Mandatory=$false)]
+    [string]$Region = "us",
+
+    [Parameter(Mandatory=$false)]
+    [string]$AgentSet = "no-agents",
+
+    # Fleet-enabled auth and org parameters (used only when -FleetEnabled is set)
+    [Parameter(Mandatory=$false)]
+    [string]$FleetId,
+
+    [Parameter(Mandatory=$false)]
+    [string]$OrganizationId,
+
+    [Parameter(Mandatory=$false)]
+    [string]$AuthParentToken,
+
+    [Parameter(Mandatory=$false)]
+    [string]$AuthParentClientId,
+
+    [Parameter(Mandatory=$false)]
+    [string]$AuthParentClientSecret,
+
+    [Parameter(Mandatory=$false)]
+    [string]$AuthPrivateKeyPath,
+
+    [Parameter(Mandatory=$false)]
+    [string]$AuthClientId
 )
 
 # Check for administrator privileges
@@ -54,9 +86,45 @@ Write-Host "Creating New Relic Agent Control directories..."
 Write-Host "Copying New Relic Agent Control program files..."
 Copy-Item -Path ".\newrelic-agent-control.exe" -Destination "$acDir"
 
-# Generate configuration
-# TODO: make this configurable through ps1 arguments (identity related args, region, ...)
-& ".\newrelic-agent-control-cli.exe" generate-config --fleet-disabled --region us --agent-set no-agents --output-path "`"$acLocalConfigDir\local_config.yaml`""
+# Generate configuration based on inputs
+$localConfigPath = Join-Path $acLocalConfigDir 'local_config.yaml'
+
+# Common args
+$cliArgs = @(
+    'generate-config',
+    '--output-path', $localConfigPath,
+    '--region', $Region,
+    '--agent-set', $AgentSet
+)
+
+if (-not $FleetEnabled) {
+    $cliArgs += '--fleet-disabled'
+} else {
+    # If no private key path is provided, a new key will be created in the keys directory
+    $createdPrivateKey = $false
+    if ([string]::IsNullOrWhiteSpace($AuthPrivateKeyPath)) {
+        $keysDir = Join-Path $acDir 'keys'
+        [System.IO.Directory]::CreateDirectory($keysDir) | Out-Null
+        $AuthPrivateKeyPath = Join-Path $keysDir 'agent-control-identity.key'
+        $createdPrivateKey = $true
+    }
+
+    if ($FleetId) { $cliArgs += @('--fleet-id', $FleetId) }
+    if ($OrganizationId) { $cliArgs += @('--organization-id', $OrganizationId) }
+    if ($AuthParentToken) { $cliArgs += @('--auth-parent-token', $AuthParentToken) }
+    if ($AuthParentClientId) { $cliArgs += @('--auth-parent-client-id', $AuthParentClientId) }
+    if ($AuthParentClientSecret) { $cliArgs += @('--auth-parent-client-secret', $AuthParentClientSecret) }
+    if ($AuthPrivateKeyPath) { $cliArgs += @('--auth-private-key-path', $AuthPrivateKeyPath) }
+    if ($AuthClientId) { $cliArgs += @('--auth-client-id', $AuthClientId) }
+}
+
+Write-Host "Generating configuration with: $($cliArgs -join ' ')"
+& ".\newrelic-agent-control-cli.exe" @cliArgs
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Configuration generation failed with exit code $LASTEXITCODE"
+    exit $LASTEXITCODE
+}
+
 
 # Install the service
 Write-Host "Installing New Relic Agent Control service..."
