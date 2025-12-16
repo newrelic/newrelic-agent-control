@@ -1,7 +1,13 @@
 [workspace]
 resolver = "3"
 
-members = ["agent-control", "resource-detection", "fs", "wrapper_with_default"]
+members = [
+  "agent-control",
+  "resource-detection",
+  "fs",
+  "wrapper_with_default",
+  "test/e2e-runner",
+]
 
 [workspace.package]
 authors = ["The New Relic Agent Control Team"]
