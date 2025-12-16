@@ -38,6 +38,18 @@ param(
     [string]$AuthClientId
 )
 
+function Set-RestrictedAcl {
+    param (
+        [string]$Path
+    )
+    if ([string]::IsNullOrWhiteSpace($Path)) { return }
+    if (-not (Test-Path -Path $Path)) { return }
+    # Remove inheritance and replace explicit grants with Administrators members only
+    # Giving Full Control Access (F) and making it apply to all child objects (OI)(CI)
+    & icacls $Path /inheritance:r | Out-Null
+    & icacls $Path /grant "BUILTIN\Administrators:(OI)(CI)F"| Out-Null 
+}
+
 # Check for administrator privileges
 $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -48,9 +60,11 @@ if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Adm
 $serviceName = "newrelic-agent-control"
 $serviceDisplayName = "New Relic Agent Control"
 
-$acDir = [IO.Path]::Combine($env:ProgramFiles, 'New Relic\newrelic-agent-control')
-$acLocalConfigDir = [IO.Path]::Combine($acDir, 'local-data\agent-control')
-$acExecPath = [IO.Path]::Combine($acDir, 'newrelic-agent-control.exe')
+$acProgramFilesDir = [IO.Path]::Combine($env:ProgramFiles, 'New Relic\newrelic-agent-control')
+$acLocalConfigDir = [IO.Path]::Combine($acProgramFilesDir, 'local-data\agent-control')
+$acIdentityKeyDir = [IO.Path]::Combine($acProgramFilesDir, 'keys')
+$acIdentityKeyPath = [IO.Path]::Combine($acIdentityKeyDir, 'agent-control-identity.key')
+$acExecPath = [IO.Path]::Combine($acProgramFilesDir, 'newrelic-agent-control.exe')
 
 $acDataDir = [IO.Path]::Combine($env:ProgramData, 'New Relic\newrelic-agent-control')
 $acLogsDir = [IO.Path]::Combine($acDataDir, 'logs')
@@ -78,13 +92,15 @@ Write-Host "Installing $versionData"
 
 Write-Host "Creating New Relic Agent Control directories..."
 
-[System.IO.Directory]::CreateDirectory("$acDir") | Out-Null
+[System.IO.Directory]::CreateDirectory("$acProgramFilesDir") | Out-Null
 [System.IO.Directory]::CreateDirectory("$acDataDir") | Out-Null
+Set-RestrictedAcl -Path $acProgramFilesDir
+Set-RestrictedAcl -Path $acDataDir
 [System.IO.Directory]::CreateDirectory("$acLogsDir") | Out-Null
 [System.IO.Directory]::CreateDirectory("$acLocalConfigDir") | Out-Null
 
 Write-Host "Copying New Relic Agent Control program files..."
-Copy-Item -Path ".\newrelic-agent-control.exe" -Destination "$acDir"
+Copy-Item -Path ".\newrelic-agent-control.exe" -Destination "$acProgramFilesDir"
 
 # Generate configuration based on inputs
 $localConfigPath = Join-Path $acLocalConfigDir 'local_config.yaml'
@@ -97,18 +113,16 @@ $cliArgs = @(
     '--agent-set', $AgentSet
 )
 
+# Private key path is provided whenever an existing key is to be used.
+# If not provided, a new key will be generated and stored in the keys directory.
+if ([string]::IsNullOrWhiteSpace($AuthPrivateKeyPath)) {
+    [System.IO.Directory]::CreateDirectory($acIdentityKeyDir) | Out-Null
+    $AuthPrivateKeyPath = $acIdentityKeyPath
+}
+
 if (-not $FleetEnabled) {
     $cliArgs += '--fleet-disabled'
 } else {
-    # If no private key path is provided, a new key will be created in the keys directory
-    $createdPrivateKey = $false
-    if ([string]::IsNullOrWhiteSpace($AuthPrivateKeyPath)) {
-        $keysDir = Join-Path $acDir 'keys'
-        [System.IO.Directory]::CreateDirectory($keysDir) | Out-Null
-        $AuthPrivateKeyPath = Join-Path $keysDir 'agent-control-identity.key'
-        $createdPrivateKey = $true
-    }
-
     if ($FleetId) { $cliArgs += @('--fleet-id', $FleetId) }
     if ($OrganizationId) { $cliArgs += @('--organization-id', $OrganizationId) }
     if ($AuthParentToken) { $cliArgs += @('--auth-parent-token', $AuthParentToken) }
