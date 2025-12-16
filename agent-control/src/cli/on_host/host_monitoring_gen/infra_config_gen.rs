@@ -56,7 +56,7 @@ impl InfraConfigGenerator {
             infra_config_path,
         }
     }
-    pub fn generate_infra_config(
+    pub fn generate_and_migrate_infra_config(
         &self,
         region: Region,
         custom_attributes: Option<String>,
@@ -243,7 +243,7 @@ configs:
             infra_file_path,
         );
 
-        let result = infra_config_generator.generate_infra_config(
+        let result = infra_config_generator.generate_and_migrate_infra_config(
             Region::STAGING,
             None,
             Some(new_proxy.clone()),
@@ -291,7 +291,7 @@ config_agent:
             Path::new("/an/invented/path").to_path_buf(),
         );
 
-        let _ = infra_config_generator.generate_infra_config(Region::US, None, None);
+        let _ = infra_config_generator.generate_and_migrate_infra_config(Region::US, None, None);
 
         let infra_config = InfraConfig::default().with_custom_attributes("").unwrap();
         let result = infra_config_generator.create_new_infra_values(infra_config);

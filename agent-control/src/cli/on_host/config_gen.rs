@@ -1,9 +1,4 @@
 //! Implementation of the generate-config command for the on-host cli.
-
-use std::path::PathBuf;
-
-use tracing::info;
-
 use crate::cli::{
     error::CliError,
     on_host::{
@@ -15,6 +10,8 @@ use crate::cli::{
         proxy_config::ProxyConfig,
     },
 };
+use std::path::PathBuf;
+use tracing::info;
 
 pub mod config;
 pub mod identity;
@@ -130,10 +127,11 @@ impl Args {
     }
 }
 
-/// Generates the Agent Control configuration and any requisite according to the provided inputs.
-pub fn generate_config(args: Args) -> Result<(), CliError> {
+/// Generates the Agent Control configuration, the system identity and any requisite according to the provided inputs.
+pub fn write_config_and_system_identity(args: Args) -> Result<(), CliError> {
     info!("Generating Agent Control configuration");
-    let yaml = gen_config(&args, provide_identity)?;
+
+    let yaml = generate_config_and_system_identity(&args, provide_identity)?;
 
     std::fs::write(&args.output_path, yaml).map_err(|err| {
         CliError::Command(format!(
@@ -147,7 +145,10 @@ pub fn generate_config(args: Args) -> Result<(), CliError> {
 }
 
 /// Generates the configuration according to args using the provided function to generate the identity.
-fn gen_config<F>(args: &Args, provide_identity_fn: F) -> Result<Vec<u8>, CliError>
+fn generate_config_and_system_identity<F>(
+    args: &Args,
+    provide_identity_fn: F,
+) -> Result<Vec<u8>, CliError>
 where
     F: Fn(&Args) -> Result<Identity, CliError>,
 {
@@ -306,7 +307,8 @@ mod tests {
         let args = create_test_args(fleet_enabled, region, agent_set, proxy_config);
 
         let yaml = String::from_utf8(
-            gen_config(&args, identity_provider_mock).expect("result expected to be OK"),
+            generate_config_and_system_identity(&args, identity_provider_mock)
+                .expect("result expected to be OK"),
         )
         .unwrap();
 

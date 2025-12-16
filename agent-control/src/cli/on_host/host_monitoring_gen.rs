@@ -33,6 +33,7 @@ pub struct Args {
 }
 
 /// Generates the Host monitoring values either infra-agent or otel.
+/// for infra-agent it also includes the proxy configuration if provided and it migrate old configurations if present.
 pub fn generate_host_monitoring_config(args: Args) -> Result<(), CliError> {
     info!("Generating Host monitoring values");
 
@@ -41,7 +42,7 @@ pub fn generate_host_monitoring_config(args: Args) -> Result<(), CliError> {
             let infra_config_generator = InfraConfigGenerator::default();
 
             infra_config_generator
-                .generate_infra_config(args.region, args.custom_attributes, args.proxy)
+                .generate_and_migrate_infra_config(args.region, args.custom_attributes, args.proxy)
                 .map_err(|err| {
                     CliError::Command(format!("failed generating infra config: {err}"))
                 })?;
