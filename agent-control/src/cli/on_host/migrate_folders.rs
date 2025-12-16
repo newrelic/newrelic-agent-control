@@ -17,7 +17,10 @@ const VALUES_FOLDER: &str = "values";
 const OLD_CONFIG_AGENT_CONTROL_FILE_NAME: &str = "config.yaml";
 const OLD_IDENTIFIERS_YAML: &str = "identifiers.yaml";
 const OLD_CONFIG_SUB_AGENT_FILE_NAME: &str = "values.yaml";
+#[cfg(target_family = "unix")]
 const OLD_SUB_AGENT_DATA_DIR: &str = "fleet/agents.d";
+#[cfg(target_family = "windows")]
+const OLD_SUB_AGENT_DATA_DIR: &str = "fleet\\agents.d";
 
 /// TODO: TEMPORAL SCRIPT TO MIGRATE PATHS AND NAMES AFTER SOME TIME THIS SHOULD BE DELETED
 pub fn migrate() -> Result<(), CliError> {

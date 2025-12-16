@@ -29,7 +29,10 @@ pub struct InfraConfigGenerator {
     infra_config_path: PathBuf,
 }
 
+#[cfg(target_family = "unix")]
 const INFRA_CONFIG_PATH: &str = "/etc/newrelic-infra.yml";
+#[cfg(target_family = "windows")]
+const INFRA_CONFIG_PATH: &str = "C:\\Program Files\\New Relic\\newrelic-infra\\newrelic-infra.yml";
 
 impl Default for InfraConfigGenerator {
     fn default() -> Self {
@@ -71,10 +74,18 @@ impl InfraConfigGenerator {
         infra_config = infra_config.setup_proxy(proxy);
 
         if self.infra_config_path.is_file() {
-            return self.migrate_old_infra(infra_config);
+            info!(
+                "Found existing infra agent config at {}, migrating",
+                self.infra_config_path.display()
+            );
+            self.migrate_old_infra(infra_config)
+        } else {
+            info!(
+                "No existing infra agent config found at {}, generating new config",
+                self.infra_config_path.display()
+            );
+            self.create_new_infra_values(infra_config)
         }
-
-        self.create_new_infra_values(infra_config)
     }
 
     fn create_new_infra_values(&self, infra_config: InfraConfig) -> Result<(), CliError> {

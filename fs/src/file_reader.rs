@@ -1,13 +1,13 @@
 use super::LocalFile;
-use std::fs::{read_dir, read_to_string};
-use std::io::Error as ioError;
+use std::fs::{self, read_dir};
+use std::io;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum FileReaderError {
     #[error("error reading contents: {0}")]
-    Read(#[from] ioError),
+    Read(#[from] io::Error),
     #[error("file not found: {0}")]
     FileNotFound(String),
     #[error("dir not found: {0}")]
@@ -34,9 +34,18 @@ impl FileReader for LocalFile {
                 file_path.display()
             )));
         }
-        match read_to_string(file_path) {
-            Err(e) => Err(FileReaderError::Read(e)),
-            Ok(content) => Ok(content),
+
+        let file_contents = fs::read(file_path)?;
+
+        match str::from_utf8(&file_contents) {
+            Ok(s) => Ok(s.to_string()),
+            #[cfg(target_family = "unix")]
+            Err(e) => Err(FileReaderError::Read(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("UTF-8 decoding error: {e}"),
+            ))),
+            #[cfg(target_family = "windows")]
+            Err(_) => fallback_decode_windows_1252(&file_contents),
         }
     }
 
@@ -53,6 +62,24 @@ impl FileReader for LocalFile {
             file_paths.push(path?.path());
         }
         Ok(file_paths)
+    }
+}
+
+#[cfg(target_family = "windows")]
+/// Fallback function that decodes data assuming Windows-1252 encoding.
+/// Used if UTF-8 assumptions about the input file fail.
+fn fallback_decode_windows_1252(data: &[u8]) -> Result<String, FileReaderError> {
+    let (output, encoding_used, errors_happened) = encoding_rs::WINDOWS_1252.decode(data);
+    // Emit the actual encoding used, which might vary form the attempted due to BOM sniffing
+    // Ref: <https://docs.rs/encoding_rs/latest/encoding_rs/struct.Encoding.html#method.decode>
+    tracing::debug!("Decoded using: {}", encoding_used.name());
+    if errors_happened {
+        Err(FileReaderError::Read(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "UTF-8 and Windows-1252 decoding errors, file may be corrupted",
+        )))
+    } else {
+        Ok(output.to_string())
     }
 }
 

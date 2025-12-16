@@ -16,9 +16,10 @@ tracing = "0.1.43"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { workspace = true, features = [
-    "Win32_Security",
-    "Win32_Security_Authorization",
+  "Win32_Security",
+  "Win32_Security_Authorization",
 ] }
+encoding_rs = "0.8.35"
 
 [dev-dependencies]
 tempfile = { workspace = true }
