@@ -35,7 +35,20 @@ param(
     [string]$AuthPrivateKeyPath,
 
     [Parameter(Mandatory=$false)]
-    [string]$AuthClientId
+    [string]$AuthClientId,
+
+    # Proxy configuration (optional)
+    [Parameter(Mandatory=$false)]
+    [string]$ProxyUrl,
+
+    [Parameter(Mandatory=$false)]
+    [string]$ProxyCABundleFile,
+
+    [Parameter(Mandatory=$false)]
+    [string]$ProxyCABundleDir,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$ProxyIgnoreSystem = $false
 )
 
 function Set-RestrictedAcl {
@@ -131,6 +144,12 @@ if (-not $FleetEnabled) {
     if ($AuthPrivateKeyPath) { $cliArgs += @('--auth-private-key-path', $AuthPrivateKeyPath) }
     if ($AuthClientId) { $cliArgs += @('--auth-client-id', $AuthClientId) }
 }
+
+# Proxy args (optional)
+if ($ProxyUrl) { $cliArgs += @('--proxy-url', $ProxyUrl)}
+if ($ProxyCABundleFile) { $cliArgs += @('--proxy-ca-bundle-file', $ProxyCABundleFile) }
+if ($ProxyCABundleDir) { $cliArgs += @('--proxy-ca-bundle-dir', $ProxyCABundleDir) }
+if ($ProxyIgnoreSystem) { $cliArgs += '--ignore-system-proxy' }
 
 Write-Host "Generating configuration..."
 & ".\newrelic-agent-control-cli.exe" @cliArgs
