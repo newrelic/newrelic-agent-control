@@ -465,7 +465,7 @@ config:
                 config: CONFIG_WITH_EXEC,
             },
             TestCase {
-                _name: "infra-agent config with exec exadecimal should be invalid",
+                _name: "infra-agent config with exec hexadecimal should be invalid",
                 agent_identity: infra_agent(),
                 config: CONFIG_WITH_EXEC_HEXADECIMAL,
             },
