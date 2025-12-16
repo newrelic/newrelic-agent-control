@@ -53,6 +53,11 @@ variable "signature_validation_endpoint" {
   type        = string
 }
 
+variable "windows_password" {
+  description = "windows ami password"
+  type = string
+}
+
 locals {
   ec2_instances = {
     "amd64:ubuntu22.04" = {
@@ -70,6 +75,22 @@ locals {
         "otel_role" = "agent"
       }
     }
+    "amd64:windows_2022" = {
+      // Custom Ami created from an image with winrm
+      ami             = "ami-04382be054853bd1f"
+      subnet          = "subnet-00aa02e6d991b478e"
+      security_groups = ["sg-04ae18f8c34a11d38"]
+      key_name        = "caos-dev-arm"
+      instance_type   = "t3a.small"
+      username        = "Administrator"
+      platform        = "windows"
+      python          = ""
+      // We don't install the otel collector on the onhost canaries,
+      // but the tag is required by the terraform module
+      tags = {
+        "otel_role" = "agent"
+      }
+    }
   }
 
   // To setup the alerts, we need to know the hostnames of the instances.
@@ -80,8 +101,16 @@ locals {
   // If env-provisioner changes the way it computes the hostnames, we need to change
   // it here too. However, terraform plan will properly list all the resources that
   // will be created and we can spot any problems with the hostnames.
+  // At the moment windows is not installing infra-agent so we only add the alerts to linux hosts
+  // so we use the linux_hostnames variable instead of this one.
   hostnames = [for k, v in local.ec2_instances : "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}"]
 
+  # Filtered list for linux hostnames
+  linux_hostnames = [
+    for k, v in local.ec2_instances :
+    "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}"
+    if v.platform == "linux"
+  ]
   infra_staging = var.nr_region == "Staging" ? "true" : "false"
 }
 
@@ -92,6 +121,7 @@ module "agent_control-canary-env-provisioner" {
   nr_license_key     = var.license_key
   otlp_endpoint      = "staging-otlp.nr-data.net:4317"
   pvt_key            = "~/.ssh/caos-dev-arm.cer"
+  windows_password   = var.windows_password
   ssh_pub_key        = "AAAAB3NzaC1yc2EAAAADAQABAAABAQDH9C7BS2XrtXGXFFyL0pNku/Hfy84RliqvYKpuslJFeUivf5QY6Ipi8yXfXn6TsRDbdxfGPi6oOR60Fa+4cJmCo6N5g57hBS6f2IdzQBNrZr7i1I/a3cFeK6XOc1G1tQaurx7Pu+qvACfJjLXKG66tHlaVhAHd/1l2FocgFNUDFFuKS3mnzt9hKys7sB4aO3O0OdohN/0NJC4ldV8/OmeXqqfkiPWcgPx3C8bYyXCX7QJNBHKrzbX1jW51Px7SIDWFDV6kxGwpQGGBMJg/k79gjjM+jhn4fg1/VP/Fx37mAnfLqpcTfiOkzSE80ORGefQ1XfGK/Dpa3ITrzRYW8xlR caos-dev-arm"
   inventory_template = "../ansible/inventory-template.tmpl"
   inventory_output   = var.inventory_output
@@ -122,7 +152,7 @@ variable "nr_region" {
 module "alerts" {
   source = "../../terraform/modules/nr_alerts"
 
-  for_each = toset(local.hostnames)
+  for_each = toset(local.linux_hostnames)
 
   api_key           = var.api_key
   account_id        = var.account_id

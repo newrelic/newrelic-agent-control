@@ -117,3 +117,61 @@
       processes_running:
         - "^/usr/bin/newrelic-agent-control"
         - "^/usr/bin/newrelic-infra"
+
+- name: installation-windows
+  hosts: testing_hosts_windows
+  gather_facts: yes
+
+  vars:
+    # Pre-release version of the agent control is used by default
+    repo_endpoint: http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview
+    extract_dest: "C:\\temp\\newrelic-agent-control"
+
+  tasks:
+    - name: Ensure temp directory exists
+      ansible.windows.win_file:
+        path: C:\temp
+        state: directory
+
+    - name: Download Agent Control zip
+      ansible.windows.win_get_url:
+        url: "{{ repo_endpoint }}/binaries/windows/amd64/newrelic-agent-control_{{ package_version }}_windows_amd64.zip"
+        dest: "C:\\temp\\newrelic-agent-control_0.100.19917356190_windows_amd64.zip"
+        force: yes
+
+    - name: Extract Agent Control zip
+      ansible.windows.win_powershell:
+        script: |
+          $zipPath = "C:\temp\newrelic-agent-control_{{ package_version }}_windows_amd64.zip"
+          $extractPath = "{{ extract_dest }}"
+
+          if (Test-Path $extractPath) {
+            Remove-Item -Path $extractPath -Recurse -Force
+          }
+
+          Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+
+    - name: Execute install.ps1
+      ansible.windows.win_powershell:
+        chdir: "{{ extract_dest }}"
+        script: |
+          .\install.ps1
+
+    - name: Wait for Agent Control to start
+      pause:
+        seconds: 30
+
+    - name: Check if agent-control is running
+      ansible.windows.win_powershell:
+        script: |
+          $status = Invoke-RestMethod -Uri http://localhost:51200/status -Method Get
+          $pattern = 'agent_control":{"healthy":(\w+)'
+          $isHealthy = $status.agent_control.healthy
+          $match = $isHealthy | Select-String -Pattern $pattern
+          if ($match) {
+            $healthyStatus = $match.Matches.Groups[1].Value
+            if ($healthyStatus -eq "true")
+              exit 0
+            } 
+          }
+          exit 1
