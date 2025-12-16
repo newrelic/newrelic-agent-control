@@ -9,7 +9,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum RegexValidatorError {
-    #[error("invalid config: restricted values detected: {0}")]
+    #[error("invalid config: restricted values detected via regex: {0}")]
     InvalidConfig(String),
 
     #[error("error compiling regex: {0}")]
@@ -213,7 +213,7 @@ pub(super) mod tests {
         let validation_result = validator.validate(&agent_identity, &remote_config);
         assert_eq!(
             validation_result.unwrap_err().to_string(),
-            "invalid config: restricted values detected"
+            "invalid config: restricted values detected via regex: (e|\\\\x65)(x|\\\\x78)(e|\\\\x65)(c|\\\\x63)\\s*:"
         );
     }
 
