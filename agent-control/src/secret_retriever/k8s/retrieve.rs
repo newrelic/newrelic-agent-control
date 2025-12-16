@@ -1,5 +1,4 @@
 use crate::agent_control::config::{K8sConfig, OpAMPClientConfig};
-use crate::agent_control::run::RunError;
 use crate::secret_retriever::OpampSecretRetriever;
 use crate::secrets_provider::SecretsProvider;
 use crate::secrets_provider::k8s_secret::K8sSecretProvider;
@@ -8,6 +7,10 @@ pub struct K8sSecretRetriever<P> {
     provider: P,
     config: K8sConfig,
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+pub struct K8sRetrieverError(String);
 
 impl<P> K8sSecretRetriever<P>
 where
@@ -22,7 +25,9 @@ impl<P> OpampSecretRetriever for K8sSecretRetriever<P>
 where
     P: SecretsProvider,
 {
-    fn retrieve(&self, _opamp_config: &OpAMPClientConfig) -> Result<String, RunError> {
+    type Error = K8sRetrieverError;
+
+    fn retrieve(&self, _opamp_config: &OpAMPClientConfig) -> Result<String, Self::Error> {
         let secret_path = K8sSecretProvider::build_secret_path(
             &self.config.namespace,
             &self.config.auth_secret.secret_name,
@@ -30,9 +35,8 @@ where
         );
 
         self.provider.get_secret(&secret_path).map_err(|e| {
-            RunError(format!(
-                "K8s getting secret from k8s: secret: {}, error: {}",
-                secret_path, e
+            K8sRetrieverError(format!(
+                "K8s getting secret from k8s: secret: {secret_path}, error: {e}"
             ))
         })
     }
