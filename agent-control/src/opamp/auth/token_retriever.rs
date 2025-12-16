@@ -1,4 +1,4 @@
-use super::config::{AuthConfig, LocalConfig, ProviderConfig};
+use super::config::AuthConfig;
 use crate::http::client::HttpBuildError;
 use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
@@ -65,9 +65,14 @@ impl TokenRetrieverImpl {
                 "Cannot load key: neither provider config or private string provided".to_string(),
             )
         })?;
-        let provider = ProviderConfig::Local(LocalConfig::new_with_value(key));
 
-        let jwt_signer = JwtSignerImpl::try_from(provider)?;
+        let sanitized_key = key.replace("\\n", "\n");
+
+        let signer = LocalPrivateKeySigner::try_from(sanitized_key.as_bytes()).map_err(|e| {
+            TokenRetrieverImplError::ConfigurationError(format!("Invalid private key: {}", e))
+        })?;
+
+        let jwt_signer = JwtSignerImpl::Local(signer);
 
         let http_config = HttpConfig::new(
             DEFAULT_AUTHENTICATOR_TIMEOUT,
@@ -107,26 +112,5 @@ impl TokenRetriever for TokenRetrieverNoop {
             TokenType::Bearer,
             DateTime::default(),
         ))
-    }
-}
-
-impl TryFrom<ProviderConfig> for JwtSignerImpl {
-    type Error = JwtSignerImplError;
-
-    fn try_from(value: ProviderConfig) -> Result<Self, Self::Error> {
-        match value {
-            ProviderConfig::Local(local_config) => {
-                if let Some(key_content) = local_config.private_key_value {
-                    let sanitized_key = key_content.replace("\\n", "\n");
-
-                    let signer = LocalPrivateKeySigner::try_from(sanitized_key.as_bytes())?;
-                    return Ok(JwtSignerImpl::Local(signer));
-                }
-
-                let signer =
-                    LocalPrivateKeySigner::try_from(local_config.private_key_path.as_path())?;
-                Ok(JwtSignerImpl::Local(signer))
-            }
-        }
     }
 }
