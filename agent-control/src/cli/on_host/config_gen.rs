@@ -128,7 +128,7 @@ impl Args {
 }
 
 /// Generates the Agent Control configuration, the system identity and any requisite according to the provided inputs.
-pub fn write_config_and_system_identity(args: Args) -> Result<(), CliError> {
+pub fn write_config_and_generate_system_identity(args: Args) -> Result<(), CliError> {
     info!("Generating Agent Control configuration");
 
     let yaml = generate_config_and_system_identity(&args, provide_identity)?;

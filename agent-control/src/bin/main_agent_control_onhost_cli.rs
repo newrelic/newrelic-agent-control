@@ -49,7 +49,7 @@ fn main() -> ExitCode {
                 cmd.error(ErrorKind::ArgumentConflict, err.to_string())
                     .exit()
             }
-            config_gen::write_config_and_system_identity(args)
+            config_gen::write_config_and_generate_system_identity(args)
         }
         Commands::HostMonitoring(args) => {
             host_monitoring_gen::generate_host_monitoring_config(args)
