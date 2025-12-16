@@ -70,3 +70,11 @@ test/k8s/integration-part2:
 	# reduce test threads to 1 to see sequential logs
 	# We use this approach to split the k8s tests into two parts. We need to update it if this takes too long to run.
 	cargo test k8s_ --  --skip k8s::scenarios --skip k8s::agent_control_cli --skip k8s::flux_self_update --nocapture --ignored  --test-threads=10
+
+.PHONY: test/k8s/integration-flux-self-update
+test/k8s/integration-flux-self-update-flaky:
+	KUBECONFIG='./tests/k8s/.kubeconfig-dev' minikube update-context
+	WATCH_ALL_NAMESPACES=false tilt ci --file ./tests/k8s/Tiltfile
+	# reduce test threads to 1 to see sequential logs
+	cargo test k8s::flux_self_update::k8s_remote_flux_update_with_wrong_version_causes_unhealthy -- --nocapture --ignored  --test-threads=10
+
