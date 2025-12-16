@@ -1,3 +1,4 @@
+use crate::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
 use http::Uri;
 use nr_auth::ClientID;
 use serde::Deserialize;
@@ -33,41 +34,25 @@ pub enum ProviderConfig {
 /// Uses a local private key to sign the access token request.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct LocalConfig {
-    /// The absolute file path to the private key.
-    /// This field is mandatory.
+    /// Private key absolute path.
     pub private_key_path: PathBuf,
-
-    /// The actual content of the private key loaded in memory.
-    /// This is optional and defaults to `None` upon initialization.
-    pub private_key_value: Option<String>,
 }
 
 impl LocalConfig {
-    /// Creates a new `LocalConfig` with the specified file path.
-    /// The `private_key_value` is initialized as `None`.
-    pub fn new_with_path(path: PathBuf) -> Self {
+    pub fn new(local_data_dir: PathBuf) -> Self {
         Self {
-            private_key_path: path,
-            private_key_value: None,
-        }
-    }
-
-    /// Builder method to set the in-memory private key value.
-    /// if the key content is already known
-    pub fn new_with_value(value: String) -> Self {
-        Self {
-            private_key_path: PathBuf::default(),
-            private_key_value: Some(value),
+            private_key_path: local_data_dir.join(AUTH_PRIVATE_KEY_FILE_NAME),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::opamp::auth::config::{AuthConfig, LocalConfig, ProviderConfig};
+    use std::{path::PathBuf, str::FromStr};
+
     use http::Uri;
-    use std::path::PathBuf;
-    use std::str::FromStr;
+
+    use crate::opamp::auth::config::{AuthConfig, LocalConfig, ProviderConfig};
 
     #[test]
     fn test_deserialize_default() {
@@ -83,6 +68,24 @@ mod tests {
         }
 
         let tests: Vec<Test> = vec![
+            Test {
+                content: String::from(
+                    r#"
+token_url: "http://fake.com/oauth2/v1/token"
+client_id: "fake"
+provider: "local"
+private_key_path: "path/to/key"
+                "#,
+                ),
+                expected: AuthConfig {
+                    client_id: "fake".into(),
+                    token_url: Uri::from_str("http://fake.com/oauth2/v1/token").unwrap(),
+                    provider: Some(ProviderConfig::Local(LocalConfig {
+                        private_key_path: PathBuf::from("path/to/key"),
+                    })),
+                    retries: 0u8,
+                },
+            },
             Test {
                 content: String::from(
                     r#"
@@ -110,26 +113,6 @@ retries: 3
                     token_url: Uri::from_str("http://fake.com/oauth2/v1/token").unwrap(),
                     provider: None,
                     retries: 3u8,
-                },
-            },
-            Test {
-                content: String::from(
-                    r#"
-token_url: "http://fake.com/oauth2/v1/token"
-client_id: "fake_client_id"
-provider: "local"
-private_key_path: "/tmp/fake.key"
-private_key_value: "secret"
-                    "#,
-                ),
-                expected: AuthConfig {
-                    client_id: "fake_client_id".into(),
-                    token_url: Uri::from_str("http://fake.com/oauth2/v1/token").unwrap(),
-                    provider: Some(ProviderConfig::Local(LocalConfig {
-                        private_key_path: PathBuf::from("/tmp/fake.key"),
-                        private_key_value: Some("secret".to_string()),
-                    })),
-                    retries: 0u8,
                 },
             },
         ];
