@@ -170,7 +170,7 @@
           $match = $isHealthy | Select-String -Pattern $pattern
           if ($match) {
             $healthyStatus = $match.Matches.Groups[1].Value
-            if ($healthyStatus -eq "true")
+            if ($healthyStatus -eq "true") {
               exit 0
             } 
           }
