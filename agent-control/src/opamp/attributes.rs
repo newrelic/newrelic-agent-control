@@ -133,7 +133,6 @@ mod tests {
                 new_key_value("identifying5", "value5"),
             ],
             non_identifying_attributes: vec![new_key_value("non_identifying1", "value1")],
-            ..Default::default()
         };
 
         // Check identifying attributes are correctly updated
