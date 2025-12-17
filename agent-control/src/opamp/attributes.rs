@@ -1,4 +1,5 @@
-use crate::sub_agent::error::SubAgentError;
+use std::error::Error;
+
 use opamp_client::StartedClient;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::{AgentDescription, AnyValue, KeyValue};
@@ -48,7 +49,7 @@ where
 pub fn update_identifying_attributes<C>(
     opamp_client: &C,
     new_attributes: Vec<Attribute>,
-) -> Result<(), SubAgentError>
+) -> Result<(), Box<dyn Error>>
 where
     C: StartedClient,
 {
@@ -66,7 +67,7 @@ where
 pub fn update_non_identifying_attributes<C>(
     opamp_client: &C,
     new_attributes: Vec<Attribute>,
-) -> Result<(), SubAgentError>
+) -> Result<(), Box<dyn Error>>
 where
     C: StartedClient,
 {
