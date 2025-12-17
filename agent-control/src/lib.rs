@@ -17,7 +17,7 @@ pub mod k8s;
 pub mod on_host;
 pub mod opamp;
 pub mod packages;
-mod secret_retriever;
+pub mod secret_retriever;
 pub mod secrets_provider;
 pub mod sub_agent;
 pub mod utils;
