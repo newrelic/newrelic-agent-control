@@ -1,5 +1,6 @@
 use crate::common::opamp::FakeServer;
 use crate::common::runtime::block_on;
+use crate::k8s::tools::agent_control::{K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET};
 use crate::k8s::tools::cmd::{assert_stdout_contains, print_cli_output};
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
@@ -11,9 +12,7 @@ use crate::k8s::tools::opamp::get_minikube_opamp_url_from_fake_server;
 use assert_cmd::Command;
 use assert_cmd::cargo::cargo_bin_cmd;
 use kube::Client;
-use newrelic_agent_control::agent_control::defaults::{K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET};
 use std::time::Duration;
-
 // NOTE: The tests below are using the latest '*' chart version, and they will likely fail
 // if breaking changes need to be introduced in the chart.
 // If this situation occurs, we need to temporarily skip the tests or use

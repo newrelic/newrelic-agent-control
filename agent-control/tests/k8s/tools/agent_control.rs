@@ -10,7 +10,6 @@ use kube::{
     Client,
     api::{Api, DeleteParams, PostParams},
 };
-use newrelic_agent_control::agent_control::defaults::{K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET};
 use newrelic_agent_control::agent_control::{agent_id::AgentID, run::Environment};
 use newrelic_agent_control::{
     agent_control::defaults::{
@@ -33,6 +32,9 @@ pub const FOO_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/foo_cr_agent_type.yml";
 pub const BAR_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/bar_cr_agent_type.yml";
 
 pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
+
+pub const K8S_PRIVATE_KEY_SECRET: &str = "agent-control-auth";
+pub const K8S_KEY_SECRET: &str = "private_key";
 
 pub const DUMMY_PRIVATE_KEY: &str = r#"-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDCt
