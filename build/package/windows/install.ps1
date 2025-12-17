@@ -3,8 +3,65 @@
 
 param(
     [Parameter(Mandatory=$false)]
-    [switch]$ServiceOverwrite = $false
+    [switch]$ServiceOverwrite = $false,
+
+    # Configuration generation inputs
+    [Parameter(Mandatory=$false)]
+    [switch]$FleetEnabled = $false,
+
+    [Parameter(Mandatory=$false)]
+    [string]$Region = "us",
+
+    [Parameter(Mandatory=$false)]
+    [string]$AgentSet = "no-agents",
+
+    # Fleet-enabled auth and org parameters (used only when -FleetEnabled is set)
+    [Parameter(Mandatory=$false)]
+    [string]$FleetId,
+
+    [Parameter(Mandatory=$false)]
+    [string]$OrganizationId,
+
+    [Parameter(Mandatory=$false)]
+    [string]$AuthParentToken,
+
+    [Parameter(Mandatory=$false)]
+    [string]$AuthParentClientId,
+
+    [Parameter(Mandatory=$false)]
+    [string]$AuthParentClientSecret,
+
+    [Parameter(Mandatory=$false)]
+    [string]$AuthPrivateKeyPath,
+
+    [Parameter(Mandatory=$false)]
+    [string]$AuthClientId,
+
+    # Proxy configuration (optional)
+    [Parameter(Mandatory=$false)]
+    [string]$ProxyUrl,
+
+    [Parameter(Mandatory=$false)]
+    [string]$ProxyCABundleFile,
+
+    [Parameter(Mandatory=$false)]
+    [string]$ProxyCABundleDir,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$ProxyIgnoreSystem = $false
 )
+
+function Set-RestrictedAcl {
+    param (
+        [string]$Path
+    )
+    if ([string]::IsNullOrWhiteSpace($Path)) { return }
+    if (-not (Test-Path -Path $Path)) { return }
+    # Remove inheritance and replace explicit grants with Administrators members only
+    # Giving Full Control Access (F) and making it apply to all child objects (OI)(CI)
+    & icacls $Path /inheritance:r | Out-Null
+    & icacls $Path /grant "BUILTIN\Administrators:(OI)(CI)F"| Out-Null 
+}
 
 # Check for administrator privileges
 $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -16,9 +73,11 @@ if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Adm
 $serviceName = "newrelic-agent-control"
 $serviceDisplayName = "New Relic Agent Control"
 
-$acDir = [IO.Path]::Combine($env:ProgramFiles, 'New Relic\newrelic-agent-control')
-$acLocalConfigDir = [IO.Path]::Combine($acDir, 'local-data\agent-control')
-$acExecPath = [IO.Path]::Combine($acDir, 'newrelic-agent-control.exe')
+$acProgramFilesDir = [IO.Path]::Combine($env:ProgramFiles, 'New Relic\newrelic-agent-control')
+$acLocalConfigDir = [IO.Path]::Combine($acProgramFilesDir, 'local-data\agent-control')
+$acIdentityKeyDir = [IO.Path]::Combine($acProgramFilesDir, 'keys')
+$acIdentityKeyPath = [IO.Path]::Combine($acIdentityKeyDir, 'agent-control-identity.key')
+$acExecPath = [IO.Path]::Combine($acProgramFilesDir, 'newrelic-agent-control.exe')
 
 $acDataDir = [IO.Path]::Combine($env:ProgramData, 'New Relic\newrelic-agent-control')
 $acLogsDir = [IO.Path]::Combine($acDataDir, 'logs')
@@ -46,17 +105,59 @@ Write-Host "Installing $versionData"
 
 Write-Host "Creating New Relic Agent Control directories..."
 
-[System.IO.Directory]::CreateDirectory("$acDir") | Out-Null
+[System.IO.Directory]::CreateDirectory("$acProgramFilesDir") | Out-Null
 [System.IO.Directory]::CreateDirectory("$acDataDir") | Out-Null
+Set-RestrictedAcl -Path $acProgramFilesDir
+Set-RestrictedAcl -Path $acDataDir
 [System.IO.Directory]::CreateDirectory("$acLogsDir") | Out-Null
 [System.IO.Directory]::CreateDirectory("$acLocalConfigDir") | Out-Null
 
 Write-Host "Copying New Relic Agent Control program files..."
-Copy-Item -Path ".\newrelic-agent-control.exe" -Destination "$acDir"
+Copy-Item -Path ".\newrelic-agent-control.exe" -Destination "$acProgramFilesDir"
 
-# Generate configuration
-# TODO: make this configurable through ps1 arguments (identity related args, region, ...)
-& ".\newrelic-agent-control-cli.exe" generate-config --fleet-disabled --region us --agent-set no-agents --output-path "`"$acLocalConfigDir\local_config.yaml`""
+# Generate configuration based on inputs
+$localConfigPath = Join-Path $acLocalConfigDir 'local_config.yaml'
+
+# Common args
+$cliArgs = @(
+    'generate-config',
+    '--output-path', $localConfigPath,
+    '--region', $Region,
+    '--agent-set', $AgentSet
+)
+
+# Private key path is provided whenever an existing key is to be used.
+# If not provided, a new key will be generated and stored in the keys directory.
+if ([string]::IsNullOrWhiteSpace($AuthPrivateKeyPath)) {
+    [System.IO.Directory]::CreateDirectory($acIdentityKeyDir) | Out-Null
+    $AuthPrivateKeyPath = $acIdentityKeyPath
+}
+
+if (-not $FleetEnabled) {
+    $cliArgs += '--fleet-disabled'
+} else {
+    if ($FleetId) { $cliArgs += @('--fleet-id', $FleetId) }
+    if ($OrganizationId) { $cliArgs += @('--organization-id', $OrganizationId) }
+    if ($AuthParentToken) { $cliArgs += @('--auth-parent-token', $AuthParentToken) }
+    if ($AuthParentClientId) { $cliArgs += @('--auth-parent-client-id', $AuthParentClientId) }
+    if ($AuthParentClientSecret) { $cliArgs += @('--auth-parent-client-secret', $AuthParentClientSecret) }
+    if ($AuthPrivateKeyPath) { $cliArgs += @('--auth-private-key-path', $AuthPrivateKeyPath) }
+    if ($AuthClientId) { $cliArgs += @('--auth-client-id', $AuthClientId) }
+}
+
+# Proxy args (optional)
+if ($ProxyUrl) { $cliArgs += @('--proxy-url', $ProxyUrl)}
+if ($ProxyCABundleFile) { $cliArgs += @('--proxy-ca-bundle-file', $ProxyCABundleFile) }
+if ($ProxyCABundleDir) { $cliArgs += @('--proxy-ca-bundle-dir', $ProxyCABundleDir) }
+if ($ProxyIgnoreSystem) { $cliArgs += '--ignore-system-proxy' }
+
+Write-Host "Generating configuration..."
+& ".\newrelic-agent-control-cli.exe" @cliArgs
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Configuration generation failed with exit code $LASTEXITCODE"
+    exit $LASTEXITCODE
+}
+
 
 # Install the service
 Write-Host "Installing New Relic Agent Control service..."
