@@ -78,7 +78,7 @@ impl VersionChecker for NewrelicInstrumentationVersionChecker {
     }
 }
 
-/// Obtains the version from the data of a 'newrelic instrumentation' (newrelic.com/v1beta2, Instrumentation) object.
+/// Obtains the version from the data of a 'newrelic instrumentation' (newrelic.com/v1beta3, Instrumentation) object.
 /// Specifically it gets it from `spec.agent.image`, where the image's tag is considered the version.
 fn version_from_newrelic_instrumentation_image(
     data: &serde_json::Map<String, serde_json::Value>,

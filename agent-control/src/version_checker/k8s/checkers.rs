@@ -1,5 +1,5 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta2_type_meta};
+use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta3_type_meta};
 use crate::agent_type::version_config::{VersionCheckerInitialDelay, VersionCheckerInterval};
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
@@ -37,7 +37,7 @@ impl TryFrom<&TypeMeta> for SupportedResourceType {
         if type_meta == &helmrelease_v2_type_meta() {
             return Ok(Self::HelmRelease);
         }
-        if type_meta == &instrumentation_v1beta2_type_meta() {
+        if type_meta == &instrumentation_v1beta3_type_meta() {
             return Ok(Self::Instrumentation);
         }
         Err(UnsupportedResourceType)
@@ -167,7 +167,7 @@ mod tests {
     use crate::version_checker::k8s::checkers::tests::SubAgentInternalEvent::AgentVersionInfo;
     use crate::{
         agent_control::{
-            config::{helmrelease_v2_type_meta, instrumentation_v1beta2_type_meta},
+            config::{helmrelease_v2_type_meta, instrumentation_v1beta3_type_meta},
             defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
         },
         event::{SubAgentInternalEvent, channel::pub_sub},
@@ -305,7 +305,7 @@ mod tests {
     }
 
     fn instrumentation_dyn_obj() -> DynamicObject {
-        empty_dynamic_object(instrumentation_v1beta2_type_meta())
+        empty_dynamic_object(instrumentation_v1beta3_type_meta())
     }
 
     fn secret_dyn_obj() -> DynamicObject {

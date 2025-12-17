@@ -82,7 +82,7 @@ deployment:
       initial_delay: 30s
     objects:
       instrumentation:
-        apiVersion: newrelic.com/v1beta2
+        apiVersion: newrelic.com/v1beta3
         kind: Instrumentation
         metadata:
           name: ${nr-sub:agent_id}
