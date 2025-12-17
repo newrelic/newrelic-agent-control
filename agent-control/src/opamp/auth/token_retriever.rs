@@ -53,20 +53,14 @@ impl TokenRetriever for TokenRetrieverImpl {
 impl TokenRetrieverImpl {
     pub fn try_build(
         auth_config: Option<AuthConfig>,
-        private_key: Option<String>,
+        private_key: String,
         proxy_config: ProxyConfig,
     ) -> Result<Self, TokenRetrieverImplError> {
         let Some(ac) = auth_config else {
             return Ok(Self::Noop(TokenRetrieverNoop));
         };
 
-        let key = private_key.ok_or_else(|| {
-            TokenRetrieverImplError::ConfigurationError(
-                "Cannot load key: neither provider config or private string provided".to_string(),
-            )
-        })?;
-
-        let sanitized_key = key.replace("\\n", "\n");
+        let sanitized_key = private_key.replace("\\n", "\n");
 
         let signer = LocalPrivateKeySigner::try_from(sanitized_key.as_bytes()).map_err(|e| {
             TokenRetrieverImplError::ConfigurationError(format!("Invalid private key: {}", e))

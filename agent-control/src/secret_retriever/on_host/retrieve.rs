@@ -11,9 +11,11 @@ pub struct OnHostSecretRetriever<P> {
     pub base_paths: BasePaths,
     pub provider: P,
 }
+
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
 pub struct OnHostRetrieverError(String);
+
 impl<P> OnHostSecretRetriever<P>
 where
     P: SecretsProvider,
@@ -51,7 +53,7 @@ where
 
         self.provider
             .get_secret(&secret_path)
-            .map_err(|e| OnHostRetrieverError(format!("Failed to retrieve file secret: {}", e)))
+            .map_err(|e| OnHostRetrieverError(format!("Failed to retrieve file secret: {e}")))
     }
 }
 
@@ -59,84 +61,136 @@ where
 mod tests {
     use super::*;
     use crate::opamp::auth::config::{AuthConfig, LocalConfig};
-    use http::Uri;
-    use nr_auth::ClientID;
+    use crate::secret_retriever::test_mocks::MockSecretsProvider;
+    use mockall::predicate::*;
     use std::path::PathBuf;
-    use std::str::FromStr;
 
-    fn parse_auth_config(yaml: &str) -> AuthConfig {
-        serde_yaml::from_str(yaml).expect("Should be able to deserialize the YAML")
+    fn get_test_base_paths() -> BasePaths {
+        BasePaths {
+            local_dir: PathBuf::from("/default/local"),
+            remote_dir: PathBuf::from("/default/remote"),
+            log_dir: PathBuf::from("/default/logs"),
+        }
     }
 
-    #[test]
-    fn test_deserialize_local_provider_config() {
-        let yaml = r#"
-token_url: "http://fake.com/oauth2/v1/token"
-client_id: "fake-client-id"
-provider: "local"
-private_key_path: "/etc/secrets/key.pem"
-        "#;
+    fn create_dummy_opamp_config(custom_path: Option<&str>) -> OpAMPClientConfig {
+        use http::Uri;
+        use nr_auth::ClientID;
+        use std::str::FromStr;
 
-        let config = parse_auth_config(yaml);
+        let provider = custom_path.map(|p| {
+            ProviderConfig::Local(LocalConfig {
+                private_key_path: PathBuf::from(p),
+            })
+        });
 
-        assert_eq!(config.client_id, ClientID::from("fake-client-id"));
-        assert_eq!(
-            config.token_url,
-            Uri::from_str("http://fake.com/oauth2/v1/token").unwrap()
-        );
-        assert_eq!(config.retries, 0);
-
-        match config.provider {
-            Some(ProviderConfig::Local(local_config)) => {
-                assert_eq!(
-                    local_config.private_key_path,
-                    PathBuf::from("/etc/secrets/key.pem")
-                );
-            }
-            _ => panic!("Se esperaba ProviderConfig::Local"),
+        OpAMPClientConfig {
+            endpoint: "http://localhost".try_into().unwrap(),
+            poll_interval: Default::default(),
+            headers: Default::default(),
+            auth_config: Some(AuthConfig {
+                token_url: Uri::from_str("http://localhost").unwrap(),
+                client_id: ClientID::from("test"),
+                provider,
+                retries: 0,
+            }),
+            fleet_id: "".to_string(),
+            signature_validation: Default::default(),
         }
     }
 
     #[test]
-    fn test_deserialize_no_provider_defaults() {
-        let yaml = r#"
-token_url: "http://fake.com/oauth2/v1/token"
-client_id: "fake-client-id"
-    "#;
+    fn test_retrieve_uses_default_path_when_no_config() {
+        let base_paths = get_test_base_paths();
+        let expected_path = base_paths
+            .local_dir
+            .join(AUTH_PRIVATE_KEY_FILE_NAME)
+            .to_string_lossy()
+            .to_string();
 
-        let config = parse_auth_config(yaml);
+        let mut mock_provider = MockSecretsProvider::new();
+        mock_provider
+            .expect_get_secret()
+            .with(eq(expected_path.clone()))
+            .times(1)
+            .returning(|_| Ok("SECRET_CONTENT".to_string()));
 
-        assert_eq!(
-            config.token_url,
-            Uri::from_str("http://fake.com/oauth2/v1/token").unwrap()
-        );
+        let retriever = OnHostSecretRetriever::new(None, base_paths, mock_provider);
+
+        let result = retriever.retrieve();
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "SECRET_CONTENT");
+    }
+
+    #[test]
+    fn test_retrieve_uses_configured_path_when_provided() {
+        let base_paths = get_test_base_paths();
+        let custom_path = "/etc/custom/key.pem";
+
+        let opamp_config = create_dummy_opamp_config(Some(custom_path));
+
+        let mut mock_provider = MockSecretsProvider::new();
+        mock_provider
+            .expect_get_secret()
+            .with(eq(custom_path.to_string()))
+            .times(1)
+            .returning(|_| Ok("CUSTOM_SECRET".to_string()));
+
+        let retriever = OnHostSecretRetriever::new(Some(opamp_config), base_paths, mock_provider);
+
+        let result = retriever.retrieve();
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "CUSTOM_SECRET");
+    }
+
+    #[test]
+    fn test_retrieve_fallback_to_default_if_provider_is_not_local() {
+        let base_paths = get_test_base_paths();
+        let expected_default_path = base_paths
+            .local_dir
+            .join(AUTH_PRIVATE_KEY_FILE_NAME)
+            .to_string_lossy()
+            .to_string();
+
+        let opamp_config = create_dummy_opamp_config(None);
+
+        let mut mock_provider = MockSecretsProvider::new();
+        mock_provider
+            .expect_get_secret()
+            .with(eq(expected_default_path))
+            .times(1)
+            .returning(|_| Ok("DEFAULT_SECRET".to_string()));
+
+        let retriever = OnHostSecretRetriever::new(Some(opamp_config), base_paths, mock_provider);
+
+        let result = retriever.retrieve();
+        assert_eq!(result.unwrap(), "DEFAULT_SECRET");
+    }
+
+    #[test]
+    fn test_retrieve_handles_provider_errors() {
+        let base_paths = get_test_base_paths();
+        let mut mock_provider = MockSecretsProvider::new();
+
+        mock_provider.expect_get_secret().returning(|_| {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "File not found",
+            ))
+        });
+
+        let retriever = OnHostSecretRetriever::new(None, base_paths, mock_provider);
+
+        let result = retriever.retrieve();
+
+        assert!(result.is_err());
         assert!(
-            config.provider.is_none(),
-            "Provider should be None if not specified"
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to retrieve file secret")
         );
-        assert_eq!(config.retries, 0, "Default retries should be 0");
-    }
-
-    #[test]
-    fn test_deserialize_with_retries() {
-        let yaml = r#"
-token_url: "http://fake.com/oauth2/v1/token"
-client_id: "fake-client-id"
-retries: 5
-        "#;
-
-        let config = parse_auth_config(yaml);
-
-        assert_eq!(config.retries, 5);
-        assert!(config.provider.is_none());
-    }
-
-    #[test]
-    fn test_local_config_constructor() {
-        let base_path = PathBuf::from("/var/lib/newrelic");
-        let config = LocalConfig::new(base_path.clone());
-
-        let expected_path = base_path.join(AUTH_PRIVATE_KEY_FILE_NAME);
-        assert_eq!(config.private_key_path, expected_path);
     }
 }

@@ -13,7 +13,6 @@ use crate::k8s::tools::local_chart::agent_control_deploymet::{
 use crate::k8s::tools::logs::print_pod_logs;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
-use newrelic_agent_control::agent_control::defaults::{K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET};
 use newrelic_agent_control::checkers::version::VersionCheckError;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};

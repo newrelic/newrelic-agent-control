@@ -189,7 +189,7 @@ impl AgentControlRunner {
             let token_retriever = Arc::new(
                 TokenRetrieverImpl::try_build(
                     opamp_config.clone().auth_config,
-                    Some(private_key),
+                    private_key,
                     proxy.clone(),
                 )
                 .inspect_err(|err| error!("Could not build OpAMP's token retriever: {err}"))

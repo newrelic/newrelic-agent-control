@@ -11,7 +11,7 @@ agentControlDeployment:
       secretName: "sys-identity"
     config:
       authSecret:
-        secretName: "agent-control-auth"
+        secretName: "sys-identity"
         secretKeyName: "private_key"
       fleet_control:
         enabled: true

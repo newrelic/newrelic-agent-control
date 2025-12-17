@@ -46,37 +46,17 @@ where
 mod tests {
     use super::*;
     use crate::agent_control::config::AuthSecret;
-    use std::fmt;
+    use assert_matches::assert_matches;
+    use mockall::predicate::*;
+    use mockall::*;
 
-    struct MockProvider {
-        expected_path: String,
-        should_fail: bool,
-        return_value: String,
-    }
+    mock! {
+        pub SecretsProvider {}
 
-    #[derive(Debug)]
-    struct MockError(String);
-    impl fmt::Display for MockError {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{}", self.0)
-        }
-    }
-    impl std::error::Error for MockError {}
+        impl SecretsProvider for SecretsProvider {
+            type Error = std::io::Error;
 
-    impl SecretsProvider for MockProvider {
-        type Error = MockError;
-
-        fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
-            assert_eq!(
-                secret_path, self.expected_path,
-                "The retriever constructed the wrong secret path!"
-            );
-
-            if self.should_fail {
-                Err(MockError("Simulated K8s failure".to_string()))
-            } else {
-                Ok(self.return_value.clone())
-            }
+            fn get_secret(&self, secret_path: &str) -> Result<String, std::io::Error>;
         }
     }
 
@@ -94,42 +74,39 @@ mod tests {
     #[test]
     fn test_retrieve_success_constructs_correct_path() {
         let config = create_dummy_config();
+        let expected_path = "test-ns:my-secret:my-key";
 
-        let expected_path = "test-ns:my-secret:my-key".to_string();
+        let mut mock_provider = MockSecretsProvider::new();
 
-        let mock_provider = MockProvider {
-            expected_path,
-            should_fail: false,
-            return_value: "SUPER_SECRET_TOKEN".to_string(),
-        };
+        mock_provider
+            .expect_get_secret()
+            .with(eq(expected_path))
+            .times(1)
+            .returning(|_| Ok("SUPER_SECRET_TOKEN".to_string()));
 
         let retriever = K8sSecretRetriever::new(mock_provider, config);
 
-        let result = retriever.retrieve();
-
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "SUPER_SECRET_TOKEN");
+        let result = retriever.retrieve().expect("retrieve should not fail");
+        assert_eq!(result, "SUPER_SECRET_TOKEN");
     }
 
     #[test]
     fn test_retrieve_wraps_provider_error() {
         let config = create_dummy_config();
-        let expected_path = "test-ns:my-secret:my-key".to_string();
 
-        let mock_provider = MockProvider {
-            expected_path,
-            should_fail: true,
-            return_value: "".to_string(),
-        };
+        let mut mock_provider = MockSecretsProvider::new();
+
+        mock_provider
+            .expect_get_secret()
+            .with(always())
+            .returning(|_| Err(std::io::Error::other("Simulated K8s failure")));
 
         let retriever = K8sSecretRetriever::new(mock_provider, config);
 
         let result = retriever.retrieve();
 
-        assert!(result.is_err());
-        let err_msg = result.unwrap_err().to_string();
-
-        assert!(err_msg.contains("K8s getting secret from k8s"));
-        assert!(err_msg.contains("Simulated K8s failure"));
+        assert_matches!(result, Err(K8sRetrieverError(s)) => {
+            assert!(s.contains("K8s getting secret from k8s") && s.contains("Simulated K8s failure"));
+        });
     }
 }
