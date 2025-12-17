@@ -20,11 +20,14 @@ struct Cli {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, clap::Subcommand)]
 enum Commands {
-    // Generate Agent Control configuration according to the provided configuration data.
+    /// Generate Agent Control configuration according to the provided configuration data.
+    /// It generates the AC config, and it creates the system identity
     GenerateConfig(config_gen::Args),
-    // Generate Host Monitoring configuration according to the provided configuration data.
+    /// Generate Host Monitoring configuration according to the provided configuration data and what is found in the system.
+    /// It generates either infra-agent or otel configuration.
+    /// in case of infra-agent, the proxy configuration is included if provided, and we try to migrate from the old configuration.
     HostMonitoring(host_monitoring_gen::Args),
-    // Generate systemd configuration according to the provided configuration data.
+    /// Generate systemd configuration according to the provided configuration data.
     SystemdConfig(systemd_gen::Args),
     /// Migrate from the older on host folders to the new ones. DON'T USE IT
     FilesBackwardsCompatibilityMigrationFromV120,
@@ -46,7 +49,7 @@ fn main() -> ExitCode {
                 cmd.error(ErrorKind::ArgumentConflict, err.to_string())
                     .exit()
             }
-            config_gen::generate_config(args)
+            config_gen::write_config_and_generate_system_identity(args)
         }
         Commands::HostMonitoring(args) => {
             host_monitoring_gen::generate_host_monitoring_config(args)
