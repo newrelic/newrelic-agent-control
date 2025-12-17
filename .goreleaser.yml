@@ -48,6 +48,14 @@ builds:
       - AGENT_CONTROL_VERSION={{ .Version }}
       - NEWRELIC_INFRA_AGENT_VERSION={{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}
       - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
+    hooks:
+      post:
+        - cmd: ./build/scripts/windows-exec-sign/sign.sh
+          env:
+            - SKIP_WINDOWS_SIGN={{ if index .Env "SKIP_WINDOWS_SIGN"}}{{ .Env.SKIP_WINDOWS_SIGN }}{{ else }}{{ end }}
+            - PFX_CERTIFICATE_BASE64={{ if index .Env "PFX_CERTIFICATE_BASE64"}}{{ .Env.PFX_CERTIFICATE_BASE64 }}{{ else }}{{ end }}
+            - PFX_PASSPHRASE={{ if index .Env "PFX_PASSPHRASE"}}{{ .Env.PFX_PASSPHRASE }}{{ else }}{{ end }}
+            - EXECUTABLE={{ .Path }}
 
   # Linux builds for CLI
   - id: newrelic-agent-control-cli-linux
@@ -83,6 +91,13 @@ builds:
         # Wait for newrelic-agent-control to be ready (parallel executions of cargo-xwin can be problematic)
         - cmd: sh -c 'while [ ! -f target/x86_64-pc-windows-msvc/release/newrelic-agent-control.exe ]; do echo "Waiting for newrelic-agent-control-windows build to complete..."; sleep 5; done'
           output: true
+      post:
+        - cmd: ./build/scripts/windows-exec-sign/sign.sh
+          env:
+            - SKIP_WINDOWS_SIGN={{ if index .Env "SKIP_WINDOWS_SIGN"}}{{ .Env.SKIP_WINDOWS_SIGN }}{{ else }}{{ end }}
+            - PFX_CERTIFICATE_BASE64={{ if index .Env "PFX_CERTIFICATE_BASE64"}}{{ .Env.PFX_CERTIFICATE_BASE64 }}{{ else }}{{ end }}
+            - PFX_PASSPHRASE={{ if index .Env "PFX_PASSPHRASE"}}{{ .Env.PFX_PASSPHRASE }}{{ else }}{{ end }}
+            - EXECUTABLE={{ .Path }}
 
 archives:
   - id: linux

@@ -18,7 +18,12 @@ jobs:
     with:
       pre-release: false
       tag_name: 0.100.${{ github.run_id }}
-    secrets: inherit
+    secrets:
+      gh_token: ${{ secrets.GITHUB_TOKEN }}
+      gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
+      gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+      pfx_certificate_base64: ${{ secrets.OHAI_PFX_CERTIFICATE_BASE64 }}
+      pfx_passphrase: ${{ secrets.OHAI_PFX_PASSPHRASE }}
 
   build-image:
     name: Build and Push nightly image
