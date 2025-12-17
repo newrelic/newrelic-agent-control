@@ -1,4 +1,4 @@
-use crate::agent_control::config::{K8sConfig, OpAMPClientConfig};
+use crate::agent_control::config::K8sConfig;
 use crate::secret_retriever::OpampSecretRetriever;
 use crate::secrets_provider::SecretsProvider;
 use crate::secrets_provider::k8s_secret::K8sSecretProvider;
@@ -27,7 +27,7 @@ where
 {
     type Error = K8sRetrieverError;
 
-    fn retrieve(&self, _opamp_config: &OpAMPClientConfig) -> Result<String, Self::Error> {
+    fn retrieve(&self) -> Result<String, Self::Error> {
         let secret_path = K8sSecretProvider::build_secret_path(
             &self.config.namespace,
             &self.config.auth_secret.secret_name,
@@ -105,9 +105,7 @@ mod tests {
 
         let retriever = K8sSecretRetriever::new(mock_provider, config);
 
-        let opamp_config = OpAMPClientConfig::default();
-
-        let result = retriever.retrieve(&opamp_config);
+        let result = retriever.retrieve();
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "SUPER_SECRET_TOKEN");
@@ -125,9 +123,8 @@ mod tests {
         };
 
         let retriever = K8sSecretRetriever::new(mock_provider, config);
-        let opamp_config = OpAMPClientConfig::default();
 
-        let result = retriever.retrieve(&opamp_config);
+        let result = retriever.retrieve();
 
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();

@@ -183,7 +183,7 @@ impl AgentControlRunner {
             debug!("OpAMP configuration found, creating an OpAMP client builder");
 
             let private_key = retriever
-                .retrieve(&opamp_config)
+                .retrieve()
                 .map_err(|e| RunError(format!("error trying to get secret or private key {e}")))?;
 
             let token_retriever = Arc::new(
