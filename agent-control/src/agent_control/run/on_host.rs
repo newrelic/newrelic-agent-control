@@ -55,8 +55,11 @@ impl AgentControlRunner {
             self.base_paths.remote_dir.clone(),
         ));
 
-        let secret_retriever =
-            OnHostSecretRetriever::new(self.base_paths.clone(), FileSecretProvider::new());
+        let secret_retriever = OnHostSecretRetriever::new(
+            self.opamp.clone(),
+            self.base_paths.clone(),
+            FileSecretProvider::new(),
+        );
 
         let opamp_http_builder =
             Self::build_opamp_http_builder(self.opamp, self.proxy.clone(), secret_retriever)?;

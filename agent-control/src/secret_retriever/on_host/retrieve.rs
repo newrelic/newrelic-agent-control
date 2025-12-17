@@ -7,6 +7,7 @@ use crate::secrets_provider::SecretsProvider;
 
 /// Helper struct to determine the path and retrieve the secret using the File provider.
 pub struct OnHostSecretRetriever<P> {
+    opamp_config: Option<OpAMPClientConfig>,
     pub base_paths: BasePaths,
     pub provider: P,
 }
@@ -17,8 +18,13 @@ impl<P> OnHostSecretRetriever<P>
 where
     P: SecretsProvider,
 {
-    pub fn new(base_paths: BasePaths, provider: P) -> Self {
+    pub fn new(
+        opamp_config: Option<OpAMPClientConfig>,
+        base_paths: BasePaths,
+        provider: P,
+    ) -> Self {
         Self {
+            opamp_config,
             base_paths,
             provider,
         }
@@ -31,18 +37,17 @@ where
 {
     type Error = OnHostRetrieverError;
 
-    fn retrieve(&self, opamp_config: &OpAMPClientConfig) -> Result<String, Self::Error> {
-        let path_buf = if let Some(auth_config) = &opamp_config.auth_config {
-            if let Some(ProviderConfig::Local(local_config)) = &auth_config.provider {
-                local_config.private_key_path.clone()
-            } else {
-                self.base_paths.local_dir.join(AUTH_PRIVATE_KEY_FILE_NAME)
-            }
-        } else {
-            self.base_paths.local_dir.join(AUTH_PRIVATE_KEY_FILE_NAME)
-        };
+    fn retrieve(&self) -> Result<String, Self::Error> {
+        let mut final_path = self.base_paths.local_dir.join(AUTH_PRIVATE_KEY_FILE_NAME);
 
-        let secret_path = path_buf.to_string_lossy().to_string();
+        if let Some(opamp_config) = &self.opamp_config
+            && let Some(auth_config) = &opamp_config.auth_config
+            && let Some(ProviderConfig::Local(local_config)) = &auth_config.provider
+        {
+            final_path = local_config.private_key_path.clone();
+        }
+
+        let secret_path = final_path.to_string_lossy().to_string();
 
         self.provider
             .get_secret(&secret_path)
