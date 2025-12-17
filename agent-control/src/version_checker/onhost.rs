@@ -67,13 +67,11 @@ pub(crate) fn check_version<V, T, F>(
 
             publish_version_event(
                 &version_event_publisher,
-                version_event_generator((
+                version_event_generator(vec![Attribute::from((
                     AttributeType::Identifying,
-                    vec![Attribute::from((
-                        agent_data.opamp_field,
-                        agent_data.version,
-                    ))],
-                )),
+                    agent_data.opamp_field,
+                    agent_data.version,
+                ))]),
             );
         }
         Err(error) => {
@@ -158,13 +156,11 @@ mod tests {
 
         // Check that we received the expected version event
         assert_eq!(
-            SubAgentInternalEvent::AgentAttributesUpdated((
+            SubAgentInternalEvent::AgentAttributesUpdated(vec![Attribute::from((
                 AttributeType::Identifying,
-                vec![Attribute::from((
-                    OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
-                    "1.0.0".to_string(),
-                ))],
-            )),
+                OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
+                "1.0.0".to_string(),
+            ))],),
             version_consumer.as_ref().recv().unwrap()
         );
 

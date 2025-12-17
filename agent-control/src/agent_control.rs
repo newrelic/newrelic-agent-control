@@ -21,9 +21,7 @@ use crate::event::{
 };
 use crate::health::health_checker::{HealthChecker, spawn_health_checker};
 use crate::health::with_start_time::HealthWithStartTime;
-use crate::opamp::attributes::{
-    AttributeType, update_identifying_attributes, update_non_identifying_attributes,
-};
+use crate::opamp::attributes::update_opamp_attributes;
 use crate::opamp::remote_config::report::report_state;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::{OpampRemoteConfig, OpampRemoteConfigError, hash::ConfigState};
@@ -342,13 +340,10 @@ where
                                 AgentControlInternalEvent::HealthUpdated(health) => {
                                     self.report_health(health);
                                 },
-                                AgentControlInternalEvent::AgentControlAttributesUpdated((attribute_type, attributes)) => {
+                                AgentControlInternalEvent::AgentControlAttributesUpdated(attributes) => {
                                     let _ = self.opamp_client.as_ref().map(|c|
-                                        match attribute_type {
-                                            AttributeType::Identifying => update_identifying_attributes(c, attributes),
-                                            AttributeType::NonIdentifying => update_non_identifying_attributes(c, attributes),
-                                        }
-                                        .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message")));
+                                        update_opamp_attributes(c, attributes)
+                                    .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message")));
                                 },
                             }
                         },
