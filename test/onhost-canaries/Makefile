@@ -72,7 +72,7 @@ test/onhost-canaries/terraform-plan:
 	TF_VAR_fleet_id=${FLEET_ID} \
 	TF_VAR_package_version=${PACKAGE_VERSION} \
 	TF_VAR_slack_webhook_url=${SLACK_WEBHOOK_URL} \
-	TF_VAR_windows_password=${AC_CANARY_WINDOWS_PASSWORD} \
+	TF_VAR_windows_password="${AC_CANARY_WINDOWS_PASSWORD}" \
 	terraform -chdir=$(ONHOST_TF_DIR) plan -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
 .PHONY: test/onhost-canaries/terraform-apply
@@ -87,7 +87,7 @@ test/onhost-canaries/terraform-apply:
 	TF_VAR_fleet_id=${FLEET_ID} \
 	TF_VAR_package_version=${PACKAGE_VERSION} \
 	TF_VAR_slack_webhook_url=${SLACK_WEBHOOK_URL} \
-	TF_VAR_windows_password=${AC_CANARY_WINDOWS_PASSWORD} \
+	TF_VAR_windows_password="${AC_CANARY_WINDOWS_PASSWORD}" \
 	terraform -chdir=$(ONHOST_TF_DIR) apply -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
 .PHONY: test/onhost-canaries/terraform-destroy
@@ -101,5 +101,5 @@ test/onhost-canaries/terraform-destroy:
 	TF_VAR_fleet_id=${FLEET_ID} \
 	TF_VAR_package_version=${PACKAGE_VERSION} \
 	TF_VAR_slack_webhook_url=${SLACK_WEBHOOK_URL} \
-	TF_VAR_windows_password=${AC_CANARY_WINDOWS_PASSWORD} \
+	TF_VAR_windows_password="${AC_CANARY_WINDOWS_PASSWORD}" \
     terraform -chdir=$(ONHOST_TF_DIR) destroy -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
