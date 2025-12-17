@@ -285,7 +285,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [ part1, part2, flux-self-update ]
+        group: [ part1, part2, flux-self-update, integration-flux-self-update-flaky ]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
