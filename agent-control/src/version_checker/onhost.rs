@@ -2,6 +2,7 @@ use std::process::Command;
 
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 use crate::agent_type::runtime_config::on_host::executable::Args;
+use crate::opamp::attributes::{Attribute, AttributeType, UpdateAttributesMessage};
 use crate::version_checker::{
     AgentVersion, VersionCheckError, VersionChecker, publish_version_event,
 };
@@ -50,7 +51,7 @@ pub(crate) fn check_version<V, T, F>(
 ) where
     V: VersionChecker + Send + Sync + 'static,
     T: Debug + Send + Sync + 'static,
-    F: Fn(AgentVersion) -> T + Send + Sync + 'static,
+    F: Fn(UpdateAttributesMessage) -> T + Send + Sync + 'static,
 {
     let span = info_span!(
         "version_check",
@@ -66,7 +67,13 @@ pub(crate) fn check_version<V, T, F>(
 
             publish_version_event(
                 &version_event_publisher,
-                version_event_generator(agent_data),
+                version_event_generator((
+                    AttributeType::Identifying,
+                    vec![Attribute::from((
+                        agent_data.opamp_field,
+                        agent_data.version,
+                    ))],
+                )),
             );
         }
         Err(error) => {
@@ -79,7 +86,6 @@ pub(crate) fn check_version<V, T, F>(
 mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::event::SubAgentInternalEvent;
-    use crate::version_checker::onhost::tests::SubAgentInternalEvent::AgentVersionInfo;
     use crate::version_checker::tests::MockVersionChecker;
     use crate::{
         agent_control::defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
@@ -147,15 +153,18 @@ mod tests {
             AgentID::default().to_string(),
             version_checker,
             version_publisher,
-            SubAgentInternalEvent::AgentVersionInfo,
+            SubAgentInternalEvent::AgentAttributesUpdated,
         );
 
         // Check that we received the expected version event
         assert_eq!(
-            AgentVersionInfo(AgentVersion {
-                version: "1.0.0".to_string(),
-                opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
-            }),
+            SubAgentInternalEvent::AgentAttributesUpdated((
+                AttributeType::Identifying,
+                vec![Attribute::from((
+                    OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
+                    "1.0.0".to_string(),
+                ))],
+            )),
             version_consumer.as_ref().recv().unwrap()
         );
 

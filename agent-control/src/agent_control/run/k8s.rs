@@ -285,7 +285,7 @@ fn start_cd_version_checker(
         // where T is the "event" sendable by the above publisher.
         // Using an enum variant that wraps a type is the same as a function taking the type.
         // Same as passing "|x| AgentControlInternalEvent::AgentControlCdVersionUpdated(x)"
-        AgentControlInternalEvent::AgentControlCdVersionUpdated,
+        AgentControlInternalEvent::AgentControlAttributesUpdated,
         VersionCheckerInterval::default(),
         AGENT_CONTROL_VERSION_CHECKER_INITIAL_DELAY,
     )

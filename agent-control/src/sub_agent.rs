@@ -19,7 +19,9 @@ use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::health::events::HealthEventPublisher;
 use crate::health::health_checker::{Health, Unhealthy};
 use crate::health::with_start_time::HealthWithStartTime;
-use crate::opamp::attributes::{Attribute, update_identifying_attributes};
+use crate::opamp::attributes::{
+    AttributeType, update_identifying_attributes, update_non_identifying_attributes,
+};
 use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::hash::{ConfigState, Hash};
@@ -360,10 +362,13 @@ where
                                 )
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "Processing health message"));
                             },
-                            Ok(SubAgentInternalEvent::AgentVersionInfo(agent_data)) => {
+                            Ok(SubAgentInternalEvent::AgentAttributesUpdated((attribute_type, attributes))) => {
                                 let _ = self.maybe_opamp_client.as_ref().map(|c|
-                                    update_identifying_attributes(c, vec![Attribute::from((agent_data.opamp_field, agent_data.version))])
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing version message")));
+                                    match attribute_type {
+                                        AttributeType::Identifying => update_identifying_attributes(c, attributes),
+                                        AttributeType::NonIdentifying => update_non_identifying_attributes(c, attributes),
+                                    }
+                                    .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing version message")));
                             }
                         }
                     }

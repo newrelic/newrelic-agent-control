@@ -6,6 +6,7 @@ use crate::event::channel::{EventConsumer, EventPublisher};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::{get_namespace, get_type_meta};
+use crate::opamp::attributes::{Attribute, AttributeType, UpdateAttributesMessage};
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
@@ -119,7 +120,7 @@ pub(crate) fn spawn_version_checker<V, T, F>(
 where
     V: VersionChecker + Send + Sync + 'static,
     T: Debug + Send + Sync + 'static,
-    F: Fn(AgentVersion) -> T + Send + Sync + 'static,
+    F: Fn(UpdateAttributesMessage) -> T + Send + Sync + 'static,
 {
     let thread_name = format!("{version_checker_id}_{VERSION_CHECKER_THREAD_NAME}");
     // Stores if the version was retrieved in last iteration for logging purposes.
@@ -144,7 +145,13 @@ where
 
                 publish_version_event(
                     &version_event_publisher,
-                    version_event_generator(agent_data),
+                    version_event_generator((
+                        AttributeType::Identifying,
+                        vec![Attribute::from((
+                            agent_data.opamp_field,
+                            agent_data.version,
+                        ))],
+                    )),
                 );
             }
             Err(error) => {
@@ -164,7 +171,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::version_checker::k8s::checkers::tests::SubAgentInternalEvent::AgentVersionInfo;
     use crate::{
         agent_control::{
             config::{helmrelease_v2_type_meta, instrumentation_v1beta2_type_meta},
@@ -341,7 +347,7 @@ mod tests {
             AgentID::default().to_string(),
             version_checker,
             version_publisher,
-            SubAgentInternalEvent::AgentVersionInfo,
+            SubAgentInternalEvent::AgentAttributesUpdated,
             Duration::from_millis(10).into(),
             Duration::from_millis(500).into(),
         );
@@ -352,10 +358,13 @@ mod tests {
 
         // Check that we received the expected version event
         assert_eq!(
-            AgentVersionInfo(AgentVersion {
-                version: "1.0.0".to_string(),
-                opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
-            }),
+            SubAgentInternalEvent::AgentAttributesUpdated((
+                AttributeType::Identifying,
+                vec![Attribute::from((
+                    OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
+                    "1.0.0".to_string(),
+                ))],
+            )),
             version_consumer.as_ref().recv().unwrap()
         );
 

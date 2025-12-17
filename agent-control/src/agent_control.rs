@@ -21,7 +21,9 @@ use crate::event::{
 };
 use crate::health::health_checker::{HealthChecker, spawn_health_checker};
 use crate::health::with_start_time::HealthWithStartTime;
-use crate::opamp::attributes::{Attribute, update_identifying_attributes};
+use crate::opamp::attributes::{
+    AttributeType, update_identifying_attributes, update_non_identifying_attributes,
+};
 use crate::opamp::remote_config::report::report_state;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::{OpampRemoteConfig, OpampRemoteConfigError, hash::ConfigState};
@@ -340,12 +342,13 @@ where
                                 AgentControlInternalEvent::HealthUpdated(health) => {
                                     self.report_health(health);
                                 },
-                                AgentControlInternalEvent::AgentControlCdVersionUpdated(cd_version) => {
+                                AgentControlInternalEvent::AgentControlAttributesUpdated((attribute_type, attributes)) => {
                                     let _ = self.opamp_client.as_ref().map(|c|
-                                        update_identifying_attributes(c,
-                                            vec![Attribute::from((cd_version.opamp_field, cd_version.version))]
-                                        )
-                                    .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message")));
+                                        match attribute_type {
+                                            AttributeType::Identifying => update_identifying_attributes(c, attributes),
+                                            AttributeType::NonIdentifying => update_non_identifying_attributes(c, attributes),
+                                        }
+                                        .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message")));
                                 },
                             }
                         },

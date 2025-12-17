@@ -4,6 +4,8 @@ use opamp_client::StartedClient;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::{AgentDescription, AnyValue, KeyValue};
 
+pub type UpdateAttributesMessage = (AttributeType, Vec<Attribute>);
+
 /// Represents an agent attribute
 ///
 /// Simple wrapper for [`KeyValue`] that simplifies the creation
@@ -25,6 +27,7 @@ use opamp_client::opamp::proto::{AgentDescription, AnyValue, KeyValue};
 ///     }),
 /// };
 /// ```
+#[derive(Debug, Clone, PartialEq)]
 pub struct Attribute(KeyValue);
 
 impl<K, V> From<(K, V)> for Attribute
@@ -40,6 +43,12 @@ where
             }),
         })
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AttributeType {
+    Identifying,
+    NonIdentifying,
 }
 
 /// Updates the identifying attributes of the OpAMP agent
