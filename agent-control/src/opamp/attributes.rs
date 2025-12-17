@@ -1,8 +1,12 @@
 use std::error::Error;
+use std::fmt::Debug;
 
 use opamp_client::StartedClient;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::{AgentDescription, AnyValue, KeyValue};
+use tracing::error;
+
+use crate::event::channel::EventPublisher;
 
 /// Event message type for updating OpAMP agent attributes
 pub type UpdateAttributesMessage = Vec<Attribute>;
@@ -132,6 +136,20 @@ fn merge_attributes(
     }
 
     old_attributes
+}
+
+pub fn publish_update_attributes_event<T>(event_publisher: &EventPublisher<T>, event: T)
+where
+    T: Debug + Send + Sync + 'static,
+{
+    let event_type_str = format!("{event:?}");
+    _ = event_publisher.publish(event).inspect_err(|e| {
+        error!(
+            err = e.to_string(),
+            event_type = event_type_str,
+            "could not update attributes event"
+        )
+    });
 }
 
 #[cfg(test)]

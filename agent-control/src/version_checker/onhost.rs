@@ -2,10 +2,10 @@ use std::process::Command;
 
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 use crate::agent_type::runtime_config::on_host::executable::Args;
-use crate::opamp::attributes::{Attribute, AttributeType, UpdateAttributesMessage};
-use crate::version_checker::{
-    AgentVersion, VersionCheckError, VersionChecker, publish_version_event,
+use crate::opamp::attributes::{
+    Attribute, AttributeType, UpdateAttributesMessage, publish_update_attributes_event,
 };
+use crate::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
 use regex::Regex;
 
 use crate::event::channel::EventPublisher;
@@ -65,7 +65,7 @@ pub(crate) fn check_version<V, T, F>(
         Ok(agent_data) => {
             info!("agent version successfully checked");
 
-            publish_version_event(
+            publish_update_attributes_event(
                 &version_event_publisher,
                 version_event_generator(vec![Attribute::from((
                     AttributeType::Identifying,

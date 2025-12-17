@@ -6,14 +6,14 @@ use crate::event::channel::{EventConsumer, EventPublisher};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::{get_namespace, get_type_meta};
-use crate::opamp::attributes::{Attribute, AttributeType, UpdateAttributesMessage};
+use crate::opamp::attributes::{
+    Attribute, AttributeType, UpdateAttributesMessage, publish_update_attributes_event,
+};
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
 use crate::version_checker::k8s::instrumentation::NewrelicInstrumentationVersionChecker;
-use crate::version_checker::{
-    AgentVersion, VersionCheckError, VersionChecker, publish_version_event,
-};
+use crate::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
 use kube::api::{DynamicObject, TypeMeta};
 use std::sync::Arc;
 use std::thread::sleep;
@@ -143,7 +143,7 @@ where
                     version_retrieved = true;
                 }
 
-                publish_version_event(
+                publish_update_attributes_event(
                     &version_event_publisher,
                     version_event_generator(vec![Attribute::from((
                         AttributeType::Identifying,
