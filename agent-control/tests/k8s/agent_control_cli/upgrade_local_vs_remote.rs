@@ -2,7 +2,7 @@ use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::agent_control_cli::installation::{ac_install_cmd, create_simple_values_secret};
-use crate::k8s::tools::agent_control::DUMMY_PRIVATE_KEY;
+use crate::k8s::tools::agent_control::{DUMMY_PRIVATE_KEY, K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET};
 use crate::k8s::tools::cmd::print_cli_output;
 use crate::k8s::tools::instance_id;
 use crate::k8s::tools::k8s_api::create_values_secret;
@@ -13,7 +13,6 @@ use crate::k8s::tools::local_chart::agent_control_deploymet::{
 use crate::k8s::tools::logs::print_pod_logs;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
-use newrelic_agent_control::agent_control::defaults::{K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET};
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};
 use newrelic_agent_control::version_checker::VersionCheckError;
