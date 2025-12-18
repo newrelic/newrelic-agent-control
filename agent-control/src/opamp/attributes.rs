@@ -47,7 +47,7 @@ pub struct Attribute {
 
 impl Attribute {
     /// Returns the inner [`KeyValue`]
-    pub fn key_value(self) -> KeyValue {
+    fn key_value(self) -> KeyValue {
         self.key_value
     }
 }
