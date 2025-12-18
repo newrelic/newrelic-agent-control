@@ -79,13 +79,13 @@ impl Region {
     }
 
     pub fn otel_endpoint(&self) -> Uri {
-        match &self {
+        let host = match &self {
             Self::US => OTLP_URL_US,
             Self::EU => OTLP_URL_EU,
             Self::STAGING => OTLP_URL_STAGING,
-        }
-        .parse()
-        .expect("known uris should be valid")
+        };
+        let endpoint = format!("https://{}:4317", host);
+        endpoint.parse().expect("known uris should be valid")
     }
 
     // Helper to obtain the token renewal endpoint that is also needed in Agent Control configuration
@@ -159,9 +159,9 @@ mod tests {
     }
 
     #[rstest]
-    #[case(Region::US, "otlp.nr-data.net")]
-    #[case(Region::EU, "otlp.eu01.nr-data.net")]
-    #[case(Region::STAGING, "staging.otlp.nr-data.net")]
+    #[case(Region::US, "https://otlp.nr-data.net:4317/")]
+    #[case(Region::EU, "https://otlp.eu01.nr-data.net:4317/")]
+    #[case(Region::STAGING, "https://staging.otlp.nr-data.net:4317/")]
     fn test_otel_endpoint(#[case] region: Region, #[case] expected_endpoint: &str) {
         assert_eq!(
             region.otel_endpoint().to_string(),

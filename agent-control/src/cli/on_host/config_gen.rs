@@ -10,12 +10,15 @@ use crate::cli::{
         proxy_config::ProxyConfig,
     },
 };
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 use tracing::info;
 
 pub mod config;
 pub mod identity;
 pub mod region;
+
+const NR_LICENSE_ENV_VAR: &str = "NEW_RELIC_LICENSE_KEY";
+const OTLP_ENDPOINT_ENV_VAR: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
 
 /// Generates the Agent Control configuration for host environments.
 #[derive(Debug, clap::Parser)]
@@ -70,6 +73,14 @@ pub struct Args {
     /// Proxy configuration
     #[command(flatten)]
     proxy_config: Option<ProxyConfig>,
+
+    /// Sets the New Relic license key to be used for the Agents.
+    #[arg(long, default_value_t)]
+    newrelic_license_key: String,
+
+    /// Path to a file containing environment variables to be set for the Agents.
+    #[arg(long)]
+    env_vars_file_path: Option<PathBuf>,
 }
 
 impl Args {
@@ -127,11 +138,21 @@ impl Args {
     }
 }
 
+/// Generates:
+/// 1. The Agent Control configuration file according to the provided args.
+/// 2. The system identity required for Fleet Control, if applicable.
+/// 3. The environment variables file required for the agents, if applicable.
+pub fn generate(args: Args) -> Result<(), CliError> {
+    write_config_and_generate_system_identity(&args)?;
+    write_env_var_config(&args)?;
+    Ok(())
+}
+
 /// Generates the Agent Control configuration, the system identity and any requisite according to the provided inputs.
-pub fn write_config_and_generate_system_identity(args: Args) -> Result<(), CliError> {
+fn write_config_and_generate_system_identity(args: &Args) -> Result<(), CliError> {
     info!("Generating Agent Control configuration");
 
-    let yaml = generate_config_and_system_identity(&args, provide_identity)?;
+    let yaml = generate_config_and_system_identity(args, provide_identity)?;
 
     std::fs::write(&args.output_path, yaml).map_err(|err| {
         CliError::Command(format!(
@@ -140,8 +161,54 @@ pub fn write_config_and_generate_system_identity(args: Args) -> Result<(), CliEr
             err
         ))
     })?;
-    info!(config_path=%args.output_path.to_string_lossy(), "Agent Control configuration generated successfully");
+    info!(config_path=%args.output_path.display(), "Agent Control configuration generated successfully");
     Ok(())
+}
+
+/// Generates and writes the environment variables configuration file if requested.
+fn write_env_var_config(args: &Args) -> Result<(), CliError> {
+    let Some(path) = &args.env_vars_file_path else {
+        info!("No environment variables file path provided, skipping generation");
+        return Ok(());
+    };
+
+    info!("Generating environment variables configuration");
+
+    let yaml = generate_env_var_config(args)?;
+
+    std::fs::write(path, yaml).map_err(|err| {
+        CliError::Command(format!(
+            "error writing the environment variables file to '{}': {}",
+            path.display(),
+            err
+        ))
+    })?;
+    info!(env_vars_path=%path.display(), "Environment variables file generated successfully");
+
+    Ok(())
+}
+
+/// Generates the environment variables configuration according to the provided args.    
+fn generate_env_var_config(args: &Args) -> Result<String, CliError> {
+    info!("Inserting OTEL endpoint env var");
+    let mut env_vars = HashMap::from([(
+        OTLP_ENDPOINT_ENV_VAR.to_string(),
+        args.region.otel_endpoint().to_string(),
+    )]);
+
+    if !args.newrelic_license_key.is_empty() {
+        info!("Inserting New Relic license key env var");
+        env_vars.insert(
+            NR_LICENSE_ENV_VAR.to_string(),
+            args.newrelic_license_key.clone(),
+        );
+    }
+
+    serde_yaml::to_string(&env_vars).map_err(|err| {
+        CliError::Command(format!(
+            "failed to serialize environment variables configuration: {err}"
+        ))
+    })
 }
 
 /// Generates the configuration according to args using the provided function to generate the identity.
@@ -212,6 +279,8 @@ mod tests {
                 auth_private_key_path: None,
                 auth_client_id: Default::default(),
                 proxy_config: None,
+                newrelic_license_key: Default::default(),
+                env_vars_file_path: Default::default(),
             }
         }
     }
@@ -324,6 +393,43 @@ mod tests {
         assert_eq!(parsed, expected_parsed);
     }
 
+    #[rstest]
+    #[case(Region::US, "test-license")]
+    #[case(Region::EU, "")]
+    #[case(Region::STAGING, "another-license")]
+    fn test_generate_env_var_config(#[case] region: Region, #[case] license: &str) {
+        let args = Args {
+            region,
+            newrelic_license_key: license.to_string(),
+            ..Default::default()
+        };
+
+        let yaml = generate_env_var_config(&args).expect("should generate env var config");
+
+        let parsed: std::collections::HashMap<String, String> =
+            serde_yaml::from_str(&yaml).expect("YAML should parse to a map");
+
+        // Always contains the OTEL endpoint env var
+        assert_eq!(
+            parsed.get(OTLP_ENDPOINT_ENV_VAR),
+            Some(&region.otel_endpoint().to_string())
+        );
+
+        if !license.is_empty() {
+            // License key must be present and match
+            assert_eq!(parsed.get(NR_LICENSE_ENV_VAR), Some(&license.to_string()));
+            assert_eq!(
+                parsed.len(),
+                2,
+                "only OTEL endpoint and license key expected"
+            );
+        } else {
+            // License key must be absent
+            assert!(!parsed.contains_key(NR_LICENSE_ENV_VAR));
+            assert_eq!(parsed.len(), 1, "only OTEL endpoint expected");
+        }
+    }
+
     fn identity_provider_mock(_: &Args) -> Result<Identity, CliError> {
         Ok(Identity {
             client_id: "test-client-id".to_string(),
@@ -350,6 +456,8 @@ mod tests {
             auth_private_key_path: Some(PathBuf::from("/path/to/key")),
             auth_client_id: "client-id".to_string(),
             proxy_config,
+            newrelic_license_key: "test-license-key".to_string(),
+            env_vars_file_path: None,
         }
     }
 

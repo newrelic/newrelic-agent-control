@@ -10,7 +10,14 @@ fn test_config_generator_fleet_disabled_proxy() {
 
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
     let args = format!(
-        "generate-config --fleet-disabled --agent-set infra-agent --region us --proxy-url https://some.proxy.url/ --proxy-ca-bundle-dir /test/bundle/dir --ignore-system-proxy true --output-path {path}",
+        "generate-config 
+          --fleet-disabled 
+          --agent-set infra-agent 
+          --region us 
+          --proxy-url https://some.proxy.url/ 
+          --proxy-ca-bundle-dir /test/bundle/dir 
+          --ignore-system-proxy true 
+          --output-path {path}",
     );
     cmd.args(args.split_ascii_whitespace());
     cmd.assert().success();
@@ -41,7 +48,15 @@ fn test_config_generator_fleet_disabled_proxy_empty_fields() {
 
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
     let args = format!(
-        "generate-config --fleet-disabled --agent-set infra-agent --region us --proxy-url= --proxy-ca-bundle-dir= --proxy-ca-bundle-file= --ignore-system-proxy= --output-path {path}",
+        "generate-config 
+          --fleet-disabled 
+          --agent-set infra-agent 
+          --region us 
+          --proxy-url= 
+          --proxy-ca-bundle-dir= 
+          --proxy-ca-bundle-file= 
+          --ignore-system-proxy= 
+          --output-path {path}",
     );
     cmd.args(args.split_ascii_whitespace());
     cmd.assert().success();
@@ -71,7 +86,13 @@ fn test_config_generator_fleet_enabled_identity_provisioned() {
 
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
     let args = format!(
-        "generate-config --agent-set infra-agent --region us --fleet-id FLEET-ID --auth-client-id CLIENT-ID --auth-private-key-path {key_path} --output-path {path}",
+        "generate-config 
+          --agent-set infra-agent 
+          --region us 
+          --fleet-id FLEET-ID 
+          --auth-client-id CLIENT-ID 
+          --auth-private-key-path {key_path} 
+          --output-path {path}",
     );
     cmd.args(args.split_ascii_whitespace());
     cmd.assert().success();
@@ -99,6 +120,37 @@ agents:
         ))
     .unwrap();
     let actual_content = std::fs::read_to_string(&path).unwrap();
+    let actual_value: serde_yaml::Value = serde_yaml::from_str(&actual_content).unwrap();
+    assert_eq!(actual_value, expected_value);
+}
+
+#[test]
+fn test_config_generator_environment_variables() {
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().join("config.yaml").to_string_lossy().to_string();
+    let env_vars_path = tmp.path().join("env.yaml").to_string_lossy().to_string();
+
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
+    let args = format!(
+        "generate-config 
+          --fleet-disabled 
+          --region us 
+          --agent-set no-agents 
+          --output-path {path} 
+          --env-vars-file-path {env_vars_path} 
+          --newrelic-license-key fake_license",
+    );
+    cmd.args(args.split_ascii_whitespace());
+    cmd.assert().success();
+
+    let expected_value: serde_yaml::Value = serde_yaml::from_str(
+        r#"
+OTEL_EXPORTER_OTLP_ENDPOINT: https://otlp.nr-data.net:4317/
+NEW_RELIC_LICENSE_KEY: fake_license
+    "#,
+    )
+    .unwrap();
+    let actual_content = std::fs::read_to_string(&env_vars_path).unwrap();
     let actual_value: serde_yaml::Value = serde_yaml::from_str(&actual_content).unwrap();
     assert_eq!(actual_value, expected_value);
 }
