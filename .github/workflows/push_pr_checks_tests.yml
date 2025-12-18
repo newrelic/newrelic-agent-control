@@ -173,9 +173,9 @@ jobs:
       - name: Install Zig
         uses: mlugg/setup-zig@fa65c4058643678a4e4a9a60513944a7d8d35440 # v2
 
-      - name: Install cargo-zigbuild
-        run: |
-          cargo install --locked cargo-zigbuild --force
+      - uses: taiki-e/install-action@ca44e2a6d435c2fa24b2d4b63fc366fdcab90221 # v2.64.1
+        with:
+          tool: cargo-zigbuild@0.20.1
 
       - name: Build k8s in release mode
         run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control-k8s --target x86_64-unknown-linux-musl
@@ -207,9 +207,9 @@ jobs:
       - name: Install Zig
         uses: mlugg/setup-zig@fa65c4058643678a4e4a9a60513944a7d8d35440 # v2
 
-      - name: Install cargo-zigbuild
-        run: |
-          cargo install --locked cargo-zigbuild --force
+      - uses: taiki-e/install-action@ca44e2a6d435c2fa24b2d4b63fc366fdcab90221 # v2.64.1
+        with:
+          tool: cargo-zigbuild@0.20.1
 
       - name: Run workspace tests excluding the agent control pkg (includes -winAdmin- ignored because it doesn't apply)
         run: cargo test --workspace --exclude 'newrelic_agent_control' --all-targets -- --include-ignored
@@ -318,9 +318,9 @@ jobs:
       - name: Install Zig
         uses: mlugg/setup-zig@fa65c4058643678a4e4a9a60513944a7d8d35440 # v2
 
-      - name: Install cargo-zigbuild
-        run: |
-          cargo install --locked cargo-zigbuild --force
+      - uses: taiki-e/install-action@ca44e2a6d435c2fa24b2d4b63fc366fdcab90221 # v2.64.1
+        with:
+          tool: cargo-zigbuild@0.20.1
 
       - name: Run k8s integration tests
         env:
