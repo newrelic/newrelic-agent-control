@@ -163,6 +163,9 @@
             - name: Debug AC logs
               debug:
                 var: ac_logs.stdout_lines
+            - name: Force failure after rescue
+              fail:
+                msg: "Test failed - check logs above for details"
       always:
         - name: Restore firewall rules
           when: enable_firewall == true

@@ -150,6 +150,7 @@
         - name: Debug test identifier
           debug:
             var: test_id
-
-    - name: Cleanup
-      include_tasks: ./tasks/clean_all.yaml
+        
+        - name: Force failure after rescue
+          fail:
+            msg: "Test failed - check logs above for details"
