@@ -93,9 +93,9 @@ jobs:
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
-      - uses: taiki-e/install-action@575f713d0233afba556737a7b85080563be14186 # 575f713d0233afba556737a7b85080563be14186
+      - uses: taiki-e/install-action@ca44e2a6d435c2fa24b2d4b63fc366fdcab90221 # v2.64.1
         with:
-          tool: cargo-shear@1.1.11
+          tool: cargo-shear@1.9.1
 
       - run: cargo shear
 
@@ -347,9 +347,9 @@ jobs:
         with:
           components: clippy
 
-      - uses: taiki-e/install-action@575f713d0233afba556737a7b85080563be14186 # 575f713d0233afba556737a7b85080563be14186
+      - uses: taiki-e/install-action@ca44e2a6d435c2fa24b2d4b63fc366fdcab90221 # v2.64.1
         with:
-          tool: cargo-shear@1.1.11
+          tool: cargo-shear@1.9.1
 
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
