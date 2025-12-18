@@ -97,15 +97,15 @@ fn update_agent_description_attributes(
             .into_iter()
             .partition(|attribute| attribute.attribute_type == AttributeType::Identifying);
 
-    let key_value = |a: Vec<Attribute>| a.into_iter().map(Attribute::key_value).collect();
+    let key_value_iter = |a: Vec<Attribute>| a.into_iter().map(Attribute::key_value);
     agent_description.identifying_attributes = merge_attributes(
         agent_description.identifying_attributes,
-        key_value(new_identifying_attributes),
+        key_value_iter(new_identifying_attributes),
     );
 
     agent_description.non_identifying_attributes = merge_attributes(
         agent_description.non_identifying_attributes,
-        key_value(new_non_identifying_attributes),
+        key_value_iter(new_non_identifying_attributes),
     );
 
     agent_description
@@ -117,7 +117,7 @@ fn update_agent_description_attributes(
 /// If the `new_attributes` contain duplicated keys, the last occurrence will be kept.
 fn merge_attributes(
     mut old_attributes: Vec<KeyValue>,
-    new_attributes: Vec<KeyValue>,
+    new_attributes: impl Iterator<Item = KeyValue>,
 ) -> Vec<KeyValue> {
     for new_kv in new_attributes {
         match old_attributes.iter().position(|kv| kv.key == new_kv.key) {
