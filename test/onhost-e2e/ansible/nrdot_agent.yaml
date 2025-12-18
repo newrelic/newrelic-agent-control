@@ -68,5 +68,6 @@
           debug:
             var: ac_logs.stdout_lines
 
-    - name: Cleanup
-      include_tasks: ./tasks/clean_all.yaml
+        - name: Force failure after rescue
+          fail:
+            msg: "Test failed - check logs above for details"
