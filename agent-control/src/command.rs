@@ -4,6 +4,7 @@
 #![warn(missing_docs)]
 
 use crate::agent_control::config::K8sConfig;
+use crate::agent_control::defaults::ENVIRONMENT_VARIABLES_FILE_NAME;
 use crate::agent_control::run::Environment;
 #[cfg(debug_assertions)]
 use crate::agent_control::run::set_debug_dirs;
@@ -11,6 +12,7 @@ use crate::instrumentation::tracing::{
     TracingConfig, TracingError, TracingGuardBox, try_init_tracing,
 };
 use crate::on_host::file_store::FileStore;
+use crate::utils::env_var::load_env_yaml_file;
 use crate::values::ConfigRepo;
 use crate::{
     agent_control::{
@@ -108,7 +110,19 @@ impl Command {
             return ExitCode::SUCCESS;
         }
 
-        let Ok((run_config, tracer)) = Self::init_agent_control(ac_running_mode, base_paths)
+        let env_file_path = base_paths.local_dir.join(ENVIRONMENT_VARIABLES_FILE_NAME);
+        if env_file_path.exists() {
+            info!(
+                "Loading environment variables from: {}",
+                env_file_path.display()
+            );
+            if let Err(err) = load_env_yaml_file(env_file_path.as_path()) {
+                println!("Failed to load environment variables: {err}");
+                return ExitCode::FAILURE;
+            }
+        }
+
+        let Ok((run_config, tracer)) = Self::build_run_config(ac_running_mode, base_paths)
             .inspect_err(|err| {
                 // Using print because the tracer might have failed to start
                 println!("Error on Agent Control initialization: {err}");
@@ -130,7 +144,7 @@ impl Command {
     }
 
     /// Builds the Agent Control configuration required to execute the application.
-    fn init_agent_control(
+    fn build_run_config(
         ac_running_mode: Environment,
         base_paths: BasePaths,
     ) -> Result<(AgentControlRunConfig, Vec<TracingGuardBox>), InitError> {
@@ -138,19 +152,21 @@ impl Command {
             base_paths.local_dir.clone(),
             base_paths.remote_dir.clone(),
         ));
-        let agent_control_repository = ConfigRepo::new(file_store);
-
-        // In both K8s and onHost we read here the agent-control config that is used to bootstrap the SA from file
-        // In the K8s such config is used create the k8s client to create the storer that reads configs from configMaps
-        // The real configStores are created in the run fn, the onhost reads file, the k8s one reads configMaps
-        let agent_control_config = AgentControlConfigStore::new(Arc::new(agent_control_repository))
-            .load()
-            .map_err(|err| {
-                InitError::LoaderError(
-                    base_paths.local_dir.to_string_lossy().to_string(),
-                    err.to_string(),
-                )
-            })?;
+        // AC config is treated as other agents configs and the location of the local config file follows the same
+        // fs layout. Example for linux is expected to be in '/etc/newrelic-agent-control/local-data/agent-control/'
+        // In both K8s and onHost we read here the agent-control config that is used to bootstrap the AC from file.
+        // In the K8s such config is used create the k8s client to create the storer that reads configs from configMaps.
+        // The real configStores are created in the run fn, the onhost reads file, the k8s one reads configMaps.
+        let agent_control_config_repository = ConfigRepo::new(file_store);
+        let agent_control_config =
+            AgentControlConfigStore::new(Arc::new(agent_control_config_repository))
+                .load()
+                .map_err(|err| {
+                    InitError::LoaderError(
+                        base_paths.local_dir.to_string_lossy().to_string(),
+                        err.to_string(),
+                    )
+                })?;
 
         let proxy = agent_control_config
             .proxy
