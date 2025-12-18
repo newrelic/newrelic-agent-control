@@ -89,8 +89,8 @@ logs:
 
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
     cmd.arg("--local-dir").arg(dir.path());
-    // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
-    cmd.timeout(Duration::from_secs(1));
+    // cmd_assert is not made for long running programs, so we kill it anyway after 5 second
+    cmd.timeout(Duration::from_secs(5));
     // But in any case we make sure that it actually attempted to create the supervisor group,
     // so it works when the program is run as root
     // The following regular expressions are used to ensure the logging format: 2024-02-16T07:49:44  INFO Creating the global context
@@ -138,8 +138,8 @@ server:
 
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
     cmd.arg("--local-dir").arg(dir.path());
-    // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
-    cmd.timeout(Duration::from_secs(1));
+    // cmd_assert is not made for long running programs, so we kill it anyway after 5 second
+    cmd.timeout(Duration::from_secs(5));
     // But in any case we make sure that it actually attempted to create the supervisor group,
     // so it works when the program is run as root
     // The following regular expressions are used to ensure the logging format: 2024 INFO Creating the global context

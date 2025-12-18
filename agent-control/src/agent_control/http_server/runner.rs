@@ -172,7 +172,7 @@ mod tests {
         );
         let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
         let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
-        let _http_server_runner = Runner::new(
+        let _started_http_server = Runner::new(
             ServerConfig {
                 enabled: true,
                 port: 0.into(),
@@ -182,7 +182,7 @@ mod tests {
             agent_control_consumer,
             sub_agent_consumer,
             None,
-        );
+        ).start();
         // server warm up
         sleep(Duration::from_millis(100));
 
