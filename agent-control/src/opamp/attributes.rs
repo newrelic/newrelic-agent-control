@@ -1,9 +1,8 @@
-use std::error::Error;
 use std::fmt::Debug;
 
-use opamp_client::StartedClient;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::{AgentDescription, AnyValue, KeyValue};
+use opamp_client::{ClientError, StartedClient};
 use tracing::error;
 
 use crate::event::channel::EventPublisher;
@@ -70,7 +69,7 @@ where
 pub fn update_opamp_attributes<C>(
     opamp_client: &C,
     new_attributes: Vec<Attribute>,
-) -> Result<(), Box<dyn Error>>
+) -> Result<(), ClientError>
 where
     C: StartedClient,
 {
@@ -78,7 +77,7 @@ where
     let updated_agent_description =
         update_agent_description_attributes(agent_description, new_attributes);
 
-    Ok(opamp_client.set_agent_description(updated_agent_description)?)
+    opamp_client.set_agent_description(updated_agent_description)
 }
 
 fn update_agent_description_attributes(
