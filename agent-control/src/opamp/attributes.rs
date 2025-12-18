@@ -81,7 +81,7 @@ where
 }
 
 fn update_agent_description_attributes(
-    mut agent_description: AgentDescription,
+    old_agent_description: AgentDescription,
     new_attributes: Vec<Attribute>,
 ) -> AgentDescription {
     let (new_identifying_attributes, new_non_identifying_attributes): (Vec<_>, Vec<_>) =
@@ -89,6 +89,7 @@ fn update_agent_description_attributes(
             .into_iter()
             .partition(|attribute| attribute.attribute_type == AttributeType::Identifying);
 
+    let mut agent_description = old_agent_description;
     let key_value_iter = |attrs: Vec<Attribute>| attrs.into_iter().map(|attr| attr.key_value);
     agent_description.identifying_attributes = merge_attributes(
         agent_description.identifying_attributes,
@@ -108,17 +109,18 @@ fn update_agent_description_attributes(
 /// If an attribute already exists, it will be updated. If it doesn't, it will be added.
 /// If the `new_attributes` contain duplicated keys, the last occurrence will be kept.
 fn merge_attributes(
-    mut old_attributes: Vec<KeyValue>,
+    old_attributes: Vec<KeyValue>,
     new_attributes: impl Iterator<Item = KeyValue>,
 ) -> Vec<KeyValue> {
+    let mut merged_attributes = old_attributes;
     for new_kv in new_attributes {
-        match old_attributes.iter().position(|kv| kv.key == new_kv.key) {
-            Some(index) => old_attributes[index].value = new_kv.value,
-            None => old_attributes.push(new_kv),
+        match merged_attributes.iter().position(|kv| kv.key == new_kv.key) {
+            Some(index) => merged_attributes[index].value = new_kv.value,
+            None => merged_attributes.push(new_kv),
         }
     }
 
-    old_attributes
+    merged_attributes
 }
 
 pub fn publish_update_attributes_event<T>(event_publisher: &EventPublisher<T>, event: T)
