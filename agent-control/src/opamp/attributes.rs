@@ -45,13 +45,6 @@ pub struct Attribute {
     key_value: KeyValue,
 }
 
-impl Attribute {
-    /// Returns the inner [`KeyValue`]
-    fn key_value(self) -> KeyValue {
-        self.key_value
-    }
-}
-
 impl<K, V> From<(AttributeType, K, V)> for Attribute
 where
     K: AsRef<str>,
@@ -97,7 +90,7 @@ fn update_agent_description_attributes(
             .into_iter()
             .partition(|attribute| attribute.attribute_type == AttributeType::Identifying);
 
-    let key_value_iter = |a: Vec<Attribute>| a.into_iter().map(Attribute::key_value);
+    let key_value_iter = |attrs: Vec<Attribute>| attrs.into_iter().map(|attr| attr.key_value);
     agent_description.identifying_attributes = merge_attributes(
         agent_description.identifying_attributes,
         key_value_iter(new_identifying_attributes),
