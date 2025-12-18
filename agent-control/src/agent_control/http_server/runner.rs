@@ -182,7 +182,8 @@ mod tests {
             agent_control_consumer,
             sub_agent_consumer,
             None,
-        ).start();
+        )
+        .start();
         // server warm up
         sleep(Duration::from_millis(100));
 
