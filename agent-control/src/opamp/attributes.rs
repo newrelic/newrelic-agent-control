@@ -97,25 +97,16 @@ fn update_agent_description_attributes(
             .into_iter()
             .partition(|attribute| attribute.attribute_type == AttributeType::Identifying);
 
-    let new_identifying_attributes: Vec<KeyValue> = new_identifying_attributes
-        .into_iter()
-        .map(Attribute::key_value)
-        .collect();
-    let merged_identifying_attributes = merge_attributes(
+    let key_value = |a: Vec<Attribute>| a.into_iter().map(Attribute::key_value).collect();
+    agent_description.identifying_attributes = merge_attributes(
         agent_description.identifying_attributes,
-        new_identifying_attributes,
+        key_value(new_identifying_attributes),
     );
-    agent_description.identifying_attributes = merged_identifying_attributes;
 
-    let new_non_identifying_attributes: Vec<KeyValue> = new_non_identifying_attributes
-        .into_iter()
-        .map(Attribute::key_value)
-        .collect();
-    let merged_non_identifying_attributes = merge_attributes(
+    agent_description.non_identifying_attributes = merge_attributes(
         agent_description.non_identifying_attributes,
-        new_non_identifying_attributes,
+        key_value(new_non_identifying_attributes),
     );
-    agent_description.non_identifying_attributes = merged_non_identifying_attributes;
 
     agent_description
 }
