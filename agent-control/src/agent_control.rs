@@ -21,6 +21,7 @@ use crate::event::{
 };
 use crate::health::health_checker::{HealthChecker, spawn_health_checker};
 use crate::health::with_start_time::HealthWithStartTime;
+use crate::opamp::attributes::update_opamp_attributes;
 use crate::opamp::remote_config::report::report_state;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::{OpampRemoteConfig, OpampRemoteConfigError, hash::ConfigState};
@@ -29,7 +30,6 @@ use crate::sub_agent::{
 };
 use crate::values::config::RemoteConfig as RemoteConfigValues;
 use crate::values::yaml_config::YAMLConfig;
-use crate::version_checker::handler::set_agent_description_version;
 use agent_id::AgentID;
 use config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentsMap, sub_agents_difference};
 use config_repository::repository::AgentControlDynamicConfigRepository;
@@ -340,11 +340,9 @@ where
                                 AgentControlInternalEvent::HealthUpdated(health) => {
                                     self.report_health(health);
                                 },
-                                AgentControlInternalEvent::AgentControlCdVersionUpdated(cd_version) => {
-                                    let _ = self.opamp_client.as_ref().map(|c| set_agent_description_version(
-                                        c,
-                                        cd_version,
-                                    )
+                                AgentControlInternalEvent::AgentControlAttributesUpdated(attributes) => {
+                                    let _ = self.opamp_client.as_ref().map(|c|
+                                        update_opamp_attributes(c, attributes)
                                     .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message")));
                                 },
                             }

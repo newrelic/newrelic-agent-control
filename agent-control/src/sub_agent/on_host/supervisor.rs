@@ -185,11 +185,11 @@ impl NotStartedSupervisorOnHost {
             self.agent_identity.id.to_string(),
             onhost_version_checker,
             sub_agent_internal_publisher,
-            // The below argument expects a function "AgentVersion -> T"
+            // The below argument expects a function "UpdateAttributesMessage -> T"
             // where T is the "event" sendable by the above publisher.
             // Using an enum variant that wraps a type is the same as a function taking the type.
-            // Basically, it's the same as passing "|x| SubAgentInternalEvent::AgentVersionInfo(x)"
-            SubAgentInternalEvent::AgentVersionInfo,
+            // Basically, it's the same as passing "|x| SubAgentInternalEvent::UpdateAttributesMessage(x)"
+            SubAgentInternalEvent::AgentAttributesUpdated,
         )
     }
 

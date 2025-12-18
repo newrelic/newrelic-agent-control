@@ -202,7 +202,7 @@ impl NotStartedSupervisorK8s {
             self.agent_identity.id.to_string(),
             k8s_version_checker,
             sub_agent_internal_publisher,
-            SubAgentInternalEvent::AgentVersionInfo,
+            SubAgentInternalEvent::AgentAttributesUpdated,
             self.k8s_config.version.interval,
             self.k8s_config.version.initial_delay,
         ))

@@ -19,6 +19,7 @@ use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::health::events::HealthEventPublisher;
 use crate::health::health_checker::{Health, Unhealthy};
 use crate::health::with_start_time::HealthWithStartTime;
+use crate::opamp::attributes::update_opamp_attributes;
 use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::hash::{ConfigState, Hash};
@@ -27,7 +28,6 @@ use crate::utils::threads::spawn_named_thread;
 use crate::values::config::{Config, RemoteConfig};
 use crate::values::config_repository::ConfigRepository;
 use crate::values::yaml_config::YAMLConfig;
-use crate::version_checker::handler::set_agent_description_version;
 use crossbeam::channel::never;
 use crossbeam::select;
 use effective_agents_assembler::EffectiveAgentsAssemblerError;
@@ -360,11 +360,9 @@ where
                                 )
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "Processing health message"));
                             },
-                            Ok(SubAgentInternalEvent::AgentVersionInfo(agent_data)) => {
-                                let _ = self.maybe_opamp_client.as_ref().map(|c| set_agent_description_version(
-                                    c,
-                                    agent_data,
-                                )
+                            Ok(SubAgentInternalEvent::AgentAttributesUpdated(attributes)) => {
+                                let _ = self.maybe_opamp_client.as_ref().map(|c|
+                                    update_opamp_attributes(c, attributes)
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing version message")));
                             }
                         }
