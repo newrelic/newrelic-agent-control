@@ -281,10 +281,10 @@ fn start_cd_version_checker(
             OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
         ),
         ac_internal_publisher,
-        // The below argument expects a function "AgentVersion -> T"
+        // The below argument expects a function "UpdateAttributesMessage -> T"
         // where T is the "event" sendable by the above publisher.
         // Using an enum variant that wraps a type is the same as a function taking the type.
-        // Same as passing "|x| AgentControlInternalEvent::AgentControlCdVersionUpdated(x)"
+        // Same as passing "|x| AgentControlInternalEvent::AgentControlAttributesUpdated(x)"
         AgentControlInternalEvent::AgentControlAttributesUpdated,
         VersionCheckerInterval::default(),
         AGENT_CONTROL_VERSION_CHECKER_INITIAL_DELAY,
