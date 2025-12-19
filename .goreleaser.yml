@@ -147,7 +147,7 @@ nfpms: # deb and rpm are only built for linux targets
           mode: 0600
       - src: build/package/newrelic-agent-control.service
         dst: /lib/systemd/system/newrelic-agent-control.service
-      - src: build/package/newrelic-agent-control.conf
+      - src: build/package/systemd-env.conf
         dst: /etc/newrelic-agent-control/systemd-env.conf
         type: config|noreplace
         file_info:
