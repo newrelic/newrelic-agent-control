@@ -182,7 +182,8 @@ mod tests {
             agent_control_consumer,
             sub_agent_consumer,
             None,
-        );
+        )
+        .start();
         // server warm up
         sleep(Duration::from_millis(100));
 
@@ -195,5 +196,6 @@ mod tests {
             "newrelic_agent_control::agent_control::http_server::server",
             "status server gracefully stopped",
         ));
+        assert!(false);
     }
 }
