@@ -93,9 +93,9 @@ jobs:
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
-      - uses: taiki-e/install-action@575f713d0233afba556737a7b85080563be14186 # 575f713d0233afba556737a7b85080563be14186
+      - uses: taiki-e/install-action@ca44e2a6d435c2fa24b2d4b63fc366fdcab90221 # v2.64.1
         with:
-          tool: cargo-shear@1.1.11
+          tool: cargo-shear@1.9.1
 
       - run: cargo shear
 
@@ -173,9 +173,9 @@ jobs:
       - name: Install Zig
         uses: mlugg/setup-zig@fa65c4058643678a4e4a9a60513944a7d8d35440 # v2
 
-      - name: Install cargo-zigbuild
-        run: |
-          cargo install --locked cargo-zigbuild --force
+      - uses: taiki-e/install-action@ca44e2a6d435c2fa24b2d4b63fc366fdcab90221 # v2.64.1
+        with:
+          tool: cargo-zigbuild@0.20.1
 
       - name: Build k8s in release mode
         run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control-k8s --target x86_64-unknown-linux-musl
@@ -203,13 +203,6 @@ jobs:
           identifier: 'test-dev'
           restore-strategy: 'nearest'
           save-cache: false
-
-      - name: Install Zig
-        uses: mlugg/setup-zig@fa65c4058643678a4e4a9a60513944a7d8d35440 # v2
-
-      - name: Install cargo-zigbuild
-        run: |
-          cargo install --locked cargo-zigbuild --force
 
       - name: Run workspace tests excluding the agent control pkg (includes -winAdmin- ignored because it doesn't apply)
         run: cargo test --workspace --exclude 'newrelic_agent_control' --all-targets -- --include-ignored
@@ -318,9 +311,9 @@ jobs:
       - name: Install Zig
         uses: mlugg/setup-zig@fa65c4058643678a4e4a9a60513944a7d8d35440 # v2
 
-      - name: Install cargo-zigbuild
-        run: |
-          cargo install --locked cargo-zigbuild --force
+      - uses: taiki-e/install-action@ca44e2a6d435c2fa24b2d4b63fc366fdcab90221 # v2.64.1
+        with:
+          tool: cargo-zigbuild@0.20.1
 
       - name: Run k8s integration tests
         env:
@@ -347,9 +340,9 @@ jobs:
         with:
           components: clippy
 
-      - uses: taiki-e/install-action@575f713d0233afba556737a7b85080563be14186 # 575f713d0233afba556737a7b85080563be14186
+      - uses: taiki-e/install-action@ca44e2a6d435c2fa24b2d4b63fc366fdcab90221 # v2.64.1
         with:
-          tool: cargo-shear@1.1.11
+          tool: cargo-shear@1.9.1
 
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
