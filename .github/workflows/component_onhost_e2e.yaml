@@ -33,8 +33,8 @@ jobs:
       skip_sign: true
       tag_name: 0.900.${{ github.run_id }}
 
-  on-host-e2e:
-    name: OnHost E2E tests
+  on-host-linux-e2e:
+    name: OnHost Linux E2E tests
     needs: [build-packages]
     # using ubuntu 24 prevents from adding the testing repo from http .
     runs-on: ubuntu-24.04
@@ -66,3 +66,23 @@ jobs:
             ANSIBLE_PLAYBOOK=${{ matrix.group }} \
             ENVIRONMENT=production \
             PACKAGE_VERSION=0.900.${{ github.run_id }}
+
+  on-host-windows-e2e:
+    name: "OnHost Windows E2E tests"
+    needs: [build-packages]
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ["install"]
+
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - uses: ./.github/actions/install-rust-toolchain
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: built-binaries-0.900.${{ github.run_id }}
+          path: ./
+      - name: Windows e2e ${{ matrix.group }}
+        shell: powershell
+        run: cargo run -p e2e-runner -- ${{ matrix.group }} --zip-package .\dist\newrelic-agent-control_0.900.${{ github.run_id }}_windows_amd64.zip

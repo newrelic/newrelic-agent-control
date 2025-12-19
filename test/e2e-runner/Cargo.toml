@@ -1,0 +1,24 @@
+[package]
+name = "e2e-runner"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+repository.workspace = true
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+glob = "0.3"
+reqwest = { workspace = true, features = ["json"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+serde_yaml.workspace = true
+tempfile.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
+
+[[bin]]
+name = "e2e-runner"
+path = "src/main.rs"
