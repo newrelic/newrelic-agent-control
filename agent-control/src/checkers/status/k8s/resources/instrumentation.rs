@@ -7,9 +7,8 @@ use std::sync::Arc;
 use tracing::warn;
 
 #[derive(Debug, Default, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct InstrumentationStatus {
-    #[serde(default)]
+    #[serde(default, rename = "entityGUIDs")]
     pub entity_guids: Vec<String>,
 }
 
@@ -39,7 +38,7 @@ impl K8sStatusInstrumentation {
     fn validate_guids(&self, guids: &[String]) -> Result<String, StatusCheckError> {
         if guids.is_empty() {
             return Err(StatusCheckError(
-                "Instrumentation status has empty 'entityGuids'".to_string(),
+                "Instrumentation status has empty 'entityGUIDs'".to_string(),
             ));
         }
 
@@ -164,7 +163,7 @@ mod tests {
     fn test_success_single_guid() {
         let payload = json!({
             "status": {
-                "entityGuids": ["GUID-123"]
+                "entityGUIDs": ["GUID-123"]
             }
         });
 
@@ -179,7 +178,7 @@ mod tests {
     fn test_success_multiple_identical_guids() {
         let payload = json!({
             "status": {
-                "entityGuids": ["GUID-ABC", "GUID-ABC", "GUID-ABC"]
+                "entityGUIDs": ["GUID-ABC", "GUID-ABC", "GUID-ABC"]
             }
         });
 
@@ -194,7 +193,7 @@ mod tests {
     fn test_fail_empty_guids() {
         let payload = json!({
             "status": {
-                "entityGuids": []
+                "entityGUIDs": []
             }
         });
 
@@ -209,7 +208,7 @@ mod tests {
     fn test_fail_mismatch_guids() {
         let payload = json!({
             "status": {
-                "entityGuids": ["GUID-A", "GUID-B"]
+                "entityGUIDs": ["GUID-A", "GUID-B"]
             }
         });
 

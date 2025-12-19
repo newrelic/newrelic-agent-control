@@ -17,6 +17,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::thread::sleep;
 use tracing::{debug, info, info_span, trace, warn};
+use crate::agent_control::defaults::APM_APPLICATION_ID;
 
 pub const STATUS_CHECKER_THREAD_NAME: &str = "status_checker";
 
@@ -89,7 +90,7 @@ where
     fn check_status(&self) -> Result<AgentStatus, StatusCheckError> {
         let mut final_status = AgentStatus {
             status: "Unknown".to_string(),
-            opamp_field: "guid".to_string(),
+            opamp_field: APM_APPLICATION_ID.to_string(),
         };
 
         for checker in &self.status_checkers {
@@ -141,7 +142,7 @@ where
                         &status_event_publisher,
                         status_event_generator(vec![Attribute::from((
                             AttributeType::Identifying,
-                            "guid",
+                            APM_APPLICATION_ID,
                             current_status.status.clone(),
                         ))]),
                     );
@@ -200,7 +201,7 @@ mod tests {
     #[test]
     fn test_guids_success_single() {
         let status = json!({
-            "entityGuids": ["GUID-123"]
+            "entityGUIDs": ["GUID-123"]
         });
 
         let client = mock_client(status);
@@ -219,7 +220,7 @@ mod tests {
     #[test]
     fn test_guids_success_multiple_identical() {
         let status = json!({
-            "entityGuids": ["GUID-123", "GUID-123"]
+            "entityGUIDs": ["GUID-123", "GUID-123"]
         });
         let client = mock_client(status);
         let checker = K8sStatusInstrumentation::new(
@@ -235,7 +236,7 @@ mod tests {
 
     #[test]
     fn test_guids_error_empty() {
-        let status = json!({ "entityGuids": [] });
+        let status = json!({ "entityGUIDs": [] });
         let client = mock_client(status);
         let checker = K8sStatusInstrumentation::new(
             Arc::new(client),
@@ -250,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_guids_error_mismatch() {
-        let status = json!({ "entityGuids": ["A", "B"] });
+        let status = json!({ "entityGUIDs": ["A", "B"] });
         let client = mock_client(status);
         let checker = K8sStatusInstrumentation::new(
             Arc::new(client),

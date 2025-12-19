@@ -35,6 +35,7 @@ pub const HOST_ID_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::attr
 pub const FLEET_ID_ATTRIBUTE_KEY: &str = "fleet.guid";
 pub const CD_EXTERNAL_ENABLED_ATTRIBUTE_KEY: &str = "cd.external.enabled";
 pub const CD_REMOTE_UPDATE_ENABLED_ATTRIBUTE_KEY: &str = "cd.remote_update.enabled";
+pub const APM_APPLICATION_ID: &str = "apm.application.id";
 
 pub const OS_ATTRIBUTE_KEY: &str = "os.type";
 #[cfg(target_os = "macos")]
