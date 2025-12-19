@@ -5,12 +5,12 @@
 
 pub mod agent_control;
 pub mod agent_type;
+pub mod checkers;
 pub mod cli;
 pub mod command;
 pub mod config_migrate;
 pub mod data_store;
 pub mod event;
-pub mod health;
 pub mod http;
 pub mod instrumentation;
 pub mod k8s;
@@ -21,4 +21,3 @@ pub mod secrets_provider;
 pub mod sub_agent;
 pub mod utils;
 pub mod values;
-pub mod version_checker;

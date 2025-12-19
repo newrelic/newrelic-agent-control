@@ -1,8 +1,8 @@
 use crate::agent_control::agent_id::AgentID;
+use crate::checkers::health::events::HealthEventPublisher;
+use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::EventConsumer;
-use crate::health::events::HealthEventPublisher;
-use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::k8s;
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
@@ -117,8 +117,8 @@ impl From<HealthCheckerError> for Unhealthy {
 /// for more details.
 #[derive(Debug, Clone)]
 pub struct Healthy {
-    pub(super) status_time: StatusTime,
-    pub(super) status: String,
+    pub(crate) status_time: StatusTime,
+    pub(crate) status: String,
 }
 
 impl PartialEq for Healthy {
@@ -172,9 +172,9 @@ impl Healthy {
 /// for more details.
 #[derive(Debug, Clone)]
 pub struct Unhealthy {
-    pub(super) status_time: StatusTime,
-    pub(super) status: String,
-    pub(super) last_error: String,
+    pub(crate) status_time: StatusTime,
+    pub(crate) status: String,
+    pub(crate) last_error: String,
 }
 
 impl PartialEq for Unhealthy {

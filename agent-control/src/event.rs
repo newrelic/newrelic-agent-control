@@ -8,7 +8,7 @@ pub mod broadcaster;
 pub mod cancellation;
 pub mod channel;
 
-use crate::health::with_start_time::HealthWithStartTime;
+use crate::checkers::health::with_start_time::HealthWithStartTime;
 use crate::opamp::attributes::UpdateAttributesMessage;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::identity::AgentIdentity;

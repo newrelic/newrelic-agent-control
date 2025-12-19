@@ -6,8 +6,7 @@ use super::{
 };
 
 /// HealthCheckerBuilder that always return None.
-pub const NONE_HEALTH_CHECKER_BUILDER: fn(SystemTime) -> Option<NoOpHealthChecker> = |_| None;
-
+// pub const NONE_HEALTH_CHECKER_BUILDER: fn(SystemTime) -> Option<NoOpHealthChecker> = |_| None;
 /// No-op implementation for [HealthChecker]. It always returns healthy.
 pub struct NoOpHealthChecker {
     start_time: SystemTime,

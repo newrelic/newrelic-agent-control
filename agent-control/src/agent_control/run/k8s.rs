@@ -20,6 +20,8 @@ use crate::agent_type::variable::Variable;
 use crate::agent_type::version_config::{
     AGENT_CONTROL_VERSION_CHECKER_INITIAL_DELAY, VersionCheckerInterval,
 };
+use crate::checkers::version::k8s::checkers::spawn_version_checker;
+use crate::checkers::version::k8s::helmrelease::HelmReleaseVersionChecker;
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
@@ -39,8 +41,6 @@ use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::thread_context::StartedThreadContext;
 use crate::values::ConfigRepo;
-use crate::version_checker::k8s::checkers::spawn_version_checker;
-use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
 use crate::{k8s::configmap_store::ConfigMapStore, sub_agent::k8s::builder::K8sSubAgentBuilder};
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::get_hostname;

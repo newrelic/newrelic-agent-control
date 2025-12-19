@@ -1,7 +1,7 @@
+use crate::checkers::version::AgentVersion;
+use crate::checkers::version::{VersionCheckError, VersionChecker};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::version_checker::AgentVersion;
-use crate::version_checker::{VersionCheckError, VersionChecker};
 use chrono::NaiveDateTime;
 use kube::api::TypeMeta;
 use serde_json::{Map, Value};

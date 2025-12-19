@@ -3,7 +3,7 @@ pub mod onhost;
 
 use std::fmt::Debug;
 use tracing::error;
-const VERSION_CHECKER_THREAD_NAME: &str = "version_checker";
+const VERSION_CHECKER_THREAD_NAME: &str = "version";
 
 pub trait VersionChecker {
     /// Use it to report the agent version for the opamp client

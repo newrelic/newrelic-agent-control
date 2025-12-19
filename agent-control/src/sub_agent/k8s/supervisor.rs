@@ -1,12 +1,14 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY;
 use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
+use crate::checkers::health::health_checker::spawn_health_checker;
+use crate::checkers::health::k8s::health_checker::K8sHealthChecker;
+use crate::checkers::health::with_start_time::StartTime;
+use crate::checkers::status::k8s::checker::{K8sStatusChecker, spawn_status_checker};
+use crate::checkers::version::k8s::checkers::{K8sAgentVersionChecker, spawn_version_checker};
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
-use crate::health::health_checker::spawn_health_checker;
-use crate::health::k8s::health_checker::K8sHealthChecker;
-use crate::health::with_start_time::StartTime;
 use crate::k8s::annotations::Annotations;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -18,7 +20,6 @@ use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
-use crate::version_checker::k8s::checkers::{K8sAgentVersionChecker, spawn_version_checker};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
@@ -52,7 +53,8 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
         let thread_contexts = vec![
             Some(self.start_k8s_objects_supervisor(resources.clone())),
             self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?,
-            self.start_version_checker(sub_agent_internal_publisher, resources),
+            self.start_version_checker(sub_agent_internal_publisher.clone(), resources.clone()),
+            self.start_status_checker(sub_agent_internal_publisher, resources),
         ];
         info!("K8s supervisor started");
 
@@ -201,6 +203,25 @@ impl NotStartedSupervisorK8s {
         Some(spawn_version_checker(
             self.agent_identity.id.to_string(),
             k8s_version_checker,
+            sub_agent_internal_publisher,
+            SubAgentInternalEvent::AgentAttributesUpdated,
+            self.k8s_config.version.interval,
+            self.k8s_config.version.initial_delay,
+        ))
+    }
+
+    pub fn start_status_checker(
+        &self,
+        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+        resources: Arc<Vec<DynamicObject>>,
+    ) -> Option<StartedThreadContext> {
+        let k8s_status_checker = K8sStatusChecker::new(self.k8s_client.clone(), resources)
+            .ok()
+            .flatten()?;
+
+        Some(spawn_status_checker(
+            self.agent_identity.id.to_string(),
+            k8s_status_checker,
             sub_agent_internal_publisher,
             SubAgentInternalEvent::AgentAttributesUpdated,
             self.k8s_config.version.interval,

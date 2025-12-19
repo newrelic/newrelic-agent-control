@@ -186,7 +186,7 @@ mod tests {
     };
     use crate::agent_type::variable::Variable;
     use crate::agent_type::variable::namespace::Namespace;
-    use crate::health::health_checker::{HealthCheckInterval, InitialDelay};
+    use crate::checkers::health::health_checker::{HealthCheckInterval, InitialDelay};
     use serde_yaml::Number;
     use std::collections::HashMap;
 

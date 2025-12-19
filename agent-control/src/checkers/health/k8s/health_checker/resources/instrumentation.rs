@@ -1,7 +1,7 @@
-use crate::health::health_checker::{
+use crate::checkers::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
-use crate::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use kube::api::TypeMeta;
@@ -18,7 +18,7 @@ use std::sync::Arc;
 /// do not use it here
 #[derive(Debug, Default, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-struct InstrumentationStatus {
+pub struct InstrumentationStatus {
     /// [`pods_matching`] is the number of pods which match the
     /// `Instrumentation.spec.podLabelSelectors` and `Instrumentation.spec.NamespaceLabelSelectors`
     /// (when empty defaults to matching everything, and both must match to "select" a pod).
@@ -62,6 +62,10 @@ struct InstrumentationStatus {
     /// or the error from the operator while trying to collect health.
     #[serde(default)]
     unhealthy_pods_errors: Vec<UnhealthyPodError>,
+
+    // TO BE DEFINE
+    #[serde(default)]
+    entity_guids: Vec<String>,
 }
 
 impl Display for InstrumentationStatus {
@@ -272,6 +276,7 @@ mod tests {
                     pods_outdated: 0,
                     pods_unhealthy: 0,
                     unhealthy_pods_errors: vec![],
+                    entity_guids: vec![],
                 },
             },
             TestData {
@@ -311,6 +316,7 @@ mod tests {
                             last_error: "error2".to_string(),
                         },
                     ],
+                    entity_guids: vec![],
                 },
             },
             TestData {
@@ -348,6 +354,7 @@ mod tests {
                             last_error: "error2".to_string(),
                         },
                     ],
+                    entity_guids: vec![],
                 },
             },
         ];

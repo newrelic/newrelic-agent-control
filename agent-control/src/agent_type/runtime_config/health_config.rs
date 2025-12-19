@@ -6,7 +6,7 @@ use wrapper_with_default::WrapperWithDefault;
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
-use crate::health::health_checker::{HealthCheckInterval, InitialDelay};
+use crate::checkers::health::health_checker::{HealthCheckInterval, InitialDelay};
 
 use super::templateable_value::TemplateableValue;
 

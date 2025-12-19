@@ -1,6 +1,6 @@
 use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta3_type_meta};
-use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
-use crate::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::checkers::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
+use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::{get_name, get_namespace, get_target_namespace, get_type_meta};
@@ -13,7 +13,7 @@ use resources::{
 use std::sync::Arc;
 use tracing::trace;
 
-mod resources;
+pub mod resources;
 
 // This label selector is added in post-render and present no matter the chart we are installing
 // https://github.com/fluxcd/helm-controller/blob/main/CHANGELOG.md#090
@@ -170,11 +170,13 @@ pub mod tests {
     use crate::agent_control::config::{
         helmrelease_v2_type_meta, instrumentation_v1beta3_type_meta,
     };
-    use crate::health::health_checker::HealthChecker;
-    use crate::health::health_checker::HealthCheckerError::K8sError;
-    use crate::health::health_checker::tests::MockHealthCheck;
-    use crate::health::k8s::health_checker::{K8sHealthChecker, K8sResourceHealthChecker};
-    use crate::health::with_start_time::StartTime;
+    use crate::checkers::health::health_checker::HealthChecker;
+    use crate::checkers::health::health_checker::HealthCheckerError::K8sError;
+    use crate::checkers::health::health_checker::tests::MockHealthCheck;
+    use crate::checkers::health::k8s::health_checker::{
+        K8sHealthChecker, K8sResourceHealthChecker,
+    };
+    use crate::checkers::health::with_start_time::StartTime;
     use crate::k8s::client::MockSyncK8sClient;
     use assert_matches::assert_matches;
     use kube::api::{DynamicObject, TypeMeta};

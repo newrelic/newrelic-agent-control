@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{
-    agent_type::runtime_config::health_config::{
-        FileHealth, HealthCheckTimeout, HttpHost, HttpPath, HttpPort,
-    },
-    health::health_checker::{HealthCheckInterval, InitialDelay},
+use crate::agent_type::runtime_config::health_config::{
+    FileHealth, HealthCheckTimeout, HttpHost, HttpPath, HttpPort,
 };
+use crate::checkers::health::health_checker::{HealthCheckInterval, InitialDelay};
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct OnHostHealthConfig {

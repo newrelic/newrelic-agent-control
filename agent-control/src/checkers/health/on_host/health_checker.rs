@@ -2,9 +2,9 @@ use super::exec::ExecHealthChecker;
 use super::file::FileHealthChecker;
 use super::http::HttpHealthChecker;
 use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthCheck;
+use crate::checkers::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
+use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::event::channel::EventConsumer;
-use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
-use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::http::client::HttpClient;
 use std::path::PathBuf;
 
@@ -82,9 +82,9 @@ impl HealthChecker for OnHostHealthCheckers {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::checkers::health::health_checker::Unhealthy;
+    use crate::checkers::health::with_start_time::StartTime;
     use crate::event::channel::pub_sub;
-    use crate::health::health_checker::Unhealthy;
-    use crate::health::with_start_time::StartTime;
     use std::fs::File;
     use std::io::Write;
     use tempfile::TempDir;

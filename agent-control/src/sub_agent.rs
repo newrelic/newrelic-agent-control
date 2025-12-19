@@ -12,13 +12,13 @@ pub mod supervisor;
 use crate::agent_control::defaults::default_capabilities;
 use crate::agent_control::run::Environment;
 use crate::agent_control::uptime_report::{UptimeReportConfig, UptimeReporter};
+use crate::checkers::health::events::HealthEventPublisher;
+use crate::checkers::health::health_checker::{Health, Unhealthy};
+use crate::checkers::health::with_start_time::HealthWithStartTime;
 use crate::event::SubAgentEvent::SubAgentStarted;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
-use crate::health::events::HealthEventPublisher;
-use crate::health::health_checker::{Health, Unhealthy};
-use crate::health::with_start_time::HealthWithStartTime;
 use crate::opamp::attributes::update_opamp_attributes;
 use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config::OpampRemoteConfig;
@@ -361,9 +361,10 @@ where
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "Processing health message"));
                             },
                             Ok(SubAgentInternalEvent::AgentAttributesUpdated(attributes)) => {
+                                info!("Recreating SubAgent with attributes: {:?}", attributes);
                                 let _ = self.maybe_opamp_client.as_ref().map(|c|
                                     update_opamp_attributes(c, attributes)
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing version message")));
+                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing update agent attribute message")));
                             }
                         }
                     }
@@ -725,8 +726,8 @@ pub mod tests {
     use crate::agent_type::embedded_registry::EmbeddedRegistry;
     use crate::agent_type::render::TemplateRenderer;
     use crate::agent_type::variable::constraints::VariableConstraints;
+    use crate::checkers::health::health_checker::{Healthy, Unhealthy};
     use crate::event::channel::pub_sub;
-    use crate::health::health_checker::{Healthy, Unhealthy};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;

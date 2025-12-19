@@ -8,14 +8,14 @@ use kube::api::{DynamicObject, ObjectMeta};
 use tracing::{debug, info};
 
 use super::{errors::K8sCliError, utils::try_new_k8s_client};
+use crate::checkers::health::{
+    health_checker::HealthChecker, k8s::health_checker::K8sHealthChecker,
+    with_start_time::StartTime,
+};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::{
     agent_control::config::{helmrelease_v2_type_meta, helmrepository_type_meta},
-    health::{
-        health_checker::HealthChecker, k8s::health_checker::K8sHealthChecker,
-        with_start_time::StartTime,
-    },
     k8s::{
         Error as K8sError,
         labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL},

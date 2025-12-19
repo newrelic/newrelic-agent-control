@@ -1,11 +1,11 @@
 use std::{sync::Arc, time::SystemTime};
 
+use crate::agent_control::config::helmrelease_v2_type_meta;
+use crate::checkers::health::k8s::health_checker::{
+    K8sHealthChecker, health_checkers_for_type_meta,
+};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::{
-    agent_control::config::helmrelease_v2_type_meta,
-    health::k8s::health_checker::{K8sHealthChecker, health_checkers_for_type_meta},
-};
 
 /// Returns the builder function for the health-checker of Agent Control in Kubernetes.
 pub fn agent_control_health_checker_builder(

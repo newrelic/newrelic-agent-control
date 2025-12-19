@@ -1,6 +1,9 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta3_type_meta};
 use crate::agent_type::version_config::{VersionCheckerInitialDelay, VersionCheckerInterval};
+use crate::checkers::version::k8s::helmrelease::HelmReleaseVersionChecker;
+use crate::checkers::version::k8s::instrumentation::NewrelicInstrumentationVersionChecker;
+use crate::checkers::version::{AgentVersion, VersionCheckError, VersionChecker};
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 #[cfg_attr(test, mockall_double::double)]
@@ -11,15 +14,12 @@ use crate::opamp::attributes::{
 };
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
-use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
-use crate::version_checker::k8s::instrumentation::NewrelicInstrumentationVersionChecker;
-use crate::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
 use kube::api::{DynamicObject, TypeMeta};
 use std::sync::Arc;
 use std::thread::sleep;
 use tracing::{debug, info, info_span, warn};
 
-use crate::version_checker::VERSION_CHECKER_THREAD_NAME;
+use crate::checkers::version::VERSION_CHECKER_THREAD_NAME;
 use std::fmt::Debug;
 
 /// Represents the k8s resource types supporting version check.
