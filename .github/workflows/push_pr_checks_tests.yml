@@ -429,6 +429,7 @@ jobs:
       - generate-release-build
       - unit-docs-onhost-integration-tests
       - on-host-root-tests
+      - on-host-oci-registry-tests
       - embedded-downloader-tests
       - k8s-integration-tests
       - k8s-e2e-tests
