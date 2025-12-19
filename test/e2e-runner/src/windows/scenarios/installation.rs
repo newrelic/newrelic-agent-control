@@ -21,16 +21,13 @@ pub struct Args {
 pub fn test_installation(args: Args) -> TestResult<()> {
     let zip_package = &args.zip_package;
     info!("Installing agent-control...");
-    let output = windows::install::install_agent_control(zip_package, true)?;
-    info!("Installation completed successfully. Showing installation output");
-    println!("---\n{output}\n---");
+    windows::install::install_agent_control(zip_package, true)?;
 
     info!("Waiting 10 seconds for service to start...");
     thread::sleep(Duration::from_secs(10));
 
     info!("Checking Windows service status");
     windows::service::check_service_running(SERVICE_NAME)?;
-    info!(service = SERVICE_NAME, "Windows service is running");
 
     info!("Updating configuration for debug logging");
     config::update_config_for_debug_logging(

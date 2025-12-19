@@ -7,17 +7,18 @@ use tracing::info;
 
 /// Checks if a Windows service is running using PowerShell.
 pub fn check_service_running(service_name: &str) -> TestResult<()> {
-    let status = get_service_status(service_name)?;
-
-    if status == "Running" {
-        return Ok(());
+    match get_service_status(service_name) {
+        Ok(status) if status == "Running" => {
+            info!(service = service_name, "Windows service is running");
+            Ok(())
+        }
+        Ok(status) => Err(format!(
+            "service {:?} is not running. Status: {}",
+            service_name, status
+        )
+        .into()),
+        Err(e) => Err(format!("failed to get status of service {:?}: {}", service_name, e).into()),
     }
-
-    Err(format!(
-        "service {:?} is not running. Status: {}",
-        service_name, status
-    )
-    .into())
 }
 
 /// Gets the current status of a Windows service as a string using PowerShell.

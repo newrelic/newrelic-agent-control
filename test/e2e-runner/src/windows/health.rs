@@ -30,16 +30,13 @@ pub fn check_health(endpoint: &str) -> TestResult<String> {
 
     let status_code = resp.status();
     let body = resp.text()?;
-
     if !status_code.is_success() {
-        return Err(format!("request was not successful: [{}] {}", status_code, body).into());
+        return Err(format!("request was not successful: [{status_code}] {body}").into());
     }
-
     let status: StatusResponse = serde_json::from_str(&body)
-        .map_err(|e| format!("Failed to parse JSON: {}. Body: {}", e, body))?;
-
+        .map_err(|e| format!("Failed to parse JSON: {e}. Body: {body}"))?;
     if !status.agent_control.healthy {
-        return Err(format!("agent-control is not healthy yet. Body: {}", body).into());
+        return Err(format!("agent-control is not healthy yet. Body: {body}").into());
     }
 
     Ok(body)

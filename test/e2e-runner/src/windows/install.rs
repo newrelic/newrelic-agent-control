@@ -4,6 +4,7 @@ use super::powershell::exec_powershell_command;
 use std::path::Path;
 use std::process::Command;
 use tempfile::TempDir;
+use tracing::info;
 
 const INSTALL_SCRIPT_NAME: &str = "install.ps1";
 
@@ -25,7 +26,7 @@ fn unzip_to_temp(zip_path: &str) -> TestResult<TempDir> {
 }
 
 /// Installs agent-control using the install.ps1 PowerShell script.
-pub fn install_agent_control(package_path: &str, service_overwrite: bool) -> TestResult<String> {
+pub fn install_agent_control(package_path: &str, service_overwrite: bool) -> TestResult<()> {
     // Check if the package file exists
     if !Path::new(package_path).exists() {
         return Err(format!("package file not found at {:?}", package_path).into());
@@ -65,5 +66,8 @@ pub fn install_agent_control(package_path: &str, service_overwrite: bool) -> Tes
         .into());
     }
 
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    info!("Installation completed successfully. Showing installation output");
+    println!("---\n{}\n---", String::from_utf8_lossy(&output.stdout));
+
+    Ok(())
 }
