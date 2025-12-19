@@ -7,6 +7,7 @@ use tracing::info;
 
 /// Checks if a Windows service is running using PowerShell.
 pub fn check_service_running(service_name: &str) -> TestResult<()> {
+    info!("Checking Windows service status");
     match get_service_status(service_name) {
         Ok(status) if status == "Running" => {
             info!(service = service_name, "Windows service is running");

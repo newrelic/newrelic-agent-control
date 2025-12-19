@@ -27,6 +27,7 @@ fn unzip_to_temp(zip_path: &str) -> TestResult<TempDir> {
 
 /// Installs agent-control using the install.ps1 PowerShell script.
 pub fn install_agent_control(package_path: &str, service_overwrite: bool) -> TestResult<()> {
+    info!("Installing Agent Control");
     // Check if the package file exists
     if !Path::new(package_path).exists() {
         return Err(format!("package file not found at {:?}", package_path).into());

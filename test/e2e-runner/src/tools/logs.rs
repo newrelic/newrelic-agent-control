@@ -5,6 +5,7 @@ use crate::tools::test::TestResult;
 
 /// Shows logs from the specified path (supports glob patterns).
 pub fn show_logs(logs_path: &str) -> TestResult<()> {
+    info!("Showing Agent Control logs");
     let pattern = format!("{}*", logs_path);
     let paths = glob::glob(&pattern).map_err(|e| format!("failed to list log files: {}", e))?;
 
