@@ -44,7 +44,8 @@ Requirements:
 ## Linux
 
 Requirements:
-  - Linux Virtual Machine (Eg: vagrant + parallels)
+  - Ubuntu Linux Virtual Machine (Eg: vagrant + parallels)
+  - The Virtual Machine needs rust and docker
 
 Vagrantfile example:
 
@@ -58,7 +59,9 @@ Vagrant.configure("2") do |config|
     rm /var/lib/dbus/machine-id
     systemd-machine-id-setup
     apt-get update
-    apt install build-essential rustup -y
+    apt install build-essential rustup docker.io -y
+    systemctl start docker.service
+    systemctl enable docker.service
   SHELL
 end
 ```

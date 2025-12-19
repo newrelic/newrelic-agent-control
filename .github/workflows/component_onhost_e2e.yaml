@@ -33,39 +33,40 @@ jobs:
       skip_sign: true
       tag_name: 0.900.${{ github.run_id }}
 
-  on-host-linux-e2e:
-    name: OnHost Linux E2E tests
-    needs: [build-packages]
-    # using ubuntu 24 prevents from adding the testing repo from http .
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        group: ${{ fromJSON(inputs.scenarios) }}
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          name: built-binaries-0.900.${{ github.run_id }}
-          path: ./
-      - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6
-        with:
-          python-version: '3.14.2'
-      - name: Install deps
-        run: |
-          python3 -m pip install ansible==10.7.0 jmespath==1.0.1 pywinrm==0.5.0
-      - name: Test ${{ matrix.group }}
-        env:
-          NR_PROD_LICENSE_KEY: ${{ secrets.E2E_LICENSE_KEY }}
-          NEW_RELIC_PROD_ACCOUNT_ID: ${{ secrets.E2E_ACCOUNT_ID }}
-          NEW_RELIC_PROD_API_KEY: ${{ secrets.E2E_API_KEY }}
-          NR_PROD_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}
-          NR_PROD_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
-        run: |
-          make test/onhost-e2e \
-            ANSIBLE_PLAYBOOK=${{ matrix.group }} \
-            ENVIRONMENT=production \
-            PACKAGE_VERSION=0.900.${{ github.run_id }}
+  # TODO: properly replace taking into account inputs
+  #on-host-linux-e2e:
+  #  name: OnHost Linux E2E tests
+  #  needs: [build-packages]
+  #  # using ubuntu 24 prevents from adding the testing repo from http .
+  #  runs-on: ubuntu-24.04
+  #  strategy:
+  #    fail-fast: false
+  #    matrix:
+  #      group: ${{ fromJSON(inputs.scenarios) }}
+  #  steps:
+  #    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+  #    - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+  #      with:
+  #        name: built-binaries-0.900.${{ github.run_id }}
+  #        path: ./
+  #    - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6
+  #      with:
+  #        python-version: '3.14.2'
+  #    - name: Install deps
+  #      run: |
+  #        python3 -m pip install ansible==10.7.0 jmespath==1.0.1 pywinrm==0.5.0
+  #    - name: Test ${{ matrix.group }}
+  #      env:
+  #        NR_PROD_LICENSE_KEY: ${{ secrets.E2E_LICENSE_KEY }}
+  #        NEW_RELIC_PROD_ACCOUNT_ID: ${{ secrets.E2E_ACCOUNT_ID }}
+  #        NEW_RELIC_PROD_API_KEY: ${{ secrets.E2E_API_KEY }}
+  #        NR_PROD_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}
+  #        NR_PROD_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+  #      run: |
+  #        make test/onhost-e2e \
+  #          ANSIBLE_PLAYBOOK=${{ matrix.group }} \
+  #          ENVIRONMENT=production \
+  #          PACKAGE_VERSION=0.900.${{ github.run_id }}
 
   on-host-linux-e2e-rust:
     name: OnHost Linux E2E tests (rust)
@@ -74,7 +75,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [infra-agent]
+        group: ["infra-agent", "ebpf-agent", "migration", "nrdot-agent", "remote-config", "proxy"]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - uses: ./.github/actions/install-rust-toolchain

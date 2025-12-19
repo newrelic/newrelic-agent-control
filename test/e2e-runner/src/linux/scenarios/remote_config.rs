@@ -1,0 +1,84 @@
+use std::time::Duration;
+
+use tracing::info;
+
+use crate::{
+    linux::{
+        self,
+        install::{Args, RecipeData, install_agent_control_from_recipe},
+    },
+    tools::{config, logs::ShowLogsOnDrop, nrql, test::retry},
+};
+
+/// ac-e2e-onhost-2 fleet on canaries account
+const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg";
+
+const AGENT_CONTROL_SERVICE_CONF: &str = "/etc/newrelic-agent-control/systemd-env.conf";
+
+pub fn test_remote_config_is_applied(args: Args) {
+    let recipe_data = RecipeData {
+        args,
+        monitoring_source: "infra-agent".to_string(),
+        fleet_enabled: "true".to_string(),
+        fleet_id: FLEET_ID.to_string(),
+        ..Default::default()
+    };
+    install_agent_control_from_recipe(&recipe_data);
+
+    let test_id = format!(
+        "onhost-e2e-infra-agent_{}",
+        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
+    );
+
+    info!("Setting up `TEST_ID` environment variable");
+    config::append_to_config_file(
+        AGENT_CONTROL_SERVICE_CONF,
+        format!(r#"TEST_ID="{test_id}""#).as_str(),
+    );
+
+    info!("Setup Agent Control config for debug logging");
+    config::update_config_for_debug_logging(linux::DEFAULT_CONFIG_PATH, linux::DEFAULT_LOG_PATH);
+
+    info!("Setup infra-agent config");
+    config::write_agent_local_config(
+        "/etc/newrelic-agent-control/local-data/nr-infra",
+        r#"
+config_agent:
+  status_server_enabled: true
+  status_server_port: 18003
+  license_key: {{NEW_RELIC_LICENSE_KEY}}
+  custom_attributes:
+    config_origin: local
+    test_id: {{TEST_ID}}
+"#
+        .to_string(),
+    );
+
+    linux::service::restart_service(linux::SERVICE_NAME);
+    let _show_logs = ShowLogsOnDrop::from(linux::DEFAULT_LOG_PATH);
+
+    info!("Check infra agent is reporting");
+    let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `test_id` = '{test_id}' LIMIT 1"#);
+    info!(nrql = nrql_query, "Checking results of NRQL");
+    let retries = 60;
+    retry(retries, Duration::from_secs(5), "nrql assertion", || {
+        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
+    })
+    .unwrap_or_else(|err| {
+        panic!("query '{nrql_query}' failed after {retries} retries: {err}");
+    });
+
+    info!("Check that remote configuration has been applied");
+
+    let nrql_query = format!(
+        r#"SELECT * FROM SystemSample WHERE `test_id` = '{test_id}' AND `config_origin` = 'remote' LIMIT 1"#
+    );
+    info!(nrql = nrql_query, "Checking results of NRQL");
+    let retries = 120;
+    retry(retries, Duration::from_secs(10), "nrql assertion", || {
+        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
+    })
+    .unwrap_or_else(|err| {
+        panic!("query '{nrql_query}' failed after {retries} retries: {err}");
+    });
+}
