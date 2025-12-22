@@ -1,10 +1,12 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY;
+use crate::agent_control::defaults::{
+    APM_APPLICATION_ID, OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
+};
 use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
+use crate::checkers::guid::k8s::checker::{K8sGuidChecker, spawn_guid_checker};
 use crate::checkers::health::health_checker::spawn_health_checker;
 use crate::checkers::health::k8s::health_checker::K8sHealthChecker;
 use crate::checkers::health::with_start_time::StartTime;
-use crate::checkers::status::k8s::checker::{K8sStatusChecker, spawn_status_checker};
 use crate::checkers::version::k8s::checkers::{K8sAgentVersionChecker, spawn_version_checker};
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
@@ -54,7 +56,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
             Some(self.start_k8s_objects_supervisor(resources.clone())),
             self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?,
             self.start_version_checker(sub_agent_internal_publisher.clone(), resources.clone()),
-            self.start_status_checker(sub_agent_internal_publisher, resources),
+            self.start_guid_checker(sub_agent_internal_publisher, resources),
         ];
         info!("K8s supervisor started");
 
@@ -210,16 +212,20 @@ impl NotStartedSupervisorK8s {
         ))
     }
 
-    pub fn start_status_checker(
+    pub fn start_guid_checker(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
     ) -> Option<StartedThreadContext> {
-        let k8s_status_checker = K8sStatusChecker::new(self.k8s_client.clone(), resources)
-            .ok()
-            .flatten()?;
+        let k8s_status_checker = K8sGuidChecker::new(
+            self.k8s_client.clone(),
+            resources,
+            APM_APPLICATION_ID.to_string(),
+        )
+        .ok()
+        .flatten()?;
 
-        Some(spawn_status_checker(
+        Some(spawn_guid_checker(
             self.agent_identity.id.to_string(),
             k8s_status_checker,
             sub_agent_internal_publisher,

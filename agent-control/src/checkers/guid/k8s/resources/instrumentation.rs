@@ -1,4 +1,4 @@
-use crate::checkers::status::{AgentStatus, StatusCheckError, StatusChecker};
+use crate::checkers::guid::{EntityGuid, GuidCheckError, GuidChecker};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use kube::api::TypeMeta;
@@ -7,38 +7,44 @@ use std::sync::Arc;
 use tracing::warn;
 
 #[derive(Debug, Default, Deserialize, PartialEq)]
-pub struct InstrumentationStatus {
+pub struct InstrumentationGuid {
     #[serde(default, rename = "entityGUIDs")]
     pub entity_guids: Vec<String>,
 }
 
 #[derive(Debug)]
-pub struct K8sStatusInstrumentation {
+pub struct K8sGuidInstrumentation {
     k8s_client: Arc<SyncK8sClient>,
     type_meta: TypeMeta,
     name: String,
     namespace: String,
+    /// The field of the OpAMP payload where the retrieved version will be stored.
+    ///
+    /// Currently, this is always an identifying_attribute.
+    opamp_field: String,
 }
 
-impl K8sStatusInstrumentation {
+impl K8sGuidInstrumentation {
     pub fn new(
         k8s_client: Arc<SyncK8sClient>,
         type_meta: TypeMeta,
         name: String,
         namespace: String,
+        opamp_field: String,
     ) -> Self {
         Self {
             k8s_client,
             type_meta,
             name,
             namespace,
+            opamp_field,
         }
     }
 
-    fn validate_guids(&self, guids: &[String]) -> Result<String, StatusCheckError> {
+    fn validate_guids(&self, guids: &[String]) -> Result<String, GuidCheckError> {
         if guids.is_empty() {
-            return Err(StatusCheckError(
-                "Instrumentation status has empty 'entityGUIDs'".to_string(),
+            return Err(GuidCheckError(
+                "Instrumentation guid has empty 'entityGUIDs'".to_string(),
             ));
         }
 
@@ -46,7 +52,7 @@ impl K8sStatusInstrumentation {
         let all_match = guids.iter().all(|g| g == first_guid);
 
         if !all_match {
-            return Err(StatusCheckError(format!(
+            return Err(GuidCheckError(format!(
                 "Mismatching entity GUIDs found in status: {:?}",
                 guids
             )));
@@ -56,35 +62,35 @@ impl K8sStatusInstrumentation {
     }
 }
 
-impl StatusChecker for K8sStatusInstrumentation {
-    fn check_status(&self) -> Result<AgentStatus, StatusCheckError> {
+impl GuidChecker for K8sGuidInstrumentation {
+    fn check_guid(&self) -> Result<EntityGuid, GuidCheckError> {
         let obj_opt = self
             .k8s_client
             .get_dynamic_object(&self.type_meta, &self.name, &self.namespace)
-            .map_err(|e| StatusCheckError(format!("K8s error: {e}")))?;
+            .map_err(|e| GuidCheckError(format!("K8s error: {e}")))?;
 
-        let Some(obj) = obj_opt else {
-            return Err(StatusCheckError(format!(
+        let obj = obj_opt.ok_or_else(|| {
+            GuidCheckError(format!(
                 "Instrumentation {}/{} not found",
                 self.namespace, self.name
-            )));
-        };
-
-        let status_value = obj.data.get("status").ok_or_else(|| {
-            StatusCheckError("Instrumentation resource has no 'status' field".to_string())
+            ))
         })?;
 
-        let instr_status: InstrumentationStatus = serde_json::from_value(status_value.clone())
+        let status_value = obj.data.get("status").ok_or_else(|| {
+            GuidCheckError("Instrumentation resource has no 'status' field".to_string())
+        })?;
+
+        let instr_status: InstrumentationGuid = serde_json::from_value(status_value.clone())
             .map_err(|e| {
                 warn!("Failed to deserialize InstrumentationStatus: {}", e);
-                StatusCheckError(format!("Invalid status structure: {e}"))
+                GuidCheckError(format!("Invalid status structure: {e}"))
             })?;
 
         let valid_guid = self.validate_guids(&instr_status.entity_guids)?;
 
-        Ok(AgentStatus {
-            status: valid_guid,
-            opamp_field: "guid".to_string(),
+        Ok(EntityGuid {
+            guid: valid_guid,
+            opamp_field: self.opamp_field.clone(),
         })
     }
 }
@@ -95,6 +101,7 @@ mod tests {
     #[cfg_attr(test, mockall_double::double)]
     use crate::k8s::client::SyncK8sClient;
 
+    use crate::agent_control::defaults::APM_APPLICATION_ID;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::api::DynamicObject;
     use mockall::predicate::*;
@@ -147,8 +154,8 @@ mod tests {
         client
     }
 
-    fn get_checker(client: SyncK8sClient) -> K8sStatusInstrumentation {
-        K8sStatusInstrumentation::new(
+    fn get_checker(client: SyncK8sClient) -> K8sGuidInstrumentation {
+        K8sGuidInstrumentation::new(
             Arc::new(client),
             TypeMeta {
                 api_version: "v1".into(),
@@ -156,6 +163,7 @@ mod tests {
             },
             "test-inst".into(),
             "default".into(),
+            APM_APPLICATION_ID.to_string(),
         )
     }
 
@@ -170,8 +178,8 @@ mod tests {
         let client = setup_mock_client(Some(payload), None);
         let checker = get_checker(client);
 
-        let result = checker.check_status().unwrap();
-        assert_eq!(result.status, "GUID-123");
+        let result = checker.check_guid().unwrap();
+        assert_eq!(result.guid, "GUID-123");
     }
 
     #[test]
@@ -185,8 +193,8 @@ mod tests {
         let client = setup_mock_client(Some(payload), None);
         let checker = get_checker(client);
 
-        let result = checker.check_status().unwrap();
-        assert_eq!(result.status, "GUID-ABC");
+        let result = checker.check_guid().unwrap();
+        assert_eq!(result.guid, "GUID-ABC");
     }
 
     #[test]
@@ -200,7 +208,7 @@ mod tests {
         let client = setup_mock_client(Some(payload), None);
         let checker = get_checker(client);
 
-        let err = checker.check_status().unwrap_err();
+        let err = checker.check_guid().unwrap_err();
         assert!(err.0.contains("empty"));
     }
 
@@ -215,7 +223,7 @@ mod tests {
         let client = setup_mock_client(Some(payload), None);
         let checker = get_checker(client);
 
-        let err = checker.check_status().unwrap_err();
+        let err = checker.check_guid().unwrap_err();
         assert!(err.0.contains("Mismatching"));
     }
 
@@ -228,7 +236,7 @@ mod tests {
         let client = setup_mock_client(Some(payload), None);
         let checker = get_checker(client);
 
-        let err = checker.check_status().unwrap_err();
+        let err = checker.check_guid().unwrap_err();
         assert!(err.0.contains("no 'status' field"));
     }
 
@@ -243,7 +251,7 @@ mod tests {
         let client = setup_mock_client(Some(payload), None);
         let checker = get_checker(client);
 
-        let err = checker.check_status().unwrap_err();
+        let err = checker.check_guid().unwrap_err();
         assert!(err.0.contains("empty"));
     }
 
@@ -252,7 +260,7 @@ mod tests {
         let client = setup_mock_client(None, None);
         let checker = get_checker(client);
 
-        let err = checker.check_status().unwrap_err();
+        let err = checker.check_guid().unwrap_err();
         assert!(err.0.contains("not found"));
     }
 
@@ -261,7 +269,7 @@ mod tests {
         let client = setup_mock_client(None, Some("Connection refused".to_string()));
         let checker = get_checker(client);
 
-        let err = checker.check_status().unwrap_err();
+        let err = checker.check_guid().unwrap_err();
         assert!(err.0.contains("K8s error"));
         assert!(err.0.contains("Connection refused"));
     }

@@ -63,7 +63,8 @@ pub struct InstrumentationStatus {
     #[serde(default)]
     unhealthy_pods_errors: Vec<UnhealthyPodError>,
 
-    // TO BE DEFINE
+    /// [`entity_guids`] is a list of unique identifiers for the entities
+    /// associated with the instrumented pods.
     #[serde(default)]
     entity_guids: Vec<String>,
 }
