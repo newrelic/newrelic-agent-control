@@ -11,6 +11,7 @@ scenarios:
   - description: Deploy SA with APM operator and Java, Python and Node.js agents
     before:
       - echo The cluster name of the test is ${SCENARIO_TAG}
+      - kubectl get secret sys-identity || kubectl create secret generic sys-identity --from-literal=CLIENT_ID="${NR_SYSTEM_IDENTITY_CLIENT_ID}" --from-literal=private_key="${NR_SYSTEM_IDENTITY_PRIVATE_KEY}"
       - cd ../../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/apm/ac-values-apm.yml" CLUSTER=${SCENARIO_TAG} USE_LATEST_FLUX=${USE_LATEST_FLUX} tilt ci
       # Before spawn the apps, wait for the operator and the Instrumentation CRs to be created.
       - kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 deploy/operator-k8s-agents-operator -n newrelic-agents --timeout=600s
@@ -36,6 +37,7 @@ scenarios:
         - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-ruby' -- comment disabling the appended testKey: "
         - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-dotnet' -- comment disabling the appended testKey: "
       scripts:
+        # Check agent is healthy
         - |
           POD_NAME=$(kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep "agent-control")
           if [ -z "$POD_NAME" ]; then
@@ -57,3 +59,28 @@ scenarios:
               echo "${agent} is healthy. Success." 
           done
           kill $PORT_FORWARD_PID
+
+        # Check entity guid is being sent
+        - |
+          POD_NAME=$(kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep "agent-control")
+          if [ -z "$POD_NAME" ]; then
+              echo "No pod found with name starting with \"agent-control\""
+              exit 1
+          fi
+          echo "pod found $POD_NAME"
+          for agent in java-agent dotnet-agent; do
+            for i in $(seq 1 10); do
+              kubectl logs $POD_NAME | grep -E "AgentDescription.*KeyValue\ \{\ key\: \\\\\"supervisor\.key\\\\\"\,\ value\: Some\(\\\\\"${agent}\\\\\"\)\ \}" | grep -E "AgentDescription.*KeyValue\ \{\ key\: \\\\\"apm\.application\.id\\\\\"\,\ value\: Some\(\\\\\".*\\\\\"\)\ \}" > /dev/null
+              if [ $? -ne 0 ]; then
+                sleep 5
+              else
+                echo "${agent} is sending its entity guid. Success."
+                break
+              fi
+
+              if [ $i -eq 10 ]; then
+                echo "${agent} is not sending its entity guid. Failing..."
+                exit 1
+              fi
+            done
+          done
