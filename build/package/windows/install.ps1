@@ -170,3 +170,29 @@ if ($?)
     Write-Host "Error creating service $serviceName"
     exit 1
 }
+
+# Verify service is running and AC is healthy
+$MAX_RETRIES = 50
+$TRIES = 0
+
+Write-Host "Running agent status check attempt..."
+while ($TRIES -lt $MAX_RETRIES) {
+    Try { $statusCheckOutput = Invoke-WebRequest -Uri "http://localhost:51200/status" -UseBasicParsing -ErrorAction SilentlyContinue } Catch {
+      $_.Exception.Response
+    }
+    $statusContent = if ($statusCheckOutput.Content) { $statusCheckOutput.Content } else { "{}" }
+
+    # Parse JSON for .agent_control.healthy
+    $statusJson = $statusContent | ConvertFrom-Json
+    $STATUS = $statusJson.agent_control.healthy
+
+    if ($STATUS -eq $true) {
+        Write-Host "Agent status check ok."
+        break
+    } elseif ($TRIES -eq $MAX_RETRIES) {
+        Write-Error "New Relic Agent Control has not started or is un-healthy after installing. Please try again later, or see our documentation for installing manually https://docs.newrelic.com/docs/using-new-relic/cross-product-functions/install-configure/install-new-relic"
+        exit 31
+    }
+    Start-Sleep -Seconds 10
+    $TRIES++
+}
