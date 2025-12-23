@@ -208,9 +208,9 @@ nfpms: # deb and rpm are only built for linux targets
         type: dir
       - dst: /var/db/newrelic-infra/integrations.d
         type: dir
-      # NR Otel Collector - Important to note the binary name is nrdot-collector-host matching nrdot binary
-      - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/nrdot-collector-host
-        dst: /usr/bin/nrdot-collector-host
+      # NR Otel Collector - Important to note the binary name is nrdot-collector matching nrdot binary
+      - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/nrdot-collector
+        dst: /usr/bin/nrdot-collector
       - src: build/examples/
         dst: /etc/newrelic-agent-control/examples
 
