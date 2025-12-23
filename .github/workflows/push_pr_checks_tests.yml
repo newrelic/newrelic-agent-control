@@ -95,7 +95,7 @@ jobs:
 
       - uses: taiki-e/install-action@b9c5db3aef04caffaf95a1d03931de10fb2a140f # v2.65.1
         with:
-          tool: cargo-shear@1.9.1
+          tool: cargo-shear@1.7.2
 
       - run: cargo shear
 
@@ -342,7 +342,7 @@ jobs:
 
       - uses: taiki-e/install-action@b9c5db3aef04caffaf95a1d03931de10fb2a140f # v2.65.1
         with:
-          tool: cargo-shear@1.9.1
+          tool: cargo-shear@1.7.2
 
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
