@@ -57,6 +57,3 @@ windows-sys = "0.61.2"
 # After <https://github.com/rust-lang/cargo/pull/13257> this is the default
 # behavior for cargo, unless debuginfo is enabled for any compiled package
 strip = "debuginfo"
-
-[workspace.metadata.cargo-shear]
-ignored = ["mockall_double"]
