@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use crate::tools::config;
 use crate::tools::logs::show_logs;
-use crate::tools::test::TestResult;
+use crate::tools::test::{TestResult, retry};
 use crate::windows;
 use tracing::info;
 
@@ -38,8 +38,10 @@ pub fn test_installation(args: Args) -> TestResult<()> {
 
     info!("Verifying service health");
     let status_endpoint = format!("http://localhost:{}/status", DEFAULT_STATUS_PORT);
-    let status =
-        windows::health::check_health_with_retry(&status_endpoint, 30, Duration::from_secs(2))?;
+    let status = retry(30, Duration::from_secs(2), "health check", || {
+        windows::health::check_health(&status_endpoint)
+    })?;
+    info!("Agent Control is healthy");
     let status_json = serde_json::to_string_pretty(&status)?;
     info!(response = status_json, "Agent Control is healthy");
 

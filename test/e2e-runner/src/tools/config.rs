@@ -49,20 +49,23 @@ fn merge_yaml_mappings(base: Value, new: Value) -> Value {
     merged
 }
 
-/// Modifies the agent-control configuration file to enable debug logging and write logs to a file.
-pub fn update_config_for_debug_logging(config_path: &str, log_file_path: &str) -> TestResult<()> {
-    let config = format!(
-        r#"log:
+/// Return configuration for debug logging as a string
+pub fn debug_logging_config(log_file_path: &str) -> String {
+    format!(
+        r#"
+log:
   level: debug
   file:
     enabled: true
-    path: {:?}
+    path: {log_file_path}
   format:
     target: true
     formatter: pretty
-"#,
-        log_file_path
-    );
+"#
+    )
+}
 
-    update_config(config_path, &config)
+/// Modifies the agent-control configuration file to enable debug logging and write logs to a file.
+pub fn update_config_for_debug_logging(config_path: &str, log_file_path: &str) -> TestResult<()> {
+    update_config(config_path, &debug_logging_config(log_file_path))
 }
