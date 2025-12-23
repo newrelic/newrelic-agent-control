@@ -1,7 +1,7 @@
 //! This module includes implementations of health-checkers for individual k8s resources.
 //!
 use super::LABEL_RELEASE_FLUX;
-use crate::health::health_checker::{Health, HealthCheckerError, Healthy};
+use crate::checkers::health::health_checker::{Health, HealthCheckerError, Healthy};
 use k8s_openapi::{
     Metadata, NamespaceResourceScope, Resource, apimachinery::pkg::apis::meta::v1::ObjectMeta,
 };
@@ -19,7 +19,7 @@ pub mod stateful_set;
 /// It returns:
 /// * A healthy result if the result of execution is healthy for all the items.
 /// * The first encountered error or unhealthy result, otherwise.
-pub(super) fn check_health_for_items<K, F>(
+pub(crate) fn check_health_for_items<K, F>(
     items: impl Iterator<Item = Arc<K>>,
     health_check_fn: F,
 ) -> Result<Health, HealthCheckerError>
@@ -39,7 +39,7 @@ where
 
 /// Returns a closure which can be used as filter predicate. It will filter objects labeled with the key
 /// [LABEL_RELEASE_FLUX] and the provided release name as value.
-pub(super) fn flux_release_filter<K>(release_name: String) -> impl Fn(&Arc<K>) -> bool
+pub(crate) fn flux_release_filter<K>(release_name: String) -> impl Fn(&Arc<K>) -> bool
 where
     K: Metadata<Ty = ObjectMeta>,
 {
@@ -57,7 +57,7 @@ where
 }
 
 /// Helper to return an error when an expected field in the StatefulSet object is missing.
-pub(super) fn missing_field_error<K>(_: &K, name: &str, field: &str) -> HealthCheckerError
+pub(crate) fn missing_field_error<K>(_: &K, name: &str, field: &str) -> HealthCheckerError
 where
     K: Resource<Scope = NamespaceResourceScope>,
 {
@@ -71,7 +71,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::health::health_checker::Unhealthy;
+    use crate::checkers::health::health_checker::Unhealthy;
     use assert_matches::assert_matches;
     use k8s_openapi::api::core::v1::Pod;
 

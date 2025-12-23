@@ -1,5 +1,7 @@
-use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy, Unhealthy};
-use crate::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::checkers::health::health_checker::{
+    HealthChecker, HealthCheckerError, Healthy, Unhealthy,
+};
+use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use k8s_openapi::serde_json::{Map, Value};
@@ -185,7 +187,7 @@ impl HealthChecker for K8sHealthHelmRelease {
 pub mod tests {
     use super::*;
     use crate::agent_control::config::helmrelease_v2_type_meta;
-    use crate::health::health_checker::Health;
+    use crate::checkers::health::health_checker::Health;
     use crate::k8s::{Error, client::MockSyncK8sClient};
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::core::DynamicObject;

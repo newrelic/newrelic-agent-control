@@ -1,6 +1,8 @@
+use crate::checkers::health::health_checker::{
+    HealthChecker, HealthCheckerError, Healthy, Unhealthy,
+};
+use crate::checkers::health::with_start_time::HealthWithStartTime;
 use crate::event::channel::EventConsumer;
-use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy, Unhealthy};
-use crate::health::with_start_time::HealthWithStartTime;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -59,9 +61,9 @@ impl HealthChecker for ExecHealthChecker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::checkers::health::health_checker::{Healthy, Unhealthy};
+    use crate::checkers::health::with_start_time::HealthWithStartTime;
     use crate::event::channel::pub_sub;
-    use crate::health::health_checker::{Healthy, Unhealthy};
-    use crate::health::with_start_time::HealthWithStartTime;
     use std::time::{Duration, SystemTime};
 
     #[test]

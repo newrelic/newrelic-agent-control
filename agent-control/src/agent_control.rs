@@ -13,14 +13,14 @@ pub mod uptime_report;
 pub mod version_updater;
 
 use crate::agent_control::defaults::AGENT_CONTROL_ID;
+use crate::checkers::health::health_checker::{HealthChecker, spawn_health_checker};
+use crate::checkers::health::with_start_time::HealthWithStartTime;
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;
 use crate::event::{
     AgentControlEvent, ApplicationEvent, OpAMPEvent, broadcaster::unbounded::UnboundedBroadcast,
     channel::EventConsumer,
 };
-use crate::health::health_checker::{HealthChecker, spawn_health_checker};
-use crate::health::with_start_time::HealthWithStartTime;
 use crate::opamp::attributes::update_opamp_attributes;
 use crate::opamp::remote_config::report::report_state;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
@@ -581,12 +581,12 @@ mod tests {
     use super::version_updater::updater::tests::MockVersionUpdater;
     use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
     use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::checkers::health::health_checker::Unhealthy;
+    use crate::checkers::health::health_checker::tests::MockHealthCheck;
+    use crate::checkers::health::with_start_time::HealthWithStartTime;
     use crate::event::broadcaster::unbounded::UnboundedBroadcast;
     use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
     use crate::event::{AgentControlEvent, ApplicationEvent, OpAMPEvent};
-    use crate::health::health_checker::Unhealthy;
-    use crate::health::health_checker::tests::MockHealthCheck;
-    use crate::health::with_start_time::HealthWithStartTime;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::validators::tests::TestRemoteConfigValidator;

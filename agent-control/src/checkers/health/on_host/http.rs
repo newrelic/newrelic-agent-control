@@ -1,6 +1,8 @@
 use crate::agent_type::runtime_config::health_config::rendered::HttpHealth;
-use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy, Unhealthy};
-use crate::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::checkers::health::health_checker::{
+    HealthChecker, HealthCheckerError, Healthy, Unhealthy,
+};
+use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::http::client::{HttpClient as InnerClient, HttpResponseError};
 use http::{HeaderName, HeaderValue, Request, Response, StatusCode};
 use std::collections::HashMap;

@@ -5,9 +5,9 @@ use crate::agent_type::runtime_config::on_host::executable::Args;
 use crate::opamp::attributes::{
     Attribute, AttributeType, UpdateAttributesMessage, publish_update_attributes_event,
 };
-use crate::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
 use regex::Regex;
 
+use crate::checkers::version::{AgentVersion, VersionCheckError, VersionChecker};
 use crate::event::channel::EventPublisher;
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use std::fmt::Debug;
@@ -83,8 +83,8 @@ pub(crate) fn check_version<V, T, F>(
 #[cfg(test)]
 mod tests {
     use crate::agent_control::agent_id::AgentID;
+    use crate::checkers::version::tests::MockVersionChecker;
     use crate::event::SubAgentInternalEvent;
-    use crate::version_checker::tests::MockVersionChecker;
     use crate::{
         agent_control::defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
         event::channel::pub_sub,

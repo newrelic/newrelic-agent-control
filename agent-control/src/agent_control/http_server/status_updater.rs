@@ -131,14 +131,14 @@ mod tests {
         on_agent_control_event_update_status, update_agent_control_status, update_sub_agent_status,
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::checkers::health::health_checker::{Healthy, Unhealthy};
+    use crate::checkers::health::with_start_time::HealthWithStartTime;
     use crate::event::AgentControlEvent;
     use crate::event::AgentControlEvent::{
         AgentControlStopped, OpAMPConnectFailed, SubAgentRemoved,
     };
     use crate::event::SubAgentEvent;
     use crate::event::SubAgentEvent::HealthUpdated;
-    use crate::health::health_checker::{Healthy, Unhealthy};
-    use crate::health::with_start_time::HealthWithStartTime;
     use crate::sub_agent::identity::AgentIdentity;
 
     #[tokio::test(flavor = "multi_thread")]

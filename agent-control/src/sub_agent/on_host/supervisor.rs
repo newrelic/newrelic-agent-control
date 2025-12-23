@@ -2,13 +2,14 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConfig;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystemEntries;
 use crate::agent_type::runtime_config::version_config::rendered::OnHostVersionConfig;
+use crate::checkers::health::health_checker::{Health, HealthCheckerError, spawn_health_checker};
+use crate::checkers::health::health_checker::{Healthy, Unhealthy};
+use crate::checkers::health::on_host::health_checker::OnHostHealthCheckers;
+use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::checkers::version::onhost::{OnHostAgentVersionChecker, check_version};
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
-use crate::health::health_checker::{Health, HealthCheckerError, spawn_health_checker};
-use crate::health::health_checker::{Healthy, Unhealthy};
-use crate::health::on_host::health_checker::OnHostHealthCheckers;
-use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::sub_agent::identity::AgentIdentity;
@@ -21,7 +22,6 @@ use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
-use crate::version_checker::onhost::{OnHostAgentVersionChecker, check_version};
 use fs::LocalFile;
 use fs::directory_manager::DirectoryManagerFs;
 use std::path::PathBuf;
@@ -420,8 +420,8 @@ pub mod tests {
     use super::*;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::health_config::rendered;
+    use crate::checkers::health::health_checker::HEALTH_CHECKER_THREAD_NAME;
     use crate::event::channel::pub_sub;
-    use crate::health::health_checker::HEALTH_CHECKER_THREAD_NAME;
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};

@@ -1,7 +1,7 @@
-use crate::health::health_checker::{
+use crate::checkers::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
-use crate::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils as client_utils;
@@ -80,9 +80,10 @@ impl K8sHealthStatefulSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::health::health_checker::Healthy;
-    use crate::health::k8s::health_checker::resources::daemon_set::tests::TEST_NAMESPACE;
-    use crate::{health::k8s::health_checker::LABEL_RELEASE_FLUX, k8s::client::MockSyncK8sClient};
+    use crate::checkers::health::health_checker::Healthy;
+    use crate::checkers::health::k8s::health_checker::LABEL_RELEASE_FLUX;
+    use crate::checkers::health::k8s::health_checker::resources::daemon_set::tests::TEST_NAMESPACE;
+    use crate::k8s::client::MockSyncK8sClient;
     use assert_matches::assert_matches;
     use k8s_openapi::api::apps::v1::{StatefulSetSpec, StatefulSetStatus};
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;

@@ -2,7 +2,7 @@ use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
 use crate::agent_type::version_config::{VersionCheckerInitialDelay, VersionCheckerInterval};
-use crate::health::health_checker::{HealthCheckInterval, InitialDelay};
+use crate::checkers::health::health_checker::{HealthCheckInterval, InitialDelay};
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashMap};
 

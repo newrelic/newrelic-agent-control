@@ -3,14 +3,12 @@ use std::time::Duration;
 use serde::Deserialize;
 use tracing::error;
 
-use crate::{
-    event::{AgentControlInternalEvent, channel::EventPublisher},
-    health::{
-        events::HealthEventPublisher,
-        health_checker::{HealthCheckInterval, InitialDelay},
-        with_start_time::HealthWithStartTime,
-    },
+use crate::checkers::health::{
+    events::HealthEventPublisher,
+    health_checker::{HealthCheckInterval, InitialDelay},
+    with_start_time::HealthWithStartTime,
 };
+use crate::event::{AgentControlInternalEvent, channel::EventPublisher};
 
 pub mod k8s;
 
