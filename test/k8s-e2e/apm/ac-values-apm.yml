@@ -6,11 +6,16 @@ agentControlDeployment:
     image:
       tag: failIfNotReplaced
     subAgentsNamespace: "newrelic-agents"
+    systemIdentity:
+      create: false
+      secretName: "sys-identity"
     config:
       fleet_control:
-        enabled: false
+        enabled: true
+        # Fleet with name 'ac-e2e-apm'.
+        fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWI0NTkxLTYyYmEtN2RiZC04OGY5LWQ1MGMzZDU2YTM3YQ
       log:
-        level: debug
+        insecure_fine_grained_level: newrelic_agent_control=debug,opamp_client=trace,off
       agents:
         operator:
           agent_type: newrelic/com.newrelic.k8s_agent_operator:0.1.0
