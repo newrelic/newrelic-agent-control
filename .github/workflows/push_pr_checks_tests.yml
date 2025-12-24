@@ -25,8 +25,8 @@ jobs:
         uses: codespell-project/actions-codespell@94259cd8be02ad2903ba34a22d9c13de21a74461 # 94259cd8be02ad2903ba34a22d9c13de21a74461
 
   cargo-fmt:
-    runs-on: ubuntu-latest
     name: cargo fmt
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -38,8 +38,11 @@ jobs:
         run: cargo fmt --check
 
   cargo-clippy:
-    runs-on: ubuntu-latest
     name: cargo clippy
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     permissions:
       contents: read
       checks: write
@@ -60,8 +63,11 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings -D clippy::all
 
   cargo-doc:
-    runs-on: ubuntu-latest
     name: cargo doc
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -73,8 +79,8 @@ jobs:
           RUSTDOCFLAGS: --cfg docsrs
 
   third-party-notices-check:
-    runs-on: ubuntu-latest
     name: ⚖️ Check third party licenses
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -89,7 +95,10 @@ jobs:
 
   unused-dependencies-check:
     name: cargo shear (unused dependencies)
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -100,8 +109,8 @@ jobs:
       - run: cargo shear
 
   coverage:
-    runs-on: ubuntu-latest
     name: ubuntu / stable / coverage
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -151,8 +160,8 @@ jobs:
     uses: ./.github/workflows/component_security.yml
 
   generate-release-build:
-    runs-on: ubuntu-latest
     name: "Build release binaries"
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -183,16 +192,23 @@ jobs:
         run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control --target x86_64-unknown-linux-musl
 
   unit-docs-onhost-integration-tests:
-    runs-on: ubuntu-latest
     name: Unit, docs and onhost integration tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
-      - uses: ./.github/actions/install-rust-toolchain
+      - if: ${{ matrix.os == 'ubuntu-latest' }}
+        uses: ./.github/actions/install-rust-toolchain
         with:
           targets: >-
             aarch64-unknown-linux-musl,
             x86_64-unknown-linux-musl
+
+      - if: ${{ matrix.os == 'windows-latest' }}
+        uses: ./.github/actions/install-rust-toolchain
 
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
@@ -222,9 +238,12 @@ jobs:
   # Test using root can be troublesome to perform as usually the Rust toolchain is installed local to the user.
   # To test for root privileges, we can run from a container (disabling the test that fail if running non-root).
   on-host-root-tests:
-    runs-on: ubuntu-latest
-    container: rust:latest
     name: tests as root
+    container: ${{ matrix.os == 'ubuntu-latest' && 'rust:latest' || null }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -240,9 +259,12 @@ jobs:
         run: make -C agent-control test/onhost/root/integration
 
   on-host-oci-registry-tests:
-    runs-on: ubuntu-latest
-    container: rust:latest
     name: tests with oci registry
+    container: ${{ matrix.os == 'ubuntu-latest' && 'rust:latest' || null }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       
@@ -255,6 +277,7 @@ jobs:
           save-cache: false
 
       - name: Run onHost root-required integration-tests only
+        shell: bash
         run: make -C agent-control test/onhost/oci-registry/integration
       
       - name: Show zot logs
@@ -330,79 +353,6 @@ jobs:
       E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
       E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
 
-  onhost-windows-test:
-    name: "On-host Windows tests"
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
-
-      - uses: ./.github/actions/install-rust-toolchain
-        with:
-          components: clippy
-
-      - uses: taiki-e/install-action@0e76c5c569f13f7eb21e8e5b26fe710062b57b62 # v2.65.13
-        with:
-          tool: cargo-shear@1.7.2
-
-      - name: cargo generate-lockfile
-        if: hashFiles('Cargo.lock') == ''
-        run: cargo generate-lockfile
-      - uses: ./.github/actions/rust-cache
-        with:
-          identifier: 'test-dev'
-          restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}
-          save-cache: true
-
-      - name: Detect unused dependencies
-        run: cargo shear
-
-      - name: cargo clippy with compiler warnings
-        if: '!cancelled()'
-        run: cargo clippy --workspace --all-targets -- -D warnings -D clippy::all
-
-        # default target is x86_64-pc-windows-msvc
-      - name: Build
-        if: '!cancelled()'
-        run: cargo build --all --release
-
-      - name: Run workspace tests excluding the agent control pkg (includes -winAdmin- ignored because user is elevated)
-        if: '!cancelled()'
-        run: cargo test --workspace --exclude 'newrelic_agent_control' --all-targets -- --include-ignored
-
-      - name: Run tests agent control lib
-        if: '!cancelled()'
-        shell: bash
-        run: make -C agent-control test/onhost
-
-      - name: Run integration tests excluding non root-required tests only available for unix (on-host)
-        if: '!cancelled()'
-        shell: bash
-        run: make -C agent-control test/onhost/integration
-
-      - name: Run onHost root-required integration-tests only (windows runner has elevated permissions)
-        if: '!cancelled()'
-        shell: bash
-        run: make -C agent-control test/onhost/root/integration
-
-      - name: Run onHost oci-registry-required integration-tests only
-        if: '!cancelled()'
-        shell: bash
-        run: make -C agent-control test/onhost/oci-registry/integration
-      
-      - name: Show zot logs
-        if: '!cancelled()'
-        shell: bash
-        run: cat ~/.zot/zot.log
-
-      - name: Run documentation tests
-        if: '!cancelled()'
-        run: cargo test --locked --doc
-
-      - name: Create documentation
-        run: cargo doc --no-deps --package newrelic_agent_control
-        env:
-          RUSTDOCFLAGS: --cfg docsrs
-
   check-all-green:
     name: 🟢 All required checks and tests pass
     if: always()
@@ -417,7 +367,6 @@ jobs:
       - codespell
       - security
       - coverage
-      - onhost-windows-test
       # tests
       - generate-release-build
       - unit-docs-onhost-integration-tests
