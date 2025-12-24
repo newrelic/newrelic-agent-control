@@ -58,7 +58,7 @@ fn update_config(
 
     // Prepare the new content with updated license key and OTEL endpoint
     let new_content = format!(
-        "{}\n{}=\"{}\"\n{}=https://{}:4317/\n",
+        "{}\n{}=\"{}\"\n{}={}\n",
         content,
         NEW_RELIC_LICENSE_CONFIG_KEY,
         new_license_key,

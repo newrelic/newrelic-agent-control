@@ -10,6 +10,29 @@ NR_AC_LOG__LEVEL=DEBUG
 # Set 'client_id' for the authentication config in the Fleet Control communication
 NR_AC_FLEET_CONTROL__AUTH_CONFIG__CLIENT_ID="some-client-id"
 ```
+## Environment Variables file (on-host)
+
+Agent Control can load environment variables from a YAML file named `environment_variables.yaml` placed in the local configuration directory (`/etc/newrelic-agent-control/`, `C:\Program Files\New Relic\newrelic-agent-control\`). 
+
+Format: the file must be a flat YAML map of string keys to string values.
+
+```yaml
+# Example environment variables file
+MY_ENV_VAR: "env var value"
+HTTPS_PROXY: "http://proxy.local:8443"
+NR_AC_LOG__LEVEL: "DEBUG"
+```
+
+Validation rules:
+- Keys must match the regex `^[A-Za-z_][A-Za-z0-9_]*$` (letters, digits, and underscore; must start with a letter or underscore).
+- Values must not contain NUL (`\0`) characters.
+- Invalid entries cause startup to fail with an error.
+
+Notes:
+- This file is not watched; changes require restarting Agent Control.
+- Use the `NR_AC_*` variables to override configuration fields via environment variables.
+- Variables will be inherited by the Agents processes.
+
 
 ## Configuration fields
 

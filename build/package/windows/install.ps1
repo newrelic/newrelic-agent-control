@@ -13,6 +13,9 @@ param(
     [string]$Region = "us",
 
     [Parameter(Mandatory=$false)]
+    [string]$LicenseKey,
+
+    [Parameter(Mandatory=$false)]
     [string]$AgentSet = "no-agents",
 
     # Fleet-enabled auth and org parameters (used only when -FleetEnabled is set)
@@ -77,6 +80,7 @@ $acProgramFilesDir = [IO.Path]::Combine($env:ProgramFiles, 'New Relic\newrelic-a
 $acLocalConfigDir = [IO.Path]::Combine($acProgramFilesDir, 'local-data\agent-control')
 $acIdentityKeyDir = [IO.Path]::Combine($acProgramFilesDir, 'keys')
 $acIdentityKeyPath = [IO.Path]::Combine($acIdentityKeyDir, 'agent-control-identity.key')
+$acEnvFilePath = [IO.Path]::Combine($acProgramFilesDir, 'environment_variables.yaml')
 $acExecPath = [IO.Path]::Combine($acProgramFilesDir, 'newrelic-agent-control.exe')
 
 $acDataDir = [IO.Path]::Combine($env:ProgramData, 'New Relic\newrelic-agent-control')
@@ -123,8 +127,11 @@ $cliArgs = @(
     'generate-config',
     '--output-path', $localConfigPath,
     '--region', $Region,
-    '--agent-set', $AgentSet
+    '--agent-set', $AgentSet,
+    '--env-vars-file-path', $acEnvFilePath
 )
+
+if ($LicenseKey) { $cliArgs += @('--newrelic-license-key', $LicenseKey)}
 
 # Private key path is provided whenever an existing key is to be used.
 # If not provided, a new key will be generated and stored in the keys directory.
