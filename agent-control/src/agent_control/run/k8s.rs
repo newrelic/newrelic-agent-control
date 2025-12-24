@@ -34,7 +34,9 @@ use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
+use crate::secret_retriever::k8s::retrieve::K8sSecretRetriever;
 use crate::secrets_provider::SecretsProviders;
+use crate::secrets_provider::k8s_secret::K8sSecretProvider;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
@@ -47,7 +49,7 @@ use resource_detection::system::hostname::get_hostname;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 pub const NAMESPACE_VARIABLE_NAME: &str = "namespace";
 pub const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
@@ -66,9 +68,16 @@ impl AgentControlRunner {
             self.k8s_config.namespace.clone(),
         ));
 
-        debug!("Initializing yaml_config_repository");
+        let secret_retriever = K8sSecretRetriever::new(
+            K8sSecretProvider::new(k8s_client.clone()),
+            self.k8s_config.clone(),
+        );
+
+        let opamp_http_builder =
+            Self::build_opamp_http_builder(self.opamp, self.proxy.clone(), secret_retriever)?;
+
         let config_repository = ConfigRepo::new(k8s_store.clone());
-        let yaml_config_repository = Arc::new(if self.opamp_http_builder.is_some() {
+        let yaml_config_repository = Arc::new(if opamp_http_builder.is_some() {
             config_repository.with_remote()
         } else {
             config_repository
@@ -100,7 +109,7 @@ impl AgentControlRunner {
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
-        let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
+        let opamp_client_builder = opamp_http_builder.map(|http_builder| {
             DefaultOpAMPClientBuilder::new(
                 http_builder,
                 DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),

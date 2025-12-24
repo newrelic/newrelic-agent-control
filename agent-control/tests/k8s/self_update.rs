@@ -6,6 +6,7 @@ use crate::common::opamp::FakeServer;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::retry::retry;
 use crate::common::runtime::block_on;
+use crate::k8s::tools::agent_control::{DUMMY_PRIVATE_KEY, K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET};
 use crate::k8s::tools::instance_id;
 use crate::k8s::tools::local_chart::{LOCAL_CHART_REPOSITORY, agent_control_deploymet::*};
 use crate::k8s::tools::logs::{AC_LABEL_SELECTOR, print_pod_logs};
@@ -358,6 +359,14 @@ fn bootstrap_ac(
     create_values_secret(
         client.clone(),
         namespace,
+        K8S_PRIVATE_KEY_SECRET,
+        K8S_KEY_SECRET,
+        DUMMY_PRIVATE_KEY.to_string(),
+    );
+
+    create_values_secret(
+        client.clone(),
+        namespace,
         SECRET_NAME,
         VALUES_KEY,
         ac_chart_values(opamp_endpoint, namespace),
@@ -396,33 +405,36 @@ fn ac_chart_values(opamp_endpoint: Url, name_override: &str) -> String {
         // give a unique name per test to the cluster role to avoid collisions
         "nameOverride": name_override,
         "config": {
-          // Disable the SI creation
-          "fleet_control": {
-            "enabled": false,
-          },
-          "acRemoteUpdate": true,
-          "cdRemoteUpdate": false,
-          "override": {
-            "log": {
-               "level":"debug",
-            },
-              // To make health assertions faster
-            "health_check":{
-              "initial_delay": "1s",
-              "interval": "20s",
-            },
+            // Disable the SI creation
             "fleet_control": {
-              "endpoint": opamp_endpoint.as_str(),
-              "poll_interval": format!("{POLL_INTERVAL}s"),
-              "signature_validation": {
-                "enabled": "false",
-              },
+                "enabled": false,
             },
-          }
+            "acRemoteUpdate": true,
+            "cdRemoteUpdate": false,
+            "authSecret": {
+                "secretName": K8S_PRIVATE_KEY_SECRET,
+                "secretKeyName": K8S_KEY_SECRET,
+            },
+            "override": {
+                "log": {
+                    "level": "debug",
+                },
+                "health_check": {
+                    "initial_delay": "1s",
+                    "interval": "20s",
+                },
+                "fleet_control": {
+                    "endpoint": opamp_endpoint.as_str(),
+                    "poll_interval": format!("{POLL_INTERVAL}s"),
+                    "signature_validation": {
+                        "enabled": "false",
+                    },
+                },
+            }
         },
         "global": {
-          "cluster": "test-cluster",
-          "licenseKey": "***",
+            "cluster": "test-cluster",
+            "licenseKey": "***",
         },
     })
     .to_string()

@@ -25,7 +25,9 @@ use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
+use crate::secret_retriever::on_host::retrieve::OnHostSecretRetriever;
 use crate::secrets_provider::SecretsProviders;
+use crate::secrets_provider::file::FileSecretProvider;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
@@ -53,9 +55,18 @@ impl AgentControlRunner {
             self.base_paths.remote_dir.clone(),
         ));
 
+        let secret_retriever = OnHostSecretRetriever::new(
+            self.opamp.clone(),
+            self.base_paths.clone(),
+            FileSecretProvider::new(),
+        );
+
+        let opamp_http_builder =
+            Self::build_opamp_http_builder(self.opamp, self.proxy.clone(), secret_retriever)?;
+
         debug!("Initializing yaml_config_repository");
         let config_repository = ConfigRepo::new(file_store.clone());
-        let yaml_config_repository = Arc::new(if self.opamp_http_builder.is_some() {
+        let yaml_config_repository = Arc::new(if opamp_http_builder.is_some() {
             config_repository.with_remote()
         } else {
             config_repository
@@ -100,7 +111,7 @@ impl AgentControlRunner {
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
-        let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
+        let opamp_client_builder = opamp_http_builder.map(|http_builder| {
             DefaultOpAMPClientBuilder::new(
                 http_builder,
                 DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
@@ -197,7 +208,6 @@ impl AgentControlRunner {
         .map_err(|err| RunError(err.to_string()))
     }
 }
-
 pub fn agent_control_opamp_non_identifying_attributes(
     identifiers: &Identifiers,
 ) -> HashMap<String, DescriptionValueType> {
