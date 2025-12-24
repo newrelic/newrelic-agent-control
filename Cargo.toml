@@ -18,7 +18,7 @@ license-file = "./LICENSE.md"
 repository = "https://github.com/newrelic/newrelic-agent-control"
 
 [workspace.dependencies]
-serde_json = "1.0.146"
+serde_json = "1.0.147"
 serde = "1.0.228"
 tempfile = "3.24.0"
 thiserror = "2.0.17"
