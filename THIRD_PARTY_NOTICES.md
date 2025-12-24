@@ -3063,6 +3063,12 @@ Distributed under the following license(s):
 
 * Zlib
 
+## zmij <https://crates.io/crates/zmij>
+
+Distributed under the following license(s):
+
+* MIT
+
 ## zopfli <https://crates.io/crates/zopfli>
 
 Distributed under the following license(s):
