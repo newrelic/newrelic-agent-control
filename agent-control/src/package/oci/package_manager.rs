@@ -2,13 +2,13 @@ use std::{convert::Infallible, path::PathBuf};
 
 use oci_client::Reference;
 
-use crate::package::manager::PackageManager;
+use crate::{agent_control::agent_id::AgentID, package::manager::PackageManager};
 
 use super::downloader::OCIDownloader;
 
 pub struct OCIPackageManager {
-    pkg_downloader: OCIDownloader,
-    base_path: PathBuf,
+    pub pkg_downloader: OCIDownloader,
+    pub base_path: PathBuf,
 }
 
 impl PackageManager for OCIPackageManager {
@@ -19,16 +19,13 @@ impl PackageManager for OCIPackageManager {
     type InstalledPackage = PathBuf; // Downloaded package location
 
     fn install(
-        agent_id: &crate::agent_control::agent_id::AgentID,
+        agent_id: &AgentID,
         package: Self::Package,
     ) -> Result<Self::InstalledPackage, Self::Error> {
         todo!()
     }
 
-    fn uninstall(
-        agent_id: &crate::agent_control::agent_id::AgentID,
-        package: Self::InstalledPackage,
-    ) -> Result<(), Self::Error> {
+    fn uninstall(agent_id: &AgentID, package: Self::InstalledPackage) -> Result<(), Self::Error> {
         todo!("Only installation for now")
     }
 }
