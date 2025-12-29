@@ -13,7 +13,7 @@ members = [
 authors = ["The New Relic Agent Control Team"]
 edition = "2024"
 publish = false
-rust-version = "1.89.0"
+rust-version = "1.92.0"
 license-file = "./LICENSE.md"
 repository = "https://github.com/newrelic/newrelic-agent-control"
 
