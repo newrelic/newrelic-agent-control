@@ -10,7 +10,7 @@ use duration_str::deserialize_duration;
 use serde::Deserialize;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, SystemTimeError};
-use tracing::{debug, error, info_span};
+use tracing::{debug, info_span};
 use wrapper_with_default::WrapperWithDefault;
 
 pub const HEALTH_CHECKER_THREAD_NAME: &str = "health_checker";

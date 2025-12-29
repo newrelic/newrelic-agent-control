@@ -2,7 +2,7 @@ pub mod k8s;
 pub mod onhost;
 
 use std::fmt::Debug;
-use tracing::error;
+
 const VERSION_CHECKER_THREAD_NAME: &str = "version_checker";
 
 pub trait VersionChecker {
