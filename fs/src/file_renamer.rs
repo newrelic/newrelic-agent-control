@@ -27,6 +27,7 @@ impl FileRenamer for LocalFile {
                 file_path.display()
             )));
         }
+
         match rename(file_path, rename_path) {
             Err(e) => Err(FileRenamerError::Rename(e)),
             Ok(_) => Ok(()),
