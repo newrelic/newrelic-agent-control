@@ -25,7 +25,7 @@ impl PackageManager for OCIPackageManager {
     ) -> Result<Self::InstalledPackage, Self::Error> {
         let install_path = self.base_path.join(agent_id);
         std::fs::create_dir_all(&install_path).map_err(|err| {
-            OCIDownloaderError::DownloadingArtifactError(format!(
+            OCIDownloaderError::DownloadingArtifact(format!(
                 "Failed to create package directory: {}",
                 err
             ))
@@ -44,7 +44,7 @@ impl PackageManager for OCIPackageManager {
     ) -> Result<(), Self::Error> {
         if package.exists() {
             std::fs::remove_dir_all(&package).map_err(|err| {
-                OCIDownloaderError::DownloadingArtifactError(format!(
+                OCIDownloaderError::DownloadingArtifact(format!(
                     "Failed to remove package directory: {}",
                     err
                 ))
