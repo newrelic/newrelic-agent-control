@@ -1,0 +1,92 @@
+name: OCI test repo - compile & push multi-platform testing-infra-agent
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag'
+        required: true
+
+env:
+  IMAGE_NAME: "testing-infra-agent"
+  AGENT_VERSION: ${{ github.event.inputs.agent_version }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { os: linux,   arch: amd64, goos: linux,   goarch: amd64, binary: newrelic-infra }
+          - { os: linux,   arch: arm64, goos: linux,   goarch: arm64, binary: newrelic-infra }
+          - { os: windows, arch: amd64, goos: windows, goarch: amd64, binary: newrelic-infra.exe }
+          - { os: darwin,  arch: arm64, goos: darwin,  goarch: arm64, binary: newrelic-infra }
+          - { os: darwin,  arch: amd64, goos: darwin,  goarch: amd64, binary: newrelic-infra }
+
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+        with:
+          repository: newrelic/infrastructure-agent
+          ref: ${{ env.AGENT_VERSION }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Compile Binary
+        run: |
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build \
+            -o ${{ matrix.binary }} \
+            ./cmd/newrelic-infra
+
+      - name: Package Artifact
+        id: package
+        run: |
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            FILENAME="newrelic-infra-${{ matrix.arch }}.zip"
+            zip $FILENAME ${{ matrix.binary }}
+            echo "mime=application/zip" >> $GITHUB_OUTPUT
+          else
+            FILENAME="newrelic-infra-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
+            tar -cvzf $FILENAME ${{ matrix.binary }}
+            echo "mime=application/vnd.oci.image.layer.v1.tar+gzip" >> $GITHUB_OUTPUT
+          fi
+          echo "filename=$FILENAME" >> $GITHUB_OUTPUT
+
+      - name: Install ORAS
+        uses: oras-project/setup-oras@v1
+
+      - name: Push Platform Tag
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          oras push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ env.AGENT_VERSION }}-${{ matrix.os }}-${{ matrix.arch }} \
+            --artifact-platform ${{ matrix.os }}/${{ matrix.arch }} \
+            ${{ steps.package.outputs.filename }}:${{ steps.package.outputs.mime }}
+
+  create-index:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Install ORAS
+        uses: oras-project/setup-oras@v1
+
+      - name: Create Multi-Platform Index
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u ${{ github.actor }} --password-stdin
+          REPO="ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}"
+          VERSION="${{ env.AGENT_VERSION }}"
+          
+          oras manifest index create $REPO:v$VERSION \
+            $REPO:$VERSION-linux-amd64 \
+            $REPO:$VERSION-linux-arm64 \
+            $REPO:$VERSION-windows-amd64 \
+            $REPO:$VERSION-darwin-arm64 \
+            $REPO:$VERSION-darwin-amd64
