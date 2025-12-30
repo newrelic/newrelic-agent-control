@@ -21,10 +21,15 @@ pub trait PackageManager {
 
     /// Install a package.
     fn install(
+        &self,
         agent_id: &AgentID,
         package: Self::Package,
     ) -> Result<Self::InstalledPackage, Self::Error>;
 
     /// Uninstall a package.
-    fn uninstall(agent_id: &AgentID, package: Self::InstalledPackage) -> Result<(), Self::Error>;
+    fn uninstall(
+        &self,
+        agent_id: &AgentID,
+        package: Self::InstalledPackage,
+    ) -> Result<(), Self::Error>;
 }
