@@ -7,7 +7,6 @@ use crate::http::client::{HttpClient as InnerClient, HttpResponseError};
 use http::{HeaderName, HeaderValue, Request, Response, StatusCode};
 use std::collections::HashMap;
 use thiserror::Error;
-use tracing::error;
 use url::Url;
 
 const DEFAULT_PROTOCOL: &str = "http://";

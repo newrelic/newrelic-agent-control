@@ -11,7 +11,6 @@ use serde::Deserialize;
 use std::time::Duration;
 use thiserror::Error;
 use tracing::info;
-use tracing::log::error;
 use tracing::warn;
 use url::Url;
 

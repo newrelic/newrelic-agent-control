@@ -3,7 +3,7 @@ pub mod flux;
 
 use std::{collections::BTreeMap, sync::Arc, thread, time::Duration};
 
-use clap::{Parser, arg};
+use clap::Parser;
 use kube::api::{DynamicObject, ObjectMeta};
 use tracing::{debug, info};
 

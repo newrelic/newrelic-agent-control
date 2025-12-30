@@ -11,7 +11,7 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 use thiserror::Error;
-use tracing::{debug, error};
+use tracing::debug;
 
 #[derive(Error, Debug)]
 pub enum ConversionError {

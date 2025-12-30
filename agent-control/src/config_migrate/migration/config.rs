@@ -6,7 +6,6 @@ use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use tracing::error;
 
 use crate::agent_type::agent_type_id::AgentTypeID;
 

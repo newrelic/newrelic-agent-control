@@ -13,7 +13,6 @@ use nr_auth::{
 };
 use std::time::Duration;
 use thiserror::Error;
-use tracing::error;
 
 const DEFAULT_AUTHENTICATOR_TIMEOUT: Duration = Duration::from_secs(5);
 

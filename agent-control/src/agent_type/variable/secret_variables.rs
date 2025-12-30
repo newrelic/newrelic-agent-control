@@ -1,7 +1,5 @@
 use std::collections::{HashMap, HashSet};
 
-use tracing::error;
-
 use crate::{
     agent_type::{
         templates::template_re,

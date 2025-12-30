@@ -13,7 +13,7 @@ use opamp_client::{NotStartedClient, NotStartedClientError, StartedClient};
 use serde::Deserialize;
 use std::time::Duration;
 use thiserror::Error;
-use tracing::{error, info};
+use tracing::info;
 use wrapper_with_default::WrapperWithDefault;
 
 /// Default poll interval for the OpAMP http managed client

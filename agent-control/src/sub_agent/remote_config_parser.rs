@@ -4,7 +4,7 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::values::config::RemoteConfig;
 use crate::values::yaml_config::YAMLConfig;
 use thiserror::Error;
-use tracing::{debug, error};
+use tracing::debug;
 
 type ErrorMessage = String;
 
