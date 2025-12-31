@@ -138,7 +138,7 @@ impl OCIDownloader {
         let mut downloaded_paths = Vec::new();
 
         for layer in image_manifest.layers.iter() {
-            let layer_path = package_dir.join(layer.digest.clone());
+            let layer_path = package_dir.join(&layer.digest);
             let mut file = tokio::fs::File::create(&layer_path)
                 .await
                 .map_err(OCIDownloaderError::Io)?;

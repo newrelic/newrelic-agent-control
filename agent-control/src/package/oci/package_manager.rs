@@ -35,7 +35,7 @@ impl PackageManager for OCIPackageManager {
         agent_id: &AgentID,
         package: Self::Package,
     ) -> Result<Self::InstalledPackage, Self::Error> {
-        let install_path = self.base_path.join(agent_id);
+        let install_path = self.base_path.join(agent_id).join("__packages");
 
         let downloaded_paths = self
             .pkg_downloader
@@ -47,6 +47,12 @@ impl PackageManager for OCIPackageManager {
         // in particular, I am assuming that the OCI artifact downloaded consists of a single file,
         // this file should be renamed to the name of the repository and moved to the install_path
         let unique_path = validate_single_path(downloaded_paths)?;
+        let digest = package.digest().ok_or_else(|| {
+            OCIPackageManagerError::Install(IoError::new(
+                ErrorKind::InvalidData,
+                "OCI reference missing digest".to_string(),
+            ))
+        })?;
         let repo_name = package.repository();
         let downloaded_file_path = install_path.join(repo_name);
 
@@ -62,6 +68,8 @@ impl PackageManager for OCIPackageManager {
     }
 }
 
+/// Validates that the provided vector of paths contains exactly one path (i.e., a single downloaded file).
+/// Returns the single path if validation passes, otherwise returns an error.
 fn validate_single_path(paths: Vec<PathBuf>) -> Result<PathBuf, OCIPackageManagerError> {
     if paths.len() != 1 {
         let paths_len = paths.len();
