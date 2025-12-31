@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    io::{Error as IoError, ErrorKind},
+    path::PathBuf,
+};
 
 use oci_client::Reference;
 use thiserror::Error;
@@ -45,6 +48,8 @@ impl PackageManager for OCIPackageManager {
         // validations should be applied
         // in particular, I am assuming that the OCI artifact downloaded consists of a single file,
         // this file should be renamed to the name of the repository and moved to the install_path
+        let unique_path =
+            validate_single_path(downloaded_paths).map_err(OCIPackageManagerError::Install)?;
         let repo_name = package.repository();
         let downloaded_file_path = install_path.join(repo_name);
 
@@ -57,5 +62,20 @@ impl PackageManager for OCIPackageManager {
         _package: Self::InstalledPackage,
     ) -> Result<(), Self::Error> {
         todo!("uninstall not implemented yet")
+    }
+}
+
+fn validate_single_path(paths: Vec<PathBuf>) -> Result<PathBuf, IoError> {
+    if paths.len() != 1 {
+        let paths_len = paths.len();
+        Err(IoError::new(
+            ErrorKind::InvalidData,
+            format!("expected a single file in the OCI artifact, found {paths_len} files",),
+        ))
+    } else {
+        Ok(paths
+            .into_iter()
+            .next()
+            .expect("checked vector for length above >= 1"))
     }
 }
