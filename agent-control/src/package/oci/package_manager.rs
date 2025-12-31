@@ -35,28 +35,42 @@ impl PackageManager for OCIPackageManager {
         agent_id: &AgentID,
         package: Self::Package,
     ) -> Result<Self::InstalledPackage, Self::Error> {
-        let install_path = self.base_path.join(agent_id).join("__packages");
-
-        let downloaded_paths = self
-            .pkg_downloader
-            .download_artifact(&package, &install_path)
-            .map_err(OCIPackageManagerError::Download)?;
-
-        // do something with the downloaded file
-        // validations should be applied
-        // in particular, I am assuming that the OCI artifact downloaded consists of a single file,
-        // this file should be renamed to the name of the repository and moved to the install_path
-        let unique_path = validate_single_path(downloaded_paths)?;
+        // Package will:
+        //   1. Download into `<BASE_PATH>/<AGENT_ID>/packages/<LAYER_DIGEST>`
+        //   2. Be moved to `<BASE_PATH>/<AGENT_ID>/packages/<REPOSITORY>_<TAG>`
+        // Where `<BASE_PATH>` is by default AC's auto-generated directory.
         let digest = package.digest().ok_or_else(|| {
             OCIPackageManagerError::Install(IoError::new(
                 ErrorKind::InvalidData,
                 "OCI reference missing digest".to_string(),
             ))
         })?;
-        let repo_name = package.repository();
-        let downloaded_file_path = install_path.join(repo_name);
 
-        Ok(install_path)
+        let install_dir = self.base_path.join(agent_id).join("packages").join(digest);
+
+        // 1. Ensure the directory exists
+        std::fs::create_dir_all(&install_dir).map_err(OCIPackageManagerError::Install)?;
+
+        // 2. Actually download the package. The implementation of the downloader saves files
+        // using the layer digest as the filename.
+        let downloaded_paths = self
+            .pkg_downloader
+            .download_artifact(&package, &install_dir)
+            .map_err(OCIPackageManagerError::Download)?;
+
+        // 3. Validate we have exactly one file and retrieve its path
+        let unique_temp_file_path = validate_single_path(downloaded_paths)?;
+
+        // 4. Rename the file to match the schema `<REPOSITORY>_<TAG>`
+        let repo = package.repository();
+        let tag = package.tag().unwrap_or("latest");
+        let file_name = format!("{repo}_{tag}").replace("/", "_");
+        let final_file_path = install_dir.join(file_name);
+
+        std::fs::rename(&unique_temp_file_path, &final_file_path)
+            .map_err(OCIPackageManagerError::Install)?;
+
+        Ok(final_file_path)
     }
 
     fn uninstall(
