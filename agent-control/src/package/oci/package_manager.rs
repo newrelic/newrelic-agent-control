@@ -109,7 +109,7 @@ where
     }
 }
 
-/// Validates that the provided vector of paths contains exactly one path (i.e., a single downloaded file).
+/// Validates that the provided vector of paths contains exactly one path (i.e. a single downloaded file).
 /// Returns the single path if validation passes, otherwise returns an error.
 fn validate_single_path(paths: Vec<PathBuf>) -> Result<PathBuf, OCIPackageManagerError> {
     if paths.len() != 1 {
@@ -146,25 +146,28 @@ mod tests {
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
         let digest = reference.digest().unwrap();
         let install_dir = PathBuf::from("/tmp/base/agent-id/packages").join(digest);
-        let downloaded_file = install_dir.join("layer.tar.gz");
+        let downloaded_file = install_dir.join("layer_digest.tar.gz");
         let final_path = install_dir.join("library_busybox_latest");
 
         directory_manager
             .expect_create()
             .with(eq(install_dir.clone()))
-            .times(1)
+            .once()
             .returning(|_| Ok(()));
 
         downloader
             .expect_download()
             .with(eq(reference.clone()), eq(install_dir.clone()))
-            .times(1)
+            .once()
             .returning(move |_, _| Ok(vec![downloaded_file.clone()]));
 
         file_renamer
             .expect_rename()
-            .with(eq(install_dir.join("layer.tar.gz")), eq(final_path.clone()))
-            .times(1)
+            .with(
+                eq(install_dir.join("layer_digest.tar.gz")),
+                eq(final_path.clone()),
+            )
+            .once()
             .returning(|_, _| Ok(()));
 
         let pm = OCIPackageManager {
@@ -216,7 +219,7 @@ mod tests {
         directory_manager
             .expect_create()
             .with(eq(install_dir))
-            .times(1)
+            .once()
             .returning(|_| {
                 Err(DirectoryManagementError::ErrorCreatingDirectory(
                     "path".into(),
@@ -249,13 +252,13 @@ mod tests {
         directory_manager
             .expect_create()
             .with(eq(install_dir.clone()))
-            .times(1)
+            .once()
             .returning(|_| Ok(()));
 
         downloader
             .expect_download()
             .with(eq(reference.clone()), eq(install_dir))
-            .times(1)
+            .once()
             .returning(|_, _| {
                 Err(OCIDownloaderError::DownloadingArtifact(
                     "download failed".into(),
@@ -287,13 +290,13 @@ mod tests {
         directory_manager
             .expect_create()
             .with(eq(install_dir.clone()))
-            .times(1)
+            .once()
             .returning(|_| Ok(()));
 
         downloader
             .expect_download()
             .with(eq(reference.clone()), eq(install_dir))
-            .times(1)
+            .once()
             .returning(|_, _| Ok(vec![])); // Empty vector
 
         let pm = OCIPackageManager {
@@ -324,13 +327,13 @@ mod tests {
         directory_manager
             .expect_create()
             .with(eq(install_dir.clone()))
-            .times(1)
+            .once()
             .returning(|_| Ok(()));
 
         downloader
             .expect_download()
             .with(eq(reference.clone()), eq(install_dir))
-            .times(1)
+            .once()
             .returning(|_, _| Ok(vec![PathBuf::from("file1"), PathBuf::from("file2")]));
 
         let pm = OCIPackageManager {
@@ -357,25 +360,28 @@ mod tests {
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
         let digest = reference.digest().unwrap();
         let install_dir = PathBuf::from("/tmp/base/agent-id/packages").join(digest);
-        let downloaded_file = install_dir.join("layer.tar.gz");
+        let downloaded_file = install_dir.join("layer_digest.tar.gz");
         let final_path = install_dir.join("library_busybox_latest");
 
         directory_manager
             .expect_create()
             .with(eq(install_dir.clone()))
-            .times(1)
+            .once()
             .returning(|_| Ok(()));
 
         downloader
             .expect_download()
             .with(eq(reference.clone()), eq(install_dir.clone()))
-            .times(1)
+            .once()
             .returning(move |_, _| Ok(vec![downloaded_file.clone()]));
 
         file_renamer
             .expect_rename()
-            .with(eq(install_dir.join("layer.tar.gz")), eq(final_path.clone()))
-            .times(1)
+            .with(
+                eq(install_dir.join("layer_digest.tar.gz")),
+                eq(final_path.clone()),
+            )
+            .once()
             .returning(|_, _| {
                 Err(FileRenamerError::Rename(IoError::new(
                     ErrorKind::PermissionDenied,
