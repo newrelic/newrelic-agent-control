@@ -226,10 +226,22 @@ fn add_cert<'a>(mut certs: Vec<Certificate>, cert: CertificateDer<'a>) -> Vec<Ce
 pub(crate) mod tests {
     use super::*;
     use assert_matches::assert_matches;
+    use mockall::mock;
     use std::fs::File;
     use std::io::Write;
     use std::path::PathBuf;
     use tempfile::tempdir;
+
+    mock! {
+        pub OCIDownloader {}
+        impl OCIDownloader for OCIDownloader {
+            fn download(
+                &self,
+                reference: &Reference,
+                package_dir: &Path,
+            ) -> Result<Vec<PathBuf>, OCIDownloaderError>;
+        }
+    }
 
     const INVALID_TESTING_CERT: &str =
         "-----BEGIN CERTIFICATE-----\ninvalid!\n-----END CERTIFICATE-----";
