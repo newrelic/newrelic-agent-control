@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use oci_client::Reference;
+use thiserror::Error;
 
 use crate::{agent_control::agent_id::AgentID, package::manager::PackageManager};
 
@@ -11,8 +12,18 @@ pub struct OCIPackageManager {
     pub base_path: PathBuf, // this would be the `auto-generated` directory
 }
 
+#[derive(Debug, Error)]
+pub enum OCIPackageManagerError {
+    #[error("error attempting to download OCI artifact: {0}")]
+    Download(OCIDownloaderError),
+    #[error("error attempting to install OCI artifact: {0}")]
+    Install(std::io::Error),
+    #[error("error attempting to uninstall OCI artifact: {0}")]
+    Uninstall(std::io::Error),
+}
+
 impl PackageManager for OCIPackageManager {
-    type Error = OCIDownloaderError;
+    type Error = OCIPackageManagerError;
 
     type Package = Reference;
 
@@ -24,15 +35,18 @@ impl PackageManager for OCIPackageManager {
         package: Self::Package,
     ) -> Result<Self::InstalledPackage, Self::Error> {
         let install_path = self.base_path.join(agent_id);
-        std::fs::create_dir_all(&install_path).map_err(|err| {
-            OCIDownloaderError::DownloadingArtifact(format!(
-                "Failed to create package directory: {}",
-                err
-            ))
-        })?;
 
-        self.pkg_downloader
-            .download_artifact(&package, &install_path)?;
+        let downloaded_paths = self
+            .pkg_downloader
+            .download_artifact(&package, &install_path)
+            .map_err(OCIPackageManagerError::Download)?;
+
+        // do something with the downloaded file
+        // validations should be applied
+        // in particular, I am assuming that the OCI artifact downloaded consists of a single file,
+        // this file should be renamed to the name of the repository and moved to the install_path
+        let repo_name = package.repository();
+        let downloaded_file_path = install_path.join(repo_name);
 
         Ok(install_path)
     }
@@ -40,16 +54,8 @@ impl PackageManager for OCIPackageManager {
     fn uninstall(
         &self,
         _agent_id: &AgentID,
-        package: Self::InstalledPackage,
+        _package: Self::InstalledPackage,
     ) -> Result<(), Self::Error> {
-        if package.exists() {
-            std::fs::remove_dir_all(&package).map_err(|err| {
-                OCIDownloaderError::DownloadingArtifact(format!(
-                    "Failed to remove package directory: {}",
-                    err
-                ))
-            })?;
-        }
-        Ok(())
+        todo!("uninstall not implemented yet")
     }
 }

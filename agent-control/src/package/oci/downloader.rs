@@ -8,7 +8,7 @@ use rustls_pki_types::CertificateDer;
 use rustls_pki_types::pem::PemObject;
 use std::fs::File;
 use std::io::BufReader;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
@@ -105,7 +105,7 @@ impl OCIDownloader {
         &self,
         reference: &Reference,
         package_dir: &Path,
-    ) -> Result<(), OCIDownloaderError> {
+    ) -> Result<Vec<PathBuf>, OCIDownloaderError> {
         let mut result = Err(OCIDownloaderError::DownloadingArtifact(
             "no tries attempted".into(),
         ));
@@ -117,8 +117,9 @@ impl OCIDownloader {
 
             if result.is_ok() {
                 break;
+            } else {
+                sleep(self.retry_interval);
             }
-            sleep(self.retry_interval);
         }
         result
     }
@@ -127,12 +128,14 @@ impl OCIDownloader {
         &self,
         reference: &Reference,
         package_dir: &Path,
-    ) -> Result<(), OCIDownloaderError> {
+    ) -> Result<Vec<PathBuf>, OCIDownloaderError> {
         let (image_manifest, _) = self
             .client
             .pull_image_manifest(reference, &self.auth)
             .await
             .map_err(OCIDownloaderError::OciDistribution)?;
+
+        let mut downloaded_paths = Vec::new();
 
         for layer in image_manifest.layers.iter() {
             let layer_path = package_dir.join(layer.digest.clone());
@@ -145,10 +148,12 @@ impl OCIDownloader {
                 .await
                 .map_err(OCIDownloaderError::OciDistribution)?;
 
-            debug!("Artifact written to {}", layer_path.to_string_lossy());
+            debug!("Artifact written to {}", layer_path.display());
+
+            downloaded_paths.push(layer_path);
         }
 
-        Ok(())
+        Ok(downloaded_paths)
     }
 }
 
