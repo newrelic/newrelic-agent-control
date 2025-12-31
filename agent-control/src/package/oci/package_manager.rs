@@ -20,9 +20,9 @@ pub enum OCIPackageManagerError {
     #[error("error attempting to download OCI artifact: {0}")]
     Download(OCIDownloaderError),
     #[error("error attempting to install OCI artifact: {0}")]
-    Install(std::io::Error),
+    Install(IoError),
     #[error("error attempting to uninstall OCI artifact: {0}")]
-    Uninstall(std::io::Error),
+    Uninstall(IoError),
 }
 
 impl PackageManager for OCIPackageManager {
