@@ -41,11 +41,16 @@ pub enum OCIPackageManagerError {
     Install(IoError),
     #[error("error attempting to uninstall OCI artifact: {0}")]
     Uninstall(IoError),
+    // The below variants should be removed when the `fs` traits are refactored and they return
+    // `std::io::Error`s instead.
     #[error("directory management error: {0}")]
-    Directory(#[from] DirectoryManagementError),
+    Directory(DirectoryManagementError),
     #[error("file rename error: {0}")]
-    Rename(#[from] FileRenamerError),
+    Rename(FileRenamerError),
 }
+
+const DOWNLOADED_PACKAGES_LOCATION: &str = "__temp_packages";
+const INSTALLED_PACKAGES_LOCATION: &str = "packages";
 
 impl<D, DM, FR> PackageManager for OCIPackageManager<D, DM, FR>
 where
@@ -73,16 +78,23 @@ where
             ))
         })?;
 
-        let install_dir = self.base_path.join(agent_id).join("packages").join(digest);
+        let temp_install_dir = self
+            .base_path
+            .join(agent_id)
+            .join(DOWNLOADED_PACKAGES_LOCATION)
+            .join(digest);
 
         // 1. Ensure the directory exists
-        self.directory_manager.create(&install_dir)?;
+        // TODO PR review: should we actually need this or delegate this to the downloader impl?
+        self.directory_manager
+            .create(&temp_install_dir)
+            .map_err(OCIPackageManagerError::Directory)?;
 
         // 2. Actually download the package. The implementation of the downloader saves files
         // using the layer digest as the filename.
         let downloaded_paths = self
             .pkg_downloader
-            .download(&package, &install_dir)
+            .download(&package, &temp_install_dir)
             .map_err(OCIPackageManagerError::Download)?;
 
         // 3. Validate we have exactly one file and retrieve its path
@@ -92,10 +104,26 @@ where
         let repo = package.repository();
         let tag = package.tag().unwrap_or("latest");
         let file_name = format!("{repo}_{tag}").replace("/", "_");
-        let final_file_path = install_dir.join(file_name);
+        let final_file_dir = self
+            .base_path
+            .join(agent_id)
+            .join(INSTALLED_PACKAGES_LOCATION);
+
+        // Ensure final dir path exists
+        self.directory_manager
+            .create(&final_file_dir)
+            .map_err(OCIPackageManagerError::Directory)?;
+
+        let final_file_path = final_file_dir.join(file_name);
 
         self.file_renamer
-            .rename(&unique_temp_file_path, &final_file_path)?;
+            .rename(&unique_temp_file_path, &final_file_path)
+            .map_err(OCIPackageManagerError::Rename)?;
+
+        // Delete temporary install directory
+        self.directory_manager
+            .delete(&temp_install_dir)
+            .map_err(OCIPackageManagerError::Directory)?;
 
         Ok(final_file_path)
     }
@@ -132,6 +160,7 @@ mod tests {
     use crate::package::oci::downloader::tests::MockOCIDownloader;
     use fs::directory_manager::mock::MockDirectoryManager;
     use fs::mock::MockLocalFile;
+    use mockall::Sequence;
     use mockall::predicate::eq;
     use oci_spec::distribution::Reference;
     use std::str::FromStr;
@@ -145,27 +174,45 @@ mod tests {
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
         let digest = reference.digest().unwrap();
-        let install_dir = PathBuf::from("/tmp/base/agent-id/packages").join(digest);
-        let downloaded_file = install_dir.join("layer_digest.tar.gz");
-        let final_path = install_dir.join("library_busybox_latest");
+        let root_dir = PathBuf::from("/tmp/base/agent-id");
+        let download_dir = root_dir.join(DOWNLOADED_PACKAGES_LOCATION).join(digest);
+        let downloaded_file = download_dir.join("layer_digest.tar.gz");
+        let install_dir = root_dir.join(INSTALLED_PACKAGES_LOCATION);
+        let install_path = install_dir.join("library_busybox_latest");
+
+        let mut dir_manipulation_sequence = Sequence::new();
+        directory_manager
+            .expect_create()
+            .with(eq(download_dir.clone()))
+            .in_sequence(&mut dir_manipulation_sequence)
+            .once()
+            .returning(|_| Ok(()));
 
         directory_manager
             .expect_create()
             .with(eq(install_dir.clone()))
+            .in_sequence(&mut dir_manipulation_sequence)
+            .once()
+            .returning(|_| Ok(()));
+
+        directory_manager
+            .expect_delete()
+            .with(eq(download_dir.clone()))
+            .in_sequence(&mut dir_manipulation_sequence)
             .once()
             .returning(|_| Ok(()));
 
         downloader
             .expect_download()
-            .with(eq(reference.clone()), eq(install_dir.clone()))
+            .with(eq(reference.clone()), eq(download_dir.clone()))
             .once()
             .returning(move |_, _| Ok(vec![downloaded_file.clone()]));
 
         file_renamer
             .expect_rename()
             .with(
-                eq(install_dir.join("layer_digest.tar.gz")),
-                eq(final_path.clone()),
+                eq(download_dir.join("layer_digest.tar.gz")),
+                eq(install_path.clone()),
             )
             .once()
             .returning(|_, _| Ok(()));
@@ -179,7 +226,7 @@ mod tests {
         let result = pm.install(&agent_id, reference);
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), final_path);
+        assert_eq!(result.unwrap(), install_path);
     }
 
     #[test]
@@ -214,11 +261,12 @@ mod tests {
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
         let digest = reference.digest().unwrap();
-        let install_dir = PathBuf::from("/tmp/base/agent-id/packages").join(digest);
+        let root_dir = PathBuf::from("/tmp/base/agent-id");
+        let download_dir = root_dir.join(DOWNLOADED_PACKAGES_LOCATION).join(digest);
 
         directory_manager
             .expect_create()
-            .with(eq(install_dir))
+            .with(eq(download_dir))
             .once()
             .returning(|_| {
                 Err(DirectoryManagementError::ErrorCreatingDirectory(
@@ -247,17 +295,18 @@ mod tests {
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
         let digest = reference.digest().unwrap();
-        let install_dir = PathBuf::from("/tmp/base/agent-id/packages").join(digest);
+        let root_dir = PathBuf::from("/tmp/base/agent-id");
+        let download_dir = root_dir.join(DOWNLOADED_PACKAGES_LOCATION).join(digest);
 
         directory_manager
             .expect_create()
-            .with(eq(install_dir.clone()))
+            .with(eq(download_dir.clone()))
             .once()
             .returning(|_| Ok(()));
 
         downloader
             .expect_download()
-            .with(eq(reference.clone()), eq(install_dir))
+            .with(eq(reference.clone()), eq(download_dir))
             .once()
             .returning(|_, _| {
                 Err(OCIDownloaderError::DownloadingArtifact(
@@ -285,17 +334,18 @@ mod tests {
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
         let digest = reference.digest().unwrap();
-        let install_dir = PathBuf::from("/tmp/base/agent-id/packages").join(digest);
+        let root_dir = PathBuf::from("/tmp/base/agent-id");
+        let download_dir = root_dir.join(DOWNLOADED_PACKAGES_LOCATION).join(digest);
 
         directory_manager
             .expect_create()
-            .with(eq(install_dir.clone()))
+            .with(eq(download_dir.clone()))
             .once()
             .returning(|_| Ok(()));
 
         downloader
             .expect_download()
-            .with(eq(reference.clone()), eq(install_dir))
+            .with(eq(reference.clone()), eq(download_dir))
             .once()
             .returning(|_, _| Ok(vec![])); // Empty vector
 
@@ -322,17 +372,18 @@ mod tests {
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
         let digest = reference.digest().unwrap();
-        let install_dir = PathBuf::from("/tmp/base/agent-id/packages").join(digest);
+        let root_dir = PathBuf::from("/tmp/base/agent-id");
+        let download_dir = root_dir.join(DOWNLOADED_PACKAGES_LOCATION).join(digest);
 
         directory_manager
             .expect_create()
-            .with(eq(install_dir.clone()))
+            .with(eq(download_dir.clone()))
             .once()
             .returning(|_| Ok(()));
 
         downloader
             .expect_download()
-            .with(eq(reference.clone()), eq(install_dir))
+            .with(eq(reference.clone()), eq(download_dir))
             .once()
             .returning(|_, _| Ok(vec![PathBuf::from("file1"), PathBuf::from("file2")]));
 
@@ -359,9 +410,17 @@ mod tests {
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
         let digest = reference.digest().unwrap();
-        let install_dir = PathBuf::from("/tmp/base/agent-id/packages").join(digest);
-        let downloaded_file = install_dir.join("layer_digest.tar.gz");
-        let final_path = install_dir.join("library_busybox_latest");
+        let root_dir = PathBuf::from("/tmp/base/agent-id");
+        let download_dir = root_dir.join(DOWNLOADED_PACKAGES_LOCATION).join(digest);
+        let downloaded_file = download_dir.join("layer_digest.tar.gz");
+        let install_dir = root_dir.join(INSTALLED_PACKAGES_LOCATION);
+        let install_path = install_dir.join("library_busybox_latest");
+
+        directory_manager
+            .expect_create()
+            .with(eq(download_dir.clone()))
+            .once()
+            .returning(|_| Ok(()));
 
         directory_manager
             .expect_create()
@@ -371,15 +430,15 @@ mod tests {
 
         downloader
             .expect_download()
-            .with(eq(reference.clone()), eq(install_dir.clone()))
+            .with(eq(reference.clone()), eq(download_dir.clone()))
             .once()
             .returning(move |_, _| Ok(vec![downloaded_file.clone()]));
 
         file_renamer
             .expect_rename()
             .with(
-                eq(install_dir.join("layer_digest.tar.gz")),
-                eq(final_path.clone()),
+                eq(download_dir.join("layer_digest.tar.gz")),
+                eq(install_path.clone()),
             )
             .once()
             .returning(|_, _| {
