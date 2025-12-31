@@ -30,7 +30,15 @@ pub enum OCIDownloaderError {
     Certificate(String),
 }
 
-pub struct OCIDownloader {
+pub trait OCIDownloader {
+    fn download(
+        &self,
+        reference: &Reference,
+        package_dir: &Path,
+    ) -> Result<Vec<PathBuf>, OCIDownloaderError>;
+}
+
+pub struct OCIRefDownloader {
     client: Client,
     auth: RegistryAuth,
     runtime: Arc<Runtime>,
@@ -38,10 +46,20 @@ pub struct OCIDownloader {
     retry_interval: Duration,
 }
 
+impl OCIDownloader for OCIRefDownloader {
+    fn download(
+        &self,
+        reference: &Reference,
+        package_dir: &Path,
+    ) -> Result<Vec<PathBuf>, OCIDownloaderError> {
+        self.download_artifact(reference, package_dir)
+    }
+}
+
 const DEFAULT_RETRIES: u64 = 0;
 
 #[allow(dead_code, reason = "still unused")]
-impl OCIDownloader {
+impl OCIRefDownloader {
     /// try_new requires a package dir where the artifacts will be downloaded and a proxy_config
     /// that if url is empty will be ignored. By default, Auth is set to Anonymous, but it can be
     /// modified with the with_auth method.
@@ -54,7 +72,7 @@ impl OCIDownloader {
         let mut client_config = client_config.unwrap_or_default();
         Self::proxy_setup(proxy_config, &mut client_config)?;
 
-        Ok(OCIDownloader {
+        Ok(OCIRefDownloader {
             client: Client::new(client_config),
             auth: RegistryAuth::Anonymous,
             runtime,
@@ -230,7 +248,7 @@ pub(crate) mod tests {
         let proxy_config = ProxyConfig::from_url("".to_string()); // Assuming ProxyConfig::new method exists
 
         let mut client_config = ClientConfig::default();
-        let proxy_result = OCIDownloader::proxy_setup(proxy_config, &mut client_config);
+        let proxy_result = OCIRefDownloader::proxy_setup(proxy_config, &mut client_config);
         assert!(proxy_result.is_ok());
 
         assert_eq!(client_config.https_proxy, None);
@@ -242,7 +260,7 @@ pub(crate) mod tests {
         let proxy_config = ProxyConfig::from_url("http://valid.proxy.url".to_string());
 
         let mut client_config = ClientConfig::default();
-        let proxy_result = OCIDownloader::proxy_setup(proxy_config, &mut client_config);
+        let proxy_result = OCIRefDownloader::proxy_setup(proxy_config, &mut client_config);
         assert!(proxy_result.is_ok());
 
         assert_eq!(client_config.https_proxy, None);
@@ -281,7 +299,7 @@ pub(crate) mod tests {
         );
 
         let mut client_config = ClientConfig::default();
-        let proxy_result = OCIDownloader::proxy_setup(proxy_config, &mut client_config);
+        let proxy_result = OCIRefDownloader::proxy_setup(proxy_config, &mut client_config);
         assert!(proxy_result.is_ok());
 
         assert_eq!(
@@ -297,7 +315,7 @@ pub(crate) mod tests {
         let proxy_config = ProxyConfig::from_url("https://valid.proxy.url".to_string());
 
         let mut client_config = ClientConfig::default();
-        let proxy_result = OCIDownloader::proxy_setup(proxy_config, &mut client_config);
+        let proxy_result = OCIRefDownloader::proxy_setup(proxy_config, &mut client_config);
         assert!(proxy_result.is_ok());
 
         assert_eq!(

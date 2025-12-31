@@ -3,15 +3,33 @@ use std::{
     path::PathBuf,
 };
 
+use fs::{
+    LocalFile,
+    directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs},
+    file_renamer::{FileRenamer, FileRenamerError},
+};
 use oci_client::Reference;
 use thiserror::Error;
 
-use crate::{agent_control::agent_id::AgentID, package::manager::PackageManager};
+use crate::{
+    agent_control::agent_id::AgentID,
+    package::{manager::PackageManager, oci::downloader::OCIRefDownloader},
+};
 
 use super::downloader::{OCIDownloader, OCIDownloaderError};
 
-pub struct OCIPackageManager {
-    pub pkg_downloader: OCIDownloader,
+pub type DefaultOCIPackageManager =
+    OCIPackageManager<OCIRefDownloader, DirectoryManagerFs, LocalFile>;
+
+pub struct OCIPackageManager<D, DM, FR>
+where
+    D: OCIDownloader,
+    DM: DirectoryManager,
+    FR: FileRenamer,
+{
+    pub pkg_downloader: D,
+    pub directory_manager: DM,
+    pub file_renamer: FR,
     pub base_path: PathBuf, // this would be the `auto-generated` directory
 }
 
@@ -23,9 +41,18 @@ pub enum OCIPackageManagerError {
     Install(IoError),
     #[error("error attempting to uninstall OCI artifact: {0}")]
     Uninstall(IoError),
+    #[error("directory management error: {0}")]
+    Directory(#[from] DirectoryManagementError),
+    #[error("file rename error: {0}")]
+    Rename(#[from] FileRenamerError),
 }
 
-impl PackageManager for OCIPackageManager {
+impl<D, DM, FR> PackageManager for OCIPackageManager<D, DM, FR>
+where
+    D: OCIDownloader,
+    DM: DirectoryManager,
+    FR: FileRenamer,
+{
     type Error = OCIPackageManagerError;
     type Package = Reference;
     type InstalledPackage = PathBuf; // Downloaded package location
@@ -49,13 +76,13 @@ impl PackageManager for OCIPackageManager {
         let install_dir = self.base_path.join(agent_id).join("packages").join(digest);
 
         // 1. Ensure the directory exists
-        std::fs::create_dir_all(&install_dir).map_err(OCIPackageManagerError::Install)?;
+        self.directory_manager.create(&install_dir)?;
 
         // 2. Actually download the package. The implementation of the downloader saves files
         // using the layer digest as the filename.
         let downloaded_paths = self
             .pkg_downloader
-            .download_artifact(&package, &install_dir)
+            .download(&package, &install_dir)
             .map_err(OCIPackageManagerError::Download)?;
 
         // 3. Validate we have exactly one file and retrieve its path
@@ -67,8 +94,8 @@ impl PackageManager for OCIPackageManager {
         let file_name = format!("{repo}_{tag}").replace("/", "_");
         let final_file_path = install_dir.join(file_name);
 
-        std::fs::rename(&unique_temp_file_path, &final_file_path)
-            .map_err(OCIPackageManagerError::Install)?;
+        self.file_renamer
+            .rename(&unique_temp_file_path, &final_file_path)?;
 
         Ok(final_file_path)
     }
