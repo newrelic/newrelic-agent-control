@@ -6,7 +6,7 @@ use crate::agent_control::agent_id::AgentID;
 ///
 /// This trait has associated types for the error, the package to install and the installed package.
 ///
-/// Given the intented usage for this trait is host-based, implementations will likely rely on
+/// Given the intended usage for this trait is host-based, implementations will likely rely on
 /// filesystem interaction.
 pub trait PackageManager {
     /// Errors that may occur
