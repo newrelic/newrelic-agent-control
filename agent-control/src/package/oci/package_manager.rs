@@ -46,8 +46,7 @@ impl PackageManager for OCIPackageManager {
         // validations should be applied
         // in particular, I am assuming that the OCI artifact downloaded consists of a single file,
         // this file should be renamed to the name of the repository and moved to the install_path
-        let unique_path =
-            validate_single_path(downloaded_paths).map_err(OCIPackageManagerError::Install)?;
+        let unique_path = validate_single_path(downloaded_paths)?;
         let repo_name = package.repository();
         let downloaded_file_path = install_path.join(repo_name);
 
@@ -63,13 +62,13 @@ impl PackageManager for OCIPackageManager {
     }
 }
 
-fn validate_single_path(paths: Vec<PathBuf>) -> Result<PathBuf, IoError> {
+fn validate_single_path(paths: Vec<PathBuf>) -> Result<PathBuf, OCIPackageManagerError> {
     if paths.len() != 1 {
         let paths_len = paths.len();
-        Err(IoError::new(
+        Err(OCIPackageManagerError::Install(IoError::new(
             ErrorKind::InvalidData,
             format!("expected a single file in the OCI artifact, found {paths_len} files",),
-        ))
+        )))
     } else {
         Ok(paths
             .into_iter()
