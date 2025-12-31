@@ -163,10 +163,7 @@ mod tests {
 
         file_renamer
             .expect_rename()
-            .with(
-                eq(install_dir.join("layer.tar.gz")),
-                eq(final_path.clone()),
-            )
+            .with(eq(install_dir.join("layer.tar.gz")), eq(final_path.clone()))
             .times(1)
             .returning(|_, _| Ok(()));
 
@@ -377,10 +374,7 @@ mod tests {
 
         file_renamer
             .expect_rename()
-            .with(
-                eq(install_dir.join("layer.tar.gz")),
-                eq(final_path.clone()),
-            )
+            .with(eq(install_dir.join("layer.tar.gz")), eq(final_path.clone()))
             .times(1)
             .returning(|_, _| {
                 Err(FileRenamerError::Rename(IoError::new(
