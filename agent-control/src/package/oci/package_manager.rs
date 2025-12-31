@@ -52,6 +52,77 @@ pub enum OCIPackageManagerError {
 const DOWNLOADED_PACKAGES_LOCATION: &str = "__temp_packages";
 const INSTALLED_PACKAGES_LOCATION: &str = "packages";
 
+impl<D, DM, FR> OCIPackageManager<D, DM, FR>
+where
+    D: OCIDownloader,
+    DM: DirectoryManager,
+    FR: FileRenamer,
+{
+    /// Validates that the provided vector of paths, contains exactly one path (i.e. a single file
+    /// was downloaded from the [`OCIDownloader`]).
+    ///
+    /// Returns the single [`PathBuf`] if validation passes, otherwise returns an error.
+    fn validate_single_path(paths: Vec<PathBuf>) -> Result<PathBuf, OCIPackageManagerError> {
+        if paths.len() != 1 {
+            let paths_len = paths.len();
+            Err(OCIPackageManagerError::Install(IoError::new(
+                ErrorKind::InvalidData,
+                format!("expected a single file in the OCI artifact, found {paths_len} files",),
+            )))
+        } else {
+            Ok(paths
+                .into_iter()
+                .next()
+                .expect("checked vector for length above >= 1"))
+        }
+    }
+
+    /// Moves the downloaded package file from `download_filepath` to its final install location.
+    ///
+    /// This final location is determined from the package [`Reference`]. If the move fails the
+    /// destination directory is deleted.
+    fn install_package(
+        &self,
+        agent_id: &AgentID,
+        package: &Reference,
+        download_filepath: &Path,
+    ) -> Result<PathBuf, OCIPackageManagerError> {
+        // Build artifact name
+        let file_name = format!(
+            "{}_{}",
+            package.repository(),
+            package.tag().unwrap_or("latest")
+        )
+        .replace("/", "_");
+
+        // Build and create destination directory
+        let final_file_dir = self
+            .base_path
+            .join(agent_id)
+            .join(INSTALLED_PACKAGES_LOCATION);
+        self.directory_manager
+            .create(&final_file_dir)
+            .map_err(OCIPackageManagerError::Directory)?;
+
+        let final_file_path = final_file_dir.join(file_name);
+
+        // The "install" action itself. Moves the downloaded file to its final location.
+        match self
+            .file_renamer
+            .rename(download_filepath, &final_file_path)
+        {
+            Err(e) => {
+                // Install failed, delete the created directory
+                self.directory_manager
+                    .delete(&final_file_dir)
+                    .map_err(OCIPackageManagerError::Directory)?;
+                Err(OCIPackageManagerError::Rename(e))
+            }
+            Ok(()) => Ok(final_file_path),
+        }
+    }
+}
+
 impl<D, DM, FR> PackageManager for OCIPackageManager<D, DM, FR>
 where
     D: OCIDownloader,
@@ -62,6 +133,13 @@ where
     type Package = Reference;
     type InstalledPackage = PathBuf; // Downloaded package location
 
+    /// Installs the given OCI package for the specified agent.
+    ///
+    /// This method downloads the package to a temporary location and then moves it to its final
+    /// installation directory. The final location is determined based on the package reference.
+    ///
+    /// The temporary location is deleted before this function returns, regardless of the install
+    /// success or failure.
     fn install(
         &self,
         agent_id: &AgentID,
@@ -69,7 +147,7 @@ where
     ) -> Result<Self::InstalledPackage, Self::Error> {
         // Package will:
         //   1. Download into `<BASE_PATH>/<AGENT_ID>/packages/<LAYER_DIGEST>`
-        //   2. Be moved to `<BASE_PATH>/<AGENT_ID>/packages/<REPOSITORY>_<TAG>`
+        //   2. Move to `<BASE_PATH>/<AGENT_ID>/packages/<REPOSITORY>_<TAG>`
         // Where `<BASE_PATH>` is by default AC's auto-generated directory.
         let digest = package.digest().ok_or_else(|| {
             OCIPackageManagerError::Install(IoError::new(
@@ -84,22 +162,29 @@ where
             .join(DOWNLOADED_PACKAGES_LOCATION)
             .join(digest);
 
-        // 1. Ensure the directory exists
-        // TODO PR review: should we actually need this or delegate this to the downloader impl?
-        self.directory_manager
+        let download_dir = self
+            .directory_manager
             .create(&temp_download_dir)
-            .map_err(OCIPackageManagerError::Directory)?;
+            .map_err(OCIPackageManagerError::Directory);
 
-        // 2. Download and move the package
-        let installation_result =
-            self.download_and_move_package(agent_id, &package, &temp_download_dir);
+        let downloaded_pkg = download_dir
+            .and_then(|_| {
+                self.pkg_downloader
+                    .download(&package, &temp_download_dir)
+                    .map_err(OCIPackageManagerError::Download)
+            })
+            .and_then(Self::validate_single_path);
 
-        // Delete temporary download directory after use
+        let installed_package = downloaded_pkg
+            .and_then(|file_path| self.install_package(agent_id, &package, &file_path));
+
+        // Delete temporary download directory after use regardless of success or failure
+        // (this is why I'm not using `?` above!)
         self.directory_manager
             .delete(&temp_download_dir)
-            .map_err(OCIPackageManagerError::Directory)?;
-
-        installation_result
+            .map_err(OCIPackageManagerError::Directory)
+            // Everything went fine. Return the installed package result
+            .and(installed_package)
     }
 
     fn uninstall(
@@ -108,79 +193,6 @@ where
         _package: Self::InstalledPackage,
     ) -> Result<(), Self::Error> {
         todo!("uninstall not implemented yet")
-    }
-}
-
-impl<D, DM, FR> OCIPackageManager<D, DM, FR>
-where
-    D: OCIDownloader,
-    DM: DirectoryManager,
-    FR: FileRenamer,
-{
-    fn download_and_move_package(
-        &self,
-        agent_id: &AgentID,
-        package: &Reference,
-        temp_install_dir: &Path,
-    ) -> Result<PathBuf, OCIPackageManagerError> {
-        // 2. Actually download the package. The implementation of the downloader saves files
-        // using the layer digest as the filename.
-        let downloaded_paths = self
-            .pkg_downloader
-            .download(package, temp_install_dir)
-            .map_err(OCIPackageManagerError::Download)?;
-
-        // 3. Validate we have exactly one file and retrieve its path
-        let unique_temp_file_path = Self::validate_single_path(downloaded_paths)?;
-
-        // 4. Rename the file to match the schema `<REPOSITORY>_<TAG>`
-        let repo = package.repository();
-        let tag = package.tag().unwrap_or("latest");
-        let file_name = format!("{repo}_{tag}").replace("/", "_");
-        let final_file_dir = self
-            .base_path
-            .join(agent_id)
-            .join(INSTALLED_PACKAGES_LOCATION);
-
-        // Ensure final dir path exists
-        self.directory_manager
-            .create(&final_file_dir)
-            .map_err(OCIPackageManagerError::Directory)?;
-
-        let final_file_path = final_file_dir.join(file_name);
-
-        match self
-            .file_renamer
-            .rename(&unique_temp_file_path, &final_file_path)
-        {
-            // On success, return the path of the installed package so it can be used elsewhere
-            // (locating the binary for running, uninstalling, etc)
-            Ok(()) => Ok(final_file_path),
-            // On failure, remove installation path due to failed operation and propagate error
-            Err(e) => {
-                self.directory_manager
-                    .delete(&final_file_dir)
-                    .map_err(OCIPackageManagerError::Directory)?;
-                Err(OCIPackageManagerError::Rename(e))
-            }
-        }
-    }
-
-    /// Validates that the provided vector of paths contains exactly one path (i.e. a single downloaded file).
-    /// Returns the single path if validation passes, otherwise returns an error.
-    fn validate_single_path(paths: Vec<PathBuf>) -> Result<PathBuf, OCIPackageManagerError> {
-        if paths.len() != 1 {
-            let paths_len = paths.len();
-            Err(OCIPackageManagerError::Install(IoError::new(
-                ErrorKind::InvalidData,
-                format!("expected a single file in the OCI artifact, found {paths_len} files",),
-            )))
-        } else {
-            Ok(paths
-                .into_iter()
-                .next()
-                .expect("checked vector for length above >= 1"))
-        }
     }
 }
 
@@ -296,7 +308,7 @@ mod tests {
 
         directory_manager
             .expect_create()
-            .with(eq(download_dir))
+            .with(eq(download_dir.clone()))
             .once()
             .returning(|_| {
                 Err(DirectoryManagementError::ErrorCreatingDirectory(
@@ -304,6 +316,12 @@ mod tests {
                     "error".into(),
                 ))
             });
+
+        directory_manager
+            .expect_delete()
+            .with(eq(download_dir.clone()))
+            .once()
+            .returning(|_| Ok(()));
 
         let pm = OCIPackageManager {
             pkg_downloader: downloader,
