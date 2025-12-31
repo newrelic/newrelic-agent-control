@@ -98,7 +98,7 @@ where
             .map_err(OCIPackageManagerError::Download)?;
 
         // 3. Validate we have exactly one file and retrieve its path
-        let unique_temp_file_path = validate_single_path(downloaded_paths)?;
+        let unique_temp_file_path = Self::validate_single_path(downloaded_paths)?;
 
         // 4. Rename the file to match the schema `<REPOSITORY>_<TAG>`
         let repo = package.repository();
@@ -137,20 +137,27 @@ where
     }
 }
 
-/// Validates that the provided vector of paths contains exactly one path (i.e. a single downloaded file).
-/// Returns the single path if validation passes, otherwise returns an error.
-fn validate_single_path(paths: Vec<PathBuf>) -> Result<PathBuf, OCIPackageManagerError> {
-    if paths.len() != 1 {
-        let paths_len = paths.len();
-        Err(OCIPackageManagerError::Install(IoError::new(
-            ErrorKind::InvalidData,
-            format!("expected a single file in the OCI artifact, found {paths_len} files",),
-        )))
-    } else {
-        Ok(paths
-            .into_iter()
-            .next()
-            .expect("checked vector for length above >= 1"))
+impl<D, DM, FR> OCIPackageManager<D, DM, FR>
+where
+    D: OCIDownloader,
+    DM: DirectoryManager,
+    FR: FileRenamer,
+{
+    /// Validates that the provided vector of paths contains exactly one path (i.e. a single downloaded file).
+    /// Returns the single path if validation passes, otherwise returns an error.
+    fn validate_single_path(paths: Vec<PathBuf>) -> Result<PathBuf, OCIPackageManagerError> {
+        if paths.len() != 1 {
+            let paths_len = paths.len();
+            Err(OCIPackageManagerError::Install(IoError::new(
+                ErrorKind::InvalidData,
+                format!("expected a single file in the OCI artifact, found {paths_len} files",),
+            )))
+        } else {
+            Ok(paths
+                .into_iter()
+                .next()
+                .expect("checked vector for length above >= 1"))
+        }
     }
 }
 
