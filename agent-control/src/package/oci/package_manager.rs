@@ -27,9 +27,7 @@ pub enum OCIPackageManagerError {
 
 impl PackageManager for OCIPackageManager {
     type Error = OCIPackageManagerError;
-
     type Package = Reference;
-
     type InstalledPackage = PathBuf; // Downloaded package location
 
     fn install(
