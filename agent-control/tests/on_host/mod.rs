@@ -5,6 +5,7 @@ mod config_repository;
 mod consts;
 mod id;
 mod logging;
+mod oci_package_management;
 mod oci_registry;
 mod opamp_auth;
 mod scenarios;

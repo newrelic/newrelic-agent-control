@@ -1,7 +1,7 @@
 use crate::on_host::tools::oci_artifact::push_artifact;
 use httpmock::{MockServer, When};
 use newrelic_agent_control::http::config::ProxyConfig;
-use newrelic_agent_control::packages::oci::downloader::OCIDownloader;
+use newrelic_agent_control::package::oci::downloader::OCIRefDownloader;
 use oci_client::client::{ClientConfig, ClientProtocol};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -26,7 +26,7 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
             .unwrap(),
     );
 
-    let downloader = OCIDownloader::try_new(
+    let downloader = OCIRefDownloader::try_new(
         ProxyConfig::default(),
         runtime,
         Some(ClientConfig {
@@ -88,7 +88,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
             .unwrap(),
     );
 
-    let downloader = OCIDownloader::try_new(
+    let downloader = OCIRefDownloader::try_new(
         proxy_config,
         runtime,
         Some(ClientConfig {
