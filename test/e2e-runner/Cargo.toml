@@ -9,6 +9,7 @@ license-file.workspace = true
 repository.workspace = true
 
 [dependencies]
+chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
 glob = "0.3"
 reqwest = { workspace = true, features = ["json"] }

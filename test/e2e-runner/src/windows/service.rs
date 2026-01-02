@@ -9,44 +9,40 @@ use tracing::info;
 pub fn check_service_running(service_name: &str) -> TestResult<()> {
     info!("Checking Windows service status");
     match get_service_status(service_name) {
-        Ok(status) if status == "Running" => {
+        status if status == "Running" => {
             info!(service = service_name, "Windows service is running");
             Ok(())
         }
-        Ok(status) => Err(format!(
-            "service {:?} is not running. Status: {}",
-            service_name, status
-        )
-        .into()),
-        Err(e) => Err(format!("failed to get status of service {:?}: {}", service_name, e).into()),
+        status => Err(format!("service {service_name} is not running. Status: {status}").into()),
     }
 }
 
 /// Gets the current status of a Windows service as a string using PowerShell.
-pub fn get_service_status(service_name: &str) -> TestResult<String> {
+pub fn get_service_status(service_name: &str) -> String {
     let cmd = format!("(Get-Service -Name '{}').Status", service_name);
-    exec_powershell_command(&cmd, "failed to execute PowerShell script")
+    exec_powershell_command(&cmd)
+        .unwrap_or_else(|err| panic!("could not get service status: {err}"))
 }
 
 /// Restarts a Windows service using PowerShell.
-pub fn restart_service(service_name: &str) -> TestResult<()> {
+pub fn restart_service(service_name: &str) {
     info!(service = service_name, "Restarting service");
     let cmd = format!("Restart-Service -Name '{}' -Force", service_name);
-    exec_powershell_command(&cmd, "failed to restart service")?;
+    exec_powershell_command(&cmd)
+        .unwrap_or_else(|err| panic!("could not restart '{service_name}' service: {err}"));
 
     // Wait a moment for the service to fully restart
     info!("Waiting for service to restart...");
     thread::sleep(Duration::from_secs(5));
 
-    check_service_running(service_name)?;
+    check_service_running(service_name).expect("service must be running");
 
     info!(service = service_name, "Service restarted successfully");
-    Ok(())
 }
 
 /// Stops a Windows service using PowerShell.
-pub fn stop_service(service_name: &str) -> TestResult<()> {
+pub fn stop_service(service_name: &str) {
     let cmd = format!("Stop-Service -Name '{}' -Force", service_name);
-    exec_powershell_command(&cmd, "failed to stop service")?;
-    Ok(())
+    exec_powershell_command(&cmd)
+        .unwrap_or_else(|err| panic!("could not stop '{service_name} service: {err}'"));
 }

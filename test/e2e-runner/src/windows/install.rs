@@ -1,4 +1,4 @@
-use crate::tools::test::TestResult;
+use crate::windows::powershell::exec_powershell_cmd;
 
 use super::powershell::exec_powershell_command;
 use std::path::Path;
@@ -8,10 +8,11 @@ use tracing::info;
 
 const INSTALL_SCRIPT_NAME: &str = "install.ps1";
 
-/// Extracts a zip file to a temporary directory using PowerShell's Expand-Archive.
-fn unzip_to_temp(zip_path: &str) -> TestResult<TempDir> {
+/// Extracts a zip file to a temporary directory using PowerShell's Expand-Archive, panics on failure.
+fn unzip_to_temp(zip_path: &str) -> TempDir {
     // Create a temporary directory
-    let temp_dir = TempDir::with_prefix("agent-control-install-")?;
+    let temp_dir =
+        TempDir::with_prefix("agent-control-install-").expect("could not create temp dir");
 
     // Use PowerShell's Expand-Archive to extract the zip
     let cmd = format!(
@@ -20,21 +21,21 @@ fn unzip_to_temp(zip_path: &str) -> TestResult<TempDir> {
         temp_dir.path().display()
     );
 
-    exec_powershell_command(&cmd, "failed to extract zip file")?;
+    exec_powershell_command(&cmd).unwrap_or_else(|err| panic!("could not unzip to temp: {err}"));
 
-    Ok(temp_dir)
+    temp_dir
 }
 
-/// Installs agent-control using the install.ps1 PowerShell script.
-pub fn install_agent_control(package_path: &str, service_overwrite: bool) -> TestResult<()> {
+/// Installs agent-control using the install.ps1 PowerShell script, panics on failure
+pub fn install_agent_control(package_path: &str, service_overwrite: bool) {
     info!("Installing Agent Control");
     // Check if the package file exists
     if !Path::new(package_path).exists() {
-        return Err(format!("package file not found at {:?}", package_path).into());
+        panic!("package file not found at {:?}", package_path);
     }
 
     // Extract the zip file to a temporary directory
-    let temp_dir = unzip_to_temp(package_path)?;
+    let temp_dir = unzip_to_temp(package_path);
 
     let install_script = temp_dir.path().join(INSTALL_SCRIPT_NAME);
 
@@ -45,30 +46,18 @@ pub fn install_agent_control(package_path: &str, service_overwrite: bool) -> Tes
         "-File".to_string(),
         install_script.to_string_lossy().to_string(),
     ];
-
     if service_overwrite {
         args.push("-ServiceOverwrite".to_string());
     }
 
     // Execute PowerShell command
-    let output = Command::new("powershell.exe")
-        .args(&args)
-        .current_dir(temp_dir.path())
-        .output()?;
+    let mut cmd = Command::new("powershell.exe");
+    let cmd = cmd.args(&args).current_dir(temp_dir.path());
 
-    if !output.status.success() {
-        let exit_code = output.status.code().unwrap_or(-1);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "{:?} execution failed with {}: {}\n{}",
-            INSTALL_SCRIPT_NAME, exit_code, stdout, stderr
-        )
-        .into());
-    }
+    let output = exec_powershell_cmd(cmd).unwrap_or_else(|err| {
+        panic!("Failure executing ps1 installation script: {err}");
+    });
 
-    info!("Installation completed successfully. Showing installation output");
-    println!("---\n{}\n---", String::from_utf8_lossy(&output.stdout));
-
-    Ok(())
+    info!("Installation completed successfully");
+    info!("---\n{output}\n---");
 }
