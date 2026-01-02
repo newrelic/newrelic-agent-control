@@ -13,7 +13,7 @@ use crate::{
 /// ac-e2e-onhost-2 fleet on canaries account
 const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg";
 
-const AGENT_CONTROL_SERVICE_CONF: &str = "/etc/newrelic-agent-control/systemd-env.conf";
+const ENV_VARS_FILE: &str = "/etc/newrelic-agent-control/environment_variables.yaml";
 
 pub fn test_remote_config_is_applied(args: Args) {
     let recipe_data = RecipeData {
@@ -31,10 +31,7 @@ pub fn test_remote_config_is_applied(args: Args) {
     );
 
     info!("Setting up `TEST_ID` environment variable");
-    config::append_to_config_file(
-        AGENT_CONTROL_SERVICE_CONF,
-        format!(r#"TEST_ID="{test_id}""#).as_str(),
-    );
+    config::append_to_config_file(ENV_VARS_FILE, format!("TEST_ID: {test_id}").as_str());
 
     info!("Setup Agent Control config for debug logging");
     config::update_config_for_debug_logging(linux::DEFAULT_CONFIG_PATH, linux::DEFAULT_LOG_PATH);

@@ -3,6 +3,7 @@ Description=New Relic Agent Control
 After=network.target
 
 [Service]
+# kept for backward compatibility. The environment_variables.yaml is used instead for new installs.
 EnvironmentFile=/etc/newrelic-agent-control/systemd-env.conf
 ExecStart=/usr/bin/newrelic-agent-control
 KillMode=mixed
