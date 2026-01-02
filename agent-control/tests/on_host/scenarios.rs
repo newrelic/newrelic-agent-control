@@ -6,5 +6,6 @@ mod invalid_remote_config;
 mod multiple_executables;
 mod multiple_remote_config;
 mod no_orphan_processes;
+mod oci_package_management;
 mod opamp;
 mod restarting_processes;

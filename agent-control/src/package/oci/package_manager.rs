@@ -1,11 +1,12 @@
 use std::{
-    io::{Error as IoError, ErrorKind},
+    io,
     path::{Path, PathBuf},
 };
 
 use fs::{
     LocalFile,
     directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs},
+    file_deleter::FileDeleter,
     file_renamer::{FileRenamer, FileRenamerError},
 };
 use oci_client::Reference;
@@ -25,11 +26,11 @@ pub struct OCIPackageManager<D, DM, FR>
 where
     D: OCIDownloader,
     DM: DirectoryManager,
-    FR: FileRenamer,
+    FR: FileRenamer + FileDeleter,
 {
-    pub pkg_downloader: D,
+    pub downloader: D,
     pub directory_manager: DM,
-    pub file_renamer: FR,
+    pub file_manager: FR,
     pub base_path: PathBuf, // this would be the `auto-generated` directory
 }
 
@@ -38,9 +39,9 @@ pub enum OCIPackageManagerError {
     #[error("error attempting to download OCI artifact: {0}")]
     Download(OCIDownloaderError),
     #[error("error attempting to install OCI artifact: {0}")]
-    Install(IoError),
+    Install(io::Error),
     #[error("error attempting to uninstall OCI artifact: {0}")]
-    Uninstall(IoError),
+    Uninstall(io::Error),
     // The below variants should be removed when the `fs` traits are refactored and they return
     // `std::io::Error`s instead.
     #[error("directory management error: {0}")]
@@ -56,7 +57,7 @@ impl<D, DM, FR> OCIPackageManager<D, DM, FR>
 where
     D: OCIDownloader,
     DM: DirectoryManager,
-    FR: FileRenamer,
+    FR: FileRenamer + FileDeleter,
 {
     /// Validates that the provided vector of paths, contains exactly one path (i.e. a single file
     /// was downloaded from the [`OCIDownloader`]).
@@ -65,8 +66,8 @@ where
     fn validate_single_path(paths: Vec<PathBuf>) -> Result<PathBuf, OCIPackageManagerError> {
         if paths.len() != 1 {
             let paths_len = paths.len();
-            Err(OCIPackageManagerError::Install(IoError::new(
-                ErrorKind::InvalidData,
+            Err(OCIPackageManagerError::Install(io::Error::new(
+                io::ErrorKind::InvalidData,
                 format!("expected a single file in the OCI artifact, found {paths_len} files",),
             )))
         } else {
@@ -108,7 +109,7 @@ where
 
         // The "install" action itself. Moves the downloaded file to its final location.
         match self
-            .file_renamer
+            .file_manager
             .rename(download_filepath, &final_file_path)
         {
             Err(e) => {
@@ -127,7 +128,7 @@ impl<D, DM, FR> PackageManager for OCIPackageManager<D, DM, FR>
 where
     D: OCIDownloader,
     DM: DirectoryManager,
-    FR: FileRenamer,
+    FR: FileRenamer + FileDeleter,
 {
     type Error = OCIPackageManagerError;
     type Package = Reference;
@@ -150,8 +151,8 @@ where
         //   2. Move to `<BASE_PATH>/<AGENT_ID>/packages/<REPOSITORY>_<TAG>`
         // Where `<BASE_PATH>` is by default AC's auto-generated directory.
         let digest = package.digest().ok_or_else(|| {
-            OCIPackageManagerError::Install(IoError::new(
-                ErrorKind::InvalidData,
+            OCIPackageManagerError::Install(io::Error::new(
+                io::ErrorKind::InvalidData,
                 "OCI reference missing digest".to_string(),
             ))
         })?;
@@ -169,7 +170,7 @@ where
 
         let downloaded_pkg = download_dir
             .and_then(|_| {
-                self.pkg_downloader
+                self.downloader
                     .download(&package, &temp_download_dir)
                     .map_err(OCIPackageManagerError::Download)
             })
@@ -190,9 +191,11 @@ where
     fn uninstall(
         &self,
         _agent_id: &AgentID,
-        _package: Self::InstalledPackage,
+        package: Self::InstalledPackage,
     ) -> Result<(), Self::Error> {
-        todo!("uninstall not implemented yet")
+        self.file_manager
+            .delete(&package)
+            .map_err(OCIPackageManagerError::Uninstall)
     }
 }
 
@@ -211,9 +214,10 @@ mod tests {
     fn test_install_success() {
         let mut downloader = MockOCIDownloader::new();
         let mut directory_manager = MockDirectoryManager::new();
-        let mut file_renamer = MockLocalFile::new();
+        let mut file_manager = MockLocalFile::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
+        // This test does not perform any I/O, but needs a valid reference to build the value
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
         let digest = reference.digest().unwrap();
         let root_dir = PathBuf::from("/tmp/base/agent-id");
@@ -250,7 +254,7 @@ mod tests {
             .once()
             .returning(move |_, _| Ok(vec![downloaded_file.clone()]));
 
-        file_renamer
+        file_manager
             .expect_rename()
             .with(
                 eq(download_dir.join("layer_digest.tar.gz")),
@@ -260,9 +264,9 @@ mod tests {
             .returning(|_, _| Ok(()));
 
         let pm = OCIPackageManager {
-            pkg_downloader: downloader,
+            downloader,
             directory_manager,
-            file_renamer,
+            file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
         let result = pm.install(&agent_id, reference);
@@ -275,22 +279,22 @@ mod tests {
     fn test_install_missing_digest() {
         let downloader = MockOCIDownloader::new();
         let directory_manager = MockDirectoryManager::new();
-        let file_renamer = MockLocalFile::new();
+        let file_manager = MockLocalFile::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest").unwrap(); // No digest
 
         let pm = OCIPackageManager {
-            pkg_downloader: downloader,
+            downloader,
             directory_manager,
-            file_renamer,
+            file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
         let result = pm.install(&agent_id, reference);
 
         assert!(matches!(
             result,
-            Err(OCIPackageManagerError::Install(e)) if e.kind() == ErrorKind::InvalidData
+            Err(OCIPackageManagerError::Install(e)) if e.kind() == io::ErrorKind::InvalidData
         ));
     }
 
@@ -298,7 +302,7 @@ mod tests {
     fn test_install_directory_creation_failure() {
         let downloader = MockOCIDownloader::new();
         let mut directory_manager = MockDirectoryManager::new();
-        let file_renamer = MockLocalFile::new();
+        let file_manager = MockLocalFile::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
@@ -324,9 +328,9 @@ mod tests {
             .returning(|_| Ok(()));
 
         let pm = OCIPackageManager {
-            pkg_downloader: downloader,
+            downloader,
             directory_manager,
-            file_renamer,
+            file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
         let result = pm.install(&agent_id, reference);
@@ -338,7 +342,7 @@ mod tests {
     fn test_install_download_failure() {
         let mut downloader = MockOCIDownloader::new();
         let mut directory_manager = MockDirectoryManager::new();
-        let file_renamer = MockLocalFile::new();
+        let file_manager = MockLocalFile::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
@@ -369,9 +373,9 @@ mod tests {
             });
 
         let pm = OCIPackageManager {
-            pkg_downloader: downloader,
+            downloader,
             directory_manager,
-            file_renamer,
+            file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
         let result = pm.install(&agent_id, reference);
@@ -383,7 +387,7 @@ mod tests {
     fn test_install_invalid_download_no_files() {
         let mut downloader = MockOCIDownloader::new();
         let mut directory_manager = MockDirectoryManager::new();
-        let file_renamer = MockLocalFile::new();
+        let file_manager = MockLocalFile::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
@@ -410,16 +414,16 @@ mod tests {
             .returning(|_, _| Ok(vec![])); // Empty vector
 
         let pm = OCIPackageManager {
-            pkg_downloader: downloader,
+            downloader,
             directory_manager,
-            file_renamer,
+            file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
         let result = pm.install(&agent_id, reference);
 
         assert!(matches!(
             result,
-            Err(OCIPackageManagerError::Install(e)) if e.kind() == ErrorKind::InvalidData
+            Err(OCIPackageManagerError::Install(e)) if e.kind() == io::ErrorKind::InvalidData
         ));
     }
 
@@ -427,7 +431,7 @@ mod tests {
     fn test_install_invalid_download_multiple_files() {
         let mut downloader = MockOCIDownloader::new();
         let mut directory_manager = MockDirectoryManager::new();
-        let file_renamer = MockLocalFile::new();
+        let file_manager = MockLocalFile::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
@@ -454,16 +458,16 @@ mod tests {
             .returning(|_, _| Ok(vec![PathBuf::from("file1"), PathBuf::from("file2")]));
 
         let pm = OCIPackageManager {
-            pkg_downloader: downloader,
+            downloader,
             directory_manager,
-            file_renamer,
+            file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
         let result = pm.install(&agent_id, reference);
 
         assert!(matches!(
             result,
-            Err(OCIPackageManagerError::Install(e)) if e.kind() == ErrorKind::InvalidData
+            Err(OCIPackageManagerError::Install(e)) if e.kind() == io::ErrorKind::InvalidData
         ));
     }
 
@@ -471,7 +475,7 @@ mod tests {
     fn test_install_rename_failure() {
         let mut downloader = MockOCIDownloader::new();
         let mut directory_manager = MockDirectoryManager::new();
-        let mut file_renamer = MockLocalFile::new();
+        let mut file_manager = MockLocalFile::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
@@ -512,7 +516,7 @@ mod tests {
             .once()
             .returning(move |_, _| Ok(vec![downloaded_file.clone()]));
 
-        file_renamer
+        file_manager
             .expect_rename()
             .with(
                 eq(download_dir.join("layer_digest.tar.gz")),
@@ -520,16 +524,16 @@ mod tests {
             )
             .once()
             .returning(|_, _| {
-                Err(FileRenamerError::Rename(IoError::new(
-                    ErrorKind::PermissionDenied,
+                Err(FileRenamerError::Rename(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
                     "denied",
                 )))
             });
 
         let pm = OCIPackageManager {
-            pkg_downloader: downloader,
+            downloader,
             directory_manager,
-            file_renamer,
+            file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
         let result = pm.install(&agent_id, reference);
@@ -541,7 +545,7 @@ mod tests {
     fn test_install_final_directory_creation_failure() {
         let mut downloader = MockOCIDownloader::new();
         let mut directory_manager = MockDirectoryManager::new();
-        let file_renamer = MockLocalFile::new();
+        let file_manager = MockLocalFile::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
@@ -581,9 +585,9 @@ mod tests {
             .returning(|_| Ok(()));
 
         let pm = OCIPackageManager {
-            pkg_downloader: downloader,
+            downloader,
             directory_manager,
-            file_renamer,
+            file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
         let result = pm.install(&agent_id, reference);
@@ -595,7 +599,7 @@ mod tests {
     fn test_install_cleanup_failure() {
         let mut downloader = MockOCIDownloader::new();
         let mut directory_manager = MockDirectoryManager::new();
-        let mut file_renamer = MockLocalFile::new();
+        let mut file_manager = MockLocalFile::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
@@ -624,7 +628,7 @@ mod tests {
             .once()
             .returning(move |_, _| Ok(vec![downloaded_file.clone()]));
 
-        file_renamer
+        file_manager
             .expect_rename()
             .with(
                 eq(download_dir.join("layer_digest.tar.gz")),
@@ -644,13 +648,65 @@ mod tests {
             });
 
         let pm = OCIPackageManager {
-            pkg_downloader: downloader,
+            downloader,
             directory_manager,
-            file_renamer,
+            file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
         let result = pm.install(&agent_id, reference);
 
         assert!(matches!(result, Err(OCIPackageManagerError::Directory(_))));
+    }
+
+    #[test]
+    fn test_uninstall_success() {
+        let downloader = MockOCIDownloader::new();
+        let directory_manager = MockDirectoryManager::new();
+        let mut file_manager = MockLocalFile::new();
+
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+        let package_path = PathBuf::from("/path/to/package");
+
+        file_manager
+            .expect_delete()
+            .with(eq(package_path.clone()))
+            .once()
+            .returning(|_| Ok(()));
+
+        let pm = OCIPackageManager {
+            downloader,
+            directory_manager,
+            file_manager,
+            base_path: PathBuf::from("/tmp/base"),
+        };
+        let result = pm.uninstall(&agent_id, package_path);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_uninstall_failure() {
+        let downloader = MockOCIDownloader::new();
+        let directory_manager = MockDirectoryManager::new();
+        let mut file_manager = MockLocalFile::new();
+
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+        let package_path = PathBuf::from("/path/to/package");
+
+        file_manager
+            .expect_delete()
+            .with(eq(package_path.clone()))
+            .once()
+            .returning(|_| Err(io::Error::new(io::ErrorKind::NotFound, "not found")));
+
+        let pm = OCIPackageManager {
+            downloader,
+            directory_manager,
+            file_manager,
+            base_path: PathBuf::from("/tmp/base"),
+        };
+        let result = pm.uninstall(&agent_id, package_path);
+
+        assert!(matches!(result, Err(OCIPackageManagerError::Uninstall(_))));
     }
 }

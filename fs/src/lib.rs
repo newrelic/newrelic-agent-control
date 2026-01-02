@@ -1,4 +1,5 @@
 pub mod directory_manager;
+pub mod file_deleter;
 pub mod file_reader;
 pub mod file_renamer;
 pub mod utils;
@@ -10,9 +11,11 @@ pub struct LocalFile;
 
 #[cfg(feature = "mocks")]
 pub mod mock {
+    use std::io;
     use std::path::Path;
     use std::path::PathBuf;
 
+    use super::file_deleter::FileDeleter;
     use super::file_reader::{FileReader, FileReaderError};
     use super::file_renamer::{FileRenamer, FileRenamerError};
     use super::writer_file::{FileWriter, WriteError};
@@ -36,6 +39,10 @@ pub mod mock {
                 path: &Path,
                 buf: String,
             ) -> Result<(), WriteError>;
+        }
+
+        impl FileDeleter for LocalFile {
+            fn delete(&self, file_path: &Path) -> io::Result<()>;
         }
     }
 }
