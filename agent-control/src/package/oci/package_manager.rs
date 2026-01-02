@@ -78,22 +78,6 @@ where
         }
     }
 
-    /// Computes the download destination of a package [`Reference`] depending on the available fields
-    ///
-    /// This can return an error if the OCI package reference does not contain all the required information.
-    fn compute_download_path_suffix(
-        package: &Reference,
-    ) -> Result<PathBuf, OCIPackageManagerError> {
-        let digest = package.digest().ok_or_else(|| {
-            OCIPackageManagerError::Install(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "OCI reference missing digest".to_string(),
-            ))
-        })?;
-
-        todo!("return correct type")
-    }
-
     /// Moves the downloaded package file from `download_filepath` to its final install location.
     ///
     /// This final location is determined from the package [`Reference`]. If the move fails the
@@ -140,6 +124,13 @@ where
     }
 }
 
+/// Computes the download destination of a package [`Reference`] depending on the available fields
+///
+/// This can return an error if the OCI package reference does not contain all the required information.
+fn compute_download_path_suffix(package: &Reference) -> Result<String, OCIPackageManagerError> {
+    Ok(package.whole())
+}
+
 impl<D, DM, FR> PackageManager for OCIPackageManager<D, DM, FR>
 where
     D: OCIDownloader,
@@ -163,10 +154,11 @@ where
         package: Self::Package,
     ) -> Result<Self::InstalledPackage, Self::Error> {
         // Package will:
-        //   1. Download into `<BASE_PATH>/<AGENT_ID>/packages/<OCI_DIGEST>`
+        //   1. Download into `<BASE_PATH>/<AGENT_ID>/__temp_packages/<OCI_REFERENCE>`
         //   2. Move to `<BASE_PATH>/<AGENT_ID>/packages/<REPOSITORY>_<TAG>`
         // Where `<BASE_PATH>` is by default AC's auto-generated directory.
-        let download_path_suffix = Self::compute_download_path_suffix(&package)?;
+        // Using the whole reference (including tag/digest if available) as the download path suffix
+        let download_path_suffix = compute_download_path_suffix(&package)?;
 
         let temp_download_dir = self
             .base_path
@@ -229,10 +221,13 @@ mod tests {
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         // This test does not perform any I/O, but needs a valid reference to build the value
-        let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
-        let digest = reference.digest().unwrap();
+        let reference =
+            Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
+                .unwrap();
         let root_dir = PathBuf::from("/tmp/base/agent-id");
-        let download_dir = root_dir.join(DOWNLOADED_PACKAGES_LOCATION).join(digest);
+        let download_dir = root_dir
+            .join(DOWNLOADED_PACKAGES_LOCATION)
+            .join(compute_download_path_suffix(&reference).unwrap());
         let downloaded_file = download_dir.join("layer_digest.tar.gz");
         let install_dir = root_dir.join(INSTALLED_PACKAGES_LOCATION);
         let install_path = install_dir.join("library_busybox_latest");
@@ -287,29 +282,6 @@ mod tests {
     }
 
     #[test]
-    fn test_install_missing_digest() {
-        let downloader = MockOCIDownloader::new();
-        let directory_manager = MockDirectoryManager::new();
-        let file_manager = MockLocalFile::new();
-
-        let agent_id = AgentID::try_from("agent-id").unwrap();
-        let reference = Reference::from_str("docker.io/library/busybox:latest").unwrap(); // No digest
-
-        let pm = OCIPackageManager {
-            downloader,
-            directory_manager,
-            file_manager,
-            base_path: PathBuf::from("/tmp/base"),
-        };
-        let result = pm.install(&agent_id, reference);
-
-        assert!(matches!(
-            result,
-            Err(OCIPackageManagerError::Install(e)) if e.kind() == io::ErrorKind::InvalidData
-        ));
-    }
-
-    #[test]
     fn test_install_directory_creation_failure() {
         let downloader = MockOCIDownloader::new();
         let mut directory_manager = MockDirectoryManager::new();
@@ -317,9 +289,10 @@ mod tests {
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
-        let digest = reference.digest().unwrap();
         let root_dir = PathBuf::from("/tmp/base/agent-id");
-        let download_dir = root_dir.join(DOWNLOADED_PACKAGES_LOCATION).join(digest);
+        let download_dir = root_dir
+            .join(DOWNLOADED_PACKAGES_LOCATION)
+            .join(compute_download_path_suffix(&reference).unwrap());
 
         directory_manager
             .expect_create()
@@ -357,9 +330,10 @@ mod tests {
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
-        let digest = reference.digest().unwrap();
         let root_dir = PathBuf::from("/tmp/base/agent-id");
-        let download_dir = root_dir.join(DOWNLOADED_PACKAGES_LOCATION).join(digest);
+        let download_dir = root_dir
+            .join(DOWNLOADED_PACKAGES_LOCATION)
+            .join(compute_download_path_suffix(&reference).unwrap());
 
         directory_manager
             .expect_create()
@@ -402,9 +376,10 @@ mod tests {
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
-        let digest = reference.digest().unwrap();
         let root_dir = PathBuf::from("/tmp/base/agent-id");
-        let download_dir = root_dir.join(DOWNLOADED_PACKAGES_LOCATION).join(digest);
+        let download_dir = root_dir
+            .join(DOWNLOADED_PACKAGES_LOCATION)
+            .join(compute_download_path_suffix(&reference).unwrap());
 
         directory_manager
             .expect_create()
@@ -446,9 +421,10 @@ mod tests {
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
-        let digest = reference.digest().unwrap();
         let root_dir = PathBuf::from("/tmp/base/agent-id");
-        let download_dir = root_dir.join(DOWNLOADED_PACKAGES_LOCATION).join(digest);
+        let download_dir = root_dir
+            .join(DOWNLOADED_PACKAGES_LOCATION)
+            .join(compute_download_path_suffix(&reference).unwrap());
 
         directory_manager
             .expect_create()
@@ -490,9 +466,10 @@ mod tests {
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
-        let digest = reference.digest().unwrap();
         let root_dir = PathBuf::from("/tmp/base/agent-id");
-        let download_dir = root_dir.join(DOWNLOADED_PACKAGES_LOCATION).join(digest);
+        let download_dir = root_dir
+            .join(DOWNLOADED_PACKAGES_LOCATION)
+            .join(compute_download_path_suffix(&reference).unwrap());
         let downloaded_file = download_dir.join("layer_digest.tar.gz");
         let install_dir = root_dir.join(INSTALLED_PACKAGES_LOCATION);
         let install_path = install_dir.join("library_busybox_latest");
@@ -560,9 +537,10 @@ mod tests {
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
-        let digest = reference.digest().unwrap();
         let root_dir = PathBuf::from("/tmp/base/agent-id");
-        let download_dir = root_dir.join(DOWNLOADED_PACKAGES_LOCATION).join(digest);
+        let download_dir = root_dir
+            .join(DOWNLOADED_PACKAGES_LOCATION)
+            .join(compute_download_path_suffix(&reference).unwrap());
         let downloaded_file = download_dir.join("layer_digest.tar.gz");
         let install_dir = root_dir.join(INSTALLED_PACKAGES_LOCATION);
 
@@ -614,9 +592,10 @@ mod tests {
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let reference = Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap();
-        let digest = reference.digest().unwrap();
         let root_dir = PathBuf::from("/tmp/base/agent-id");
-        let download_dir = root_dir.join(DOWNLOADED_PACKAGES_LOCATION).join(digest);
+        let download_dir = root_dir
+            .join(DOWNLOADED_PACKAGES_LOCATION)
+            .join(compute_download_path_suffix(&reference).unwrap());
         let downloaded_file = download_dir.join("layer_digest.tar.gz");
         let install_dir = root_dir.join(INSTALLED_PACKAGES_LOCATION);
         let install_path = install_dir.join("library_busybox_latest");
