@@ -2,19 +2,18 @@ use fs::file_reader::FileReader;
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::Path;
-// Key validation regex, start with letter/underscore, then letters/digits/underscore.
+/// Key validation regex, start with letter/underscore, then letters/digits/underscore.
 const KEY_VALIDATION_REGEX: &str = r"^[A-Za-z_][A-Za-z0-9_]*$";
 
-/// Load environment variables into the current process from a YAML file located at `path`.
-/// The YAML file should contain key-value pairs where keys are the environment variable names
-/// and values are their corresponding values.
+/// Loads environment variables into the current process from a YAML file at `path`.
+///
+/// The YAML document must be a mapping of string keys to string values. Keys must match
+/// `^[A-Za-z_][A-Za-z0-9_]*$`; values must not contain the NUL (`\0`) character.
+///
 /// # Errors
-/// Returns an error if the file cannot be read, if the YAML is malformed,
-/// or if any key doesn't match `^[A-Za-z_][A-Za-z0-9_]*$` or if any value contains NUL characters.
-/// # Safety
-/// This function uses `std::env::set_var` which is not thread-safe on all platforms.
-/// It is the caller's responsibility to ensure that no other threads are concurrently
-/// accessing environment variables while this function is executing.
+///
+/// Returns an error if the file cannot be read, if the YAML content cannot be parsed as a
+/// `HashMap<String, String>`, or if any key/value fails validation as described above.
 pub fn load_env_yaml_file(path: &Path) -> Result<(), Box<dyn Error>> {
     let file = fs::LocalFile {};
     let content = file.read(path)?;
@@ -25,7 +24,7 @@ pub fn load_env_yaml_file(path: &Path) -> Result<(), Box<dyn Error>> {
 }
 
 fn load_env_from_hashmap(env_vars: HashMap<String, String>) -> Result<(), Box<dyn Error>> {
-    let re = regex::Regex::new(KEY_VALIDATION_REGEX).unwrap();
+    let re = regex::Regex::new(KEY_VALIDATION_REGEX).expect("Invalid regex");
 
     for (key, value) in env_vars {
         // As per docs for std::env::set_var:
