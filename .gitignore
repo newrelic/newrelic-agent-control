@@ -36,6 +36,7 @@ agent-control/tests/k8s/.kubeconfig-dev
 .cargo/*
 !.cargo/config.toml
 /bin/
+build/examples/values-nr-otel-collector-agent-linux.yaml
 
 # local directory for testing purposes
 local/

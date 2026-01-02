@@ -24,6 +24,8 @@ pub const OPAMP_SUPERVISOR_KEY: &str = "supervisor.key";
 
 pub const OPAMP_AGENT_VERSION_ATTRIBUTE_KEY: &str = "agent.version";
 
+pub const ENVIRONMENT_VARIABLES_FILE_NAME: &str = "environment_variables.yaml";
+
 // Auth
 pub const AUTH_PRIVATE_KEY_FILE_NAME: &str = "auth_key";
 
