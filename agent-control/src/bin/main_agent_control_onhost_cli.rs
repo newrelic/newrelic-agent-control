@@ -1,8 +1,8 @@
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, error::ErrorKind};
+use newrelic_agent_control::cli::on_host::host_monitoring_gen;
 use newrelic_agent_control::cli::on_host::migrate_folders;
-use newrelic_agent_control::cli::on_host::{host_monitoring_gen, systemd_gen};
 use newrelic_agent_control::cli::{logs, on_host::config_gen};
 use tracing::{Level, error};
 
@@ -27,9 +27,7 @@ enum Commands {
     /// It generates either infra-agent or otel configuration.
     /// in case of infra-agent, the proxy configuration is included if provided, and we try to migrate from the old configuration.
     HostMonitoring(host_monitoring_gen::Args),
-    /// Generate systemd configuration according to the provided configuration data.
-    SystemdConfig(systemd_gen::Args),
-    /// Migrate from the older on host folders to the new ones. DON'T USE IT
+    /// Migrates legacy on-host directories (>v1.4.0) to the new layout. Intended to be run by post-installation package scripts only.
     FilesBackwardsCompatibilityMigrationFromV120,
 }
 
@@ -54,7 +52,6 @@ fn main() -> ExitCode {
         Commands::HostMonitoring(args) => {
             host_monitoring_gen::generate_host_monitoring_config(args)
         }
-        Commands::SystemdConfig(args) => systemd_gen::generate_systemd_config(args),
         Commands::FilesBackwardsCompatibilityMigrationFromV120 => migrate_folders::migrate(),
     };
 

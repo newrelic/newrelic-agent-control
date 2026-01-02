@@ -8,7 +8,6 @@
   vars:
     # Pre-release version of the agent control is used by default
     repo_endpoint: http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview
-    agent_control_service_conf: /etc/newrelic-agent-control/systemd-env.conf
     agent_control_private_key: /etc/newrelic-agent-control/priv.key
     infra_staging: true
 
@@ -96,8 +95,11 @@
           license_key: '{{NEW_RELIC_LICENSE_KEY}}'
         {% endraw %}
 
-  - name: Add license to service
-    shell: echo 'NEW_RELIC_LICENSE_KEY="{{ nr_license_key }}"' > {{ agent_control_service_conf }}
+  - name: Env file
+    copy:
+      dest: /etc/newrelic-agent-control/environment_variables.yaml
+      content: |
+        NEW_RELIC_LICENSE_KEY: "{{ nr_license_key }}"
 
   - name: Restart Agent Control
     include_role:
