@@ -239,6 +239,8 @@ jobs:
   # To test for root privileges, we can run from a container (disabling the test that fail if running non-root).
   on-host-root-tests:
     name: tests as root
+    # Container operations must run on a linux runner https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idcontainer.
+    # We use `null` to disable the use of a container on windows.
     container: ${{ matrix.os == 'ubuntu-latest' && 'rust:latest' || null }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -260,6 +262,8 @@ jobs:
 
   on-host-oci-registry-tests:
     name: tests with oci registry
+    # Container operations must run on a linux runner https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idcontainer.
+    # We use `null` to disable the use of a container on windows.
     container: ${{ matrix.os == 'ubuntu-latest' && 'rust:latest' || null }}
     runs-on: ${{ matrix.os }}
     strategy:
