@@ -18,7 +18,7 @@ fn run_tag() -> String {
         .duration_since(SystemTime::UNIX_EPOCH)
         .expect("SystemTime went backwards");
 
-    format!("{}", duration.as_millis())
+    format!("{}", duration.as_nanos())
 }
 
 /// push_artifact pushes the provided artifact and reference to the oci registry provided on the
