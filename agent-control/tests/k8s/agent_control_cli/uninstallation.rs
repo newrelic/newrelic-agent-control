@@ -1,6 +1,7 @@
 use crate::common::retry::retry;
 use crate::common::runtime::block_on;
 use crate::k8s::agent_control_cli::installation::ac_install_cmd;
+use crate::k8s::tools::agent_control::{DUMMY_PRIVATE_KEY, K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET};
 use crate::k8s::tools::cmd::print_cli_output;
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
@@ -11,6 +12,7 @@ use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Secret};
 use kube::Api;
 use std::time::Duration;
+
 #[test]
 #[ignore = "needs k8s cluster"]
 // This test can break if the chart introduces any breaking changes.
@@ -26,6 +28,10 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
         "cleanupManagedResources": false,
         "subAgentsNamespace": subagents_namespace,
         "config": {
+            "authSecret": {
+                "secretName": K8S_PRIVATE_KEY_SECRET,
+                "secretKeyName": K8S_KEY_SECRET,
+            },
             "fleet_control": {
                 "enabled": false,
             },
@@ -52,6 +58,14 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
         "test-secret",
         "values.yaml",
         values,
+    );
+
+    create_values_secret(
+        k8s_env.client.clone(),
+        &ac_namespace,
+        K8S_PRIVATE_KEY_SECRET,
+        K8S_KEY_SECRET,
+        DUMMY_PRIVATE_KEY.to_string(),
     );
 
     print_pod_logs(k8s_env.client.clone(), &ac_namespace, AC_LABEL_SELECTOR);
