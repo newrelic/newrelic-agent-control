@@ -35,8 +35,10 @@ readonly CONFIG_FILE="$CONFIG_FOLDER/config.json"
 readonly BINARY="$CONFIG_FOLDER/zot"
 
 if [ "$OS" = "windows" ]; then
-    readonly STORAGE_PATH=$(cygpath -m "$CONFIG_FOLDER/storage")
-    readonly LOG_FILE=$(cygpath -m "$CONFIG_FOLDER/zot.log")
+    STORAGE_PATH=$(cygpath -m "$CONFIG_FOLDER/storage")
+    readonly STORAGE_PATH
+    LOG_FILE=$(cygpath -m "$CONFIG_FOLDER/zot.log")
+    readonly LOG_FILE
 else
     readonly STORAGE_PATH="$CONFIG_FOLDER/storage"
     readonly LOG_FILE="$CONFIG_FOLDER/zot.log"
@@ -46,7 +48,7 @@ fi
 # ----- ARGUMENTS -----
 OPTION="${1:-empty}"
 VERSION="${VERSION:-v2.1.11}"
-PORT="${PORT:-5000}"
+PORT="${PORT:-5001}"
 
 
 # ----- HELPER FUNCTIONS -----
@@ -70,8 +72,8 @@ function install() {
         if [ "$OS" = "windows" ]; then
             DOWNLOAD_URL="${DOWNLOAD_URL}.exe"
         fi
-        curl -L $DOWNLOAD_URL --output $BINARY
-        chmod +x $BINARY
+        curl -L "$DOWNLOAD_URL" --output "$BINARY"
+        chmod +x "$BINARY"
     else
         echo "zot binary already exists, skipping download"
     fi
@@ -79,7 +81,7 @@ function install() {
 
 function create_zot_configuration() {
     echo "Creating zot configuration at $CONFIG_FILE..."
-    touch $LOG_FILE
+    touch "$LOG_FILE"
     cat > "$CONFIG_FILE" << EOF
 {
     "distSpecVersion": "1.0.1",
