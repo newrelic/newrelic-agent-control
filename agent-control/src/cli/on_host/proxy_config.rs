@@ -27,6 +27,7 @@ pub struct ProxyConfig {
     #[arg(long, required = false)]
     pub proxy_ca_bundle_file: Option<String>,
 
+    /// Note that if you do not want to provide a value you still need to pass '--ignore-system-proxy ""' or '--ignore-system-proxy='
     #[serde(skip_serializing_if = "is_false")]
     #[arg(long, default_value_t = false, value_parser = ignore_system_proxy_parser, action = clap::ArgAction::Set)]
     pub ignore_system_proxy: bool,
