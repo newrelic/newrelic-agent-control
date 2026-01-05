@@ -156,7 +156,7 @@ if (-not $FleetEnabled) {
 if ($ProxyUrl) { $cliArgs += @('--proxy-url', $ProxyUrl)}
 if ($ProxyCABundleFile) { $cliArgs += @('--proxy-ca-bundle-file', $ProxyCABundleFile) }
 if ($ProxyCABundleDir) { $cliArgs += @('--proxy-ca-bundle-dir', $ProxyCABundleDir) }
-if ($ProxyIgnoreSystem) { $cliArgs += '--ignore-system-proxy' }
+if ($ProxyIgnoreSystem) { $cliArgs += '--ignore-system-proxy', 'true' }
 
 Write-Host "Generating configuration..."
 & ".\newrelic-agent-control-cli.exe" @cliArgs
