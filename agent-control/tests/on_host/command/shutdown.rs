@@ -77,10 +77,21 @@ fn command_shutdown_when_sigterm_is_ignored() {
     )
     .start()
     .unwrap();
-    sleep(Duration::from_millis(500)); // Give the process some room to start
+
+    // Wait for the process to start
+    while !cmd.is_running() {
+        sleep(Duration::from_millis(500));
+    }
 
     let terminated = cmd.shutdown();
-    sleep(Duration::from_millis(200));
+
+    // Wait for the process to terminate
+    let mut retry = 10;
+    while cmd.is_running() && retry > 0 {
+        sleep(Duration::from_millis(500));
+        retry -= 1;
+    }
+
     assert!(!cmd.is_running());
     assert!(terminated.is_ok());
 }
