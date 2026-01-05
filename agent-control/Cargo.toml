@@ -108,7 +108,7 @@ tokio = { version = "1.48.0", features = ["rt-multi-thread", "macros"] }
 fake = { version = "4.4.0", features = ["derive", "http"] }
 prost = "0.14.1"
 httpmock = { version = "0.8.2", features = ["proxy"] }
-serial_test = "3.2.0"
+serial_test = "3.3.1"
 futures = "0.3.31"
 rcgen = { version = "0.14.6", features = ["crypto"] }
 rstest = { workspace = true }
