@@ -93,7 +93,7 @@ jobs:
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
-      - uses: taiki-e/install-action@4c6723ec9c638cccae824b8957c5085b695c8085 # v2.65.7
+      - uses: taiki-e/install-action@0e76c5c569f13f7eb21e8e5b26fe710062b57b62 # v2.65.13
         with:
           tool: cargo-shear@1.7.2
 
@@ -173,7 +173,7 @@ jobs:
       - name: Install Zig
         uses: mlugg/setup-zig@fa65c4058643678a4e4a9a60513944a7d8d35440 # v2
 
-      - uses: taiki-e/install-action@4c6723ec9c638cccae824b8957c5085b695c8085 # v2.65.7
+      - uses: taiki-e/install-action@0e76c5c569f13f7eb21e8e5b26fe710062b57b62 # v2.65.13
         with:
           tool: cargo-zigbuild@0.20.1
 
@@ -311,7 +311,7 @@ jobs:
       - name: Install Zig
         uses: mlugg/setup-zig@fa65c4058643678a4e4a9a60513944a7d8d35440 # v2
 
-      - uses: taiki-e/install-action@4c6723ec9c638cccae824b8957c5085b695c8085 # v2.65.7
+      - uses: taiki-e/install-action@0e76c5c569f13f7eb21e8e5b26fe710062b57b62 # v2.65.13
         with:
           tool: cargo-zigbuild@0.20.1
 
@@ -340,7 +340,7 @@ jobs:
         with:
           components: clippy
 
-      - uses: taiki-e/install-action@4c6723ec9c638cccae824b8957c5085b695c8085 # v2.65.7
+      - uses: taiki-e/install-action@0e76c5c569f13f7eb21e8e5b26fe710062b57b62 # v2.65.13
         with:
           tool: cargo-shear@1.7.2
 
