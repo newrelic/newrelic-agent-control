@@ -1,7 +1,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use tempfile::tempdir;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::{linux::bash::exec_bash_command, tools::test::retry};
 
@@ -10,7 +10,7 @@ use crate::{linux::bash::exec_bash_command, tools::test::retry};
 pub struct Args {
     /// Folder where '.deb' packages are stored
     #[arg(long)]
-    pub deb_package_dir: PathBuf,
+    pub deb_package_dir: Option<PathBuf>,
 
     /// Recipes repository
     #[arg(
@@ -79,14 +79,22 @@ impl Default for RecipeData {
     }
 }
 
+/// Installs Agent Control using the recipe as configured in the provided [RecipeData].
+///
+/// It adds a local folder to the trusted repo list. The folder contains the local .deb packages that will be
+/// scanned and added to the repo (building the required metadata). After that is done these packages are
+/// available to installed with apt.
+/// The recipe is still adding the apt upstream production repo so both interoperates, and because of that
+/// **the local package must have different from any of the Released ones**.
 pub fn install_agent_control_from_recipe(data: &RecipeData) {
     info!("Installing Agent Control from recipe");
     // Set up deb repository
     let repo_dir = tempdir().expect("failed to create temp directory");
     let repo_dir_path = repo_dir.path().display();
-    let deb_package_dir = data.args.deb_package_dir.display();
-    let repo_command = format!(
-        r#"
+    if let Some(deb_package_dir) = data.args.deb_package_dir.as_ref() {
+        let deb_package_dir = deb_package_dir.display();
+        let repo_command = format!(
+            r#"
 apt-get install dpkg-dev -y
 
 echo "deb [trusted=yes] file://{repo_dir_path} ./" > /etc/apt/sources.list
@@ -102,12 +110,15 @@ dpkg-scanpackages -m . > Packages
 
 apt-get update
 "#,
-    );
-    info!("Setting up local repository");
-    debug!("Running command: \n{repo_command}");
-    let output =
-        exec_bash_command(&repo_command).unwrap_or_else(|err| panic!("Installation failed: {err}"));
-    debug!("Output:\n{output}");
+        );
+        info!("Setting up local repository");
+        debug!("Running command: \n{repo_command}");
+        let output = exec_bash_command(&repo_command)
+            .unwrap_or_else(|err| panic!("Installation failed: {err}"));
+        debug!("Output:\n{output}");
+    } else {
+        warn!("'deb-package-dir' is not set, skipping local repository setup");
+    }
 
     // Obtain recipes repository
     let recipes_dir = tempdir().expect("failure creating temp dir");

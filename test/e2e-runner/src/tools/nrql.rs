@@ -1,4 +1,4 @@
-use crate::tools::test::TestResult;
+use crate::{linux::install::Args, tools::test::TestResult};
 use reqwest::blocking::Client;
 use serde::Serialize;
 use serde_json::Value;
@@ -56,31 +56,27 @@ impl Region {
 ///
 /// * `Ok(Vec<Value>)` - The NRQL query results on success
 /// * `Err` - Error if the query fails, returns errors, or has no results
-pub fn check_query_results_are_not_empty(
-    region: &str,
-    api_key: &str,
-    account_id: &str,
-    nrql_query: &str,
-) -> TestResult<Vec<Value>> {
+pub fn check_query_results_are_not_empty(args: &Args, nrql_query: &str) -> TestResult<Vec<Value>> {
     let client = Client::builder().timeout(Duration::from_secs(30)).build()?;
-    let api_endpoint = Region::try_from(region)?.api_endpoint();
+    let api_endpoint = Region::try_from(args.nr_region.as_str())?.api_endpoint();
     let url = format!("{}/graphql", api_endpoint);
     let graphql_query = format!(
         r#"{{
   actor {{
-    account(id: {account_id}) {{
-      nrql(query: "{nrql_query}") {{
+    account(id: {}) {{
+      nrql(query: "{}") {{
         results
       }}
     }}
   }}
-}}"#
+}}"#,
+        args.nr_account_id, nrql_query,
     );
 
     let response = client
         .post(&url)
         .header("Content-Type", "application/json")
-        .header("API-Key", api_key)
+        .header("API-Key", args.nr_api_key.as_str())
         .json(&GraphQLRequest {
             query: graphql_query,
         })

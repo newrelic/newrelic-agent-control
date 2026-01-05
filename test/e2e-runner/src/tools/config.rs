@@ -1,5 +1,5 @@
 use serde_yaml::Value;
-use std::fs;
+use std::{fs, thread, time::Duration};
 use tracing::info;
 
 /// Updates the agent control config in `config_path` to include the content specified in `new_content`
@@ -32,6 +32,9 @@ pub fn update_config(config_path: &str, new_content: &str) {
     fs::write(config_path, updated_content).unwrap_or_else(|e| {
         panic!("failed to write YAML configuration: {}", e);
     });
+
+    // Wait a few seconds to prevent doing anything before the configuration is written
+    thread::sleep(Duration::from_secs(3));
 }
 
 /// Merges two YAML values, with `new` taking precedence over `base`

@@ -1,11 +1,11 @@
-use std::{thread, time::Duration};
+use std::time::Duration;
 
 use tracing::info;
 
 use crate::{
     linux::{
         self,
-        install::{Args, RecipeData},
+        install::{Args, RecipeData, install_agent_control_from_recipe},
     },
     tools::{config, logs::ShowLogsOnDrop, nrql, test::retry},
 };
@@ -16,7 +16,7 @@ pub fn test_installation_with_infra_agent(args: Args) {
         monitoring_source: "infra-agent".to_string(),
         ..Default::default()
     };
-    linux::install::install_agent_control_from_recipe(&recipe_data);
+    install_agent_control_from_recipe(&recipe_data);
 
     let test_id = format!(
         "onhost-e2e-infra-agent_{}",
@@ -33,8 +33,6 @@ host_id: {test_id}
     );
     config::update_config(linux::DEFAULT_CONFIG_PATH, &config);
 
-    thread::sleep(Duration::from_secs(5));
-
     linux::service::restart_service(linux::SERVICE_NAME);
     let _show_logs = ShowLogsOnDrop::from(linux::DEFAULT_LOG_PATH);
 
@@ -42,12 +40,7 @@ host_id: {test_id}
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 120;
     retry(retries, Duration::from_secs(10), "nrql assertion", || {
-        nrql::check_query_results_are_not_empty(
-            &recipe_data.args.nr_region,
-            &recipe_data.args.nr_api_key,
-            &recipe_data.args.nr_account_id,
-            &nrql_query,
-        )
+        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     })
     .unwrap_or_else(|err| {
         panic!("query '{nrql_query}' failed after {retries} retries: {err}");
