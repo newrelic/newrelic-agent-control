@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 // Registry created in the make target executing oci-registry.sh
-const REGISTRY_URL: &str = "localhost:5000";
+const REGISTRY_URL: &str = "localhost:5001";
 
 #[test]
 #[ignore = "needs oci registry"]
@@ -61,7 +61,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
     // Proxy to the oci server only after 4 retries, the client makes 2 calls per time.
     proxy_server.proxy(|rule| {
         rule.filter(|when| {
-            when.host("localhost").port(5000).and(|when| -> When {
+            when.host("localhost").port(5001).and(|when| -> When {
                 when.is_true(move |_| {
                     let mut attempts = attempts_clone.lock().unwrap();
                     *attempts += 1;
