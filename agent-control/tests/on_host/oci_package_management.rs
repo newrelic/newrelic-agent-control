@@ -3,6 +3,7 @@ use crate::on_host::tools::{
 };
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::package::manager::PackageManager;
+use newrelic_agent_control::package::oci::package_manager::compute_path_suffix;
 
 // Registry created in the make target executing oci-registry.sh
 const REGISTRY_URL: &str = "localhost:5001";
@@ -36,8 +37,8 @@ fn test_install_and_uninstall_with_oci_registry() {
     assert_eq!(content, ARTIFACT_CONTENT);
 
     // Verify location
-    // The path should be base_path/agent_id/oci_registry__port__repo__tag
-    let expected_filename = format!("oci_{}", reference.whole().replace(['/', ':'], "__"));
+    // The path should be base_path/agent_id/oci_registry__port__repo_tag
+    let expected_filename = compute_path_suffix(&reference).unwrap();
 
     let expected_path = base_path
         .join(&agent_id)

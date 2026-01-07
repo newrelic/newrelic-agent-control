@@ -125,7 +125,7 @@ where
 ///    to prevent the filename from being exactly "." or "..".
 /// 2. Replaces directory separators (`/`, `\`) and the tag separator (`:`) with `__`.
 /// 3. Replaces any other character that is not alphanumeric, `.`, `-`, `_`, or `@` with `_`.
-fn compute_path_suffix(package: &Reference) -> Result<PathBuf, OCIPackageManagerError> {
+pub fn compute_path_suffix(package: &Reference) -> Result<PathBuf, OCIPackageManagerError> {
     let package_full_reference = package.whole();
     let mut safe_name = String::with_capacity(package_full_reference.len() + 4);
     safe_name.push_str("oci_");
