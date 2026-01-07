@@ -89,7 +89,6 @@ pub struct AgentControlRunner {
     agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
     sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     signature_validator: SignatureValidator,
-    #[allow(dead_code, reason = "used by onhost")]
     base_paths: BasePaths,
     k8s_config: K8sConfig,
     runtime: Arc<Runtime>,
