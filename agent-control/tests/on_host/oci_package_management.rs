@@ -22,7 +22,7 @@ fn test_install_and_uninstall_with_oci_registry() {
     let agent_id = AgentID::try_from("test-agent").unwrap();
 
     // Install
-    let installed_path = package_manager.install(&agent_id, reference.clone());
+    let installed_path = package_manager.install(&agent_id, &reference);
 
     assert!(
         installed_path.is_ok(),
@@ -48,7 +48,7 @@ fn test_install_and_uninstall_with_oci_registry() {
 
     // Uninstall
     package_manager
-        .uninstall(&agent_id, installed_path.clone())
+        .uninstall(&agent_id, &installed_path)
         .unwrap();
     assert!(!installed_path.exists());
 }

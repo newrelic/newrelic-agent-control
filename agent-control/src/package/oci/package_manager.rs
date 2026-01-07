@@ -149,10 +149,6 @@ where
     DM: DirectoryManager,
     FR: FileRenamer + FileDeleter,
 {
-    type Error = OCIPackageManagerError;
-    type Package = Reference;
-    type InstalledPackage = PathBuf; // Downloaded package location
-
     /// Installs the given OCI package for the specified agent.
     ///
     /// This method downloads the package to a temporary location and then moves it to its final
@@ -163,10 +159,10 @@ where
     fn install(
         &self,
         agent_id: &AgentID,
-        package: Self::Package,
-    ) -> Result<Self::InstalledPackage, Self::Error> {
+        package: &Reference,
+    ) -> Result<PathBuf, OCIPackageManagerError> {
         // Using the whole reference (including tag/digest if available) with special chars replaces as the download path suffix (see function doc for details)
-        let download_path_suffix = compute_path_suffix(&package);
+        let download_path_suffix = compute_path_suffix(package);
 
         let temp_download_dir = self
             .base_path
@@ -182,13 +178,13 @@ where
         let downloaded_pkg = download_dir_creation_result
             .and_then(|_| {
                 self.downloader
-                    .download(&package, &temp_download_dir)
+                    .download(package, &temp_download_dir)
                     .map_err(OCIPackageManagerError::Download)
             })
             .and_then(Self::try_get_unique_path);
 
         let installed_package = downloaded_pkg
-            .and_then(|file_path| self.install_package(agent_id, &package, &file_path))
+            .and_then(|file_path| self.install_package(agent_id, package, &file_path))
             .inspect(|p| debug!("OCI package installed at {}", p.display()))
             .inspect_err(|e| warn!("OCI package installation failed: {}", e));
 
@@ -201,13 +197,9 @@ where
             .and(installed_package)
     }
 
-    fn uninstall(
-        &self,
-        _agent_id: &AgentID,
-        package: Self::InstalledPackage,
-    ) -> Result<(), Self::Error> {
+    fn uninstall(&self, _agent_id: &AgentID, package: &Path) -> Result<(), OCIPackageManagerError> {
         self.file_manager
-            .delete(&package)
+            .delete(package)
             .map_err(OCIPackageManagerError::Uninstall)
     }
 }
@@ -285,7 +277,7 @@ mod tests {
             file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
-        let result = pm.install(&agent_id, reference);
+        let result = pm.install(&agent_id, &reference);
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), install_path);
@@ -327,7 +319,7 @@ mod tests {
             file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
-        let result = pm.install(&agent_id, reference);
+        let result = pm.install(&agent_id, &reference);
 
         assert!(matches!(result, Err(OCIPackageManagerError::Directory(_))));
     }
@@ -373,7 +365,7 @@ mod tests {
             file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
-        let result = pm.install(&agent_id, reference);
+        let result = pm.install(&agent_id, &reference);
 
         assert!(matches!(result, Err(OCIPackageManagerError::Download(_))));
     }
@@ -415,7 +407,7 @@ mod tests {
             file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
-        let result = pm.install(&agent_id, reference);
+        let result = pm.install(&agent_id, &reference);
 
         assert!(matches!(
             result,
@@ -460,7 +452,7 @@ mod tests {
             file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
-        let result = pm.install(&agent_id, reference);
+        let result = pm.install(&agent_id, &reference);
 
         assert!(matches!(
             result,
@@ -528,7 +520,7 @@ mod tests {
             file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
-        let result = pm.install(&agent_id, reference);
+        let result = pm.install(&agent_id, &reference);
 
         assert!(matches!(result, Err(OCIPackageManagerError::Rename(_))));
     }
@@ -583,7 +575,7 @@ mod tests {
             file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
-        let result = pm.install(&agent_id, reference);
+        let result = pm.install(&agent_id, &reference);
 
         assert!(matches!(result, Err(OCIPackageManagerError::Directory(_))));
     }
@@ -647,7 +639,7 @@ mod tests {
             file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
-        let result = pm.install(&agent_id, reference);
+        let result = pm.install(&agent_id, &reference);
 
         assert!(matches!(result, Err(OCIPackageManagerError::Directory(_))));
     }
@@ -673,7 +665,7 @@ mod tests {
             file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
-        let result = pm.uninstall(&agent_id, package_path);
+        let result = pm.uninstall(&agent_id, &package_path);
 
         assert!(result.is_ok());
     }
@@ -699,7 +691,7 @@ mod tests {
             file_manager,
             base_path: PathBuf::from("/tmp/base"),
         };
-        let result = pm.uninstall(&agent_id, package_path);
+        let result = pm.uninstall(&agent_id, &package_path);
 
         assert!(matches!(result, Err(OCIPackageManagerError::Uninstall(_))));
     }
