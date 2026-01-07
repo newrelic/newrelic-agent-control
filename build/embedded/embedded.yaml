@@ -52,11 +52,11 @@ artifacts:
 
   - name: nr-otel-collector
     # Version now should be added in goreleaser.yaml global envs
-    url: https://github.com/newrelic/nrdot-collector-releases/releases/download/{{.Version | trimv}}/nrdot-collector-host_{{.Version | trimv}}_linux_{{.Arch}}.deb
+    url: https://github.com/newrelic/nrdot-collector-releases/releases/download/{{.Version | trimv}}/nrdot-collector_{{.Version | trimv}}_linux_{{.Arch}}.deb
     files:
-      # Important to note the binary name is nrdot-collector-host matching the new nrdot binary
+      # Important to note the binary name is nrdot-collector matching the new nrdot binary
       - name: nt-otel-collector binary
-        src: usr/bin/nrdot-collector-host
+        src: usr/bin/nrdot-collector
         dest: artifacts/{{.Arch}}/nr-otel-collector
 
   # The eBPF agent is not embedded in the agent-control package. Instead, it is
