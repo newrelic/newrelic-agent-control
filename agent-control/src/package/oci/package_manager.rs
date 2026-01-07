@@ -1,6 +1,6 @@
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 use fs::{
@@ -49,6 +49,9 @@ pub enum OCIPackageManagerError {
     Directory(DirectoryManagementError),
     #[error("file rename error: {0}")]
     Rename(FileRenamerError),
+    // Naming produces a non-normalized suffix. Should not happen but we can identify bugs with it.
+    #[error("Package reference naming validation produces a non-normalized suffix: {0}")]
+    NotNormalSuffix(String),
 }
 
 const DOWNLOADED_PACKAGES_LOCATION: &str = "__temp_packages";
@@ -84,12 +87,9 @@ where
     fn install_package(
         &self,
         agent_id: &AgentID,
-        package: &Reference,
-        download_filepath: &Path,
+        downloaded_filepath: &Path,
+        artifact_name: PathBuf,
     ) -> Result<PathBuf, OCIPackageManagerError> {
-        // Build artifact name
-        let file_name = compute_path_suffix(package);
-
         // Build and create destination directory
         let final_file_dir = self
             .base_path
@@ -98,12 +98,10 @@ where
         self.directory_manager
             .create(&final_file_dir)
             .map_err(OCIPackageManagerError::Directory)?;
-
-        let final_file_path = final_file_dir.join(file_name);
-
+        let install_path = final_file_dir.join(&artifact_name);
         // The "install" action itself. Moves the downloaded file to its final location.
         self.file_manager
-            .rename(download_filepath, &final_file_path)
+            .rename(downloaded_filepath, &install_path)
             .map_err(|e| {
                 warn!("Package installation failed: {e}");
                 OCIPackageManagerError::Rename(e)
@@ -111,9 +109,9 @@ where
 
         debug!(
             "Package installation succeeded. Written to {}",
-            final_file_path.display()
+            install_path.display()
         );
-        Ok(final_file_path)
+        Ok(install_path)
     }
 }
 
@@ -171,13 +169,13 @@ where
         package: &Reference,
     ) -> Result<PathBuf, OCIPackageManagerError> {
         // Using the whole reference (including tag/digest if available) with special chars replaces as the download path suffix (see function doc for details)
-        let download_path_suffix = compute_path_suffix(package);
+        let path_suffix = compute_path_suffix(package)?;
 
         let temp_download_dir = self
             .base_path
             .join(agent_id)
             .join(DOWNLOADED_PACKAGES_LOCATION)
-            .join(download_path_suffix);
+            .join(&path_suffix);
 
         let download_dir_creation_result = self
             .directory_manager
@@ -193,7 +191,7 @@ where
             .and_then(Self::try_get_unique_path);
 
         let installed_package = downloaded_pkg
-            .and_then(|file_path| self.install_package(agent_id, package, &file_path))
+            .and_then(|filepath| self.install_package(agent_id, &filepath, path_suffix))
             .inspect(|p| debug!("OCI package installed at {}", p.display()))
             .inspect_err(|e| warn!("OCI package installation failed: {}", e));
 
@@ -238,10 +236,10 @@ mod tests {
         let root_dir = PathBuf::from("/tmp/base/agent-id");
         let download_dir = root_dir
             .join(DOWNLOADED_PACKAGES_LOCATION)
-            .join(compute_path_suffix(&reference));
+            .join(compute_path_suffix(&reference).unwrap());
         let downloaded_file = download_dir.join("layer_digest.tar.gz");
         let install_dir = root_dir.join(INSTALLED_PACKAGES_LOCATION);
-        let install_path = install_dir.join(compute_path_suffix(&reference));
+        let install_path = install_dir.join(compute_path_suffix(&reference).unwrap());
 
         let mut dir_manipulation_sequence = Sequence::new();
         directory_manager
@@ -303,7 +301,7 @@ mod tests {
         let root_dir = PathBuf::from("/tmp/base/agent-id");
         let download_dir = root_dir
             .join(DOWNLOADED_PACKAGES_LOCATION)
-            .join(compute_path_suffix(&reference));
+            .join(compute_path_suffix(&reference).unwrap());
 
         directory_manager
             .expect_create()
@@ -344,7 +342,7 @@ mod tests {
         let root_dir = PathBuf::from("/tmp/base/agent-id");
         let download_dir = root_dir
             .join(DOWNLOADED_PACKAGES_LOCATION)
-            .join(compute_path_suffix(&reference));
+            .join(compute_path_suffix(&reference).unwrap());
 
         directory_manager
             .expect_create()
@@ -390,7 +388,7 @@ mod tests {
         let root_dir = PathBuf::from("/tmp/base/agent-id");
         let download_dir = root_dir
             .join(DOWNLOADED_PACKAGES_LOCATION)
-            .join(compute_path_suffix(&reference));
+            .join(compute_path_suffix(&reference).unwrap());
 
         directory_manager
             .expect_create()
@@ -435,7 +433,7 @@ mod tests {
         let root_dir = PathBuf::from("/tmp/base/agent-id");
         let download_dir = root_dir
             .join(DOWNLOADED_PACKAGES_LOCATION)
-            .join(compute_path_suffix(&reference));
+            .join(compute_path_suffix(&reference).unwrap());
 
         directory_manager
             .expect_create()
@@ -480,10 +478,10 @@ mod tests {
         let root_dir = PathBuf::from("/tmp/base/agent-id");
         let download_dir = root_dir
             .join(DOWNLOADED_PACKAGES_LOCATION)
-            .join(compute_path_suffix(&reference));
+            .join(compute_path_suffix(&reference).unwrap());
         let downloaded_file = download_dir.join("layer_digest.tar.gz");
         let install_dir = root_dir.join(INSTALLED_PACKAGES_LOCATION);
-        let install_path = install_dir.join(compute_path_suffix(&reference));
+        let install_path = install_dir.join(compute_path_suffix(&reference).unwrap());
 
         directory_manager
             .expect_create()
@@ -545,7 +543,7 @@ mod tests {
         let root_dir = PathBuf::from("/tmp/base/agent-id");
         let download_dir = root_dir
             .join(DOWNLOADED_PACKAGES_LOCATION)
-            .join(compute_path_suffix(&reference));
+            .join(compute_path_suffix(&reference).unwrap());
         let downloaded_file = download_dir.join("layer_digest.tar.gz");
         let install_dir = root_dir.join(INSTALLED_PACKAGES_LOCATION);
 
@@ -600,10 +598,10 @@ mod tests {
         let root_dir = PathBuf::from("/tmp/base/agent-id");
         let download_dir = root_dir
             .join(DOWNLOADED_PACKAGES_LOCATION)
-            .join(compute_path_suffix(&reference));
+            .join(compute_path_suffix(&reference).unwrap());
         let downloaded_file = download_dir.join("layer_digest.tar.gz");
         let install_dir = root_dir.join(INSTALLED_PACKAGES_LOCATION);
-        let install_path = install_dir.join(compute_path_suffix(&reference));
+        let install_path = install_dir.join(compute_path_suffix(&reference).unwrap());
 
         directory_manager
             .expect_create()
