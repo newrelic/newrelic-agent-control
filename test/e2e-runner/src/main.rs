@@ -1,63 +1,100 @@
+mod linux;
 mod tools;
 mod windows;
 
 use clap::Parser;
 use std::process;
-use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
-// TODO: adapt to handle windows and linux scenarios
+fn main() {
+    // Using `cfg!` instead of `#[cfg]` to make development easier
+    if cfg!(target_os = "windows") {
+        run_windows_e2e()
+    } else if cfg!(target_os = "linux") {
+        run_linux_e2e()
+    } else {
+        panic!("Unsupported OS -- only Linux and Windows are supported");
+    }
+    process::exit(0);
+}
 
 #[derive(Debug, clap::Subcommand)]
-enum Scenario {
+enum LinuxScenarios {
+    /// Local installation of Agent Control with Infrastructure. It checks that the infra-agent eventually reports data.
+    InfraAgent(linux::install::Args),
+}
+
+#[derive(Debug, clap::Subcommand)]
+enum WindowsScenarios {
+    /// Simple installation of Agent Control on Windows
     Install(windows::scenarios::installation::Args),
 }
 
 #[derive(Parser)]
 #[command(
     name = "e2e-runner",
-    about = "E2E Test Runner for newrelic-agent-control",
-    long_about = "This tool runs end-to-end tests for newrelic-agent-control on Windows.\n\n\
-                  PREREQUISITES:\n\
-                  - Must be run as Administrator on Windows"
+    about = "E2E Test Runner for newrelic-agent-control on Linux",
+    long_about = "This tool runs end-to-end tests for newrelic-agent-control on Linux.\n
+PREREQUISITES:
+- Debian package manager
+- Systemctl
+- Run as root"
 )]
-struct Cli {
+struct LinuxCli {
     /// Log level (trace, debug, info, warn, error)
     #[arg(short, long, default_value = "info")]
     log_level: String,
 
     #[command(subcommand)]
-    scenario: Scenario,
+    scenario: LinuxScenarios,
 }
 
-fn main() {
-    let cli = Cli::parse();
+#[derive(Parser)]
+#[command(
+    name = "e2e-runner",
+    about = "E2E Test Runner for newrelic-agent-control on Windows",
+    long_about = "This tool runs end-to-end tests for newrelic-agent-control on Windows.\n
+PREREQUISITES:
+- Run as Administrator"
+)]
+struct WindowsCli {
+    /// Log level (trace, debug, info, warn, error)
+    #[arg(short, long, default_value = "info")]
+    log_level: String,
 
-    // Initialize tracing subscriber with CLI log level
-    tracing_subscriber::fmt()
-        .with_target(false)
-        .with_env_filter(EnvFilter::new(&cli.log_level))
-        .init();
+    #[command(subcommand)]
+    scenario: WindowsScenarios,
+}
 
-    // Check that we are running on Windows
-    if cfg!(not(target_os = "windows")) {
-        error!("Windows e2e tests are only supported on Windows");
-        process::exit(1);
-    }
+/// Run Linux e2e corresponding scenario which will panic on failure
+fn run_linux_e2e() {
+    let cli = LinuxCli::parse();
+    init_logging(&cli.log_level);
 
     // Run the requested test
-    let result = match cli.scenario {
-        Scenario::Install(args) => windows::scenarios::installation::test_installation(args),
-    };
-
-    // Handle the result
-    match result {
-        Ok(_) => {
-            info!("Test completed successfully");
+    match cli.scenario {
+        LinuxScenarios::InfraAgent(recipe_data) => {
+            linux::scenarios::infra_agent::test_installation_with_infra_agent(recipe_data)
         }
-        Err(e) => {
-            error!("Test failed: {}", e);
-            process::exit(1);
+    };
+}
+
+/// Run Windows e2e corresponding scenario which will panic on failure
+fn run_windows_e2e() {
+    let cli = WindowsCli::parse();
+    init_logging(&cli.log_level);
+
+    // Run the requested test
+    match cli.scenario {
+        WindowsScenarios::Install(args) => {
+            windows::scenarios::installation::test_installation(args);
         }
     }
+}
+
+fn init_logging(level: &str) {
+    tracing_subscriber::fmt()
+        .with_target(false)
+        .with_env_filter(EnvFilter::new(level))
+        .init();
 }
