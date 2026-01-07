@@ -231,7 +231,6 @@ pub(crate) mod tests {
     }
 
     impl MockOpAMPClientBuilder {
-        #[allow(dead_code)] //used in k8s feature
         pub fn should_build_and_start(
             &mut self,
             agent_id: AgentID,

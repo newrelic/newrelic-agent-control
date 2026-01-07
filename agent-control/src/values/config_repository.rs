@@ -253,16 +253,5 @@ pub mod tests {
                     Err(ConfigRepositoryError::LoadError("load error".to_string()))
                 });
         }
-
-        #[allow(dead_code)]
-        pub fn should_store_remote(&mut self, agent_id: &AgentID, remote_config: &RemoteConfig) {
-            self.expect_store_remote()
-                .once()
-                .with(
-                    predicate::eq(agent_id.clone()),
-                    predicate::eq(remote_config.clone()),
-                )
-                .returning(|_, _| Ok(()));
-        }
     }
 }
