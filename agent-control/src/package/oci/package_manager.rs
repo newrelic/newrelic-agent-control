@@ -127,20 +127,29 @@ where
 ///    to prevent the filename from being exactly "." or "..".
 /// 2. Replaces directory separators (`/`, `\`) and the tag separator (`:`) with `__`.
 /// 3. Replaces any other character that is not alphanumeric, `.`, `-`, `_`, or `@` with `_`.
-fn compute_path_suffix(package: &Reference) -> PathBuf {
+fn compute_path_suffix(package: &Reference) -> Result<PathBuf, OCIPackageManagerError> {
     let package_full_reference = package.whole();
-    let mut safe = String::with_capacity(package_full_reference.len() + 4);
-    safe.push_str("oci_");
+    let mut safe_name = String::with_capacity(package_full_reference.len() + 4);
+    safe_name.push_str("oci_");
     for c in package_full_reference.chars() {
         match c {
-            '/' | ':' | '\\' => safe.push_str("__"),
-            c if c.is_alphanumeric() || c == '.' || c == '-' || c == '_' || c == '@' => {
-                safe.push(c)
-            }
-            _ => safe.push('_'),
+            c if std::path::is_separator(c) => safe_name.push_str("__"),
+            c if !c.is_alphanumeric() => safe_name.push('_'),
+            c => safe_name.push(c),
         }
     }
-    PathBuf::from(safe)
+
+    let sanitized_path = PathBuf::from(safe_name);
+
+    // Make sure this doesn't have any non-normal component (root ref, parent dir ref, etc)
+    sanitized_path.components().try_for_each(|c| match c {
+        Component::Normal(_) => Ok(()),
+        other => Err(OCIPackageManagerError::NotNormalSuffix(format!(
+            "{other:?}"
+        ))),
+    })?;
+
+    Ok(sanitized_path)
 }
 
 impl<D, DM, FR> PackageManager for OCIPackageManager<D, DM, FR>
