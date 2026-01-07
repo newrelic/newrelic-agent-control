@@ -150,7 +150,7 @@
         - name: Debug test identifier
           debug:
             var: test_id
-        
+
         - name: Force failure after rescue
           fail:
             msg: "Test failed - check logs above for details"

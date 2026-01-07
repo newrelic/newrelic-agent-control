@@ -1,7 +1,8 @@
 use assert_cmd::Command;
 use assert_cmd::cargo::cargo_bin_cmd;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+    AGENT_CONTROL_ID, AUTH_PRIVATE_KEY_FILE_NAME, FOLDER_NAME_LOCAL_DATA,
+    STORE_KEY_LOCAL_DATA_CONFIG,
 };
 use newrelic_agent_control::on_host::file_store::build_config_name;
 use predicates::prelude::predicate;
@@ -86,6 +87,8 @@ logs:
     formatter: pretty
 "#,
     )?;
+
+    create_temp_file(dir.path(), AUTH_PRIVATE_KEY_FILE_NAME, "dummy-key-content")?;
 
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
     cmd.arg("--local-dir").arg(dir.path());
@@ -183,6 +186,8 @@ fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>
         when.method(POST).path("/");
         then.status(200);
     });
+
+    create_temp_file(dir.path(), AUTH_PRIVATE_KEY_FILE_NAME, "dummy-key-content")?;
 
     let _config_path = create_temp_file(
         &dir.path()

@@ -1,10 +1,8 @@
-use std::path::PathBuf;
-
+use crate::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
 use http::Uri;
 use nr_auth::ClientID;
 use serde::Deserialize;
-
-use crate::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
+use std::path::PathBuf;
 
 /// Authorization configuration used by the OpAmp connection to NewRelic.
 #[derive(Debug, Deserialize, PartialEq, Clone)]

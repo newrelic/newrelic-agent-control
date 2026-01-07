@@ -1,7 +1,7 @@
 use crate::common::runtime::block_on;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Secret};
-use kube::api::PostParams;
+use kube::api::{DeleteParams, PostParams};
 use kube::{Api, Client, api::DynamicObject, core::GroupVersion};
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use std::collections::BTreeMap;
@@ -168,5 +168,6 @@ pub fn create_values_secret(
     };
 
     let secrets: Api<Secret> = Api::namespaced(k8s_client, namespace);
+    let _ = block_on(secrets.delete(secret_name, &DeleteParams::default()));
     block_on(secrets.create(&PostParams::default(), &secret)).unwrap();
 }

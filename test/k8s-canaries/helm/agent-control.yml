@@ -4,6 +4,9 @@ agentControlDeployment:
     image:
       pullPolicy: Always
     config:
+      authSecret:
+        secretName: "agent-control-auth"
+        secretKeyName: "private_key"
       log:
         level: debug
       override:
