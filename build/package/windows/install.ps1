@@ -62,8 +62,15 @@ function Set-RestrictedAcl {
     if (-not (Test-Path -Path $Path)) { return }
     # Remove inheritance and replace explicit grants with Administrators members only
     # Giving Full Control Access (F) and making it apply to all child objects (OI)(CI)
+    #
+    # Use SID instead of group name to avoid localization issues. The group name changes
+    # based on the configured language.
+    # For example, BUILTIN\Administrators (english) vs BUILTIN\Administradores (spanish).
+    # 
+    # S-1-5-32-544 is the well-known SID for BUILTIN\Administrators.
+    # Reference: https://learn.microsoft.com/es-es/windows-server/identity/ad-ds/manage/understand-security-identifiers
     & icacls $Path /inheritance:r | Out-Null
-    & icacls $Path /grant "BUILTIN\Administrators:(OI)(CI)F"| Out-Null 
+    & icacls $Path /grant "*S-1-5-32-544:(OI)(CI)F" | Out-Null 
 }
 
 # Check for administrator privileges
