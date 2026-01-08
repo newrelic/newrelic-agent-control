@@ -54,7 +54,7 @@ fn extract_zip(zip_path: &Path, destination: &Path) -> Result<(), ExtractError> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::packages::extract::PackageType::{Tar, Zip};
+    use crate::package::extract::PackageType::{Tar, Zip};
     use assert_matches::assert_matches;
     use flate2::Compression;
     use flate2::write::GzEncoder;
