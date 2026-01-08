@@ -110,4 +110,6 @@ pub fn append_to_config_file(config_path: &str, content: &str) {
     writeln!(config_file, "{content}").unwrap_or_else(|err| {
         panic!("Error appending content to '{config_path}' file: {err}");
     });
+    // Wait a few seconds to prevent doing anything before the configuration is written
+    thread::sleep(Duration::from_secs(3));
 }
