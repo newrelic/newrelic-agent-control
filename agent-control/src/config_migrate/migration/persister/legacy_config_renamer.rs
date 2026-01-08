@@ -1,6 +1,6 @@
-use fs::{
+use fs::file::{
     LocalFile,
-    file_renamer::{FileRenamer, FileRenamerError},
+    renamer::{FileRenamer, FileRenamerError},
 };
 use std::path::{Path, PathBuf};
 

@@ -1,4 +1,4 @@
-use crate::LocalFile;
+use super::LocalFile;
 use std::fs::remove_file;
 use std::io;
 use std::path::Path;

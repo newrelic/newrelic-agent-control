@@ -5,8 +5,8 @@ use crate::config_migrate::migration::{
     config::{DirInfo, MigrationAgentConfig},
 };
 use crate::sub_agent::effective_agents_assembler::AgentTypeDefinitionError;
-use fs::LocalFile;
-use fs::file_reader::{FileReader, FileReaderError};
+use fs::file::LocalFile;
+use fs::file::reader::{FileReader, FileReaderError};
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::OnceLock;

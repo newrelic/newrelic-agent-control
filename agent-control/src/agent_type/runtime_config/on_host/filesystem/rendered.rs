@@ -6,7 +6,7 @@ use std::{
 
 use ::fs::{
     directory_manager::{DirectoryManagementError, DirectoryManager},
-    writer_file::{FileWriter, WriteError},
+    file::writer::{FileWriter, WriteError},
 };
 use thiserror::Error;
 use tracing::trace;

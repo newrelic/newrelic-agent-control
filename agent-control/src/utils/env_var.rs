@@ -1,4 +1,5 @@
-use fs::file_reader::FileReader;
+use fs::file::LocalFile;
+use fs::file::reader::FileReader;
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::Path;
@@ -15,8 +16,7 @@ const KEY_VALIDATION_REGEX: &str = r"^[A-Za-z_][A-Za-z0-9_]*$";
 /// Returns an error if the file cannot be read, if the YAML content cannot be parsed as a
 /// `HashMap<String, String>`, or if any key/value fails validation as described above.
 pub fn load_env_yaml_file(path: &Path) -> Result<(), Box<dyn Error>> {
-    let file = fs::LocalFile {};
-    let content = file.read(path)?;
+    let content = LocalFile.read(path)?;
 
     let env_vars: HashMap<String, String> = serde_yaml::from_str(&content)?;
 

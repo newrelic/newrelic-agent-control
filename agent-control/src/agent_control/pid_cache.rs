@@ -1,7 +1,7 @@
-use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
-use fs::file_reader::FileReader;
-use fs::writer_file::{FileWriter, WriteError};
+use fs::file::LocalFile;
+use fs::file::reader::FileReader;
+use fs::file::writer::{FileWriter, WriteError};
 use std::path::PathBuf;
 use thiserror::Error;
 

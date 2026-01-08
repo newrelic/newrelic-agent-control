@@ -9,9 +9,9 @@ use crate::config_migrate::migration::persister::values_persister_file::PersistE
 use crate::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use crate::on_host::file_store::FileStore;
 use crate::values::ConfigRepo;
-use fs::LocalFile;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
-use fs::file_reader::FileReader;
+use fs::file::LocalFile;
+use fs::file::reader::FileReader;
 use thiserror::Error;
 use tracing::{debug, info, warn};
 

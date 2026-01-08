@@ -1,6 +1,6 @@
+use super::super::directory_manager::DirectoryManagementError;
+use super::super::utils::{FsError, validate_path};
 use super::LocalFile;
-use super::directory_manager::DirectoryManagementError;
-use super::utils::{FsError, validate_path};
 use std::io::Write;
 use std::path::Path;
 use std::{fs, io};

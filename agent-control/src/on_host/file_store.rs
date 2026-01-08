@@ -5,10 +5,10 @@ use std::{
 };
 
 use fs::{
-    LocalFile,
     directory_manager::{DirectoryManager, DirectoryManagerFs},
-    file_reader::{FileReader, FileReaderError},
-    writer_file::FileWriter,
+    file::LocalFile,
+    file::reader::{FileReader, FileReaderError},
+    file::writer::FileWriter,
 };
 use serde::{Serialize, de::DeserializeOwned};
 use tracing::{debug, error, trace};
@@ -241,9 +241,9 @@ mod tests {
         directory_manager::{
             DirectoryManagementError, DirectoryManager, mock::MockDirectoryManager,
         },
-        file_reader::FileReader,
+        file::reader::FileReader,
+        file::writer::FileWriter,
         mock::MockLocalFile,
-        writer_file::FileWriter,
     };
     use mockall::predicate;
     use rstest::{fixture, rstest};

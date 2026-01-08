@@ -4,10 +4,10 @@ use std::{
 };
 
 use fs::{
-    LocalFile,
     directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs},
-    file_deleter::FileDeleter,
-    file_renamer::{FileRenamer, FileRenamerError},
+    file::LocalFile,
+    file::deleter::FileDeleter,
+    file::renamer::{FileRenamer, FileRenamerError},
 };
 use oci_client::Reference;
 use thiserror::Error;

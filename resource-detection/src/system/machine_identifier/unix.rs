@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use fs::LocalFile;
-use fs::file_reader::{FileReader, FileReaderError};
+use fs::file::LocalFile;
+use fs::file::reader::{FileReader, FileReaderError};
 
 use crate::system::detector::SystemDetectorError;
 

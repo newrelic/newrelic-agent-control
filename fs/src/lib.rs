@@ -1,13 +1,8 @@
 pub mod directory_manager;
-pub mod file_deleter;
-pub mod file_reader;
-pub mod file_renamer;
+pub mod file;
 pub mod utils;
+#[cfg(target_family = "windows")]
 pub mod win_permissions;
-pub mod writer_file;
-
-#[derive(Debug)]
-pub struct LocalFile;
 
 #[cfg(feature = "mocks")]
 pub mod mock {
@@ -15,10 +10,10 @@ pub mod mock {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use super::file_deleter::FileDeleter;
-    use super::file_reader::{FileReader, FileReaderError};
-    use super::file_renamer::{FileRenamer, FileRenamerError};
-    use super::writer_file::{FileWriter, WriteError};
+    use super::file::deleter::FileDeleter;
+    use super::file::reader::{FileReader, FileReaderError};
+    use super::file::renamer::{FileRenamer, FileRenamerError};
+    use super::file::writer::{FileWriter, WriteError};
     use mockall::mock;
 
     mock! {

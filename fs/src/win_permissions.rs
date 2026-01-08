@@ -1,4 +1,3 @@
-#![cfg(target_family = "windows")]
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr;
