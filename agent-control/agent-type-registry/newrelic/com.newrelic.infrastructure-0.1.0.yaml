@@ -1,6 +1,8 @@
 namespace: newrelic
 name: com.newrelic.infrastructure
 version: 0.1.0
+# new_random_variable_4: "some value"
+# failed with -> Invalid yaml in default agent types: Error("unknown field `new_random_variable_4`"
 variables:
   windows:
     config_agent:
@@ -64,6 +66,7 @@ variables:
       type: number
       required: false
       default: 18003
+  new_random_variable_3: "some value"
   k8s:
     # HelmChart based sub agents should always have `chart_values`.
     chart_values:
@@ -103,6 +106,9 @@ variables:
       description: "nri-bundle chart version"
       type: string
       required: true
+      new_random_variable: "some value"
+    # new_random_variable_2: "some value"
+    # fails with -> Invalid yaml in default agent types: Error("variables.k8s: data did not match any variant of untagged enum Tree"
     chart_name:
       description: "nri-bundle chart name"
       type: string
