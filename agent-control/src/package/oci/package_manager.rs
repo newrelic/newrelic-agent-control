@@ -4,10 +4,10 @@ use std::{
 };
 
 use fs::{
-    directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs},
+    directory_manager::{DirectoryManager, DirectoryManagerFs},
     file::LocalFile,
     file::deleter::FileDeleter,
-    file::renamer::{FileRenamer, FileRenamerError},
+    file::renamer::FileRenamer,
 };
 use oci_client::Reference;
 use thiserror::Error;
@@ -46,12 +46,6 @@ pub enum OCIPackageManagerError {
     Install(io::Error),
     #[error("error attempting to uninstall OCI artifact: {0}")]
     Uninstall(io::Error),
-    // The below variants should be removed when the `fs` traits are refactored and they return
-    // `std::io::Error`s instead.
-    #[error("directory management error: {0}")]
-    Directory(DirectoryManagementError),
-    #[error("file rename error: {0}")]
-    Rename(FileRenamerError),
     // Naming produces a non-normalized suffix. Should not happen but we can identify bugs with it.
     #[error("Package reference naming validation produces a non-normalized suffix: {0}")]
     NotNormalSuffix(String),
@@ -102,14 +96,14 @@ where
             .join(package_id);
         self.directory_manager
             .create(&final_file_dir)
-            .map_err(OCIPackageManagerError::Directory)?;
+            .map_err(OCIPackageManagerError::Install)?;
         let install_path = final_file_dir.join(artifact_name);
         // The "install" action itself. Moves the downloaded file to its final location.
         self.file_manager
             .rename(downloaded_filepath.as_ref(), install_path.as_ref())
             .map_err(|e| {
                 warn!("Package installation failed: {e}");
-                OCIPackageManagerError::Rename(e)
+                OCIPackageManagerError::Install(e)
             })?;
 
         debug!(
@@ -185,7 +179,7 @@ where
         let download_dir_creation_result = self
             .directory_manager
             .create(&temp_download_dir)
-            .map_err(OCIPackageManagerError::Directory);
+            .map_err(OCIPackageManagerError::Install);
 
         let downloaded_pkg = download_dir_creation_result
             .and_then(|_| {
@@ -210,7 +204,7 @@ where
         // (this is why I'm not using `?` above!)
         self.directory_manager
             .delete(&temp_download_dir)
-            .map_err(OCIPackageManagerError::Directory)
+            .map_err(OCIPackageManagerError::Install)
             // Everything went fine. Return the installed package result
             .and(installed_package)
     }
@@ -330,12 +324,7 @@ mod tests {
             .expect_create()
             .with(eq(download_dir.clone()))
             .once()
-            .returning(|_| {
-                Err(DirectoryManagementError::ErrorCreatingDirectory(
-                    "path".into(),
-                    "error".into(),
-                ))
-            });
+            .returning(|_| Err(io::Error::other("error creating directory")));
 
         directory_manager
             .expect_delete()
@@ -355,7 +344,7 @@ mod tests {
         };
         let result = pm.install(&agent_id, package_data);
 
-        assert!(matches!(result, Err(OCIPackageManagerError::Directory(_))));
+        assert!(matches!(result, Err(OCIPackageManagerError::Install(_))));
     }
 
     #[test]
@@ -555,12 +544,7 @@ mod tests {
                 eq(install_path.clone()),
             )
             .once()
-            .returning(|_, _| {
-                Err(FileRenamerError::Rename(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
-                    "denied",
-                )))
-            });
+            .returning(|_, _| Err(io::Error::new(io::ErrorKind::PermissionDenied, "denied")));
 
         let pm = OCIPackageManager {
             downloader,
@@ -574,7 +558,7 @@ mod tests {
         };
         let result = pm.install(&agent_id, package_data);
 
-        assert!(matches!(result, Err(OCIPackageManagerError::Rename(_))));
+        assert!(matches!(result, Err(OCIPackageManagerError::Install(_))));
     }
 
     #[test]
@@ -610,13 +594,7 @@ mod tests {
             .expect_create()
             .with(eq(install_dir.clone()))
             .once()
-            .returning(|_| {
-                Err(DirectoryManagementError::ErrorCreatingDirectory(
-                    "path".into(),
-                    "error".into(),
-                ))
-            });
-
+            .returning(|_| Err(io::Error::other("error creating directory")));
         directory_manager
             .expect_delete()
             .with(eq(download_dir.clone()))
@@ -635,7 +613,7 @@ mod tests {
         };
         let result = pm.install(&agent_id, package_data);
 
-        assert!(matches!(result, Err(OCIPackageManagerError::Directory(_))));
+        assert!(matches!(result, Err(OCIPackageManagerError::Install(_))));
     }
 
     #[test]
@@ -687,12 +665,7 @@ mod tests {
             .expect_delete()
             .with(eq(download_dir.clone()))
             .once()
-            .returning(|_| {
-                Err(DirectoryManagementError::ErrorDeletingDirectory(
-                    "some error".into(),
-                ))
-            });
-
+            .returning(|_| Err(io::Error::other("error deleting directory")));
         let pm = OCIPackageManager {
             downloader,
             directory_manager,
@@ -705,7 +678,7 @@ mod tests {
         };
         let result = pm.install(&agent_id, package_data);
 
-        assert!(matches!(result, Err(OCIPackageManagerError::Directory(_))));
+        assert!(matches!(result, Err(OCIPackageManagerError::Install(_))));
     }
 
     #[test]

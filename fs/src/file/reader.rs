@@ -2,37 +2,26 @@ use super::LocalFile;
 use std::fs::{self, read_dir};
 use std::io;
 use std::path::{Path, PathBuf};
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum FileReaderError {
-    #[error("error reading contents: {0}")]
-    Read(#[from] io::Error),
-    #[error("file not found: {0}")]
-    FileNotFound(String),
-    #[error("dir not found: {0}")]
-    DirNotFound(String),
-}
 
 pub trait FileReader {
     /// Read the contents of file_path and return them as string.
     ///
     /// If the file is not present it will return a FileReaderError
-    fn read(&self, file_path: &Path) -> Result<String, FileReaderError>;
+    fn read(&self, file_path: &Path) -> io::Result<String>;
 
     /// Return the entries inside a given Path.
     ///
     /// If the path does not exist it will return a FileReaderError
-    fn dir_entries(&self, dir_path: &Path) -> Result<Vec<PathBuf>, FileReaderError>;
+    fn dir_entries(&self, dir_path: &Path) -> io::Result<Vec<PathBuf>>;
 }
 
 impl FileReader for LocalFile {
-    fn read(&self, file_path: &Path) -> Result<String, FileReaderError> {
+    fn read(&self, file_path: &Path) -> io::Result<String> {
         if !file_path.is_file() {
-            return Err(FileReaderError::FileNotFound(format!(
-                "{}",
-                file_path.display()
-            )));
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("file not found or not a file: {}", file_path.display()),
+            ));
         }
 
         let file_contents = fs::read(file_path)?;
@@ -40,21 +29,24 @@ impl FileReader for LocalFile {
         match str::from_utf8(&file_contents) {
             Ok(s) => Ok(s.to_string()),
             #[cfg(target_family = "unix")]
-            Err(e) => Err(FileReaderError::Read(io::Error::new(
+            Err(e) => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("UTF-8 decoding error: {e}"),
-            ))),
+            )),
             #[cfg(target_family = "windows")]
             Err(_) => fallback_decode_windows_1252(&file_contents),
         }
     }
 
-    fn dir_entries(&self, dir_path: &Path) -> Result<Vec<PathBuf>, FileReaderError> {
+    fn dir_entries(&self, dir_path: &Path) -> io::Result<Vec<PathBuf>> {
         if !dir_path.is_dir() {
-            return Err(FileReaderError::DirNotFound(format!(
-                "{}",
-                dir_path.display()
-            )));
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "directory not found or not a directory: {}",
+                    dir_path.display()
+                ),
+            ));
         }
         let files = read_dir(dir_path)?;
         let mut file_paths: Vec<PathBuf> = Vec::new();
@@ -68,16 +60,16 @@ impl FileReader for LocalFile {
 #[cfg(target_family = "windows")]
 /// Fallback function that decodes data assuming Windows-1252 encoding.
 /// Used if UTF-8 assumptions about the input file fail.
-fn fallback_decode_windows_1252(data: &[u8]) -> Result<String, FileReaderError> {
+fn fallback_decode_windows_1252(data: &[u8]) -> io::Result<String> {
     let (output, encoding_used, errors_happened) = encoding_rs::WINDOWS_1252.decode(data);
     // Emit the actual encoding used, which might vary form the attempted due to BOM sniffing
     // Ref: <https://docs.rs/encoding_rs/latest/encoding_rs/struct.Encoding.html#method.decode>
     tracing::debug!("Decoded using: {}", encoding_used.name());
     if errors_happened {
-        Err(FileReaderError::Read(io::Error::new(
+        Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "UTF-8 and Windows-1252 decoding errors, file may be corrupted",
-        )))
+        ))
     } else {
         Ok(output.to_string())
     }
@@ -91,7 +83,7 @@ pub mod mock {
     use super::*;
     use crate::mock::MockLocalFile;
     use mockall::predicate;
-    use std::io::{Error, ErrorKind};
+
     use std::path::PathBuf;
 
     impl MockLocalFile {
@@ -99,31 +91,37 @@ pub mod mock {
             self.expect_read()
                 .with(predicate::eq(PathBuf::from(path)))
                 .once()
-                .return_once(|_| Ok(content));
+                .returning(move |_| Ok(content.clone()));
         }
 
         pub fn should_dir_entries(&mut self, path: &Path, content: Vec<PathBuf>) {
             self.expect_dir_entries()
                 .with(predicate::eq(PathBuf::from(path)))
                 .once()
-                .return_once(|_| Ok(content));
+                .returning(move |_| Ok(content.clone()));
         }
 
         pub fn should_not_read_file_not_found(&mut self, path: &Path, error_message: String) {
             self.expect_read()
                 .with(predicate::eq(PathBuf::from(path)))
                 .once()
-                .returning(move |_| Err(FileReaderError::FileNotFound(error_message.clone())));
+                .returning(move |_| {
+                    Err(io::Error::new(
+                        io::ErrorKind::NotFound,
+                        error_message.clone(),
+                    ))
+                });
         }
 
         pub fn should_not_read_io_error(&mut self, path: &Path) {
             self.expect_read()
                 .with(predicate::eq(PathBuf::from(path)))
                 .once()
-                .returning(move |_| {
-                    Err(FileReaderError::Read(Error::from(
-                        ErrorKind::PermissionDenied,
-                    )))
+                .returning(|_| {
+                    Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "permission denied",
+                    ))
                 });
         }
     }
@@ -139,7 +137,7 @@ pub mod tests {
         let result = reader.read(Path::new("/a/path/that/does/not/exist"));
         assert!(result.is_err());
         assert_eq!(
-            String::from("file not found: /a/path/that/does/not/exist"),
+            String::from("file not found or not a file: /a/path/that/does/not/exist"),
             result.unwrap_err().to_string()
         );
     }
@@ -150,7 +148,7 @@ pub mod tests {
         let result = reader.dir_entries(Path::new("/a/path/that/does/not/exist"));
         assert!(result.is_err());
         assert_eq!(
-            String::from("dir not found: /a/path/that/does/not/exist"),
+            String::from("directory not found or not a directory: /a/path/that/does/not/exist"),
             result.unwrap_err().to_string()
         );
     }

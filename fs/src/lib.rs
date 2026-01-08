@@ -11,21 +11,21 @@ pub mod mock {
     use std::path::PathBuf;
 
     use super::file::deleter::FileDeleter;
-    use super::file::reader::{FileReader, FileReaderError};
-    use super::file::renamer::{FileRenamer, FileRenamerError};
-    use super::file::writer::{FileWriter, WriteError};
+    use super::file::reader::FileReader;
+    use super::file::renamer::FileRenamer;
+    use super::file::writer::FileWriter;
     use mockall::mock;
 
     mock! {
         pub LocalFile {}
 
         impl FileReader for LocalFile {
-            fn read(&self, file_path: &Path) -> Result<String, FileReaderError>;
-            fn dir_entries(&self, dir_path: &Path) -> Result<Vec<PathBuf>, FileReaderError>;
+            fn read(&self, file_path: &Path) -> io::Result<String>;
+            fn dir_entries(&self, dir_path: &Path) -> io::Result<Vec<PathBuf>>;
         }
 
         impl FileRenamer for LocalFile {
-            fn rename(&self, file_path: &Path, rename_path: &Path) -> Result<(), FileRenamerError>;
+            fn rename(&self, file_path: &Path, rename_path: &Path) -> io::Result<()>;
         }
 
         impl FileWriter for LocalFile {
@@ -33,7 +33,7 @@ pub mod mock {
                 &self,
                 path: &Path,
                 buf: String,
-            ) -> Result<(), WriteError>;
+            ) -> io::Result<()>;
         }
 
         impl FileDeleter for LocalFile {

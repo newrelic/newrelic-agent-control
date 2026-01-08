@@ -1,7 +1,8 @@
+use std::io;
 use std::path::{Path, PathBuf};
 
 use fs::file::LocalFile;
-use fs::file::reader::{FileReader, FileReaderError};
+use fs::file::reader::FileReader;
 
 use crate::system::detector::SystemDetectorError;
 
@@ -23,7 +24,7 @@ impl<F> MachineIdentityProvider<F>
 where
     F: FileReader,
 {
-    fn read_content(&self, file_path: &Path) -> Result<String, FileReaderError> {
+    fn read_content(&self, file_path: &Path) -> io::Result<String> {
         self.file_reader.read(file_path)
     }
 
@@ -126,7 +127,7 @@ mod tests {
         let result = provider.provide();
         assert!(result.is_err());
         assert_eq!(
-            String::from("error getting machine-id: file not found: some error message"),
+            String::from("error getting machine-id: some error message"),
             result.unwrap_err().to_string()
         );
     }

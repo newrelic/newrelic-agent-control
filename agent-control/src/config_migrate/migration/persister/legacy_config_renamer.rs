@@ -1,8 +1,8 @@
-use fs::file::{
-    LocalFile,
-    renamer::{FileRenamer, FileRenamerError},
+use fs::file::{LocalFile, renamer::FileRenamer};
+use std::{
+    io,
+    path::{Path, PathBuf},
 };
-use std::path::{Path, PathBuf};
 
 const LEGACY_PATH_BCK_TOKEN: &str = "bck";
 
@@ -19,7 +19,7 @@ impl Default for LegacyConfigRenamer<LocalFile> {
 }
 
 impl<F: FileRenamer> LegacyConfigRenamer<F> {
-    pub fn rename_path(&self, path: &Path) -> Result<(), FileRenamerError> {
+    pub fn rename_path(&self, path: &Path) -> io::Result<()> {
         let mut dest_path = PathBuf::from(path);
         let mut extension = LEGACY_PATH_BCK_TOKEN.to_string();
         if let Some(ext) = dest_path.extension() {

@@ -1,34 +1,22 @@
-use super::utils::{FsError, validate_path};
+use super::utils::validate_path;
 use std::fs::{DirBuilder, remove_dir_all};
+use std::io;
 use std::path::Path;
-use thiserror::Error;
 use tracing::instrument;
-
-#[derive(Error, Debug)]
-pub enum DirectoryManagementError {
-    #[error("cannot create directory '{0}' : {1}")]
-    ErrorCreatingDirectory(String, String),
-
-    #[error("cannot delete directory: {0}")]
-    ErrorDeletingDirectory(String),
-
-    #[error("invalid directory: {0}")]
-    InvalidDirectory(#[from] FsError),
-}
 
 pub trait DirectoryManager {
     /// create will create a folder
-    fn create(&self, path: &Path) -> Result<(), DirectoryManagementError>;
+    fn create(&self, path: &Path) -> io::Result<()>;
 
     /// Delete the folder and its contents. If the folder does not exist it
     /// will not return an error.
-    fn delete(&self, path: &Path) -> Result<(), DirectoryManagementError>;
+    fn delete(&self, path: &Path) -> io::Result<()>;
 }
 
 pub struct DirectoryManagerFs;
 
 impl DirectoryManager for DirectoryManagerFs {
-    fn create(&self, path: &Path) -> Result<(), DirectoryManagementError> {
+    fn create(&self, path: &Path) -> io::Result<()> {
         validate_path(path)?;
         let mut directory_builder = DirBuilder::new();
         directory_builder.recursive(true);
@@ -41,32 +29,28 @@ impl DirectoryManager for DirectoryManagerFs {
             directory_builder.mode(DirectoryManagerFs::get_directory_permissions().mode());
         }
 
-        let path_str = |path: &Path| path.to_string_lossy().to_string();
-        directory_builder.create(path).map_err(|err| {
-            DirectoryManagementError::ErrorCreatingDirectory(path_str(path), err.to_string())
-        })?;
+        directory_builder.create(path)?;
 
         #[cfg(target_family = "windows")]
         crate::win_permissions::set_file_permissions_for_administrator(path).map_err(|err| {
-            DirectoryManagementError::ErrorCreatingDirectory(path_str(path), err.to_string())
+            io::Error::other(format!(
+                "Failed to set windows permissions for {}: {}",
+                path.display(),
+                err
+            ))
         })?;
 
         Ok(())
     }
 
     #[instrument(skip_all, fields(path = %path.display()))]
-    fn delete(&self, path: &Path) -> Result<(), DirectoryManagementError> {
+    fn delete(&self, path: &Path) -> io::Result<()> {
         validate_path(path)?;
 
         if !path.exists() {
             return Ok(());
         }
-        match remove_dir_all(path) {
-            Err(e) => Err(DirectoryManagementError::ErrorDeletingDirectory(
-                e.to_string(),
-            )),
-            _ => Ok(()),
-        }
+        remove_dir_all(path)
     }
 }
 
@@ -76,25 +60,6 @@ impl DirectoryManagerFs {
         use std::os::unix::fs::PermissionsExt;
 
         std::fs::Permissions::from_mode(0o700)
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////
-// Mock
-////////////////////////////////////////////////////////////////////////////////////
-impl Clone for DirectoryManagementError {
-    fn clone(&self) -> Self {
-        match self {
-            DirectoryManagementError::ErrorCreatingDirectory(path, s) => {
-                DirectoryManagementError::ErrorCreatingDirectory(path.clone(), s.to_string())
-            }
-            DirectoryManagementError::ErrorDeletingDirectory(s) => {
-                DirectoryManagementError::ErrorDeletingDirectory(s.to_string())
-            }
-            DirectoryManagementError::InvalidDirectory(s) => {
-                DirectoryManagementError::InvalidDirectory(s.clone())
-            }
-        }
     }
 }
 
@@ -111,8 +76,8 @@ pub mod mock {
         pub DirectoryManager {}
 
         impl DirectoryManager for DirectoryManager {
-            fn create(&self, path: &Path) -> Result<(), DirectoryManagementError>;
-            fn delete(&self, path: &Path) -> Result<(), DirectoryManagementError>;
+            fn create(&self, path: &Path) -> io::Result<()>;
+            fn delete(&self, path: &Path) -> io::Result<()>;
         }
     }
 
@@ -125,12 +90,11 @@ pub mod mock {
                 .returning(|_| Ok(()));
         }
 
-        pub fn should_not_create(&mut self, path: &Path, err: DirectoryManagementError) {
+        pub fn should_not_create(&mut self, path: &Path, err: io::Error) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_create()
                 .with(predicate::eq(path_clone))
-                .once()
-                .returning(move |_| Err(err.clone()));
+                .return_once(|_| Err(err));
         }
 
         pub fn should_delete(&mut self, path: &Path) {
@@ -141,12 +105,11 @@ pub mod mock {
                 .returning(|_| Ok(()));
         }
 
-        pub fn should_not_delete(&mut self, path: &Path, err: DirectoryManagementError) {
+        pub fn should_not_delete(&mut self, path: &Path, err: io::Error) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_delete()
                 .with(predicate::eq(path_clone))
-                .once()
-                .returning(move |_| Err(err.clone()));
+                .return_once(|_| Err(err));
         }
     }
 }
@@ -171,7 +134,7 @@ pub mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            "invalid directory: dots disallowed in path some/path/../with/../dots".to_string(),
+            "dots disallowed in path some/path/../with/../dots".to_string(),
             result.unwrap_err().to_string()
         );
     }
@@ -187,7 +150,7 @@ pub mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            "invalid directory: dots disallowed in path some/path/../with/../dots".to_string(),
+            "dots disallowed in path some/path/../with/../dots".to_string(),
             result.unwrap_err().to_string()
         );
     }

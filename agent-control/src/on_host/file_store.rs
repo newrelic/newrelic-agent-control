@@ -7,7 +7,7 @@ use std::{
 use fs::{
     directory_manager::{DirectoryManager, DirectoryManagerFs},
     file::LocalFile,
-    file::reader::{FileReader, FileReaderError},
+    file::reader::FileReader,
     file::writer::FileWriter,
 };
 use serde::{Serialize, de::DeserializeOwned};
@@ -85,11 +85,11 @@ where
 
     // Load a file contents only if the file is present.
     // If the file is not present there is no error nor file
-    fn load_file_if_present(&self, path: &Path) -> Result<Option<String>, FileReaderError> {
+    fn load_file_if_present(&self, path: &Path) -> io::Result<Option<String>> {
         let values_result = self.file_rw.read(path);
         match values_result {
             Ok(res) => Ok(Some(res)),
-            Err(FileReaderError::FileNotFound(e)) => {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
                 trace!("File not found! {e}");
                 // actively fallback to load local file
                 Ok(None)
@@ -102,7 +102,7 @@ where
     }
 
     /// ensures directory exists
-    fn ensure_directory_existence(&self, values_file_path: &Path) -> Result<(), Error> {
+    fn ensure_directory_existence(&self, values_file_path: &Path) -> io::Result<()> {
         match values_file_path.parent() {
             None => Err(Error::other(format!(
                 "cannot determine parent directory of path `{}`",
@@ -238,9 +238,7 @@ mod tests {
 
     use assert_matches::assert_matches;
     use fs::{
-        directory_manager::{
-            DirectoryManagementError, DirectoryManager, mock::MockDirectoryManager,
-        },
+        directory_manager::{DirectoryManager, mock::MockDirectoryManager},
         file::reader::FileReader,
         file::writer::FileWriter,
         mock::MockLocalFile,
@@ -455,7 +453,7 @@ mod tests {
                 p == instance_id_path.as_path()
             }))
             .once()
-            .return_once(|_| Err(io::Error::other("some error message").into()));
+            .return_once(|_| Err(io::Error::other("some error message")));
 
         let file_store = Arc::new(FileStore::new(
             file_rw,
@@ -679,13 +677,7 @@ state: applied
         let remote_path = remote_dir_path.get_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
 
         // Expectations
-        dir_manager.should_not_create(
-            remote_path.parent().unwrap(),
-            DirectoryManagementError::ErrorCreatingDirectory(
-                "dir name".to_string(),
-                "oh now...".to_string(),
-            ),
-        );
+        dir_manager.should_not_create(remote_path.parent().unwrap(), io::Error::other("oh now..."));
 
         let file_store = Arc::new(FileStore::new(
             file_rw,

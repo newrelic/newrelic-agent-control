@@ -1,29 +1,12 @@
-use super::super::directory_manager::DirectoryManagementError;
-use super::super::utils::{FsError, validate_path};
+use super::super::utils::validate_path;
 use super::LocalFile;
 use std::io::Write;
 use std::path::Path;
 use std::{fs, io};
-use thiserror::Error;
 use tracing::instrument;
 
-#[derive(Error, Debug)]
-pub enum WriteError {
-    #[error("directory error: {0}")]
-    DirectoryError(#[from] DirectoryManagementError),
-
-    #[error("error creating file: {0}")]
-    ErrorCreatingFile(#[from] io::Error),
-
-    #[error("invalid path: {0}")]
-    InvalidPath(#[from] FsError),
-
-    #[error("{0}")]
-    GenericError(String),
-}
-
 pub trait FileWriter {
-    fn write(&self, path: &Path, buf: String) -> Result<(), WriteError>;
+    fn write(&self, path: &Path, buf: String) -> io::Result<()>;
 }
 
 impl FileWriter for LocalFile {
@@ -31,7 +14,7 @@ impl FileWriter for LocalFile {
     /// On Unix it sets the file permissions to 600.
     /// On Windows it removes inheritance and adds Read/Write only to administrators.
     #[instrument(skip_all, fields(path = %path.display()))]
-    fn write(&self, path: &Path, content: String) -> Result<(), WriteError> {
+    fn write(&self, path: &Path, content: String) -> io::Result<()> {
         validate_path(path)?;
 
         let mut file_options = fs::OpenOptions::new();
@@ -48,7 +31,7 @@ impl FileWriter for LocalFile {
 
         #[cfg(target_family = "windows")]
         crate::win_permissions::set_file_permissions_for_administrator(path)
-            .map_err(|err| WriteError::GenericError(err.to_string()))?;
+            .map_err(io::Error::other)?;
 
         Ok(())
     }
@@ -88,11 +71,7 @@ pub mod mock {
             self.expect_write()
                 .with(predicate::eq(path_clone), predicate::eq(content))
                 .once()
-                .returning(|_, _| {
-                    Err(WriteError::ErrorCreatingFile(io::Error::from(
-                        ErrorKind::PermissionDenied,
-                    )))
-                });
+                .returning(|_, _| Err(Error::from(ErrorKind::PermissionDenied)));
         }
 
         pub fn should_write_any(&mut self, times: usize) {
@@ -100,9 +79,9 @@ pub mod mock {
         }
 
         pub fn should_not_write_any(&mut self, times: usize, io_err_kind: ErrorKind) {
-            self.expect_write().times(times).returning(move |_, _| {
-                Err(WriteError::ErrorCreatingFile(Error::from(io_err_kind)))
-            });
+            self.expect_write()
+                .times(times)
+                .returning(move |_, _| Err(Error::from(io_err_kind)));
         }
     }
 }
@@ -206,7 +185,7 @@ pub mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            "invalid path: dots disallowed in path some/path/../../etc/passwd".to_string(),
+            "dots disallowed in path some/path/../../etc/passwd".to_string(),
             result.unwrap_err().to_string()
         );
     }
