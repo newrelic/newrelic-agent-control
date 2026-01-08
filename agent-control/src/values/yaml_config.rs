@@ -42,6 +42,24 @@ impl YAMLConfig {
         }
         Ok(result)
     }
+
+    /// Merges the provided [YAMLConfig] values, `b` values take precede.
+    ///
+    /// # Example
+    /// ```
+    /// # use newrelic_agent_control::values::yaml_config::YAMLConfig;
+    /// # use serde_json::json;
+    /// let a: YAMLConfig = serde_json::from_value(json!({"key1": "value1", "key2": {"x": "y"}})).unwrap();
+    /// let b: YAMLConfig = serde_json::from_value(json!({"key2": "value2", "key3": "value3"})).unwrap();
+    /// let merged = YAMLConfig::merge_override(a, b);
+    /// assert_eq!(merged, serde_json::from_value(json!({"key1": "value1", "key2": "value2", "key3": "value3"})).unwrap());
+    /// ```
+    pub fn merge_override(a: Self, b: Self) -> Self {
+        b.0.into_iter().fold(a, |mut result, (k, v)| {
+            result.0.insert(k, v);
+            result
+        })
+    }
 }
 
 #[derive(Error, Debug)]
@@ -128,6 +146,7 @@ mod tests {
         },
     };
     use rstest::rstest;
+    use serde_json::json;
     use serde_yaml::{Mapping, Value};
 
     impl YAMLConfig {
@@ -316,22 +335,26 @@ deployment:
 
     #[rstest]
     #[case::single_key_each(
-        r#"{"key1": "value1"}"#,
-        r#"{"key2": "value2"}"#,
-        r#"{"key1": "value1", "key2": "value2"}"#
+        json!({"key1": "value1"}),
+        json!({"key2": "value2"}),
+        json!({"key1": "value1", "key2": "value2"})
     )]
     #[case::multiple_keys_no_overlap(
-        r#"{"key1": "value1", "key2": "value2"}"#,
-        r#"{"key3": "value3", "key4": "value4"}"#,
-        r#"{"key1": "value1", "key2": "value2", "key3": "value3", "key4": "value4"}"#
+        json!({"key1": "value1", "key2": "value2"}),
+        json!({"key3": "value3", "key4": "value4"}),
+        json!({"key1": "value1", "key2": "value2", "key3": "value3", "key4": "value4"})
     )]
-    #[case::empty("{}", "{}", "{}")]
-    #[case::empty_first("{}", r#"{"key1": "value1"}"#, r#"{"key1": "value1"}"#)]
-    #[case::empty_second(r#"{"key1": "value1"}"#, "{}", r#"{"key1": "value1"}"#)]
-    fn test_try_append_success(#[case] a: &str, #[case] b: &str, #[case] expected: &str) {
-        let config_a = serde_json::from_str::<YAMLConfig>(a).unwrap();
-        let config_b = serde_json::from_str::<YAMLConfig>(b).unwrap();
-        let expected_config = serde_json::from_str::<YAMLConfig>(expected).unwrap();
+    #[case::empty(json!({}), json!({}), json!({}))]
+    #[case::empty_first(json!({}), json!({"key1": "value1"}), json!({"key1": "value1"}))]
+    #[case::empty_second(json!({"key1": "value1"}), json!({}), json!({"key1": "value1"}))]
+    fn test_try_append_success(
+        #[case] a: serde_json::Value,
+        #[case] b: serde_json::Value,
+        #[case] expected: serde_json::Value,
+    ) {
+        let config_a = serde_json::from_value::<YAMLConfig>(a).unwrap();
+        let config_b = serde_json::from_value::<YAMLConfig>(b).unwrap();
+        let expected_config = serde_json::from_value::<YAMLConfig>(expected).unwrap();
 
         let result = YAMLConfig::try_append(config_a, config_b);
         assert!(result.is_ok());
@@ -339,14 +362,17 @@ deployment:
     }
 
     #[rstest]
-    #[case::duplicate_key(r#"{"key1": "value1"}"#, r#"{"key1": "value2"}"#)]
+    #[case::duplicate_key(json!({"key1": "value1"}), json!({"key1": "value2"}))]
     #[case::multiple_keys_with_duplicate(
-        r#"{"key1": "value1", "key2": "value2"}"#,
-        r#"{"key2": "value3", "key3": "value4"}"#
+        json!({"key1": "value1", "key2": "value2"}),
+        json!({"key2": "value3", "key3": "value4"})
     )]
-    fn test_try_append_duplicate_key_error(#[case] a: &str, #[case] b: &str) {
-        let config_a = serde_json::from_str::<YAMLConfig>(a).unwrap();
-        let config_b = serde_json::from_str::<YAMLConfig>(b).unwrap();
+    fn test_try_append_duplicate_key_error(
+        #[case] a: serde_json::Value,
+        #[case] b: serde_json::Value,
+    ) {
+        let config_a = serde_json::from_value::<YAMLConfig>(a).unwrap();
+        let config_b = serde_json::from_value::<YAMLConfig>(b).unwrap();
 
         let result = YAMLConfig::try_append(config_a, config_b);
         assert!(result.is_err());
@@ -356,5 +382,47 @@ deployment:
                 .0
                 .contains("cannot append duplicated key")
         );
+    }
+
+    #[rstest]
+    #[case::single_key_each(
+        json!({"key1": "value1"}),
+        json!({"key2": "value2"}),
+        json!({"key1": "value1", "key2": "value2"})
+    )]
+    #[case::multiple_keys_no_overlap(
+        json!({"key1": "value1", "key2": "value2"}),
+        json!({"key3": "value3", "key4": "value4"}),
+        json!({"key1": "value1", "key2": "value2", "key3": "value3", "key4": "value4"})
+    )]
+    #[case::overlapping_keys_b_takes_precedence(
+        json!({"key1": "value1", "key2": "value2"}),
+        json!({"key2": "value3", "key3": "value4"}),
+        json!({"key1": "value1", "key2": "value3", "key3": "value4"})
+    )]
+    #[case::all_overlapping_keys(
+        json!({"key1": "value1", "key2": "value2"}),
+        json!({"key1": "new1", "key2": "new2"}),
+        json!({"key1": "new1", "key2": "new2"})
+    )]
+    #[case::empty(json!({}), json!({}), json!({}))]
+    #[case::empty_first(json!({}), json!({"key1": "value1"}), json!({"key1": "value1"}))]
+    #[case::empty_second(json!({"key1": "value1"}), json!({}), json!({"key1": "value1"}))]
+    #[case::nested_objects_override(
+        json!({"key1": "value1", "key2": {"x": "y"}}),
+        json!({"key2": "value2", "key3": "value3"}),
+        json!({"key1": "value1", "key2": "value2", "key3": "value3"})
+    )]
+    fn test_merge_override(
+        #[case] a: serde_json::Value,
+        #[case] b: serde_json::Value,
+        #[case] expected: serde_json::Value,
+    ) {
+        let config_a = serde_json::from_value::<YAMLConfig>(a).unwrap();
+        let config_b = serde_json::from_value::<YAMLConfig>(b).unwrap();
+        let expected_config = serde_json::from_value::<YAMLConfig>(expected).unwrap();
+
+        let result = YAMLConfig::merge_override(config_a, config_b);
+        assert_eq!(result, expected_config);
     }
 }
