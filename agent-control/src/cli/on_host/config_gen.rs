@@ -17,7 +17,7 @@ pub mod config;
 pub mod identity;
 pub mod region;
 
-const NR_LICENSE_ENV_VAR: &str = "NEW_RELIC_LICENSE_KEY";
+pub const NR_LICENSE_ENV_VAR: &str = "NEW_RELIC_LICENSE_KEY";
 const OTLP_ENDPOINT_ENV_VAR: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
 
 /// Generates the Agent Control configuration for host environments.

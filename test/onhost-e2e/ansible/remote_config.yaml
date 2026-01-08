@@ -61,8 +61,13 @@
           set_fact:
             test_id: "sub_agent_remote_config_{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}"
 
-        - name: Add TEST_ID to service to be used by remote config reference
-          shell: echo 'TEST_ID="{{ test_id }}"' >> {{ agent_control_service_conf }}
+        - name: Add TEST_ID ac env vars
+          include_role:
+            name: edit_yaml_config
+          vars:
+            config_path: "/etc/newrelic-agent-control/environment_variables.yaml"
+            update_config:
+              TEST_ID: "{{ test_id }}"
 
         - name: Infra Agent config folder
           file:
