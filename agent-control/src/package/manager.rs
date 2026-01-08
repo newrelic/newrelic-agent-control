@@ -1,12 +1,26 @@
 //! This module manages package operations such as installation, removal, and updates.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use oci_client::Reference;
 
 use crate::{
     agent_control::agent_id::AgentID, package::oci::package_manager::OCIPackageManagerError,
 };
+
+/// Information required to reference and install a package
+#[derive(Debug)]
+pub struct PackageData {
+    pub id: String, // same type as the packages map on an agent type definition
+    pub oci_reference: Reference,
+}
+
+/// Information about an installed package
+#[derive(Debug)]
+pub struct InstalledPackageData {
+    pub id: String, // same type as the packages map on an agent type definition
+    pub installation_path: PathBuf,
+}
 
 /// An interface for a package manager.
 ///
@@ -19,9 +33,13 @@ pub trait PackageManager {
     fn install(
         &self,
         agent_id: &AgentID,
-        package: &Reference,
-    ) -> Result<PathBuf, OCIPackageManagerError>;
+        package: PackageData,
+    ) -> Result<InstalledPackageData, OCIPackageManagerError>;
 
     /// Uninstall a package.
-    fn uninstall(&self, agent_id: &AgentID, package: &Path) -> Result<(), OCIPackageManagerError>;
+    fn uninstall(
+        &self,
+        agent_id: &AgentID,
+        package: InstalledPackageData,
+    ) -> Result<(), OCIPackageManagerError>;
 }
