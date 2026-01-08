@@ -1,0 +1,80 @@
+---
+- name: Create local repo temp folder
+  tempfile:
+    state: directory
+  register: tmp_repo
+  when: local_package_path != ""
+# Adds a local folder to the trusted repo list. The folder contains the local .deb packages that will be 
+# scanned and added to the repo (building the required metadata). After that is done these packages are 
+# available to installed with apt. 
+# The recipe is still adding the apt upstream production repo so both interoperates, and because of that
+# is IMPORTANT that the local package has version different from any of the Released ones.
+- name: Build local repo
+  shell: |
+    apt-get install dpkg-dev -y
+    
+    echo "deb [trusted=yes] file://{{ tmp_repo.path }} ./" >> /etc/apt/sources.list
+    
+    cp {{ local_package_path }}/*.deb {{ tmp_repo.path }}
+    if [ -z "$(ls -A "{{ tmp_repo.path }}")" ]; then
+      echo "No packages where found"
+      exit 1
+    fi
+    
+    cd {{ tmp_repo.path }}
+    dpkg-scanpackages -m . > Packages
+    
+    apt-get update
+  when: local_package_path != ""
+
+- name: Create recipe temp folder
+  tempfile:
+    state: directory
+  register: tmp_recipes
+  
+- name: Git checkout recipes repo
+  ansible.builtin.git:
+    repo: "https://github.com/newrelic/open-install-library.git"
+    dest: "{{ tmp_recipes.path }}"
+    single_branch: true
+    version: "{{ recipe_repo_branch }}"
+
+- name: Install AC from local recipe
+  shell: |
+    curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | \
+      bash && sudo \
+      NEW_RELIC_CLI_SKIP_CORE=1 \
+      NEW_RELIC_LICENSE_KEY={{ nr_license_key }} \
+      NEW_RELIC_API_KEY={{ nr_api_key }} \
+      NEW_RELIC_ACCOUNT_ID={{ nr_account_id }} \
+      NEW_RELIC_AUTH_PROVISIONED_CLIENT_ID={{ system_identity_client_id }} \
+      NEW_RELIC_AUTH_PRIVATE_KEY_PATH={{ agent_control_private_key }} \
+      NEW_RELIC_AGENT_VERSION={{ agent_control_version }} \
+      NEW_RELIC_REGION={{ nr_region }} \
+      NEW_RELIC_AGENT_CONTROL_HOST_MONITORING_SOURCE={{ monitoring_source }} \
+      NR_CLI_FLEET_ID={{ fleet_id }} \
+      NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED={{ fleet_enabled }} \
+      NR_AC_MIGRATE_INFRA_CONFIG={{ migrate_infra_config }} \
+      NEW_RELIC_AGENT_CONTROL=true \
+      NEW_RELIC_AGENT_CONTROL_PROXY_URL={{ ac_proxy_url }} \
+      HTTPS_PROXY={{ ac_proxy_url }} \
+      /usr/local/bin/newrelic install \
+      -y \
+      --localRecipes {{ tmp_recipes.path }}\
+      -n {{ recipe_list }}
+  register: install_logs
+  retries: 3
+  delay: 30
+  until: "'TLS handshake timeout' not in install_logs.stderr"
+
+- name: Install stdout
+  debug:
+    var: install_logs.stdout_lines
+
+- name: Install stderr
+  debug:
+    var: install_logs.stderr_lines
+
+- name: Check expected installed version
+  shell: /usr/bin/newrelic-agent-control --version | grep -q "{{ agent_control_version }}"
+...

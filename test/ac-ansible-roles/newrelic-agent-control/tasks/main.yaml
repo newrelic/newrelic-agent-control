@@ -1,0 +1,4 @@
+---
+- name: Install New Relic Agent Control in a host
+  ansible.builtin.include_tasks: host-install.yaml
+  when: not uninstall
