@@ -5,7 +5,7 @@ agentControlDeployment:
       pullPolicy: Always
     config:
       authSecret:
-        secretName: "agent-control-auth"
+        secretName: "sys-identity"
         secretKeyName: "private_key"
       log:
         level: debug
