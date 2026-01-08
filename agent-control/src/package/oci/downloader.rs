@@ -126,7 +126,11 @@ impl OCIRefDownloader {
         package_dir: &Path,
     ) -> Result<Vec<PathBuf>, OCIDownloaderError> {
         for attempt in 0u64..=self.retries {
-            debug!("Downloading artifact, attempt {attempt}/{}", self.retries);
+            debug!(
+                "Downloading artifact, attempt {}/{}",
+                attempt + 1,
+                self.retries + 1
+            );
             let result = self
                 .runtime
                 .block_on(self.oci_download_file(reference, package_dir));

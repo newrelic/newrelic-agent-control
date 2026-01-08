@@ -128,8 +128,8 @@ where
 /// The sanitization process:
 /// 1. Prepends "oci_" to the filename to avoid reserved filenames (e.g. "CON" on Windows) and
 ///    to prevent the filename from being exactly "." or "..".
-/// 2. Replaces directory separators (`/`, `\`) and the tag separator (`:`) with `__`.
-/// 3. Replaces any other character that is not alphanumeric, `.`, `-`, `_`, or `@` with `_`.
+/// 2. Replaces directory separators (`/`, `\`) with `__`.
+/// 3. Replaces any other character that is not alphanumeric, `.`, `-`, `_`, `@`, etc with `_`.
 pub fn compute_path_suffix(package: &Reference) -> Result<PathBuf, OCIPackageManagerError> {
     let package_full_reference = package.whole();
     let mut safe_name = String::with_capacity(package_full_reference.len() + 4);
