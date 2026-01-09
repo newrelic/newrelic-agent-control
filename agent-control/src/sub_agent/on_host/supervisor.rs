@@ -22,8 +22,8 @@ use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
-use fs::LocalFile;
 use fs::directory_manager::DirectoryManagerFs;
+use fs::file::LocalFile;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::time::{Duration, Instant, SystemTime};

@@ -5,10 +5,11 @@ use crate::config_migrate::migration::{
     config::{DirInfo, MigrationAgentConfig},
 };
 use crate::sub_agent::effective_agents_assembler::AgentTypeDefinitionError;
-use fs::LocalFile;
-use fs::file_reader::{FileReader, FileReaderError};
+use fs::file::LocalFile;
+use fs::file::reader::FileReader;
 use regex::Regex;
 use std::collections::HashMap;
+use std::io;
 use std::sync::OnceLock;
 use thiserror::Error;
 use tracing::debug;
@@ -16,17 +17,17 @@ use tracing::debug;
 #[derive(Error, Debug)]
 pub enum ConversionError {
     #[error("{0}")]
-    RepositoryError(#[from] AgentRepositoryError),
+    Repository(#[from] AgentRepositoryError),
     #[error("{0}")]
-    ConvertFileError(#[from] FileReaderError),
+    FileSystem(io::Error),
     #[error("{0}")]
-    AgentValueError(#[from] AgentValueError),
+    AgentValue(#[from] AgentValueError),
     #[error("{0}")]
-    AgentTypeDefinitionError(#[from] AgentTypeDefinitionError),
+    AgentTypeDefinition(#[from] AgentTypeDefinitionError),
     #[error("cannot find required file map: {0}")]
-    RequiredFileMappingNotFoundError(String),
+    RequiredFileMappingNotFound(String),
     #[error("cannot find required dir map: {0}")]
-    RequiredDirMappingNotFoundError(String),
+    RequiredDirMappingNotFound(String),
     #[error("deserializing YAML: {0}")]
     InvalidYamlConfiguration(#[from] serde_yaml::Error),
 }
@@ -83,7 +84,9 @@ fn retrieve_file_mapping_value<F: FileReader>(
     file_info: &FileInfo,
 ) -> Result<serde_yaml::Value, ConversionError> {
     debug!("Reading file mapping from: {:?}", file_info.file_path);
-    let yaml_value = file_reader.read(file_info.file_path.as_path())?;
+    let yaml_value = file_reader
+        .read(file_info.file_path.as_path())
+        .map_err(ConversionError::FileSystem)?;
     let mut parsed_yaml: serde_yaml::Value = serde_yaml::from_str(&yaml_value)?;
     // Overwrite or add attributes from the HashMap
     if let serde_yaml::Value::Mapping(ref mut map) = parsed_yaml {
@@ -106,7 +109,8 @@ fn retrieve_dir_mapping_values<F: FileReader>(
     dir_info: &DirInfo,
 ) -> Result<serde_yaml::Value, ConversionError> {
     let valid_extension_files = file_reader
-        .dir_entries(&dir_info.dir_path)?
+        .dir_entries(&dir_info.dir_path)
+        .map_err(ConversionError::FileSystem)?
         .into_iter()
         .filter(|p| dir_info.valid_filename(p));
 
@@ -119,7 +123,7 @@ fn retrieve_dir_mapping_values<F: FileReader>(
     });
 
     let read_files = read_files.try_fold(HashMap::new(), |mut acc, read_file| {
-        let (filepath, content) = read_file?;
+        let (filepath, content) = read_file.map_err(ConversionError::FileSystem)?;
         let parsed = serde_yaml::from_str::<serde_yaml::Value>(&process_config_input(content))?;
         acc.insert(filepath, parsed);
         Ok::<_, ConversionError>(acc)
@@ -543,9 +547,10 @@ element: dsfadsf
             .with(predicate::always())
             .return_once(move |p| {
                 if p == Path::new("/etc/newrelic-infra.yml") {
-                    Err(FileReaderError::FileNotFound(String::from(
+                    Err(io::Error::new(
+                        io::ErrorKind::NotFound,
                         "file not found: `/etc/newrelic-infra.yml`",
-                    )))
+                    ))
                 } else {
                     // Default string because we don't care about other reads
                     Ok(String::new())

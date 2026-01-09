@@ -1,4 +1,7 @@
-use std::path::{Component, Path};
+use std::{
+    io,
+    path::{Component, Path},
+};
 use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]
@@ -10,14 +13,17 @@ pub enum FsError {
     DotsDisallowed(String),
 }
 
-pub fn validate_path(path: &Path) -> Result<(), FsError> {
+pub fn validate_path(path: &Path) -> io::Result<()> {
     if path.components().any(|c| matches!(c, Component::ParentDir)) {
-        Err(FsError::DotsDisallowed(path.to_string_lossy().to_string()))
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("dots disallowed in path {}", path.to_string_lossy()),
+        ))
     } else if path.to_str().is_none() {
-        Err(FsError::InvalidPath(format!(
-            "{} is not valid unicode",
-            path.display()
-        )))
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("{} is not valid unicode", path.display()),
+        ))
     } else {
         Ok(())
     }

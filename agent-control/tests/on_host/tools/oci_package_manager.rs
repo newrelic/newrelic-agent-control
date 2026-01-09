@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use fs::{LocalFile, directory_manager::DirectoryManagerFs};
+use fs::{directory_manager::DirectoryManagerFs, file::LocalFile};
 use newrelic_agent_control::{
     http::config::ProxyConfig,
     package::oci::{downloader::OCIRefDownloader, package_manager::OCIPackageManager},
