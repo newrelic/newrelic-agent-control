@@ -9,14 +9,14 @@ use zip::ZipArchive;
 
 #[derive(Debug, Error)]
 #[error("extract error: {0}")]
-pub struct ExtractError(String);
+pub struct ExtractError(pub String);
 
 impl PackageType {
     #[instrument(skip_all, fields(archive_path = %archive_path.to_string_lossy()),name = "extracting_archive")]
-    pub fn extract(self, archive_path: &Path, destination_path: &Path) -> Result<(), ExtractError> {
+    pub fn extract(&self, archive_path: &Path, dest_path: &Path) -> Result<(), ExtractError> {
         match self {
-            PackageType::Tar => extract_tar_gz(archive_path, destination_path),
-            PackageType::Zip => extract_zip(archive_path, destination_path),
+            PackageType::Tar => extract_tar_gz(archive_path, dest_path),
+            PackageType::Zip => extract_zip(archive_path, dest_path),
         }
     }
 }
@@ -24,15 +24,15 @@ impl PackageType {
 /// Extracts a tar.gz archive located at `archive_path` into the directory at `destination_path`.
 /// This operation is relatively sensitive in that it will not write files outside of the path specified by dst.
 /// Files in the archive which have a '..' in their path are skipped during the unpacking process.
-fn extract_tar_gz(archive_path: &Path, destination_path: &Path) -> Result<(), ExtractError> {
+fn extract_tar_gz(tar_path: &Path, destination_path: &Path) -> Result<(), ExtractError> {
     debug!("Extracting tar.gz archive to '{:?}'", destination_path);
 
-    let tar_gz = File::open(archive_path)
-        .map_err(|e| ExtractError(format!("opening tar.gz file: {}", e)))?;
+    let tar_gz =
+        File::open(tar_path).map_err(|e| ExtractError(format!("opening tar.gz file: {}", e)))?;
     let tar = GzDecoder::new(tar_gz);
     Archive::new(tar)
         .unpack(destination_path)
-        .map_err(|e| ExtractError(format!("extracting tar.gz file: {}", e)))
+        .map_err(|e| ExtractError(format!("extracting tar.gz file: {e}",)))
 }
 
 /// Extracts a zip archive located at `zip_path` into the directory at `destination`.
@@ -48,11 +48,11 @@ fn extract_zip(zip_path: &Path, destination: &Path) -> Result<(), ExtractError> 
 
     archive
         .extract(destination)
-        .map_err(|e| ExtractError(format!("extracting zip file: {}", e)))
+        .map_err(|e| ExtractError(format!("extracting zip file: {e}")))
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::package::extract::PackageType::{Tar, Zip};
     use assert_matches::assert_matches;
@@ -176,7 +176,7 @@ mod tests {
         tar.finish().unwrap();
     }
 
-    fn create_data_to_compress(tmp_dir_to_compress: &Path) {
+    pub fn create_data_to_compress(tmp_dir_to_compress: &Path) {
         let file_path_1 = tmp_dir_to_compress.join("file1.txt");
         File::create(file_path_1.clone()).unwrap();
         let file_path_2 = tmp_dir_to_compress.join("file2.txt");
