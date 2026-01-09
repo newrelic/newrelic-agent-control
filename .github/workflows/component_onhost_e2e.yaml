@@ -33,8 +33,8 @@ jobs:
       skip_sign: true
       tag_name: 0.900.${{ github.run_id }}
 
-  on-host-linux-e2e-rust:
-    name: OnHost Linux E2E tests (rust)
+  on-host-linux-e2e:
+    name: OnHost Linux E2E tests
     needs: [build-packages]
     runs-on: ubuntu-24.04
     strategy:
