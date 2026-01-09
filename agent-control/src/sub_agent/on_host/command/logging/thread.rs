@@ -7,6 +7,7 @@ use std::{
     io::{BufRead, BufReader, Read},
     thread::JoinHandle,
 };
+use tracing::dispatcher;
 
 pub(crate) fn spawn_logger<R>(handle: R, loggers: Vec<Logger>)
 where
@@ -30,8 +31,14 @@ where
         .map(|logger| logger.log(loggers_channel.subscribe()))
         .collect();
 
+    let dispatch = dispatcher::get_default(|d| d.clone());
+    let span = tracing::Span::current();
+
     // In a separate thread, iterate over the handle to get the logs
     let sender_thread = spawn_named_thread("OnHost log sender", move || {
+        let _guard = dispatcher::set_default(&dispatch);
+        let _enter = span.enter();
+
         let log_entries = BufReader::new(handle).lines();
         for line in log_entries {
             let line = line.expect("Failed to read line from buffered reader");
@@ -53,7 +60,6 @@ mod tests {
     use mockall::{Sequence, mock};
     use std::io::{Read, Seek, SeekFrom, Write};
     use tempfile::tempfile;
-    use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
     mock! {
@@ -115,14 +121,8 @@ mod tests {
             thd.join().unwrap();
         }
 
-        assert!(logs_with_scope_contain(
-            "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
-            "logging test 1",
-        ));
-        assert!(logs_with_scope_contain(
-            "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
-            "logging test 2",
-        ));
+        assert!(logs_contain("logging test 1"));
+        assert!(logs_contain("logging test 2"));
     }
 
     #[traced_test]
@@ -158,14 +158,8 @@ mod tests {
             thd.join().unwrap();
         }
 
-        assert!(logs_with_scope_contain(
-            "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
-            "err logging test 1",
-        ));
-        assert!(logs_with_scope_contain(
-            "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
-            "err logging test 2",
-        ));
+        assert!(logs_contain("err logging test 1"));
+        assert!(logs_contain("err logging test 2"));
     }
 
     #[traced_test]
@@ -206,14 +200,8 @@ mod tests {
             thd.join().unwrap();
         }
 
-        assert!(logs_with_scope_contain(
-            "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
-            "logging test 1 agent_id=test-agent",
-        ));
-        assert!(logs_with_scope_contain(
-            "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
-            "logging test 2 agent_id=test-agent",
-        ));
+        assert!(logs_contain("logging test 1 agent_id=test-agent"));
+        assert!(logs_contain("logging test 2 agent_id=test-agent"));
 
         // Check the file content
         temp_file.seek(SeekFrom::Start(0)).unwrap();
