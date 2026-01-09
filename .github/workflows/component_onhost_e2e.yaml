@@ -136,15 +136,14 @@ jobs:
       - name: Build e2e-runner binary
         run: cargo build -p e2e-runner
       - name: "Windows e2e ${{ matrix.group }}"
-        shell: bash
         run: |
-          echo "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/newrelic-agent-control-priv.key
-          ${{ github.workspace }}/target/debug/e2e-runner.exe ${{ matrix.group }} --artifacts-package-dir ./dist \
-            --nr-api-key "${{ secrets.E2E_API_KEY }}" \
-            --nr-license-key "${{ secrets.E2E_LICENSE_KEY }}" \
-            --nr-account-id "${{ secrets.E2E_ACCOUNT_ID }}" \
-            --nr-region "us" \
-            --system-identity-client-id "${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}" \
-            --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
-            --agent-control-version "0.900.${{ github.run_id }}" \
+          "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" | Out-File -FilePath $env:TEMP\newrelic-agent-control-priv.key
+          & "${{ github.workspace }}\target\debug\e2e-runner.exe" ${{ matrix.group }} --artifacts-package-dir .\dist `
+            --nr-api-key "${{ secrets.E2E_API_KEY }}" `
+            --nr-license-key "${{ secrets.E2E_LICENSE_KEY }}" `
+            --nr-account-id "${{ secrets.E2E_ACCOUNT_ID }}" `
+            --nr-region "us" `
+            --system-identity-client-id "${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}" `
+            --agent-control-private-key "$env:TEMP\newrelic-agent-control-priv.key" `
+            --agent-control-version "0.900.${{ github.run_id }}" `
             --recipes-repo-branch "feat/winRecipe"
