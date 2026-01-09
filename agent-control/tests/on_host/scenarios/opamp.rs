@@ -573,18 +573,29 @@ fn onhost_opamp_agent_control_remote_config_add_remove_add_agent() {
 
     let dir_entry = "test-dir";
     let file_path = "test-file.txt";
-    let expected_content = "filesystem-ops-test";
+    let content_template = "${nr-var:file_contents}";
+    let first_templated_content = "filesystem-ops-test";
+    let second_templated_content = "updated-filesystem-ops-test";
 
     let filesystem_config = format!(
         r#"
 {dir_entry}:
-  {file_path}: "{expected_content}"
+  {file_path}: "{content_template}"
 "#
     );
+
+    let defined_variables = r#"
+file_contents:
+  description: "Contents of the file"
+  type: "string"
+  required: false
+  default: "filesystem-ops-test"
+"#;
 
     // Add custom agent_type to registry with filesystem operations
     let sleep_agent_type = CustomAgentType::default()
         .with_filesystem(Some(&filesystem_config))
+        .with_variables(defined_variables)
         .build(local_dir.path().to_path_buf());
 
     let _agent_control =
@@ -620,7 +631,10 @@ agents:
     );
 
     // Provide config for the subagent so it starts healthy
-    opamp_server.set_config_response(subagent_instance_id.clone(), "fake_variable: value");
+    opamp_server.set_config_response(
+        subagent_instance_id.clone(),
+        format!("file_contents: {}", first_templated_content),
+    );
 
     // Wait for subagent to be healthy
     retry(60, Duration::from_secs(1), || {
@@ -640,10 +654,10 @@ agents:
             return Err(format!("File not found at {:?}", generated_file_path).into());
         }
         let content = std::fs::read_to_string(&generated_file_path)?;
-        if content != expected_content {
+        if content != first_templated_content {
             return Err(format!(
                 "Content mismatch: expected {}, got {}",
-                expected_content, content
+                first_templated_content, content
             )
             .into());
         }
@@ -669,7 +683,13 @@ agents:
         agents_config_with_agent.as_str(),
     );
 
-    // 4. Validate it is running properly
+    // 4. Add a remote config for the agent with updated values so it refreshes the filesystem
+    opamp_server.set_config_response(
+        subagent_instance_id.clone(),
+        format!("file_contents: {}", second_templated_content),
+    );
+
+    // 5. Validate it is running properly
     // The subagent should start again. We check if it reports healthy.
     retry(60, Duration::from_secs(1), || {
         check_latest_health_status_was_healthy(&opamp_server, &subagent_instance_id)
@@ -681,10 +701,10 @@ agents:
             return Err(format!("File not found at {:?}", generated_file_path).into());
         }
         let content = std::fs::read_to_string(&generated_file_path)?;
-        if content != expected_content {
+        if content != second_templated_content {
             return Err(format!(
                 "Content mismatch: expected {}, got {}",
-                expected_content, content
+                second_templated_content, content
             )
             .into());
         }
