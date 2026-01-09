@@ -146,18 +146,25 @@ msiexec.exe /qn /i "$env:TEMP\NewRelicCLIInstaller.msi" | Out-Null;
     let _ = exec_powershell_command(&install_newrelic_cli_command)
         .unwrap_or_else(|err| panic!("could not install New Relic CLI: {err}"));
 
-    let mut download_url = String::new();
     if let Some(path) = &data.args.artifacts_package_dir {
-        download_url = format!(
-            "$env:NEW_RELIC_DOWNLOAD_URL='file:///{}/newrelic-agent-control_{}_windows_amd64.zip#'; `",
-            path.display(), data.args.agent_control_version
+        let zip_name = PathBuf::from(path).join(format!(
+            "newrelic-agent-control_{}_windows_amd64.zip",
+            data.args.agent_control_version
+        ));
+
+        let copy_zip_command = format!(
+            "cp {} $env:TEMP\\newrelic-agent-control.zip",
+            zip_name.display()
         );
+
+        let _ = exec_powershell_command(&copy_zip_command)
+            .unwrap_or_else(|err| panic!("could not copy zip: {err}"));
     }
 
     // Install agent control through recipe
     let install_command = format!(
         r#"
-{}$env:NEW_RELIC_CLI_SKIP_CORE='1'; `
+$env:NEW_RELIC_CLI_SKIP_CORE='1'; `
 $env:NEW_RELIC_LICENSE_KEY='{}'; `
 $env:NEW_RELIC_API_KEY='{}'; `
 $env:NEW_RELIC_ACCOUNT_ID='{}'; `
@@ -175,7 +182,6 @@ $env:HTTPS_PROXY='{}'; `
 --localRecipes {} `
 -n {}
 "#,
-        download_url,
         data.args.nr_license_key,
         data.args.nr_api_key,
         data.args.nr_account_id,
