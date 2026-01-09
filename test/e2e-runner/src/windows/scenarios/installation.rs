@@ -153,7 +153,7 @@ msiexec.exe /qn /i "$env:TEMP\NewRelicCLIInstaller.msi" | Out-Null;
         ));
 
         let copy_zip_command = format!(
-            "cp {} $env:TEMP\\newrelic-agent-control.zip",
+            "cp {} $env:TEMP/newrelic-agent-control.zip",
             zip_name.display()
         );
 
