@@ -12,7 +12,7 @@ use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_ID, FOLDER_NAME_FLEET_DATA, STORE_KEY_OPAMP_DATA_CONFIG,
+    AGENT_CONTROL_ID, FOLDER_NAME_FLEET_DATA, GENERATED_FOLDER_NAME, STORE_KEY_OPAMP_DATA_CONFIG,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
@@ -540,5 +540,154 @@ status_time_unix_nano: 1725444001
             return Err("not the expected content for first config".into());
         }
         check_latest_health_status_was_healthy(&opamp_server, &sub_agent_instance_id)
+    });
+}
+
+/// Given a agent-control whose local configuration has no agents and then a valid remote configuration with an agent
+/// is set through OpAMP. Then the agent is removed via a new remote configuration. Finally, the agent is added again
+/// with the same ID.
+/// - The agent control reports healthy
+/// - The subagent reports healthy at the end
+#[test]
+fn onhost_opamp_agent_control_remote_config_add_remove_add_agent() {
+    // Given a agent-control without agents and opamp configured.
+
+    let mut opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    let agents = "{}";
+    create_agent_control_config(
+        opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
+        agents.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+
+    let dir_entry = "test-dir";
+    let file_path = "test-file.txt";
+    let expected_content = "filesystem-ops-test";
+
+    let filesystem_config = format!(
+        r#"
+{dir_entry}:
+  {file_path}: "{expected_content}"
+"#
+    );
+
+    // Add custom agent_type to registry with filesystem operations
+    let sleep_agent_type = CustomAgentType::default()
+        .with_filesystem(Some(&filesystem_config))
+        .build(local_dir.path().to_path_buf());
+
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+    let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+
+    let agent_id = "nr-sleep-agent";
+    let agents_config_with_agent = format!(
+        r#"
+agents:
+  {agent_id}:
+    agent_type: "{sleep_agent_type}"
+"#
+    );
+
+    let agents_config_empty = "agents: {}";
+
+    // 1. Add agent
+    opamp_server.set_config_response(
+        agent_control_instance_id.clone(),
+        agents_config_with_agent.as_str(),
+    );
+
+    // Wait for AC to apply configuration and report healthy
+    retry(60, Duration::from_secs(1), || {
+        check_latest_health_status_was_healthy(&opamp_server, &agent_control_instance_id)
+    });
+
+    let subagent_instance_id = get_instance_id(
+        &AgentID::try_from("nr-sleep-agent").unwrap(),
+        base_paths.clone(),
+    );
+
+    // Provide config for the subagent so it starts healthy
+    opamp_server.set_config_response(subagent_instance_id.clone(), "fake_variable: value");
+
+    // Wait for subagent to be healthy
+    retry(60, Duration::from_secs(1), || {
+        check_latest_health_status_was_healthy(&opamp_server, &subagent_instance_id)
+    });
+
+    // Check that the file was created
+    let generated_file_path = base_paths
+        .remote_dir
+        .join(GENERATED_FOLDER_NAME)
+        .join(agent_id)
+        .join(dir_entry)
+        .join(file_path);
+
+    retry(60, Duration::from_secs(1), || {
+        if !generated_file_path.exists() {
+            return Err(format!("File not found at {:?}", generated_file_path).into());
+        }
+        let content = std::fs::read_to_string(&generated_file_path)?;
+        if content != expected_content {
+            return Err(format!(
+                "Content mismatch: expected {}, got {}",
+                expected_content, content
+            )
+            .into());
+        }
+        Ok(())
+    });
+
+    // 2. Remove agent
+    opamp_server.set_config_response(agent_control_instance_id.clone(), agents_config_empty);
+
+    // Verify agent control updates its effective config to empty
+    // This confirms the removal was processed
+    retry(60, Duration::from_secs(1), || {
+        check_latest_effective_config_is_expected(
+            &opamp_server,
+            &agent_control_instance_id,
+            "agents: {}\n".to_string(),
+        )
+    });
+
+    // 3. Add agent again
+    opamp_server.set_config_response(
+        agent_control_instance_id.clone(),
+        agents_config_with_agent.as_str(),
+    );
+
+    // 4. Validate it is running properly
+    // The subagent should start again. We check if it reports healthy.
+    retry(60, Duration::from_secs(1), || {
+        check_latest_health_status_was_healthy(&opamp_server, &subagent_instance_id)
+    });
+
+    // Check that the file still exists (or was recreated) and has correct content
+    retry(60, Duration::from_secs(1), || {
+        if !generated_file_path.exists() {
+            return Err(format!("File not found at {:?}", generated_file_path).into());
+        }
+        let content = std::fs::read_to_string(&generated_file_path)?;
+        if content != expected_content {
+            return Err(format!(
+                "Content mismatch: expected {}, got {}",
+                expected_content, content
+            )
+            .into());
+        }
+        Ok(())
     });
 }
