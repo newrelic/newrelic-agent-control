@@ -1,0 +1,40 @@
+name: 'Send Warning Notification via Slack'
+
+on:
+  workflow_call:
+    inputs:
+      message:
+        description: 'The message to include in the Slack notification'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  send-slack-notification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify failure via Slack (AC channel)
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
+        with:
+          webhook-type: webhook-trigger
+          payload: |
+            {
+              "text": ":warning: [${{ inputs.message }}] @hero check <${{ env.GITHUB_JOB_URL }}>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
+          GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Notify failure via Slack (AC/Fleet common channel)
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
+        with:
+          webhook-type: webhook-trigger
+          payload: |
+            {
+              "text": ":warning: [${{ inputs.message }}] @hero check <${{ env.GITHUB_JOB_URL }}>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.AC_FLEET_COMMON_SLACK_WEBHOOK }}
+          GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
