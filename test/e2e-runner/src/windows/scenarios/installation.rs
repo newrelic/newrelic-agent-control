@@ -157,7 +157,7 @@ msiexec.exe /qn /i "$env:TEMP\NewRelicCLIInstaller.msi" | Out-Null;
     // Install agent control through recipe
     let install_command = format!(
         r#"
-{}$env:NEW_RELIC_CLI_SKIP_CORE=1; `
+{}$env:NEW_RELIC_CLI_SKIP_CORE='1'; `
 $env:NEW_RELIC_LICENSE_KEY='{}'; `
 $env:NEW_RELIC_API_KEY='{}'; `
 $env:NEW_RELIC_ACCOUNT_ID='{}'; `
