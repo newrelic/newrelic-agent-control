@@ -98,15 +98,34 @@ jobs:
             --recipes-repo-branch "main"
 
 
+  # on-host-windows-e2e:
+  #   name: "OnHost Windows E2E tests"
+  #   needs: [build-packages]
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       group: ["install"]
+
+  #   runs-on: windows-latest
+  #   steps:
+  #     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+  #     - uses: ./.github/actions/install-rust-toolchain
+  #     - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+  #       with:
+  #         name: built-binaries-0.900.${{ github.run_id }}
+  #         path: ./
+  #     - name: Windows e2e ${{ matrix.group }}
+  #       shell: powershell
+  #       run: cargo run -p e2e-runner -- ${{ matrix.group }} --zip-package .\dist\newrelic-agent-control_0.900.${{ github.run_id }}_windows_amd64.zip
+
   on-host-windows-e2e:
-    name: "OnHost Windows E2E tests"
+    name: OnHost Windows E2E tests (rust)
     needs: [build-packages]
+    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        group: ["install"]
-
-    runs-on: windows-latest
+        group: [install]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - uses: ./.github/actions/install-rust-toolchain
@@ -114,6 +133,18 @@ jobs:
         with:
           name: built-binaries-0.900.${{ github.run_id }}
           path: ./
-      - name: Windows e2e ${{ matrix.group }}
-        shell: powershell
-        run: cargo run -p e2e-runner -- ${{ matrix.group }} --zip-package .\dist\newrelic-agent-control_0.900.${{ github.run_id }}_windows_amd64.zip
+      - name: Build e2e-runner binary
+        run: cargo build -p e2e-runner
+      - name: "Windows e2e ${{ matrix.group }}"
+        shell: bash
+        run: |
+          echo "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/newrelic-agent-control-priv.key
+          sudo ${{ github.workspace }}/target/debug/e2e-runner ${{ matrix.group }} \
+            --nr-api-key "${{ secrets.E2E_API_KEY }}" \
+            --nr-license-key "${{ secrets.E2E_LICENSE_KEY }}" \
+            --nr-account-id "${{ secrets.E2E_ACCOUNT_ID }}" \
+            --nr-region "us" \
+            --system-identity-client-id "${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}" \
+            --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
+            --agent-control-version "0.900.${{ github.run_id }}" \
+            --recipes-repo-branch "feat/winRecipe"
