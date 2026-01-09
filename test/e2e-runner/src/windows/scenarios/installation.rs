@@ -177,6 +177,7 @@ $env:NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED='{}'; `
 $env:NEW_RELIC_AGENT_CONTROL='true'; `
 $env:NEW_RELIC_AGENT_CONTROL_PROXY_URL='{}'; `
 $env:HTTPS_PROXY='{}'; `
+$env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
 & "C:\Program Files\New Relic\New Relic CLI\newrelic.exe" install `
 -y `
 --localRecipes {} `
