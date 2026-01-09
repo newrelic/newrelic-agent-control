@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
 
@@ -14,6 +15,10 @@ const SERVICE_NAME: &str = "newrelic-agent-control";
 /// Arguments to be set for every test that needs Agent Control installation
 #[derive(Default, Debug, clap::Parser)]
 pub struct Args {
+    /// Folder where '.deb' packages are stored
+    #[arg(long)]
+    pub artifacts_package_dir: Option<PathBuf>,
+
     /// Recipes repository
     #[arg(
         long,
@@ -141,10 +146,18 @@ msiexec.exe /qn /i "$env:TEMP\NewRelicCLIInstaller.msi" | Out-Null;
     let _ = exec_powershell_command(&install_newrelic_cli_command)
         .unwrap_or_else(|err| panic!("could not install New Relic CLI: {err}"));
 
+    let mut download_url = String::new();
+    if let Some(path) = &data.args.artifacts_package_dir {
+        download_url = format!(
+            "$env:NEW_RELIC_DOWNLOAD_URL='file:///{}/newrelic-agent-control_{}_windows_amd64.zip#'; `",
+            path.display(), data.args.agent_control_version
+        );
+    }
+
     // Install agent control through recipe
     let install_command = format!(
         r#"
-$env:NEW_RELIC_CLI_SKIP_CORE=1; `
+{}$env:NEW_RELIC_CLI_SKIP_CORE=1; `
 $env:NEW_RELIC_LICENSE_KEY='{}'; `
 $env:NEW_RELIC_API_KEY='{}'; `
 $env:NEW_RELIC_ACCOUNT_ID='{}'; `
@@ -162,6 +175,7 @@ $env:HTTPS_PROXY='{}'; `
 --localRecipes {} `
 -n {}
 "#,
+        download_url,
         data.args.nr_license_key,
         data.args.nr_api_key,
         data.args.nr_account_id,
