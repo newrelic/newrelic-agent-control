@@ -19,12 +19,12 @@ variable "slack_webhook_url" {}
 module "alerts" {
   source = "../../../terraform/modules/nr_alerts"
 
-  api_key         = var.api_key
-  account_id      = var.account_id
+  api_key           = var.api_key
+  account_id        = var.account_id
   slack_webhook_url = var.slack_webhook_url
-  policies_prefix = "Agent Control canaries metric monitoring"
+  policies_prefix   = "Agent Control canaries metric monitoring"
 
-  region       = "US"
+  region      = "US"
   instance_id = "Agent_Control_Canaries_Production-Cluster"
 
   conditions = [
@@ -84,13 +84,13 @@ module "alerts" {
       template_name = "./alert_nrql_templates/generic_metric_count.tftpl"
     },
     {
-      name          = "Opamp traces per minute"
-      metric        = "*"
-      sample        = "Span"
-      threshold     = 1
-      duration      = 3600
-      operator      = "below_or_equals"
-      wheres        = {
+      name      = "Opamp traces per minute"
+      metric    = "*"
+      sample    = "Span"
+      threshold = 1
+      duration  = 3600
+      operator  = "below_or_equals"
+      wheres = {
         name = "opamp"
       }
       template_name = "./alert_nrql_templates/generic_metric_count.tftpl"
