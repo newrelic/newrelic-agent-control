@@ -144,23 +144,23 @@ msiexec.exe /qn /i "$env:TEMP\NewRelicCLIInstaller.msi" | Out-Null;
     // Install agent control through recipe
     let install_command = format!(
         r#"
-  $env:NEW_RELIC_CLI_SKIP_CORE=1; `
-  $env:NEW_RELIC_LICENSE_KEY={}; `
-  $env:NEW_RELIC_API_KEY={}; `
-  $env:NEW_RELIC_ACCOUNT_ID={}; `
-  $env:NEW_RELIC_AUTH_PROVISIONED_CLIENT_ID={}; `
-  $env:NEW_RELIC_AUTH_PRIVATE_KEY_PATH={}; `
-  $env:NEW_RELIC_AGENT_VERSION={}; `
-  $env:NEW_RELIC_REGION={}; `
-  $env:NR_CLI_FLEET_ID={}; `
-  $env:NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED={}; `
-  $env:NEW_RELIC_AGENT_CONTROL=true; `
-  $env:NEW_RELIC_AGENT_CONTROL_PROXY_URL={}; `
-  $env:HTTPS_PROXY={}; `
-  & "C:\Program Files\New Relic\New Relic CLI\newrelic.exe" install `
-  -y `
-  --localRecipes {} `
-  -n {}
+$env:NEW_RELIC_CLI_SKIP_CORE=1; `
+$env:NEW_RELIC_LICENSE_KEY='{}'; `
+$env:NEW_RELIC_API_KEY='{}'; `
+$env:NEW_RELIC_ACCOUNT_ID='{}'; `
+$env:NEW_RELIC_AUTH_PROVISIONED_CLIENT_ID='{}'; `
+$env:NEW_RELIC_AUTH_PRIVATE_KEY_PATH='{}'; `
+$env:NEW_RELIC_AGENT_VERSION='{}'; `
+$env:NEW_RELIC_REGION='{}'; `
+$env:NR_CLI_FLEET_ID='{}'; `
+$env:NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED='{}'; `
+$env:NEW_RELIC_AGENT_CONTROL='true'; `
+$env:NEW_RELIC_AGENT_CONTROL_PROXY_URL='{}'; `
+$env:HTTPS_PROXY='{}'; `
+& "C:\Program Files\New Relic\New Relic CLI\newrelic.exe" install `
+-y `
+--localRecipes {} `
+-n {}
 "#,
         data.args.nr_license_key,
         data.args.nr_api_key,
