@@ -382,6 +382,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## cesu8 <https://crates.io/crates/cesu8>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
+
 ## cfg-if <https://crates.io/crates/cfg-if>
 
 Distributed under the following license(s):
@@ -450,6 +457,12 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## combine <https://crates.io/crates/combine>
+
+Distributed under the following license(s):
+
+* MIT
 
 ## concurrent-queue <https://crates.io/crates/concurrent-queue>
 
@@ -1260,6 +1273,20 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## itoa <https://crates.io/crates/itoa>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## jni <https://crates.io/crates/jni>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## jni-sys <https://crates.io/crates/jni-sys>
 
 Distributed under the following license(s):
 
@@ -2080,6 +2107,20 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## rustls-platform-verifier <https://crates.io/crates/rustls-platform-verifier>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## rustls-platform-verifier-android <https://crates.io/crates/rustls-platform-verifier-android>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## rustls-webpki <https://crates.io/crates/rustls-webpki>
 
 Distributed under the following license(s):
@@ -2099,6 +2140,13 @@ Distributed under the following license(s):
 
 * Apache-2.0
 * BSL-1.0
+
+## same-file <https://crates.io/crates/same-file>
+
+Distributed under the following license(s):
+
+* Unlicense
+* MIT
 
 ## schannel <https://crates.io/crates/schannel>
 
@@ -2337,6 +2385,20 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
+
+## system-configuration <https://crates.io/crates/system-configuration>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## system-configuration-sys <https://crates.io/crates/system-configuration-sys>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
 
 ## tar <https://crates.io/crates/tar>
 
@@ -2694,6 +2756,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## walkdir <https://crates.io/crates/walkdir>
+
+Distributed under the following license(s):
+
+* Unlicense
+* MIT
+
 ## want <https://crates.io/crates/want>
 
 Distributed under the following license(s):
@@ -2772,6 +2841,12 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## webpki-root-certs <https://crates.io/crates/webpki-root-certs>
+
+Distributed under the following license(s):
+
+* CDLA-Permissive-2.0
+
 ## webpki-roots <https://crates.io/crates/webpki-roots>
 
 Distributed under the following license(s):
@@ -2784,6 +2859,13 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## winapi-util <https://crates.io/crates/winapi-util>
+
+Distributed under the following license(s):
+
+* Unlicense
+* MIT
 
 ## windows <https://crates.io/crates/windows>
 
@@ -2835,6 +2917,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## windows-numerics <https://crates.io/crates/windows-numerics>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## windows-registry <https://crates.io/crates/windows-registry>
 
 Distributed under the following license(s):
 
