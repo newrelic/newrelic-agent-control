@@ -7,6 +7,12 @@ module "eks_cluster" {
   cluster_min_size     = 2
 }
 
+provider "kubernetes" {
+  host                   = module.eks_cluster.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks_cluster.cluster_ca_cert)
+  token                  = module.eks_cluster.cluster_auth_token
+}
+
 variable "account_id" {}
 variable "api_key" {}
 variable "slack_webhook_url" {}
