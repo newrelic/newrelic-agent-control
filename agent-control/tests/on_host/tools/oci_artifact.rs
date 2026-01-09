@@ -5,8 +5,8 @@ use oci_client::{Client, annotations, manifest};
 use oci_spec::distribution::Reference;
 use std::collections::BTreeMap;
 use std::error::Error;
+use std::path::PathBuf;
 use std::time::SystemTime;
-use tempfile::TempDir;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
@@ -23,21 +23,17 @@ fn run_tag() -> String {
 
 /// push_artifact pushes the provided artifact and reference to the oci registry provided on the
 /// reference, it returns the digest of the artifact or panics if it fails.
-pub fn push_artifact(artifact: &str, registry_url: &str) -> (String, Reference) {
+pub fn push_artifact(file_to_push: &PathBuf, registry_url: &str) -> (String, Reference) {
     block_on(async {
         let reference =
             Reference::try_from(format!("{}/test:{}", registry_url, run_tag())).unwrap();
-        let dir = TempDir::new().unwrap();
-        let file_path = dir.path().join(artifact);
-
-        let _ = std::fs::write(file_path.clone(), artifact);
 
         let oci_client = Client::new(ClientConfig {
             protocol: ClientProtocol::Http,
             ..Default::default()
         });
 
-        let mut file = File::open(&file_path).await.unwrap();
+        let mut file = File::open(file_to_push).await.unwrap();
 
         let mut blob_data = Vec::new();
         file.read_to_end(&mut blob_data).await.unwrap();
@@ -45,7 +41,7 @@ pub fn push_artifact(artifact: &str, registry_url: &str) -> (String, Reference) 
         let mut annotations: BTreeMap<String, String> = BTreeMap::new();
         annotations.insert(
             annotations::ORG_OPENCONTAINERS_IMAGE_TITLE.to_string(),
-            artifact.to_string(),
+            file_to_push.to_string_lossy().to_string(),
         );
 
         let layers = vec![ImageLayer::new(
