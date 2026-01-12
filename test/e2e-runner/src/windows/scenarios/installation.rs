@@ -201,7 +201,7 @@ $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
     info!("Executing recipe to install Agent Control");
 
     let bypass_command = r#"
-Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+Set-ExecutionPolicy Unrestricted -Force
     "#;
     exec_powershell_command(&bypass_command)
         .unwrap_or_else(|err| panic!("failed to set execution policy bypass: {err}"));
