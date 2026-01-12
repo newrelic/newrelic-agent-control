@@ -155,6 +155,7 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
   HTTPS_PROXY={} \
   /usr/local/bin/newrelic install \
   -y \
+  --debug \
   --localRecipes {}\
   -n {}
 "#,
