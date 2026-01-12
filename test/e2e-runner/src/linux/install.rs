@@ -157,7 +157,7 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
   -y \
   --debug \
   --localRecipes {}\
-  -n {} --debug
+  -n {}
 "#,
         data.args.nr_license_key,
         data.args.nr_api_key,
