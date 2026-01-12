@@ -106,7 +106,7 @@ jsonwebtoken = { workspace = true }
 fs = { path = "../fs", features = ["mocks"] }
 tokio = { version = "1.49.0", features = ["rt-multi-thread", "macros"] }
 fake = { version = "4.4.0", features = ["derive", "http"] }
-prost = "0.14.1"
+prost = "0.14.3"
 httpmock = { version = "0.8.2", features = ["proxy"] }
 serial_test = "3.3.1"
 futures = "0.3.31"
