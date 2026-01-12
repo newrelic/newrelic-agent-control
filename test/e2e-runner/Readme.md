@@ -44,7 +44,8 @@ Requirements:
 ## Linux
 
 Requirements:
-  - Linux Virtual Machine (Eg: vagrant + parallels)
+  - Ubuntu Linux Virtual Machine (Eg: vagrant + parallels)
+  - The Virtual Machine needs rust and docker
 
 Vagrantfile example:
 
@@ -57,8 +58,13 @@ Vagrant.configure("2") do |config|
     rm /etc/machine-id
     rm /var/lib/dbus/machine-id
     systemd-machine-id-setup
-    apt-get update
+    apt update
+    apt install docker.io -y
+    systemctl start docker.service
+    systemctl enable docker.service
+    # Installing build-essential package will restart a bunch of services, including sshd, therefore you be kicked out
     apt install build-essential rustup -y
+    su - vagrant -c "rustup default stable"
   SHELL
 end
 ```

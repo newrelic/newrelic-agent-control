@@ -22,12 +22,12 @@ use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
-use fs::LocalFile;
 use fs::directory_manager::DirectoryManagerFs;
+use fs::file::LocalFile;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::time::{Duration, Instant, SystemTime};
-use tracing::{debug, error, info, warn};
+use tracing::{Dispatch, debug, dispatcher, error, info, warn};
 
 const WAIT_FOR_EXIT_TIMEOUT: Duration = Duration::from_secs(1);
 const HEALTHY_DELAY: Duration = Duration::from_secs(10);
@@ -204,7 +204,13 @@ impl NotStartedSupervisorOnHost {
         let log_to_file = self.log_to_file;
         let logging_path = self.logging_path.clone();
 
+        let dispatch = dispatcher::get_default(|d: &Dispatch| d.clone());
+        let span = tracing::Span::current();
+
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
+            let _guard = dispatcher::set_default(&dispatch);
+            let _enter = span.enter();
+
             let exec_id = exec_data.id.clone();
 
             let mut i = 0;
@@ -429,7 +435,6 @@ pub mod tests {
     use std::collections::HashMap;
     use std::thread;
     use std::time::{Duration, Instant};
-    use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
     #[derive(Clone, Deserialize)]
@@ -521,13 +526,7 @@ pub mod tests {
         );
 
         for log in contain_logs {
-            assert!(
-                tracing_test::internal::logs_with_scope_contain(
-                    "newrelic_agent_control::sub_agent::on_host::supervisor",
-                    log,
-                ),
-                "log not found: {log}"
-            );
+            assert!(logs_contain(log), "log not found: {log}");
         }
     }
 
@@ -642,10 +641,7 @@ pub mod tests {
                 }
             }
         }
-        assert!(logs_with_scope_contain(
-            "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
-            "NR-command",
-        ));
+        assert!(logs_contain("NR-command"));
     }
 
     #[test]
@@ -733,7 +729,7 @@ pub mod tests {
 
         // Log output corresponding to 1 base execution + 3 retries
         tracing_test::internal::logs_assert(
-            "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
+            "newrelic_agent_control::sub_agent::on_host::command::logging::logger",
             |lines| match lines.iter().filter(|line| line.contains("hello!")).count() {
                 4 => Ok(()),
                 n => Err(format!(

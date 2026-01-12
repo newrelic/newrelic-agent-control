@@ -7,6 +7,9 @@ agentControlDeployment:
       tag: failIfNotReplaced
     subAgentsNamespace: "newrelic-agents"
     config:
+      authSecret:
+        secretName: "agent-control-auth"
+        secretKeyName: "private_key"
       log:
         level: debug
       fleet_control:

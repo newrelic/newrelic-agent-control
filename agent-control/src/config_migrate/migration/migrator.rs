@@ -1,3 +1,5 @@
+use std::io;
+
 use crate::agent_control::config::AgentControlConfigError;
 use crate::agent_control::config_repository::repository::AgentControlDynamicConfigRepository;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
@@ -5,13 +7,12 @@ use crate::config_migrate::migration::agent_config_getter::AgentConfigGetter;
 use crate::config_migrate::migration::config::MigrationAgentConfig;
 use crate::config_migrate::migration::converter::ConfigConverter;
 use crate::config_migrate::migration::converter::ConversionError;
-use crate::config_migrate::migration::persister::values_persister_file::PersistError;
 use crate::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use crate::on_host::file_store::FileStore;
 use crate::values::ConfigRepo;
-use fs::LocalFile;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
-use fs::file_reader::FileReader;
+use fs::file::LocalFile;
+use fs::file::reader::FileReader;
 use thiserror::Error;
 use tracing::{debug, info, warn};
 
@@ -27,7 +28,7 @@ pub enum MigratorError {
     InvalidYamlConfiguration(#[from] serde_yaml::Error),
 
     #[error("error persisting values file: {0}")]
-    PersistError(#[from] PersistError),
+    PersistError(io::Error),
 
     #[error("{0}")]
     ConversionError(#[from] ConversionError),
@@ -81,7 +82,8 @@ impl
                 Ok(agent_variables) => {
                     let values_content = serde_yaml::to_string(&agent_variables)?;
                     self.values_persister
-                        .persist_values_file(&agent_id, values_content.as_str())?;
+                        .persist_values_file(&agent_id, values_content.as_str())
+                        .map_err(MigratorError::PersistError)?;
                     info!(
                         "Local config values files successfully created for {}",
                         agent_id

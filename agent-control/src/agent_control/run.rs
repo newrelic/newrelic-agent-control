@@ -12,8 +12,9 @@ use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::
 use crate::http::config::ProxyConfig;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::client_builder::PollInterval;
-use crate::opamp::http::builder::OpAMPHttpClientBuilder;
+use crate::opamp::http::builder::{HttpClientBuilder, OpAMPHttpClientBuilder};
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
+use crate::secret_retriever::OpampSecretRetriever;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
@@ -84,7 +85,6 @@ pub struct AgentControlRunConfig {
 pub struct AgentControlRunner {
     agent_type_registry: Arc<EmbeddedRegistry>,
     application_event_consumer: EventConsumer<ApplicationEvent>,
-    opamp_http_builder: Option<OpAMPHttpClientBuilder<TokenRetrieverImpl>>,
     opamp_poll_interval: PollInterval,
     agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
     sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
@@ -95,6 +95,8 @@ pub struct AgentControlRunner {
     ac_running_mode: Environment,
     http_server_runner: Option<Runner>,
     agent_type_var_constraints: VariableConstraints,
+    proxy: ProxyConfig,
+    opamp: Option<OpAMPClientConfig>,
 }
 
 impl AgentControlRunner {
@@ -104,29 +106,6 @@ impl AgentControlRunner {
     ) -> Result<Self, Box<dyn Error>> {
         debug!("initializing and starting the agent control");
 
-        let opamp_http_builder = match config.opamp.as_ref() {
-            Some(opamp_config) => {
-                debug!("OpAMP configuration found, creating an OpAMP client builder");
-
-                let token_retriever = Arc::new(
-                    TokenRetrieverImpl::try_build(
-                        opamp_config.clone().auth_config,
-                        config.base_paths.clone(),
-                        config.proxy.clone(),
-                    )
-                    .inspect_err(|err| error!(error_mgs=%err,"Building token retriever"))?,
-                );
-
-                let http_builder = OpAMPHttpClientBuilder::new(
-                    opamp_config.clone(),
-                    config.proxy.clone(),
-                    token_retriever,
-                );
-
-                Some(http_builder)
-            }
-            None => None,
-        };
         let runtime = Arc::new(
             tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -159,8 +138,9 @@ impl AgentControlRunner {
 
         let signature_validator = config
             .opamp
+            .clone()
             .map(|fleet_config| {
-                SignatureValidator::new(fleet_config.signature_validation, config.proxy)
+                SignatureValidator::new(fleet_config.signature_validation, config.proxy.clone())
             })
             .transpose()?
             .unwrap_or(SignatureValidator::new_noop());
@@ -171,7 +151,6 @@ impl AgentControlRunner {
             k8s_config: config.k8s_config,
             agent_type_registry,
             application_event_consumer,
-            opamp_http_builder,
             opamp_poll_interval,
             agent_control_publisher,
             sub_agent_publisher,
@@ -179,6 +158,8 @@ impl AgentControlRunner {
             signature_validator,
             ac_running_mode: config.ac_running_mode,
             agent_type_var_constraints: config.agent_type_var_constraints,
+            proxy: config.proxy,
+            opamp: config.opamp,
         })
     }
 
@@ -186,6 +167,43 @@ impl AgentControlRunner {
         match self.ac_running_mode {
             Environment::Linux | Environment::Windows => self.run_onhost(),
             Environment::K8s => self.run_k8s(),
+        }
+    }
+
+    pub fn build_opamp_http_builder<R>(
+        opamp_config: Option<OpAMPClientConfig>,
+        proxy: ProxyConfig,
+        retriever: R,
+    ) -> Result<Option<impl HttpClientBuilder>, RunError>
+    where
+        R: OpampSecretRetriever,
+    {
+        if let Some(opamp_config) = opamp_config {
+            debug!("OpAMP configuration found, creating an OpAMP client builder");
+
+            let private_key = retriever
+                .retrieve()
+                .map_err(|e| RunError(format!("error trying to get secret or private key {e}")))?;
+
+            let token_retriever = Arc::new(
+                TokenRetrieverImpl::try_build(
+                    opamp_config.clone().auth_config,
+                    private_key,
+                    proxy.clone(),
+                )
+                .inspect_err(|err| error!("Could not build OpAMP's token retriever: {err}"))
+                .map_err(|e| {
+                    RunError(format!(
+                        "error trying to build OpAMP's token retriever: {e}"
+                    ))
+                })?,
+            );
+
+            let http_builder = OpAMPHttpClientBuilder::new(opamp_config, proxy, token_retriever);
+
+            Ok(Some(http_builder))
+        } else {
+            Ok(None)
         }
     }
 }

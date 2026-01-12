@@ -1,5 +1,5 @@
-use fs::LocalFile;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
+use fs::file::LocalFile;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     FOLDER_NAME_FLEET_DATA, STORE_KEY_OPAMP_DATA_CONFIG,

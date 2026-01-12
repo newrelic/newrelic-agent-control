@@ -1,36 +1,25 @@
-use crate::LocalFile;
+use super::LocalFile;
 use std::fs::rename;
-use std::io::Error as ioError;
+use std::io;
 use std::path::Path;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum FileRenamerError {
-    #[error("error renaming file or dir: {0}")]
-    Rename(#[from] ioError),
-    #[error("file or dir not found: {0}")]
-    FileDirNotFound(String),
-}
 
 pub trait FileRenamer {
-    fn rename(&self, file_path: &Path, rename_path: &Path) -> Result<(), FileRenamerError>;
+    fn rename(&self, file_path: &Path, rename_path: &Path) -> io::Result<()>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Mock
 ////////////////////////////////////////////////////////////////////////////////////
 impl FileRenamer for LocalFile {
-    fn rename(&self, file_path: &Path, rename_path: &Path) -> Result<(), FileRenamerError> {
+    fn rename(&self, file_path: &Path, rename_path: &Path) -> io::Result<()> {
         if !file_path.exists() {
-            return Err(FileRenamerError::FileDirNotFound(format!(
-                "{}",
-                file_path.display()
-            )));
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("file or dir not found: {}", file_path.display()),
+            ));
         }
-        match rename(file_path, rename_path) {
-            Err(e) => Err(FileRenamerError::Rename(e)),
-            Ok(_) => Ok(()),
-        }
+
+        rename(file_path, rename_path)
     }
 }
 

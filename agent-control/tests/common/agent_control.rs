@@ -1,7 +1,9 @@
 use crate::common::global_logger::init_logger;
+use crate::on_host::tools::config::create_file;
 use newrelic_agent_control::agent_control::config::K8sConfig;
 use newrelic_agent_control::agent_control::config_repository::repository::AgentControlConfigLoader;
 use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
+use newrelic_agent_control::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
 use newrelic_agent_control::agent_control::run::{
     AgentControlRunConfig, AgentControlRunner, BasePaths, Environment,
 };
@@ -25,6 +27,13 @@ pub fn start_agent_control_with_custom_config(
     let handle = std::thread::spawn(move || {
         // logger is a global variable shared between all test threads
         init_logger();
+
+        if ac_running_mode != Environment::K8s {
+            create_file(
+                "dummy-private-key-content".to_string(),
+                base_paths.local_dir.join(AUTH_PRIVATE_KEY_FILE_NAME),
+            );
+        }
 
         let file_store = Arc::new(FileStore::new_local_fs(
             base_paths.local_dir.clone(),

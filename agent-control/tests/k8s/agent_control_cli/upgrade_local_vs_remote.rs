@@ -2,8 +2,10 @@ use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::agent_control_cli::installation::{ac_install_cmd, create_simple_values_secret};
+use crate::k8s::tools::agent_control::{DUMMY_PRIVATE_KEY, K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET};
 use crate::k8s::tools::cmd::print_cli_output;
 use crate::k8s::tools::instance_id;
+use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use crate::k8s::tools::local_chart::agent_control_deploymet::{
     CHART_VERSION_DEV_1, CHART_VERSION_DEV_2, CHART_VERSION_LATEST_RELEASE,
@@ -17,6 +19,7 @@ use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_
 use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
+
 const CLI_AC_LABEL_SELECTOR: &str = "app.kubernetes.io/name=agent-control-deployment";
 
 #[test]
@@ -44,6 +47,14 @@ fn k8s_cli_local_and_remote_updates() {
     );
 
     let release_name = "local-and-remote-updates";
+
+    create_values_secret(
+        k8s_env.client.clone(),
+        &ac_namespace,
+        K8S_PRIVATE_KEY_SECRET,
+        K8S_KEY_SECRET,
+        DUMMY_PRIVATE_KEY.to_string(),
+    );
 
     // running installer first time
     let mut cmd = ac_install_cmd(

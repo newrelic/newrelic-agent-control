@@ -6,7 +6,7 @@ use tracing::{debug, info, warn};
 use crate::{linux::bash::exec_bash_command, tools::test::retry};
 
 /// Arguments to be set for every test that needs Agent Control installation
-#[derive(Default, Debug, clap::Parser)]
+#[derive(Default, Debug, Clone, clap::Parser)]
 pub struct Args {
     /// Folder where '.deb' packages are stored
     #[arg(long)]
@@ -155,6 +155,7 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
   HTTPS_PROXY={} \
   /usr/local/bin/newrelic install \
   -y \
+  --debug \
   --localRecipes {}\
   -n {} --debug
 "#,

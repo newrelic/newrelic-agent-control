@@ -13,6 +13,7 @@ pub struct CustomAgentType {
     agent_type_id: AgentTypeID,
     variables: Option<serde_yaml::Value>,
     executables: Option<serde_yaml::Value>,
+    filesystem: Option<serde_yaml::Value>,
     health: Option<serde_yaml::Value>,
     version: Option<serde_yaml::Value>,
 }
@@ -34,6 +35,7 @@ fake_variable:
                 .unwrap(),
             ),
             executables: Some(Self::default_executables()),
+            filesystem: None,
             version: Some(Self::default_version_checker()),
             health: None,
         }
@@ -60,6 +62,9 @@ impl Display for CustomAgentType {
         let mut deployment_content = serde_yaml::Mapping::new();
         if let Some(executables) = self.executables.as_ref() {
             deployment_content.insert("executables".into(), executables.clone());
+        }
+        if let Some(filesystem) = self.filesystem.as_ref() {
+            deployment_content.insert("filesystem".into(), filesystem.clone());
         }
         if let Some(health) = self.health.as_ref() {
             deployment_content.insert("health".into(), health.clone());
@@ -140,6 +145,7 @@ regex: \d+\.\d+\.\d+
             executables: None,
             health: None,
             version: None,
+            filesystem: None,
         }
     }
 
@@ -153,6 +159,13 @@ regex: \d+\.\d+\.\d+
     pub fn with_health(self, health: Option<&str>) -> Self {
         Self {
             health: health.map(|h| serde_yaml::from_str(h).unwrap()),
+            ..self
+        }
+    }
+
+    pub fn with_filesystem(self, filesystem: Option<&str>) -> Self {
+        Self {
+            filesystem: filesystem.map(|f| serde_yaml::from_str(f).unwrap()),
             ..self
         }
     }
@@ -176,6 +189,7 @@ regex: \d+\.\d+\.\d+
             executables: None,
             health: None,
             version: None,
+            filesystem: None,
             ..self
         }
     }

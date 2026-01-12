@@ -10,6 +10,8 @@ struct GraphQLRequest {
     query: String,
 }
 
+const CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
+
 #[derive(Clone, Copy)]
 enum Region {
     US,
@@ -47,9 +49,7 @@ impl Region {
 ///
 /// # Arguments
 ///
-/// * `region - The New Relic API region (e.g., "us")
-/// * `api_key` - New Relic API key for authentication
-/// * `account_id` - New Relic account ID
+/// * `args` - Struct defining all required parameters: `region`, `api-key`, ...
 /// * `nrql_query` - The NRQL query to execute
 ///
 /// # Returns
@@ -57,7 +57,16 @@ impl Region {
 /// * `Ok(Vec<Value>)` - The NRQL query results on success
 /// * `Err` - Error if the query fails, returns errors, or has no results
 pub fn check_query_results_are_not_empty(args: &Args, nrql_query: &str) -> TestResult<Vec<Value>> {
-    let client = Client::builder().timeout(Duration::from_secs(30)).build()?;
+    let client = Client::builder().timeout(CLIENT_TIMEOUT).build()?;
+    check_query_results_are_not_empty_with_client(args, nrql_query, client)
+}
+
+/// Helper to execute [check_query_results_are_not_empty] with custom setup. Eg: setting up proxy.
+fn check_query_results_are_not_empty_with_client(
+    args: &Args,
+    nrql_query: &str,
+    client: Client,
+) -> TestResult<Vec<Value>> {
     let api_endpoint = Region::try_from(args.nr_region.as_str())?.api_endpoint();
     let url = format!("{}/graphql", api_endpoint);
     let graphql_query = format!(

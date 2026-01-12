@@ -19,5 +19,7 @@ pub fn exec_bash_command(command: &str) -> TestResult<String> {
         );
     }
 
-    Ok(stdout)
+    Ok(format!(
+        "command\n{command}\nsuccess\nStdout: {stdout}\nStderr: {stderr}"
+    ))
 }

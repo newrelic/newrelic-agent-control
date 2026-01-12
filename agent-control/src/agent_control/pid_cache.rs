@@ -1,7 +1,8 @@
-use fs::LocalFile;
-use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
-use fs::file_reader::FileReader;
-use fs::writer_file::{FileWriter, WriteError};
+use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
+use fs::file::LocalFile;
+use fs::file::reader::FileReader;
+use fs::file::writer::FileWriter;
+use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -14,10 +15,10 @@ pub enum PIDCacheError {
     InvalidFilePath,
 
     #[error("directory error: {0}")]
-    DirectoryError(#[from] DirectoryManagementError),
+    DirectoryError(io::Error),
 
     #[error("file error: {0}")]
-    SaveError(#[from] WriteError),
+    SaveError(io::Error),
 
     #[error("pid-file already exists. Can't guarantee that no other agent-control is running.")]
     RunningProcessAlreadyCached,
@@ -81,7 +82,9 @@ where
             .ok_or(PIDCacheError::InvalidFilePath)?;
 
         if !pid_folder.exists() {
-            self.directory_manager.create(pid_folder)?;
+            self.directory_manager
+                .create(pid_folder)
+                .map_err(PIDCacheError::DirectoryError)?;
         }
 
         let pid_string = self
@@ -100,7 +103,9 @@ where
         }
 
         let pid_string = format!("{pid}");
-        Ok(self.file_rw.write(self.file_path.as_path(), pid_string)?)
+        self.file_rw
+            .write(self.file_path.as_path(), pid_string)
+            .map_err(PIDCacheError::SaveError)
     }
 }
 

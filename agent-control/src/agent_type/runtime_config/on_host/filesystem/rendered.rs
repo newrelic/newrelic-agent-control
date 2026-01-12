@@ -4,10 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use ::fs::{
-    directory_manager::{DirectoryManagementError, DirectoryManager},
-    writer_file::{FileWriter, WriteError},
-};
+use ::fs::{directory_manager::DirectoryManager, file::writer::FileWriter};
 use thiserror::Error;
 use tracing::trace;
 
@@ -65,10 +62,12 @@ impl DirEntriesType {
 
 #[derive(Debug, Error)]
 #[error("file system entries error: {0}")]
-pub enum FileSystemEntriesError {
-    Io(io::Error),
-    DirManagement(DirectoryManagementError),
-    FileWrite(WriteError),
+pub struct FileSystemEntriesError(io::Error);
+
+impl From<io::Error> for FileSystemEntriesError {
+    fn from(value: io::Error) -> Self {
+        FileSystemEntriesError(value)
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -88,22 +87,16 @@ impl FileSystemEntries {
     ) -> Result<(), FileSystemEntriesError> {
         self.0.iter().try_for_each(|(path, content)| {
             trace!("Writing filesystem entry to {}", path.display());
-            let parent_dir = path
-                .parent()
-                .ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidFilename,
-                        format!("{} has no parent dir", path.display()),
-                    )
-                })
-                .map_err(FileSystemEntriesError::Io)?;
-            dir_manager
-                .create(parent_dir)
-                .map_err(FileSystemEntriesError::DirManagement)?;
+            let parent_dir = path.parent().ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidFilename,
+                    format!("{} has no parent dir", path.display()),
+                )
+            })?;
+            dir_manager.create(parent_dir)?;
             // Will overwrite files if they already exist!
-            file_writer
-                .write(path, content.to_owned())
-                .map_err(FileSystemEntriesError::FileWrite)
+            file_writer.write(path, content.to_owned())?;
+            Ok(())
         })
     }
 }
