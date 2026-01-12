@@ -137,6 +137,7 @@ jobs:
         run: cargo build -p e2e-runner
       # powershell Set-ExecutionPolicy Bypass
       - name: "Windows e2e ${{ matrix.group }}"
+        shell: powershell
         run: |
           "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" | Out-File -FilePath $env:TEMP\newrelic-agent-control-priv.key
           & "${{ github.workspace }}\target\debug\e2e-runner.exe" --log-level debug ${{ matrix.group }} --artifacts-package-dir .\dist `
