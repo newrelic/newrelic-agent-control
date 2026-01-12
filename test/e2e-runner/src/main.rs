@@ -27,7 +27,7 @@ enum LinuxScenarios {
 #[derive(Debug, clap::Subcommand)]
 enum WindowsScenarios {
     /// Simple installation of Agent Control on Windows
-    Install(windows::scenarios::installation::Args),
+    Install(windows::install::Args),
 }
 
 #[derive(Parser)]
