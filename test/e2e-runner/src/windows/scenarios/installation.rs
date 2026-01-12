@@ -206,7 +206,12 @@ $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
 
     let output = retry(3, Duration::from_secs(30), "recipe installation", || {
         let mut cmd = Command::new("powershell.exe");
-        let args = vec!["-ExecutionPolicy".to_string(), "Bypass".to_string()];
+        let args = vec![
+            "-Command".to_string(),
+            install_command.clone(),
+            "-ExecutionPolicy".to_string(),
+            "Bypass".to_string(),
+        ];
         let cmd = cmd.args(&args);
 
         exec_powershell_cmd(cmd)
