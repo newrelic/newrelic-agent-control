@@ -1052,13 +1052,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## home <https://crates.io/crates/home>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## hostname <https://crates.io/crates/hostname>
 
 Distributed under the following license(s):
@@ -1278,6 +1271,13 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## jiff <https://crates.io/crates/jiff>
+
+Distributed under the following license(s):
+
+* Unlicense
+* MIT
 
 ## jni <https://crates.io/crates/jni>
 
@@ -1837,6 +1837,20 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## portable-atomic <https://crates.io/crates/portable-atomic>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
+
+## portable-atomic-util <https://crates.io/crates/portable-atomic-util>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
 
 ## potential_utf <https://crates.io/crates/potential_utf>
 

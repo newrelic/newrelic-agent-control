@@ -10,7 +10,7 @@ use crate::k8s::utils::{get_name, get_namespace};
 use base64::engine::general_purpose::STANDARD;
 use either::Either;
 use kube::api::{ApiResource, ObjectList, Patch, PatchParams};
-use kube::client::Status;
+use kube::core::Status;
 use kube::{
     Api, Error,
     api::{DeleteParams, DynamicObject, PostParams, TypeMeta},
