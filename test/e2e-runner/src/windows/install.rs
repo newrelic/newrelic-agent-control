@@ -78,11 +78,7 @@ impl Default for RecipeData {
 
 /// Installs Agent Control using the recipe as configured in the provided [RecipeData].
 ///
-/// It adds a local folder to the trusted repo list. The folder contains the local .deb packages that will be
-/// scanned and added to the repo (building the required metadata). After that is done these packages are
-/// available to installed with apt.
-/// The recipe is still adding the apt upstream production repo so both interoperates, and because of that
-/// **the local package must have different from any of the Released ones**.
+///
 pub fn install_agent_control_from_recipe(data: &RecipeData) {
     info!("Installing Agent Control from recipe");
 
@@ -103,25 +99,46 @@ pub fn install_agent_control_from_recipe(data: &RecipeData) {
 (New-Object System.Net.WebClient).DownloadFile("https://github.com/newrelic/newrelic-cli/releases/latest/download/NewRelicCLIInstaller.msi", "$env:TEMP\NewRelicCLIInstaller.msi"); `
 msiexec.exe /qn /i "$env:TEMP\NewRelicCLIInstaller.msi" | Out-Null;
 "#;
+    debug!(
+        "Installing newrelic cli with command: \n{}",
+        install_newrelic_cli_command
+    );
     let _ = exec_powershell_command(install_newrelic_cli_command)
         .unwrap_or_else(|err| panic!("could not install New Relic CLI: {err}"));
 
+    // By default, the windows recipe will download the zip file from https://download.newrelic.com and put it
+    // in "$env:TEMP\newrelic-agent-control.zip". If it cannot be downloaded, the recipe will proceed with the
+    // following steps. It won't exit.
+    // We can take advantage of this behavior by placing our zip file in the expected location. Ignoring if
+    // the download operation worked or not.
     if let Some(path) = &data.args.artifacts_package_dir {
+        debug!(
+            "Using local artifacts package directory: {}",
+            path.display()
+        );
+
         let zip_name = PathBuf::from(path).join(format!(
             "newrelic-agent-control_{}_windows_amd64.zip",
             data.args.agent_control_version
         ));
 
+        debug!(
+            "Copying zip from \"{}\" to \"$env:TEMP/newrelic-agent-control.zip\"",
+            zip_name.display()
+        );
         let copy_zip_command = format!(
             "cp {} $env:TEMP/newrelic-agent-control.zip",
             zip_name.display()
         );
+        debug!("{copy_zip_command}");
 
         let _ = exec_powershell_command(&copy_zip_command)
             .unwrap_or_else(|err| panic!("could not copy zip: {err}"));
     }
 
     // Install agent control through recipe
+    // We need to use 2>&1 to redirect stderr to stdout for debugging.
+    // Otherwise, newrelic cli won't show any error messages.
     let install_command = format!(
         r#"
 $env:NEW_RELIC_CLI_SKIP_CORE='1'; `
@@ -141,7 +158,8 @@ $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
 & "C:\Program Files\New Relic\New Relic CLI\newrelic.exe" install `
 -y `
 --localRecipes {} `
--n {} --debug 2>&1
+-n {} `
+--debug 2>&1
 "#,
         data.args.nr_license_key,
         data.args.nr_api_key,
@@ -158,18 +176,20 @@ $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
         data.recipe_list,
     );
 
-    debug!("Create install script");
+    info!("Executing recipe to install Agent Control");
 
     // Create a temporary .ps1 file for the installation command
+    //
+    // There's an option that allows running commands directly. That is "-Command". The
+    // issue with that is that "-ExecutionPolicy" won't bypass all the checks. It seems
+    // to only work properly using a ps1 script. We are forced to create a temporary script file.
+    debug!("Creating install script");
     let script_dir = tempdir().expect("failed to create temp dir for script");
     let script_path = script_dir.path().join("install_command.ps1");
-
     fs::write(&script_path, &install_command)
         .unwrap_or_else(|err| panic!("failed to write install script: {err}"));
 
     debug!("Executing install script: {}", script_path.display());
-    info!("Executing recipe to install Agent Control");
-
     let output = retry(3, Duration::from_secs(30), "recipe installation", || {
         let mut cmd = Command::new("powershell.exe");
         let cmd = cmd
