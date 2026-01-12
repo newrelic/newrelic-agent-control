@@ -8,6 +8,7 @@ use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
+use tracing::dispatcher;
 use tracing::{debug, error, info};
 
 /// This struct holds the information required to start the HTTP Server and it is
@@ -48,9 +49,16 @@ impl Runner {
     /// with a consumer that will just consume events with no action
     /// to drain the channel and avoid memory leaks
     pub fn start(self) -> StartedHttpServer {
+        let dispatch = dispatcher::get_default(|d| d.clone());
+        let span = tracing::Span::current();
+
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
+            let _guard = dispatcher::set_default(&dispatch);
+            let _enter = span.enter();
+
             self.spawn_server(stop_consumer)
         };
+
         let thread_context = NotStartedThreadContext::new("Http server", callback).start();
 
         StartedHttpServer {
@@ -117,7 +125,6 @@ mod tests {
     use std::thread::sleep;
     use std::time::Duration;
 
-    use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
     use crate::agent_control::http_server::config::ServerConfig;
@@ -130,7 +137,7 @@ mod tests {
     #[traced_test]
     fn test_server_stops_gracefully_when_dropped() {
         let runtime = Arc::new(
-            tokio::runtime::Builder::new_multi_thread()
+            tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .unwrap(),
@@ -156,16 +163,14 @@ mod tests {
 
         // wait for logs to be flushed
         sleep(Duration::from_millis(100));
-        assert!(logs_with_scope_contain(
-            "newrelic_agent_control::agent_control::http_server::server",
-            "status server gracefully stopped",
-        ));
+
+        assert!(logs_contain("status server gracefully stopped"));
     }
     #[test]
     #[traced_test]
     fn test_server_stops_gracefully_when_external_channels_close() {
         let runtime = Arc::new(
-            tokio::runtime::Builder::new_multi_thread()
+            tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .unwrap(),
@@ -182,7 +187,8 @@ mod tests {
             agent_control_consumer,
             sub_agent_consumer,
             None,
-        );
+        )
+        .start();
         // server warm up
         sleep(Duration::from_millis(100));
 
@@ -191,9 +197,7 @@ mod tests {
 
         // wait for logs to be flushed
         sleep(Duration::from_millis(100));
-        assert!(logs_with_scope_contain(
-            "newrelic_agent_control::agent_control::http_server::server",
-            "status server gracefully stopped",
-        ));
+
+        assert!(logs_contain("status server gracefully stopped"));
     }
 }
