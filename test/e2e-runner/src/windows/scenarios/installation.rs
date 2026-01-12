@@ -181,7 +181,7 @@ $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
 & "C:\Program Files\New Relic\New Relic CLI\newrelic.exe" install `
 -y `
 --localRecipes {} `
--n {}
+-n {} --debug
 "#,
         data.args.nr_license_key,
         data.args.nr_api_key,
