@@ -10,7 +10,7 @@ use k8s_openapi::api::core::v1::{ConfigMap, Secret};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{APIResourceList, ObjectMeta};
 use kube::api::ObjectList;
 use kube::api::entry::Entry;
-use kube::client::Status;
+use kube::core::Status;
 use kube::{
     Api, Client, Config, Resource,
     api::{DeleteParams, ListParams, PostParams},
