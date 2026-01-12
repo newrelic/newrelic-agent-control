@@ -20,5 +20,6 @@ pub mod package;
 pub mod secret_retriever;
 pub mod secrets_provider;
 pub mod sub_agent;
+pub mod sub_agent_new; // TODO: rename to sub_agent when it is ready
 pub mod utils;
 pub mod values;
