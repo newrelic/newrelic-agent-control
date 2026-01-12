@@ -6,3 +6,9 @@ module "eks_cluster" {
   cluster_max_size     = 1
   cluster_min_size     = 0
 }
+
+provider "kubernetes" {
+  host                   = module.eks_cluster.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks_cluster.cluster_ca_cert)
+  token                  = module.eks_cluster.cluster_auth_token
+}
