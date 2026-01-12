@@ -1,12 +1,10 @@
 use std::path::PathBuf;
-use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
 use crate::tools::logs::ShowLogsOnDrop;
 use crate::tools::test::retry;
 use crate::windows;
-use crate::windows::powershell::exec_powershell_cmd;
 use crate::{tools::config, windows::powershell::exec_powershell_command};
 use tempfile::tempdir;
 use tracing::{debug, info};
@@ -202,20 +200,14 @@ $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
 
     info!("Executing recipe to install Agent Control");
 
-    // Execute PowerShell command
+    let bypass_command = r#"
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+    "#;
+    exec_powershell_command(&bypass_command)
+        .unwrap_or_else(|err| panic!("failed to set execution policy bypass: {err}"));
 
     let output = retry(3, Duration::from_secs(30), "recipe installation", || {
-        let mut cmd = Command::new("powershell.exe");
-        let args = vec![
-            "-ExecutionPolicy".to_string(),
-            "Bypass".to_string(),
-            "-Command".to_string(),
-            install_command.clone(),
-        ];
-        let cmd = cmd.args(&args);
-
-        exec_powershell_cmd(cmd)
-            .map_err(|err| format!("failed to install recipe of agent control: {err}").into())
+        exec_powershell_command(&install_command)
     })
     .unwrap_or_else(|err| panic!("failure executing recipe after retries: {err}"));
     debug!("Output:\n{output}");
