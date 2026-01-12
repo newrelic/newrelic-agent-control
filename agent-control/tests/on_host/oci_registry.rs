@@ -1,5 +1,5 @@
 use crate::on_host::tools::oci_artifact::push_artifact;
-use crate::on_host::tools::oci_package_manager::{compress_tar_gz, create_data_to_compress};
+use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use httpmock::{MockServer, When};
 use newrelic_agent_control::http::config::ProxyConfig;
 use newrelic_agent_control::package::oci::downloader::OCIRefDownloader;
@@ -17,8 +17,7 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
     let dir = tempdir().unwrap();
     let tmp_dir_to_compress = tempdir().unwrap();
     let file_to_push = dir.path().join("layer_digest.tar.gz");
-    create_data_to_compress(tmp_dir_to_compress.path());
-    compress_tar_gz(tmp_dir_to_compress.path(), file_to_push.as_path());
+    TestDataHelper::compress_tar_gz(tmp_dir_to_compress.path(), file_to_push.as_path());
 
     let (artifact_digest, reference) = push_artifact(&file_to_push, REGISTRY_URL);
 
@@ -57,8 +56,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
     let dir = tempdir().unwrap();
     let tmp_dir_to_compress = tempdir().unwrap();
     let file_to_push = dir.path().join("layer_digest.tar.gz");
-    create_data_to_compress(tmp_dir_to_compress.path());
-    compress_tar_gz(tmp_dir_to_compress.path(), file_to_push.as_path());
+    TestDataHelper::compress_tar_gz(tmp_dir_to_compress.path(), file_to_push.as_path());
 
     let (artifact_digest, reference) = push_artifact(&file_to_push, REGISTRY_URL);
 

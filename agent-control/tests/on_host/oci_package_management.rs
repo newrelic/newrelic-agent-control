@@ -1,4 +1,4 @@
-use crate::on_host::tools::oci_package_manager::{compress_tar_gz, create_data_to_compress};
+use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use crate::on_host::tools::{
     oci_artifact::push_artifact, oci_package_manager::new_testing_oci_package_manager,
 };
@@ -18,8 +18,7 @@ fn test_install_and_uninstall_with_oci_registry() {
     let tmp_dir_to_compress = tempdir().unwrap();
     let file_to_push = dir.path().join("layer_digest.tar.gz");
 
-    create_data_to_compress(tmp_dir_to_compress.path());
-    compress_tar_gz(tmp_dir_to_compress.path(), file_to_push.as_path());
+    TestDataHelper::compress_tar_gz(tmp_dir_to_compress.path(), file_to_push.as_path());
 
     let (_artifact_digest, reference) = push_artifact(&file_to_push, REGISTRY_URL);
 
@@ -46,20 +45,7 @@ fn test_install_and_uninstall_with_oci_registry() {
     );
 
     let installed_package = installed_package_result.unwrap();
-    assert!(
-        installed_package
-            .installation_path
-            .as_path()
-            .join("./file1.txt")
-            .exists()
-    );
-    assert!(
-        installed_package
-            .installation_path
-            .as_path()
-            .join("./file2.txt")
-            .exists()
-    );
+    TestDataHelper::test_data_uncompressed(installed_package.installation_path.as_path());
     // Verify location
     // The path should be base_path/agent_id/oci_registry__port__repo_tag
     let expected_filename = compute_path_suffix(&reference).unwrap();

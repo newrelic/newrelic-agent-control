@@ -103,15 +103,13 @@ pub mod tests {
         let tmp_dir_archive = tempdir().unwrap();
         let tmp_file_archive = tmp_dir_archive.path().join("my.tar.gz");
 
-        create_data_to_compress(tmp_dir_to_compress.path());
-        compress_tar_gz(tmp_dir_to_compress.path(), tmp_file_archive.as_path());
+        TestDataHelper::compress_tar_gz(tmp_dir_to_compress.path(), tmp_file_archive.as_path());
 
         let tmp_dir_extracted = tempdir().unwrap();
         let result = Tar.extract(&tmp_file_archive, tmp_dir_extracted.path());
         result.unwrap();
 
-        assert!(tmp_dir_extracted.path().join("./file1.txt").exists());
-        assert!(tmp_dir_extracted.path().join("./file2.txt").exists());
+        TestDataHelper::test_data_uncompressed(tmp_dir_to_compress.path());
     }
 
     #[test]
@@ -139,50 +137,65 @@ pub mod tests {
         let tmp_dir_archive = tempdir().unwrap();
         let tmp_file_archive = tmp_dir_archive.path().join("my.zip");
 
-        create_data_to_compress(tmp_dir_to_compress.path());
-        compress_zip(tmp_dir_to_compress.path(), tmp_file_archive.as_path());
+        TestDataHelper::compress_zip(tmp_dir_to_compress.path(), tmp_file_archive.as_path());
 
         let tmp_dir_extracted = tempdir().unwrap();
         let result = Zip.extract(&tmp_file_archive, tmp_dir_extracted.path());
         result.unwrap();
 
-        assert!(tmp_dir_extracted.path().join("./file1.txt").exists());
-        assert!(tmp_dir_extracted.path().join("./file2.txt").exists());
+        TestDataHelper::test_data_uncompressed(tmp_dir_to_compress.path());
     }
 
     /// Helpers ///
-    pub fn compress_zip(source_path: &Path, tmp_file_archive: &Path) {
-        let file = File::create(tmp_file_archive).unwrap();
-        let mut zip = zip::ZipWriter::new(file);
-        for entry in std::fs::read_dir(source_path).unwrap() {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            let options =
-                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-            zip.start_file(path.file_name().unwrap().to_string_lossy(), options)
-                .unwrap();
-            let mut f = File::open(&path).unwrap();
-            std::io::copy(&mut f, &mut zip).unwrap();
+    pub struct TestDataHelper;
+
+    impl TestDataHelper {
+        const FILE1: &str = "file1.txt";
+        const FILE2: &str = "file2.txt";
+        const CONTENT: &str = "important content";
+
+        fn create_data_to_compress(tmp_dir_to_compress: &Path) {
+            let file_path_1 = tmp_dir_to_compress.join(TestDataHelper::FILE1);
+            File::create(file_path_1.clone()).unwrap();
+            let file_path_2 = tmp_dir_to_compress.join(TestDataHelper::FILE2);
+            File::create(file_path_2.clone()).unwrap();
+
+            std::fs::write(file_path_1.as_path(), TestDataHelper::CONTENT).unwrap();
+            std::fs::write(file_path_2.as_path(), TestDataHelper::CONTENT).unwrap();
         }
 
-        zip.finish().unwrap();
-    }
+        pub fn compress_tar_gz(source_path: &Path, tmp_file_archive: &Path) {
+            TestDataHelper::create_data_to_compress(source_path);
 
-    pub fn compress_tar_gz(source_path: &Path, tmp_file_archive: &Path) {
-        let tar_gz = File::create(tmp_file_archive).unwrap();
-        let enc = GzEncoder::new(tar_gz, Compression::default());
-        let mut tar = tar::Builder::new(enc);
-        tar.append_dir_all(".", source_path).unwrap();
-        tar.finish().unwrap();
-    }
+            let tar_gz = File::create(tmp_file_archive).unwrap();
+            let enc = GzEncoder::new(tar_gz, Compression::default());
+            let mut tar = tar::Builder::new(enc);
+            tar.append_dir_all(".", source_path).unwrap();
+            tar.finish().unwrap();
+        }
 
-    pub fn create_data_to_compress(tmp_dir_to_compress: &Path) {
-        let file_path_1 = tmp_dir_to_compress.join("file1.txt");
-        File::create(file_path_1.clone()).unwrap();
-        let file_path_2 = tmp_dir_to_compress.join("file2.txt");
-        File::create(file_path_2.clone()).unwrap();
+        pub fn compress_zip(source_path: &Path, tmp_file_archive: &Path) {
+            TestDataHelper::create_data_to_compress(source_path);
 
-        std::fs::write(file_path_1.as_path(), "important content").unwrap();
-        std::fs::write(file_path_2.as_path(), "important content").unwrap();
+            let file = File::create(tmp_file_archive).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            for entry in std::fs::read_dir(source_path).unwrap() {
+                let entry = entry.unwrap();
+                let path = entry.path();
+                let options = SimpleFileOptions::default()
+                    .compression_method(zip::CompressionMethod::Deflated);
+                zip.start_file(path.file_name().unwrap().to_string_lossy(), options)
+                    .unwrap();
+                let mut f = File::open(&path).unwrap();
+                std::io::copy(&mut f, &mut zip).unwrap();
+            }
+
+            zip.finish().unwrap();
+        }
+
+        pub fn test_data_uncompressed(tmp_dir_extracted: &Path) {
+            assert!(tmp_dir_extracted.join(TestDataHelper::FILE1).exists());
+            assert!(tmp_dir_extracted.join(TestDataHelper::FILE2).exists());
+        }
     }
 }

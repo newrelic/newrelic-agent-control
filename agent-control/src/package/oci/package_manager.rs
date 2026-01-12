@@ -234,7 +234,7 @@ where
 mod tests {
     use super::*;
     use crate::agent_type::runtime_config::on_host::package::PackageType;
-    use crate::package::extract::tests::{compress_tar_gz, compress_zip, create_data_to_compress};
+    use crate::package::extract::tests::TestDataHelper;
     use crate::package::oci::downloader::tests::MockOCIDownloader;
     use fs::directory_manager::mock::MockDirectoryManager;
     use mockall::predicate::eq;
@@ -243,9 +243,11 @@ mod tests {
     use tempfile::tempdir;
 
     const TEST_PACKAGE_ID: &str = "test-package";
+
     fn test_reference() -> Reference {
         Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap()
     }
+
     fn test_artifact_name() -> PathBuf {
         compute_path_suffix(&test_reference()).unwrap()
     }
@@ -263,17 +265,22 @@ mod tests {
             &test_artifact_name(),
         );
 
-        // Mock downloader behavior creating a compressed file with known content
-        DirectoryManagerFs {}.create(&download_dir).unwrap();
-        let downloaded_file = download_dir.join("layer_digest.tar.gz");
-        let tmp_dir_to_compress = tempdir().unwrap();
-        create_data_to_compress(tmp_dir_to_compress.path());
-        compress_tar_gz(tmp_dir_to_compress.path(), downloaded_file.as_path());
         downloader
             .expect_download()
             .with(eq(test_reference()), eq(download_dir.clone()))
             .once()
-            .returning(move |_, _| Ok(vec![downloaded_file.clone()]));
+            .returning(move |_, _| {
+                // Mock downloader behavior creating a compressed file with known content
+                DirectoryManagerFs {}.create(&download_dir).unwrap();
+                let downloaded_file = download_dir.join("layer_digest.tar.gz");
+                let tmp_dir_to_compress = tempdir().unwrap();
+                TestDataHelper::compress_tar_gz(
+                    tmp_dir_to_compress.path(),
+                    downloaded_file.as_path(),
+                );
+
+                Ok(vec![downloaded_file.clone()])
+            });
 
         let pm = OCIPackageManager {
             downloader,
@@ -287,20 +294,8 @@ mod tests {
         };
         let installed = pm.install(&agent_id, package_data).unwrap();
 
-        assert!(
-            installed
-                .installation_path
-                .as_path()
-                .join("./file1.txt")
-                .exists()
-        );
-        assert!(
-            installed
-                .installation_path
-                .as_path()
-                .join("./file2.txt")
-                .exists()
-        );
+        TestDataHelper::test_data_uncompressed(installed.installation_path.as_path());
+
         assert_eq!(installed.id, TEST_PACKAGE_ID);
     }
 
@@ -318,17 +313,19 @@ mod tests {
             &test_artifact_name(),
         );
 
-        // Mock downloader behavior creating a compressed file with known content, but WRONG FORMAT
-        DirectoryManagerFs {}.create(&download_dir).unwrap();
-        let downloaded_file = download_dir.join("layer_digest.tar.gz");
-        let tmp_dir_to_compress = tempdir().unwrap();
-        create_data_to_compress(tmp_dir_to_compress.path());
-        compress_zip(tmp_dir_to_compress.path(), downloaded_file.as_path());
         downloader
             .expect_download()
             .with(eq(test_reference()), eq(download_dir.clone()))
             .once()
-            .returning(move |_, _| Ok(vec![downloaded_file.clone()]));
+            .returning(move |_, _| {
+                // Mock downloader behavior creating a compressed file with known content, but WRONG FORMAT
+                DirectoryManagerFs {}.create(&download_dir).unwrap();
+                let downloaded_file = download_dir.join("layer_digest.tar.gz");
+                let tmp_dir_to_compress = tempdir().unwrap();
+                TestDataHelper::compress_zip(tmp_dir_to_compress.path(), downloaded_file.as_path());
+
+                Ok(vec![downloaded_file.clone()])
+            });
 
         let pm = OCIPackageManager {
             downloader,
@@ -584,13 +581,6 @@ mod tests {
         let download_dir =
             get_temp_package_path(&root_dir, &agent_id, TEST_PACKAGE_ID, &test_artifact_name());
 
-        // Mock downloader behavior creating a compressed file with known content
-        DirectoryManagerFs {}.create(&download_dir).unwrap();
-        let downloaded_file = download_dir.join("layer_digest.tar.gz");
-        let tmp_dir_to_compress = tempdir().unwrap();
-        create_data_to_compress(tmp_dir_to_compress.path());
-        compress_tar_gz(tmp_dir_to_compress.path(), downloaded_file.as_path());
-
         let install_dir =
             get_package_path(&root_dir, &agent_id, TEST_PACKAGE_ID, &test_artifact_name());
 
@@ -606,11 +596,23 @@ mod tests {
             .once()
             .returning(|_| Ok(()));
 
+        let download_dir_copy = download_dir.clone();
         downloader
             .expect_download()
             .with(eq(test_reference()), eq(download_dir.clone()))
             .once()
-            .returning(move |_, _| Ok(vec![downloaded_file.clone()]));
+            .returning(move |_, _| {
+                // Mock downloader behavior creating a compressed file with known content
+                DirectoryManagerFs {}.create(&download_dir_copy).unwrap();
+                let downloaded_file = download_dir_copy.join("layer_digest.tar.gz");
+                let tmp_dir_to_compress = tempdir().unwrap();
+                TestDataHelper::compress_tar_gz(
+                    tmp_dir_to_compress.path(),
+                    downloaded_file.as_path(),
+                );
+
+                Ok(vec![downloaded_file.clone()])
+            });
 
         directory_manager
             .expect_delete()
