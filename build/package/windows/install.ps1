@@ -176,14 +176,18 @@ if ($LASTEXITCODE -ne 0) {
 # Install the service
 Write-Host "Installing New Relic Agent Control service..."
 New-Service -Name $serviceName -DisplayName "$serviceDisplayName" -BinaryPathName "$acExecPath" -StartupType Automatic | Out-Null
-if ($?)
-{
-    Start-Service -Name $serviceName | Out-Null
-    Write-Host "Installation completed!"
-} else {
-    Write-Host "Error creating service $serviceName"
-    exit 1
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Error creating service $serviceName"
+    exit $LASTEXITCODE
 }
+
+# Configure failure actions: restart after 30 seconds; reset failure count daily
+sc.exe failure $serviceName "reset= 86400" "actions= restart/30000" | Out-Null
+# Ensure failure flag is set to enable the configured actions
+sc.exe failureflag $serviceName 1 | Out-Null
+
+Start-Service -Name $serviceName | Out-Null
+Write-Host "Installation completed!"
 
 # Verify service is running and AC is healthy
 $MAX_RETRIES = 10
