@@ -21,5 +21,7 @@ pub fn exec_powershell_cmd(cmd: &mut Command) -> TestResult<String> {
         return Err(format!("command failed\nStdout: {stdout}\nStderr: {stderr}").into());
     }
 
-    Ok(stdout)
+    Ok(format!(
+        "command\n{cmd:?}\nsuccess\nStdout: {stdout}\nStderr: {stderr}"
+    ))
 }
