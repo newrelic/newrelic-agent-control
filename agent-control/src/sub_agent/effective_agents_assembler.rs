@@ -1,4 +1,3 @@
-use crate::agent_control::defaults::GENERATED_FOLDER_NAME;
 use crate::agent_control::run::Environment;
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
@@ -118,7 +117,7 @@ where
     renderer: TemplateRenderer,
     variable_constraints: VariableConstraints,
     secrets_providers: SecretsProviders,
-    auto_generated_dir: PathBuf,
+    remote_dir: PathBuf,
 }
 
 impl<R> LocalEffectiveAgentsAssembler<R>
@@ -137,7 +136,7 @@ where
             renderer,
             variable_constraints,
             secrets_providers,
-            auto_generated_dir: remote_dir.join(GENERATED_FOLDER_NAME),
+            remote_dir: remote_dir.to_path_buf(),
         }
     }
 }
@@ -164,11 +163,11 @@ where
         )?;
 
         // Build the agent attributes
-        let attributes = AgentAttributes::try_new(
-            agent_identity.id.to_owned(),
-            self.auto_generated_dir.to_path_buf(),
-        )
-        .map_err(|e| EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(e.to_string()))?;
+        let attributes =
+            AgentAttributes::try_new(agent_identity.id.to_owned(), self.remote_dir.to_path_buf())
+                .map_err(|e| {
+                EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(e.to_string())
+            })?;
 
         // Values are expanded substituting all ${nr-env...} with environment variables.
         // Notice that only environment variables are taken into consideration (no other vars for example)
@@ -207,6 +206,7 @@ pub fn build_agent_type(
             Runtime {
                 deployment: Deployment {
                     k8s: None,
+                    windows: None,
                     ..definition.runtime_config.deployment
                 },
             },
@@ -216,6 +216,7 @@ pub fn build_agent_type(
             Runtime {
                 deployment: Deployment {
                     k8s: None,
+                    linux: None,
                     ..definition.runtime_config.deployment
                 },
             },
@@ -297,7 +298,7 @@ pub(crate) mod tests {
                 renderer: TemplateRenderer::default(),
                 variable_constraints: VariableConstraints::default(),
                 secrets_providers: SecretsProviders::default(),
-                auto_generated_dir: PathBuf::default(),
+                remote_dir: PathBuf::default(),
             }
         }
     }

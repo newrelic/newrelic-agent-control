@@ -23,18 +23,14 @@ pub fn new_testing_oci_package_manager(
     let downloader = OCIRefDownloader::try_new(
         ProxyConfig::default(),
         runtime,
-        Some(ClientConfig {
+        ClientConfig {
             protocol: ClientProtocol::Http,
             ..Default::default()
-        }),
+        },
     )
     .unwrap();
 
-    OCIPackageManager {
-        downloader,
-        directory_manager: DirectoryManagerFs,
-        base_path,
-    }
+    OCIPackageManager::new(downloader, DirectoryManagerFs, base_path)
 }
 
 /// Helpers ///

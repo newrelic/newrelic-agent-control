@@ -127,7 +127,7 @@ impl Templateable for FileSystem {
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         if let Some(TrivialValue::String(generated_dir)) = variables
-            .get(&Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR))
+            .get(&Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_GENERATED_DIR))
             .and_then(Variable::get_final_value)
         {
             let filesystem = self
@@ -147,7 +147,7 @@ impl Templateable for FileSystem {
             Ok(rendered::FileSystem(filesystem))
         } else {
             Err(AgentTypeError::MissingValue(
-                Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_GENERATED_DIR),
             ))
         }
     }
@@ -304,7 +304,7 @@ mod tests {
     #[test]
     fn valid_filepath_rendering() {
         let variables = Variables::from_iter(vec![(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
+            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_GENERATED_DIR),
             Variable::new_final_string_variable("/base/dir"),
         )]);
 
@@ -354,7 +354,7 @@ mod tests {
             rendered_err.to_string(),
             format!(
                 "missing value for key: {}",
-                Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR)
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_GENERATED_DIR)
             )
         );
     }
@@ -436,7 +436,7 @@ mod tests {
         let parsed = parsed.unwrap();
         let variables = Variables::from_iter(vec![
             (
-                Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_GENERATED_DIR),
                 Variable::new_final_string_variable("/test/base/dir"),
             ),
             (
@@ -480,7 +480,7 @@ mod tests {
         let parsed = parsed.unwrap();
         let variables = Variables::from_iter(vec![
             (
-                Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_GENERATED_DIR),
                 Variable::new_final_string_variable("/test/base/dir"),
             ),
             (

@@ -6,8 +6,10 @@ use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystem
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
+use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
+use crate::package::manager::PackageManager;
 use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::identity::AgentIdentity;
@@ -15,11 +17,8 @@ use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
+use crate::sub_agent::{SubAgentBuilder, error::SubAgentBuilderError};
 use crate::values::config_repository::ConfigRepository;
-use crate::{
-    opamp::client_builder::OpAMPClientBuilder,
-    sub_agent::{SubAgentBuilder, error::SubAgentBuilderError},
-};
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::get_hostname;
 use std::collections::HashMap;
@@ -109,18 +108,19 @@ where
     }
 }
 
-pub struct SupervisortBuilderOnHost {
-    logging_path: PathBuf,
+pub struct SupervisorBuilderOnHost<PM>
+where
+    PM: PackageManager + Clone,
+{
+    pub logging_path: PathBuf,
+    pub package_manager: PM,
 }
 
-impl SupervisortBuilderOnHost {
-    pub fn new(logging_path: PathBuf) -> Self {
-        Self { logging_path }
-    }
-}
-
-impl SupervisorBuilder for SupervisortBuilderOnHost {
-    type SupervisorStarter = NotStartedSupervisorOnHost;
+impl<PM> SupervisorBuilder for SupervisorBuilderOnHost<PM>
+where
+    PM: PackageManager + Clone,
+{
+    type SupervisorStarter = NotStartedSupervisorOnHost<PM>;
 
     fn build_supervisor(
         &self,
@@ -151,6 +151,8 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
             executables,
             on_host.health,
             on_host.version,
+            on_host.packages.clone(),
+            self.package_manager.clone(),
         )
         .with_file_logging(enable_file_logging, self.logging_path.to_path_buf())
         .with_filesystem_entries(FileSystemEntries::from(on_host.filesystem));

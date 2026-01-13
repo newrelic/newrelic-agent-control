@@ -9,7 +9,7 @@
 use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
 
 use crate::agent_control::run::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_VARIABLE_NAME};
-use crate::agent_control::run::on_host::{AGENT_CONTROL_MODE_ON_HOST, HOST_ID_VARIABLE_NAME};
+use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::{
     agent_control::{agent_id::AgentID, run::Environment},
@@ -234,10 +234,11 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
         .into(),
         values_windows: AgentTypeValues {
             cases: HashMap::from([
-                ("mandatory fields only", ""),
+                ("mandatory fields only", r#"version: "some-version""#),
                 (
                     "check all value types are correct",
                     r#"
+                version: "some-version"
                 config_agent: "some file contents"
                 config_integrations:
                     map_string: "some file contents"
@@ -641,8 +642,13 @@ fn all_agent_type_definitions_are_resilient_k8s() {
 }
 
 #[test]
-fn all_agent_type_definitions_are_resilient_onhost() {
-    iterate_test_cases(&AGENT_CONTROL_MODE_ON_HOST);
+fn all_agent_type_definitions_are_resilient_linux() {
+    iterate_test_cases(&Environment::Linux);
+}
+
+#[test]
+fn all_agent_type_definitions_are_resilient_windows() {
+    iterate_test_cases(&Environment::Windows);
 }
 
 fn iterate_test_cases(environment: &Environment) {

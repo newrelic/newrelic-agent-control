@@ -9,7 +9,7 @@ use zip::ZipArchive;
 
 #[derive(Debug, Error)]
 #[error("extract error: {0}")]
-pub struct ExtractError(pub String);
+pub struct ExtractError(String);
 
 impl PackageType {
     #[instrument(skip_all, fields(archive_path = %archive_path.to_string_lossy()),name = "extracting_archive")]

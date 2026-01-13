@@ -14,6 +14,9 @@ pub enum SupervisorStarterError {
     #[error("building k8s resources: {0}")]
     ConfigError(String),
 
+    #[error("installing packages: {0}")]
+    InstallPackage(String),
+
     #[error("building health checkers: {0}")]
     HealthError(#[from] HealthCheckerError),
 

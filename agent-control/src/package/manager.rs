@@ -41,3 +41,25 @@ pub trait PackageManager {
         package: InstalledPackageData,
     ) -> Result<(), OCIPackageManagerError>;
 }
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use mockall::mock;
+
+    mock! {
+        pub PackageManager {}
+        impl PackageManager for PackageManager {
+            fn install(
+                &self,
+                agent_id: &AgentID,
+                package: PackageData,
+            ) -> Result<InstalledPackageData, OCIPackageManagerError>;
+            fn uninstall(
+                &self,
+                agent_id: &AgentID,
+                package: InstalledPackageData,
+            ) -> Result<(), OCIPackageManagerError>;
+        }
+    }
+}

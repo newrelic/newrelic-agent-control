@@ -11,14 +11,15 @@ use tracing::{debug, warn};
 
 pub type DefaultOCIPackageManager = OCIPackageManager<OCIRefDownloader, DirectoryManagerFs>;
 
+#[derive(Clone)]
 pub struct OCIPackageManager<D, DM>
 where
-    D: OCIDownloader,
-    DM: DirectoryManager,
+    D: OCIDownloader + Clone,
+    DM: DirectoryManager + Clone,
 {
-    pub downloader: D,
-    pub directory_manager: DM,
-    pub base_path: PathBuf, // this would be the `auto-generated` directory
+    downloader: D,
+    directory_manager: DM,
+    base_path: PathBuf, // this would be the `package` directory
 }
 
 #[derive(Debug, Error)]
@@ -37,15 +38,23 @@ pub enum OCIPackageManagerError {
 }
 
 const TEMP_DOWNLOADED_PACKAGES_LOCATION: &str = "__temp_packages";
-const INSTALLED_PACKAGES_LOCATION: &str = "packages";
+const INSTALLED_PACKAGES_LOCATION: &str = "stored_packages";
 
 impl<D, DM> OCIPackageManager<D, DM>
 where
-    D: OCIDownloader,
-    DM: DirectoryManager,
+    D: OCIDownloader + Clone,
+    DM: DirectoryManager + Clone,
 {
+    pub fn new(downloader: D, directory_manager: DM, base_path: PathBuf) -> Self {
+        Self {
+            downloader,
+            directory_manager,
+            base_path,
+        }
+    }
+
     /// Validates that the provided vector of paths contains exactly one path (i.e. a single file)
-    /// was downloaded from the [`OCIDownloader`]) and retrieve its [`PathBuf`], otherwise fail.
+    /// was downloaded from the [`OCIDownloader`] and retrieve its [`PathBuf`], otherwise fail.
     fn try_get_unique_path(paths: Vec<PathBuf>) -> Result<PathBuf, OCIPackageManagerError> {
         if paths.len() != 1 {
             let paths_len = paths.len();
@@ -122,7 +131,7 @@ where
     }
 }
 
-fn get_package_path(
+pub fn get_package_path(
     base_path: &Path,
     agent_id: &AgentID,
     package_id: &str,
@@ -185,8 +194,8 @@ pub fn compute_path_suffix(package: &Reference) -> Result<PathBuf, OCIPackageMan
 
 impl<D, DM> PackageManager for OCIPackageManager<D, DM>
 where
-    D: OCIDownloader,
-    DM: DirectoryManager,
+    D: OCIDownloader + Clone,
+    DM: DirectoryManager + Clone,
 {
     /// Installs the given OCI package for the specified agent.
     ///
@@ -677,11 +686,7 @@ mod tests {
             .once()
             .returning(|_| Err(io::Error::other("error deleting directory")));
 
-        let pm = OCIPackageManager {
-            downloader,
-            directory_manager,
-            base_path: PathBuf::from("/tmp/base"),
-        };
+        let pm = OCIPackageManager::new(downloader, directory_manager, PathBuf::from("/tmp/base"));
         let installed_package = InstalledPackageData {
             id: TEST_PACKAGE_ID.to_string(),
             installation_path: package_path,

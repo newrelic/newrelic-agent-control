@@ -13,6 +13,7 @@ pub trait DirectoryManager {
     fn delete(&self, path: &Path) -> io::Result<()>;
 }
 
+#[derive(Clone)]
 pub struct DirectoryManagerFs;
 
 impl DirectoryManager for DirectoryManagerFs {
@@ -78,6 +79,9 @@ pub mod mock {
         impl DirectoryManager for DirectoryManager {
             fn create(&self, path: &Path) -> io::Result<()>;
             fn delete(&self, path: &Path) -> io::Result<()>;
+        }
+        impl Clone for DirectoryManager {
+            fn clone(&self) -> Self;
         }
     }
 

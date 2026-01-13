@@ -5,7 +5,9 @@ use crate::on_host::tools::{
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_type::runtime_config::on_host::package::PackageType::Tar;
 use newrelic_agent_control::package::manager::{PackageData, PackageManager};
-use newrelic_agent_control::package::oci::package_manager::compute_path_suffix;
+use newrelic_agent_control::package::oci::package_manager::{
+    compute_path_suffix, get_package_path,
+};
 use tempfile::tempdir;
 
 // Registry created in the make target executing oci-registry.sh
@@ -50,11 +52,7 @@ fn test_install_and_uninstall_with_oci_registry() {
     // The path should be base_path/agent_id/oci_registry__port__repo_tag
     let expected_filename = compute_path_suffix(&reference).unwrap();
 
-    let expected_path = base_path
-        .join(&agent_id)
-        .join("packages")
-        .join(pkg_id)
-        .join(expected_filename);
+    let expected_path = get_package_path(&base_path, &agent_id, pkg_id, &expected_filename);
 
     assert_eq!(installed_package.installation_path, expected_path);
 
