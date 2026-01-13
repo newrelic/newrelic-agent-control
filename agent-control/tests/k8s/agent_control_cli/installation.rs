@@ -1,6 +1,6 @@
 use crate::common::opamp::FakeServer;
 use crate::common::runtime::block_on;
-use crate::k8s::tools::agent_control::{K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET};
+use crate::k8s::tools::agent_control::{DUMMY_PRIVATE_KEY, K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET};
 use crate::k8s::tools::cmd::{assert_stdout_contains, print_cli_output};
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
@@ -105,6 +105,14 @@ fn k8s_cli_install_agent_control_installation_failed_upgrade() {
         "test-secret",
         opamp_server.endpoint().as_str(),
         "values.yaml",
+    );
+
+    create_values_secret(
+        k8s_env.client.clone(),
+        &ac_namespace,
+        K8S_PRIVATE_KEY_SECRET,
+        K8S_KEY_SECRET,
+        DUMMY_PRIVATE_KEY.to_string(),
     );
 
     let release_name = "install-ac-installation-failed-upgrade";
