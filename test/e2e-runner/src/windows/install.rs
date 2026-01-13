@@ -11,7 +11,7 @@ use crate::{
 /// Arguments to be set for every test that needs Agent Control installation
 #[derive(Default, Debug, clap::Parser)]
 pub struct Args {
-    /// Folder where '.deb' packages are stored
+    /// Folder where zips are stored
     #[arg(long)]
     pub artifacts_package_dir: Option<PathBuf>,
 
@@ -99,19 +99,17 @@ pub fn install_agent_control_from_recipe(data: &RecipeData) {
 (New-Object System.Net.WebClient).DownloadFile("https://github.com/newrelic/newrelic-cli/releases/latest/download/NewRelicCLIInstaller.msi", "$env:TEMP\NewRelicCLIInstaller.msi"); `
 msiexec.exe /qn /i "$env:TEMP\NewRelicCLIInstaller.msi" | Out-Null;
 "#;
-    debug!(
-        "Installing newrelic cli with command: \n{}",
-        install_newrelic_cli_command
-    );
+    info!("Installing newrelic cli",);
+    debug!("Running command: \n{install_newrelic_cli_command}");
     let _ = exec_powershell_command(install_newrelic_cli_command)
         .unwrap_or_else(|err| panic!("could not install New Relic CLI: {err}"));
 
     // By default, the windows recipe will download the zip file from https://download.newrelic.com and put it
-    // in "$env:TEMP\newrelic-agent-control.zip". If the zip file already exists, the recipe will skip the
+    // in "$env:TEMP\newrelic-agent-control-{version}.zip". If the zip file already exists, the recipe will skip the
     // download. We can take advantage of this behavior by placing our zip file in the expected location.
     // That way we avoid trying to download the artifact from the wrong place.
     if let Some(path) = &data.args.artifacts_package_dir {
-        debug!(
+        info!(
             "Using local artifacts package directory: {}",
             path.display()
         );
@@ -125,14 +123,9 @@ msiexec.exe /qn /i "$env:TEMP\NewRelicCLIInstaller.msi" | Out-Null;
             data.args.agent_control_version
         );
 
-        debug!(
-            "Copying zip from \"{}\" to \"{}\"",
-            zip_name.display(),
-            extract_path
-        );
         let copy_zip_command = format!("cp {} {}", zip_name.display(), extract_path);
-        debug!("{copy_zip_command}");
-
+        info!("Copying zip file");
+        debug!("Running command: \n{copy_zip_command}");
         let _ = exec_powershell_command(&copy_zip_command)
             .unwrap_or_else(|err| panic!("could not copy zip: {err}"));
     }
@@ -176,21 +169,20 @@ $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
         recipes_dir_path,
         data.recipe_list,
     );
-    debug!("Install command: \n{install_command}\n");
 
-    info!("Executing recipe to install Agent Control");
     // Create a temporary .ps1 file for the installation command
     //
     // There's an option that allows running commands directly. That is "-Command". The
     // issue with that is that "-ExecutionPolicy" won't bypass all the checks. It seems
     // to only work properly using a ps1 script. We are forced to create a temporary script file.
-    debug!("Creating install script");
+    info!("Creating install script");
+    debug!("Install script content: \n{install_command}");
     let script_dir = tempdir().expect("failed to create temp dir for script");
     let script_path = script_dir.path().join("install_command.ps1");
     fs::write(&script_path, &install_command)
         .unwrap_or_else(|err| panic!("failed to write install script: {err}"));
 
-    debug!("Executing install script: {}", script_path.display());
+    info!("Executing install script to install Agent Control through the recipe");
     let output = retry(3, Duration::from_secs(30), "recipe installation", || {
         let mut cmd = Command::new("powershell.exe");
         let cmd = cmd
