@@ -107,10 +107,9 @@ msiexec.exe /qn /i "$env:TEMP\NewRelicCLIInstaller.msi" | Out-Null;
         .unwrap_or_else(|err| panic!("could not install New Relic CLI: {err}"));
 
     // By default, the windows recipe will download the zip file from https://download.newrelic.com and put it
-    // in "$env:TEMP\newrelic-agent-control.zip". If it cannot be downloaded, the recipe will proceed with the
-    // following steps. It won't exit.
-    // We can take advantage of this behavior by placing our zip file in the expected location. Ignoring if
-    // the download operation worked or not.
+    // in "$env:TEMP\newrelic-agent-control.zip". If the zip file already exists, the recipe will skip the
+    // download. We can take advantage of this behavior by placing our zip file in the expected location.
+    // That way we avoid trying to download the artifact from the wrong place.
     if let Some(path) = &data.args.artifacts_package_dir {
         debug!(
             "Using local artifacts package directory: {}",
@@ -121,15 +120,17 @@ msiexec.exe /qn /i "$env:TEMP\NewRelicCLIInstaller.msi" | Out-Null;
             "newrelic-agent-control_{}_windows_amd64.zip",
             data.args.agent_control_version
         ));
+        let extract_path = format!(
+            "$env:TEMP/newrelic-agent-control-{}.zip",
+            data.args.agent_control_version
+        );
 
         debug!(
-            "Copying zip from \"{}\" to \"$env:TEMP/newrelic-agent-control.zip\"",
-            zip_name.display()
+            "Copying zip from \"{}\" to \"{}\"",
+            zip_name.display(),
+            extract_path
         );
-        let copy_zip_command = format!(
-            "cp {} $env:TEMP/newrelic-agent-control.zip",
-            zip_name.display()
-        );
+        let copy_zip_command = format!("cp {} {}", zip_name.display(), extract_path);
         debug!("{copy_zip_command}");
 
         let _ = exec_powershell_command(&copy_zip_command)
