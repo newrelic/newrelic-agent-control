@@ -124,10 +124,11 @@ Notice that in windows the paths will be different, since everything will be und
 #### AC Service Windows vs Linux
 
 On Linux, Agent Control is expected to run as a system service, managed by `systemd`. 
-There is a service file at `package/newrelic-agent-control.service` and `package/newrelic-agent-control.conf` that can be used to template when installing AC on a system by the recipe that calls the AC cli command `systemd-config` to inject region, licenseKey and OTEL endpoint.
 Such service file is packaged in the `.deb` and `.rpm` installers by goreleaser and it is installed and enabled by the `postinstall.sh` script.
 
 On the other hand, on Windows, Agent Control is expected to run as a Windows Service that is installed using the `install.ps1` script that takes care of registering the service and install AC.
+
+On both Operating Systems, an `environment_variables.yaml` file is created to store environment variables that Agent Control will use when running as a service. This file is created at installation time and it is located at the Agent Control configuration directory.
 
 
 ### Kubernetes
