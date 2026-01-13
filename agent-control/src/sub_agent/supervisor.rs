@@ -171,3 +171,63 @@ pub trait Supervisor: Sized {
     /// * `Err(Self::StopError)` - If shutdown encountered errors (resources may be partially cleaned)
     fn stop(self) -> Result<(), Self::StopError>;
 }
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use mockall::{mock, predicate};
+
+    #[derive(Debug, thiserror::Error)]
+    #[error("{0}")]
+    pub struct TestingSupervisorError(pub String);
+
+    mock! {
+        pub SupervisorBuilder<A> where A: SupervisorStarter {}
+
+        impl<A> SupervisorBuilder for SupervisorBuilder<A> where A: SupervisorStarter {
+            type Starter = A;
+            type Error = TestingSupervisorError;
+
+            fn build_supervisor(&self, effective_agent: EffectiveAgent) -> Result<A, TestingSupervisorError>;
+        }
+
+    }
+
+    mock! {
+        pub SupervisorStarter<A> where A: Supervisor {}
+
+        impl<A> SupervisorStarter for SupervisorStarter<A> where A: Supervisor {
+            type Supervisor = A;
+            type Error = TestingSupervisorError;
+            fn start(self, sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>) -> Result<A, TestingSupervisorError>;
+        }
+    }
+
+    mock! {
+        pub Supervisor {}
+
+        impl Supervisor for Supervisor {
+            type ApplyError = TestingSupervisorError;
+            type StopError = TestingSupervisorError;
+
+            fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, TestingSupervisorError>;
+
+            fn stop(self) -> Result<(), TestingSupervisorError>;
+        }
+    }
+
+    impl<A: Supervisor + Send + Sync + 'static> MockSupervisorStarter<A> {
+        pub fn should_start(&mut self, supervisor: A) {
+            self.expect_start()
+                .with(predicate::always()) // we cannot do eq with a publisher
+                .once()
+                .return_once(|_| Ok(supervisor));
+        }
+    }
+
+    impl MockSupervisor {
+        pub fn should_stop(&mut self) {
+            self.expect_stop().once().return_once(|| Ok(()));
+        }
+    }
+}
