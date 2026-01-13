@@ -1,4 +1,3 @@
-use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{
     APM_APPLICATION_ID, OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
 };
@@ -16,15 +15,20 @@ use crate::k8s::annotations::Annotations;
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
 use crate::k8s::utils::retain_not_null;
+use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
+use crate::sub_agent::supervisor::{
+    Supervisor as NewSupervisor, SupervisorStarter as NewSupervisorStarter,
+};
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
+use std::convert::identity;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, error, info, info_span, trace, warn};
@@ -37,6 +41,44 @@ pub struct NotStartedSupervisorK8s {
     k8s_client: Arc<SyncK8sClient>,
     k8s_config: K8s,
     interval: Duration,
+}
+
+impl NewSupervisorStarter for NotStartedSupervisorK8s {
+    type Supervisor = StartedSupervisorK8s;
+    type Error = SupervisorStarterError;
+
+    fn start(
+        self,
+        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    ) -> Result<Self::Supervisor, Self::Error> {
+        info!("Starting k8s supervisor");
+        let resources = Arc::new(self.build_dynamic_objects()?);
+
+        let thread_contexts = [
+            Some(self.start_k8s_objects_supervisor(resources.clone())),
+            self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?,
+            self.start_version_checker(sub_agent_internal_publisher.clone(), resources.clone()),
+            self.start_guid_checker(sub_agent_internal_publisher.clone(), resources),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        info!("K8s supervisor started");
+
+        // Reuse structures
+        let Self {
+            agent_identity,
+            k8s_client,
+            ..
+        } = self;
+
+        Ok(StartedSupervisorK8s {
+            thread_contexts,
+            k8s_client,
+            sub_agent_internal_publisher,
+            agent_identity,
+        })
+    }
 }
 
 impl SupervisorStarter for NotStartedSupervisorK8s {
@@ -52,17 +94,23 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
         info!("Starting k8s supervisor");
         let resources = Arc::new(self.build_dynamic_objects()?);
 
-        let thread_contexts = vec![
+        let thread_contexts = [
             Some(self.start_k8s_objects_supervisor(resources.clone())),
             self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?,
             self.start_version_checker(sub_agent_internal_publisher.clone(), resources.clone()),
-            self.start_guid_checker(sub_agent_internal_publisher, resources),
-        ];
+            self.start_guid_checker(sub_agent_internal_publisher.clone(), resources),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+
         info!("K8s supervisor started");
 
         Ok(StartedSupervisorK8s {
-            agent_id: self.agent_identity.id,
-            thread_contexts: thread_contexts.into_iter().flatten().collect(),
+            thread_contexts,
+            k8s_client: self.k8s_client,
+            sub_agent_internal_publisher,
+            agent_identity: self.agent_identity,
         })
     }
 }
@@ -251,8 +299,54 @@ impl NotStartedSupervisorK8s {
 }
 
 pub struct StartedSupervisorK8s {
-    agent_id: AgentID,
     thread_contexts: Vec<StartedThreadContext>,
+    agent_identity: AgentIdentity,
+    k8s_client: Arc<SyncK8sClient>,
+    sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+}
+
+impl NewSupervisor for StartedSupervisorK8s {
+    type ApplyError = SupervisorStarterError;
+    type StopError = ThreadContextStopperError;
+
+    fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, Self::ApplyError> {
+        debug!(agent_id = %self.agent_identity.id, "Applying new configuration to K8s supervisor");
+
+        let k8s_config = effective_agent
+            .get_k8s_config()
+            .map_err(|e| SupervisorStarterError::ConfigError(e.to_string()))?;
+
+        // Stop the current supervisor threads
+        let publisher = self.sub_agent_internal_publisher.clone();
+        let client = self.k8s_client.clone();
+        let identity = self.agent_identity.clone();
+
+        // TODO modify so I don't call stop but the structure's "apply" functionality
+        todo!();
+        // if let Err(e) = self.stop() {
+        //     error!(agent_id = %identity.id, "Failed to stop previous supervisor during apply: {e}");
+        // }
+
+        // // Create and start the new supervisor
+        // // TODO try to avoid `clone` here
+        // let starter = NotStartedSupervisorK8s::new(identity, client, k8s_config.clone());
+        // SupervisorStarter::start(starter, publisher)
+    }
+
+    fn stop(self) -> Result<(), Self::StopError> {
+        // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
+        let thread_contexts = self.thread_contexts;
+        let agent_identity = self.agent_identity;
+
+        thread_contexts.into_iter().map(|ctx| {
+            let thread_name = ctx.thread_name().to_string();
+            ctx.stop_blocking()
+            .inspect(|_| debug!(agent_id = %agent_identity.id, "Thread {thread_name} stopped"))
+            .inspect_err(|e| error!(agent_id = %agent_identity.id, "Error stopping thread {thread_name}: {e}"))
+        }).collect::<Vec<_>>().into_iter()
+        // Return first err
+        .try_for_each(identity)
+    }
 }
 
 impl SupervisorStopper for StartedSupervisorK8s {
@@ -262,9 +356,11 @@ impl SupervisorStopper for StartedSupervisorK8s {
         for thread_context in self.thread_contexts {
             let thread_name = thread_context.thread_name().to_string();
             match thread_context.stop_blocking() {
-                Ok(_) => debug!(agent_id = %self.agent_id, "Thread {} stopped", thread_name),
+                Ok(_) => {
+                    debug!(agent_id = %self.agent_identity.id, "Thread {} stopped", thread_name)
+                }
                 Err(error_msg) => {
-                    error!(agent_id = %self.agent_id, "Error stopping '{thread_name}': {error_msg}");
+                    error!(agent_id = %self.agent_identity.id, "Error stopping '{thread_name}': {error_msg}");
                     if stop_result.is_ok() {
                         stop_result = Err(error_msg);
                     }
@@ -298,7 +394,7 @@ pub mod tests {
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
-    use crate::sub_agent::{NotStartedSubAgent, SubAgent};
+    use crate::sub_agent::{NotStartedSubAgent, SubAgent, supervisor};
     use crate::values::config::{Config, RemoteConfig};
     use crate::values::config_repository::tests::MockConfigRepository;
     use crate::values::yaml_config::YAMLConfig;
@@ -439,10 +535,13 @@ pub mod tests {
         };
 
         let not_started = not_started_supervisor(config, None);
-        let started = not_started
-            .start(sub_agent_internal_publisher)
-            .expect("supervisor started");
-        started.stop().expect("supervisor thread joined");
+        let started = supervisor::starter::SupervisorStarter::start(
+            not_started,
+            sub_agent_internal_publisher,
+        )
+        .expect("supervisor started");
+
+        supervisor::stopper::SupervisorStopper::stop(started).expect("supervisor thread joined");
     }
 
     #[test]
@@ -456,9 +555,12 @@ pub mod tests {
         };
 
         let not_started = not_started_supervisor(config, None);
-        let started = not_started
-            .start(sub_agent_internal_publisher)
-            .expect("supervisor started");
+        let started = supervisor::starter::SupervisorStarter::start(
+            not_started,
+            sub_agent_internal_publisher,
+        )
+        .expect("supervisor started");
+
         assert!(
             !started
                 .thread_contexts
