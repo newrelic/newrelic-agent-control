@@ -1438,12 +1438,6 @@ Distributed under the following license(s):
 
 * MIT
 
-## libz-rs-sys <https://crates.io/crates/libz-rs-sys>
-
-Distributed under the following license(s):
-
-* Zlib
-
 ## linux-raw-sys <https://crates.io/crates/linux-raw-sys>
 
 Distributed under the following license(s):
