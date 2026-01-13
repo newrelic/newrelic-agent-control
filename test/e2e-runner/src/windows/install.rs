@@ -175,9 +175,9 @@ $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
         recipes_dir_path,
         data.recipe_list,
     );
+    debug!("Install command: \n{install_command}\n");
 
     info!("Executing recipe to install Agent Control");
-
     // Create a temporary .ps1 file for the installation command
     //
     // There's an option that allows running commands directly. That is "-Command". The
