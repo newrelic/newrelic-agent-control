@@ -146,57 +146,63 @@ pub trait Supervisor: Sized {
     /// * `Err(Self::StopError)` - If shutdown encountered errors (resources may be partially cleaned)
     fn stop(self) -> Result<(), Self::StopError>;
 }
+
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use super::*;
-    use crate::event::{SubAgentInternalEvent, channel::EventPublisher};
-    use mockall::mock;
-    use thiserror::Error;
+    use mockall::{mock, predicate};
 
-    #[derive(Debug, Error)]
-    #[error("mock error: {0}")]
-    pub struct MockError(String);
+    #[derive(Debug, thiserror::Error)]
+    #[error("{0}")]
+    pub struct TestingSupervisorError(pub String);
 
-    impl From<String> for MockError {
-        fn from(value: String) -> Self {
-            Self(value)
+    mock! {
+        pub SupervisorBuilder<A> where A: SupervisorStarter {}
+
+        impl<A> SupervisorBuilder for SupervisorBuilder<A> where A: SupervisorStarter {
+            type Starter = A;
+            type Error = TestingSupervisorError;
+
+            fn build_supervisor(&self, effective_agent: EffectiveAgent) -> Result<A, TestingSupervisorError>;
+        }
+
+    }
+
+    mock! {
+        pub SupervisorStarter<A> where A: Supervisor {}
+
+        impl<A> SupervisorStarter for SupervisorStarter<A> where A: Supervisor {
+            type Supervisor = A;
+            type Error = TestingSupervisorError;
+            fn start(self, sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>) -> Result<A, TestingSupervisorError>;
         }
     }
 
     mock! {
         pub Supervisor {}
+
         impl Supervisor for Supervisor {
-            type ApplyError = MockError;
-            type StopError = MockError;
+            type ApplyError = TestingSupervisorError;
+            type StopError = TestingSupervisorError;
 
-            fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, MockError>;
-            fn stop(self) -> Result<(), <Self as Supervisor>::StopError>;
+            fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, TestingSupervisorError>;
+
+            fn stop(self) -> Result<(), TestingSupervisorError>;
         }
     }
 
-    mock! {
-        pub SupervisorStarter<S> where S: Supervisor + 'static {}
-        impl<S> SupervisorStarter for SupervisorStarter<S> where S: Supervisor + 'static {
-            type Supervisor = S;
-            type Error = MockError;
-
-            fn start(
-                self,
-                sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-            ) -> Result<S, <Self as SupervisorStarter>::Error>;
+    impl<A: Supervisor + Send + Sync + 'static> MockSupervisorStarter<A> {
+        pub fn should_start(&mut self, supervisor: A) {
+            self.expect_start()
+                .with(predicate::always()) // we cannot do eq with a publisher
+                .once()
+                .return_once(|_| Ok(supervisor));
         }
     }
 
-    mock! {
-        pub SupervisorBuilder<S> where S: SupervisorStarter + 'static {}
-        impl<S> SupervisorBuilder for SupervisorBuilder<S> where S: SupervisorStarter + 'static {
-            type Starter = S;
-            type Error = MockError;
-
-            fn build_supervisor(
-                &self,
-                effective_agent: EffectiveAgent,
-            ) -> Result<S, <Self as SupervisorBuilder>::Error>;
+    impl MockSupervisor {
+        pub fn should_stop(&mut self) {
+            self.expect_stop().once().return_once(|| Ok(()));
         }
     }
 }

@@ -18,9 +18,9 @@ use super::sub_agent::{
     event_handler::on_health::on_health,
     identity::AgentIdentity,
     remote_config_parser::{RemoteConfigParser, RemoteConfigParserError},
-    supervisor::builder::SupervisorBuilder,
-    supervisor::starter::SupervisorStarter,
-    supervisor::stopper::SupervisorStopper,
+    supervisor::SupervisorBuilder,
+    supervisor::SupervisorStarter,
+    supervisor::Supervisor,
 };
 use opamp_client::StartedClient;
 
@@ -76,8 +76,8 @@ pub trait SubAgentBuilder {
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError>;
 }
 
-type BuilderSupervisorStopper<B> =
-    <<B as SupervisorBuilder>::SupervisorStarter as SupervisorStarter>::SupervisorStopper;
+type BuilderSupervisor<B> =
+    <<B as SupervisorBuilder>::Starter as SupervisorStarter>::Supervisor;
 
 /// SubAgentStopper is implementing the StartedSubAgent trait.
 ///
@@ -165,7 +165,7 @@ where
     /// Any failure to assemble the effective agent or the supervisor, or failure to start the
     /// supervisor will be mark the existing hash as failed and report the error if there's an
     /// OpAMP client present in the sub-agent.
-    fn init_supervisor(&self) -> Option<BuilderSupervisorStopper<B>> {
+    fn init_supervisor(&self) -> Option<BuilderSupervisor<B>> {
         // An earlier run of Agent Control might have data for this agent identity, so we
         // attempt to retrieve an existing remote config,
         // falling back to a local config if there's no remote config.
@@ -199,7 +199,7 @@ where
         let not_started_supervisor = effective_agent.and_then(|effective_agent| {
             self.supervisor_builder
                 .build_supervisor(effective_agent)
-                .map_err(SupervisorCreationError::from)
+                .map_err(|e| SupervisorCreationError::SupervisorBuild(e.to_string()))
                 .inspect_err(|e| error!("Failed to create supervisor: {e}"))
         });
 
@@ -221,7 +221,7 @@ where
 
             stopped_supervisor
                 .start(self.sub_agent_internal_publisher.clone())
-                .map_err(SupervisorCreationError::from)
+                .map_err(|e| SupervisorCreationError::SupervisorStartGeneric(e.to_string()))
                 .inspect_err(|e| error!("Failed to start supervisor: {e}"))
         });
 
@@ -394,8 +394,8 @@ where
         &self,
         opamp_client: &C,
         config: OpampRemoteConfig,
-        old_supervisor: Option<BuilderSupervisorStopper<B>>,
-    ) -> Option<BuilderSupervisorStopper<B>> {
+        old_supervisor: Option<BuilderSupervisor<B>>,
+    ) -> Option<BuilderSupervisor<B>> {
         // If hash is same as the stored and is not on status applying (processing was incomplete),
         // the previous working supervisor will keep running but the status will be reported again.
         if let Ok(Some(rc)) = self.config_repository.get_remote_config(&self.identity.id)
@@ -508,9 +508,9 @@ where
         &self,
         opamp_client: &C,
         hash: &Hash,
-        old_supervisor: Option<BuilderSupervisorStopper<B>>,
-        new_supervisor: <B as SupervisorBuilder>::SupervisorStarter,
-    ) -> Option<BuilderSupervisorStopper<B>> {
+        old_supervisor: Option<BuilderSupervisor<B>>,
+        new_supervisor: <B as SupervisorBuilder>::Starter,
+    ) -> Option<BuilderSupervisor<B>> {
         let _ = opamp_client
             .update_effective_config()
             .inspect_err(|e| error!("Effective config update failed: {e}"));
@@ -564,7 +564,7 @@ where
     fn create_supervisor_from_remote_config(
         &self,
         parsed_remote: &Option<RemoteConfig>,
-    ) -> Result<<B as SupervisorBuilder>::SupervisorStarter, SupervisorCreationError> {
+    ) -> Result<<B as SupervisorBuilder>::Starter, SupervisorCreationError> {
         match parsed_remote {
             // Apply the remote config:
             // - Build supervisor
@@ -574,6 +574,7 @@ where
 
                 self.supervisor_builder
                     .build_supervisor(effective_agent)
+                    .map_err(|e| SupervisorCreationError::SupervisorBuild(e.to_string()))
                     .inspect(|_| {
                         let _ = self
                             .config_repository
@@ -602,10 +603,11 @@ where
                 let effective_agent =
                     self.effective_agent(remote_config.get_yaml_config().clone())?;
 
-                self.supervisor_builder.build_supervisor(effective_agent)
+                self.supervisor_builder
+                    .build_supervisor(effective_agent)
+                    .map_err(|e| SupervisorCreationError::SupervisorBuild(e.to_string()))
             }
         }
-        .map_err(SupervisorCreationError::from)
     }
 
     fn effective_agent(
@@ -684,7 +686,7 @@ impl StartedSubAgent for SubAgentStopper {
 
 pub fn stop_supervisor<S>(maybe_started_supervisor: Option<S>)
 where
-    S: SupervisorStopper,
+    S: Supervisor,
 {
     if let Some(s) = maybe_started_supervisor {
         let _ = s.stop().inspect_err(|err| {
@@ -720,9 +722,7 @@ pub mod tests {
     // TODO: remove when un-used
     use super::super::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
     use super::super::sub_agent::remote_config_parser::AgentRemoteConfigParser;
-    use super::super::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
-    use super::super::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
-    use super::super::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
+    use super::super::sub_agent::supervisor::tests::{MockSupervisorBuilder, MockSupervisorStarter, MockSupervisor, TestingSupervisorError};
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::definition::AgentTypeDefinition;
@@ -750,7 +750,7 @@ pub mod tests {
 
     type TestSubAgent = SubAgent<
         MockStartedOpAMPClient,
-        MockSupervisorBuilder<MockSupervisorStarter>,
+        MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>>,
         AgentRemoteConfigParser<MockRemoteConfigValidator>,
         InMemoryConfigRepository,
         LocalEffectiveAgentsAssembler<EmbeddedRegistry>,
@@ -936,7 +936,7 @@ deployment:
                 status: RemoteConfigStatuses::Failed as i32,
                 last_remote_config_hash: Self::hash().to_string().into_bytes(),
                 error_message:
-                    "could not build the supervisor from an effective agent: no configuration found"
+                    "could not build the supervisor: no configuration found"
                         .into(),
             }
         }
@@ -991,7 +991,7 @@ deployment:
 
     fn sub_agent(
         opamp_client: Option<MockStartedOpAMPClient>,
-        supervisor_builder: MockSupervisorBuilder<MockSupervisorStarter>,
+        supervisor_builder: MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>>,
         config_repository: Arc<InMemoryConfigRepository>,
     ) -> TestSubAgent {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
@@ -1021,34 +1021,34 @@ deployment:
         )
     }
 
-    fn expect_supervisor_shut_down() -> MockSupervisorStopper {
-        let mut supervisor = MockSupervisorStopper::new();
+    fn expect_supervisor_shut_down() -> MockSupervisor {
+        let mut supervisor = MockSupervisor::new();
         supervisor.should_stop();
         supervisor
     }
-    fn expect_supervisor_does_not_stop() -> MockSupervisorStopper {
-        let mut supervisor = MockSupervisorStopper::new();
+    fn expect_supervisor_does_not_stop() -> MockSupervisor {
+        let mut supervisor = MockSupervisor::new();
         supervisor.expect_stop().never();
         supervisor
     }
-    fn expect_fail_to_build_supervisor() -> MockSupervisorBuilder<MockSupervisorStarter> {
+    fn expect_fail_to_build_supervisor() -> MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>> {
         let mut supervisor_builder = MockSupervisorBuilder::new();
         supervisor_builder
             .expect_build_supervisor()
             .once()
-            .return_once(|_| Err(SubAgentError::NoConfiguration.into()));
+            .return_once(|_| Err(TestingSupervisorError("no configuration found".to_string())));
         supervisor_builder
     }
-    fn expect_supervisor_do_not_build() -> MockSupervisorBuilder<MockSupervisorStarter> {
+    fn expect_supervisor_do_not_build() -> MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>> {
         let mut supervisor_builder = MockSupervisorBuilder::new();
         supervisor_builder.expect_build_supervisor().never();
         supervisor_builder
     }
     fn expect_build_supervisor_with(
         expected_config_value: String,
-    ) -> MockSupervisorBuilder<MockSupervisorStarter> {
+    ) -> MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>> {
         let mut supervisor_builder = MockSupervisorBuilder::new();
-        let started_supervisor = MockSupervisorStopper::new();
+        let started_supervisor = MockSupervisor::new();
         let mut stopped_supervisor = MockSupervisorStarter::new();
         stopped_supervisor.should_start(started_supervisor);
         supervisor_builder
