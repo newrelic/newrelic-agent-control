@@ -65,7 +65,7 @@ jobs:
             --recipes-repo-branch "main"
 
   on-host-windows-e2e:
-    name: OnHost Windows E2E tests (rust)
+    name: OnHost Windows E2E tests
     needs: [build-packages]
     runs-on: windows-latest
     strategy:
