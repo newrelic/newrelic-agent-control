@@ -74,41 +74,47 @@ where
 
 /// Extracts and merges OpAMP remote configuration values into a single [YAMLConfig].
 ///
-/// This function processes all configuration entries that start with the
-/// [AGENT_CONFIG_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_PREFIX) identifier.
-/// Multiple configuration entries are merged into a single configuration, with key collisions
-/// being treated as errors to ensure configuration integrity.
+/// This function:
+/// - Processes all configuration entries that start with the
+///   [AGENT_CONFIG_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_PREFIX) identifier.
+///   Multiple configuration entries are merged into a single configuration, with key collisions
+///   being treated as errors to ensure configuration integrity.
+/// - Takes the configuration starting with
+///   [AGENT_CONFIG_OVERRIDE_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_PREFIX) (if any) merges it
+///   with the configuration taken from the
+///   [AGENT_CONFIG_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_PREFIX) identifier.
+///   The override configuration takes precedence, therefore key collisions are not errors in this case.
+/// - Returns `None` if the final merged configuration is empty.
 ///
-/// # Behavior
+/// # Example
 ///
-/// - Filters configuration entries by [AGENT_CONFIG_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_PREFIX)
-/// - Parses each entry as YAML and appends it to an accumulated configuration
-/// - Returns `None` if the final merged configuration is empty
-/// - Returns an error if any configuration cannot be parsed or if duplicate keys are found
-///
+/// **Input**:
 /// ```json
-/// // Input:
 /// {
 ///   "<AGENT_CONFIG_PREFIX>-1": "key1: value1",
-///   "<AGENT_CONFIG_PREFIX>-2": "key2: value2"
+///   "<AGENT_CONFIG_PREFIX>-2": "key2: value2",
+///   "<AGENT_CONFIG_PREFIX>-3": "key3: value3",
+///   "<AGENT_CONFIG_OVERRIDE_PREFIX>": "key2: overridden"
 /// }
-///
-/// // Output:
-/// {
-///   "key1": "value1",
-///   "key2": "value2"
-/// }
+/// ```
+/// **Output:**
+/// ```yaml
+/// key1: value1
+/// key2: overridden
+/// key3: value3
 /// ```
 ///
 /// # Errors
 ///
-/// Returns [`RemoteConfigParserError::InvalidValues`] if:
-/// - Any configuration entry contains invalid YAML
-/// - Duplicate keys are found when merging configurations
+/// Returns [RemoteConfigParserError] if:
+/// - Any configuration entry contains invalid YAML, including the override config.
+/// - Duplicate keys are found when merging configurations.
+/// - There is more than one configuration starting with
+///   [AGENT_CONFIG_OVERRIDE_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_PREFIX)
 pub fn extract_remote_config_values(
     opamp_remote_config: &OpampRemoteConfig,
 ) -> Result<Option<RemoteConfig>, RemoteConfigParserError> {
-    let config = opamp_remote_config.agent_configs_iter().try_fold(
+    let mut config = opamp_remote_config.agent_configs_iter().try_fold(
         YAMLConfig::default(),
         |mut acc, (_, content)| {
             let cfg = YAMLConfig::try_from(content.as_str()).map_err(|err| {
@@ -120,6 +126,16 @@ pub fn extract_remote_config_values(
             Ok(acc)
         },
     )?;
+
+    let maybe_override_config = opamp_remote_config.agent_config_override().map_err(|err| {
+        RemoteConfigParserError::InvalidValues(format!("getting override values: {err}"))
+    })?;
+    if let Some(override_content) = maybe_override_config {
+        let override_config = YAMLConfig::try_from(override_content.as_str()).map_err(|err| {
+            RemoteConfigParserError::InvalidValues(format!("decoding override values: {err}"))
+        })?;
+        config = YAMLConfig::merge_override(config, override_config);
+    }
 
     if config.is_empty() {
         return Ok(None);
@@ -139,13 +155,16 @@ pub mod tests {
     use super::{AgentRemoteConfigParser, RemoteConfigParser, RemoteConfigParserError};
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
-    use crate::opamp::remote_config::{AGENT_CONFIG_PREFIX, ConfigurationMap, OpampRemoteConfig};
+    use crate::opamp::remote_config::{
+        AGENT_CONFIG_OVERRIDE_PREFIX, AGENT_CONFIG_PREFIX, ConfigurationMap, OpampRemoteConfig,
+    };
     use crate::sub_agent::identity::AgentIdentity;
     use crate::values::config::RemoteConfig;
     use assert_matches::assert_matches;
     use mockall::mock;
     use predicates::prelude::predicate;
     use rstest::rstest;
+    use serde_json::json;
 
     mock! {
         pub RemoteConfigParser {}
@@ -230,27 +249,36 @@ pub mod tests {
 
     #[rstest]
     #[case::invalid_yaml_config_single_value(
-        format!("{{\"{AGENT_CONFIG_PREFIX}\": \"single-value\"}}")
+        json!({AGENT_CONFIG_PREFIX: "single-value"})
     )]
     #[case::invalid_yaml_config_array(
-        format!("{{\"{AGENT_CONFIG_PREFIX}\": \"[1, 2, 3]\"}}")
+        json!({AGENT_CONFIG_PREFIX: "[1, 2, 3]"})
     )]
     #[case::mutiple_configs_duplicated_keys(
-        format!("{{\"{AGENT_CONFIG_PREFIX}-1\": \"key: value\", \"{AGENT_CONFIG_PREFIX}-2\": \"key: value2\"}}")
+        json!({format!("{AGENT_CONFIG_PREFIX}-1"): "key: value", format!("{AGENT_CONFIG_PREFIX}-2"): "key: value2"})
     )]
     #[case::mutiple_configs_config_single_value(
-        format!("{{\"{AGENT_CONFIG_PREFIX}-1\": \"key: value\", \"{AGENT_CONFIG_PREFIX}-2\": \"single-value\"}}")
+        json!({format!("{AGENT_CONFIG_PREFIX}-1"): "key: value", format!("{AGENT_CONFIG_PREFIX}-2"): "single-value"})
     )]
     #[case::mutiple_configs_config_array(
-        format!("{{\"{AGENT_CONFIG_PREFIX}-1\": \"key: value\", \"{AGENT_CONFIG_PREFIX}-2\": \"[1, 2, 3]\"}}")
+        json!({format!("{AGENT_CONFIG_PREFIX}-1"): "key: value", format!("{AGENT_CONFIG_PREFIX}-2"): "[1, 2, 3]"})
     )]
-    fn test_invalid_agent_configs_remote_values(#[case] config: String) {
+    #[case::invalid_override_yaml_single_value(
+        json!({AGENT_CONFIG_PREFIX: "key: value", AGENT_CONFIG_OVERRIDE_PREFIX: "single-value"})
+    )]
+    #[case::invalid_override_yaml_array(
+        json!({AGENT_CONFIG_PREFIX: "key: value", AGENT_CONFIG_OVERRIDE_PREFIX: "[1, 2, 3]"})
+    )]
+    #[case::multiple_override_configs(
+        json!({AGENT_CONFIG_PREFIX: "key: value", AGENT_CONFIG_OVERRIDE_PREFIX: "key: value2", format!("{AGENT_CONFIG_OVERRIDE_PREFIX}-2"): "key: value3"})
+    )]
+    fn test_invalid_agent_configs_remote_values(#[case] config: serde_json::Value) {
         let agent_identity = AgentIdentity::default();
 
         let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
         let config_map = ConfigurationMap::new(
-            serde_json::from_str::<HashMap<String, String>>(&config).unwrap(),
+            serde_json::from_value::<HashMap<String, String>>(config).unwrap(),
         );
         let remote_config =
             OpampRemoteConfig::new(agent_identity.id.clone(), hash, state, config_map);
@@ -262,26 +290,72 @@ pub mod tests {
     }
 
     #[rstest]
-    #[case::single_agent_config(format!("{{\"{AGENT_CONFIG_PREFIX}\": \"key: value\"}}"), format!("key: value"))]
+    #[case::single_agent_config(
+        json!({AGENT_CONFIG_PREFIX: "key: value"}),
+        "key: value"
+    )]
     #[case::multiple_agent_configs(
-        format!("{{\"{AGENT_CONFIG_PREFIX}\": \"key1: value1\", \"{AGENT_CONFIG_PREFIX}-2\": \"key2: value2\"}}"),
-        format!("key1: value1\nkey2: value2")
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_PREFIX}-2"): "key2: value2"}),
+        "key1: value1\nkey2: value2"
     )]
     #[case::multiple_agent_configs_empty_config(
-        format!("{{\"{AGENT_CONFIG_PREFIX}\": \"key1: value1\", \"{AGENT_CONFIG_PREFIX}-empty\": \"\"}}"),
-        format!("key1: value1")
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_PREFIX}-empty"): ""}),
+        "key1: value1"
     )]
     #[case::multiple_config(
-        format!("{{\"{AGENT_CONFIG_PREFIX}\": \"key1: value1\", \"non-agent-config\": \"key2: value2\"}}"),
-        format!("key1: value1")
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", "non-agent-config": "key2: value2"}),
+        "key1: value1"
     )]
-    fn test_valid_remote_config_values(#[case] config: String, #[case] expected_yaml: String) {
+    #[case::override_single_key(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1\nkey2: value2", AGENT_CONFIG_OVERRIDE_PREFIX: "key2: overridden"}),
+        "key1: value1\nkey2: overridden"
+    )]
+    #[case::override_adds_new_key(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", AGENT_CONFIG_OVERRIDE_PREFIX: "key2: value2"}),
+        "key1: value1\nkey2: value2"
+    )]
+    #[case::override_multiple_keys(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1\nkey2: value2\nkey3: value3", AGENT_CONFIG_OVERRIDE_PREFIX: "key2: overridden2\nkey3: overridden3"}),
+        "key1: value1\nkey2: overridden2\nkey3: overridden3"
+    )]
+    #[case::override_with_multiple_agent_configs(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_PREFIX}-2"): "key2: value2", AGENT_CONFIG_OVERRIDE_PREFIX: "key1: overridden"}),
+        "key1: overridden\nkey2: value2"
+    )]
+    #[case::override_with_suffix(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1\nkey2: value2", format!("{AGENT_CONFIG_OVERRIDE_PREFIX}-1"): "key2: overridden"}),
+        "key1: value1\nkey2: overridden"
+    )]
+    #[case::override_empty(
+        json!({AGENT_CONFIG_PREFIX: "key: value", AGENT_CONFIG_OVERRIDE_PREFIX: ""}),
+        "key: value"
+    )]
+    #[case::override_only(
+        json!({AGENT_CONFIG_OVERRIDE_PREFIX: "key1: overridden"}),
+        "key1: overridden"
+    )]
+    #[case::override_null_does_not_remove_key_keeps_null(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1\nkey2: value2", AGENT_CONFIG_OVERRIDE_PREFIX: "key2: null"}),
+        "key1: value1\nkey2: null"
+    )]
+    #[case::override_empty_does_not_remove_key_keeps_empty(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1\nkey2: value2", AGENT_CONFIG_OVERRIDE_PREFIX: "key2:\n"}),
+        "key1: value1\nkey2:\n"
+    )]
+    #[case::inner_values_are_not_merged(
+        json!({AGENT_CONFIG_PREFIX: r#"key1: {"key1_1": "value_1_1"}"#, AGENT_CONFIG_OVERRIDE_PREFIX: r#"key1: {"overridden_key": "overridden_value"}"#}),
+        r#"key1: {"overridden_key": "overridden_value"}"#
+    )]
+    fn test_valid_remote_config_values(
+        #[case] config: serde_json::Value,
+        #[case] expected_yaml: &str,
+    ) {
         let agent_identity = AgentIdentity::default();
 
         let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
         let config_map = ConfigurationMap::new(
-            serde_json::from_str::<HashMap<String, String>>(&config).unwrap(),
+            serde_json::from_value::<HashMap<String, String>>(config).unwrap(),
         );
         let opamp_remote_config = OpampRemoteConfig::new(
             agent_identity.id.clone(),
@@ -296,7 +370,7 @@ pub mod tests {
         let handler = AgentRemoteConfigParser::new(vec![validator]);
 
         let expected = RemoteConfig {
-            config: serde_yaml::from_str(&expected_yaml).unwrap(),
+            config: serde_yaml::from_str(expected_yaml).unwrap(),
             hash,
             state,
         };
