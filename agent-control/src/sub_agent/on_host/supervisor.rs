@@ -49,7 +49,7 @@ where
     logging_path: PathBuf,
     health_config: OnHostHealthConfig,
     package_manager: Arc<PM>,
-    packages: RenderedPackages,
+    packages_config: RenderedPackages,
     version_config: Option<OnHostVersionConfig>,
     filesystem_entries: FileSystemEntries,
 }
@@ -66,7 +66,7 @@ where
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
         let (health_publisher, health_consumer) = pub_sub();
 
-        for (id, package) in &self.packages {
+        for (id, package) in &self.packages_config {
             // Currently we are always installing the package without checking if it's already installed.
             debug!(%id, "Installing package");
             self.package_manager
@@ -147,7 +147,7 @@ where
             logging_path: PathBuf::default(),
             health_config,
             package_manager,
-            packages,
+            packages_config: packages,
             version_config,
             filesystem_entries: FileSystemEntries::default(),
         }
