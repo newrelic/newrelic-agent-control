@@ -185,13 +185,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## arbitrary <https://crates.io/crates/arbitrary>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## arraydeque <https://crates.io/crates/arraydeque>
 
 Distributed under the following license(s):
@@ -679,13 +672,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## deranged <https://crates.io/crates/deranged>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## derive_arbitrary <https://crates.io/crates/derive_arbitrary>
 
 Distributed under the following license(s):
 
