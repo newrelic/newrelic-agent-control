@@ -37,6 +37,8 @@ pub(super) struct Package {
     pub download: Download,
 }
 
+pub type PackageID = String;
+
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Download {
     /// OCI repository definition

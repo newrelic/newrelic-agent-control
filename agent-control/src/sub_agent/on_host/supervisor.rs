@@ -1,7 +1,7 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConfig;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystemEntries;
-use crate::agent_type::runtime_config::on_host::package::rendered::Package;
+use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::agent_type::runtime_config::version_config::rendered::OnHostVersionConfig;
 use crate::checkers::health::health_checker::{Health, HealthCheckerError, spawn_health_checker};
 use crate::checkers::health::health_checker::{Healthy, Unhealthy};
@@ -26,7 +26,6 @@ use crate::utils::thread_context::{
 };
 use fs::directory_manager::DirectoryManagerFs;
 use fs::file::LocalFile;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::sync::Arc;
@@ -50,7 +49,7 @@ where
     logging_path: PathBuf,
     health_config: OnHostHealthConfig,
     package_manager: Arc<PM>,
-    packages: HashMap<String, Package>,
+    packages: RenderedPackages,
     version_config: Option<OnHostVersionConfig>,
     filesystem_entries: FileSystemEntries,
 }
@@ -138,7 +137,7 @@ where
         executables: Vec<ExecutableData>,
         health_config: OnHostHealthConfig,
         version_config: Option<OnHostVersionConfig>,
-        packages: HashMap<String, Package>,
+        packages: RenderedPackages,
         package_manager: Arc<PM>,
     ) -> Self {
         NotStartedSupervisorOnHost {
@@ -518,7 +517,7 @@ pub mod tests {
         #[case] run_warmup_time: Option<Duration>,
         #[case] contain_logs: Vec<&'static str>,
     ) {
-        const DURATION_DELTA: std::time::Duration = Duration::from_millis(100);
+        const DURATION_DELTA: Duration = Duration::from_millis(100);
 
         let backoff = Backoff::default()
             .with_initial_delay(Duration::from_secs(5))
@@ -964,7 +963,7 @@ pub mod tests {
         assert!(health_consumer.as_ref().is_empty())
     }
 
-    fn get_empty_packages() -> HashMap<String, Package> {
+    fn get_empty_packages() -> RenderedPackages {
         HashMap::new()
     }
 }

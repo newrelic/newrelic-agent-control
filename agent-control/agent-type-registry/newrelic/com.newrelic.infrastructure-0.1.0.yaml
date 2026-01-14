@@ -39,11 +39,17 @@ variables:
         type: string
         required: false
         default: ghcr.io
+        variants:
+          ac_config_field: "oci_registry_urls"
+          values: [ "ghcr.io" ]
       repository:
         description: "Package repository name"
         type: string
         required: false
         default: newrelic/testing-infra-agent
+        variants:
+          ac_config_field: "oci_repository_urls"
+          values: [ "newrelic/testing-infra-agent" ]
     version:
       description: "Agent version"
       type: string

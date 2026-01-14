@@ -13,6 +13,7 @@ pub trait DirectoryManager {
     fn delete(&self, path: &Path) -> io::Result<()>;
 }
 
+// This is expected to be thread-safe since it is used in the package manager
 pub struct DirectoryManagerFs;
 
 impl DirectoryManager for DirectoryManagerFs {

@@ -11,6 +11,7 @@ use tracing::{debug, warn};
 
 pub type DefaultOCIPackageManager = OCIPackageManager<OCIRefDownloader, DirectoryManagerFs>;
 
+// This is expected to be thread-safe
 pub struct OCIPackageManager<D, DM>
 where
     D: OCIDownloader,

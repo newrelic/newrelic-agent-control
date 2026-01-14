@@ -1,3 +1,4 @@
+use crate::agent_type::runtime_config::on_host::package::PackageID;
 use crate::agent_type::runtime_config::on_host::package::rendered::Package;
 use crate::agent_type::runtime_config::{
     health_config::rendered::OnHostHealthConfig,
@@ -14,5 +15,7 @@ pub struct OnHost {
     pub health: OnHostHealthConfig,
     pub version: Option<OnHostVersionConfig>,
     pub filesystem: FileSystem,
-    pub packages: HashMap<String, Package>,
+    pub packages: RenderedPackages,
 }
+
+pub type RenderedPackages = HashMap<PackageID, Package>;

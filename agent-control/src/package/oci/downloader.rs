@@ -37,6 +37,8 @@ pub trait OCIDownloader {
         package_dir: &Path,
     ) -> Result<Vec<PathBuf>, OCIDownloaderError>;
 }
+
+// This is expected to be thread-safe since it is used in the package manager.
 pub struct OCIRefDownloader {
     client: Client,
     auth: RegistryAuth,
