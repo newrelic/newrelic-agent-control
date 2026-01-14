@@ -339,7 +339,7 @@ pub mod tests {
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
-    use crate::sub_agent::{NotStartedSubAgent, SubAgent, supervisor};
+    use crate::sub_agent::{NotStartedSubAgent, SubAgent};
     use crate::values::config::{Config, RemoteConfig};
     use crate::values::config_repository::tests::MockConfigRepository;
     use crate::values::yaml_config::YAMLConfig;
@@ -480,13 +480,11 @@ pub mod tests {
         };
 
         let not_started = not_started_supervisor(config, None);
-        let started = supervisor::starter::SupervisorStarter::start(
-            not_started,
-            sub_agent_internal_publisher,
-        )
-        .expect("supervisor started");
+        let started = not_started
+            .start(sub_agent_internal_publisher)
+            .expect("supervisor started");
 
-        supervisor::stopper::SupervisorStopper::stop(started).expect("supervisor thread joined");
+        started.stop().expect("supervisor thread joined");
     }
 
     #[test]
@@ -500,11 +498,9 @@ pub mod tests {
         };
 
         let not_started = not_started_supervisor(config, None);
-        let started = supervisor::starter::SupervisorStarter::start(
-            not_started,
-            sub_agent_internal_publisher,
-        )
-        .expect("supervisor started");
+        let started = not_started
+            .start(sub_agent_internal_publisher)
+            .expect("supervisor started");
 
         assert!(
             !started
