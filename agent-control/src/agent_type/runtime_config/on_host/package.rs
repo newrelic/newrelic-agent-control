@@ -87,7 +87,7 @@ impl Templateable for Oci {
         let string_reference = format!("{}/{}{}", registry, repository, version);
         let reference = Reference::from_str(string_reference.as_str()).map_err(|err| {
             AgentTypeError::OCIReferenceParsingError(format!(
-                "parsing reference {string_reference}: {err}"
+                "parsing OCI reference {string_reference}: {err}"
             ))
         })?;
 

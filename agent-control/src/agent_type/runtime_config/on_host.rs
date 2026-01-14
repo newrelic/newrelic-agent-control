@@ -4,7 +4,7 @@ use super::version_config::OnHostVersionConfig;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::PACKAGES_FOLDER_NAME;
 use crate::agent_type::agent_attributes::AgentAttributes;
-use crate::agent_type::definition::Variables;
+use crate::agent_type::definition::{Variables, get_sub_agent_variable};
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::runtime_config::on_host::executable::Executable;
 use crate::agent_type::runtime_config::on_host::filesystem::FileSystem;
@@ -33,19 +33,6 @@ trait VariablesOnHostExt {
     ) -> Result<Variables, AgentTypeError>;
 }
 
-/// Retrieves the auto-generated agent directory from the variables.
-fn get_string_variable(
-    variables: &Variables,
-    variable_name: &str,
-) -> Result<String, AgentTypeError> {
-    let key = Namespace::SubAgent.namespaced_name(variable_name);
-    let val = variables
-        .get(&key)
-        .and_then(Variable::get_final_value)
-        .ok_or(AgentTypeError::MissingTemplateKey(key))?;
-    Ok(val.to_string())
-}
-
 impl VariablesOnHostExt for Variables {
     fn with_packages(
         mut self,
@@ -56,13 +43,21 @@ impl VariablesOnHostExt for Variables {
             return Ok(self);
         }
 
-        let remote_dir = &get_string_variable(&self, AgentAttributes::VARIABLE_REMOTE_DIR)?;
+        let remote_dir = &get_sub_agent_variable(&self, AgentAttributes::VARIABLE_REMOTE_DIR)
+            .ok_or(AgentTypeError::RenderingTemplate(format!(
+                "Agent variable not found {}",
+                AgentAttributes::VARIABLE_REMOTE_DIR
+            )))?;
 
-        let agent_id = AgentID::try_from(get_string_variable(
-            &self,
-            AgentAttributes::VARIABLE_SUB_AGENT_ID,
-        )?)
-        .map_err(|e| AgentTypeError::RenderingTemplate(format!("Invalid sub-agent ID: {}", e)))?;
+        let agent_id_string = get_sub_agent_variable(&self, AgentAttributes::VARIABLE_SUB_AGENT_ID)
+            .ok_or(AgentTypeError::RenderingTemplate(format!(
+                "Agent variable not found {}",
+                AgentAttributes::VARIABLE_SUB_AGENT_ID
+            )))?;
+
+        let agent_id = AgentID::try_from(agent_id_string).map_err(|e| {
+            AgentTypeError::RenderingTemplate(format!("Invalid sub-agent ID: {}", e))
+        })?;
 
         for (package_id, package) in packages {
             let attribute_name =

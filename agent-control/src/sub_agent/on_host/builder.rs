@@ -110,15 +110,15 @@ where
 
 pub struct SupervisorBuilderOnHost<PM>
 where
-    PM: PackageManager + Clone,
+    PM: PackageManager,
 {
     pub logging_path: PathBuf,
-    pub package_manager: PM,
+    pub package_manager: Arc<PM>,
 }
 
 impl<PM> SupervisorBuilder for SupervisorBuilderOnHost<PM>
 where
-    PM: PackageManager + Clone,
+    PM: PackageManager,
 {
     type SupervisorStarter = NotStartedSupervisorOnHost<PM>;
 

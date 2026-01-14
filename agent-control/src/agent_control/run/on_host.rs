@@ -176,7 +176,7 @@ impl AgentControlRunner {
 
         let supervisor_builder = SupervisorBuilderOnHost {
             logging_path: self.base_paths.log_dir,
-            package_manager,
+            package_manager: Arc::new(package_manager),
         };
 
         let signature_validator = Arc::new(self.signature_validator);

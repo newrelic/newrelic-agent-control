@@ -29,6 +29,7 @@ use fs::file::LocalFile;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::ExitStatus;
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use tracing::{Dispatch, debug, dispatcher, error, info, warn};
 
@@ -48,7 +49,7 @@ where
     log_to_file: bool,
     logging_path: PathBuf,
     health_config: OnHostHealthConfig,
-    package_manager: PM,
+    package_manager: Arc<PM>,
     packages: HashMap<String, Package>,
     version_config: Option<OnHostVersionConfig>,
     filesystem_entries: FileSystemEntries,
@@ -138,7 +139,7 @@ where
         health_config: OnHostHealthConfig,
         version_config: Option<OnHostVersionConfig>,
         packages: HashMap<String, Package>,
-        package_manager: PM,
+        package_manager: Arc<PM>,
     ) -> Self {
         NotStartedSupervisorOnHost {
             agent_identity,
@@ -537,7 +538,7 @@ pub mod tests {
             OnHostHealthConfig::default(),
             None,
             get_empty_packages(),
-            MockPackageManager::new(),
+            MockPackageManager::new_arc(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -579,7 +580,7 @@ pub mod tests {
             OnHostHealthConfig::default(),
             None,
             get_empty_packages(),
-            MockPackageManager::new(),
+            MockPackageManager::new_arc(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -619,7 +620,7 @@ pub mod tests {
             OnHostHealthConfig::default(),
             None,
             get_empty_packages(),
-            MockPackageManager::new(),
+            MockPackageManager::new_arc(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -666,7 +667,7 @@ pub mod tests {
             OnHostHealthConfig::default(),
             None,
             get_empty_packages(),
-            MockPackageManager::new(),
+            MockPackageManager::new_arc(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -711,7 +712,7 @@ pub mod tests {
             OnHostHealthConfig::default(),
             None,
             get_empty_packages(),
-            MockPackageManager::new(),
+            MockPackageManager::new_arc(),
         );
 
         // run the agent with wrong command so it enters in restart policy
@@ -752,7 +753,7 @@ pub mod tests {
             OnHostHealthConfig::default(),
             None,
             get_empty_packages(),
-            MockPackageManager::new(),
+            MockPackageManager::new_arc(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -815,7 +816,7 @@ pub mod tests {
             OnHostHealthConfig::default(),
             None,
             get_empty_packages(),
-            MockPackageManager::new(),
+            MockPackageManager::new_arc(),
         );
 
         let (health_publisher, health_consumer) = pub_sub();

@@ -11,11 +11,10 @@ use tracing::{debug, warn};
 
 pub type DefaultOCIPackageManager = OCIPackageManager<OCIRefDownloader, DirectoryManagerFs>;
 
-#[derive(Clone)]
 pub struct OCIPackageManager<D, DM>
 where
-    D: OCIDownloader + Clone,
-    DM: DirectoryManager + Clone,
+    D: OCIDownloader,
+    DM: DirectoryManager,
 {
     downloader: D,
     directory_manager: DM,
@@ -42,8 +41,8 @@ const INSTALLED_PACKAGES_LOCATION: &str = "stored_packages";
 
 impl<D, DM> OCIPackageManager<D, DM>
 where
-    D: OCIDownloader + Clone,
-    DM: DirectoryManager + Clone,
+    D: OCIDownloader,
+    DM: DirectoryManager,
 {
     pub fn new(downloader: D, directory_manager: DM, base_path: PathBuf) -> Self {
         Self {
@@ -194,8 +193,8 @@ pub fn compute_path_suffix(package: &Reference) -> Result<PathBuf, OCIPackageMan
 
 impl<D, DM> PackageManager for OCIPackageManager<D, DM>
 where
-    D: OCIDownloader + Clone,
-    DM: DirectoryManager + Clone,
+    D: OCIDownloader,
+    DM: DirectoryManager,
 {
     /// Installs the given OCI package for the specified agent.
     ///

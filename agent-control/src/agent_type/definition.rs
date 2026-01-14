@@ -12,6 +12,7 @@ use super::{
 };
 
 use crate::agent_type::variable::constraints::VariableConstraints;
+use crate::agent_type::variable::namespace::Namespace;
 use crate::{agent_type::variable::tree::VarTree, values::yaml_config::YAMLConfig};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -156,6 +157,15 @@ impl From<VariableTree> for Variables {
     fn from(value: VariableTree) -> Self {
         value.flatten()
     }
+}
+
+// TODO refactor Variables into a struct with methods
+pub fn get_sub_agent_variable(variables: &Variables, variable_name: &str) -> Option<String> {
+    let key = Namespace::SubAgent.namespaced_name(variable_name);
+    variables
+        .get(&key)
+        .and_then(Variable::get_final_value)
+        .map(|value| value.to_string())
 }
 
 #[cfg(test)]

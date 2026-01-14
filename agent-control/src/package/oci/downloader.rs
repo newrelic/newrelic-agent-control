@@ -37,8 +37,6 @@ pub trait OCIDownloader {
         package_dir: &Path,
     ) -> Result<Vec<PathBuf>, OCIDownloaderError>;
 }
-
-#[derive(Clone)]
 pub struct OCIRefDownloader {
     client: Client,
     auth: RegistryAuth,
@@ -245,9 +243,6 @@ pub mod tests {
                 reference: &Reference,
                 package_dir: &Path,
             ) -> Result<Vec<PathBuf>, OCIDownloaderError>;
-        }
-        impl Clone for OCIDownloader {
-            fn clone(&self) -> Self;
         }
     }
 

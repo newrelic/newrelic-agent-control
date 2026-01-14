@@ -46,6 +46,7 @@ pub trait PackageManager {
 pub mod tests {
     use super::*;
     use mockall::mock;
+    use std::sync::Arc;
 
     mock! {
         pub PackageManager {}
@@ -60,6 +61,12 @@ pub mod tests {
                 agent_id: &AgentID,
                 package: InstalledPackageData,
             ) -> Result<(), OCIPackageManagerError>;
+        }
+    }
+
+    impl MockPackageManager {
+        pub fn new_arc() -> Arc<Self> {
+            Arc::new(MockPackageManager::new())
         }
     }
 }
