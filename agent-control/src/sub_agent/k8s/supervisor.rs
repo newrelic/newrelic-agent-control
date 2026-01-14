@@ -35,8 +35,8 @@ const SUPERVISOR_THREAD_NAME: &str = "supervisor";
 pub struct NotStartedSupervisorK8s {
     pub(super) agent_identity: AgentIdentity,
     pub(super) k8s_client: Arc<SyncK8sClient>,
-    k8s_config: K8s,
-    interval: Duration,
+    pub(super) k8s_config: K8s,
+    pub(super) interval: Duration,
 }
 
 impl SupervisorStarter for NotStartedSupervisorK8s {

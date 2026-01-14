@@ -341,7 +341,7 @@ pub mod tests {
         }
     }
 
-    fn k8s_agent_get_common_mocks(
+    pub fn k8s_agent_get_common_mocks(
         agent_identity: AgentIdentity,
         opamp_builder_fails: bool,
     ) -> (MockOpAMPClientBuilder, MockInstanceIDGetter) {
