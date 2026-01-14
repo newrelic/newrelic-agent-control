@@ -152,7 +152,7 @@ impl NotStartedSupervisorK8s {
             let _guard = span.enter();
 
             // Check and apply k8s objects
-            if let Err(err) = Self::apply_resources(resources.iter(), k8s_client.clone()) {
+            if let Err(err) = Self::apply_resources(resources.iter(), &k8s_client) {
                 warn!(%err, "K8s resources apply failed");
             }
 
@@ -244,7 +244,7 @@ impl NotStartedSupervisorK8s {
     /// It applies each of the provided k8s resources to the cluster if it has changed.
     fn apply_resources<'a>(
         resources: impl Iterator<Item = &'a DynamicObject>,
-        k8s_client: Arc<SyncK8sClient>,
+        k8s_client: &SyncK8sClient,
     ) -> Result<(), SupervisorStarterError> {
         debug!("Applying k8s objects if changed");
         for res in resources {
@@ -267,7 +267,7 @@ impl StartedSupervisorK8s {
     /// It applies each of the provided k8s resources to the cluster if it has changed.
     pub(super) fn apply_resources<'a>(
         resources: impl Iterator<Item = &'a DynamicObject>,
-        k8s_client: Arc<SyncK8sClient>,
+        k8s_client: &SyncK8sClient,
     ) -> Result<(), SupervisorStarterError> {
         debug!("Applying k8s objects if changed");
         for res in resources {

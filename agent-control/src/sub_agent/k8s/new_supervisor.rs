@@ -70,7 +70,7 @@ impl Supervisor for StartedSupervisorK8s {
         );
 
         if let Err(e) = self.stop_threads() {
-            warn!(agent_id = %agent_identity.id, "Error stopping threads: {e}");
+            warn!(agent_id = %agent_identity.id, "Errors stopping supervisor threads: {e}");
         }
 
         // Helper to build dynamic objects from the new config
@@ -79,7 +79,7 @@ impl Supervisor for StartedSupervisorK8s {
         let resources = temp_starter.build_dynamic_objects()?;
 
         // Apply resources directly
-        Self::apply_resources(resources.iter(), k8s_client)?;
+        Self::apply_resources(resources.iter(), &k8s_client)?;
 
         SupervisorStarter::start(temp_starter, sub_agent_internal_publisher)
     }
