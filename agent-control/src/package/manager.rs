@@ -6,7 +6,7 @@ use oci_client::Reference;
 use std::path::PathBuf;
 
 /// Information required to reference and install a package
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PackageData {
     pub id: String, // same type as the packages map on an agent type definition
     pub package_type: PackageType,

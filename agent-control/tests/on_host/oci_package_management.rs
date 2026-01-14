@@ -59,3 +59,56 @@ fn test_install_and_uninstall_with_oci_registry() {
         .unwrap();
     assert!(!installation_path.exists());
 }
+#[test]
+#[ignore = "needs oci registry, needs elevated privileges on Windows"]
+fn test_install_skips_download_if_exists_with_oci_registry() {
+    let dir = tempdir().unwrap();
+    let content_dir = tempdir().unwrap();
+
+    let payload_file_source = content_dir.path().join("payload.txt");
+    std::fs::write(&payload_file_source, "ORIGINAL_CONTENT").unwrap();
+
+    let file_to_push = dir.path().join("layer_digest.tar.gz");
+
+    TestDataHelper::compress_tar_gz(content_dir.path(), file_to_push.as_path());
+
+    let (_artifact_digest, reference) = push_artifact(&file_to_push, REGISTRY_URL);
+
+    let temp_dir = tempdir().unwrap();
+    let base_path = temp_dir.path().to_path_buf();
+    let package_manager = new_testing_oci_package_manager(base_path.clone());
+
+    let agent_id = AgentID::try_from("test-agent").unwrap();
+    let pkg_id = "test-package-idempotency";
+
+    let package_data = PackageData {
+        id: pkg_id.to_string(),
+        package_type: Tar,
+        oci_reference: reference.clone(),
+    };
+
+    let installed_1 = package_manager
+        .install(&agent_id, package_data.clone())
+        .expect("First install failed");
+
+    let installed_file_path = installed_1.installation_path.join("payload.txt");
+    assert!(
+        installed_file_path.exists(),
+        "Payload file should exist after install"
+    );
+
+    let content_1 = std::fs::read_to_string(&installed_file_path).expect("Failed to read payload");
+    assert_eq!(content_1, "ORIGINAL_CONTENT");
+
+    std::fs::write(&installed_file_path, "MODIFIED_CONTENT_BY_USER").unwrap();
+
+    let result_2 = package_manager.install(&agent_id, package_data);
+    assert!(result_2.is_ok());
+
+    let content_2 = std::fs::read_to_string(&installed_file_path).unwrap();
+
+    assert_eq!(
+        content_2, "MODIFIED_CONTENT_BY_USER",
+        "The package manager overwrote the existing files! It should have skipped download/extraction."
+    );
+}
