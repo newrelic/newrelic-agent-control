@@ -8,7 +8,6 @@ use crate::agent_type::runtime_config::on_host::filesystem::FileSystem;
 use crate::agent_type::runtime_config::on_host::package::{Package, PackageID};
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::agent_type::templates::Templateable;
-use crate::agent_type::variable::namespace::Namespace;
 use serde::{Deserialize, Deserializer};
 use std::collections::{HashMap, HashSet};
 
