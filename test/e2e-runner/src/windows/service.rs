@@ -18,7 +18,7 @@ pub fn check_service_running(service_name: &str) -> TestResult<()> {
 }
 
 /// Gets the current status of a Windows service as a string using PowerShell.
-pub fn get_service_status(service_name: &str) -> String {
+fn get_service_status(service_name: &str) -> String {
     let cmd = format!("(Get-Service -Name '{}').Status", service_name);
     let result = exec_powershell_command(&cmd)
         .unwrap_or_else(|err| panic!("could not get service status: {err}"));

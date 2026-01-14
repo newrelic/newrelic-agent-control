@@ -5,14 +5,14 @@ use crate::tools::test::TestResult;
 
 /// Response from the agent-control HTTP endpoint
 #[derive(Debug, Serialize, Deserialize)]
-pub struct StatusResponse {
-    pub agent_control: AgentControlStatus,
+struct StatusResponse {
+    agent_control: AgentControlStatus,
 }
 
 /// Agent-control status information
 #[derive(Debug, Serialize, Deserialize)]
-pub struct AgentControlStatus {
-    pub healthy: bool,
+struct AgentControlStatus {
+    healthy: bool,
 }
 
 /// Checks the health of agent-control via its HTTP status endpoint.
