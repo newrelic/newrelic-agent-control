@@ -36,7 +36,7 @@ pub fn test_installation(args: Args) {
     thread::sleep(Duration::from_secs(10));
 
     // We need to clean up the resources after showing the logs.
-    // Otherwise, the logs file get removed before we can print them.
+    // Otherwise, log files get removed before we can print them.
     // Remember that Drop is called in the reverse order of creation.
     let _clean_ac = CleanAcOnDrop::from(SERVICE_NAME);
     let _show_logs = ShowLogsOnDrop::from(windows::DEFAULT_LOG_PATH);
