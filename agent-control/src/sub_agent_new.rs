@@ -17,14 +17,13 @@ use super::sub_agent::{
     error::{SubAgentBuilderError, SubAgentError, SupervisorCreationError},
     event_handler::on_health::on_health,
     identity::AgentIdentity,
-    remote_config_parser::{RemoteConfigParser, RemoteConfigParserError},
+    remote_config_parser::RemoteConfigParser,
+    supervisor::Supervisor,
     supervisor::SupervisorBuilder,
     supervisor::SupervisorStarter,
-    supervisor::Supervisor,
 };
 use opamp_client::StartedClient;
 
-use crate::agent_control::defaults::default_capabilities;
 use crate::agent_control::run::Environment;
 use crate::agent_control::uptime_report::{UptimeReportConfig, UptimeReporter};
 use crate::checkers::health::events::HealthEventPublisher;
@@ -40,9 +39,10 @@ use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::hash::{ConfigState, Hash};
 use crate::opamp::remote_config::report::report_state;
 use crate::utils::threads::spawn_named_thread;
-use crate::values::config::{Config, RemoteConfig};
+use crate::values::config::Config;
 use crate::values::config_repository::ConfigRepository;
 use crate::values::yaml_config::YAMLConfig;
+use crate::{agent_control::defaults::default_capabilities, values::config::RemoteConfig};
 use crossbeam::channel::never;
 use crossbeam::select;
 use std::fmt::Display;
@@ -76,8 +76,9 @@ pub trait SubAgentBuilder {
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError>;
 }
 
-type BuilderSupervisor<B> =
-    <<B as SupervisorBuilder>::Starter as SupervisorStarter>::Supervisor;
+type AgentSupervisorStarter<B> = <B as SupervisorBuilder>::Starter;
+
+type AgentSupervisor<B> = <AgentSupervisorStarter<B> as SupervisorStarter>::Supervisor;
 
 /// SubAgentStopper is implementing the StartedSubAgent trait.
 ///
@@ -156,6 +157,16 @@ where
         }
     }
 
+    fn load_persisted_config(&self) -> Option<Config> {
+        self.config_repository
+            .load_remote_fallback_local(&self.identity.id, &default_capabilities())
+            .inspect_err(|e| {
+                warn!(error = %e, "Failed to load remote or local configuration");
+            })
+            .ok()
+            .flatten()
+    }
+
     /// Attempt to build a supervisor specific for this sub-agent given an existing YAML config.
     ///
     /// This function retrieves the stored remote config hash (if any) for this sub-agent identity,
@@ -165,20 +176,12 @@ where
     /// Any failure to assemble the effective agent or the supervisor, or failure to start the
     /// supervisor will be mark the existing hash as failed and report the error if there's an
     /// OpAMP client present in the sub-agent.
-    fn init_supervisor(&self) -> Option<BuilderSupervisor<B>> {
+    fn init_supervisor(&self) -> Option<AgentSupervisor<B>> {
         // An earlier run of Agent Control might have data for this agent identity, so we
         // attempt to retrieve an existing remote config,
         // falling back to a local config if there's no remote config.
         // If there's no config at all, we cannot assemble a supervisor, so we just return immediately.
-        let Some(config) = self
-            .config_repository
-            .load_remote_fallback_local(&self.identity.id, &default_capabilities())
-            .inspect_err(|e| {
-                warn!(error = %e, "Failed to load remote or local configuration");
-            })
-            .ok()
-            .flatten()
-        else {
+        let Some(config) = self.load_persisted_config() else {
             debug!("No configuration found for sub-agent");
             // The effective config needs to be reported with the local config that failed
             // to start the supervisor (not ideal but better than leaving the deleted remote),
@@ -394,8 +397,8 @@ where
         &self,
         opamp_client: &C,
         config: OpampRemoteConfig,
-        old_supervisor: Option<BuilderSupervisor<B>>,
-    ) -> Option<BuilderSupervisor<B>> {
+        old_supervisor: Option<AgentSupervisor<B>>,
+    ) -> Option<AgentSupervisor<B>> {
         // If hash is same as the stored and is not on status applying (processing was incomplete),
         // the previous working supervisor will keep running but the status will be reported again.
         if let Ok(Some(rc)) = self.config_repository.get_remote_config(&self.identity.id)
@@ -418,99 +421,156 @@ where
 
         // Start transforming the remote config
         // Attempt to parse/validate the remote config
-        let parsed_remote = self
+        let parsed_remote_config_result = self
             .remote_config_parser
             .parse(self.identity.clone(), &config);
 
-        let not_started_supervisor = match parsed_remote.clone() {
-            Ok(remote_config) => {
-                // If parsing was successful, call the function with Some(remote_config)
-                self.create_supervisor_from_remote_config(&remote_config)
+        match parsed_remote_config_result {
+            // Some configuration correctly parsed
+            Ok(Some(remote_config)) => {
+                self.handle_some_remote_config(remote_config, &config, old_supervisor, opamp_client)
             }
-            Err(error) => Err(error.into()),
-        };
-
-        // Now, we should have either a Supervisor or an error to handle later,
-        // which can come from either:
-        //   - a parse failure
-        //   - having empty values
-        //   - the EffectiveAgent assembly attempt
-        //   - the Supervisor assembly attempt
-        // We report the state and effective config and return a supervisor if it can be started or reused
-        match not_started_supervisor {
-            // If all correct, return new supervisor
-            Ok(new_supervisor) => self.start_new_supervisor_reporting_config_and_state(
-                opamp_client,
-                &config.hash,
-                old_supervisor,
-                new_supervisor,
-            ),
-            // If we have no configuration, stop the old supervisor and return None.
-            Err(SupervisorCreationError::NoConfiguration) => {
-                // Stop old supervisor if any
-                stop_supervisor(old_supervisor);
-
-                // Report the config as applied
-                let _ = report_state(ConfigState::Applied, config.hash, opamp_client);
-
-                // The effective config needs to be reported with the empty config.
-                let _ = opamp_client
-                    .update_effective_config()
-                    .inspect_err(|e| error!("Effective config update failed: {e}"));
-                None
-            }
-            Err(e) => {
-                warn!("Failed to build supervisor: {e}");
-
-                // If the remote config was deleted but creating the supervisor from local failed
-                // stop the old supervisor and return None.
-                if Self::check_and_report_local_failed(opamp_client, &config.hash, parsed_remote) {
-                    stop_supervisor(old_supervisor);
-                    return None;
-                }
-
+            // No configuration --> 'reset-to-local'
+            Ok(None) => self.reset_to_local_config(&config, old_supervisor, opamp_client),
+            // Error parsing OpampRemoteConfig
+            Err(err) => {
+                warn!("Failed to parse remote configuration: {err}");
                 let _ = report_state(
                     ConfigState::Failed {
-                        error_message: e.to_string(),
+                        error_message: err.to_string(),
                     },
                     config.hash,
                     opamp_client,
                 );
-
-                // If we fail to build the supervisor, we don't stop the old one and return it back
                 old_supervisor
             }
         }
     }
 
-    fn check_and_report_local_failed(
+    /// Handles the remote configuration when there is **Some** configuration correctly parsed from [OpampRemoteConfig].
+    /// - It builds the new supervisor, stops the previous one and finally starts the just built supervisor.
+    /// - If there are errors building the supervisor, it reports them and returns the previous supervisor (which is not
+    ///   stopped).
+    fn handle_some_remote_config(
+        &self,
+        remote_config: RemoteConfig,
+        config: &OpampRemoteConfig,
+        old_supervisor: Option<AgentSupervisor<B>>,
         opamp_client: &C,
-        hash: &Hash,
-        parsed_remote: Result<Option<RemoteConfig>, RemoteConfigParserError>,
-    ) -> bool {
-        if let Ok(None) = parsed_remote {
-            // Report the empty remote config as applied
-            let _ = report_state(ConfigState::Applied, hash.clone(), opamp_client);
+    ) -> Option<AgentSupervisor<B>> {
+        match self.build_supervisor_from_remote_config(remote_config.config.clone()) {
+            Err(err) => {
+                warn!("Failed to build supervisor: {err}");
+                let _ = report_state(
+                    ConfigState::Failed {
+                        error_message: format!("could not build the supervisor: {err}"),
+                    },
+                    config.hash.clone(),
+                    opamp_client,
+                );
 
-            // The effective config needs to be reported with the local config that failed
-            // to start the supervisor (not ideal but better than leaving the deleted remote),
-            // if not FC could still consider the previous remote that has just been deleted.
-            let _ = opamp_client
-                .update_effective_config()
-                .inspect_err(|e| error!("Effective config update failed: {e}"));
+                old_supervisor
+            }
+            Ok(starter) => {
+                let _ = self
+                    .config_repository
+                    .store_remote(&self.identity.id, &remote_config)
+                    .inspect_err(|err| {
+                        warn!("Failed to store remote configuration: {err}");
+                    });
 
-            return true;
+                self.start_new_supervisor_reporting_config_and_state(
+                    opamp_client,
+                    &config.hash,
+                    old_supervisor,
+                    starter,
+                )
+            }
         }
-        false
     }
 
+    /// Handles the 'reset-to-local' support when there is **None** remote configuration.
+    /// - It removes any perviously persisted remote configuration.
+    /// - It tries to load the local configuration:
+    ///   - If there is any local configuration it builds and starts a new supervisor (stopping the previous one)
+    ///   - If there is no local configuration or there are errors building the corresponding supervisor, it stops
+    ///     the previous supervisor and returns None.
+    fn reset_to_local_config(
+        &self,
+        config: &OpampRemoteConfig,
+        old_supervisor: Option<AgentSupervisor<B>>,
+        opamp_client: &C,
+    ) -> Option<AgentSupervisor<B>> {
+        let _ = self
+            .config_repository
+            .delete_remote(&self.identity.id)
+            .inspect_err(|e| warn!("Failed to delete remote configuration: {e}"));
+
+        let maybe_local_config = self
+            .config_repository
+            .load_local(&self.identity.id)
+            .inspect_err(|e| warn!("Failed to load local configuration: {e}"))
+            .unwrap_or_default();
+
+        if let Some(local_config) = maybe_local_config {
+            match self.build_supervisor_from_remote_config(local_config.get_yaml_config().clone()) {
+                Err(err) => {
+                    warn!("Failed to build supervisor: {err}");
+                    self.no_supervisor_on_reset_to_local(old_supervisor, config, opamp_client)
+                }
+                Ok(starter) => self.start_new_supervisor_reporting_config_and_state(
+                    opamp_client,
+                    &config.hash,
+                    old_supervisor,
+                    starter,
+                ),
+            }
+        } else {
+            self.no_supervisor_on_reset_to_local(old_supervisor, config, opamp_client)
+        }
+    }
+
+    /// Helper to build build the [EffectiveAgent] from a [YAMLConfig] and then build the corresponding
+    /// [AgentSupervisorStarter] using such effective agent.
+    ///
+    /// It throws errors as these errors are handled when building the supervisor.
+    fn build_supervisor_from_remote_config(
+        &self,
+        yaml_config: YAMLConfig,
+    ) -> Result<AgentSupervisorStarter<B>, Box<dyn std::error::Error>> {
+        let effective_agent = self.effective_agent(yaml_config)?;
+        self.supervisor_builder
+            .build_supervisor(effective_agent)
+            .map_err(|err| err.into())
+    }
+
+    /// Helper to stop the supervisor and report the corresponding OpAMP changes when swithching the configuration
+    /// back to local and there is no supervisor to be started.
+    fn no_supervisor_on_reset_to_local(
+        &self,
+        old_supervisor: Option<AgentSupervisor<B>>,
+        config: &OpampRemoteConfig,
+        opamp_client: &C,
+    ) -> Option<AgentSupervisor<B>> {
+        stop_supervisor(old_supervisor);
+        // Report the config as applied
+        let _ = report_state(ConfigState::Applied, config.hash.clone(), opamp_client);
+        // The effective config needs to be reported with the empty config.
+        let _ = opamp_client
+            .update_effective_config()
+            .inspect_err(|e| error!("Effective config update failed: {e}"));
+        None
+    }
+
+    /// Helper to stop the `old_supervisor` and start the `new_supervisor` reporting the corresponding OpAMP
+    /// messages.
     fn start_new_supervisor_reporting_config_and_state(
         &self,
         opamp_client: &C,
         hash: &Hash,
-        old_supervisor: Option<BuilderSupervisor<B>>,
+        old_supervisor: Option<AgentSupervisor<B>>,
         new_supervisor: <B as SupervisorBuilder>::Starter,
-    ) -> Option<BuilderSupervisor<B>> {
+    ) -> Option<AgentSupervisor<B>> {
         let _ = opamp_client
             .update_effective_config()
             .inspect_err(|e| error!("Effective config update failed: {e}"));
@@ -558,56 +618,6 @@ where
             return true;
         }
         false
-    }
-
-    /// Parses incoming remote config, assembles and builds the supervisor.
-    fn create_supervisor_from_remote_config(
-        &self,
-        parsed_remote: &Option<RemoteConfig>,
-    ) -> Result<<B as SupervisorBuilder>::Starter, SupervisorCreationError> {
-        match parsed_remote {
-            // Apply the remote config:
-            // - Build supervisor
-            // - Store if remote if build was successful
-            Some(remote_config) => {
-                let effective_agent = self.effective_agent(remote_config.config.clone())?;
-
-                self.supervisor_builder
-                    .build_supervisor(effective_agent)
-                    .map_err(|e| SupervisorCreationError::SupervisorBuild(e.to_string()))
-                    .inspect(|_| {
-                        let _ = self
-                            .config_repository
-                            .store_remote(&self.identity.id, remote_config)
-                            .inspect_err(|e| {
-                                warn!("Failed to store remote configuration: {e}");
-                            });
-                    })
-            }
-            // Reset to local config:
-            // - Removes remote config
-            // - Build supervisor from local config if exists
-            None => {
-                let _ = self
-                    .config_repository
-                    .delete_remote(&self.identity.id)
-                    .inspect_err(|e| warn!("Failed to delete remote configuration: {e}"));
-
-                let remote_config = self
-                    .config_repository
-                    .load_local(&self.identity.id)
-                    .inspect_err(|e| warn!("Failed to load local configuration: {e}"))
-                    .unwrap_or_default()
-                    .ok_or(SupervisorCreationError::NoConfiguration)?;
-
-                let effective_agent =
-                    self.effective_agent(remote_config.get_yaml_config().clone())?;
-
-                self.supervisor_builder
-                    .build_supervisor(effective_agent)
-                    .map_err(|e| SupervisorCreationError::SupervisorBuild(e.to_string()))
-            }
-        }
     }
 
     fn effective_agent(
@@ -722,7 +732,9 @@ pub mod tests {
     // TODO: remove when un-used
     use super::super::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
     use super::super::sub_agent::remote_config_parser::AgentRemoteConfigParser;
-    use super::super::sub_agent::supervisor::tests::{MockSupervisorBuilder, MockSupervisorStarter, MockSupervisor, TestingSupervisorError};
+    use super::super::sub_agent::supervisor::tests::{
+        MockSupervisor, MockSupervisorBuilder, MockSupervisorStarter, TestingSupervisorError,
+    };
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::definition::AgentTypeDefinition;
@@ -935,9 +947,7 @@ deployment:
             RemoteConfigStatus {
                 status: RemoteConfigStatuses::Failed as i32,
                 last_remote_config_hash: Self::hash().to_string().into_bytes(),
-                error_message:
-                    "could not build the supervisor: no configuration found"
-                        .into(),
+                error_message: "could not build the supervisor: no configuration found".into(),
             }
         }
 
@@ -1031,7 +1041,8 @@ deployment:
         supervisor.expect_stop().never();
         supervisor
     }
-    fn expect_fail_to_build_supervisor() -> MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>> {
+    fn expect_fail_to_build_supervisor()
+    -> MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>> {
         let mut supervisor_builder = MockSupervisorBuilder::new();
         supervisor_builder
             .expect_build_supervisor()
@@ -1039,7 +1050,8 @@ deployment:
             .return_once(|_| Err(TestingSupervisorError("no configuration found".to_string())));
         supervisor_builder
     }
-    fn expect_supervisor_do_not_build() -> MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>> {
+    fn expect_supervisor_do_not_build()
+    -> MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>> {
         let mut supervisor_builder = MockSupervisorBuilder::new();
         supervisor_builder.expect_build_supervisor().never();
         supervisor_builder
