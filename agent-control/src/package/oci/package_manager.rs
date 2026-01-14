@@ -225,6 +225,19 @@ where
             &package_data.id,
             &package_data.oci_reference,
         )?;
+
+        if package_path.exists() {
+            debug!(
+                "Package already installed at {}. Skipping download and extraction.",
+                package_path.display()
+            );
+
+            return Ok(InstalledPackageData {
+                id: package_data.id,
+                installation_path: package_path,
+            });
+        }
+
         let temp_package_path = get_temp_package_path(
             &self.remote_dir,
             agent_id,
@@ -372,9 +385,12 @@ mod tests {
         let mut directory_manager = MockDirectoryManager::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
-        let root_dir = PathBuf::from("/tmp/base");
+
+        let temp_dir = tempdir().unwrap();
+        let remote_dir = temp_dir.path().to_path_buf();
+
         let download_dir = get_temp_package_path(
-            &root_dir,
+            &remote_dir,
             &agent_id,
             &TEST_PACKAGE_ID.to_string(),
             &test_reference(),
@@ -396,7 +412,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager,
-            remote_dir: PathBuf::from("/tmp/base"),
+            remote_dir,
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
@@ -414,9 +430,12 @@ mod tests {
         let mut directory_manager = MockDirectoryManager::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
-        let root_dir = PathBuf::from("/tmp/base");
+
+        let temp_dir = tempdir().unwrap();
+        let remote_dir = temp_dir.path().to_path_buf();
+
         let download_dir = get_temp_package_path(
-            &root_dir,
+            &remote_dir,
             &agent_id,
             &TEST_PACKAGE_ID.to_string(),
             &test_reference(),
@@ -448,7 +467,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager,
-            remote_dir: PathBuf::from("/tmp/base"),
+            remote_dir,
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
@@ -466,9 +485,12 @@ mod tests {
         let mut directory_manager = MockDirectoryManager::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
-        let root_dir = PathBuf::from("/tmp/base");
+
+        let temp_dir = tempdir().unwrap();
+        let remote_dir = temp_dir.path().to_path_buf();
+
         let download_dir = get_temp_package_path(
-            &root_dir,
+            &remote_dir,
             &agent_id,
             &TEST_PACKAGE_ID.to_string(),
             &test_reference(),
@@ -496,7 +518,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager,
-            remote_dir: PathBuf::from("/tmp/base"),
+            remote_dir,
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
@@ -517,9 +539,12 @@ mod tests {
         let mut directory_manager = MockDirectoryManager::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
-        let root_dir = PathBuf::from("/tmp/base");
+
+        let temp_dir = tempdir().unwrap();
+        let remote_dir = temp_dir.path().to_path_buf();
+
         let download_dir = get_temp_package_path(
-            &root_dir,
+            &remote_dir,
             &agent_id,
             &TEST_PACKAGE_ID.to_string(),
             &test_reference(),
@@ -547,7 +572,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager,
-            remote_dir: PathBuf::from("/tmp/base"),
+            remote_dir,
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
@@ -568,9 +593,12 @@ mod tests {
         let mut directory_manager = MockDirectoryManager::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
-        let root_dir = PathBuf::from("/tmp/base");
+
+        let temp_dir = tempdir().unwrap();
+        let remote_dir = temp_dir.path().to_path_buf();
+
         let download_dir = get_temp_package_path(
-            &root_dir,
+            &remote_dir,
             &agent_id,
             &TEST_PACKAGE_ID.to_string(),
             &test_reference(),
@@ -579,7 +607,7 @@ mod tests {
 
         let downloaded_file = download_dir.join("layer_digest.tar.gz");
         let install_dir = get_package_path(
-            &root_dir,
+            &remote_dir,
             &agent_id,
             &TEST_PACKAGE_ID.to_string(),
             &test_reference(),
@@ -613,7 +641,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager,
-            remote_dir: PathBuf::from("/tmp/base"),
+            remote_dir,
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
@@ -631,9 +659,12 @@ mod tests {
         let mut directory_manager = MockDirectoryManager::new();
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
-        let root_dir = PathBuf::from("/tmp/base");
+
+        let temp_dir = tempdir().unwrap();
+        let remote_dir = temp_dir.path().to_path_buf();
+
         let download_dir = get_temp_package_path(
-            &root_dir,
+            &remote_dir,
             &agent_id,
             &TEST_PACKAGE_ID.to_string(),
             &test_reference(),
@@ -641,7 +672,7 @@ mod tests {
         .unwrap();
 
         let install_dir = get_package_path(
-            &root_dir,
+            &remote_dir,
             &agent_id,
             &TEST_PACKAGE_ID.to_string(),
             &test_reference(),
@@ -687,7 +718,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager,
-            remote_dir: PathBuf::from("/tmp/base"),
+            remote_dir,
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
@@ -741,7 +772,10 @@ mod tests {
             .once()
             .returning(|_| Err(io::Error::other("error deleting directory")));
 
-        let pm = OCIPackageManager::new(downloader, directory_manager, PathBuf::from("/tmp/base"));
+        let temp_dir = tempdir().unwrap();
+
+        let pm =
+            OCIPackageManager::new(downloader, directory_manager, temp_dir.path().to_path_buf());
         let installed_package = InstalledPackageData {
             id: TEST_PACKAGE_ID.to_string(),
             installation_path: package_path,
@@ -749,5 +783,44 @@ mod tests {
         let result = pm.uninstall(&agent_id, installed_package);
 
         assert!(matches!(result, Err(OCIPackageManagerError::Uninstall(_))));
+    }
+
+    #[test]
+    fn test_install_skips_download_if_already_installed() {
+        let mut downloader = MockOCIDownloader::new();
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+        let remote_dir = tempdir().unwrap();
+
+        let install_dir = get_package_path(
+            remote_dir.path(),
+            &agent_id,
+            &TEST_PACKAGE_ID.to_string(),
+            &test_reference(),
+        )
+        .unwrap();
+
+        std::fs::create_dir_all(&install_dir).expect("Failed to create dir");
+
+        downloader.expect_download().times(0);
+
+        let pm = OCIPackageManager {
+            downloader,
+            directory_manager: DirectoryManagerFs {},
+            remote_dir: PathBuf::from(remote_dir.path()),
+        };
+
+        let package_data = PackageData {
+            id: TEST_PACKAGE_ID.to_string(),
+            package_type: PackageType::Tar,
+            oci_reference: test_reference(),
+        };
+
+        let result = pm.install(&agent_id, package_data);
+
+        assert!(result.is_ok());
+        let installed = result.unwrap();
+
+        assert_eq!(installed.installation_path, install_dir);
+        assert_eq!(installed.id, TEST_PACKAGE_ID);
     }
 }
