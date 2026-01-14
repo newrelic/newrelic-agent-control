@@ -5,7 +5,6 @@ const AGENT_CONTROL_DIRS: &[&str] = &[
     r"C:\ProgramData\New Relic\newrelic-agent-control\",
 ];
 
-/// Tool to show logs when a test is over
 pub struct CleanAcOnDrop<'a> {
     service_name: &'a str,
 }
