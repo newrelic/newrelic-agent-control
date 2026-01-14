@@ -4,7 +4,7 @@ use std::io;
 use std::path::Path;
 use tracing::instrument;
 
-pub trait DirectoryManager {
+pub trait DirectoryManager: Send + Sync {
     /// create will create a folder
     fn create(&self, path: &Path) -> io::Result<()>;
 

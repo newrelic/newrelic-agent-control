@@ -53,8 +53,8 @@ where
         }
     }
 
-    /// Validates that the provided vector of paths contains exactly one path (i.e. a single file)
-    /// was downloaded from the [`OCIDownloader`] and retrieve its [`PathBuf`], otherwise fail.
+    /// Validates that the provided vector of paths contains exactly one path (i.e. a single file was downloaded
+    /// from the [`OCIDownloader`]) and retrieves its [`PathBuf`], otherwise fails.
     fn try_get_unique_path(paths: Vec<PathBuf>) -> Result<PathBuf, OCIPackageManagerError> {
         if paths.len() != 1 {
             let paths_len = paths.len();

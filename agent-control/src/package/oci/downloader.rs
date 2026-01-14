@@ -30,7 +30,7 @@ pub enum OCIDownloaderError {
     Certificate(String),
 }
 
-pub trait OCIDownloader {
+pub trait OCIDownloader: Send + Sync {
     fn download(
         &self,
         reference: &Reference,
@@ -39,6 +39,8 @@ pub trait OCIDownloader {
 }
 
 // This is expected to be thread-safe since it is used in the package manager.
+// Make sure that we are not writing to disk to the same location from multiple threads.
+// This implementation avoids that since each download is expected to be done in a separate package directory.
 pub struct OCIRefDownloader {
     client: Client,
     auth: RegistryAuth,

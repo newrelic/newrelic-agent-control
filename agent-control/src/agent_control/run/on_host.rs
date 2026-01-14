@@ -165,8 +165,9 @@ impl AgentControlRunner {
         ));
 
         let packages_downloader =
-            OCIRefDownloader::try_new(self.proxy, self.runtime, ClientConfig::default())
-                .map_err(|err| RunError(format!("failed to OCIRefDownloader client: {err}")))?;
+            OCIRefDownloader::try_new(self.proxy, self.runtime, ClientConfig::default()).map_err(
+                |err| RunError(format!("failed to create OCIRefDownloader client: {err}")),
+            )?;
 
         let package_manager = OCIPackageManager::new(
             packages_downloader,

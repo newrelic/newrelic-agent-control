@@ -26,7 +26,7 @@ pub struct InstalledPackageData {
 ///
 /// Given the intended usage for this trait is host-based, implementations will likely rely on
 /// filesystem interaction.
-pub trait PackageManager {
+pub trait PackageManager: Send + Sync {
     /// Install a package.
     fn install(
         &self,
