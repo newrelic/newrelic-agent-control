@@ -7,6 +7,7 @@ use crate::tools::config;
 use crate::tools::logs::ShowLogsOnDrop;
 use crate::tools::test::retry;
 use crate::windows;
+use crate::windows::cleanup::CleanAcOnDrop;
 use crate::windows::install::{Args, RecipeData, install_agent_control_from_recipe};
 
 const DEFAULT_STATUS_PORT: u16 = 51200;
@@ -34,6 +35,10 @@ pub fn test_installation(args: Args) {
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));
 
+    // We need to clean up the resources after showing the logs.
+    // Otherwise, the logs file get removed before we can print them.
+    // Remember that Drop is called in the reverse order of creation.
+    let _clean_ac = CleanAcOnDrop::from(SERVICE_NAME);
     let _show_logs = ShowLogsOnDrop::from(windows::DEFAULT_LOG_PATH);
 
     info!("Verifying service health");
@@ -47,6 +52,4 @@ pub fn test_installation(args: Args) {
     let status_json = serde_json::to_string_pretty(&status)
         .unwrap_or_else(|err| panic!("Failed to serialize status to JSON: {err}"));
     info!(response = status_json, "Agent Control is healthy");
-
-    windows::cleanup::cleanup(SERVICE_NAME);
 }
