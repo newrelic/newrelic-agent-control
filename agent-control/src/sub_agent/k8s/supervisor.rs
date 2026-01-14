@@ -305,6 +305,22 @@ pub struct StartedSupervisorK8s {
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
 }
 
+impl StartedSupervisorK8s {
+    /// It applies each of the provided k8s resources to the cluster if it has changed.
+    fn apply_resources<'a>(
+        resources: impl Iterator<Item = &'a DynamicObject>,
+        k8s_client: Arc<SyncK8sClient>,
+    ) -> Result<(), SupervisorStarterError> {
+        debug!("Applying k8s objects if changed");
+        for res in resources {
+            trace!("K8s object: {:?}", res);
+            k8s_client.apply_dynamic_object_if_changed(res)?;
+        }
+        debug!("K8s objects applied");
+        Ok(())
+    }
+}
+
 impl NewSupervisor for StartedSupervisorK8s {
     type ApplyError = SupervisorStarterError;
     type StopError = ThreadContextStopperError;
