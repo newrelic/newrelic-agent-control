@@ -1,5 +1,5 @@
 use std::fs;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::tools::test::TestResult;
 
@@ -23,10 +23,15 @@ impl<'a> Drop for ShowLogsOnDrop<'a> {
 /// Shows logs from the specified path (supports glob patterns).
 pub fn show_logs(logs_path: &str) -> TestResult<()> {
     info!("Showing Agent Control logs");
+
     let pattern = format!("{}*", logs_path);
+    debug!("Listing log files with pattern: {}", pattern);
+
     let paths = glob::glob(&pattern).map_err(|e| format!("failed to list log files: {}", e))?;
+    debug!("Found log file entries: {:?}", paths);
 
     for entry in paths {
+        debug!("Processing log file entry {entry:?}");
         match entry {
             Ok(path) => {
                 let content = fs::read_to_string(&path)
