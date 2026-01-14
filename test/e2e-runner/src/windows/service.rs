@@ -20,8 +20,18 @@ pub fn check_service_running(service_name: &str) -> TestResult<()> {
 /// Gets the current status of a Windows service as a string using PowerShell.
 pub fn get_service_status(service_name: &str) -> String {
     let cmd = format!("(Get-Service -Name '{}').Status", service_name);
-    exec_powershell_command(&cmd)
-        .unwrap_or_else(|err| panic!("could not get service status: {err}"))
+    let result = exec_powershell_command(&cmd)
+        .unwrap_or_else(|err| panic!("could not get service status: {err}"));
+    let stdout_line = result
+        .lines()
+        .find(|line| line.starts_with("Stdout"))
+        .expect("Result from powershell command should have an \"Stdout\" line");
+    let stdout = stdout_line
+        .split(":")
+        .last()
+        .expect("Stdout line should contain a colon");
+
+    stdout.trim().to_string()
 }
 
 /// Restarts a Windows service using PowerShell.
