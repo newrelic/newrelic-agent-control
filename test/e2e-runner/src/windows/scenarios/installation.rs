@@ -41,9 +41,11 @@ pub fn test_installation(args: Args) {
     let status = retry(30, Duration::from_secs(2), "health check", || {
         windows::health::check_health(&status_endpoint)
     })
-    .unwrap(); // TODO
+    .unwrap_or_else(|err| panic!("Health check failed: {err}"));
+
     info!("Agent Control is healthy");
-    let status_json = serde_json::to_string_pretty(&status).unwrap(); // TODO
+    let status_json = serde_json::to_string_pretty(&status)
+        .unwrap_or_else(|err| panic!("Failed to serialize status to JSON: {err}"));
     info!(response = status_json, "Agent Control is healthy");
 
     windows::cleanup::cleanup(SERVICE_NAME);
