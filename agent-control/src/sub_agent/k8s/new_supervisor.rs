@@ -55,7 +55,7 @@ impl Supervisor for StartedSupervisorK8s {
     type StopError = ThreadContextStopperError;
 
     fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, Self::ApplyError> {
-        // Re-use started supervisor's contents
+        // Reuse started supervisor's contents
         let agent_identity = self.agent_identity.clone();
         let k8s_client = self.k8s_client.clone();
         let sub_agent_internal_publisher = self.sub_agent_internal_publisher.clone();
