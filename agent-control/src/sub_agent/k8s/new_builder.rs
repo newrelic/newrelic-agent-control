@@ -87,7 +87,9 @@ pub mod tests {
 
         let supervisor_builder = testing_supervisor_builder();
 
-        SupervisorBuilder::build_supervisor(&supervisor_builder, effective_agent).unwrap();
+        supervisor_builder
+            .build_supervisor(effective_agent)
+            .unwrap();
     }
 
     #[test]
@@ -110,7 +112,7 @@ pub mod tests {
 
         let supervisor_builder = testing_supervisor_builder();
 
-        let result = SupervisorBuilder::build_supervisor(&supervisor_builder, effective_agent);
+        let result = supervisor_builder.build_supervisor(effective_agent);
         assert_matches!(
             result.err().expect("Expected error"),
             SubAgentBuilderError::UnsupportedK8sObject(_)

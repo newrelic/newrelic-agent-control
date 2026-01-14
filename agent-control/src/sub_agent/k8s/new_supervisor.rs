@@ -240,10 +240,11 @@ pub mod tests {
         };
 
         let not_started = not_started_supervisor(config, None);
-        let started = SupervisorStarter::start(not_started, sub_agent_internal_publisher)
+        let started = not_started
+            .start(sub_agent_internal_publisher)
             .expect("supervisor started");
 
-        Supervisor::stop(started).expect("supervisor thread joined");
+        started.stop().expect("supervisor thread joined");
     }
 
     #[test]
@@ -257,7 +258,8 @@ pub mod tests {
         };
 
         let not_started = not_started_supervisor(config, None);
-        let started = SupervisorStarter::start(not_started, sub_agent_internal_publisher)
+        let started = not_started
+            .start(sub_agent_internal_publisher)
             .expect("supervisor started");
 
         assert!(
