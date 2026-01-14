@@ -15,13 +15,9 @@ use crate::k8s::annotations::Annotations;
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
 use crate::k8s::utils::retain_not_null;
-use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
-use crate::sub_agent::supervisor::{
-    Supervisor as NewSupervisor, SupervisorStarter as NewSupervisorStarter,
-};
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
@@ -37,48 +33,10 @@ const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
 const SUPERVISOR_THREAD_NAME: &str = "supervisor";
 
 pub struct NotStartedSupervisorK8s {
-    agent_identity: AgentIdentity,
-    k8s_client: Arc<SyncK8sClient>,
+    pub(super) agent_identity: AgentIdentity,
+    pub(super) k8s_client: Arc<SyncK8sClient>,
     k8s_config: K8s,
     interval: Duration,
-}
-
-impl NewSupervisorStarter for NotStartedSupervisorK8s {
-    type Supervisor = StartedSupervisorK8s;
-    type Error = SupervisorStarterError;
-
-    fn start(
-        self,
-        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<Self::Supervisor, Self::Error> {
-        info!("Starting k8s supervisor");
-        let resources = Arc::new(self.build_dynamic_objects()?);
-
-        let thread_contexts = [
-            Some(self.start_k8s_objects_supervisor(resources.clone())),
-            self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?,
-            self.start_version_checker(sub_agent_internal_publisher.clone(), resources.clone()),
-            self.start_guid_checker(sub_agent_internal_publisher.clone(), resources),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-        info!("K8s supervisor started");
-
-        // Reuse structures
-        let Self {
-            agent_identity,
-            k8s_client,
-            ..
-        } = self;
-
-        Ok(StartedSupervisorK8s {
-            thread_contexts,
-            k8s_client,
-            sub_agent_internal_publisher,
-            agent_identity,
-        })
-    }
 }
 
 impl SupervisorStarter for NotStartedSupervisorK8s {
@@ -178,7 +136,7 @@ impl NotStartedSupervisorK8s {
         })
     }
 
-    fn start_k8s_objects_supervisor(
+    pub(super) fn start_k8s_objects_supervisor(
         &self,
         resources: Arc<Vec<DynamicObject>>,
     ) -> StartedThreadContext {
@@ -299,15 +257,15 @@ impl NotStartedSupervisorK8s {
 }
 
 pub struct StartedSupervisorK8s {
-    thread_contexts: Vec<StartedThreadContext>,
-    agent_identity: AgentIdentity,
-    k8s_client: Arc<SyncK8sClient>,
-    sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    pub(super) thread_contexts: Vec<StartedThreadContext>,
+    pub(super) agent_identity: AgentIdentity,
+    pub(super) k8s_client: Arc<SyncK8sClient>,
+    pub(super) sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
 }
 
 impl StartedSupervisorK8s {
     /// It applies each of the provided k8s resources to the cluster if it has changed.
-    fn apply_resources<'a>(
+    pub(super) fn apply_resources<'a>(
         resources: impl Iterator<Item = &'a DynamicObject>,
         k8s_client: Arc<SyncK8sClient>,
     ) -> Result<(), SupervisorStarterError> {
@@ -319,37 +277,8 @@ impl StartedSupervisorK8s {
         debug!("K8s objects applied");
         Ok(())
     }
-}
 
-impl NewSupervisor for StartedSupervisorK8s {
-    type ApplyError = SupervisorStarterError;
-    type StopError = ThreadContextStopperError;
-
-    fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, Self::ApplyError> {
-        debug!(agent_id = %self.agent_identity.id, "Applying new configuration to K8s supervisor");
-
-        let k8s_config = effective_agent
-            .get_k8s_config()
-            .map_err(|e| SupervisorStarterError::ConfigError(e.to_string()))?;
-
-        // Stop the current supervisor threads
-        let publisher = self.sub_agent_internal_publisher.clone();
-        let client = self.k8s_client.clone();
-        let identity = self.agent_identity.clone();
-
-        // TODO modify so I don't call stop but the structure's "apply" functionality
-        todo!();
-        // if let Err(e) = self.stop() {
-        //     error!(agent_id = %identity.id, "Failed to stop previous supervisor during apply: {e}");
-        // }
-
-        // // Create and start the new supervisor
-        // // TODO try to avoid `clone` here
-        // let starter = NotStartedSupervisorK8s::new(identity, client, k8s_config.clone());
-        // SupervisorStarter::start(starter, publisher)
-    }
-
-    fn stop(self) -> Result<(), Self::StopError> {
+    pub(super) fn stop_threads(self) -> Result<(), ThreadContextStopperError> {
         // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
         let thread_contexts = self.thread_contexts;
         let agent_identity = self.agent_identity;
