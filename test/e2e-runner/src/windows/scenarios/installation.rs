@@ -34,7 +34,7 @@ pub fn test_installation(args: Args) {
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));
 
-    let _show_logs = ShowLogsOnDrop::from(windows::DEFAULT_CONFIG_PATH);
+    let _show_logs = ShowLogsOnDrop::from(windows::DEFAULT_LOG_PATH);
 
     info!("Verifying service health");
     let status_endpoint = format!("http://localhost:{DEFAULT_STATUS_PORT}/status");
