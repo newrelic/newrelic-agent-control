@@ -30,7 +30,6 @@ where
     }
 
     pub(crate) fn insert(&mut self, agent_id: AgentID, sub_agent: S) -> Option<S> {
-        // TODO: handle error
         self.0.insert(agent_id, sub_agent)
     }
 

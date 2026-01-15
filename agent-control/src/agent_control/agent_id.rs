@@ -59,7 +59,6 @@ impl Display for AgentID {
 
 impl AsRef<Path> for AgentID {
     fn as_ref(&self) -> &Path {
-        // TODO: define how AgentID should be converted to a Path here.
         Path::new(self.as_str())
     }
 }
@@ -103,7 +102,6 @@ impl Display for SubAgentID {
 
 impl AsRef<Path> for SubAgentID {
     fn as_ref(&self) -> &Path {
-        // TODO: define how SubAgentID should be converted to a Path here.
         Path::new(self.as_str())
     }
 }
