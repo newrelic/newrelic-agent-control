@@ -107,7 +107,6 @@ pub trait SupervisorStarter {
 /// implementations to potentially replace internal state or recreate resources as needed.
 ///
 /// # Type Parameters
-///
 /// * `ApplyError` - The error type returned when applying configuration changes fails
 /// * `StopError` - The error type returned when stopping fails
 pub trait Supervisor: Sized {

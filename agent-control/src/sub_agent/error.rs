@@ -49,7 +49,7 @@ pub enum SupervisorCreationError {
     #[error("could not build the supervisor: {0}")]
     SupervisorBuild(String),
     #[error("could not start the supervisor: {0}")]
-    SupervisorStartGeneric(String),
+    StartSupervisor(String),
 }
 
 #[derive(Error, Debug)]
