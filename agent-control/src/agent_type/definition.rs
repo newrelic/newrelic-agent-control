@@ -11,11 +11,17 @@ use super::{
     variable::{Variable, VariableDefinition, tree::Tree},
 };
 
+use crate::agent_control::agent_id::AgentID;
+use crate::agent_type::agent_attributes::AgentAttributes;
+use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::agent_type::variable::constraints::VariableConstraints;
+use crate::agent_type::variable::namespace::Namespace;
+use crate::package::oci::package_manager::get_package_path;
 use crate::{agent_type::variable::tree::VarTree, values::yaml_config::YAMLConfig};
 use serde::Deserialize;
 use std::collections::HashMap;
-use tracing::warn;
+use std::path::Path;
+use tracing::{debug, warn};
 
 /// AgentTypeDefinition represents the definition of an [AgentType]. It defines the variables and runtime for any supported
 /// environment.
@@ -156,6 +162,62 @@ impl From<VariableTree> for Variables {
     fn from(value: VariableTree) -> Self {
         value.flatten()
     }
+}
+
+// TODO refactor Variables into a struct with methods
+
+pub fn include_packages_variables(
+    mut variables: Variables,
+    packages: &RenderedPackages,
+) -> Result<Variables, AgentTypeError> {
+    // Return early if no packages to avoid retrieving the auto-generated dir unnecessarily
+    if packages.is_empty() {
+        return Ok(variables);
+    }
+
+    let remote_dir = &get_sub_agent_variable(&variables, AgentAttributes::VARIABLE_REMOTE_DIR)
+        .ok_or(AgentTypeError::RenderingTemplate(format!(
+            "Agent variable not found {}",
+            AgentAttributes::VARIABLE_REMOTE_DIR
+        )))?;
+
+    let agent_id_string =
+        get_sub_agent_variable(&variables, AgentAttributes::VARIABLE_SUB_AGENT_ID).ok_or(
+            AgentTypeError::RenderingTemplate(format!(
+                "Agent variable not found {}",
+                AgentAttributes::VARIABLE_SUB_AGENT_ID
+            )),
+        )?;
+
+    let agent_id = AgentID::try_from(agent_id_string)
+        .map_err(|e| AgentTypeError::RenderingTemplate(format!("Invalid sub-agent ID: {}", e)))?;
+
+    for (package_id, package) in packages {
+        let oci_ref = &package.download.oci.reference;
+        let path = get_package_path(Path::new(remote_dir), &agent_id, package_id, oci_ref)
+            .map_err(|e| {
+                AgentTypeError::RenderingTemplate(format!(
+                    "Invalid OCI reference for package {}: {}",
+                    package_id, e
+                ))
+            })?;
+        debug!(package_id = %package_id, path = %path.display(), "Setting reserved variable for package directory");
+
+        variables.insert(
+            Namespace::SubAgent.namespaced_name(format!("packages.{}.dir", package_id)),
+            Variable::new_final_string_variable(path.to_string_lossy()),
+        );
+    }
+
+    Ok(variables)
+}
+
+pub fn get_sub_agent_variable(variables: &Variables, variable_name: &str) -> Option<String> {
+    let key = Namespace::SubAgent.namespaced_name(variable_name);
+    variables
+        .get(&key)
+        .and_then(Variable::get_final_value)
+        .map(|value| value.to_string())
 }
 
 #[cfg(test)]

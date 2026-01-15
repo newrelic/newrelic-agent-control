@@ -186,7 +186,7 @@ pub mod tests {
     const TEST_AGENT_ID: &str = "k8s-test";
 
     #[test]
-    fn k8s_agent_build_success() {
+    fn test_k8s_agent_build_success() {
         let agent_identity = AgentIdentity::from((
             AgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
@@ -222,7 +222,7 @@ pub mod tests {
     }
 
     #[test]
-    fn k8s_agent_error_building_opamp() {
+    fn test_k8s_agent_error_building_opamp() {
         let agent_identity = AgentIdentity::from((
             AgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
@@ -262,7 +262,7 @@ pub mod tests {
     }
 
     #[test]
-    fn supervisor_build_ok() {
+    fn test_supervisor_build_ok() {
         let agent_identity = AgentIdentity::from((
             AgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
@@ -287,7 +287,7 @@ pub mod tests {
     }
 
     #[test]
-    fn supervisor_build_fails_for_invalid_k8s_object_kind() {
+    fn test_supervisor_build_fails_for_invalid_k8s_object_kind() {
         let agent_identity = AgentIdentity::from((
             AgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),

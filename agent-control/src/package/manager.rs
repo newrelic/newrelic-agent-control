@@ -26,7 +26,7 @@ pub struct InstalledPackageData {
 ///
 /// Given the intended usage for this trait is host-based, implementations will likely rely on
 /// filesystem interaction.
-pub trait PackageManager {
+pub trait PackageManager: Send + Sync {
     /// Install a package.
     fn install(
         &self,
@@ -40,4 +40,33 @@ pub trait PackageManager {
         agent_id: &AgentID,
         package: InstalledPackageData,
     ) -> Result<(), OCIPackageManagerError>;
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use mockall::mock;
+    use std::sync::Arc;
+
+    mock! {
+        pub PackageManager {}
+        impl PackageManager for PackageManager {
+            fn install(
+                &self,
+                agent_id: &AgentID,
+                package: PackageData,
+            ) -> Result<InstalledPackageData, OCIPackageManagerError>;
+            fn uninstall(
+                &self,
+                agent_id: &AgentID,
+                package: InstalledPackageData,
+            ) -> Result<(), OCIPackageManagerError>;
+        }
+    }
+
+    impl MockPackageManager {
+        pub fn new_arc() -> Arc<Self> {
+            Arc::new(MockPackageManager::new())
+        }
+    }
 }

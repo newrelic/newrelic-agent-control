@@ -25,15 +25,19 @@ use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
+use crate::package::oci::downloader::OCIRefDownloader;
+use crate::package::oci::package_manager::OCIPackageManager;
 use crate::secret_retriever::on_host::retrieve::OnHostSecretRetriever;
 use crate::secrets_provider::SecretsProviders;
 use crate::secrets_provider::file::FileSecretProvider;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
-use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
+use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::values::ConfigRepo;
+use fs::directory_manager::DirectoryManagerFs;
+use oci_client::client::ClientConfig;
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
@@ -160,7 +164,21 @@ impl AgentControlRunner {
             &self.base_paths.remote_dir,
         ));
 
-        let supervisor_builder = SupervisortBuilderOnHost::new(self.base_paths.log_dir);
+        let packages_downloader =
+            OCIRefDownloader::try_new(self.proxy, self.runtime, ClientConfig::default()).map_err(
+                |err| RunError(format!("failed to create OCIRefDownloader client: {err}")),
+            )?;
+
+        let package_manager = OCIPackageManager::new(
+            packages_downloader,
+            DirectoryManagerFs,
+            self.base_paths.remote_dir,
+        );
+
+        let supervisor_builder = SupervisorBuilderOnHost {
+            logging_path: self.base_paths.log_dir,
+            package_manager: Arc::new(package_manager),
+        };
 
         let signature_validator = Arc::new(self.signature_validator);
         let remote_config_validators = vec![

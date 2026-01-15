@@ -31,12 +31,13 @@ impl FromStr for PackageType {
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub(super) struct Package {
     #[serde(rename = "type")]
-    pub(super) package_type: TemplateableValue<PackageType>, // Using `r#type` to avoid keyword conflict
+    pub package_type: TemplateableValue<PackageType>, // Using `r#type` to avoid keyword conflict
 
     /// Download defines the supported repository sources for the packages.
-    pub(super) download: Download,
-    //TODO: implement signature, install and uninstall fields when defined.
+    pub download: Download,
 }
+
+pub type PackageID = String;
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Download {
@@ -85,9 +86,12 @@ impl Templateable for Oci {
             version = format!(":{}", version);
         }
 
-        let reference =
-            Reference::from_str(format!("{}/{}{}", registry, repository, version).as_str())
-                .map_err(|err| AgentTypeError::OCIReferenceParsingError(err.to_string()))?;
+        let string_reference = format!("{}/{}{}", registry, repository, version);
+        let reference = Reference::from_str(string_reference.as_str()).map_err(|err| {
+            AgentTypeError::OCIReferenceParsingError(format!(
+                "parsing OCI reference {string_reference}: {err}"
+            ))
+        })?;
 
         Ok(Self::Output { reference })
     }

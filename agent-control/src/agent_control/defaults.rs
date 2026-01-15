@@ -54,7 +54,6 @@ cfg_if::cfg_if! {
         pub const AGENT_CONTROL_LOCAL_DATA_DIR: &str = "/opt/homebrew/etc/newrelic-agent-control";
         pub const AGENT_CONTROL_DATA_DIR: &str = "/opt/homebrew/var/lib/newrelic-agent-control";
         pub const AGENT_CONTROL_LOG_DIR: &str = "/opt/homebrew/var/log/newrelic-agent-control";
-
     } else if #[cfg(target_os = "windows")] {
         pub const AGENT_CONTROL_LOCAL_DATA_DIR: &str = "C:\\Program Files\\New Relic\\newrelic-agent-control";
         pub const AGENT_CONTROL_DATA_DIR: &str = "C:\\ProgramData\\New Relic\\newrelic-agent-control";
@@ -83,6 +82,7 @@ pub const STORE_KEY_INSTANCE_ID: &StoreKey = "instance_id";
 pub const DYNAMIC_AGENT_TYPE_DIR: &str = "dynamic-agent-types";
 pub const INSTANCE_ID_FILENAME: &str = "instance_id.yaml";
 pub const GENERATED_FOLDER_NAME: &str = "auto-generated";
+pub const PACKAGES_FOLDER_NAME: &str = "packages";
 pub const AGENT_CONTROL_LOG_FILENAME: &str = "newrelic-agent-control.log";
 pub const STDOUT_LOG_PREFIX: &str = "stdout.log";
 pub const STDERR_LOG_PREFIX: &str = "stderr.log";

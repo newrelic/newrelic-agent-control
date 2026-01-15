@@ -1,6 +1,7 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConfig;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystemEntries;
+use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::agent_type::runtime_config::version_config::rendered::OnHostVersionConfig;
 use crate::checkers::health::health_checker::{Health, HealthCheckerError, spawn_health_checker};
 use crate::checkers::health::health_checker::{Healthy, Unhealthy};
@@ -12,6 +13,7 @@ use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
+use crate::package::manager::{PackageData, PackageManager};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::command_os::{CommandOSNotStarted, CommandOSStarted};
 use crate::sub_agent::on_host::command::error::CommandError;
@@ -26,6 +28,7 @@ use fs::directory_manager::DirectoryManagerFs;
 use fs::file::LocalFile;
 use std::path::PathBuf;
 use std::process::ExitStatus;
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use tracing::{Dispatch, debug, dispatcher, error, info, warn};
 
@@ -36,17 +39,25 @@ pub struct StartedSupervisorOnHost {
     thread_contexts: Vec<StartedThreadContext>,
 }
 
-pub struct NotStartedSupervisorOnHost {
+pub struct NotStartedSupervisorOnHost<PM>
+where
+    PM: PackageManager,
+{
     agent_identity: AgentIdentity,
     executables: Vec<ExecutableData>,
     log_to_file: bool,
     logging_path: PathBuf,
     health_config: OnHostHealthConfig,
+    package_manager: Arc<PM>,
+    packages_config: RenderedPackages,
     version_config: Option<OnHostVersionConfig>,
     filesystem_entries: FileSystemEntries,
 }
 
-impl SupervisorStarter for NotStartedSupervisorOnHost {
+impl<PM> SupervisorStarter for NotStartedSupervisorOnHost<PM>
+where
+    PM: PackageManager,
+{
     type SupervisorStopper = StartedSupervisorOnHost;
 
     fn start(
@@ -55,7 +66,21 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
         let (health_publisher, health_consumer) = pub_sub();
 
-        // Write the files required for this sub-agent to disk.
+        for (id, package) in &self.packages_config {
+            // Currently we are always installing the package without checking if it's already installed.
+            debug!(%id, "Installing package");
+            self.package_manager
+                .install(
+                    &self.agent_identity.id,
+                    PackageData {
+                        id: id.clone(),
+                        package_type: package.package_type.clone(),
+                        oci_reference: package.download.oci.reference.clone(),
+                    },
+                )
+                .map_err(|err| SupervisorStarterError::InstallPackage(err.to_string()))?;
+            debug!(%id, "Package successfully installed");
+        }
 
         self.filesystem_entries
             .write(&LocalFile, &DirectoryManagerFs)
@@ -103,12 +128,17 @@ impl SupervisorStopper for StartedSupervisorOnHost {
     }
 }
 
-impl NotStartedSupervisorOnHost {
+impl<PM> NotStartedSupervisorOnHost<PM>
+where
+    PM: PackageManager,
+{
     pub fn new(
         agent_identity: AgentIdentity,
         executables: Vec<ExecutableData>,
         health_config: OnHostHealthConfig,
         version_config: Option<OnHostVersionConfig>,
+        packages: RenderedPackages,
+        package_manager: Arc<PM>,
     ) -> Self {
         NotStartedSupervisorOnHost {
             agent_identity,
@@ -116,6 +146,8 @@ impl NotStartedSupervisorOnHost {
             log_to_file: false,
             logging_path: PathBuf::default(),
             health_config,
+            package_manager,
+            packages_config: packages,
             version_config,
             filesystem_entries: FileSystemEntries::default(),
         }
@@ -425,9 +457,9 @@ impl HealthHandler {
 pub mod tests {
     use super::*;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::runtime_config::health_config::rendered;
     use crate::checkers::health::health_checker::HEALTH_CHECKER_THREAD_NAME;
     use crate::event::channel::pub_sub;
+    use crate::package::manager::tests::MockPackageManager;
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
@@ -485,7 +517,7 @@ pub mod tests {
         #[case] run_warmup_time: Option<Duration>,
         #[case] contain_logs: Vec<&'static str>,
     ) {
-        const DURATION_DELTA: std::time::Duration = Duration::from_millis(100);
+        const DURATION_DELTA: Duration = Duration::from_millis(100);
 
         let backoff = Backoff::default()
             .with_initial_delay(Duration::from_secs(5))
@@ -504,6 +536,8 @@ pub mod tests {
             executable_data,
             OnHostHealthConfig::default(),
             None,
+            get_empty_packages(),
+            MockPackageManager::new_arc(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -544,6 +578,8 @@ pub mod tests {
             executables,
             OnHostHealthConfig::default(),
             None,
+            get_empty_packages(),
+            MockPackageManager::new_arc(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -582,6 +618,8 @@ pub mod tests {
             executables,
             OnHostHealthConfig::default(),
             None,
+            get_empty_packages(),
+            MockPackageManager::new_arc(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -627,6 +665,8 @@ pub mod tests {
             executables,
             OnHostHealthConfig::default(),
             None,
+            get_empty_packages(),
+            MockPackageManager::new_arc(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -670,6 +710,8 @@ pub mod tests {
             executables,
             OnHostHealthConfig::default(),
             None,
+            get_empty_packages(),
+            MockPackageManager::new_arc(),
         );
 
         // run the agent with wrong command so it enters in restart policy
@@ -707,8 +749,10 @@ pub mod tests {
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            rendered::OnHostHealthConfig::default(),
+            OnHostHealthConfig::default(),
             None,
+            get_empty_packages(),
+            MockPackageManager::new_arc(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -770,6 +814,8 @@ pub mod tests {
             executables,
             OnHostHealthConfig::default(),
             None,
+            get_empty_packages(),
+            MockPackageManager::new_arc(),
         );
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -915,5 +961,9 @@ pub mod tests {
         );
 
         assert!(health_consumer.as_ref().is_empty())
+    }
+
+    fn get_empty_packages() -> RenderedPackages {
+        HashMap::new()
     }
 }

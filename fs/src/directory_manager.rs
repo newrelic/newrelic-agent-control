@@ -4,7 +4,7 @@ use std::io;
 use std::path::Path;
 use tracing::instrument;
 
-pub trait DirectoryManager {
+pub trait DirectoryManager: Send + Sync {
     /// create will create a folder
     fn create(&self, path: &Path) -> io::Result<()>;
 
@@ -13,6 +13,7 @@ pub trait DirectoryManager {
     fn delete(&self, path: &Path) -> io::Result<()>;
 }
 
+// This is expected to be thread-safe since it is used in the package manager
 pub struct DirectoryManagerFs;
 
 impl DirectoryManager for DirectoryManagerFs {

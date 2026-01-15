@@ -14,7 +14,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Default)]
 pub struct TemplateRenderer {
-    sa_variables: HashMap<NamespacedVariableName, Variable>,
+    ac_variables: HashMap<NamespacedVariableName, Variable>,
 }
 
 impl TemplateRenderer {
@@ -35,8 +35,6 @@ impl TemplateRenderer {
         let values_expanded = values.template_with(&secrets)?;
 
         // Fill agent variables
-        // `filled_variables` needs to be mutable, in case there are `File` or `MapStringFile` variables, whose path
-        // needs to be expanded, checkout out the TODO below for details.
         let filled_variables = variables.fill_with_values(values_expanded)?.flatten();
 
         Self::check_all_vars_are_populated(&filled_variables)?;
@@ -55,7 +53,7 @@ impl TemplateRenderer {
         variables: impl Iterator<Item = (String, Variable)>,
     ) -> Self {
         Self {
-            sa_variables: variables
+            ac_variables: variables
                 .map(|(name, value)| {
                     (
                         Namespace::AgentControl.namespaced_name(name.as_str()),
@@ -97,7 +95,7 @@ impl TemplateRenderer {
         vars_iter
             .chain(sub_agent_vars_iter)
             .chain(env_vars)
-            .chain(self.sa_variables.clone())
+            .chain(self.ac_variables.clone())
             .collect::<HashMap<NamespacedVariableName, Variable>>()
     }
 }
@@ -107,6 +105,7 @@ pub(crate) mod tests {
     use std::path::PathBuf;
 
     use super::*;
+    use crate::agent_type::runtime_config::on_host::rendered::OnHost;
     use crate::{
         agent_control::{
             agent_id::AgentID,
@@ -152,10 +151,7 @@ pub(crate) mod tests {
             .unwrap();
 
         let mut bin_stack = vec!["/opt/first", "/opt/second"].into_iter();
-        runtime_config
-            .deployment
-            .linux
-            .unwrap()
+        extract_runtime_by_environment(runtime_config)
             .executables
             .iter()
             .for_each(|exec| {
@@ -228,7 +224,8 @@ pub(crate) mod tests {
             )
             .unwrap();
 
-        let on_host_deployment = runtime_config.deployment.linux.unwrap();
+        let on_host_deployment = extract_runtime_by_environment(runtime_config);
+
         let backoff_strategy = &on_host_deployment
             .executables
             .first()
@@ -250,6 +247,14 @@ pub(crate) mod tests {
         );
     }
 
+    fn extract_runtime_by_environment(runtime_config: Runtime) -> OnHost {
+        match AGENT_CONTROL_MODE_ON_HOST {
+            Environment::Linux => runtime_config.deployment.linux.unwrap(),
+            Environment::Windows => runtime_config.deployment.windows.unwrap(),
+            Environment::K8s => unreachable!("this should not happen"),
+        }
+    }
+
     #[test]
     fn test_render_agent_type_with_backoff_config_and_string_durations() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
@@ -269,7 +274,7 @@ pub(crate) mod tests {
             )
             .unwrap();
 
-        let on_host_deployment = runtime_config.deployment.linux.unwrap();
+        let on_host_deployment = extract_runtime_by_environment(runtime_config);
         let backoff_strategy = &on_host_deployment
             .executables
             .first()
@@ -556,6 +561,11 @@ deployment:
       - id: first
         path: /opt/first
         args: "${nr-ac:sa-fake-var}"
+  windows:
+    executables:
+      - id: first
+        path: /opt/first
+        args: "${nr-ac:sa-fake-var}"
 "#,
             &AGENT_CONTROL_MODE_ON_HOST,
         );
@@ -580,10 +590,7 @@ deployment:
             .unwrap();
         assert_eq!(
             Args("fake_value".into()),
-            runtime_config
-                .deployment
-                .linux
-                .unwrap()
+            extract_runtime_by_environment(runtime_config)
                 .executables
                 .first()
                 .unwrap()
@@ -611,6 +618,14 @@ variables:
       default: bar
 deployment:
   linux:
+    executables:
+      - id: first
+        path: /opt/first
+        args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
+      - id: second
+        path: /opt/second
+        args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
+  windows:
     executables:
       - id: first
         path: /opt/first

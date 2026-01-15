@@ -30,7 +30,7 @@ pub enum OCIDownloaderError {
     Certificate(String),
 }
 
-pub trait OCIDownloader {
+pub trait OCIDownloader: Send + Sync {
     fn download(
         &self,
         reference: &Reference,
@@ -38,6 +38,9 @@ pub trait OCIDownloader {
     ) -> Result<Vec<PathBuf>, OCIDownloaderError>;
 }
 
+// This is expected to be thread-safe since it is used in the package manager.
+// Make sure that we are not writing to disk to the same location from multiple threads.
+// This implementation avoids that since each download is expected to be done in a separate package directory.
 pub struct OCIRefDownloader {
     client: Client,
     auth: RegistryAuth,
@@ -66,9 +69,9 @@ impl OCIRefDownloader {
     pub fn try_new(
         proxy_config: ProxyConfig,
         runtime: Arc<Runtime>,
-        client_config: Option<ClientConfig>,
+        client_config: ClientConfig,
     ) -> Result<Self, OCIDownloaderError> {
-        let mut client_config = client_config.unwrap_or_default();
+        let mut client_config = client_config;
         Self::proxy_setup(proxy_config, &mut client_config)?;
 
         Ok(OCIRefDownloader {
@@ -227,7 +230,7 @@ fn add_cert<'a>(mut certs: Vec<Certificate>, cert: CertificateDer<'a>) -> Vec<Ce
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+pub mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use mockall::mock;
