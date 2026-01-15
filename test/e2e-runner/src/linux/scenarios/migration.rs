@@ -65,7 +65,7 @@ pub fn test_migration(args: Args) {
     });
 }
 
-pub fn install_and_setup_infra_agent_with_mysql(args: &Args, test_id: &str) {
+fn install_and_setup_infra_agent_with_mysql(args: &Args, test_id: &str) {
     // Install infra agent
     let install_command = format!(
         r#"
