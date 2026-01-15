@@ -19,15 +19,15 @@ use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::thread_context::{
-    NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
+    NotStartedThreadContext, StartedThreadContext, ThreadCollectionStopperExt,
+    ThreadContextStopperError,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
-use std::convert::identity;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, error, info, info_span, trace, warn};
+use tracing::{debug, info, info_span, trace, warn};
 
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
 const SUPERVISOR_THREAD_NAME: &str = "supervisor";
@@ -66,9 +66,10 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
 
         Ok(StartedSupervisorK8s {
             thread_contexts,
-            k8s_client: self.k8s_client,
             sub_agent_internal_publisher,
+            k8s_client: self.k8s_client,
             agent_identity: self.agent_identity,
+            k8s_config: self.k8s_config,
         })
     }
 }
@@ -247,6 +248,7 @@ pub struct StartedSupervisorK8s {
     pub(super) agent_identity: AgentIdentity,
     pub(super) k8s_client: Arc<SyncK8sClient>,
     pub(super) sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    pub(super) k8s_config: K8s,
 }
 
 impl StartedSupervisorK8s {
@@ -263,43 +265,13 @@ impl StartedSupervisorK8s {
         debug!("K8s objects applied");
         Ok(())
     }
-
-    pub(super) fn stop_threads(self) -> Result<(), ThreadContextStopperError> {
-        // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
-        let thread_contexts = self.thread_contexts;
-        let agent_identity = self.agent_identity;
-
-        thread_contexts.into_iter().map(|ctx| {
-            let thread_name = ctx.thread_name().to_string();
-            ctx.stop_blocking()
-            .inspect(|_| debug!(agent_id = %agent_identity.id, "Thread {thread_name} stopped"))
-            .inspect_err(|e| error!(agent_id = %agent_identity.id, "Error stopping thread {thread_name}: {e}"))
-        }).collect::<Vec<_>>().into_iter()
-        // Return first err
-        .try_for_each(identity)
-    }
 }
 
 impl SupervisorStopper for StartedSupervisorK8s {
     fn stop(self) -> Result<(), ThreadContextStopperError> {
         // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
-        let mut stop_result = Ok(());
-        for thread_context in self.thread_contexts {
-            let thread_name = thread_context.thread_name().to_string();
-            match thread_context.stop_blocking() {
-                Ok(_) => {
-                    debug!(agent_id = %self.agent_identity.id, "Thread {} stopped", thread_name)
-                }
-                Err(error_msg) => {
-                    error!(agent_id = %self.agent_identity.id, "Error stopping '{thread_name}': {error_msg}");
-                    if stop_result.is_ok() {
-                        stop_result = Err(error_msg);
-                    }
-                }
-            }
-        }
-
-        stop_result
+        let span = info_span!("stopping_supervisor", agent_id = %self.agent_identity.id);
+        span.in_scope(|| self.thread_contexts.stop())
     }
 }
 
