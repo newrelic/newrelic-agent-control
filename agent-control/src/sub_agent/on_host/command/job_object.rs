@@ -1,7 +1,7 @@
 use crate::sub_agent::on_host::command::error::CommandError;
 use std::os::windows::io::AsRawHandle;
 use std::process::Child;
-use tracing::warn;
+use tracing::error;
 use windows::Win32::Foundation::{CloseHandle, HANDLE};
 use windows::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
@@ -62,7 +62,7 @@ impl Drop for JobObject {
     fn drop(&mut self) {
         unsafe {
             let _ =
-                CloseHandle(self.handle).inspect_err(|err| warn!(%err,"Fail to kill a JobObject"));
+                CloseHandle(self.handle).inspect_err(|err| error!(%err,"Fail to kill a JobObject"));
         }
     }
 }
