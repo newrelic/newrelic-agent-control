@@ -236,8 +236,8 @@ impl NotStartedSupervisorK8s {
             k8s_status_checker,
             sub_agent_internal_publisher,
             SubAgentInternalEvent::AgentAttributesUpdated,
-            self.k8s_config.version.interval,
-            self.k8s_config.version.initial_delay,
+            self.k8s_config.guid_checker.interval,
+            self.k8s_config.guid_checker.initial_delay,
         ))
     }
 
@@ -400,8 +400,7 @@ pub mod tests {
                     ("mock_cr1".to_string(), k8s_object()),
                     ("mock_cr2".to_string(), k8s_object()),
                 ]),
-                health: None,
-                version: Default::default(),
+                ..K8s::default()
             },
         );
 
@@ -451,7 +450,7 @@ pub mod tests {
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: Some(Default::default()),
-            version: Default::default(),
+            ..K8s::default()
         };
 
         let supervisor = not_started_supervisor(config, None);
@@ -476,7 +475,7 @@ pub mod tests {
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: Some(Default::default()),
-            version: Default::default(),
+            ..K8s::default()
         };
 
         let not_started = not_started_supervisor(config, None);
@@ -493,8 +492,7 @@ pub mod tests {
 
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
-            health: None,
-            version: Default::default(),
+            ..K8s::default()
         };
 
         let not_started = not_started_supervisor(config, None);

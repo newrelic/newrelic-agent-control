@@ -160,8 +160,7 @@ pub mod tests {
                     ("mock_cr1".to_string(), k8s_object()),
                     ("mock_cr2".to_string(), k8s_object()),
                 ]),
-                health: None,
-                version: Default::default(),
+                ..K8s::default()
             },
         );
 
@@ -211,7 +210,7 @@ pub mod tests {
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: Some(Default::default()),
-            version: Default::default(),
+            ..K8s::default()
         };
 
         let supervisor = not_started_supervisor(config, None);
@@ -236,7 +235,7 @@ pub mod tests {
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: Some(Default::default()),
-            version: Default::default(),
+            ..K8s::default()
         };
 
         let not_started = not_started_supervisor(config, None);
@@ -253,8 +252,7 @@ pub mod tests {
 
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
-            health: None,
-            version: Default::default(),
+            ..K8s::default()
         };
 
         let not_started = not_started_supervisor(config, None);
@@ -277,7 +275,7 @@ pub mod tests {
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: Some(Default::default()),
-            version: Default::default(),
+            ..K8s::default()
         };
 
         let not_started = not_started_supervisor(config.clone(), None);
