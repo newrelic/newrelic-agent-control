@@ -1,8 +1,9 @@
 use std::{
+    convert::identity,
     thread::{JoinHandle, sleep},
     time::Duration,
 };
-use tracing::{debug, trace};
+use tracing::{debug, error, trace};
 
 const GRACEFUL_STOP_RETRY: u16 = 10;
 const GRACEFUL_STOP_RETRY_INTERVAL: Duration = Duration::from_millis(100);
@@ -142,6 +143,31 @@ where
         });
         trace!(thread = self.thread_name, "Joining");
         self.join_thread()
+    }
+}
+
+pub trait ThreadCollectionStopperExt {
+    fn stop(self) -> Result<(), ThreadContextStopperError>;
+}
+
+// Blanket implementation for all structures convertible to iterators of started threads
+// without a meaningful result type
+impl<I> ThreadCollectionStopperExt for I
+where
+    I: IntoIterator<Item = StartedThreadContext<()>>,
+{
+    fn stop(self) -> Result<(), ThreadContextStopperError> {
+        self.into_iter()
+            .map(|ctx| {
+                let thread_name = ctx.thread_name().to_string();
+                ctx.stop_blocking()
+                    .inspect(|_| debug!("Thread {thread_name} stopped"))
+                    .inspect_err(|e| error!("Error stopping thread {thread_name}: {e}"))
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            // Return first err
+            .try_for_each(identity)
     }
 }
 

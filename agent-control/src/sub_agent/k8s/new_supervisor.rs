@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tracing::{debug, info, warn};
+use tracing::{debug, info, info_span, warn};
 
 use crate::{
     event::{SubAgentInternalEvent, channel::EventPublisher},
@@ -9,7 +9,7 @@ use crate::{
         k8s::supervisor::{NotStartedSupervisorK8s, StartedSupervisorK8s},
         supervisor::{Supervisor, SupervisorStarter, starter::SupervisorStarterError},
     },
-    utils::thread_context::ThreadContextStopperError,
+    utils::thread_context::{ThreadCollectionStopperExt, ThreadContextStopperError},
 };
 
 impl SupervisorStarter for NotStartedSupervisorK8s {
@@ -38,6 +38,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
         let Self {
             agent_identity,
             k8s_client,
+            k8s_config,
             ..
         } = self;
 
@@ -46,6 +47,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
             k8s_client,
             sub_agent_internal_publisher,
             agent_identity,
+            k8s_config,
         })
     }
 }
@@ -55,27 +57,42 @@ impl Supervisor for StartedSupervisorK8s {
     type StopError = ThreadContextStopperError;
 
     fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, Self::ApplyError> {
-        // Reuse started supervisor's contents
-        let agent_identity = self.agent_identity.clone();
-        let k8s_client = self.k8s_client.clone();
-        let sub_agent_internal_publisher = self.sub_agent_internal_publisher.clone();
-        let k8s_config = effective_agent
+        let new_k8s_config = effective_agent
             .get_k8s_config()
-            .map_err(|e| SupervisorStarterError::ConfigError(e.to_string()))?
-            .clone();
+            .map_err(|e| SupervisorStarterError::ConfigError(e.to_string()))?;
+
+        if &self.k8s_config == new_k8s_config {
+            // No changes, return same supervisor
+            return Ok(self);
+        }
+
+        // Reuse started supervisor's contents
+        let Self {
+            thread_contexts,
+            agent_identity,
+            k8s_client,
+            sub_agent_internal_publisher,
+            ..
+        } = self;
 
         debug!(
-            agent_id = %self.agent_identity.id,
+            agent_id = %agent_identity.id,
             "Applying new configuration to K8s supervisor"
         );
 
-        if let Err(e) = self.stop_threads() {
+        // Attach the agent id info to the logs emitted by `thread_contexts.stop()`.
+        let span = info_span!("stopping_supervisor", agent_id = %agent_identity.id);
+        let stop_threads_result = span.in_scope(|| thread_contexts.stop());
+        if let Err(e) = stop_threads_result {
             warn!(agent_id = %agent_identity.id, "Errors stopping supervisor threads: {e}");
         }
 
-        // Helper to build dynamic objects from the new config
-        let temp_starter =
-            NotStartedSupervisorK8s::new(agent_identity, k8s_client.clone(), k8s_config);
+        // A new non-started supervisor to build dynamic objects from the new config
+        let temp_starter = NotStartedSupervisorK8s::new(
+            agent_identity,
+            k8s_client.clone(),
+            new_k8s_config.clone(),
+        );
         let resources = temp_starter.build_dynamic_objects()?;
 
         // Apply resources directly
@@ -85,7 +102,8 @@ impl Supervisor for StartedSupervisorK8s {
     }
 
     fn stop(self) -> Result<(), Self::StopError> {
-        self.stop_threads()
+        let span = info_span!("stopping_supervisor", agent_id = %self.agent_identity.id);
+        span.in_scope(|| self.thread_contexts.stop())
     }
 }
 
