@@ -1,9 +1,8 @@
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use crate::on_host::tools::{
-    oci_artifact::push_artifact, oci_package_manager::new_testing_oci_package_manager,
+    oci_artifact::push_agent_package, oci_package_manager::new_testing_oci_package_manager,
 };
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_type::runtime_config::on_host::package::PackageType::Tar;
 use newrelic_agent_control::package::manager::{PackageData, PackageManager};
 use newrelic_agent_control::package::oci::package_manager::get_package_path;
 use tempfile::tempdir;
@@ -12,7 +11,7 @@ use tempfile::tempdir;
 const REGISTRY_URL: &str = "localhost:5001";
 
 #[test]
-#[ignore = "needs oci registry, needs elevated privileges on Windows"]
+#[ignore = "needs oci registry (use *with_oci_registry suffix), needs elevated privileges on Windows"]
 fn test_install_and_uninstall_with_oci_registry() {
     let dir = tempdir().unwrap();
     let tmp_dir_to_compress = tempdir().unwrap();
@@ -20,7 +19,7 @@ fn test_install_and_uninstall_with_oci_registry() {
 
     TestDataHelper::compress_tar_gz(tmp_dir_to_compress.path(), file_to_push.as_path());
 
-    let (_artifact_digest, reference) = push_artifact(&file_to_push, REGISTRY_URL);
+    let (_artifact_digest, reference) = push_agent_package(&file_to_push, REGISTRY_URL);
 
     let temp_dir = tempdir().unwrap();
     let base_path = temp_dir.path().to_path_buf();
@@ -33,7 +32,6 @@ fn test_install_and_uninstall_with_oci_registry() {
     // Install
     let package_data = PackageData {
         id: pkg_id.clone(),
-        package_type: Tar,
         oci_reference: reference.clone(),
     };
     let installed_package_result = package_manager.install(&agent_id, package_data);
@@ -59,6 +57,7 @@ fn test_install_and_uninstall_with_oci_registry() {
         .unwrap();
     assert!(!installation_path.exists());
 }
+
 #[test]
 #[ignore = "needs oci registry, needs elevated privileges on Windows"]
 fn test_install_skips_download_if_exists_with_oci_registry() {
@@ -72,7 +71,7 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
 
     TestDataHelper::compress_tar_gz(content_dir.path(), file_to_push.as_path());
 
-    let (_artifact_digest, reference) = push_artifact(&file_to_push, REGISTRY_URL);
+    let (_artifact_digest, reference) = push_agent_package(&file_to_push, REGISTRY_URL);
 
     let temp_dir = tempdir().unwrap();
     let base_path = temp_dir.path().to_path_buf();
@@ -83,7 +82,6 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
 
     let package_data = PackageData {
         id: pkg_id.to_string(),
-        package_type: Tar,
         oci_reference: reference.clone(),
     };
 

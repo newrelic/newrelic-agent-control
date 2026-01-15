@@ -1,6 +1,5 @@
 //! This module manages package operations such as installation, removal, and updates.
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_type::runtime_config::on_host::package::PackageType;
 use crate::package::oci::package_manager::OCIPackageManagerError;
 use oci_client::Reference;
 use std::path::PathBuf;
@@ -9,7 +8,6 @@ use std::path::PathBuf;
 #[derive(Debug, Clone)]
 pub struct PackageData {
     pub id: String, // same type as the packages map on an agent type definition
-    pub package_type: PackageType,
     pub oci_reference: Reference,
 }
 

@@ -1,22 +1,23 @@
-use super::downloader::{OCIDownloader, OCIDownloaderError};
+use super::downloader::{OCIAgentDownloader, OCIDownloaderError};
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::PACKAGES_FOLDER_NAME;
 use crate::agent_type::runtime_config::on_host::package::PackageID;
 use crate::package::manager::{InstalledPackageData, PackageData, PackageManager};
-use crate::package::oci::downloader::OCIRefDownloader;
+use crate::package::oci::artifact_definitions::LocalAgentPackage;
+use crate::package::oci::downloader::OCIArtifactDownloader;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use oci_client::Reference;
 use std::io;
 use std::path::{Component, Path, PathBuf};
 use thiserror::Error;
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 
-pub type DefaultOCIPackageManager = OCIPackageManager<OCIRefDownloader, DirectoryManagerFs>;
+pub type DefaultOCIPackageManager = OCIPackageManager<OCIArtifactDownloader, DirectoryManagerFs>;
 
 // This is expected to be thread-safe
 pub struct OCIPackageManager<D, DM>
 where
-    D: OCIDownloader,
+    D: OCIAgentDownloader,
     DM: DirectoryManager,
 {
     downloader: D,
@@ -44,7 +45,7 @@ const INSTALLED_PCK_LOCATION: &str = "stored_packages";
 
 impl<D, DM> OCIPackageManager<D, DM>
 where
-    D: OCIDownloader,
+    D: OCIAgentDownloader,
     DM: DirectoryManager,
 {
     pub fn new(downloader: D, directory_manager: DM, remote_dir: PathBuf) -> Self {
@@ -55,81 +56,58 @@ where
         }
     }
 
-    /// Validates that the provided vector of paths contains exactly one path (i.e. a single file was downloaded
-    /// from the [`OCIDownloader`]) and retrieves its [`PathBuf`], otherwise fails.
-    fn try_get_unique_path(paths: Vec<PathBuf>) -> Result<PathBuf, OCIPackageManagerError> {
-        if paths.len() != 1 {
-            let paths_len = paths.len();
-            Err(OCIPackageManagerError::Install(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("expected a single file in the OCI artifact, found {paths_len} files",),
-            )))
-        } else {
-            Ok(paths
-                .into_iter()
-                .next()
-                .expect("checked vector for length above >= 1"))
-        }
-    }
-
     /// Downloads and installs the OCI package specified in `package_data`.
     /// The package is first downloaded to `temp_package_path` and then extracted to `package_path`.
     fn install_archive(
         &self,
         package_data: &PackageData,
-        temp_package_path: &Path,
-        package_path: &PathBuf,
+        tmp_download_path: &Path,
+        install_path: &Path,
     ) -> Result<InstalledPackageData, OCIPackageManagerError> {
         self.directory_manager
-            .create(temp_package_path)
+            .create(tmp_download_path)
             .map_err(OCIPackageManagerError::Install)?;
 
-        let downloaded_packages = self
+        let downloaded_package = self
             .downloader
-            .download(&package_data.oci_reference, temp_package_path)
+            .download(&package_data.oci_reference, tmp_download_path)
             .map_err(OCIPackageManagerError::Download)?;
 
-        let downloaded_package = Self::try_get_unique_path(downloaded_packages)?;
-
-        let installed_package = self
-            .extract_archive(package_data, &downloaded_package, package_path)
+        self.extract_package(&downloaded_package, install_path)
             .inspect_err(|e| warn!("OCI package installation failed: {}", e))?;
 
-        debug!("OCI package installed at {}", installed_package.display());
+        debug!("OCI package installed at {}", install_path.display());
         Ok(InstalledPackageData {
             id: package_data.id.clone(),
-            installation_path: installed_package,
+            installation_path: install_path.to_path_buf(),
         })
     }
 
     /// Extract the downloaded package file from `download_filepath` to `extract_dir`.
     /// if the extraction is successful, returns the `extract_dir` path.
     /// otherwise if deletes the `extract_dir` and returns an error.
-    fn extract_archive(
+    fn extract_package(
         &self,
-        package_data: &PackageData,
-        downloaded_filepath: &PathBuf,
-        extract_dir: &PathBuf,
-    ) -> Result<PathBuf, OCIPackageManagerError> {
+        package: &LocalAgentPackage,
+        extract_dir: &Path,
+    ) -> Result<(), OCIPackageManagerError> {
         // Build and create destination directory
         self.directory_manager
             .create(extract_dir)
             .map_err(OCIPackageManagerError::Install)?;
 
-        package_data
-            .package_type
-            .extract(downloaded_filepath.as_ref(), extract_dir.as_ref())
-            .map_err(|e| {
-                warn!("Package extraction failed: {e}");
-                _ = self.directory_manager.delete(extract_dir);
-                OCIPackageManagerError::Extraction(e.to_string())
-            })?;
+        package.extract(extract_dir).map_err(|e| {
+            _ = self.directory_manager.delete(extract_dir).inspect_err(|e| {
+                error!("Failed to delete extraction directory after extraction failure: {e}")
+            });
+            OCIPackageManagerError::Extraction(e.to_string())
+        })?;
 
         debug!(
             "Package extraction succeeded. Written to {}",
             extract_dir.display()
         );
-        Ok(extract_dir.clone())
+        Ok(())
     }
 }
 
@@ -203,7 +181,7 @@ fn compute_path_suffix(package: &Reference) -> Result<PathBuf, OCIPackageManager
 
 impl<D, DM> PackageManager for OCIPackageManager<D, DM>
 where
-    D: OCIDownloader,
+    D: OCIAgentDownloader,
     DM: DirectoryManager,
 {
     /// Installs the given OCI package for the specified agent.
@@ -272,9 +250,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_type::runtime_config::on_host::package::PackageType;
-    use crate::package::extract::tests::TestDataHelper;
     use crate::package::oci::downloader::tests::MockOCIDownloader;
+    use crate::utils::extract::tests::TestDataHelper;
     use fs::directory_manager::mock::MockDirectoryManager;
     use mockall::predicate::eq;
     use oci_spec::distribution::Reference;
@@ -315,7 +292,7 @@ mod tests {
                     downloaded_file.as_path(),
                 );
 
-                Ok(vec![downloaded_file.clone()])
+                Ok(LocalAgentPackage::new(downloaded_file))
             });
 
         let pm = OCIPackageManager {
@@ -325,7 +302,6 @@ mod tests {
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
-            package_type: PackageType::Tar,
             oci_reference: test_reference(),
         };
         let installed = pm.install(&agent_id, package_data).unwrap();
@@ -361,7 +337,7 @@ mod tests {
                 let tmp_dir_to_compress = tempdir().unwrap();
                 TestDataHelper::compress_zip(tmp_dir_to_compress.path(), downloaded_file.as_path());
 
-                Ok(vec![downloaded_file.clone()])
+                Ok(LocalAgentPackage::new(downloaded_file))
             });
 
         let pm = OCIPackageManager {
@@ -372,7 +348,6 @@ mod tests {
 
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
-            package_type: PackageType::Tar,
             oci_reference: test_reference(),
         };
         let err = pm.install(&agent_id, package_data).unwrap_err();
@@ -416,7 +391,6 @@ mod tests {
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
-            package_type: PackageType::Tar,
             oci_reference: test_reference(),
         };
         let result = pm.install(&agent_id, package_data);
@@ -471,120 +445,11 @@ mod tests {
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
-            package_type: PackageType::Tar,
             oci_reference: test_reference(),
         };
         let result = pm.install(&agent_id, package_data);
 
         assert!(matches!(result, Err(OCIPackageManagerError::Download(_))));
-    }
-
-    #[test]
-    fn test_install_invalid_download_no_files() {
-        let mut downloader = MockOCIDownloader::new();
-        let mut directory_manager = MockDirectoryManager::new();
-
-        let agent_id = AgentID::try_from("agent-id").unwrap();
-
-        let temp_dir = tempdir().unwrap();
-        let remote_dir = temp_dir.path().to_path_buf();
-
-        let download_dir = get_temp_package_path(
-            &remote_dir,
-            &agent_id,
-            &TEST_PACKAGE_ID.to_string(),
-            &test_reference(),
-        )
-        .unwrap();
-
-        directory_manager
-            .expect_create()
-            .with(eq(download_dir.clone()))
-            .once()
-            .returning(|_| Ok(()));
-
-        directory_manager
-            .expect_delete()
-            .with(eq(download_dir.clone()))
-            .once()
-            .returning(|_| Ok(()));
-
-        downloader
-            .expect_download()
-            .with(eq(test_reference()), eq(download_dir))
-            .once()
-            .returning(|_, _| Ok(vec![])); // Empty vector
-
-        let pm = OCIPackageManager {
-            downloader,
-            directory_manager,
-            remote_dir,
-        };
-        let package_data = PackageData {
-            id: TEST_PACKAGE_ID.to_string(),
-            package_type: PackageType::Tar,
-            oci_reference: test_reference(),
-        };
-        let result = pm.install(&agent_id, package_data);
-
-        assert!(matches!(
-            result,
-            Err(OCIPackageManagerError::Install(e)) if e.kind() == io::ErrorKind::InvalidData
-        ));
-    }
-
-    #[test]
-    fn test_install_invalid_download_multiple_files() {
-        let mut downloader = MockOCIDownloader::new();
-        let mut directory_manager = MockDirectoryManager::new();
-
-        let agent_id = AgentID::try_from("agent-id").unwrap();
-
-        let temp_dir = tempdir().unwrap();
-        let remote_dir = temp_dir.path().to_path_buf();
-
-        let download_dir = get_temp_package_path(
-            &remote_dir,
-            &agent_id,
-            &TEST_PACKAGE_ID.to_string(),
-            &test_reference(),
-        )
-        .unwrap();
-
-        directory_manager
-            .expect_create()
-            .with(eq(download_dir.clone()))
-            .once()
-            .returning(|_| Ok(()));
-
-        directory_manager
-            .expect_delete()
-            .with(eq(download_dir.clone()))
-            .once()
-            .returning(|_| Ok(()));
-
-        downloader
-            .expect_download()
-            .with(eq(test_reference()), eq(download_dir))
-            .once()
-            .returning(|_, _| Ok(vec![PathBuf::from("file1"), PathBuf::from("file2")]));
-
-        let pm = OCIPackageManager {
-            downloader,
-            directory_manager,
-            remote_dir,
-        };
-        let package_data = PackageData {
-            id: TEST_PACKAGE_ID.to_string(),
-            package_type: PackageType::Tar,
-            oci_reference: test_reference(),
-        };
-        let result = pm.install(&agent_id, package_data);
-
-        assert!(matches!(
-            result,
-            Err(OCIPackageManagerError::Install(e)) if e.kind() == io::ErrorKind::InvalidData
-        ));
     }
 
     #[test]
@@ -624,7 +489,7 @@ mod tests {
             .expect_download()
             .with(eq(test_reference()), eq(download_dir.clone()))
             .once()
-            .returning(move |_, _| Ok(vec![downloaded_file.clone()]));
+            .returning(move |_, _| Ok(LocalAgentPackage::new(downloaded_file.clone())));
 
         directory_manager
             .expect_create()
@@ -645,7 +510,6 @@ mod tests {
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
-            package_type: PackageType::Tar,
             oci_reference: test_reference(),
         };
         let result = pm.install(&agent_id, package_data);
@@ -706,7 +570,7 @@ mod tests {
                     downloaded_file.as_path(),
                 );
 
-                Ok(vec![downloaded_file.clone()])
+                Ok(LocalAgentPackage::new(downloaded_file))
             });
 
         directory_manager
@@ -722,7 +586,6 @@ mod tests {
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
-            package_type: PackageType::Tar,
             oci_reference: test_reference(),
         };
         let result = pm.install(&agent_id, package_data);
@@ -811,14 +674,10 @@ mod tests {
 
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
-            package_type: PackageType::Tar,
             oci_reference: test_reference(),
         };
 
-        let result = pm.install(&agent_id, package_data);
-
-        assert!(result.is_ok());
-        let installed = result.unwrap();
+        let installed = pm.install(&agent_id, package_data).unwrap();
 
         assert_eq!(installed.installation_path, install_dir);
         assert_eq!(installed.id, TEST_PACKAGE_ID);
