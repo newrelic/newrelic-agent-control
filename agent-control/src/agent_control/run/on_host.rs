@@ -4,7 +4,7 @@ use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE, PACKAGES_FOLDER_NAME,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
@@ -172,7 +172,7 @@ impl AgentControlRunner {
         let package_manager = OCIPackageManager::new(
             packages_downloader,
             DirectoryManagerFs,
-            self.base_paths.remote_dir.join(PACKAGES_FOLDER_NAME),
+            self.base_paths.remote_dir,
         );
 
         let supervisor_builder = SupervisorBuilderOnHost {

@@ -12,12 +12,11 @@ use super::{
 };
 
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::PACKAGES_FOLDER_NAME;
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::namespace::Namespace;
-use crate::package::oci::package_manager::{compute_path_suffix, get_package_path};
+use crate::package::oci::package_manager::get_package_path;
 use crate::{agent_type::variable::tree::VarTree, values::yaml_config::YAMLConfig};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -194,20 +193,14 @@ pub fn include_packages_variables(
         .map_err(|e| AgentTypeError::RenderingTemplate(format!("Invalid sub-agent ID: {}", e)))?;
 
     for (package_id, package) in packages {
-        let attribute_name = compute_path_suffix(&package.download.oci.reference).map_err(|e| {
-            AgentTypeError::RenderingTemplate(format!(
-                "Invalid OCI reference for package {}: {}",
-                package_id, e
-            ))
-        })?;
-
-        let path = get_package_path(
-            Path::new(remote_dir).join(PACKAGES_FOLDER_NAME).as_path(),
-            &agent_id,
-            package_id,
-            &attribute_name,
-        );
-
+        let oci_ref = &package.download.oci.reference;
+        let path = get_package_path(Path::new(remote_dir), &agent_id, package_id, oci_ref)
+            .map_err(|e| {
+                AgentTypeError::RenderingTemplate(format!(
+                    "Invalid OCI reference for package {}: {}",
+                    package_id, e
+                ))
+            })?;
         debug!(package_id = %package_id, path = %path.display(), "Setting reserved variable for package directory");
 
         variables.insert(

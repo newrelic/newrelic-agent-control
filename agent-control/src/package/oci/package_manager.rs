@@ -1,5 +1,7 @@
 use super::downloader::{OCIDownloader, OCIDownloaderError};
 use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::defaults::PACKAGES_FOLDER_NAME;
+use crate::agent_type::runtime_config::on_host::package::PackageID;
 use crate::package::manager::{InstalledPackageData, PackageData, PackageManager};
 use crate::package::oci::downloader::OCIRefDownloader;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
@@ -19,7 +21,7 @@ where
 {
     downloader: D,
     directory_manager: DM,
-    base_path: PathBuf, // this would be the `package` directory
+    remote_dir: PathBuf,
 }
 
 #[derive(Debug, Error)]
@@ -37,19 +39,19 @@ pub enum OCIPackageManagerError {
     NotNormalSuffix(String),
 }
 
-const TEMP_DOWNLOADED_PACKAGES_LOCATION: &str = "__temp_packages";
-const INSTALLED_PACKAGES_LOCATION: &str = "stored_packages";
+const TEMP_PCK_LOCATION: &str = "__temp_packages";
+const INSTALLED_PCK_LOCATION: &str = "stored_packages";
 
 impl<D, DM> OCIPackageManager<D, DM>
 where
     D: OCIDownloader,
     DM: DirectoryManager,
 {
-    pub fn new(downloader: D, directory_manager: DM, base_path: PathBuf) -> Self {
+    pub fn new(downloader: D, directory_manager: DM, remote_dir: PathBuf) -> Self {
         Self {
             downloader,
             directory_manager,
-            base_path,
+            remote_dir,
         }
     }
 
@@ -134,27 +136,34 @@ where
 pub fn get_package_path(
     base_path: &Path,
     agent_id: &AgentID,
-    package_id: &str,
-    artifact_name: &PathBuf,
-) -> PathBuf {
-    base_path
-        .join(agent_id)
-        .join(INSTALLED_PACKAGES_LOCATION)
-        .join(package_id)
-        .join(artifact_name)
+    pck_id: &PackageID,
+    pck_ref: &Reference,
+) -> Result<PathBuf, OCIPackageManagerError> {
+    get_generic_package_path(base_path, agent_id, INSTALLED_PCK_LOCATION, pck_id, pck_ref)
 }
 
 fn get_temp_package_path(
     base_path: &Path,
     agent_id: &AgentID,
-    package_id: &str,
-    artifact_name: &PathBuf,
-) -> PathBuf {
-    base_path
+    pck_id: &PackageID,
+    pck_ref: &Reference,
+) -> Result<PathBuf, OCIPackageManagerError> {
+    get_generic_package_path(base_path, agent_id, TEMP_PCK_LOCATION, pck_id, pck_ref)
+}
+
+fn get_generic_package_path(
+    base_path: &Path,
+    agent_id: &AgentID,
+    location: &str,
+    package_id: &PackageID,
+    package_reference: &Reference,
+) -> Result<PathBuf, OCIPackageManagerError> {
+    Ok(base_path
+        .join(PACKAGES_FOLDER_NAME)
         .join(agent_id)
-        .join(TEMP_DOWNLOADED_PACKAGES_LOCATION)
+        .join(location)
         .join(package_id)
-        .join(artifact_name)
+        .join(compute_path_suffix(package_reference)?))
 }
 
 /// Computes the download destination of a package [`Reference`] depending on the available fields.
@@ -167,7 +176,7 @@ fn get_temp_package_path(
 ///    to prevent the filename from being exactly "." or "..".
 /// 2. Replaces directory separators (`/`, `\`) with `__`.
 /// 3. Replaces any other character that is not alphanumeric, `.`, `-`, `_`, `@`, etc with `_`.
-pub fn compute_path_suffix(package: &Reference) -> Result<PathBuf, OCIPackageManagerError> {
+fn compute_path_suffix(package: &Reference) -> Result<PathBuf, OCIPackageManagerError> {
     let package_full_reference = package.whole();
     let mut safe_name = String::with_capacity(package_full_reference.len() + 4);
     safe_name.push_str("oci_");
@@ -210,10 +219,18 @@ where
         package_data: PackageData,
     ) -> Result<InstalledPackageData, OCIPackageManagerError> {
         // Using the whole reference (including tag/digest if available) with special chars replaces as the download path suffix (see function doc for details)
-        let oci_ref = compute_path_suffix(&package_data.oci_reference)?;
-        let package_path = get_package_path(&self.base_path, agent_id, &package_data.id, &oci_ref);
-        let temp_package_path =
-            get_temp_package_path(&self.base_path, agent_id, &package_data.id, &oci_ref);
+        let package_path = get_package_path(
+            &self.remote_dir,
+            agent_id,
+            &package_data.id,
+            &package_data.oci_reference,
+        )?;
+        let temp_package_path = get_temp_package_path(
+            &self.remote_dir,
+            agent_id,
+            &package_data.id,
+            &package_data.oci_reference,
+        )?;
 
         // If we face an error during installation, we must ensure the temporary directory is deleted.
         // We hide the error of the folder if something else went wrong.
@@ -257,10 +274,6 @@ mod tests {
         Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap()
     }
 
-    fn test_artifact_name() -> PathBuf {
-        compute_path_suffix(&test_reference()).unwrap()
-    }
-
     #[test]
     fn test_install_success() {
         let mut downloader = MockOCIDownloader::new();
@@ -270,9 +283,10 @@ mod tests {
         let download_dir = get_temp_package_path(
             root_dir.path(),
             &agent_id,
-            TEST_PACKAGE_ID,
-            &test_artifact_name(),
-        );
+            &TEST_PACKAGE_ID.to_string(),
+            &test_reference(),
+        )
+        .unwrap();
 
         downloader
             .expect_download()
@@ -294,7 +308,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager: DirectoryManagerFs {},
-            base_path: PathBuf::from(root_dir.path()),
+            remote_dir: PathBuf::from(root_dir.path()),
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
@@ -305,7 +319,7 @@ mod tests {
 
         TestDataHelper::test_data_uncompressed(installed.installation_path.as_path());
 
-        assert_eq!(installed.id, TEST_PACKAGE_ID);
+        assert_eq!(installed.id, TEST_PACKAGE_ID.to_string());
     }
 
     #[test]
@@ -318,9 +332,10 @@ mod tests {
         let download_dir = get_temp_package_path(
             root_dir.path(),
             &agent_id,
-            TEST_PACKAGE_ID,
-            &test_artifact_name(),
-        );
+            &TEST_PACKAGE_ID.to_string(),
+            &test_reference(),
+        )
+        .unwrap();
 
         downloader
             .expect_download()
@@ -339,7 +354,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager: DirectoryManagerFs {},
-            base_path: PathBuf::from(root_dir.path()),
+            remote_dir: PathBuf::from(root_dir.path()),
         };
 
         let package_data = PackageData {
@@ -358,8 +373,13 @@ mod tests {
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let root_dir = PathBuf::from("/tmp/base");
-        let download_dir =
-            get_temp_package_path(&root_dir, &agent_id, TEST_PACKAGE_ID, &test_artifact_name());
+        let download_dir = get_temp_package_path(
+            &root_dir,
+            &agent_id,
+            &TEST_PACKAGE_ID.to_string(),
+            &test_reference(),
+        )
+        .unwrap();
 
         directory_manager
             .expect_create()
@@ -376,7 +396,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager,
-            base_path: PathBuf::from("/tmp/base"),
+            remote_dir: PathBuf::from("/tmp/base"),
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
@@ -395,8 +415,13 @@ mod tests {
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let root_dir = PathBuf::from("/tmp/base");
-        let download_dir =
-            get_temp_package_path(&root_dir, &agent_id, TEST_PACKAGE_ID, &test_artifact_name());
+        let download_dir = get_temp_package_path(
+            &root_dir,
+            &agent_id,
+            &TEST_PACKAGE_ID.to_string(),
+            &test_reference(),
+        )
+        .unwrap();
 
         directory_manager
             .expect_create()
@@ -423,7 +448,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager,
-            base_path: PathBuf::from("/tmp/base"),
+            remote_dir: PathBuf::from("/tmp/base"),
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
@@ -442,8 +467,13 @@ mod tests {
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let root_dir = PathBuf::from("/tmp/base");
-        let download_dir =
-            get_temp_package_path(&root_dir, &agent_id, TEST_PACKAGE_ID, &test_artifact_name());
+        let download_dir = get_temp_package_path(
+            &root_dir,
+            &agent_id,
+            &TEST_PACKAGE_ID.to_string(),
+            &test_reference(),
+        )
+        .unwrap();
 
         directory_manager
             .expect_create()
@@ -466,7 +496,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager,
-            base_path: PathBuf::from("/tmp/base"),
+            remote_dir: PathBuf::from("/tmp/base"),
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
@@ -488,8 +518,13 @@ mod tests {
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let root_dir = PathBuf::from("/tmp/base");
-        let download_dir =
-            get_temp_package_path(&root_dir, &agent_id, TEST_PACKAGE_ID, &test_artifact_name());
+        let download_dir = get_temp_package_path(
+            &root_dir,
+            &agent_id,
+            &TEST_PACKAGE_ID.to_string(),
+            &test_reference(),
+        )
+        .unwrap();
 
         directory_manager
             .expect_create()
@@ -512,7 +547,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager,
-            base_path: PathBuf::from("/tmp/base"),
+            remote_dir: PathBuf::from("/tmp/base"),
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
@@ -534,12 +569,22 @@ mod tests {
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let root_dir = PathBuf::from("/tmp/base");
-        let download_dir =
-            get_temp_package_path(&root_dir, &agent_id, TEST_PACKAGE_ID, &test_artifact_name());
+        let download_dir = get_temp_package_path(
+            &root_dir,
+            &agent_id,
+            &TEST_PACKAGE_ID.to_string(),
+            &test_reference(),
+        )
+        .unwrap();
 
         let downloaded_file = download_dir.join("layer_digest.tar.gz");
-        let install_dir =
-            get_package_path(&root_dir, &agent_id, TEST_PACKAGE_ID, &test_artifact_name());
+        let install_dir = get_package_path(
+            &root_dir,
+            &agent_id,
+            &TEST_PACKAGE_ID.to_string(),
+            &test_reference(),
+        )
+        .unwrap();
 
         directory_manager
             .expect_create()
@@ -568,7 +613,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager,
-            base_path: PathBuf::from("/tmp/base"),
+            remote_dir: PathBuf::from("/tmp/base"),
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
@@ -587,11 +632,21 @@ mod tests {
 
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let root_dir = PathBuf::from("/tmp/base");
-        let download_dir =
-            get_temp_package_path(&root_dir, &agent_id, TEST_PACKAGE_ID, &test_artifact_name());
+        let download_dir = get_temp_package_path(
+            &root_dir,
+            &agent_id,
+            &TEST_PACKAGE_ID.to_string(),
+            &test_reference(),
+        )
+        .unwrap();
 
-        let install_dir =
-            get_package_path(&root_dir, &agent_id, TEST_PACKAGE_ID, &test_artifact_name());
+        let install_dir = get_package_path(
+            &root_dir,
+            &agent_id,
+            &TEST_PACKAGE_ID.to_string(),
+            &test_reference(),
+        )
+        .unwrap();
 
         directory_manager
             .expect_create()
@@ -632,7 +687,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager,
-            base_path: PathBuf::from("/tmp/base"),
+            remote_dir: PathBuf::from("/tmp/base"),
         };
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
@@ -661,7 +716,7 @@ mod tests {
         let pm = OCIPackageManager {
             downloader,
             directory_manager,
-            base_path: PathBuf::from("/tmp/base"),
+            remote_dir: PathBuf::from("/tmp/base"),
         };
         let installed_package = InstalledPackageData {
             id: TEST_PACKAGE_ID.to_string(),
