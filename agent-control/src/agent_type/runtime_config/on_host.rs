@@ -160,7 +160,6 @@ mod tests {
         );
 
         let pkg = Package {
-            package_type: TemplateableValue::from_template("tar.gz".to_string()),
             download: Download {
                 oci: Oci {
                     registry: TemplateableValue::from_template("${nr-var:registry}".to_string()),
