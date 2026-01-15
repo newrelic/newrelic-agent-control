@@ -1,5 +1,6 @@
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
+use crate::agent_type::guid_config::{GuidCheckerInitialDelay, GuidCheckerInterval};
 use crate::agent_type::templates::Templateable;
 use crate::agent_type::version_config::{VersionCheckerInitialDelay, VersionCheckerInterval};
 use crate::checkers::health::health_checker::{HealthCheckInterval, InitialDelay};
@@ -15,6 +16,8 @@ pub struct K8s {
     pub health: Option<K8sHealthConfig>,
     #[serde(default)]
     pub version: K8sVersionConfig,
+    #[serde(default)]
+    pub guid_checker: K8sGuidCheckerConfig,
 }
 
 /// A K8s object, usually a CR, to be managed by the agent-control.
@@ -49,6 +52,7 @@ impl Templateable for K8s {
                 .collect::<Result<HashMap<String, K8sObject>, AgentTypeError>>()?,
             health: self.health,
             version: self.version,
+            guid_checker: self.guid_checker,
         })
     }
 }
@@ -99,6 +103,16 @@ pub struct K8sVersionConfig {
     /// The initial delay before the first health check is performed.
     #[serde(default)]
     pub(crate) initial_delay: VersionCheckerInitialDelay,
+}
+
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct K8sGuidCheckerConfig {
+    /// The duration to wait between health checks.
+    #[serde(default)]
+    pub(crate) interval: GuidCheckerInterval,
+    /// The initial delay before the first health check is performed.
+    #[serde(default)]
+    pub(crate) initial_delay: GuidCheckerInitialDelay,
 }
 
 #[cfg(test)]

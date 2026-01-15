@@ -330,8 +330,7 @@ pub mod tests {
         objects.insert("sample_object".to_string(), k8s_object);
         K8s {
             objects,
-            health: None,
-            version: Default::default(),
+            ..K8s::default()
         }
     }
 

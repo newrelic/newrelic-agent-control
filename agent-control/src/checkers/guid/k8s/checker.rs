@@ -1,5 +1,5 @@
 use crate::agent_control::config::instrumentation_v1beta3_type_meta;
-use crate::agent_type::version_config::{VersionCheckerInitialDelay, VersionCheckerInterval};
+use crate::agent_type::guid_config::{GuidCheckerInitialDelay, GuidCheckerInterval};
 use crate::checkers::guid::k8s::resources::instrumentation::K8sGuidInstrumentation;
 use crate::checkers::guid::{EntityGuid, GuidCheckError, GuidChecker};
 use crate::event::cancellation::CancellationMessage;
@@ -67,8 +67,8 @@ pub(crate) fn spawn_guid_checker<S, T, F>(
     guid_checker: S,
     guid_event_publisher: EventPublisher<T>,
     guid_event_generator: F,
-    interval: VersionCheckerInterval,
-    initial_delay: VersionCheckerInitialDelay,
+    interval: GuidCheckerInterval,
+    initial_delay: GuidCheckerInitialDelay,
 ) -> StartedThreadContext
 where
     S: GuidChecker + Send + Sync + 'static,

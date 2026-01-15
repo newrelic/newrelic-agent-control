@@ -134,8 +134,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
                     .unwrap(),
                 ),
             ]),
-            health: None,
-            version: Default::default(),
+            ..K8s::default()
         },
     );
 
