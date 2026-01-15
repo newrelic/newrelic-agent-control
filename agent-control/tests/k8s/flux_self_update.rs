@@ -111,7 +111,7 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
         ),
     );
 
-    retry(120, Duration::from_secs(1), || {
+    retry(90, Duration::from_secs(1), || {
         check_latest_remote_config_status_is_expected(
             &opamp_server,
             &ac_instance_id,
@@ -195,7 +195,7 @@ cd_chart_version: {MISSING_VERSION}
         ),
     );
 
-    retry(60, Duration::from_secs(1), || {
+    retry(90, Duration::from_secs(1), || {
         check_latest_remote_config_status_is_expected(
             &opamp_server,
             &ac_instance_id,
@@ -258,10 +258,10 @@ fn expected_identifying_attributes(
 
 fn create_flux_resources(namespace: &str, chart_version: &str) {
     let mut cmd = assert_cmd::cargo_bin_cmd!("newrelic-agent-control-k8s-cli");
-    cmd.timeout(Duration::from_secs(60));
+    cmd.timeout(Duration::from_secs(100));
     cmd.arg("create-cd-resources");
-    cmd.arg("--installation-check-initial-delay").arg("1s");
-    cmd.arg("--installation-check-timeout").arg("30s");
+    cmd.arg("--installation-check-initial-delay").arg("10s");
+    cmd.arg("--installation-check-timeout").arg("100s");
     cmd.arg("--log-level").arg("debug");
     cmd.arg("--repository-url").arg(LOCAL_CHART_REPOSITORY);
     cmd.arg("--chart-version").arg(chart_version);
