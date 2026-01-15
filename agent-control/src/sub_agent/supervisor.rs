@@ -132,7 +132,6 @@ pub trait SupervisorStarter {
 ///
 /// # Type Parameters
 ///
-/// * `ApplyError` - The error type returned when applying configuration changes fails
 /// * `StopError` - The error type returned when stopping fails
 pub trait Supervisor: Sized {
     type StopError: Error;
@@ -207,10 +206,9 @@ pub(crate) mod tests {
         pub Supervisor {}
 
         impl Supervisor for Supervisor {
-            type ApplyError = TestingSupervisorError;
             type StopError = TestingSupervisorError;
 
-            fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, TestingSupervisorError>;
+            fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, ApplyError<Self>>;
 
             fn stop(self) -> Result<(), TestingSupervisorError>;
         }
