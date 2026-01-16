@@ -36,7 +36,7 @@ jobs:
   on-host-linux-e2e:
     name: OnHost Linux E2E tests
     needs: [build-packages]
-    runs-on: ubuntu-24.04
+    runs-on: linux-4-core-nr-control
     strategy:
       fail-fast: false
       matrix:

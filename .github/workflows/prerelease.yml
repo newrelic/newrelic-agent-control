@@ -44,7 +44,7 @@ jobs:
     secrets: inherit
 
   upload:
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     name: Upload to S3
     needs: [ build-packages ]
     steps:

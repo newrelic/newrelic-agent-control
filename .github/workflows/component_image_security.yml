@@ -19,7 +19,7 @@ jobs:
     name: Scan image
     # Runs only when the trigger is different than a scheduled one, like pull request or push.
     if: ${{ ! github.event.schedule }}
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     steps:
       - name: Run Trivy in table mode
         # Table output is only useful when running on a pull request or push.
@@ -37,7 +37,7 @@ jobs:
   scan-scheduled:
     name: Scan image
     if: ${{ github.event.schedule }}
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     steps:
       - name: Run Trivy in report mode
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1

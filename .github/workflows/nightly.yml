@@ -49,7 +49,7 @@ jobs:
 
   # This is currently required for canaries
   upload-packages-s3:
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     needs: [ build-packages ]
     name: Upload packages to testing bucket
     steps:

@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   upload:
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     name: Upload to S3
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
@@ -100,7 +100,7 @@ jobs:
           apt_skip_mirror: false
   
   push-container-tags:
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     name: Push container release tags
     env:
       DOCKER_IMAGE_NAME_AGENT_CONTROL: newrelic/newrelic-agent-control

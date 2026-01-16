@@ -39,7 +39,7 @@ jobs:
   # in the test/k8s-e2e/Readme.md
   k8s-e2e-tests:
     name: K8s e2e tests ${{ matrix.group }}
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     strategy:
       fail-fast: false
       matrix:
@@ -102,7 +102,7 @@ jobs:
   k8s-e2e-tests-check: # The job is useful to notify the failure
     name: K8s e2e tests
     if: always() # cannot be skipped even if required steps fail
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     needs: [ k8s-e2e-tests ]
     steps:
       - name: Check if needed jobs succeeded

@@ -11,7 +11,7 @@ on:
 
 jobs:
   puppet-install:
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
 
     steps:
       - name: Checkout repository

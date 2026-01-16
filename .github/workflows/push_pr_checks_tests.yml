@@ -17,7 +17,7 @@ concurrency:
 jobs:
   codespell:
     name: codespell
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
@@ -26,7 +26,7 @@ jobs:
 
   cargo-fmt:
     name: cargo fmt
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -42,7 +42,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [linux-4-core-nr-control, windows-latest]
     permissions:
       contents: read
       checks: write
@@ -67,7 +67,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [linux-4-core-nr-control, windows-latest]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -80,7 +80,7 @@ jobs:
 
   third-party-notices-check:
     name: ⚖️ Check third party licenses
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -98,7 +98,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [linux-4-core-nr-control, windows-latest]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -110,7 +110,7 @@ jobs:
 
   coverage:
     name: ubuntu / stable / coverage
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -161,7 +161,7 @@ jobs:
 
   generate-release-build:
     name: "Build release binaries"
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -196,11 +196,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [linux-4-core-nr-control, windows-latest]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
-      - if: ${{ matrix.os == 'ubuntu-latest' }}
+      - if: ${{ matrix.os == 'linux-4-core-nr-control' }}
         uses: ./.github/actions/install-rust-toolchain
         with:
           targets: >-
@@ -241,11 +241,11 @@ jobs:
     name: tests as root
     # Container operations must run on a linux runner https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idcontainer.
     # We use `null` to disable the use of a container on windows.
-    container: ${{ matrix.os == 'ubuntu-latest' && 'rust:latest' || null }}
+    container: ${{ matrix.os == 'linux-4-core-nr-control' && 'rust:latest' || null }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [linux-4-core-nr-control, windows-latest]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -264,11 +264,11 @@ jobs:
     name: tests with oci registry
     # Container operations must run on a linux runner https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idcontainer.
     # We use `null` to disable the use of a container on windows.
-    container: ${{ matrix.os == 'ubuntu-latest' && 'rust:latest' || null }}
+    container: ${{ matrix.os == 'linux-4-core-nr-control' && 'rust:latest' || null }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [linux-4-core-nr-control, windows-latest]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       
@@ -289,7 +289,7 @@ jobs:
 
   embedded-downloader-tests:
     name: Unit test for embedded downloader
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - name: Install Go
@@ -301,7 +301,7 @@ jobs:
 
   k8s-integration-tests:
     name: K8s integration tests
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     strategy:
       fail-fast: false
       matrix:
