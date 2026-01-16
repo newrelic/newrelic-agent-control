@@ -530,8 +530,7 @@ where
                     error_message: e.to_string(),
                 };
                 self.update_remote_config_state(state.clone());
-                // Report the empty remote config as applied
-                let _ = report_state(ConfigState::Applied, hash.clone(), opamp_client);
+                let _ = report_state(state, hash.clone(), opamp_client);
             })
             // Return it
             .ok()
@@ -717,6 +716,7 @@ pub mod tests {
     use super::effective_agents_assembler::LocalEffectiveAgentsAssembler;
     use super::remote_config_parser::AgentRemoteConfigParser;
     use super::supervisor::builder::tests::MockSupervisorBuilder;
+    use super::supervisor::starter::SupervisorStarterError;
     use super::supervisor::starter::tests::MockSupervisorStarter;
     use super::supervisor::stopper::tests::MockSupervisorStopper;
     use super::{NotStartedSubAgent, StartedSubAgent};
@@ -938,6 +938,14 @@ deployment:
             }
         }
 
+        fn status_start_failed_config_error() -> RemoteConfigStatus {
+            RemoteConfigStatus {
+                status: RemoteConfigStatuses::Failed as i32,
+                last_remote_config_hash: Self::hash().to_string().into_bytes(),
+                error_message: "building k8s resources: start failed".into(),
+            }
+        }
+
         fn valid_config_yaml() -> YAMLConfig {
             "var: valid".try_into().unwrap()
         }
@@ -1104,6 +1112,60 @@ deployment:
 
         sub_agent.run().stop().unwrap();
     }
+
+    #[test]
+    fn test_remote_config_applying_but_failed_to_start_supervisor() {
+        let (config_repository, mut opamp_client) = test_mocks();
+
+        let mut supervisor_builder = MockSupervisorBuilder::new();
+        let mut stopped_supervisor = MockSupervisorStarter::new();
+
+        stopped_supervisor.expect_start().once().returning(|_| {
+            Err(SupervisorStarterError::ConfigError(
+                "start failed".to_string(),
+            ))
+        });
+
+        supervisor_builder
+            .expect_build_supervisor()
+            .once()
+            .return_once(|_| Ok(stopped_supervisor));
+
+        opamp_client.should_update_effective_config(1);
+        opamp_client.should_set_remote_config_status_seq(vec![
+            TestAgent::status_applying(),
+            TestAgent::status_start_failed_config_error(),
+        ]);
+
+        let sub_agent = sub_agent(
+            Some(opamp_client),
+            supervisor_builder,
+            config_repository.clone(),
+        );
+
+        let old_supervisor = Some(expect_supervisor_shut_down());
+
+        let new_supervisor = sub_agent.handle_remote_config(
+            sub_agent.maybe_opamp_client.as_ref().unwrap(),
+            TestAgent::valid_remote_config(),
+            old_supervisor,
+        );
+
+        assert_remote_config(
+            config_repository.as_ref(),
+            &TestAgent::id(),
+            |remote_config| {
+                assert_eq!(
+                    remote_config.hash.to_string(),
+                    TestAgent::hash().to_string()
+                );
+                assert!(matches!(remote_config.state, ConfigState::Failed { .. }));
+            },
+        );
+
+        assert!(new_supervisor.is_none());
+    }
+
     #[test]
     fn test_remote_config_applying_to_applied() {
         let (config_repository, mut opamp_client) = test_mocks();
@@ -1130,7 +1192,7 @@ deployment:
         );
 
         assert_remote_config(
-            config_repository.deref(),
+            config_repository.as_ref(),
             &TestAgent::id(),
             |remote_config| {
                 assert_eq!(
