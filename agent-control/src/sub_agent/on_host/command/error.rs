@@ -9,6 +9,6 @@ pub enum CommandError {
     #[error("{0}")]
     IOError(#[from] std::io::Error),
 
-    #[error("Nix Error: {0}")]
-    NixError(String),
+    #[error("{0}")]
+    WinError(String),
 }

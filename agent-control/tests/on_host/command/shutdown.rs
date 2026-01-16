@@ -44,30 +44,15 @@ fn non_blocking_runner() {
 }
 
 #[test]
+#[cfg(target_family = "unix")]
 fn command_shutdown_when_sigterm_is_ignored() {
     let agent_id = "test".to_string().try_into().unwrap();
     let mut cmd = CommandOSNotStarted::new(
         agent_id,
-        #[cfg(target_family = "unix")]
         &ExecutableData {
             id: "test".to_string(),
             bin: "tests/on_host/data/ignore_sigterm.sh".to_string(),
             args: Default::default(),
-            env: Default::default(),
-            restart_policy: Default::default(),
-            shutdown_timeout: Duration::from_millis(100),
-        },
-        #[cfg(target_family = "windows")]
-        &ExecutableData {
-            id: "test".to_string(),
-            bin: "powershell".to_string(),
-            args: vec![
-                "-NoProfile".to_string(),
-                "-ExecutionPolicy".to_string(),
-                "Bypass".to_string(),
-                "-File".to_string(),
-                "tests\\on_host\\data\\ignore_sigbreak.ps1".to_string(),
-            ],
             env: Default::default(),
             restart_policy: Default::default(),
             shutdown_timeout: Duration::from_millis(100),
@@ -94,4 +79,57 @@ fn command_shutdown_when_sigterm_is_ignored() {
 
     assert!(!cmd.is_running());
     assert!(terminated.is_ok());
+}
+
+#[test]
+// This test ensure the Job Object is properly terminating orphan processes on Windows
+// On Unix, this is handled by systemd.
+#[cfg(target_family = "windows")]
+fn command_shutdown_kill_orphan_process() {
+    use crate::common::retry::retry;
+    use crate::on_host::tools::windows_process::{is_process_orphan, is_process_running};
+
+    let agent_id = "test".to_string().try_into().unwrap();
+    let id = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+    let mut cmd = CommandOSNotStarted::new(
+        agent_id,
+        &ExecutableData {
+            id: "test".to_string(),
+            bin: "powershell".to_string(),
+            args: vec![
+                "-NoProfile".to_string(),
+                "-ExecutionPolicy".to_string(),
+                "Bypass".to_string(),
+                "-File".to_string(),
+                "tests\\on_host\\data\\leak_sub_process.ps1".to_string(),
+                id.clone(),
+            ],
+            env: Default::default(),
+            restart_policy: Default::default(),
+            shutdown_timeout: Duration::from_millis(100),
+        },
+        false,
+        Default::default(),
+    )
+    .start()
+    .unwrap();
+
+    // Check that we have a leaked process
+    retry(30, Duration::from_secs(1), || {
+        if is_process_running(&id) && is_process_orphan(&id) {
+            Ok(())
+        } else {
+            Err("Process not running or not orphaned yet".into())
+        }
+    });
+
+    cmd.shutdown().unwrap();
+
+    retry(30, Duration::from_secs(1), || {
+        if !is_process_running(&id) {
+            Ok(())
+        } else {
+            Err("Orphan process leaked".into())
+        }
+    });
 }
