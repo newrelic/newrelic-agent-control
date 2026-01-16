@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   build-image:
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     name: Build/Push images
     env:
       DOCKER_IMAGE_NAME_AGENT_CONTROL: newrelic/newrelic-agent-control

@@ -29,7 +29,7 @@ permissions:
 jobs:
   infra:
     name: Prepare infra
-    runs-on: ubuntu-latest
+    runs-on: linux-4-core-nr-control
     permissions:
       # required to oidc AWS
       id-token: write
