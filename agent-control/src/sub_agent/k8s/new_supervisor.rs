@@ -5,7 +5,7 @@ use tracing::{debug, info, info_span, warn};
 use crate::{
     event::{SubAgentInternalEvent, channel::EventPublisher},
     sub_agent::{
-        effective_agents_assembler::EffectiveAgent,
+        effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssemblerError},
         k8s::supervisor::{NotStartedSupervisorK8s, StartedSupervisorK8s},
         supervisor::{ApplyError, Supervisor, SupervisorStarter, starter::SupervisorStarterError},
     },
@@ -56,11 +56,14 @@ impl Supervisor for StartedSupervisorK8s {
     type StopError = ThreadContextStopperError;
 
     fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, ApplyError<Self>> {
-        let new_k8s_config = effective_agent
-            .get_k8s_config()
-            .map_err(|e| SupervisorStarterError::ConfigError(e.to_string()));
+        let new_k8s_config =
+            effective_agent
+                .try_into()
+                .map_err(|e: EffectiveAgentsAssemblerError| {
+                    SupervisorStarterError::ConfigError(e.to_string())
+                });
 
-        if let Ok(cfg) = new_k8s_config
+        if let Ok(ref cfg) = new_k8s_config
             && cfg == &self.k8s_config
         {
             // No changes, return same supervisor
@@ -72,27 +75,13 @@ impl Supervisor for StartedSupervisorK8s {
             "Applying new configuration to K8s supervisor"
         );
 
-        // A new non-started supervisor to build dynamic objects from the new config
-        let temp_starter = new_k8s_config.and_then(|new_k8s_config| {
-            Ok(NotStartedSupervisorK8s::new(
-                self.agent_identity.clone(),
-                self.k8s_client.clone(),
-                new_k8s_config.clone(),
-            ))
-        });
+        let new_supervisor_result =
+            new_k8s_config.and_then(|cfg| self.try_start_new_supervisor(cfg));
 
-        let resources = temp_starter
-            .clone() // try to remove, need a reference to `temp_starter`
-            .and_then(|temp_starter| temp_starter.build_dynamic_objects())
-            .and_then(|res| Self::apply_resources(res.iter(), &self.k8s_client.clone()));
-
-        let new_supervisor = temp_starter.and_then(|temp_starter| {
-            SupervisorStarter::start(temp_starter, self.sub_agent_internal_publisher.clone())
-        });
-
-        match new_supervisor {
+        match new_supervisor_result {
+            // If everything went well, we can stop the old supervisor.
+            // It can't be done earlier as we need to return it (see closure above).
             Ok(supervisor) => {
-                // Stop old supervisor
                 let Self {
                     thread_contexts,
                     agent_identity,
@@ -100,6 +89,7 @@ impl Supervisor for StartedSupervisorK8s {
                 } = self;
                 // Attach the agent id info to the logs emitted by `thread_contexts.stop()`.
                 let span = info_span!("stopping_supervisor", agent_id = %agent_identity.id);
+                // Tear down the old supervisor threads.
                 let stop_threads_result = span.in_scope(|| thread_contexts.stop());
                 if let Err(e) = stop_threads_result {
                     warn!(agent_id = %agent_identity.id, "Errors stopping supervisor threads: {e}");
@@ -326,7 +316,12 @@ pub mod tests {
             },
         );
 
-        let started = started.apply(effective_agent).expect("applied");
+        let Ok(started) = started.apply(effective_agent) else {
+            // We need to do this because the started supervisor does not implement `Debug`!
+            // We could implement that but we'd need to also do it for the nested types which
+            // might not have sensible implementations (e.g. thread contexts).
+            panic!("supervisor applied");
+        };
         Supervisor::stop(started).expect("stopped");
     }
 

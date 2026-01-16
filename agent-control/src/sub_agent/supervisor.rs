@@ -22,6 +22,8 @@
 //! supervisor.stop()?; // Cleanup
 //! ```
 
+use thiserror::Error;
+
 use crate::{
     event::{SubAgentInternalEvent, channel::EventPublisher},
     sub_agent::effective_agents_assembler::EffectiveAgent,
@@ -48,7 +50,7 @@ pub mod stopper;
 ///     }
 /// }
 /// ```
-#[derive(thiserror::Error)]
+#[derive(Debug, Error)]
 #[error("failure applying configuration to supervisor: {reason}")]
 pub struct ApplyError<S: Supervisor> {
     /// Reason explaining the issue
