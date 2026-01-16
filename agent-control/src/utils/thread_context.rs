@@ -135,14 +135,20 @@ where
 
     /// It sends a stop signal and waits until the thread handle is joined.
     pub fn stop_blocking(self) -> Result<T, ThreadContextStopperError> {
-        trace!(thread = self.thread_name, "Publishing stop");
+        let thread_name = self.thread_name.to_owned();
+        trace!(thread = thread_name, "Publishing stop");
         // Stop consumer could be disconnected if the thread has finished already.
         // Either the stop is full or disconnected that shouldn't prevent to join the thread.
-        let _ = self.stop_publisher.try_publish(()).inspect_err(|err| {
-            debug!(thread = self.thread_name, "Publishing stop failed: {}", err)
-        });
-        trace!(thread = self.thread_name, "Joining");
+        let _ = self
+            .stop_publisher
+            .try_publish(())
+            .inspect_err(|err| debug!(thread = thread_name, "Publishing stop failed: {}", err));
+
+        trace!(thread = thread_name, "Joining");
+
         self.join_thread()
+            .inspect(|_| debug!("Thread {thread_name} stopped"))
+            .inspect_err(|e| error!("Error stopping thread {thread_name}: {e}"))
     }
 }
 
@@ -154,19 +160,18 @@ pub trait ThreadCollectionStopperExt {
 // without a meaningful result type
 impl<I> ThreadCollectionStopperExt for I
 where
-    I: IntoIterator<Item = StartedThreadContext<()>>,
+    I: IntoIterator<Item = StartedThreadContext>,
 {
     fn stop(self) -> Result<(), ThreadContextStopperError> {
-        self.into_iter()
-            .map(|ctx| {
-                let thread_name = ctx.thread_name().to_string();
-                ctx.stop_blocking()
-                    .inspect(|_| debug!("Thread {thread_name} stopped"))
-                    .inspect_err(|e| error!("Error stopping thread {thread_name}: {e}"))
-            })
-            .collect::<Vec<_>>()
+        let stopped_threads = self
             .into_iter()
-            // Return first err
+            .map(StartedThreadContext::stop_blocking)
+            .collect::<Vec<_>>();
+
+        stopped_threads
+            .into_iter()
+            // Return first err (`identity` acts as a "pass-through" here,
+            // so the first Err interrupts the iteration)
             .try_for_each(identity)
     }
 }
