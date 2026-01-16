@@ -6,7 +6,7 @@ use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum SupervisorStarterError {
     #[error("the kube client returned an error: {0}")]
     Generic(#[from] crate::k8s::error::K8sError),
