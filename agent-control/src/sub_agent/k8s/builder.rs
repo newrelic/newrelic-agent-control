@@ -308,7 +308,7 @@ pub mod tests {
 
         let result = supervisor_builder.build_supervisor(effective_agent);
         assert_matches!(
-            result.err().expect("Expected error"),
+            result.expect_err("Expected error"),
             SubAgentBuilderError::UnsupportedK8sObject(_)
         );
     }

@@ -266,6 +266,30 @@ impl StartedSupervisorK8s {
         debug!("K8s objects applied");
         Ok(())
     }
+
+    pub(super) fn try_start_new_supervisor(
+        &self,
+        new_k8s_config: K8s,
+    ) -> Result<Self, SupervisorStarterError> {
+        // Build a supervisor starter from the new configuration
+        let new_starter = NotStartedSupervisorK8s::new(
+            self.agent_identity.clone(),
+            self.k8s_client.clone(),
+            new_k8s_config,
+        );
+
+        let resources = new_starter.build_dynamic_objects()?;
+
+        // I this `apply_resources` safe while the old supervisor is still running?
+        // Maybe this is a matter of moving this to after the old supervisor is stopped?
+        Self::apply_resources(resources.iter(), &self.k8s_client)?;
+
+        // REVIEW: Passing the producer while the old supervisor is still running
+        // means the consumer receives messages from both supervisors for a time.
+        // Though this should be very brief relative to K8s timings and thus unlikely
+        // to provoke issues, is this acceptable?
+        SupervisorStarter::start(new_starter, self.sub_agent_internal_publisher.clone())
+    }
 }
 
 impl SupervisorStopper for StartedSupervisorK8s {

@@ -22,6 +22,8 @@
 //! supervisor.stop()?; // Cleanup
 //! ```
 
+use thiserror::Error;
+
 use crate::{
     event::{SubAgentInternalEvent, channel::EventPublisher},
     sub_agent::effective_agents_assembler::EffectiveAgent,
