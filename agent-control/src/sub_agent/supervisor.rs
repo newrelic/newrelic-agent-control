@@ -166,10 +166,9 @@ pub mod tests {
     mock! {
         pub Supervisor {}
         impl Supervisor for Supervisor {
-            type ApplyError = MockError;
             type StopError = MockError;
 
-            fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, <Self as Supervisor>::ApplyError>;
+            fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, ApplyError<Self>>;
             fn stop(self) -> Result<(), <Self as Supervisor>::StopError>;
         }
     }

@@ -32,6 +32,7 @@ use tracing::{debug, info, info_span, trace, warn};
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
 const SUPERVISOR_THREAD_NAME: &str = "supervisor";
 
+#[derive(Debug, Clone)]
 pub struct NotStartedSupervisorK8s {
     pub(super) agent_identity: AgentIdentity,
     pub(super) k8s_client: Arc<SyncK8sClient>,

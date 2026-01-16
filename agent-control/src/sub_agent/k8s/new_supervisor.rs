@@ -7,7 +7,7 @@ use crate::{
     sub_agent::{
         effective_agents_assembler::EffectiveAgent,
         k8s::supervisor::{NotStartedSupervisorK8s, StartedSupervisorK8s},
-        supervisor::{Supervisor, SupervisorStarter, starter::SupervisorStarterError},
+        supervisor::{ApplyError, Supervisor, SupervisorStarter, starter::SupervisorStarterError},
     },
     utils::thread_context::{ThreadCollectionStopperExt, ThreadContextStopperError},
 };
@@ -53,52 +53,64 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
 }
 
 impl Supervisor for StartedSupervisorK8s {
-    type ApplyError = SupervisorStarterError;
     type StopError = ThreadContextStopperError;
 
-    fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, Self::ApplyError> {
+    fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, ApplyError<Self>> {
         let new_k8s_config = effective_agent
             .get_k8s_config()
-            .map_err(|e| SupervisorStarterError::ConfigError(e.to_string()))?;
+            .map_err(|e| SupervisorStarterError::ConfigError(e.to_string()));
 
-        if &self.k8s_config == new_k8s_config {
+        if let Ok(cfg) = new_k8s_config
+            && cfg == &self.k8s_config
+        {
             // No changes, return same supervisor
             return Ok(self);
         }
 
-        // Reuse started supervisor's contents
-        let Self {
-            thread_contexts,
-            agent_identity,
-            k8s_client,
-            sub_agent_internal_publisher,
-            ..
-        } = self;
-
         debug!(
-            agent_id = %agent_identity.id,
+            agent_id = %self.agent_identity.id,
             "Applying new configuration to K8s supervisor"
         );
 
-        // Attach the agent id info to the logs emitted by `thread_contexts.stop()`.
-        let span = info_span!("stopping_supervisor", agent_id = %agent_identity.id);
-        let stop_threads_result = span.in_scope(|| thread_contexts.stop());
-        if let Err(e) = stop_threads_result {
-            warn!(agent_id = %agent_identity.id, "Errors stopping supervisor threads: {e}");
-        }
-
         // A new non-started supervisor to build dynamic objects from the new config
-        let temp_starter = NotStartedSupervisorK8s::new(
-            agent_identity,
-            k8s_client.clone(),
-            new_k8s_config.clone(),
-        );
-        let resources = temp_starter.build_dynamic_objects()?;
+        let temp_starter = new_k8s_config.and_then(|new_k8s_config| {
+            Ok(NotStartedSupervisorK8s::new(
+                self.agent_identity.clone(),
+                self.k8s_client.clone(),
+                new_k8s_config.clone(),
+            ))
+        });
 
-        // Apply resources directly
-        Self::apply_resources(resources.iter(), &k8s_client)?;
+        let resources = temp_starter
+            .clone() // try to remove, need a reference to `temp_starter`
+            .and_then(|temp_starter| temp_starter.build_dynamic_objects())
+            .and_then(|res| Self::apply_resources(res.iter(), &self.k8s_client.clone()));
 
-        SupervisorStarter::start(temp_starter, sub_agent_internal_publisher)
+        let new_supervisor = temp_starter.and_then(|temp_starter| {
+            SupervisorStarter::start(temp_starter, self.sub_agent_internal_publisher.clone())
+        });
+
+        match new_supervisor {
+            Ok(supervisor) => {
+                // Stop old supervisor
+                let Self {
+                    thread_contexts,
+                    agent_identity,
+                    ..
+                } = self;
+                // Attach the agent id info to the logs emitted by `thread_contexts.stop()`.
+                let span = info_span!("stopping_supervisor", agent_id = %agent_identity.id);
+                let stop_threads_result = span.in_scope(|| thread_contexts.stop());
+                if let Err(e) = stop_threads_result {
+                    warn!(agent_id = %agent_identity.id, "Errors stopping supervisor threads: {e}");
+                }
+                Ok(supervisor)
+            }
+            Err(e) => Err(ApplyError {
+                reason: e.to_string(),
+                supervisor: self,
+            }),
+        }
     }
 
     fn stop(self) -> Result<(), Self::StopError> {
