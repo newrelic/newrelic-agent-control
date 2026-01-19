@@ -1,4 +1,3 @@
-use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{
     APM_APPLICATION_ID, OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
 };
@@ -20,23 +19,25 @@ use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::thread_context::{
-    NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
+    NotStartedThreadContext, StartedThreadContext, ThreadCollectionStopperExt,
+    ThreadContextStopperError,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, error, info, info_span, trace, warn};
+use tracing::{debug, info, info_span, trace, warn};
 
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
 const SUPERVISOR_THREAD_NAME: &str = "supervisor";
 
+#[derive(Debug, Clone)]
 pub struct NotStartedSupervisorK8s {
-    agent_identity: AgentIdentity,
-    k8s_client: Arc<SyncK8sClient>,
-    k8s_config: K8s,
-    interval: Duration,
+    pub(super) agent_identity: AgentIdentity,
+    pub(super) k8s_client: Arc<SyncK8sClient>,
+    pub(super) k8s_config: K8s,
+    pub(super) interval: Duration,
 }
 
 impl SupervisorStarter for NotStartedSupervisorK8s {
@@ -52,17 +53,24 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
         info!("Starting k8s supervisor");
         let resources = Arc::new(self.build_dynamic_objects()?);
 
-        let thread_contexts = vec![
+        let thread_contexts = [
             Some(self.start_k8s_objects_supervisor(resources.clone())),
             self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?,
             self.start_version_checker(sub_agent_internal_publisher.clone(), resources.clone()),
-            self.start_guid_checker(sub_agent_internal_publisher, resources),
-        ];
+            self.start_guid_checker(sub_agent_internal_publisher.clone(), resources),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+
         info!("K8s supervisor started");
 
         Ok(StartedSupervisorK8s {
-            agent_id: self.agent_identity.id,
-            thread_contexts: thread_contexts.into_iter().flatten().collect(),
+            thread_contexts,
+            sub_agent_internal_publisher,
+            k8s_client: self.k8s_client,
+            agent_identity: self.agent_identity,
+            k8s_config: self.k8s_config,
         })
     }
 }
@@ -130,7 +138,7 @@ impl NotStartedSupervisorK8s {
         })
     }
 
-    fn start_k8s_objects_supervisor(
+    pub(super) fn start_k8s_objects_supervisor(
         &self,
         resources: Arc<Vec<DynamicObject>>,
     ) -> StartedThreadContext {
@@ -146,7 +154,7 @@ impl NotStartedSupervisorK8s {
             let _guard = span.enter();
 
             // Check and apply k8s objects
-            if let Err(err) = Self::apply_resources(resources.iter(), k8s_client.clone()) {
+            if let Err(err) = StartedSupervisorK8s::apply_resources(resources.iter(), &k8s_client) {
                 warn!(%err, "K8s resources apply failed");
             }
 
@@ -230,15 +238,25 @@ impl NotStartedSupervisorK8s {
             k8s_status_checker,
             sub_agent_internal_publisher,
             SubAgentInternalEvent::AgentAttributesUpdated,
-            self.k8s_config.version.interval,
-            self.k8s_config.version.initial_delay,
+            self.k8s_config.guid_checker.interval,
+            self.k8s_config.guid_checker.initial_delay,
         ))
     }
+}
 
+pub struct StartedSupervisorK8s {
+    pub(super) thread_contexts: Vec<StartedThreadContext>,
+    pub(super) agent_identity: AgentIdentity,
+    pub(super) k8s_client: Arc<SyncK8sClient>,
+    pub(super) sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    pub(super) k8s_config: K8s,
+}
+
+impl StartedSupervisorK8s {
     /// It applies each of the provided k8s resources to the cluster if it has changed.
-    fn apply_resources<'a>(
+    pub(super) fn apply_resources<'a>(
         resources: impl Iterator<Item = &'a DynamicObject>,
-        k8s_client: Arc<SyncK8sClient>,
+        k8s_client: &SyncK8sClient,
     ) -> Result<(), SupervisorStarterError> {
         debug!("Applying k8s objects if changed");
         for res in resources {
@@ -248,31 +266,37 @@ impl NotStartedSupervisorK8s {
         debug!("K8s objects applied");
         Ok(())
     }
-}
 
-pub struct StartedSupervisorK8s {
-    agent_id: AgentID,
-    thread_contexts: Vec<StartedThreadContext>,
+    pub(super) fn try_start_new_supervisor(
+        &self,
+        new_k8s_config: K8s,
+    ) -> Result<Self, SupervisorStarterError> {
+        // Build a supervisor starter from the new configuration
+        let new_starter = NotStartedSupervisorK8s::new(
+            self.agent_identity.clone(),
+            self.k8s_client.clone(),
+            new_k8s_config,
+        );
+
+        let resources = new_starter.build_dynamic_objects()?;
+
+        // I this `apply_resources` safe while the old supervisor is still running?
+        // Maybe this is a matter of moving this to after the old supervisor is stopped?
+        Self::apply_resources(resources.iter(), &self.k8s_client)?;
+
+        // REVIEW: Passing the producer while the old supervisor is still running
+        // means the consumer receives messages from both supervisors for a time.
+        // Though this should be very brief relative to K8s timings and thus unlikely
+        // to provoke issues, is this acceptable?
+        SupervisorStarter::start(new_starter, self.sub_agent_internal_publisher.clone())
+    }
 }
 
 impl SupervisorStopper for StartedSupervisorK8s {
     fn stop(self) -> Result<(), ThreadContextStopperError> {
         // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
-        let mut stop_result = Ok(());
-        for thread_context in self.thread_contexts {
-            let thread_name = thread_context.thread_name().to_string();
-            match thread_context.stop_blocking() {
-                Ok(_) => debug!(agent_id = %self.agent_id, "Thread {} stopped", thread_name),
-                Err(error_msg) => {
-                    error!(agent_id = %self.agent_id, "Error stopping '{thread_name}': {error_msg}");
-                    if stop_result.is_ok() {
-                        stop_result = Err(error_msg);
-                    }
-                }
-            }
-        }
-
-        stop_result
+        let span = info_span!("stopping_supervisor", agent_id = %self.agent_identity.id);
+        span.in_scope(|| self.thread_contexts.stop())
     }
 }
 
@@ -359,8 +383,7 @@ pub mod tests {
                     ("mock_cr1".to_string(), k8s_object()),
                     ("mock_cr2".to_string(), k8s_object()),
                 ]),
-                health: None,
-                version: Default::default(),
+                ..K8s::default()
             },
         );
 
@@ -410,7 +433,7 @@ pub mod tests {
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: Some(Default::default()),
-            version: Default::default(),
+            ..K8s::default()
         };
 
         let supervisor = not_started_supervisor(config, None);
@@ -435,13 +458,14 @@ pub mod tests {
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: Some(Default::default()),
-            version: Default::default(),
+            ..K8s::default()
         };
 
         let not_started = not_started_supervisor(config, None);
         let started = not_started
             .start(sub_agent_internal_publisher)
             .expect("supervisor started");
+
         started.stop().expect("supervisor thread joined");
     }
 
@@ -451,14 +475,14 @@ pub mod tests {
 
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
-            health: None,
-            version: Default::default(),
+            ..K8s::default()
         };
 
         let not_started = not_started_supervisor(config, None);
         let started = not_started
             .start(sub_agent_internal_publisher)
             .expect("supervisor started");
+
         assert!(
             !started
                 .thread_contexts

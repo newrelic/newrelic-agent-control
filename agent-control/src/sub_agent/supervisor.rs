@@ -22,6 +22,8 @@
 //! supervisor.stop()?; // Cleanup
 //! ```
 
+use thiserror::Error;
+
 use crate::{
     event::{SubAgentInternalEvent, channel::EventPublisher},
     sub_agent::effective_agents_assembler::EffectiveAgent,
@@ -48,7 +50,7 @@ pub mod stopper;
 ///     }
 /// }
 /// ```
-#[derive(thiserror::Error)]
+#[derive(Debug, Error)]
 #[error("failure applying configuration to supervisor: {reason}")]
 pub struct ApplyError<S: Supervisor> {
     /// Reason explaining the issue
@@ -170,4 +172,57 @@ pub trait Supervisor: Sized {
     /// * `Ok(())` - The supervisor was successfully stopped
     /// * `Err(Self::StopError)` - If shutdown encountered errors (resources may be partially cleaned)
     fn stop(self) -> Result<(), Self::StopError>;
+}
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use crate::event::{SubAgentInternalEvent, channel::EventPublisher};
+    use mockall::mock;
+    use thiserror::Error;
+
+    #[derive(Debug, Error)]
+    #[error("mock error: {0}")]
+    pub struct MockError(String);
+
+    impl From<String> for MockError {
+        fn from(value: String) -> Self {
+            Self(value)
+        }
+    }
+
+    mock! {
+        pub Supervisor {}
+        impl Supervisor for Supervisor {
+            type StopError = MockError;
+
+            fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, ApplyError<Self>>;
+            fn stop(self) -> Result<(), <Self as Supervisor>::StopError>;
+        }
+    }
+
+    mock! {
+        pub SupervisorStarter<S> where S: Supervisor + 'static {}
+        impl<S> SupervisorStarter for SupervisorStarter<S> where S: Supervisor + 'static {
+            type Supervisor = S;
+            type Error = MockError;
+
+            fn start(
+                self,
+                sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+            ) -> Result<S, <Self as SupervisorStarter>::Error>;
+        }
+    }
+
+    mock! {
+        pub SupervisorBuilder<S> where S: SupervisorStarter + 'static {}
+        impl<S> SupervisorBuilder for SupervisorBuilder<S> where S: SupervisorStarter + 'static {
+            type Starter = S;
+            type Error = MockError;
+
+            fn build_supervisor(
+                &self,
+                effective_agent: EffectiveAgent,
+            ) -> Result<S, <Self as SupervisorBuilder>::Error>;
+        }
+    }
 }

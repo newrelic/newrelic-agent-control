@@ -101,8 +101,8 @@ where
 }
 
 pub struct SupervisorBuilderK8s {
-    k8s_client: Arc<SyncK8sClient>,
-    k8s_config: K8sConfig,
+    pub(super) k8s_client: Arc<SyncK8sClient>,
+    pub(super) k8s_config: K8sConfig,
 }
 
 impl SupervisorBuilderK8s {
@@ -308,7 +308,7 @@ pub mod tests {
 
         let result = supervisor_builder.build_supervisor(effective_agent);
         assert_matches!(
-            result.err().expect("Expected error"),
+            result.expect_err("Expected error"),
             SubAgentBuilderError::UnsupportedK8sObject(_)
         );
     }
@@ -330,12 +330,11 @@ pub mod tests {
         objects.insert("sample_object".to_string(), k8s_object);
         K8s {
             objects,
-            health: None,
-            version: Default::default(),
+            ..K8s::default()
         }
     }
 
-    fn k8s_agent_get_common_mocks(
+    pub fn k8s_agent_get_common_mocks(
         agent_identity: AgentIdentity,
         opamp_builder_fails: bool,
     ) -> (MockOpAMPClientBuilder, MockInstanceIDGetter) {
