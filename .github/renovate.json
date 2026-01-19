@@ -3,6 +3,35 @@
   "extends": [
     "github>newrelic/newrelic-agent-control//.github/renovate-shared-base.json"
   ],
+  // `config:recommended` uses `ignoreModulesAndTests`, which ignores **/test/** paths.
+  // However, we want to be able to update the k8s version cluster in the `eks_cluster`
+  // terraform module that we can find inside `test/k8s-canaries/terraform/modules`.
+  // For that reason, we override `ignorePaths`. The following is a copy from the above
+  // mentioned preset without the `**/test/**` glob pattern.
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/tests/**",
+    "**/__fixtures__/**"
+  ],
+  // Taking the above comment into account, we are ignoring everything else in the test folder.
+  "packageRules": [
+    {
+      "matchFileNames": [
+        "**/test/**"
+      ],
+      "enabled": false
+    },
+    {
+      "matchFileNames": [
+        "**/test/**/eks_cluster/variables.tf"
+      ],
+      "enabled": true
+    }
+  ],
   "customManagers": [
     {
       "customType": "regex",
@@ -60,6 +89,18 @@
       "datasourceTemplate": "github-tags",
       "depNameTemplate": "newrelic-opamp-rs",
       "packageNameTemplate": "newrelic/newrelic-opamp-rs"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "**/eks_cluster/variables.tf"
+      ],
+      "matchStrings": [
+        "variable \"k8s_version\" {\n(.*\n)*?(..default.*=.*\"(?<currentValue>.*)\")\n(.*\n)*?}"
+      ],
+      "datasourceTemplate": "endoflife-date",
+      "depNameTemplate": "amazon-eks",
+      "extractVersionTemplate": "^(?<version>.*)-eks.+$"
     }
   ]
 }
