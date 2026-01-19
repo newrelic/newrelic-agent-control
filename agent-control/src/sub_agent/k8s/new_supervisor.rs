@@ -65,6 +65,10 @@ impl Supervisor for StartedSupervisorK8s {
 
         if new_k8s_config == self.k8s_config {
             // No changes, return same supervisor
+            debug!(
+                agent_id = %self.agent_identity.id,
+                "K8s configuration unchanged, no action taken"
+            );
             return Ok(self);
         }
 
