@@ -34,30 +34,6 @@ pub mod builder;
 pub mod starter;
 pub mod stopper;
 
-/// Defines the error to be returned when there is a problem applying configuration
-/// to a supervisor.
-///
-/// # Usage Example
-///
-/// ```rust,ìgnore
-/// let supervisor = match supervisor.apply(effective_agent) {
-///     Ok(new_supervisor) => new_supervisor,
-///     Err(apply_err) => {
-///         warn!("Error applying effective agent: {}", apply_err.reason)
-///         apply_err.supervisor
-///     }
-/// }
-/// ```
-#[derive(thiserror::Error)]
-#[error("failure applying configuration to supervisor: {reason}")]
-pub struct ApplyError<S: Supervisor> {
-    /// Reason explaining the issue
-    pub reason: String,
-    /// Supervisor should keep be kept as a result of the failed applied. It can be
-    /// the previous supervisor.
-    pub supervisor: S,
-}
-
 /// Constructs a supervisor for managing sub-agent lifecycle.
 ///
 /// This trait is responsible for building a supervisor starter based on an effective agent
@@ -135,6 +111,7 @@ pub trait SupervisorStarter {
 /// * `ApplyError` - The error type returned when applying configuration changes fails
 /// * `StopError` - The error type returned when stopping fails
 pub trait Supervisor: Sized {
+    type ApplyError: Error;
     type StopError: Error;
 
     /// Applies a new effective agent configuration to the running supervisor.
@@ -153,11 +130,9 @@ pub trait Supervisor: Sized {
     /// # Returns
     ///
     /// * `Ok(Self)` - A supervisor instance with the new configuration applied
-    /// * `Err(ApplyError)` - If there is an error applying the configuration. [ApplyError] contains the
-    ///   [Supervisor] that is expected to keep running along with the reason why the configuration failed,
-    ///   the could be `self` or a different supervisor, allowing a recovery mechanism in case of failure.
+    /// * `Err(Self::ApplyError)` - If there is an error applying the configuration.
     ///
-    fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, ApplyError<Self>>;
+    fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, Self::ApplyError>;
 
     /// Stops the supervisor and cleans up all associated resources.
     ///
