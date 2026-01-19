@@ -78,6 +78,7 @@ impl Supervisor for StartedSupervisorK8s {
             "Stopping old supervisor"
         );
 
+        // Reuse structures
         let Self {
             thread_contexts,
             agent_identity,
@@ -86,16 +87,16 @@ impl Supervisor for StartedSupervisorK8s {
             ..
         } = self;
 
-        thread_contexts
-            .stop()
+        let span = info_span!("stopping_supervisor", agent_id = %agent_identity.id);
+        span.in_scope(|| thread_contexts.stop())
             .map_err(ApplyError::StoppingPreviousSupervisor)?;
 
         debug!(agent_id = %agent_identity.id, "Old supervisor stopped");
 
-        // Build a supervisor starter from the new configuration
+        // Build a supervisor starter from the new configuration...
         let new_starter = NotStartedSupervisorK8s::new(agent_identity, k8s_client, new_k8s_config);
 
-        // and start it
+        // ...and start it
         debug!(agent_id = %new_starter.agent_identity.id, "Starting new supervisor");
 
         new_starter

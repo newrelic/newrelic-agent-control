@@ -97,20 +97,20 @@ pub struct K8sHealthConfig {
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct K8sVersionConfig {
-    /// The duration to wait between health checks.
+    /// The duration to wait between version checks.
     #[serde(default)]
     pub(crate) interval: VersionCheckerInterval,
-    /// The initial delay before the first health check is performed.
+    /// The initial delay before the first version check is performed.
     #[serde(default)]
     pub(crate) initial_delay: VersionCheckerInitialDelay,
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct K8sGuidCheckerConfig {
-    /// The duration to wait between health checks.
+    /// The duration to wait between GUID checks.
     #[serde(default)]
     pub(crate) interval: GuidCheckerInterval,
-    /// The initial delay before the first health check is performed.
+    /// The initial delay before the first GUID check is performed.
     #[serde(default)]
     pub(crate) initial_delay: GuidCheckerInitialDelay,
 }
