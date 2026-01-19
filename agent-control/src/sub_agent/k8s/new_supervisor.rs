@@ -82,13 +82,9 @@ impl Supervisor for StartedSupervisorK8s {
             // If everything went well, we can stop the old supervisor.
             // It can't be done earlier as we need to return it (see closure above).
             Ok(supervisor) => {
-                let Self {
-                    thread_contexts,
-                    agent_identity,
-                    ..
-                } = self;
-                if let Err(e) = thread_contexts.stop() {
-                    warn!(agent_id = %agent_identity.id, "Errors stopping supervisor threads: {e}");
+                let agent_id = self.agent_identity.id.clone();
+                if let Err(e) = self.stop() {
+                    warn!(agent_id = %agent_id, "Errors stopping supervisor threads: {e}");
                 }
                 Ok(supervisor)
             }
