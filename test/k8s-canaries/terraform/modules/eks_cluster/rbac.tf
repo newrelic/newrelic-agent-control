@@ -1,27 +1,17 @@
 
-data "aws_eks_cluster" "ekscluster" {
-  name = aws_eks_cluster.ekscluster.name
-
-  depends_on = [
-    aws_eks_cluster.ekscluster
-  ]
-}
-
-data "aws_eks_cluster_auth" "ekscluster" {
-  name = aws_eks_cluster.ekscluster.name
-
-  depends_on = [
-    aws_eks_cluster.ekscluster
-  ]
-}
 provider "kubernetes" {
   # When a modification on the terraform requires deleting the cluster TF is not capable of retrieving the endpoint
   # and defaults to localhost (failing), in that case the provider needs to use the kube config that must be having
   # the current context pointing to the cluster. If config_path is used, the other attributes must be commented.
   # config_path = "~/.kube/config"
-  host                   = data.aws_eks_cluster.ekscluster.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.ekscluster.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.ekscluster.token
+  host                   = aws_eks_cluster.ekscluster.endpoint
+  cluster_ca_certificate = base64decode(aws_eks_cluster.ekscluster.certificate_authority[0].data)
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", aws_eks_cluster.ekscluster.name]
+  }
 }
 
 # Retrieves the aws_auth configmap created by the EKS Fargate module that has the RBAC for the role used by terraform
