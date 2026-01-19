@@ -66,7 +66,7 @@ runs:
   steps:
     - name: Restore rust cache (nearest match)
       if: ${{ inputs.save-cache == 'false' && inputs.restore-strategy == 'nearest' }}
-      uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5
+      uses: actions/cache/restore@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5
       with:
         path: |
           ~/.cargo/bin/
@@ -79,7 +79,7 @@ runs:
     
     - name: Restore rust cache (exact match)
       if: ${{ inputs.save-cache == 'false' && inputs.restore-strategy == 'exact' }}
-      uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5
+      uses: actions/cache/restore@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5
       with:
         path: |
           ~/.cargo/bin/
@@ -91,7 +91,7 @@ runs:
     
     - name: Save rust cache
       if: ${{ inputs.save-cache == 'true' }}
-      uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5
+      uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5
       with:
         path: |
           ~/.cargo/bin/

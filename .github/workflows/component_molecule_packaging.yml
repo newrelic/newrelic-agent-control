@@ -27,7 +27,7 @@ jobs:
     name: Test package installation
     runs-on: ubuntu-latest
     steps:
-      - uses: newrelic/pkg-installation-testing-action@4a20293bfd13245ab0ccce98626585f6d6eba42a # v1
+      - uses: newrelic/pkg-installation-testing-action@700909be3c5ae80280e0a58c1e54f504262677d8 # v1
         with:
           gpg_key: 'https://download.newrelic.com/infrastructure_agent/gpg/newrelic-infra.gpg'
           repo_base_url: ${{ inputs.REPO_ENDPOINT }}
