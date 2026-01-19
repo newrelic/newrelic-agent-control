@@ -32,23 +32,23 @@ variable "nodes_instance_type" {
 }
 variable "nodes_ami_type" {
   type    = string
-  default = "AL2_x86_64" # AL2_x86_64, AL2_x86_64_GPU, AL2_ARM_64, CUSTOM
+  default = "AL2023_x86_64_STANDARD"
 }
 variable "node_volume_size" {
   type    = number
   default = 20
 }
 variable "cluster_desired_size" {
-  type        = number
-  default     = 2
+  type    = number
+  default = 2
 }
 variable "cluster_max_size" {
-  type        = number
-  default     = 3
+  type    = number
+  default = 3
 }
 variable "cluster_min_size" {
-  type        = number
-  default     = 2
+  type    = number
+  default = 2
 }
 
 # This ARN may change if the Fargate Runner TF is modified
