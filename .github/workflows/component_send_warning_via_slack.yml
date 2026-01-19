@@ -33,7 +33,7 @@ jobs:
           webhook-type: webhook-trigger
           payload: |
             {
-              "text": ":warning: [${{ inputs.message }}] @hero check <${{ env.GITHUB_JOB_URL }}>"
+              "text": ":warning: [(Agent Control) ${{ inputs.message }}] check <${{ env.GITHUB_JOB_URL }}>"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.AC_FLEET_COMMON_SLACK_WEBHOOK }}
