@@ -42,7 +42,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+      - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
           go-version-file: 'build/embedded/go.mod'
           check-latest: true
@@ -67,7 +67,7 @@ jobs:
       - name: Install Zig
         uses: mlugg/setup-zig@e7d1537c378b83b8049f65dda471d87a2f7b2df2 # v2
 
-      - uses: taiki-e/install-action@3522286d40783523f9c7880e33f785905b4c20d0 # v2.66.1
+      - uses: taiki-e/install-action@542cebaaed782771e619bd5609d97659d109c492 # v2.66.7
         with:
           tool: cargo-zigbuild@0.20.1
 
