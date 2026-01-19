@@ -87,11 +87,7 @@ impl Supervisor for StartedSupervisorK8s {
                     agent_identity,
                     ..
                 } = self;
-                // Attach the agent id info to the logs emitted by `thread_contexts.stop()`.
-                let span = info_span!("stopping_supervisor", agent_id = %agent_identity.id);
-                // Tear down the old supervisor threads.
-                let stop_threads_result = span.in_scope(|| thread_contexts.stop());
-                if let Err(e) = stop_threads_result {
+                if let Err(e) = thread_contexts.stop() {
                     warn!(agent_id = %agent_identity.id, "Errors stopping supervisor threads: {e}");
                 }
                 Ok(supervisor)
