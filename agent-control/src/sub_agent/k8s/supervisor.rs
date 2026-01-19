@@ -15,6 +15,7 @@ use crate::k8s::annotations::Annotations;
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
 use crate::k8s::utils::retain_not_null;
+use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
@@ -27,6 +28,7 @@ use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
 use std::time::Duration;
+use thiserror::Error;
 use tracing::{debug, info, info_span, trace, warn};
 
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
@@ -154,7 +156,7 @@ impl NotStartedSupervisorK8s {
             let _guard = span.enter();
 
             // Check and apply k8s objects
-            if let Err(err) = StartedSupervisorK8s::apply_resources(resources.iter(), &k8s_client) {
+            if let Err(err) = Self::apply_resources(resources.iter(), &k8s_client) {
                 warn!(%err, "K8s resources apply failed");
             }
 
@@ -242,17 +244,7 @@ impl NotStartedSupervisorK8s {
             self.k8s_config.guid_checker.initial_delay,
         ))
     }
-}
 
-pub struct StartedSupervisorK8s {
-    pub(super) thread_contexts: Vec<StartedThreadContext>,
-    pub(super) agent_identity: AgentIdentity,
-    pub(super) k8s_client: Arc<SyncK8sClient>,
-    pub(super) sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    pub(super) k8s_config: K8s,
-}
-
-impl StartedSupervisorK8s {
     /// It applies each of the provided k8s resources to the cluster if it has changed.
     pub(super) fn apply_resources<'a>(
         resources: impl Iterator<Item = &'a DynamicObject>,
@@ -266,30 +258,14 @@ impl StartedSupervisorK8s {
         debug!("K8s objects applied");
         Ok(())
     }
+}
 
-    pub(super) fn try_start_new_supervisor(
-        &self,
-        new_k8s_config: K8s,
-    ) -> Result<Self, SupervisorStarterError> {
-        // Build a supervisor starter from the new configuration
-        let new_starter = NotStartedSupervisorK8s::new(
-            self.agent_identity.clone(),
-            self.k8s_client.clone(),
-            new_k8s_config,
-        );
-
-        let resources = new_starter.build_dynamic_objects()?;
-
-        // I this `apply_resources` safe while the old supervisor is still running?
-        // Maybe this is a matter of moving this to after the old supervisor is stopped?
-        Self::apply_resources(resources.iter(), &self.k8s_client)?;
-
-        // REVIEW: Passing the producer while the old supervisor is still running
-        // means the consumer receives messages from both supervisors for a time.
-        // Though this should be very brief relative to K8s timings and thus unlikely
-        // to provoke issues, is this acceptable?
-        SupervisorStarter::start(new_starter, self.sub_agent_internal_publisher.clone())
-    }
+pub struct StartedSupervisorK8s {
+    pub(super) thread_contexts: Vec<StartedThreadContext>,
+    pub(super) agent_identity: AgentIdentity,
+    pub(super) k8s_client: Arc<SyncK8sClient>,
+    pub(super) sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    pub(super) k8s_config: K8s,
 }
 
 impl SupervisorStopper for StartedSupervisorK8s {
@@ -298,6 +274,17 @@ impl SupervisorStopper for StartedSupervisorK8s {
         let span = info_span!("stopping_supervisor", agent_id = %self.agent_identity.id);
         span.in_scope(|| self.thread_contexts.stop())
     }
+}
+
+#[derive(Debug, Error)]
+#[error("Error applying incoming configuration: {0}")]
+pub enum ApplyError {
+    #[error("The incoming configuration has errors: {0}")]
+    IncomingConfig(EffectiveAgentsAssemblerError),
+    #[error("Error stopping previous supervisor: {0}")]
+    StoppingPreviousSupervisor(ThreadContextStopperError),
+    #[error("Error starting new supervisor: {0}")]
+    StartingSupervisor(SupervisorStarterError),
 }
 
 #[cfg(test)]

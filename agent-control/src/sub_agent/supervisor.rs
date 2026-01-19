@@ -22,8 +22,6 @@
 //! supervisor.stop()?; // Cleanup
 //! ```
 
-use thiserror::Error;
-
 use crate::{
     event::{SubAgentInternalEvent, channel::EventPublisher},
     sub_agent::effective_agents_assembler::EffectiveAgent,
@@ -168,9 +166,10 @@ pub mod tests {
     mock! {
         pub Supervisor {}
         impl Supervisor for Supervisor {
+            type ApplyError = MockError;
             type StopError = MockError;
 
-            fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, ApplyError<Self>>;
+            fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, MockError>;
             fn stop(self) -> Result<(), <Self as Supervisor>::StopError>;
         }
     }
