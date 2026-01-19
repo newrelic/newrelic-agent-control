@@ -11,7 +11,9 @@ use crate::{
     },
 };
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
-use newrelic_agent_control::agent_control::{defaults::GENERATED_FOLDER_NAME, run::BasePaths};
+use newrelic_agent_control::agent_control::{
+    defaults::AGENT_FILESYSTEM_FOLDER_NAME, run::BasePaths,
+};
 use tempfile::tempdir;
 
 /// An on-host agent definition that includes filesystem entries should result in the entries being
@@ -79,7 +81,7 @@ deployment:
 
     let search_path = base_paths
         .remote_dir
-        .join(GENERATED_FOLDER_NAME)
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join(dir_entry)
         .join(file_path);
@@ -228,24 +230,24 @@ some_mapstringyaml:
     // Rendered files
     let yaml_search_path = base_paths
         .remote_dir
-        .join(GENERATED_FOLDER_NAME)
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join("randomdir")
         .join(yaml_file_path);
     let string_search_path = base_paths
         .remote_dir
-        .join(GENERATED_FOLDER_NAME)
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join("randomdir")
         .join(string_file_path);
     let dir_search_path = base_paths
         .remote_dir
-        .join(GENERATED_FOLDER_NAME)
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join(dir_path);
     let fully_templated_dir_search_path = base_paths
         .remote_dir
-        .join(GENERATED_FOLDER_NAME)
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join(fully_templated_dir);
 

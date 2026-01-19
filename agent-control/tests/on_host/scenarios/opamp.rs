@@ -12,7 +12,8 @@ use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_ID, FOLDER_NAME_FLEET_DATA, GENERATED_FOLDER_NAME, STORE_KEY_OPAMP_DATA_CONFIG,
+    AGENT_CONTROL_ID, AGENT_FILESYSTEM_FOLDER_NAME, FOLDER_NAME_FLEET_DATA,
+    STORE_KEY_OPAMP_DATA_CONFIG,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
@@ -642,18 +643,18 @@ agents:
     });
 
     // Check that the file was created
-    let generated_file_path = base_paths
+    let agent_filesystem_path = base_paths
         .remote_dir
-        .join(GENERATED_FOLDER_NAME)
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join(dir_entry)
         .join(file_path);
 
     retry(60, Duration::from_secs(1), || {
-        if !generated_file_path.exists() {
-            return Err(format!("File not found at {:?}", generated_file_path).into());
+        if !agent_filesystem_path.exists() {
+            return Err(format!("File not found at {:?}", agent_filesystem_path).into());
         }
-        let content = std::fs::read_to_string(&generated_file_path)?;
+        let content = std::fs::read_to_string(&agent_filesystem_path)?;
         if content != first_templated_content {
             return Err(format!(
                 "Content mismatch: expected {}, got {}",
@@ -697,10 +698,10 @@ agents:
 
     // Check that the file still exists (or was recreated) and has correct content
     retry(60, Duration::from_secs(1), || {
-        if !generated_file_path.exists() {
-            return Err(format!("File not found at {:?}", generated_file_path).into());
+        if !agent_filesystem_path.exists() {
+            return Err(format!("File not found at {:?}", agent_filesystem_path).into());
         }
-        let content = std::fs::read_to_string(&generated_file_path)?;
+        let content = std::fs::read_to_string(&agent_filesystem_path)?;
         if content != second_templated_content {
             return Err(format!(
                 "Content mismatch: expected {}, got {}",

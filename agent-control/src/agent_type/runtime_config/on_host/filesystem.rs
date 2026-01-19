@@ -3,7 +3,7 @@
 //! This includes files and directories that should be created for the sub-agent at runtime,
 //! based on templated content and paths. The paths are always relative to the sub-agent's
 //! dedicated directory created by agent-control
-//! (usually something like `/var/lib/newrelic-agent-control/auto-generated/<SUB_AGENT_ID>`).
+//! (usually something like `/var/lib/newrelic-agent-control/filesystem/<SUB_AGENT_ID>`).
 //! The files are created in a dedicated `files/` subdirectory, while directories are created in
 //! a dedicated `directories/` subdirectory, to avoid name clashes.
 
@@ -126,8 +126,11 @@ impl Templateable for FileSystem {
     type Output = rendered::FileSystem;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        if let Some(TrivialValue::String(generated_dir)) = variables
-            .get(&Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_GENERATED_DIR))
+        if let Some(TrivialValue::String(filesystem_dir)) = variables
+            .get(
+                &Namespace::SubAgent
+                    .namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+            )
             .and_then(Variable::get_final_value)
         {
             let filesystem = self
@@ -136,10 +139,10 @@ impl Templateable for FileSystem {
                 .map(|(k, v)| {
                     Ok((
                         // The only place where we construct a `SafePath` directly, prepending the
-                        // sub-agent's auto-generated directory to the user-provided relative path.
+                        // sub-agent's filesystem directory to the user-provided relative path.
                         // FIXME: when we fix the templating and make the agent type definitions
                         // type-safe, we will make sure to always build correct "final paths" here.
-                        SafePath(PathBuf::from(generated_dir.clone()).join(k)),
+                        SafePath(PathBuf::from(filesystem_dir.clone()).join(k)),
                         v.template_with(variables)?,
                     ))
                 })
@@ -147,7 +150,7 @@ impl Templateable for FileSystem {
             Ok(rendered::FileSystem(filesystem))
         } else {
             Err(AgentTypeError::MissingValue(
-                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_GENERATED_DIR),
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
             ))
         }
     }
@@ -304,7 +307,7 @@ mod tests {
     #[test]
     fn valid_filepath_rendering() {
         let variables = Variables::from_iter(vec![(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_GENERATED_DIR),
+            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
             Variable::new_final_string_variable("/base/dir"),
         )]);
 
@@ -334,7 +337,7 @@ mod tests {
 
     #[test]
     fn invalid_filepath_rendering_nonexisting_subagent_basepath() {
-        // If the sub-agent variable (nr-sub) containing the agent's auto-generated dir is missing,
+        // If the sub-agent variable (nr-sub) containing the agent's filesystem dir is missing,
         // templating must fail.
         let variables = Variables::default();
 
@@ -354,7 +357,7 @@ mod tests {
             rendered_err.to_string(),
             format!(
                 "missing value for key: {}",
-                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_GENERATED_DIR)
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR)
             )
         );
     }
@@ -436,7 +439,7 @@ mod tests {
         let parsed = parsed.unwrap();
         let variables = Variables::from_iter(vec![
             (
-                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_GENERATED_DIR),
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
                 Variable::new_final_string_variable("/test/base/dir"),
             ),
             (
@@ -480,7 +483,7 @@ mod tests {
         let parsed = parsed.unwrap();
         let variables = Variables::from_iter(vec![
             (
-                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_GENERATED_DIR),
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
                 Variable::new_final_string_variable("/test/base/dir"),
             ),
             (

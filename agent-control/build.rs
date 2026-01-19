@@ -40,5 +40,5 @@ fn generate_agent_type_registry() {
 
     let out_dir = env::var_os("OUT_DIR").expect("Could not load the target registry file path");
     let dest_path = Path::new(&out_dir).join(GENERATED_REGISTRY_FILE);
-    fs::write(dest_path, contents).expect("Could not write the auto-generated registry file");
+    fs::write(dest_path, contents).expect("Could not write the filesystem registry file");
 }
