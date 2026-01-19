@@ -1,8 +1,8 @@
-use crate::on_host::tools::oci_artifact::push_artifact;
+use crate::on_host::tools::oci_artifact::push_agent_package;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use httpmock::{MockServer, When};
 use newrelic_agent_control::http::config::ProxyConfig;
-use newrelic_agent_control::package::oci::downloader::OCIRefDownloader;
+use newrelic_agent_control::package::oci::downloader::{OCIAgentDownloader, OCIArtifactDownloader};
 use oci_client::client::{ClientConfig, ClientProtocol};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -12,14 +12,14 @@ use tempfile::tempdir;
 const REGISTRY_URL: &str = "localhost:5001";
 
 #[test]
-#[ignore = "needs oci registry"]
+#[ignore = "needs oci registry (use *with_oci_registry suffix)"]
 fn test_download_artifact_from_local_registry_with_oci_registry() {
     let dir = tempdir().unwrap();
     let tmp_dir_to_compress = tempdir().unwrap();
     let file_to_push = dir.path().join("layer_digest.tar.gz");
     TestDataHelper::compress_tar_gz(tmp_dir_to_compress.path(), file_to_push.as_path());
 
-    let (artifact_digest, reference) = push_artifact(&file_to_push, REGISTRY_URL);
+    let (artifact_digest, reference) = push_agent_package(&file_to_push, REGISTRY_URL);
 
     let temp_dir = tempdir().unwrap();
     let local_agent_data_dir = temp_dir.path();
@@ -31,19 +31,19 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
             .unwrap(),
     );
 
-    let downloader = OCIRefDownloader::try_new(
+    let downloader = OCIArtifactDownloader::try_new(
         ProxyConfig::default(),
         runtime,
         ClientConfig {
             protocol: ClientProtocol::Http,
             ..Default::default()
         },
-    );
+    )
+    .unwrap();
 
-    let result = downloader
-        .unwrap()
-        .download_artifact(&reference, local_agent_data_dir);
-    assert!(result.is_ok());
+    let _ = downloader
+        .download(&reference, local_agent_data_dir)
+        .unwrap();
 
     // Verify that the expected files were created by digest and media type
     let file_path = local_agent_data_dir.join(artifact_digest.replace(':', "_"));
@@ -51,14 +51,14 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
 }
 
 #[test]
-#[ignore = "needs oci registry"]
+#[ignore = "needs oci registry (use *with_oci_registry suffix)"]
 fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_registry() {
     let dir = tempdir().unwrap();
     let tmp_dir_to_compress = tempdir().unwrap();
     let file_to_push = dir.path().join("layer_digest.tar.gz");
     TestDataHelper::compress_tar_gz(tmp_dir_to_compress.path(), file_to_push.as_path());
 
-    let (artifact_digest, reference) = push_artifact(&file_to_push, REGISTRY_URL);
+    let (artifact_digest, reference) = push_agent_package(&file_to_push, REGISTRY_URL);
 
     // Proxy server will request the target server, allowing requests to that host only
     let proxy_server = MockServer::start();
@@ -96,7 +96,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
             .unwrap(),
     );
 
-    let downloader = OCIRefDownloader::try_new(
+    let downloader = OCIArtifactDownloader::try_new(
         proxy_config,
         runtime,
         ClientConfig {
@@ -107,7 +107,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
     .unwrap()
     .with_retries(4, Duration::from_millis(100));
 
-    let result = downloader.download_artifact(&reference, local_agent_data_dir);
+    let result = downloader.download(&reference, local_agent_data_dir);
     assert!(result.is_ok());
 
     // Verify that the expected files were created by digest and media type

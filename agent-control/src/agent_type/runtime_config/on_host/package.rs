@@ -8,31 +8,8 @@ use std::str::FromStr;
 
 pub mod rendered;
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Default)]
-pub enum PackageType {
-    #[default]
-    Tar,
-    Zip,
-}
-
-impl FromStr for PackageType {
-    type Err = AgentTypeError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "tar" => Ok(Self::Tar),
-            "tar.gz" => Ok(Self::Tar),
-            "zip" => Ok(Self::Zip),
-            _ => Err(AgentTypeError::UnsupportedPackageType(s.to_string())),
-        }
-    }
-}
-
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub(super) struct Package {
-    #[serde(rename = "type")]
-    pub package_type: TemplateableValue<PackageType>, // Using `r#type` to avoid keyword conflict
-
     /// Download defines the supported repository sources for the packages.
     pub download: Download,
 }
@@ -60,7 +37,6 @@ impl Templateable for Package {
     type Output = rendered::Package;
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         Ok(Self::Output {
-            package_type: self.package_type.template_with(variables)?,
             download: self.download.template_with(variables)?,
         })
     }
@@ -104,14 +80,6 @@ mod tests {
     use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
     use crate::agent_type::variable::Variable;
     use rstest::rstest;
-
-    #[test]
-    fn test_package_type_from_str() {
-        assert_eq!(PackageType::from_str("tar").unwrap(), PackageType::Tar);
-        assert_eq!(PackageType::from_str("tar.gz").unwrap(), PackageType::Tar);
-        assert_eq!(PackageType::from_str("zip").unwrap(), PackageType::Zip);
-        assert!(PackageType::from_str("unsupported").is_err());
-    }
 
     #[rstest]
     #[case::only_digest(

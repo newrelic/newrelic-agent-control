@@ -1,5 +1,7 @@
 use crate::http::client::{cert_paths_from_dir, certificate_error};
 use crate::http::config::ProxyConfig;
+use crate::package::oci::artifact_definitions::{LocalAgentPackage, LocalArtifact, LocalBlob};
+use crate::utils::retry::retry;
 use oci_client::client::{Certificate, CertificateEncoding, ClientConfig};
 use oci_client::errors::OciDistributionError;
 use oci_client::{Client, secrets::RegistryAuth};
@@ -8,9 +10,8 @@ use rustls_pki_types::CertificateDer;
 use rustls_pki_types::pem::PemObject;
 use std::fs::File;
 use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
-use std::thread::sleep;
 use std::time::Duration;
 use thiserror::Error;
 use tokio;
@@ -30,38 +31,63 @@ pub enum OCIDownloaderError {
     Certificate(String),
 }
 
-pub trait OCIDownloader: Send + Sync {
+/// An interface for downloading Agent Packages from an OCI registry.
+pub trait OCIAgentDownloader: Send + Sync {
     fn download(
         &self,
         reference: &Reference,
-        package_dir: &Path,
-    ) -> Result<Vec<PathBuf>, OCIDownloaderError>;
+        destination_dir: &Path,
+    ) -> Result<LocalAgentPackage, OCIDownloaderError>;
 }
 
 // This is expected to be thread-safe since it is used in the package manager.
 // Make sure that we are not writing to disk to the same location from multiple threads.
 // This implementation avoids that since each download is expected to be done in a separate package directory.
-pub struct OCIRefDownloader {
+pub struct OCIArtifactDownloader {
     client: Client,
     auth: RegistryAuth,
     runtime: Arc<Runtime>,
-    retries: u64,
+    max_retries: usize,
     retry_interval: Duration,
 }
 
-impl OCIDownloader for OCIRefDownloader {
+impl OCIAgentDownloader for OCIArtifactDownloader {
+    /// Downloads an artifact from an OCI registry using a reference containing
+    /// all the required data to first pull the image manifest if it exists and then iterate all the
+    /// layers downloading each one and downloading the found package into a file where the name
+    /// is the digest. Tokio file is used for async_write so the blob can be read in chunks.
+    /// If retries are set up, it will retry downloading the artifact if it fails.
+    ///
+    /// Returns a vector of PathBufs where each path corresponds to a downloaded layer.
     fn download(
         &self,
         reference: &Reference,
         package_dir: &Path,
-    ) -> Result<Vec<PathBuf>, OCIDownloaderError> {
-        self.download_artifact(reference, package_dir)
+    ) -> Result<LocalAgentPackage, OCIDownloaderError> {
+        debug!("Downloading '{reference}'",);
+        let local_artifact = retry(self.max_retries, self.retry_interval, || {
+            self.runtime
+                .block_on(self.download_artifact(reference, package_dir))
+                .inspect_err(|e| debug!("Download '{reference}' failed with error: {e}"))
+        })
+        .map_err(|e| {
+            OCIDownloaderError::DownloadingArtifact(format!(
+                "Download attempts exceeded. Last error: {e}"
+            ))
+        })?;
+
+        // TODO validate the package manifest before downloading it.
+        LocalAgentPackage::try_from(local_artifact).map_err(|e| {
+            OCIDownloaderError::DownloadingArtifact(format!(
+                "converting '{reference}' into agent package: {e}"
+            ))
+        })
     }
 }
 
-const DEFAULT_RETRIES: u64 = 0;
+const DEFAULT_RETRIES: usize = 0;
 
-impl OCIRefDownloader {
+impl OCIArtifactDownloader {
     /// try_new requires a package dir where the artifacts will be downloaded and a proxy_config
     /// that if url is empty will be ignored. By default, Auth is set to Anonymous, but it can be
     /// modified with the with_auth method.
@@ -74,11 +100,11 @@ impl OCIRefDownloader {
         let mut client_config = client_config;
         Self::proxy_setup(proxy_config, &mut client_config)?;
 
-        Ok(OCIRefDownloader {
+        Ok(OCIArtifactDownloader {
             client: Client::new(client_config),
             auth: RegistryAuth::Anonymous,
             runtime,
-            retries: DEFAULT_RETRIES,
+            max_retries: DEFAULT_RETRIES,
             retry_interval: Duration::default(),
         })
     }
@@ -108,60 +134,26 @@ impl OCIRefDownloader {
         Self { auth, ..self }
     }
 
-    pub fn with_retries(self, retries: u64, retry_interval: Duration) -> Self {
+    pub fn with_retries(self, retries: usize, retry_interval: Duration) -> Self {
         Self {
-            retries,
+            max_retries: retries,
             retry_interval,
             ..self
         }
     }
 
-    /// Downloads an artifact from an OCI registry using a reference containing
-    /// all the required data to first pull the image manifest if it exists and then iterate all the
-    /// layers downloading each one and downloading the found package into a file where the name
-    /// is the digest. Tokio file is used for async_write so the blob can be read in chunks.
-    /// If retries are set up, it will retry downloading the artifact if it fails.
-    ///
-    /// Returns a vector of PathBufs where each path corresponds to a downloaded layer.
-    pub fn download_artifact(
+    async fn download_artifact(
         &self,
         reference: &Reference,
         package_dir: &Path,
-    ) -> Result<Vec<PathBuf>, OCIDownloaderError> {
-        for attempt in 0u64..=self.retries {
-            debug!(
-                "Downloading artifact, attempt {}/{}",
-                attempt + 1,
-                self.retries + 1
-            );
-            let result = self
-                .runtime
-                .block_on(self.oci_download_file(reference, package_dir));
-
-            if result.is_ok() || attempt >= self.retries {
-                return result;
-            }
-
-            sleep(self.retry_interval);
-        }
-
-        Err(OCIDownloaderError::DownloadingArtifact(
-            "Exceeded maximum retry attempts".to_string(),
-        ))
-    }
-
-    async fn oci_download_file(
-        &self,
-        reference: &Reference,
-        package_dir: &Path,
-    ) -> Result<Vec<PathBuf>, OCIDownloaderError> {
+    ) -> Result<LocalArtifact, OCIDownloaderError> {
         let (image_manifest, _) = self
             .client
             .pull_image_manifest(reference, &self.auth)
             .await
             .map_err(OCIDownloaderError::OciDistribution)?;
 
-        let mut downloaded_paths = Vec::new();
+        let mut blobs = Vec::new();
 
         for layer in image_manifest.layers.iter() {
             // Remove ':' from digest to make it a valid filename on Windows
@@ -177,10 +169,10 @@ impl OCIRefDownloader {
 
             debug!("Artifact written to {}", layer_path.display());
 
-            downloaded_paths.push(layer_path);
+            blobs.push(LocalBlob::new(layer.clone(), layer_path));
         }
 
-        Ok(downloaded_paths)
+        Ok(LocalArtifact::new(image_manifest.clone(), blobs))
     }
 }
 
@@ -241,12 +233,12 @@ pub mod tests {
 
     mock! {
         pub OCIDownloader {}
-        impl OCIDownloader for OCIDownloader {
+        impl OCIAgentDownloader for OCIDownloader {
             fn download(
                 &self,
                 reference: &Reference,
                 package_dir: &Path,
-            ) -> Result<Vec<PathBuf>, OCIDownloaderError>;
+            ) -> Result<LocalAgentPackage, OCIDownloaderError>;
         }
     }
 
@@ -267,7 +259,7 @@ pub mod tests {
         let proxy_config = ProxyConfig::from_url("".to_string()); // Assuming ProxyConfig::new method exists
 
         let mut client_config = ClientConfig::default();
-        let proxy_result = OCIRefDownloader::proxy_setup(proxy_config, &mut client_config);
+        let proxy_result = OCIArtifactDownloader::proxy_setup(proxy_config, &mut client_config);
         assert!(proxy_result.is_ok());
 
         assert_eq!(client_config.https_proxy, None);
@@ -279,7 +271,7 @@ pub mod tests {
         let proxy_config = ProxyConfig::from_url("http://valid.proxy.url".to_string());
 
         let mut client_config = ClientConfig::default();
-        let proxy_result = OCIRefDownloader::proxy_setup(proxy_config, &mut client_config);
+        let proxy_result = OCIArtifactDownloader::proxy_setup(proxy_config, &mut client_config);
         assert!(proxy_result.is_ok());
 
         assert_eq!(client_config.https_proxy, None);
@@ -318,7 +310,7 @@ pub mod tests {
         );
 
         let mut client_config = ClientConfig::default();
-        let proxy_result = OCIRefDownloader::proxy_setup(proxy_config, &mut client_config);
+        let proxy_result = OCIArtifactDownloader::proxy_setup(proxy_config, &mut client_config);
         assert!(proxy_result.is_ok());
 
         assert_eq!(
@@ -334,7 +326,7 @@ pub mod tests {
         let proxy_config = ProxyConfig::from_url("https://valid.proxy.url".to_string());
 
         let mut client_config = ClientConfig::default();
-        let proxy_result = OCIRefDownloader::proxy_setup(proxy_config, &mut client_config);
+        let proxy_result = OCIArtifactDownloader::proxy_setup(proxy_config, &mut client_config);
         assert!(proxy_result.is_ok());
 
         assert_eq!(

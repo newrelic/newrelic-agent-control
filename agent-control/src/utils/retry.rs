@@ -3,12 +3,19 @@ use std::time::Duration;
 
 /// Retries the execution of `f` after the `interval` has elapsed, until `max_attempts` is reached.
 /// Returns the result of the last successful execution of `f` or the latest error if all attempts fail.
+/// If `max_attempts` is zero, it will attempt to execute `f` once.
 pub fn retry<F, T, E>(max_attempts: usize, interval: Duration, mut f: F) -> Result<T, E>
 where
     F: FnMut() -> Result<T, E>,
 {
+    // Ensure at least one attempt is made to avoid panic on zero attempts
+    let mut sanitized_attempts = max_attempts;
+    if max_attempts == 0 {
+        sanitized_attempts = 1;
+    }
+
     let mut last_err = None;
-    for _ in 0..max_attempts {
+    for _ in 0..sanitized_attempts {
         match f() {
             Ok(result) => return Ok(result),
             Err(err) => {

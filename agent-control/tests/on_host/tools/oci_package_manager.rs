@@ -3,7 +3,7 @@ use flate2::write::GzEncoder;
 use fs::directory_manager::DirectoryManagerFs;
 use newrelic_agent_control::{
     http::config::ProxyConfig,
-    package::oci::{downloader::OCIRefDownloader, package_manager::OCIPackageManager},
+    package::oci::{downloader::OCIArtifactDownloader, package_manager::OCIPackageManager},
 };
 use oci_client::client::{ClientConfig, ClientProtocol};
 use std::fs::File;
@@ -12,7 +12,7 @@ use std::{path::PathBuf, sync::Arc};
 
 pub fn new_testing_oci_package_manager(
     base_path: PathBuf,
-) -> OCIPackageManager<OCIRefDownloader, DirectoryManagerFs> {
+) -> OCIPackageManager<OCIArtifactDownloader, DirectoryManagerFs> {
     let runtime = Arc::new(
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -20,7 +20,7 @@ pub fn new_testing_oci_package_manager(
             .unwrap(),
     );
 
-    let downloader = OCIRefDownloader::try_new(
+    let downloader = OCIArtifactDownloader::try_new(
         ProxyConfig::default(),
         runtime,
         ClientConfig {
