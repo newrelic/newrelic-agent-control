@@ -12,7 +12,7 @@ param(
     [Parameter(Mandatory=$false)]
     [string]$Region = "us",
 
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory=$true)]
     [string]$LicenseKey,
 
     [Parameter(Mandatory=$false)]
@@ -135,10 +135,9 @@ $cliArgs = @(
     '--output-path', $localConfigPath,
     '--region', $Region,
     '--agent-set', $AgentSet,
-    '--env-vars-file-path', $acEnvFilePath
+    '--env-vars-file-path', $acEnvFilePath,
+    '--newrelic-license-key', $LicenseKey
 )
-
-if ($LicenseKey) { $cliArgs += @('--newrelic-license-key', $LicenseKey)}
 
 # Private key path is provided whenever an existing key is to be used.
 # If not provided, a new key will be generated and stored in the keys directory.
