@@ -1,6 +1,6 @@
 use crate::agent_type::runtime_config::on_host::package::PackageID;
 use crate::agent_type::runtime_config::on_host::package::rendered::Package;
-pub(crate) use crate::agent_type::runtime_config::{
+use crate::agent_type::runtime_config::{
     health_config::rendered::OnHostHealthConfig,
     on_host::{executable::rendered::Executable, filesystem::rendered::FileSystem},
     version_config::rendered::OnHostVersionConfig,

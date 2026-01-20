@@ -1,6 +1,6 @@
 use regex::Regex;
 
-pub(crate) use crate::agent_type::runtime_config::on_host::executable::rendered::Args;
+use crate::agent_type::runtime_config::on_host::executable::rendered::Args;
 
 #[derive(Debug, Clone)]
 pub struct OnHostVersionConfig {

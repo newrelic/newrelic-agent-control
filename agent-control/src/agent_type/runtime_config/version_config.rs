@@ -1,12 +1,12 @@
-use regex::Regex;
-use serde::{Deserialize, Deserializer};
-
+use crate::agent_type::runtime_config::on_host::executable::rendered::Args as RenderedArgs;
 use crate::agent_type::{
     definition::Variables,
     error::AgentTypeError,
     runtime_config::{on_host::executable::Args, templateable_value::TemplateableValue},
     templates::Templateable,
 };
+use regex::Regex;
+use serde::{Deserialize, Deserializer};
 
 pub mod rendered;
 
@@ -78,7 +78,7 @@ impl Templateable for OnHostVersionConfig {
 
         Ok(Self::Output {
             path: self.path.template_with(variables)?,
-            args: rendered::Args(args),
+            args: RenderedArgs(args),
             regex: self.regex,
         })
     }
