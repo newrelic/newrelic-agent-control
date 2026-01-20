@@ -1,7 +1,6 @@
 name: 📞 k8s E2E tests (Larger Runner)
 
 on:
-  pull_request: # Register the workflow
   workflow_dispatch:
     inputs:
       scenarios:
