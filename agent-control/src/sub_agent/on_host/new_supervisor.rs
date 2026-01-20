@@ -81,6 +81,10 @@ where
     packages_config: RenderedPackages,
     version_config: Option<OnHostVersionConfig>,
     filesystem_entries: FileSystemEntries,
+<<<<<<< HEAD
+=======
+    skip_installation: bool,
+>>>>>>> 9860b250 (feat: impl supervisor onhost trait)
 }
 
 impl<PM> SupervisorStarter for NotStartedSupervisorOnHost<PM>
