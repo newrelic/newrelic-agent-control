@@ -196,8 +196,9 @@ deployment:
     executables:
       - id: newrelic-infra
         path: /usr/bin/newrelic-infra
-        args: >-
-          --config=${nr-sub:filesystem_agent_dir}/config/newrelic-infra.yaml
+        args:
+          - --config
+          - ${nr-sub:filesystem_agent_dir}/config/newrelic-infra.yaml
         env:
           NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}/integrations.d"
           NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:filesystem_agent_dir}/logging.d"
@@ -226,8 +227,9 @@ deployment:
     executables:
       - id: newrelic-infra
         path: C:\Program Files\New Relic\newrelic-infra\newrelic-infra.exe
-        args: >-
-          --config=${nr-sub:filesystem_agent_dir}\config\newrelic-infra.yaml
+        args:
+          - --config
+          - ${nr-sub:filesystem_agent_dir}\\config\\newrelic-infra.yaml
         env:
           NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}\\integrations.d"
           NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:filesystem_agent_dir}\\logging.d"
@@ -285,7 +287,7 @@ The following fields are used for configuring the on-host deployment of a sub-ag
 Instructions to actually run the sub-agent process. It is composed of the following fields:
 
 - `path`: Full path to the executable binary. A string.
-- `args`: Command line arguments passed to the executable. This is a string.
+- `args`: Command line arguments passed to the executable. This is an array of string.
 - `env`: A key-value mapping of environment variables and their respective values. Strings.
 - `restart_policy`: How the sub-agent should behave if it ends execution. If this policy limits are exceeded the sub-agent will be marked as unhealthy (see [Health status](#health-status) below) and not restarted anymore. Accepts the following fields:
   - `backoff_strategy`: Timing-related configuration for the restart, to prevent wasteful crash-loops. Accepts the following values:

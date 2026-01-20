@@ -26,7 +26,7 @@ fn test_no_orphan_processes_after_agent_control_stops() {
     let agent_type = CustomAgentType::empty()
         .with_executables(Some(
             r#"[
-                {"id": "long-sleep", "path": "sleep", "args": "3600"}
+                {"id": "long-sleep", "path": "sleep", "args": ["3600"]}
             ]"#,
         ))
         .build(local_dir.path().to_path_buf());
@@ -35,7 +35,7 @@ fn test_no_orphan_processes_after_agent_control_stops() {
     let agent_type = CustomAgentType::empty()
         .with_executables(Some(
             r#"[
-                {"id": "long-sleep", "path": "powershell", "args": "-Command Start-Sleep -Seconds 3600"}
+                {"id": "long-sleep", "path": "powershell", "args": ["-Command","Start-Sleep","-Seconds","3600"]}
             ]"#,
         ))
         .build(local_dir.path().to_path_buf());

@@ -35,7 +35,7 @@ jobs:
 
   on-host-linux-e2e:
     name: OnHost Linux E2E tests
-    needs: [build-packages]
+    needs: [ build-packages ]
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -53,7 +53,7 @@ jobs:
       - name: "Linux e2e ${{ matrix.group }}"
         run: |
           echo "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/newrelic-agent-control-priv.key
-          sudo ${{ github.workspace }}/target/debug/e2e-runner ${{ matrix.group }} \
+          sudo ${{ github.workspace }}/target/debug/e2e-runner --log-level=debug ${{ matrix.group }} \
             --deb-package-dir ./dist \
             --nr-api-key "${{ secrets.E2E_API_KEY }}" \
             --nr-license-key "${{ secrets.E2E_LICENSE_KEY }}" \
@@ -66,12 +66,12 @@ jobs:
 
   on-host-windows-e2e:
     name: OnHost Windows E2E tests
-    needs: [build-packages]
+    needs: [ build-packages ]
     runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        group: [install]
+        group: [ install ]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - uses: ./.github/actions/install-rust-toolchain
@@ -85,7 +85,7 @@ jobs:
         shell: powershell
         run: |
           "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" | Out-File -FilePath $env:TEMP\newrelic-agent-control-priv.key
-          & "${{ github.workspace }}\target\debug\e2e-runner.exe" ${{ matrix.group }} `
+          & "${{ github.workspace }}\target\debug\e2e-runner.exe" --log-level=debug ${{ matrix.group }} `
             --artifacts-package-dir .\dist `
             --nr-api-key "${{ secrets.E2E_API_KEY }}" `
             --nr-license-key "${{ secrets.E2E_LICENSE_KEY }}" `

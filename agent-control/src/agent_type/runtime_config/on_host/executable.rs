@@ -21,7 +21,7 @@ pub(super) struct Executable {
 
     /// Arguments passed to the executable.
     #[serde(default)]
-    pub(super) args: TemplateableValue<Args>, // make it templatable, it should be aware of the value type, if templated with array, should be expanded
+    pub(super) args: Args,
 
     /// Environmental variables passed to the process.
     #[serde(default)]
@@ -36,10 +36,17 @@ impl Templateable for Executable {
     type Output = rendered::Executable;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        let args: Vec<String> = self
+            .args
+            .0
+            .into_iter()
+            .map(|arg| arg.template_with(variables))
+            .collect::<Result<Vec<String>, AgentTypeError>>()?;
+
         Ok(Self::Output {
             id: self.id.template_with(variables)?,
             path: self.path.template_with(variables)?,
-            args: self.args.template_with(variables)?,
+            args: rendered::Args(args),
             env: self.env.template_with(variables)?,
             restart_policy: self.restart_policy.template_with(variables)?,
         })
@@ -47,13 +54,7 @@ impl Templateable for Executable {
 }
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
-pub struct Args(pub String);
-
-impl Args {
-    pub fn into_vector(self) -> Vec<String> {
-        self.0.split_whitespace().map(|s| s.to_string()).collect()
-    }
-}
+pub struct Args(pub Vec<TemplateableValue<String>>);
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 pub struct Env(pub(super) HashMap<String, TemplateableValue<String>>);

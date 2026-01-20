@@ -314,7 +314,9 @@ deployment:
     executables:
       - id: otelcol
         path: ${nr-var:bin}/otelcol
-        args: "-c ${nr-var:deployment.k8s.image}"
+        args:
+          - -c
+          - ${nr-var:deployment.k8s.image}
         restart_policy:
           backoff_strategy:
             type: fixed
@@ -335,7 +337,9 @@ deployment:
     executables:
       - id: otelcol
         path: ${nr-var:bin}/otelcol
-        args: "-c ${nr-var:deployment.k8s.image}"
+        args:
+          - -c
+          - ${nr-var:deployment.k8s.image}
 "#;
 
     #[test]
@@ -430,7 +434,11 @@ deployment:
     executables:
       - id: newrelic-infra
         path: /usr/bin/newrelic-infra
-        args: "--config ${nr-var:config} --config2 ${nr-var:config2}"
+        args:
+          - --config
+          - ${nr-var:config}
+          - --config2
+          - ${nr-var:config2}
     packages:
       infra-agent:
         type: tar.gz
@@ -508,7 +516,8 @@ deployment:
       executables:
         - id: echo
           path: /bin/echo
-          args: "${nr-var:restart_policy.type}"
+          args:
+            - "${nr-var:restart_policy.type}"
 "#;
 
     const VALUES_VALID_VARIANT: &str = r#"

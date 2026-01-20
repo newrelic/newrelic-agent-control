@@ -43,7 +43,8 @@ duration-2:
         r#"
 - id: sleep1
   path: sleep
-  args: "${nr-var:duration-1}"
+  args:
+    - "${nr-var:duration-1}"
   restart_policy:
     backoff_strategy:
       type: fixed
@@ -51,7 +52,8 @@ duration-2:
       backoff_delay: 0s
 - id: sleep2
   path: sleep
-  args: "${nr-var:duration-2}"
+  args:
+    - "${nr-var:duration-2}"
   restart_policy:
     backoff_strategy:
       type: fixed
@@ -65,7 +67,14 @@ duration-2:
         r#"
 - id: sleep1
   path: powershell
-  args: "-NoProfile -ExecutionPolicy Bypass -File tests\\on_host\\data\\parameterized_sleep.ps1 -TimeoutSeconds ${nr-var:duration-1}"
+  args:
+    - -NoProfile
+    - -ExecutionPolicy
+    - Bypass
+    - -File
+    - tests\\on_host\\data\\parameterized_sleep.ps1
+    - -TimeoutSeconds
+    - ${nr-var:duration-1}
   restart_policy:
     backoff_strategy:
       type: fixed
@@ -73,7 +82,14 @@ duration-2:
       backoff_delay: 0s
 - id: sleep2
   path: powershell
-  args: "-NoProfile -ExecutionPolicy Bypass -File tests\\on_host\\data\\parameterized_sleep.ps1 -TimeoutSeconds ${nr-var:duration-2}"
+  args:
+   - -NoProfile
+   - -ExecutionPolicy
+   - Bypass
+   - -File
+   - tests\\on_host\\data\\parameterized_sleep.ps1
+   - -TimeoutSeconds
+   - ${nr-var:duration-2}
   restart_policy:
     backoff_strategy:
       type: fixed

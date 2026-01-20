@@ -184,10 +184,12 @@ deployment:
     executables:
       - id: trap-term-sleep
         path: "sh"
-        args: >-
-          tests/on_host/data/sleep_60.sh
-          --host_id=${nr-ac:host_id}
-          --agent_id=${nr-sub:agent_id}
+        args:
+          - tests/on_host/data/sleep_60.sh
+          - --host_id
+          - ${nr-ac:host_id}
+          - --agent_id
+          - ${nr-sub:agent_id}
     "#
         .to_string(),
         local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -205,11 +207,14 @@ deployment:
     executables:
       - id: trap-term-sleep
         path: "powershell.exe"
-        args: >-
-          -NoProfile -ExecutionPolicy Bypass
-          -File tests\\on_host\\data\\sleep_60.ps1
-          --host_id=${nr-ac:host_id}
-          --agent_id=${nr-sub:agent_id}
+        args: 
+          - -NoProfile 
+          - -ExecutionPolicy
+          - Bypass
+          - -File 
+          - tests\\on_host\\data\\sleep_60.ps1
+          - --host_id=${nr-ac:host_id}
+          - --agent_id=${nr-sub:agent_id}
     "#
         .to_string(),
         local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),

@@ -1,8 +1,6 @@
+use crate::agent_type::runtime_config::restart_policy::rendered::RestartPolicyConfig;
+use serde::Deserialize;
 use std::collections::HashMap;
-
-use crate::agent_type::runtime_config::{
-    on_host::executable::Args, restart_policy::rendered::RestartPolicyConfig,
-};
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Executable {
@@ -20,3 +18,6 @@ pub struct Executable {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Env(pub HashMap<String, String>);
+
+#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+pub struct Args(pub Vec<String>);

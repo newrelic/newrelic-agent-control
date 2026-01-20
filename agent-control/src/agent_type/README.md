@@ -132,12 +132,15 @@ deployment:
         port: 8003
     version:
       path: /usr/bin/newrelic-infra
-      args: --version
+      args: 
+        - --version
       regex: \d+\.\d+\.\d+
     executables:
       - id: newrelic-infra
         path: /usr/bin/newrelic-infra
-        args: "--config=${nr-var:config_agent}"
+        args: 
+          - --config
+          - ${nr-var:config_agent}
         env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_STATUS_SERVER_ENABLED=true"
         restart_policy:
           backoff_strategy:
@@ -229,7 +232,8 @@ The `version` section in the deployment configuration is where you can specify h
 ```yaml
 version:
   path: /usr/bin/newrelic-infra
-  args: --version
+  args: 
+    - --version
   regex: \d+\.\d+\.\d+
 ```
 
@@ -410,7 +414,9 @@ This guideline shows how to build a custom agent type and integrate it with the 
         executables:
           - id: telegraf
             path: /usr/bin/telegraf
-            args: "--config ${nr-var:config_file}"
+            args: 
+              - --config 
+              - ${nr-var:config_file}
             env: ""
             restart_policy:
               backoff_strategy:

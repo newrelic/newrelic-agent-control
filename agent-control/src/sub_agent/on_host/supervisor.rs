@@ -797,7 +797,7 @@ pub mod tests {
         // the logger output. Why? See https://github.com/dbrgn/tracing-test/pull/19/ for clues.
         let executables = vec![
             #[cfg(target_family = "unix")]
-            build_test_exec_data(r#"{"id":"echo-process","path":"echo","args":[""]}"#)
+            build_test_exec_data(r#"{"id":"echo-process","path":"echo","args":[]}"#)
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
             #[cfg(target_family = "windows")]
             build_test_exec_data(r#"{"id":"echo-process","path":"cmd","args":["/C","echo",""]}"#)
