@@ -1,6 +1,8 @@
 use crate::http::client::{cert_paths_from_dir, certificate_error};
 use crate::http::config::ProxyConfig;
-use crate::package::oci::artifact_definitions::{LocalAgentPackage, LocalArtifact, LocalBlob};
+use crate::package::oci::artifact_definitions::{
+    LayerMediaType, LocalAgentPackage, LocalArtifact, LocalBlob, ManifestArtifactType,
+};
 use crate::utils::retry::retry;
 use oci_client::client::{Certificate, CertificateEncoding, ClientConfig};
 use oci_client::errors::OciDistributionError;
@@ -153,6 +155,18 @@ impl OCIArtifactDownloader {
             .await
             .map_err(OCIDownloaderError::OciDistribution)?;
 
+        let Some(artifact_type) = image_manifest.artifact_type.as_ref() else {
+            return Err(OCIDownloaderError::DownloadingArtifact(
+                "missing artifact type in image manifest".to_string(),
+            ));
+        };
+        let artifact_type =
+            ManifestArtifactType::try_from(artifact_type.as_str()).map_err(|_| {
+                OCIDownloaderError::DownloadingArtifact(format!(
+                    "unsupported artifact type: {artifact_type}"
+                ))
+            })?;
+
         let mut blobs = Vec::new();
 
         for layer in image_manifest.layers.iter() {
@@ -169,10 +183,13 @@ impl OCIArtifactDownloader {
 
             debug!("Artifact written to {}", layer_path.display());
 
-            blobs.push(LocalBlob::new(layer.clone(), layer_path));
+            blobs.push(LocalBlob::new(
+                LayerMediaType::from(layer.media_type.as_str()),
+                layer_path,
+            ));
         }
 
-        Ok(LocalArtifact::new(image_manifest.clone(), blobs))
+        Ok(LocalArtifact::new(artifact_type, blobs))
     }
 }
 

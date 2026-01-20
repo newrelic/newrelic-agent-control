@@ -1,5 +1,7 @@
 use crate::common::runtime::block_on;
-use newrelic_agent_control::package::oci::artifact_definitions::{ArtifactType, MediaType};
+use newrelic_agent_control::package::oci::artifact_definitions::{
+    LayerMediaType, ManifestArtifactType, PackageMediaType,
+};
 use oci_client::client::{ClientConfig, ClientProtocol};
 use oci_client::manifest::{OCI_IMAGE_MEDIA_TYPE, OciDescriptor, OciImageManifest};
 use oci_client::{Client, annotations, manifest};
@@ -57,7 +59,8 @@ pub fn push_agent_package(file_to_push: &PathBuf, registry_url: &str) -> (String
             .unwrap();
 
         let blob_descriptor = OciDescriptor {
-            media_type: MediaType::AgentPackageLayerTarGz.to_string(),
+            media_type: LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz)
+                .to_string(),
             digest: blob_digest.clone(),
             size: blob_data.len() as i64,
             ..Default::default()
@@ -76,7 +79,7 @@ pub fn push_agent_package(file_to_push: &PathBuf, registry_url: &str) -> (String
 
         let image_manifest = OciImageManifest {
             media_type: Some(OCI_IMAGE_MEDIA_TYPE.to_string()),
-            artifact_type: Some(ArtifactType::AgentPackage.to_string()),
+            artifact_type: Some(ManifestArtifactType::AgentPackage.to_string()),
             layers: vec![blob_descriptor],
             config: OciDescriptor {
                 media_type: "application/vnd.oci.empty.v1+json".to_string(),
