@@ -170,7 +170,7 @@ deployment:
             repository: ${nr-var:oci.repository}
             version: ${nr-var:version}
     version:
-      path: ${nr-sub:packages.infra-agent.dir}\newrelic-infra.exe
+      path: ${nr-sub:packages.infra-agent.dir}\\newrelic-infra.exe
       args:
         - --version
       regex: \d+\.\d+\.\d+
@@ -182,7 +182,7 @@ deployment:
       logging.d: ${nr-var:config_logging}
     executables:
       - id: newrelic-infra
-        path: ${nr-sub:packages.infra-agent.dir}\newrelic-infra.exe
+        path: ${nr-sub:packages.infra-agent.dir}\\newrelic-infra.exe
         args:
           - --config
           - "${nr-sub:filesystem_agent_dir}\\config\\newrelic-infra.yaml"

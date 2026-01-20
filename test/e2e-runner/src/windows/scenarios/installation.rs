@@ -21,11 +21,6 @@ pub fn test_installation(args: Args) {
     };
     install_agent_control_from_recipe(&recipe_data);
 
-    info!("Waiting 10 seconds for service to start");
-    thread::sleep(Duration::from_secs(10));
-
-    windows::service::check_service_running(SERVICE_NAME).expect("service should be running");
-
     config::update_config_for_debug_logging(
         windows::DEFAULT_CONFIG_PATH,
         windows::DEFAULT_LOG_PATH,
@@ -40,6 +35,11 @@ pub fn test_installation(args: Args) {
     // Remember that Drop is called in the reverse order of creation.
     let _clean_ac = CleanAcOnDrop::from(SERVICE_NAME);
     let _show_logs = ShowLogsOnDrop::from(windows::DEFAULT_LOG_PATH);
+
+    info!("Waiting 10 seconds for service to start");
+    thread::sleep(Duration::from_secs(10));
+
+    windows::service::check_service_running(SERVICE_NAME).expect("service should be running");
 
     info!("Verifying service health");
     let status_endpoint = format!("http://localhost:{DEFAULT_STATUS_PORT}/status");
