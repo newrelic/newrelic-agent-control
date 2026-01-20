@@ -1,7 +1,7 @@
 use std::process::Command;
 
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
-use crate::agent_type::runtime_config::on_host::executable::Args;
+use crate::agent_type::runtime_config::on_host::executable::rendered::Args;
 use crate::opamp::attributes::{
     Attribute, AttributeType, UpdateAttributesMessage, publish_update_attributes_event,
 };
@@ -22,7 +22,7 @@ pub struct OnHostAgentVersionChecker {
 impl VersionChecker for OnHostAgentVersionChecker {
     fn check_agent_version(&self) -> Result<AgentVersion, VersionCheckError> {
         let output = Command::new(&self.path)
-            .args(self.args.clone().into_vector())
+            .args(self.args.0.clone())
             .output()
             .map_err(|e| VersionCheckError(format!("error executing version command: {e}")))?;
         let output = String::from_utf8_lossy(&output.stdout);
@@ -97,24 +97,22 @@ mod tests {
     #[rstest]
     #[cfg_attr(
         target_family = "unix",
-        case::command_and_regex("echo", "Some data 1.0.0 Some more data", Some(r"\d+\.\d+\.\d+"))
-    )]
-    #[cfg_attr(target_family = "unix", case::command("echo", "-n 1.0.0", None))]
-    #[cfg_attr(
-        target_family = "windows",
-        case::command_and_regex(
-            "cmd",
-            "/C echo Some data 1.0.0 Some more data",
-            Some(r"\d+\.\d+\.\d+")
+        case::command_and_regex("echo", vec!("Some".to_string(), "data".to_string(),"1.0.0".to_string()), Some(r"\d+\.\d+\.\d+")
         )
     )]
+    #[cfg_attr(target_family = "unix", case::command("echo", vec!("-n".to_string(), "1.0.0".to_string()), None
+    ))]
     #[cfg_attr(
         target_family = "windows",
-        case::command("cmd", "/C set /p=1.0.0<nul", None)
+        case::command_and_regex("cmd", vec!("/C".to_string(), "echo".to_string(), "Some".to_string(), "data".to_string(), "1.0.0".to_string()), Some(r"\d+\.\d+\.\d+"))
+    )]
+    #[cfg_attr(
+        target_family = "windows",
+        case::command("cmd", vec!("/C".to_string(),"set".to_string(),"/p=1.0.0<nul".to_string()), None)
     )]
     fn test_check_agent_version(
         #[case] path: &str,
-        #[case] args: String,
+        #[case] args: Vec<String>,
         #[case] regex: Option<&str>,
     ) {
         let agent_version = OnHostAgentVersionChecker {

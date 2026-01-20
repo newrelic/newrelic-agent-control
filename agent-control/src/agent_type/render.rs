@@ -105,6 +105,7 @@ pub(crate) mod tests {
     use std::path::PathBuf;
 
     use super::*;
+    use crate::agent_type::runtime_config::on_host::executable::rendered;
     use crate::agent_type::runtime_config::on_host::rendered::OnHost;
     use crate::{
         agent_control::{
@@ -113,11 +114,8 @@ pub(crate) mod tests {
         },
         agent_type::{
             definition::AgentType,
-            runtime_config::{
-                on_host::executable::Args,
-                restart_policy::{
-                    BackoffDelay, BackoffLastRetryInterval, BackoffStrategyType, MaxRetries,
-                },
+            runtime_config::restart_policy::{
+                BackoffDelay, BackoffLastRetryInterval, BackoffStrategyType, MaxRetries,
             },
         },
     };
@@ -157,7 +155,12 @@ pub(crate) mod tests {
             .for_each(|exec| {
                 assert_eq!(bin_stack.next().unwrap(), exec.path.clone());
                 assert_eq!(
-                    Args("--config_path=/some/path/config --foo=bar".into()),
+                    rendered::Args(vec!(
+                        "--config_path".to_string(),
+                        "/some/path/config".to_string(),
+                        "--foo".to_string(),
+                        "bar".to_string()
+                    )),
                     exec.args.clone()
                 );
             });
@@ -560,12 +563,14 @@ deployment:
     executables:
       - id: first
         path: /opt/first
-        args: "${nr-ac:sa-fake-var}"
+        args: 
+          - "${nr-ac:sa-fake-var}"
   windows:
     executables:
       - id: first
         path: /opt/first
-        args: "${nr-ac:sa-fake-var}"
+        args: 
+          - "${nr-ac:sa-fake-var}"
 "#,
             &AGENT_CONTROL_MODE_ON_HOST,
         );
@@ -589,7 +594,7 @@ deployment:
             )
             .unwrap();
         assert_eq!(
-            Args("fake_value".into()),
+            rendered::Args(vec!("fake_value".to_string())),
             extract_runtime_by_environment(runtime_config)
                 .executables
                 .first()
@@ -621,18 +626,34 @@ deployment:
     executables:
       - id: first
         path: /opt/first
-        args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
+        args: 
+          - --config_path
+          - ${nr-var:config_path} 
+          - --foo
+          - ${nr-var:config_argument}
       - id: second
         path: /opt/second
-        args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
+        args: 
+        - --config_path
+        - ${nr-var:config_path} 
+        - --foo
+        - ${nr-var:config_argument}
   windows:
     executables:
       - id: first
         path: /opt/first
-        args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
+        args: 
+          - --config_path
+          - ${nr-var:config_path} 
+          - --foo
+          - ${nr-var:config_argument}
       - id: second
         path: /opt/second
-        args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
+        args: 
+        - --config_path
+        - ${nr-var:config_path} 
+        - --foo
+        - ${nr-var:config_argument}
 "#;
 
     const SIMPLE_AGENT_VALUES: &str = r#"
@@ -674,7 +695,9 @@ deployment:
     executables:
       - id: otelcol
         path: /just-an-example
-        args: "-c some-arg"
+        args: 
+        - -c 
+        - some-arg
         restart_policy:
           backoff_strategy:
             type: ${nr-var:backoff.type}
@@ -685,7 +708,9 @@ deployment:
     executables:
       - id: otelcol
         path: \just-an-example
-        args: "-c some-arg"
+        args:
+          - -c
+          - some-arg
         restart_policy:
           backoff_strategy:
             type: ${nr-var:backoff.type}

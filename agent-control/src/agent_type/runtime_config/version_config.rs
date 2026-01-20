@@ -17,7 +17,7 @@ pub struct OnHostVersionConfig {
     pub path: TemplateableValue<String>,
 
     // Command arguments.
-    pub args: TemplateableValue<Args>,
+    pub args: Args,
 
     /// The regex expression to get the version from the command output.
     ///
@@ -34,7 +34,7 @@ impl<'de> Deserialize<'de> for OnHostVersionConfig {
         #[derive(Debug, Deserialize)]
         pub struct IntermediateOnHostVersionConfig {
             path: TemplateableValue<String>,
-            args: TemplateableValue<Args>,
+            args: Args,
             regex: Option<String>,
         }
 
@@ -69,9 +69,16 @@ impl Templateable for OnHostVersionConfig {
     type Output = rendered::OnHostVersionConfig;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        let args: Vec<String> = self
+            .args
+            .0
+            .into_iter()
+            .map(|arg| arg.template_with(variables))
+            .collect::<Result<Vec<String>, AgentTypeError>>()?;
+
         Ok(Self::Output {
             path: self.path.template_with(variables)?,
-            args: self.args.template_with(variables)?,
+            args: rendered::Args(args),
             regex: self.regex,
         })
     }

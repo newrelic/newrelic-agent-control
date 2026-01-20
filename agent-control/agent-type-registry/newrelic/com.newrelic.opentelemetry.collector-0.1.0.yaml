@@ -78,7 +78,8 @@ deployment:
         port: ${nr-var:health_check.port}
     version:
       path: /usr/bin/nrdot-collector
-      args: -v
+      args:
+        - -v
       regex: \d+\.\d+\.\d+
     filesystem:
       otel-config:
@@ -88,8 +89,9 @@ deployment:
       - # Important to note the binary name is nrdot-collector matching the new nrdot binary
         id: nrdot-collector
         path: /usr/bin/nrdot-collector
-        args: >-
-          --config=${nr-sub:filesystem_agent_dir}/otel-config/config.yaml
+        args:
+          - --config
+          - ${nr-sub:filesystem_agent_dir}/otel-config/config.yaml
         env:
           # sets the otel-collector "env" source resource detector
           OTEL_RESOURCE_ATTRIBUTES: "host.id=${nr-ac:host_id}"

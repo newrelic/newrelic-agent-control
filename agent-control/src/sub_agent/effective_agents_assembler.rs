@@ -454,12 +454,16 @@ deployment:
       executables:
         - id: my-exec
           path: /some/path
-          args: "${nr-var:config.really_common} ${config.var}"
+          args: 
+            - ${nr-var:config.really_common} 
+            - ${config.var}
     windows:
       executables:
         - id: my-exec
           path: /some/path
-          args: "${nr-var:config.really_common} ${config.var}"
+          args: 
+            - ${nr-var:config.really_common} 
+            - ${config.var}
     k8s:
       objects:
         chart:

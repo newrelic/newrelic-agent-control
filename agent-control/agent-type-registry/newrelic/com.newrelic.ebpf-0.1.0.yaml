@@ -31,7 +31,7 @@ variables:
         default: "https://helm-charts.newrelic.com"
         variants:
           ac_config_field: "chart_repository_urls"
-          values: ["https://helm-charts.newrelic.com"]
+          values: [ "https://helm-charts.newrelic.com" ]
       secret_reference:
         description: "HelmRepository secret reference (secretRef)"
         type: yaml
@@ -248,7 +248,8 @@ deployment:
     enable_file_logging: ${nr-var:enable_file_logging}
     version:
       path: /usr/bin/nr-ebpf-agent-client
-      args: --version
+      args:
+        - --version
       regex: \d+\.\d+\.\d+
     executables:
       - id: nr-ebpf-agent-client

@@ -140,7 +140,7 @@ where
             .into_iter()
             .map(|e| {
                 ExecutableData::new(e.id, e.path)
-                    .with_args(e.args.into_vector())
+                    .with_args(e.args.0)
                     .with_env(e.env.0)
                     .with_restart_policy(e.restart_policy.into())
             })

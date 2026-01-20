@@ -96,7 +96,8 @@ impl CustomAgentType {
             r#"
 - id: "trap-term-sleep"
   path: "sh"
-  args: "tests/on_host/data/sleep_60.sh"
+  args:
+    - tests/on_host/data/sleep_60.sh
 "#,
         )
         .unwrap()
@@ -108,7 +109,12 @@ impl CustomAgentType {
             r#"
 - id: "trap-term-sleep"
   path: "powershell.exe"
-  args: "-NoProfile -ExecutionPolicy Bypass -File tests\\on_host\\data\\sleep_60.ps1"
+  args:
+    - -NoProfile
+    - -ExecutionPolicy
+    - Bypass
+    - -File
+    - tests\\on_host\\data\\sleep_60.ps1
 "#,
         )
         .unwrap()
@@ -119,7 +125,7 @@ impl CustomAgentType {
         serde_yaml::from_str(
             r#"
 path: "echo"
-args: "Some data 1.0.0 Some data"
+args: ["Some","data","1.0.0","Some","data"]
 regex: \d+\.\d+\.\d+
 "#,
         )
@@ -131,7 +137,7 @@ regex: \d+\.\d+\.\d+
         serde_yaml::from_str(
             r#"
 path: "cmd"
-args: "/C echo Some data 1.0.0 Some data"
+args: ["/C","echo","Some","data","1.0.0","Some","data"]
 regex: \d+\.\d+\.\d+
 "#,
         )

@@ -171,7 +171,8 @@ deployment:
             version: ${nr-var:version}
     version:
       path: ${nr-sub:packages.infra-agent.dir}\newrelic-infra.exe
-      args: --version
+      args:
+        - --version
       regex: \d+\.\d+\.\d+
     filesystem:
       config:
@@ -182,8 +183,9 @@ deployment:
     executables:
       - id: newrelic-infra
         path: ${nr-sub:packages.infra-agent.dir}\newrelic-infra.exe
-        args: >-
-          --config=${nr-sub:filesystem_agent_dir}\config\newrelic-infra.yaml
+        args:
+          - --config
+          - "${nr-sub:filesystem_agent_dir}\\config\\newrelic-infra.yaml"
         env:
           NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR: "${nr-sub:packages.infra-agent.dir}\\integrations"
           NRIA_SAFE_BIN_DIR: "${nr-sub:packages.infra-agent.dir}\\integrations"
@@ -207,7 +209,8 @@ deployment:
         port: ${nr-var:health_port}
     version:
       path: /usr/bin/newrelic-infra
-      args: --version
+      args:
+        - --version
       regex: \d+\.\d+\.\d+
     filesystem:
       config:
@@ -218,8 +221,9 @@ deployment:
     executables:
       - id: newrelic-infra
         path: /usr/bin/newrelic-infra
-        args: >-
-          --config=${nr-sub:filesystem_agent_dir}/config/newrelic-infra.yaml
+        args:
+          - --config
+          - ${nr-sub:filesystem_agent_dir}/config/newrelic-infra.yaml
         env:
           NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}/integrations.d"
           NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:filesystem_agent_dir}/logging.d"

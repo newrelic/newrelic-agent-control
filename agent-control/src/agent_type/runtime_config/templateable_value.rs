@@ -1,12 +1,9 @@
-use std::str::FromStr;
-
-use serde::{Deserialize, Deserializer};
-
+use super::restart_policy::{BackoffDelay, BackoffLastRetryInterval, MaxRetries};
+use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
-use crate::agent_type::{definition::Variables, runtime_config::on_host::executable::Args};
-
-use super::restart_policy::{BackoffDelay, BackoffLastRetryInterval, MaxRetries};
+use serde::{Deserialize, Deserializer};
+use std::str::FromStr;
 
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct TemplateableValue<T> {
@@ -86,15 +83,6 @@ where
                 .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?
         };
         Ok(value)
-    }
-}
-
-impl Templateable for TemplateableValue<Args> {
-    type Output = Args;
-
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let templated_string = self.template.template_with(variables)?;
-        Ok(Args(templated_string))
     }
 }
 
