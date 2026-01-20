@@ -114,11 +114,6 @@ module "agent_control_infra" {
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_system_identity_private_key}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_system_identity_private_key}",
             ]
-          },
-          {
-            "Effect" : "Allow",
-            "Action" : "iam:PassRole",
-            "Resource" : "arn:aws:iam::${var.accountId}:role/Agent_Control_Canaries_*-EKS_Worker_Role"
           }
         ]
       }
@@ -131,6 +126,16 @@ module "agent_control_infra" {
   canaries_security_group             = var.canaries_security_group
   oidc_repository                     = var.oidc_repository
   oidc_role_name                      = var.oidc_role_name
-  task_runtime_custom_policies        = var.task_runtime_custom_policies
-  tags                                = var.tags
+  task_runtime_custom_policies = concat(var.task_runtime_custom_policies, [
+    jsonencode({
+      "Statement" : [
+        {
+          "Effect" : "Allow",
+          "Action" : "iam:PassRole",
+          "Resource" : "arn:aws:iam::${var.accountId}:role/Agent_Control_Canaries_*-EKS_Worker_Role"
+        }
+      ]
+    })
+  ])
+  tags = var.tags
 }
