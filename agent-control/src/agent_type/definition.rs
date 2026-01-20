@@ -170,7 +170,7 @@ pub fn include_packages_variables(
     mut variables: Variables,
     packages: &RenderedPackages,
 ) -> Result<Variables, AgentTypeError> {
-    // Return early if no packages to avoid retrieving the auto-generated dir unnecessarily
+    // Return early if no packages to avoid retrieving the filesystem dir unnecessarily
     if packages.is_empty() {
         return Ok(variables);
     }

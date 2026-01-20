@@ -97,7 +97,7 @@ $ tree /
     │       │    │    └── remote_config.yaml
     │       │    └── newrelic-infra
     │       │         └── remote_config.yaml 
-    │       └── auto-generated
+    │       └── filesystem
     │            └── newrelic-infra
     │                ├── integrations.d
     │                │   └── nri-redis.yaml
@@ -115,7 +115,7 @@ The directory `/etc/newrelic-agent-control` is used to store the **static** conf
 The remote configurations and in general any files expected to dynamically change during AC execution are stored in `/var/lib/newrelic-agent-control`. Several kinds of transient files might be present there at any time, and AC might delete some of them (or all) when it first boots to start from a clean slate:
 
 - The remote configurations of AC and each sub-agent, retrieved as is from FC, are stored in their respective subfolder inside `fleet-data`, in a file named `remote_config.yaml`. For example, `fleet-data/agent-control/remote_config.yaml`. Some other tracking information might be present, such as the remote config hashes or host identifiers, but these are implementation details that might change.
-- The rendered files that are expected to be used by the sub-agent process directly (like configuration files for the New Relic Infrastructure Agent) will be added to the `auto-generated` directory, with a subdirectory being created for each sub-agent ID.
+- The rendered files that are expected to be used by the sub-agent process directly (like configuration files for the New Relic Infrastructure Agent) will be added to the `filesystem` directory, with a subdirectory being created for each sub-agent ID.
 
 The directory inside `/var/log/newrelic-agent-control` will store the logs if file logging was configured, following a similar directory structure for AC and the sub-agents.
 
