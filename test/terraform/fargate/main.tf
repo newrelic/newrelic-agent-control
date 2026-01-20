@@ -114,6 +114,11 @@ module "agent_control_infra" {
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_system_identity_private_key}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_system_identity_private_key}",
             ]
+          },
+          {
+            "Effect" : "Allow",
+            "Action" : "iam:PassRole",
+            "Resource" : "arn:aws:iam:${var.region}:${var.accountId}:role/Agent_Control_Canaries_*-EKS_Worker_Role"
           }
         ]
       }
