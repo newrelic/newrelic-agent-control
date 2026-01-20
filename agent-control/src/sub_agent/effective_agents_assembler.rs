@@ -91,6 +91,18 @@ impl EffectiveAgent {
     }
 }
 
+impl TryFrom<EffectiveAgent> for K8s {
+    type Error = EffectiveAgentsAssemblerError;
+
+    fn try_from(value: EffectiveAgent) -> Result<Self, Self::Error> {
+        value.runtime_config.deployment.k8s.ok_or(
+            EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
+                "missing k8s deployment configuration".to_string(),
+            ),
+        )
+    }
+}
+
 pub trait EffectiveAgentsAssembler {
     /// Assemble an [EffectiveAgent] from an [AgentIdentity]. The implementer is responsible for
     /// getting the AgentType and all needed values to render the Runtime config.

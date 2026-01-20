@@ -146,3 +146,57 @@ pub trait Supervisor: Sized {
     /// * `Err(Self::StopError)` - If shutdown encountered errors (resources may be partially cleaned)
     fn stop(self) -> Result<(), Self::StopError>;
 }
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use crate::event::{SubAgentInternalEvent, channel::EventPublisher};
+    use mockall::mock;
+    use thiserror::Error;
+
+    #[derive(Debug, Error)]
+    #[error("mock error: {0}")]
+    pub struct MockError(String);
+
+    impl From<String> for MockError {
+        fn from(value: String) -> Self {
+            Self(value)
+        }
+    }
+
+    mock! {
+        pub Supervisor {}
+        impl Supervisor for Supervisor {
+            type ApplyError = MockError;
+            type StopError = MockError;
+
+            fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, MockError>;
+            fn stop(self) -> Result<(), <Self as Supervisor>::StopError>;
+        }
+    }
+
+    mock! {
+        pub SupervisorStarter<S> where S: Supervisor + 'static {}
+        impl<S> SupervisorStarter for SupervisorStarter<S> where S: Supervisor + 'static {
+            type Supervisor = S;
+            type Error = MockError;
+
+            fn start(
+                self,
+                sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+            ) -> Result<S, <Self as SupervisorStarter>::Error>;
+        }
+    }
+
+    mock! {
+        pub SupervisorBuilder<S> where S: SupervisorStarter + 'static {}
+        impl<S> SupervisorBuilder for SupervisorBuilder<S> where S: SupervisorStarter + 'static {
+            type Starter = S;
+            type Error = MockError;
+
+            fn build_supervisor(
+                &self,
+                effective_agent: EffectiveAgent,
+            ) -> Result<S, <Self as SupervisorBuilder>::Error>;
+        }
+    }
+}

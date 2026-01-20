@@ -1,8 +1,9 @@
 use std::{
+    convert::identity,
     thread::{JoinHandle, sleep},
     time::Duration,
 };
-use tracing::{debug, trace};
+use tracing::{debug, error, trace};
 
 const GRACEFUL_STOP_RETRY: u16 = 10;
 const GRACEFUL_STOP_RETRY_INTERVAL: Duration = Duration::from_millis(100);
@@ -134,14 +135,44 @@ where
 
     /// It sends a stop signal and waits until the thread handle is joined.
     pub fn stop_blocking(self) -> Result<T, ThreadContextStopperError> {
-        trace!(thread = self.thread_name, "Publishing stop");
+        let thread_name = self.thread_name.to_owned();
+        trace!(thread = thread_name, "Publishing stop");
         // Stop consumer could be disconnected if the thread has finished already.
         // Either the stop is full or disconnected that shouldn't prevent to join the thread.
-        let _ = self.stop_publisher.try_publish(()).inspect_err(|err| {
-            debug!(thread = self.thread_name, "Publishing stop failed: {}", err)
-        });
-        trace!(thread = self.thread_name, "Joining");
+        let _ = self
+            .stop_publisher
+            .try_publish(())
+            .inspect_err(|err| debug!(thread = thread_name, "Publishing stop failed: {}", err));
+
+        trace!(thread = thread_name, "Joining");
+
         self.join_thread()
+            .inspect(|_| debug!("Thread {thread_name} stopped"))
+            .inspect_err(|e| error!("Error stopping thread {thread_name}: {e}"))
+    }
+}
+
+pub trait ThreadCollectionStopperExt {
+    fn stop(self) -> Result<(), ThreadContextStopperError>;
+}
+
+// Blanket implementation for all structures convertible to iterators of started threads
+// without a meaningful result type
+impl<I> ThreadCollectionStopperExt for I
+where
+    I: IntoIterator<Item = StartedThreadContext>,
+{
+    fn stop(self) -> Result<(), ThreadContextStopperError> {
+        let stopped_threads = self
+            .into_iter()
+            .map(StartedThreadContext::stop_blocking)
+            .collect::<Vec<_>>();
+
+        stopped_threads
+            .into_iter()
+            // Return first err (`identity` acts as a "pass-through" here,
+            // so the first Err interrupts the iteration)
+            .try_for_each(identity)
     }
 }
 
