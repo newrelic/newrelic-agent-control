@@ -40,7 +40,6 @@ impl SupervisorBuilder for SupervisorBuilderK8s {
             }
         }
 
-        // Clone the k8s_client on each build.
         Ok(NotStartedSupervisorK8s::new(
             agent_identity.clone(),
             self.k8s_client.clone(),
