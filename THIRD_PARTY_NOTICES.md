@@ -2633,6 +2633,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## typed-path <https://crates.io/crates/typed-path>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## typeid <https://crates.io/crates/typeid>
 
 Distributed under the following license(s):
