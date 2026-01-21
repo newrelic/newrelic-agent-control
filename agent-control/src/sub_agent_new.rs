@@ -157,16 +157,6 @@ where
         }
     }
 
-    fn load_persisted_config(&self) -> Option<Config> {
-        self.config_repository
-            .load_remote_fallback_local(&self.identity.id, &default_capabilities())
-            .inspect_err(|e| {
-                warn!(error = %e, "Failed to load remote or local configuration");
-            })
-            .ok()
-            .flatten()
-    }
-
     /// Attempt to build a supervisor specific for this sub-agent given an existing YAML config.
     ///
     /// This function retrieves the stored remote config hash (if any) for this sub-agent identity,
@@ -181,7 +171,16 @@ where
         // attempt to retrieve an existing remote config,
         // falling back to a local config if there's no remote config.
         // If there's no config at all, we cannot assemble a supervisor, so we just return immediately.
-        let Some(config) = self.load_persisted_config() else {
+        let maybe_persisted_config = self
+            .config_repository
+            .load_remote_fallback_local(&self.identity.id, &default_capabilities())
+            .inspect_err(|e| {
+                warn!(error = %e, "Failed to load remote or local configuration");
+            })
+            .ok()
+            .flatten();
+
+        if maybe_persisted_config.is_none() {
             debug!("No configuration found for sub-agent");
             // The effective config needs to be reported with the local config that failed
             // to start the supervisor (not ideal but better than leaving the deleted remote),
@@ -191,8 +190,9 @@ where
                     .update_effective_config()
                     .inspect_err(|e| error!("Failed to update effective config: {e}"));
             });
-            return None;
-        };
+        }
+
+        let config = maybe_persisted_config?;
 
         let effective_agent = self
             .effective_agent(config.get_yaml_config().clone())
@@ -613,10 +613,9 @@ where
         supervisor
             .apply(effective_agent)
             // Report Applied and return the updated supervisor when apply is successful
-            .map(|updated_supervisor| {
+            .inspect(|_| {
                 self.update_remote_config_state(ConfigState::Applied);
                 let _ = report_state(ConfigState::Applied, hash.clone(), opamp_client);
-                Some(updated_supervisor)
             })
             // Report Failed and return the supervisor from the corresponding error when apply fails
             .inspect_err(|err| {
@@ -628,7 +627,7 @@ where
                 self.update_remote_config_state(state.clone());
                 let _ = report_state(state, hash.clone(), opamp_client);
             })
-            .unwrap_or_default()
+            .ok()
     }
 
     /// Helper to stop the `old_supervisor` and start the `new_supervisor` reporting the corresponding OpAMP
@@ -667,21 +666,20 @@ where
 
     // check_and_report_config_failed returns true if the config is failed and reports that state
     fn check_and_report_config_failed(opamp_client: &C, config: &OpampRemoteConfig) -> bool {
-        if let Some(error_message) = config.state.error_message().cloned() {
-            warn!(
-                hash = %config.hash,
-                "Remote configuration cannot be applied: {error_message}"
-            );
-            // Failed configurations are reported but not persisted.
-            let _ = report_state(
-                ConfigState::Failed { error_message },
-                config.hash.clone(),
-                opamp_client,
-            );
-
-            return true;
-        }
-        false
+        let Some(error_message) = config.state.error_message().cloned() else {
+            return false;
+        };
+        warn!(
+            hash = %config.hash,
+            "Remote configuration cannot be applied: {error_message}"
+        );
+        // Failed configurations are reported but not persisted.
+        let _ = report_state(
+            ConfigState::Failed { error_message },
+            config.hash.clone(),
+            opamp_client,
+        );
+        true
     }
 
     fn effective_agent(
@@ -858,9 +856,7 @@ pub mod tests {
 
     impl MockNotStartedSubAgent {
         pub fn should_run(&mut self, started_sub_agent: MockStartedSubAgent) {
-            self.expect_run()
-                .once()
-                .return_once(move || started_sub_agent);
+            self.expect_run().return_once(move || started_sub_agent);
         }
     }
 
