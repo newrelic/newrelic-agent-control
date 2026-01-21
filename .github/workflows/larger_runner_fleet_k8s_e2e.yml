@@ -72,8 +72,8 @@ jobs:
         uses: newrelic/newrelic-integration-e2e-action@c548a33a0c2941a4db4899ded766923eb3178e0e # v1
         env:
           # SI L2->L2 for AC
-          NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
-          NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+          NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_FC_STAG_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
+          NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_FC_STAG_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
           USE_LATEST_FLUX: ${{ inputs.use_latest_flux }}
           # Tilt configs
           ARCH: amd64
@@ -82,9 +82,9 @@ jobs:
           retry_seconds: 15
           agent_enabled: false
           spec_path: test/k8s-e2e/${{ matrix.group }}/e2e-${{ matrix.group }}.yml
-          account_id: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
-          api_key: ${{ secrets.AC_PROD_E2E_API_KEY }}
-          license_key: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
+          account_id: ${{ secrets.AC_FC_STAG_E2E_ACCOUNT_ID }}
+          api_key: ${{ secrets.AC_FC_STAG_E2E_API_KEY }}
+          license_key: ${{ secrets.AC_FC_STAG_E2E_LICENSE_KEY }}
 
   k8s-e2e-tests-check: # The job is useful to notify the failure
     name: K8s e2e tests
