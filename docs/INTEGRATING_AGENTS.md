@@ -187,6 +187,13 @@ deployment:
       http:
         path: "/v1/status/health"
         port: ${nr-var:health_port}
+    packages:
+      infra-agent:
+        download:
+          oci:
+            registry: ${nr-var:oci.registry}
+            repository: ${nr-var:oci.repository}
+            version: ${nr-var:version}
     filesystem:
       config:
         newrelic-infra.yaml: |
@@ -195,7 +202,7 @@ deployment:
       logging.d: ${nr-var:config_logging}
     executables:
       - id: newrelic-infra
-        path: /usr/bin/newrelic-infra
+        path: ${nr-sub:packages.infra-agent.dir}/newrelic-infra
         args:
           - --config
           - ${nr-sub:filesystem_agent_dir}/config/newrelic-infra.yaml
@@ -218,6 +225,13 @@ deployment:
       http:
         path: "/v1/status/health"
         port: ${nr-var:health_port}
+    packages:
+      infra-agent:
+        download:
+          oci:
+            registry: ${nr-var:oci.registry}
+            repository: ${nr-var:oci.repository}
+            version: ${nr-var:version}
     filesystem:
       config:
         newrelic-infra.yaml: |
@@ -226,7 +240,7 @@ deployment:
       logging.d: ${nr-var:config_logging}
     executables:
       - id: newrelic-infra
-        path: C:\Program Files\New Relic\newrelic-infra\newrelic-infra.exe
+        path: ${nr-sub:packages.infra-agent.dir}\\newrelic-infra.exe
         args:
           - --config
           - ${nr-sub:filesystem_agent_dir}\\config\\newrelic-infra.yaml
@@ -310,6 +324,43 @@ files, which can be referenced in other fields via the variable `${nr-sub:filesy
 The files can be hardcoded, with the contents possibly containing templates, or the whole set of
 files can be templated, so a directory contains an arbitrary number of files (a place to use a
 `map[string]yaml` variable type). **The paths cannot be templated individually.**
+
+##### `packages`
+
+Defines OCI packages containing the executables and data to be downloaded and installed for the sub-agent. 
+This is a map where keys are package identifiers and values contain package metadata and download configuration.
+
+Each package definition accepts the following fields:
+
+
+Note that a Package version. Can be:
+  - A tag (`:v1.0.0`)
+  - A digest (`@sha256:...`)
+  - Both tag and digest (`:v1.0.0@sha256:...`)
+
+**Accessing Package Contents:**
+
+After installation, the package directory path is available via the reserved variable `${nr-sub:packages.<package-id>.dir}`, where `<package-id>` is the key used in the packages map.
+
+**Example:**
+
+In this example:
+- A package named `infra-agent` is downloaded from an OCI registry
+- The package installation directory is referenced in the executable path using `${nr-sub:packages.infra-agent.dir}`
+
+
+```yaml
+    packages:
+      infra-agent:
+        download:
+          oci:
+            registry: ${nr-var:oci.registry}
+            repository: ${nr-var:oci.repository}
+            version: ${nr-var:version}
+    executables:
+      - id: newrelic-infra
+        path: ${nr-sub:packages.infra-agent.dir}\\newrelic-infra.exe
+```
 
 ##### `enable_file_logging` (`bool`)
 

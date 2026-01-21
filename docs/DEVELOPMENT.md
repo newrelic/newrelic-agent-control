@@ -74,53 +74,6 @@ The steps below work for the `x86_64-pc-windows-msvc` target only. It is also po
 
    ⚠️ This method doesn't work for building debug binaries (`--release` is required). As `cargo-xwin` doesn't provide `msvcrtd.lib` (the debug version of the C runtime library).
 
-
-#### Filesystem layout and persistence
-
-The following shows the directory structure used by Agent Control, assuming an existing sub-agent with the ID `newrelic-infra`:
-
-```console
-$ tree /
-/
-├── etc
-│   └── newrelic-agent-control
-│       └── local-data
-│              ├── agent-control
-│              │    └── local_config.yaml
-│              └── newrelic-infra
-│                   └── local_config.yaml
-└── var
-    ├── lib
-    │   └── newrelic-agent-control
-    │       ├── fleet-data
-    │       │    ├── agent-control
-    │       │    │    └── remote_config.yaml
-    │       │    └── newrelic-infra
-    │       │         └── remote_config.yaml 
-    │       └── filesystem
-    │            └── newrelic-infra
-    │                ├── integrations.d
-    │                │   └── nri-redis.yaml
-    │                └── newrelic-infra.yaml
-    └── log
-        ├── newrelic-agent-control
-        │   └── newrelic-agent-control.log.2025-01-15-23
-        └── newrelic-infra
-            ├── stdout.log.2025-01-15-23
-            └── stderr.log.2025-01-15-23
-```
-
-The directory `/etc/newrelic-agent-control` is used to store the **static** configs of AC and the values for its defined sub-agents, the latter inside the `local-data` directory for each sub-agent. These files are expected to be put there and edited manually by the customer (or the installation process). When AC starts, these files are commonly read once, so any change to them would need an AC restart to actually enact a change in AC behavior.
-
-The remote configurations and in general any files expected to dynamically change during AC execution are stored in `/var/lib/newrelic-agent-control`. Several kinds of transient files might be present there at any time, and AC might delete some of them (or all) when it first boots to start from a clean slate:
-
-- The remote configurations of AC and each sub-agent, retrieved as is from FC, are stored in their respective subfolder inside `fleet-data`, in a file named `remote_config.yaml`. For example, `fleet-data/agent-control/remote_config.yaml`. Some other tracking information might be present, such as the remote config hashes or host identifiers, but these are implementation details that might change.
-- The rendered files that are expected to be used by the sub-agent process directly (like configuration files for the New Relic Infrastructure Agent) will be added to the `filesystem` directory, with a subdirectory being created for each sub-agent ID.
-
-The directory inside `/var/log/newrelic-agent-control` will store the logs if file logging was configured, following a similar directory structure for AC and the sub-agents.
-
-Notice that in windows the paths will be different, since everything will be under `C:\\Program Files\\New Relic\\newrelic-agent-control` for static data dynamic data. Everything else applies the same.
-
 #### AC Service Windows vs Linux
 
 On Linux, Agent Control is expected to run as a system service, managed by `systemd`. 
