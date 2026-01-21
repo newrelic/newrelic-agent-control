@@ -7,7 +7,7 @@ on:
         description: 'JSON array of test scenarios to run'
         required: false
         type: string
-        default: '["infra"]'
+        default: '["fleet-control"]'
       minikube_start_args:
         description: 'Arguments to pass to Minikube start command'
         required: false
