@@ -101,9 +101,5 @@ pub fn push_agent_package(file_to_push: &PathBuf, registry_url: &str) -> (String
 }
 
 fn hex_bytes(bytes: &[u8]) -> String {
-    let mut hex_string = String::new();
-    for byte in bytes {
-        hex_string.push_str(&format!("{:02x}", byte));
-    }
-    hex_string
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }

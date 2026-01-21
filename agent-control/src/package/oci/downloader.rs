@@ -72,7 +72,7 @@ impl OCIAgentDownloader for OCIArtifactDownloader {
         })
         .map_err(|e| {
             OCIDownloaderError::DownloadingArtifact(format!(
-                "Download attempts exceeded. Last error: {e}"
+                "download attempts exceeded. Last error: {e}"
             ))
         })
     }
@@ -147,7 +147,7 @@ impl OCIArtifactDownloader {
             .map_err(OCIDownloaderError::OciDistribution)?;
 
         let (layer, media_type) = LocalAgentPackage::get_layer(&image_manifest).map_err(|e| {
-            OCIDownloaderError::DownloadingArtifact(format!("validating package layer: {e}"))
+            OCIDownloaderError::DownloadingArtifact(format!("validating package manifest: {e}"))
         })?;
 
         let layer_path = package_dir.join(layer.digest.replace(':', "_"));
@@ -213,12 +213,23 @@ fn add_cert<'a>(mut certs: Vec<Certificate>, cert: CertificateDer<'a>) -> Vec<Ce
 
 #[cfg(test)]
 pub mod tests {
+    use crate::package::oci::artifact_definitions::{
+        LayerMediaType, ManifestArtifactType, PackageMediaType,
+    };
+
     use super::*;
     use assert_matches::assert_matches;
+    use httpmock::prelude::*;
     use mockall::mock;
+    use oci_client::client::ClientProtocol;
+    use oci_client::manifest::{OciDescriptor, OciImageManifest};
+    use oci_spec::distribution::Reference;
+    use ring::digest::{SHA256, digest};
+    use serde_json::json;
     use std::fs::File;
     use std::io::Write;
     use std::path::PathBuf;
+    use std::str::FromStr;
     use tempfile::tempdir;
 
     mock! {
@@ -232,18 +243,7 @@ pub mod tests {
         }
     }
 
-    const INVALID_TESTING_CERT: &str =
-        "-----BEGIN CERTIFICATE-----\ninvalid!\n-----END CERTIFICATE-----";
-
-    fn valid_testing_cert() -> String {
-        let subject_alt_names = vec!["localhost".to_string()];
-        let rcgen::CertifiedKey {
-            cert,
-            signing_key: _,
-        } = rcgen::generate_simple_self_signed(subject_alt_names).unwrap();
-        cert.pem()
-    }
-
+    // ========== Proxy Tests ==========
     #[test]
     fn test_with_empty_proxy_url() {
         let proxy_config = ProxyConfig::from_url("".to_string()); // Assuming ProxyConfig::new method exists
@@ -407,5 +407,205 @@ pub mod tests {
         let ca_bundle_file = PathBuf::default();
         let certificates = certs_from_paths(&ca_bundle_file, ca_bundle_dir).unwrap();
         assert_eq!(certificates.len(), 1);
+    }
+
+    const INVALID_TESTING_CERT: &str =
+        "-----BEGIN CERTIFICATE-----\ninvalid!\n-----END CERTIFICATE-----";
+
+    fn valid_testing_cert() -> String {
+        let subject_alt_names = vec!["localhost".to_string()];
+        let rcgen::CertifiedKey {
+            cert,
+            signing_key: _,
+        } = rcgen::generate_simple_self_signed(subject_alt_names).unwrap();
+        cert.pem()
+    }
+
+    // ========== Fake OCI server Tests ==========
+
+    #[test]
+    fn test_download_agent_package_success() {
+        let server = FakeOciServer::new("test-repo", "v1.0.0")
+            .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
+            .with_layer(
+                b"test agent package content",
+                &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
+            )
+            .build();
+
+        let downloader = create_downloader();
+        let dest_dir = tempdir().unwrap();
+        let local_agent_package = downloader
+            .download(&server.reference(), dest_dir.path())
+            .unwrap();
+
+        assert_eq!(
+            std::fs::read(local_agent_package.path()).unwrap(),
+            b"test agent package content"
+        );
+    }
+
+    #[test]
+    fn test_download_with_multiple_layers() {
+        let server = FakeOciServer::new("test-repo", "v1.0.0")
+            .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
+            .with_layer(
+                b"layer 1 content",
+                &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
+            )
+            .with_layer(
+                b"layer 2 content",
+                "application/vnd.newrelic.agent.unknown-content.v1",
+            )
+            .build();
+
+        let downloader = create_downloader();
+        let dest_dir = tempdir().unwrap();
+        let local_agent_package = downloader
+            .download(&server.reference(), dest_dir.path())
+            .unwrap();
+
+        assert_eq!(
+            std::fs::read(local_agent_package.path()).unwrap(),
+            b"layer 1 content"
+        );
+    }
+
+    #[test]
+    fn test_download_with_invalid_package() {
+        let server = FakeOciServer::new("test-repo", "v1.0.0")
+            .with_layer(
+                b"test content",
+                &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
+            )
+            .with_artifact_type("application/vnd.unknown.type.v1")
+            .build();
+
+        let downloader = create_downloader();
+        let dest_dir = tempdir().unwrap();
+        let err = downloader
+            .download(&server.reference(), dest_dir.path())
+            .unwrap_err();
+        assert!(err.to_string().contains("validating package manifest"));
+    }
+
+    #[test]
+    fn test_download_with_missing_manifest() {
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(GET).path("/v2/test-repo/manifests/v1.0.0");
+            then.status(404).json_body(json!({
+                "errors": [{"code": "MANIFEST_UNKNOWN", "message": "manifest unknown"}]
+            }));
+        });
+
+        let reference =
+            Reference::from_str(&format!("{}/test-repo:v1.0.0", server.address())).unwrap();
+        let downloader = create_downloader();
+        let dest_dir = tempdir().unwrap();
+        let err = downloader
+            .download(&reference, dest_dir.path())
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("download attempts exceeded"),
+            "{}",
+            err.to_string()
+        );
+    }
+
+    fn hex_bytes(bytes: &[u8]) -> String {
+        bytes.iter().map(|b| format!("{:02x}", b)).collect()
+    }
+
+    struct FakeOciServer {
+        server: MockServer,
+        repo: String,
+        tag: String,
+        layers: Vec<(String, Vec<u8>)>, // (digest, content)
+        manifest: OciImageManifest,
+    }
+
+    impl FakeOciServer {
+        fn new(repo: &str, tag: &str) -> Self {
+            Self {
+                server: MockServer::start(),
+                repo: repo.to_string(),
+                tag: tag.to_string(),
+                layers: Vec::new(),
+                manifest: OciImageManifest::default(),
+            }
+        }
+        fn with_artifact_type(mut self, artifact_type: &str) -> Self {
+            self.manifest.artifact_type = Some(artifact_type.to_string());
+            self
+        }
+
+        fn with_layer(mut self, content: &[u8], media_type: &str) -> Self {
+            let digest = digest(&SHA256, content);
+            let digest_str = format!("sha256:{}", hex_bytes(digest.as_ref()));
+            self.layers.push((digest_str, content.to_vec()));
+
+            let layer_descriptor = OciDescriptor {
+                media_type: media_type.to_string(),
+                digest: self.layers.last().unwrap().0.clone(),
+                size: content.len() as i64,
+                ..Default::default()
+            };
+            self.manifest.layers.push(layer_descriptor);
+            self
+        }
+
+        fn build(self) -> Self {
+            self.setup_mocks();
+            self
+        }
+
+        fn setup_mocks(&self) {
+            // Mock manifest endpoint
+            let manifest_clone = self.manifest.clone();
+            self.server.mock(|when, then| {
+                when.method(GET)
+                    .path(format!("/v2/{}/manifests/{}", self.repo, self.tag));
+                then.status(200)
+                    .header("Content-Type", "application/vnd.oci.image.manifest.v1+json")
+                    .json_body_obj(&manifest_clone);
+            });
+
+            // Mock blob endpoints
+            for (digest, content) in &self.layers {
+                let content_clone = content.clone();
+                let digest_clone = digest.clone();
+                self.server.mock(move |when, then| {
+                    when.method(GET)
+                        .path(format!("/v2/{}/blobs/{}", self.repo, digest_clone));
+                    then.status(200)
+                        .header("Content-Type", "application/octet-stream")
+                        .body(&content_clone);
+                });
+            }
+        }
+
+        fn reference(&self) -> Reference {
+            Reference::from_str(&format!(
+                "{}/{}:{}",
+                self.server.address(),
+                self.repo,
+                self.tag
+            ))
+            .unwrap()
+        }
+    }
+
+    fn create_downloader() -> OCIArtifactDownloader {
+        let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());
+        OCIArtifactDownloader::try_new(
+            ProxyConfig::default(),
+            runtime,
+            ClientConfig {
+                protocol: ClientProtocol::Http,
+                ..Default::default()
+            },
+        )
+        .unwrap()
     }
 }
