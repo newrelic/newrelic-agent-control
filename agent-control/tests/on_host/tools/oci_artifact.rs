@@ -13,6 +13,9 @@ use std::time::SystemTime;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
+// Registry created in the make target executing oci-registry.sh
+pub const REGISTRY_URL: &str = "localhost:5001";
+
 ///run_tag creates the tag used for pushing the artifact based on the actual timestamp to be unique
 fn run_tag() -> String {
     let now = SystemTime::now();
@@ -42,10 +45,15 @@ pub fn push_agent_package(file_to_push: &PathBuf, registry_url: &str) -> (String
         let mut blob_data = Vec::new();
         file.read_to_end(&mut blob_data).await.unwrap();
 
+        let file_name = file_to_push
+            .file_name()
+            .map(|os_str| os_str.to_string_lossy().to_string())
+            .unwrap_or_else(|| "unknown_file".to_string());
+
         let mut annotations: BTreeMap<String, String> = BTreeMap::new();
         annotations.insert(
             annotations::ORG_OPENCONTAINERS_IMAGE_TITLE.to_string(),
-            file_to_push.to_string_lossy().to_string(),
+            file_name,
         );
 
         let blob_digest = format!(

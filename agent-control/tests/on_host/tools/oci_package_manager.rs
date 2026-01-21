@@ -9,6 +9,8 @@ use oci_client::client::{ClientConfig, ClientProtocol};
 use std::fs::File;
 use std::path::Path;
 use std::{path::PathBuf, sync::Arc};
+#[cfg(target_os = "windows")]
+use zip::write::SimpleFileOptions;
 
 pub fn new_testing_oci_package_manager(
     base_path: PathBuf,
@@ -37,32 +39,54 @@ pub fn new_testing_oci_package_manager(
 pub struct TestDataHelper;
 
 impl TestDataHelper {
-    const FILE1: &str = "file1.txt";
-    const FILE2: &str = "file2.txt";
-    const CONTENT: &str = "important content";
-
-    fn create_data_to_compress(tmp_dir_to_compress: &Path) {
-        let file_path_1 = tmp_dir_to_compress.join(TestDataHelper::FILE1);
-        File::create(file_path_1.clone()).unwrap();
-        let file_path_2 = tmp_dir_to_compress.join(TestDataHelper::FILE2);
-        File::create(file_path_2.clone()).unwrap();
-
-        std::fs::write(file_path_1.as_path(), TestDataHelper::CONTENT).unwrap();
-        std::fs::write(file_path_2.as_path(), TestDataHelper::CONTENT).unwrap();
+    fn create_data_to_compress(tmp_dir_to_compress: &Path, file_dir: &str, file_content: &str) {
+        let file_path = tmp_dir_to_compress.join(file_dir);
+        File::create(file_path.clone()).unwrap();
+        std::fs::write(file_path.as_path(), file_content).unwrap();
     }
 
-    pub fn compress_tar_gz(source_path: &Path, tmp_file_archive: &Path) {
-        TestDataHelper::create_data_to_compress(source_path);
+    pub fn compress_tar_gz(
+        source_path: &Path,
+        tmp_file_archive: &Path,
+        content: &str,
+        filename: &str,
+    ) {
+        Self::create_data_to_compress(source_path, filename, content);
 
         let tar_gz = File::create(tmp_file_archive).unwrap();
         let enc = GzEncoder::new(tar_gz, Compression::default());
         let mut tar = tar::Builder::new(enc);
-        tar.append_dir_all(".", source_path).unwrap();
+        let file_path = source_path.join(filename);
+        tar.append_path_with_name(&file_path, filename).unwrap();
         tar.finish().unwrap();
     }
 
-    pub fn test_data_uncompressed(tmp_dir_extracted: &Path) {
-        assert!(tmp_dir_extracted.join(TestDataHelper::FILE1).exists());
-        assert!(tmp_dir_extracted.join(TestDataHelper::FILE2).exists());
+    #[cfg(target_os = "windows")]
+    pub fn compress_zip(
+        source_path: &Path,
+        tmp_file_archive: &Path,
+        content: &str,
+        filename: &str,
+    ) {
+        Self::create_data_to_compress(source_path, filename, content);
+
+        let file = File::create(tmp_file_archive).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        for entry in std::fs::read_dir(source_path).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            let options =
+                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+            zip.start_file(path.file_name().unwrap().to_string_lossy(), options)
+                .unwrap();
+            let mut f = File::open(&path).unwrap();
+            std::io::copy(&mut f, &mut zip).unwrap();
+        }
+
+        zip.finish().unwrap();
+    }
+
+    pub fn test_tar_gz_uncompressed(tmp_dir_extracted: &Path, filename: &str) {
+        assert!(tmp_dir_extracted.join(filename).exists());
     }
 }

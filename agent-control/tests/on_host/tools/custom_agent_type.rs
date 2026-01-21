@@ -14,6 +14,7 @@ pub struct CustomAgentType {
     variables: Option<serde_yaml::Value>,
     executables: Option<serde_yaml::Value>,
     filesystem: Option<serde_yaml::Value>,
+    packages: Option<serde_yaml::Value>,
     health: Option<serde_yaml::Value>,
     version: Option<serde_yaml::Value>,
 }
@@ -36,6 +37,7 @@ fake_variable:
             ),
             executables: Some(Self::default_executables()),
             filesystem: None,
+            packages: None,
             version: Some(Self::default_version_checker()),
             health: None,
         }
@@ -71,6 +73,9 @@ impl Display for CustomAgentType {
         }
         if let Some(version) = self.version.as_ref() {
             deployment_content.insert("version".into(), version.clone());
+        }
+        if let Some(packages) = self.packages.as_ref() {
+            deployment_content.insert("packages".into(), packages.clone());
         }
         let mut deployment = serde_yaml::Mapping::new();
         deployment.insert(
@@ -152,6 +157,7 @@ regex: \d+\.\d+\.\d+
             health: None,
             version: None,
             filesystem: None,
+            packages: None,
         }
     }
 
@@ -172,6 +178,13 @@ regex: \d+\.\d+\.\d+
     pub fn with_filesystem(self, filesystem: Option<&str>) -> Self {
         Self {
             filesystem: filesystem.map(|f| serde_yaml::from_str(f).unwrap()),
+            ..self
+        }
+    }
+
+    pub fn with_packages(self, packages: Option<&str>) -> Self {
+        Self {
+            packages: packages.map(|f| serde_yaml::from_str(f).unwrap()),
             ..self
         }
     }
