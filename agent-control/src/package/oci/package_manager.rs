@@ -250,6 +250,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::package::oci::artifact_definitions::PackageMediaType;
     use crate::package::oci::downloader::tests::MockOCIDownloader;
     use crate::utils::extract::tests::TestDataHelper;
     use fs::directory_manager::mock::MockDirectoryManager;
@@ -262,6 +263,10 @@ mod tests {
 
     fn test_reference() -> Reference {
         Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap()
+    }
+
+    fn new_package(path: &Path) -> LocalAgentPackage {
+        LocalAgentPackage::new(PackageMediaType::AgentPackageLayerTarGz, path.to_path_buf())
     }
 
     #[test]
@@ -292,7 +297,7 @@ mod tests {
                     downloaded_file.as_path(),
                 );
 
-                Ok(LocalAgentPackage::new(downloaded_file))
+                Ok(new_package(&downloaded_file))
             });
 
         let pm = OCIPackageManager {
@@ -337,7 +342,7 @@ mod tests {
                 let tmp_dir_to_compress = tempdir().unwrap();
                 TestDataHelper::compress_zip(tmp_dir_to_compress.path(), downloaded_file.as_path());
 
-                Ok(LocalAgentPackage::new(downloaded_file))
+                Ok(new_package(&downloaded_file))
             });
 
         let pm = OCIPackageManager {
@@ -489,7 +494,7 @@ mod tests {
             .expect_download()
             .with(eq(test_reference()), eq(download_dir.clone()))
             .once()
-            .returning(move |_, _| Ok(LocalAgentPackage::new(downloaded_file.clone())));
+            .returning(move |_, _| Ok(new_package(&downloaded_file)));
 
         directory_manager
             .expect_create()
@@ -570,7 +575,7 @@ mod tests {
                     downloaded_file.as_path(),
                 );
 
-                Ok(LocalAgentPackage::new(downloaded_file))
+                Ok(new_package(&downloaded_file))
             });
 
         directory_manager

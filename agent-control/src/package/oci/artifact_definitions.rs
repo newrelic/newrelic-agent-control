@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::path::{Path, PathBuf};
 
 use crate::utils::extract::{extract_tar_gz, extract_zip};
+use oci_client::manifest::{OciDescriptor, OciImageManifest};
 
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
@@ -9,7 +10,7 @@ pub struct DefinitionError(String);
 
 const AGENT_PACKAGE_ARTIFACT_TYPE: &str = "application/vnd.newrelic.agent.v1";
 const AGENT_TYPE_ARTIFACT_TYPE: &str = "application/vnd.newrelic.agent-type.v1";
-/// OCI manifestartifact types supported.
+/// OCI manifest artifact types supported.
 #[derive(Debug)]
 pub enum ManifestArtifactType {
     AgentPackage,
@@ -80,49 +81,35 @@ impl Display for LayerMediaType {
         }
     }
 }
-/// Represents a OCI artifact locally stored with its complete metadata.
-#[derive(Debug)]
-pub struct LocalArtifact {
-    artifact_type: ManifestArtifactType,
-    blobs: Vec<LocalBlob>,
-}
-impl LocalArtifact {
-    pub fn new(artifact_type: ManifestArtifactType, blobs: Vec<LocalBlob>) -> Self {
-        Self {
-            artifact_type,
-            blobs,
-        }
-    }
-}
 
 #[derive(Debug)]
 pub enum PackageMediaType {
     AgentPackageLayerTarGz,
     AgentPackageLayerZip,
 }
-/// Represents a OCI blob locally stored.
-#[derive(Debug)]
-pub struct LocalBlob {
-    media_type: LayerMediaType,
-    path: PathBuf,
-}
-
-impl LocalBlob {
-    pub fn new(media_type: LayerMediaType, path: PathBuf) -> Self {
-        Self { media_type, path }
+impl Display for PackageMediaType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PackageMediaType::AgentPackageLayerTarGz => write!(f, "{}", AGENT_PACKAGE_LAYER_TAR_GZ),
+            PackageMediaType::AgentPackageLayerZip => write!(f, "{}", AGENT_PACKAGE_LAYER_ZIP),
+        }
     }
 }
 
 /// Represents a Agent Package OCI artifact locally stored.
-/// Agent Package Manifest requirements:
-/// - artifactType must be '[AGENT_PACKAGE_ARTIFACT_TYPE]'
-/// - exactly one layer with mediaType of '[PackageMediaType]'
 #[derive(Debug)]
 pub struct LocalAgentPackage {
     blob_path: PathBuf,
     blob_media_type: PackageMediaType,
 }
 impl LocalAgentPackage {
+    pub fn new(blob_media_type: PackageMediaType, blob_path: PathBuf) -> Self {
+        Self {
+            blob_media_type,
+            blob_path,
+        }
+    }
+
     /// Extracts the agent package to the specified destination path.
     pub fn extract(&self, dest_path: &Path) -> Result<(), DefinitionError> {
         match &self.blob_media_type {
@@ -131,99 +118,101 @@ impl LocalAgentPackage {
         }
         .map_err(|e| DefinitionError(format!("failed extracting: {e}")))
     }
-}
 
-impl TryFrom<LocalArtifact> for LocalAgentPackage {
-    type Error = DefinitionError;
-    fn try_from(value: LocalArtifact) -> Result<Self, Self::Error> {
-        match value.artifact_type {
-            ManifestArtifactType::AgentPackage => {}
-            _ => {
-                return Err(DefinitionError(format!(
-                    "invalid artifact type: expected {}, got {}",
-                    ManifestArtifactType::AgentPackage,
-                    value.artifact_type
-                )));
-            }
+    /// Validates that the manifest meets the requirements for an Agent Package artifact and
+    /// returns the layer descriptor that contains the package blob with its media type.
+    /// Agent Package Manifest requirements:
+    /// - artifactType must be '[AGENT_PACKAGE_ARTIFACT_TYPE]'
+    /// - exactly one layer with mediaType of '[PackageMediaType]'
+    pub fn get_layer(
+        manifest: &OciImageManifest,
+    ) -> Result<(OciDescriptor, PackageMediaType), DefinitionError> {
+        if manifest.artifact_type.as_deref() != Some(AGENT_PACKAGE_ARTIFACT_TYPE) {
+            return Err(DefinitionError(format!(
+                "invalid artifactType: expected {}, got {:?}",
+                AGENT_PACKAGE_ARTIFACT_TYPE, manifest.artifact_type
+            )));
         }
-        let mut blobs = value
-            .blobs
-            .into_iter()
-            .filter_map(|blob| match blob.media_type {
-                LayerMediaType::AgentPackage(pkg_media_type) => Some((blob.path, pkg_media_type)),
+        let mut supported_layers = manifest.layers.iter().filter_map(|layer| {
+            match LayerMediaType::from(layer.media_type.as_str()) {
+                LayerMediaType::AgentPackage(pkg_media_type) => Some((layer, pkg_media_type)),
                 _ => None,
-            });
-        let Some(blob) = blobs.next() else {
-            return Err(DefinitionError(
-                "agent package artifact must have at least one supported layer".to_string(),
-            ));
+            }
+        });
+
+        let Some((layer, media_type)) = supported_layers.next() else {
+            return Err(DefinitionError(format!(
+                "agent package artifact must have at least one supported layer {} or {}",
+                PackageMediaType::AgentPackageLayerTarGz,
+                PackageMediaType::AgentPackageLayerZip
+            )));
         };
-        if blobs.next().is_some() {
+        if supported_layers.next().is_some() {
             return Err(DefinitionError(
                 "agent package artifact must have exactly one supported layer".to_string(),
             ));
         }
-        Ok(Self {
-            blob_path: blob.0,
-            blob_media_type: blob.1,
-        })
+        Ok((layer.clone(), media_type))
     }
 }
 
 #[cfg(test)]
 pub mod tests {
     use super::*;
-
-    impl LocalAgentPackage {
-        pub fn new(file_path: PathBuf) -> Self {
-            Self {
-                blob_path: file_path,
-                blob_media_type: PackageMediaType::AgentPackageLayerTarGz,
-            }
-        }
-    }
+    use assert_matches::assert_matches;
 
     #[rstest::rstest]
     #[case::tar_gz_single_layer(
-        AGENT_PACKAGE_ARTIFACT_TYPE,
         vec![AGENT_PACKAGE_LAYER_TAR_GZ]
     )]
     #[case::zip_single_layer(
-        AGENT_PACKAGE_ARTIFACT_TYPE,
         vec![AGENT_PACKAGE_LAYER_ZIP]
     )]
     #[case::tar_gz_with_extra_layers(
-        AGENT_PACKAGE_ARTIFACT_TYPE,
         vec![AGENT_PACKAGE_LAYER_TAR_GZ, "application/vnd.custom.extra.v1"]
     )]
     #[case::zip_with_extra_layers(
-        AGENT_PACKAGE_ARTIFACT_TYPE,
         vec![AGENT_PACKAGE_LAYER_ZIP, "application/vnd.custom.extra.v1"]
     )]
-    fn test_local_artifact_to_agent_package_success(
-        #[case] artifact_type: &str,
-        #[case] layer_media_types: Vec<&str>,
-    ) {
-        let blobs: Vec<LocalBlob> = layer_media_types
+    fn test_local_artifact_to_agent_package_success(#[case] layer_media_types: Vec<&str>) {
+        let layers = layer_media_types
             .iter()
-            .map(|media_type| create_blob(media_type))
+            .map(|media_type| OciDescriptor {
+                media_type: media_type.to_string(),
+                ..Default::default()
+            })
             .collect();
+        let manifest = OciImageManifest {
+            artifact_type: Some(ManifestArtifactType::AgentPackage.to_string()),
+            layers,
+            ..Default::default()
+        };
 
-        let artifact_type = ManifestArtifactType::try_from(artifact_type).unwrap();
-        let artifact = LocalArtifact::new(artifact_type, blobs);
-
-        LocalAgentPackage::try_from(artifact).unwrap();
+        let (_, media_type) = LocalAgentPackage::get_layer(&manifest).unwrap();
+        match layer_media_types[0] {
+            AGENT_PACKAGE_LAYER_TAR_GZ => {
+                assert_matches!(media_type, PackageMediaType::AgentPackageLayerTarGz)
+            }
+            AGENT_PACKAGE_LAYER_ZIP => {
+                assert_matches!(media_type, PackageMediaType::AgentPackageLayerZip)
+            }
+            _ => panic!("unexpected media type"),
+        }
     }
-
     #[rstest::rstest]
-    #[case::no_layers(
-        AGENT_PACKAGE_ARTIFACT_TYPE,
+    #[case::invalid_artifact_type(
+        "application/vnd.newrelic.unknown.v1",
         vec![],
+        "invalid artifactType"
+    )]
+    #[case::no_supported_layers(
+        AGENT_PACKAGE_ARTIFACT_TYPE,
+        vec!["application/vnd.custom.extra.v1"],
         "must have at least one supported layer"
     )]
-    #[case::only_unsupported_layers(
+    #[case::empty_layers(
         AGENT_PACKAGE_ARTIFACT_TYPE,
-        vec!["application/vnd.unsupported.v1", "application/octet-stream"],
+        vec![],
         "must have at least one supported layer"
     )]
     #[case::multiple_supported_layers(
@@ -234,24 +223,21 @@ pub mod tests {
     fn test_local_artifact_to_agent_package_failure(
         #[case] artifact_type: &str,
         #[case] layer_media_types: Vec<&str>,
-        #[case] expected_error_fragment: &str,
+        #[case] expected_error: &str,
     ) {
-        let blobs: Vec<LocalBlob> = layer_media_types
+        let layers = layer_media_types
             .iter()
-            .map(|media_type| create_blob(media_type))
+            .map(|media_type| OciDescriptor {
+                media_type: media_type.to_string(),
+                ..Default::default()
+            })
             .collect();
-
-        let artifact_type = ManifestArtifactType::try_from(artifact_type).unwrap();
-        let artifact = LocalArtifact::new(artifact_type, blobs);
-
-        let err = LocalAgentPackage::try_from(artifact).unwrap_err();
-        assert!(err.to_string().contains(expected_error_fragment));
-    }
-
-    fn create_blob(media_type: &str) -> LocalBlob {
-        LocalBlob::new(
-            LayerMediaType::from(media_type),
-            PathBuf::from("/dummy/path.tar.gz"),
-        )
+        let manifest = OciImageManifest {
+            artifact_type: Some(artifact_type.to_string()),
+            layers,
+            ..Default::default()
+        };
+        let err = LocalAgentPackage::get_layer(&manifest).unwrap_err();
+        assert!(err.to_string().contains(expected_error));
     }
 }

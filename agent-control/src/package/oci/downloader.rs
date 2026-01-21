@@ -1,8 +1,6 @@
 use crate::http::client::{cert_paths_from_dir, certificate_error};
 use crate::http::config::ProxyConfig;
-use crate::package::oci::artifact_definitions::{
-    LayerMediaType, LocalAgentPackage, LocalArtifact, LocalBlob, ManifestArtifactType,
-};
+use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::utils::retry::retry;
 use oci_client::client::{Certificate, CertificateEncoding, ClientConfig};
 use oci_client::errors::OciDistributionError;
@@ -67,21 +65,14 @@ impl OCIAgentDownloader for OCIArtifactDownloader {
         package_dir: &Path,
     ) -> Result<LocalAgentPackage, OCIDownloaderError> {
         debug!("Downloading '{reference}'",);
-        let local_artifact = retry(self.max_retries, self.retry_interval, || {
+        retry(self.max_retries, self.retry_interval, || {
             self.runtime
-                .block_on(self.download_artifact(reference, package_dir))
+                .block_on(self.download_package_artifact(reference, package_dir))
                 .inspect_err(|e| debug!("Download '{reference}' failed with error: {e}"))
         })
         .map_err(|e| {
             OCIDownloaderError::DownloadingArtifact(format!(
                 "Download attempts exceeded. Last error: {e}"
-            ))
-        })?;
-
-        // TODO validate the package manifest before downloading it.
-        LocalAgentPackage::try_from(local_artifact).map_err(|e| {
-            OCIDownloaderError::DownloadingArtifact(format!(
-                "converting '{reference}' into agent package: {e}"
             ))
         })
     }
@@ -144,52 +135,34 @@ impl OCIArtifactDownloader {
         }
     }
 
-    async fn download_artifact(
+    async fn download_package_artifact(
         &self,
         reference: &Reference,
         package_dir: &Path,
-    ) -> Result<LocalArtifact, OCIDownloaderError> {
+    ) -> Result<LocalAgentPackage, OCIDownloaderError> {
         let (image_manifest, _) = self
             .client
             .pull_image_manifest(reference, &self.auth)
             .await
             .map_err(OCIDownloaderError::OciDistribution)?;
 
-        let Some(artifact_type) = image_manifest.artifact_type.as_ref() else {
-            return Err(OCIDownloaderError::DownloadingArtifact(
-                "missing artifact type in image manifest".to_string(),
-            ));
-        };
-        let artifact_type =
-            ManifestArtifactType::try_from(artifact_type.as_str()).map_err(|_| {
-                OCIDownloaderError::DownloadingArtifact(format!(
-                    "unsupported artifact type: {artifact_type}"
-                ))
-            })?;
+        let (layer, media_type) = LocalAgentPackage::get_layer(&image_manifest).map_err(|e| {
+            OCIDownloaderError::DownloadingArtifact(format!("validating package layer: {e}"))
+        })?;
 
-        let mut blobs = Vec::new();
+        let layer_path = package_dir.join(layer.digest.replace(':', "_"));
+        let mut file = tokio::fs::File::create(&layer_path)
+            .await
+            .map_err(OCIDownloaderError::Io)?;
 
-        for layer in image_manifest.layers.iter() {
-            // Remove ':' from digest to make it a valid filename on Windows
-            let layer_path = package_dir.join(layer.digest.replace(':', "_"));
-            let mut file = tokio::fs::File::create(&layer_path)
-                .await
-                .map_err(OCIDownloaderError::Io)?;
+        self.client
+            .pull_blob(reference, &layer, &mut file)
+            .await
+            .map_err(OCIDownloaderError::OciDistribution)?;
 
-            self.client
-                .pull_blob(reference, &layer, &mut file)
-                .await
-                .map_err(OCIDownloaderError::OciDistribution)?;
+        debug!("Artifact written to {}", layer_path.display());
 
-            debug!("Artifact written to {}", layer_path.display());
-
-            blobs.push(LocalBlob::new(
-                LayerMediaType::from(layer.media_type.as_str()),
-                layer_path,
-            ));
-        }
-
-        Ok(LocalArtifact::new(artifact_type, blobs))
+        Ok(LocalAgentPackage::new(media_type, layer_path))
     }
 }
 
