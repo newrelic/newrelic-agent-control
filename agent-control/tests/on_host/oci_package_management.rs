@@ -5,6 +5,7 @@ use crate::on_host::tools::{
 };
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::package::manager::{PackageData, PackageManager};
+use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::package_manager::get_package_path;
 use tempfile::tempdir;
 
@@ -23,7 +24,11 @@ fn test_install_and_uninstall_with_oci_registry() {
         FILENAME,
     );
 
-    let (_artifact_digest, reference) = push_agent_package(&file_to_push, REGISTRY_URL);
+    let (_artifact_digest, reference) = push_agent_package(
+        &file_to_push,
+        REGISTRY_URL,
+        PackageMediaType::AgentPackageLayerTarGz,
+    );
 
     let temp_dir = tempdir().unwrap();
     let base_path = temp_dir.path().to_path_buf();
@@ -82,7 +87,11 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
         FILENAME,
     );
 
-    let (_artifact_digest, reference) = push_agent_package(&file_to_push, REGISTRY_URL);
+    let (_artifact_digest, reference) = push_agent_package(
+        &file_to_push,
+        REGISTRY_URL,
+        PackageMediaType::AgentPackageLayerTarGz,
+    );
 
     let temp_dir = tempdir().unwrap();
     let base_path = temp_dir.path().to_path_buf();

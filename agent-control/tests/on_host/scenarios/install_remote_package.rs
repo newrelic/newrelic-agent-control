@@ -14,6 +14,7 @@ use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use opamp_client::opamp::proto::any_value::Value;
 use std::time::Duration;
 use tempfile::{TempDir, tempdir};
@@ -260,7 +261,7 @@ fn create_agent_type(local_dir: &TempDir, agent_id: &str, platform: &Platform) -
 fn push_testing_package_platform(platform: &Platform, version: &str) -> String {
     let dir = tempdir().unwrap();
     let tmp_dir_to_compress = tempdir().unwrap();
-    let file_to_push = match platform {
+    match platform {
         #[cfg(not(target_os = "windows"))]
         Platform::Linux => {
             let path = dir.path().join("layer_digest.tar.gz");
@@ -270,7 +271,13 @@ fn push_testing_package_platform(platform: &Platform, version: &str) -> String {
                 LINUX_TEMPLATE.replace("{VERSION}", version).as_str(),
                 FILE_LINUX,
             );
-            path
+            let (_, reference) = push_agent_package(
+                &path,
+                REGISTRY_URL,
+                PackageMediaType::AgentPackageLayerTarGz,
+            );
+
+            reference.tag().unwrap().to_string()
         }
         #[cfg(target_os = "windows")]
         Platform::Windows => {
@@ -281,10 +288,10 @@ fn push_testing_package_platform(platform: &Platform, version: &str) -> String {
                 WINDOWS_TEMPLATE.replace("{VERSION}", version).as_str(),
                 FILE_WINDOWS,
             );
-            path
-        }
-    };
-    let (_, reference) = push_agent_package(&file_to_push, REGISTRY_URL);
+            let (_, reference) =
+                push_agent_package(&path, REGISTRY_URL, PackageMediaType::AgentPackageLayerZip);
 
-    reference.tag().unwrap().to_string()
+            reference.tag().unwrap().to_string()
+        }
+    }
 }

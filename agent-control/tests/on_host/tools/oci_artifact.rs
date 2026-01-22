@@ -29,7 +29,11 @@ fn run_tag() -> String {
 
 /// push_artifact pushes the provided artifact and reference to the oci registry provided on the
 /// reference, it returns the digest of the artifact or panics if it fails.
-pub fn push_agent_package(file_to_push: &PathBuf, registry_url: &str) -> (String, Reference) {
+pub fn push_agent_package(
+    file_to_push: &PathBuf,
+    registry_url: &str,
+    media_type: PackageMediaType,
+) -> (String, Reference) {
     block_on(async {
         let reference =
             Reference::try_from(format!("{}/test:{}", registry_url, run_tag())).unwrap();
@@ -67,8 +71,7 @@ pub fn push_agent_package(file_to_push: &PathBuf, registry_url: &str) -> (String
             .unwrap();
 
         let blob_descriptor = OciDescriptor {
-            media_type: LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz)
-                .to_string(),
+            media_type: LayerMediaType::AgentPackage(media_type).to_string(),
             digest: blob_digest.clone(),
             size: blob_data.len() as i64,
             ..Default::default()
