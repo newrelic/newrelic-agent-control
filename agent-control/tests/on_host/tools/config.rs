@@ -1,8 +1,9 @@
-use std::fs::{File, create_dir_all};
-use std::io::Write;
+use std::fs::create_dir_all;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use fs::file::LocalFile;
+use fs::file::writer::FileWriter;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
@@ -67,8 +68,9 @@ agents: {}
 pub fn create_file(content: String, path: PathBuf) {
     create_dir_all(path.parent().unwrap()).unwrap();
 
-    let mut local_file = File::create(path).expect("failed to create local config file");
-    write!(local_file, "{content}").unwrap();
+    LocalFile
+        .write(&path, content)
+        .expect("failed to create file");
 }
 
 /// Creates local values config for the agent_id provided on the base_dir

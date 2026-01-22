@@ -1,8 +1,8 @@
 use std::fmt::Display;
-use std::fs::File;
-use std::io::Write;
 use std::path::PathBuf;
 
+use fs::file::LocalFile;
+use fs::file::writer::FileWriter;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
 use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
@@ -232,9 +232,9 @@ regex: \d+\.\d+\.\d+
         );
 
         std::fs::create_dir_all(agent_type_file_path.parent().unwrap()).unwrap();
-        let mut local_file =
-            File::create(agent_type_file_path.clone()).expect("failed to create local config file");
-        write!(local_file, "{self}").expect("failed to write custom agent type");
+        LocalFile
+            .write(&agent_type_file_path, self.to_string())
+            .expect("failed to write custom agent type");
         self.agent_type_id.to_string()
     }
 }

@@ -27,12 +27,14 @@ impl FileWriter for LocalFile {
             file_options.mode(LocalFile::get_file_permissions().mode());
         }
 
-        file_options.open(path)?.write_all(content.as_bytes())?;
+        let mut file = file_options.open(path)?;
+        file.write_all(content.as_bytes())?;
 
         #[cfg(target_family = "windows")]
         crate::win_permissions::set_file_permissions_for_administrator(path)
             .map_err(io::Error::other)?;
 
+        file.sync_all()?;
         Ok(())
     }
 }

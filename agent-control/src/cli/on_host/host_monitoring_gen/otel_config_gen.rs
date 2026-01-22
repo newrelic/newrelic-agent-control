@@ -4,6 +4,8 @@ use crate::agent_control::defaults::{
 };
 use crate::cli::error::CliError;
 use crate::on_host::file_store::build_config_name;
+use fs::file::LocalFile;
+use fs::file::writer::FileWriter;
 use std::path::PathBuf;
 use tracing::info;
 
@@ -65,8 +67,10 @@ impl OtelConfigGen {
             .collect::<Vec<_>>()
             .join("\n");
 
-        std::fs::write(file_path, modified_content)
+        LocalFile
+            .write(&file_path, modified_content)
             .map_err(|err| CliError::Command(format!("error writing otel values file: {err}")))?;
+
         Ok(())
     }
 }

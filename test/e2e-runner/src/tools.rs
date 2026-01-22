@@ -5,6 +5,7 @@ use tracing::warn;
 use crate::tools::test::TestResult;
 
 pub mod config;
+pub mod file;
 pub mod logs;
 pub mod nrql;
 pub mod test;
