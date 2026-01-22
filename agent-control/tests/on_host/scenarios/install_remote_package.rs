@@ -8,7 +8,7 @@ use crate::common::retry::retry;
 use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
-use crate::on_host::tools::oci_artifact::{REGISTRY_URL, push_artifact};
+use crate::on_host::tools::oci_artifact::{REGISTRY_URL, push_agent_package};
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
@@ -41,7 +41,7 @@ Start-Sleep -Seconds 60
 "#;
 
 #[test]
-#[ignore = "needs oci registry, needs elevated privileges on Windows"]
+#[ignore = "needs oci registry (use *with_oci_registry suffix), needs elevated privileges on Windows"]
 fn test_install_and_update_agent_remote_package_with_oci_registry() {
     pub const PCK_VERSION_1: &str = "1.0.0";
     pub const PCK_VERSION_2: &str = "2.0.0";
@@ -284,7 +284,7 @@ fn push_testing_package_platform(platform: &Platform, version: &str) -> String {
             path
         }
     };
-    let (_, reference) = push_artifact(&file_to_push, REGISTRY_URL);
+    let (_, reference) = push_agent_package(&file_to_push, REGISTRY_URL);
 
     reference.tag().unwrap().to_string()
 }

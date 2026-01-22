@@ -172,10 +172,9 @@ impl AgentControlRunner {
         };
 
         let packages_downloader =
-            OCIArtifactDownloader::try_new(self.proxy, self.runtime, oci_client_config)
-                .map_err(|err| {
-                    RunError(format!("failed to create OCIRefDownloader client: {err}"))
-                })?;
+            OCIArtifactDownloader::try_new(self.proxy, self.runtime, oci_client_config).map_err(
+                |err| RunError(format!("failed to create OCIRefDownloader client: {err}")),
+            )?;
 
         let package_manager = OCIPackageManager::new(
             packages_downloader,
