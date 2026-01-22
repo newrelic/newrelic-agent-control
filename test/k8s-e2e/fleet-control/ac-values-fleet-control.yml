@@ -17,7 +17,7 @@ agentControlDeployment:
       fleet_control:
         enabled: true
         # Fleet with name 'ac-e2e-3'. The sub-agent reports data to the 'Agent Control Canaries' account.
-        # fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyODk4LTg0OWMtNzdmZC1iN2Y1LWMwYjNiNDRmNzlkNw
+        fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyODk4LTg0OWMtNzdmZC1iN2Y1LWMwYjNiNDRmNzlkNw
       log:
         level: debug
       agents:
