@@ -161,6 +161,12 @@ pub mod tests {
     use super::*;
     use assert_matches::assert_matches;
 
+    impl LocalAgentPackage {
+        pub fn path(&self) -> &PathBuf {
+            &self.blob_path
+        }
+    }
+
     #[rstest::rstest]
     #[case::tar_gz_single_layer(
         vec![AGENT_PACKAGE_LAYER_TAR_GZ]
