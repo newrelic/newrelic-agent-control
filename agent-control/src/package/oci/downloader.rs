@@ -160,6 +160,9 @@ impl OCIArtifactDownloader {
             .await
             .map_err(OCIDownloaderError::OciDistribution)?;
 
+        // Ensure all data is flushed to disk before returning
+        file.sync_data().await.map_err(OCIDownloaderError::Io)?;
+
         debug!("Artifact written to {}", layer_path.display());
 
         Ok(LocalAgentPackage::new(media_type, layer_path))
