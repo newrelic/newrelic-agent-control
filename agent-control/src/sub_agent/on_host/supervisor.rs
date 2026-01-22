@@ -74,7 +74,6 @@ where
                     &self.agent_identity.id,
                     PackageData {
                         id: id.clone(),
-                        package_type: package.package_type.clone(),
                         oci_reference: package.download.oci.reference.clone(),
                     },
                 )

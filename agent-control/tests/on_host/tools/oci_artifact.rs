@@ -1,10 +1,13 @@
 use crate::common::runtime::block_on;
-use oci_client::client::{ClientConfig, ClientProtocol, Config, ImageLayer};
-use oci_client::secrets::RegistryAuth;
+use newrelic_agent_control::package::oci::artifact_definitions::{
+    LayerMediaType, ManifestArtifactType, PackageMediaType,
+};
+use oci_client::client::{ClientConfig, ClientProtocol};
+use oci_client::manifest::{OCI_IMAGE_MEDIA_TYPE, OciDescriptor, OciImageManifest};
 use oci_client::{Client, annotations, manifest};
 use oci_spec::distribution::Reference;
+use ring::digest::{SHA256, digest};
 use std::collections::BTreeMap;
-use std::error::Error;
 use std::path::PathBuf;
 use std::time::SystemTime;
 use tokio::fs::File;
@@ -23,10 +26,11 @@ fn run_tag() -> String {
 
 /// push_artifact pushes the provided artifact and reference to the oci registry provided on the
 /// reference, it returns the digest of the artifact or panics if it fails.
-pub fn push_artifact(file_to_push: &PathBuf, registry_url: &str) -> (String, Reference) {
+pub fn push_agent_package(file_to_push: &PathBuf, registry_url: &str) -> (String, Reference) {
     block_on(async {
         let reference =
             Reference::try_from(format!("{}/test:{}", registry_url, run_tag())).unwrap();
+        let blob_reference = Reference::try_from(format!("{}/test", registry_url)).unwrap();
 
         let oci_client = Client::new(ClientConfig {
             protocol: ClientProtocol::Http,
@@ -44,59 +48,62 @@ pub fn push_artifact(file_to_push: &PathBuf, registry_url: &str) -> (String, Ref
             file_to_push.to_string_lossy().to_string(),
         );
 
-        let layers = vec![ImageLayer::new(
-            blob_data.clone(),
-            manifest::IMAGE_LAYER_GZIP_MEDIA_TYPE.to_string(),
-            Some(annotations),
-        )];
+        let blob_digest = format!(
+            "sha256:{}",
+            hex_bytes(digest(&SHA256, blob_data.as_slice()).as_ref())
+        );
 
-        let config = Config {
-            data: blob_data,
-            media_type: manifest::IMAGE_CONFIG_MEDIA_TYPE.to_string(),
-            annotations: None,
-        };
-
-        let image_manifest = manifest::OciImageManifest::build(&layers, &config, None);
-
-        let _ = oci_client
-            .push(
-                &reference,
-                &layers,
-                config,
-                &RegistryAuth::Anonymous,
-                Some(image_manifest),
-            )
+        oci_client
+            .push_blob(&blob_reference, &blob_data, blob_digest.as_str())
             .await
-            .map(|push_response| push_response.manifest_url)
             .unwrap();
 
-        (
-            fetch_manifest_and_get_digest(oci_client, &reference)
-                .await
-                .unwrap(),
-            reference,
-        )
+        let blob_descriptor = OciDescriptor {
+            media_type: LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz)
+                .to_string(),
+            digest: blob_digest.clone(),
+            size: blob_data.len() as i64,
+            ..Default::default()
+        };
+
+        // Push empty config blob (required for OCI artifacts)
+        let empty_config = b"{}";
+        let empty_config_digest = format!(
+            "sha256:{}",
+            hex_bytes(digest(&SHA256, empty_config).as_ref())
+        );
+        oci_client
+            .push_blob(&blob_reference, empty_config, empty_config_digest.as_str())
+            .await
+            .unwrap();
+
+        let image_manifest = OciImageManifest {
+            media_type: Some(OCI_IMAGE_MEDIA_TYPE.to_string()),
+            artifact_type: Some(ManifestArtifactType::AgentPackage.to_string()),
+            layers: vec![blob_descriptor],
+            config: OciDescriptor {
+                media_type: "application/vnd.oci.empty.v1+json".to_string(),
+                digest: empty_config_digest.clone(),
+                size: empty_config.len() as i64,
+                ..Default::default()
+            },
+            annotations: Some(annotations),
+            ..Default::default()
+        };
+
+        oci_client
+            .push_manifest(&reference, &manifest::OciManifest::Image(image_manifest))
+            .await
+            .unwrap();
+
+        (blob_digest, reference)
     })
 }
 
-async fn fetch_manifest_and_get_digest(
-    oci_client: Client,
-    reference: &Reference,
-) -> Result<String, Box<dyn Error>> {
-    let (manifest, _) = oci_client
-        .pull_image_manifest(reference, &RegistryAuth::Anonymous)
-        .await?;
-
-    // Iterate over layers to find the one with the specified title annotation
-    for layer in manifest.layers {
-        if let Some(annotations) = &layer.annotations
-            && let Some(_layer_title) = annotations.get("org.opencontainers.image.title")
-        {
-            return Ok(layer.digest.clone());
-        }
+fn hex_bytes(bytes: &[u8]) -> String {
+    let mut hex_string = String::new();
+    for byte in bytes {
+        hex_string.push_str(&format!("{:02x}", byte));
     }
-
-    Err(Box::<dyn Error>::from(
-        "Digest for artifact not found".to_string(),
-    ))
+    hex_string
 }

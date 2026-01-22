@@ -25,7 +25,7 @@ use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
-use crate::package::oci::downloader::OCIRefDownloader;
+use crate::package::oci::downloader::OCIArtifactDownloader;
 use crate::package::oci::package_manager::OCIPackageManager;
 use crate::secret_retriever::on_host::retrieve::OnHostSecretRetriever;
 use crate::secrets_provider::SecretsProviders;
@@ -165,9 +165,10 @@ impl AgentControlRunner {
         ));
 
         let packages_downloader =
-            OCIRefDownloader::try_new(self.proxy, self.runtime, ClientConfig::default()).map_err(
-                |err| RunError(format!("failed to create OCIRefDownloader client: {err}")),
-            )?;
+            OCIArtifactDownloader::try_new(self.proxy, self.runtime, ClientConfig::default())
+                .map_err(|err| {
+                    RunError(format!("failed to create OCIRefDownloader client: {err}"))
+                })?;
 
         let package_manager = OCIPackageManager::new(
             packages_downloader,
