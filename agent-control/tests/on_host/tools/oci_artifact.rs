@@ -7,24 +7,24 @@ use oci_client::manifest::{OCI_IMAGE_MEDIA_TYPE, OciDescriptor, OciImageManifest
 use oci_client::{Client, annotations, manifest};
 use oci_spec::distribution::Reference;
 use ring::digest::{SHA256, digest};
+use std::backtrace::Backtrace;
 use std::collections::BTreeMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
-use std::time::SystemTime;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
-// Registry created in the make target executing oci-registry.sh
 pub const REGISTRY_URL: &str = "localhost:5001";
 
-///run_tag creates the tag used for pushing the artifact based on the actual timestamp to be unique
-fn run_tag() -> String {
-    let now = SystemTime::now();
-
-    let duration = now
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("SystemTime went backwards");
-
-    format!("{}", duration.as_nanos())
+/// Creates a tag to be used when pushing OCI artifacts to the testing server.
+/// The tag is built using the [Backtrace] so it is expected to be different for
+/// different tests.
+fn testing_unique_tag() -> String {
+    let backtrace = Backtrace::force_capture().to_string();
+    let mut hasher = DefaultHasher::new();
+    backtrace.hash(&mut hasher);
+    let hash = hasher.finish();
+    format!("{hash}")
 }
 
 /// push_artifact pushes the provided artifact and reference to the oci registry provided on the
@@ -36,7 +36,7 @@ pub fn push_agent_package(
 ) -> (String, Reference) {
     block_on(async {
         let reference =
-            Reference::try_from(format!("{}/test:{}", registry_url, run_tag())).unwrap();
+            Reference::try_from(format!("{}/test:{}", registry_url, testing_unique_tag())).unwrap();
         let blob_reference = Reference::try_from(format!("{}/test", registry_url)).unwrap();
 
         let oci_client = Client::new(ClientConfig {
