@@ -1,8 +1,9 @@
 # Cluster and License info is set with "--set" in the e2e-spec file
+global:
+  nrStaging: true
 toolkitImage:
   tag: failIfNotReplaced
 agentControlDeployment:
-  nrStaging: true
   chartValues:
     image:
       tag: failIfNotReplaced
