@@ -1,71 +1,9 @@
-# This action creates a new Testing Infra-agent OCI package version in the agent-control package registry
+# This action creates a new Testing Infra-agent OCI package version in the agent-control GitHub's package registry.
 #
 # The blob is a zip or tar containing:
 # - newrelic-infra (.exe)
 # - integrations/nri-docker (.exe)
 #
-# The format for this package is a multiplatform index and one manifest with the artifact blob for each architecture.
-# The created index will be as the following:
-#
-# {
-#  "schemaVersion": 2,
-#  "mediaType": "application/vnd.oci.image.index.v1+json",
-#  "manifests": [
-#    {
-#      "mediaType": "application/vnd.oci.image.manifest.v1+json",
-#      "digest": "sha256:9b34549b8f5002df0518b002c8ba0ddcb2e004dee988620642fe71ac8d05c780",
-#      "size": 696,
-#      "platform": {
-#        "architecture": "amd64",
-#        "os": "darwin"
-#      },
-#      "artifactType": "application/vnd.newrelic.agent.v1+tar"
-#    }
-#    [...]
-# }
-#
-# Then each of the different manifests for each artifact
-#
-# {
-#  "schemaVersion": 2,
-#  "mediaType": "application/vnd.oci.image.manifest.v1+json",
-#  "artifactType": "application/vnd.newrelic.agent.v1+zip",
-#  "config": {
-#    "mediaType": "application/vnd.oci.image.config.v1+json",
-#    "digest": "sha256:7758599fc4d06bd93a65bf28bc98fbff6c559a9a56be1ec3d75ff6aa8a8cfe6e",
-#    "size": 39
-#  },
-#  "layers": [
-#    {
-#      "mediaType": "application/vnd.newrelic.agent.v1+zip",
-#      "digest": "sha256:a66a406acbaf188f0f9a2b34464fc18c66bb45742894f23ca5f9ed65e6c5ad8c",
-#      "size": 21676600,
-#      "annotations": {
-#        "com.newrelic.artifact.type": "binary",
-#        "org.opencontainers.image.title": "newrelic-infra-amd64.zip",
-#        "org.opencontainers.image.version": "1.71.3"
-#      }
-#    }
-#  ],
-#  "annotations": {
-#    "org.opencontainers.image.created": "2026-01-12T14:33:18Z"
-#  }
-# }
-#
-# We require the artifactType to know the type of the artifact (it's also present as mediaType in the layer but it's more
-# correct to also place it as artifactType )
-#
-# The required annotations are:
-# - image.title
-# - com.newrelic.artifact.type
-#
-# The other 2 annotations, org.opencontainers.image.version and org.opencontainers.image.created are for info purposes.
-#
-# When pushing the artifact with oras with --artifact-platform, the config will be populated with platform.ach and platform.os
-# that are needed when creating the oras index to have a multiarch registry.
-#
-# At the end the resulting registry will be:
-# TAG (ex v1.7.7) --> Index (Pointing to different manifest digests per os/arch) --> manifest (identified by digest) -> Blob
 
 name: OCI test repo - compile & push multi-platform testing-infra-agent
 on:
@@ -90,11 +28,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - { os: linux,   arch: amd64, binary: newrelic-infra, format: tar }
-          - { os: linux,   arch: arm64, binary: newrelic-infra, format: tar }
+          - { os: linux,   arch: amd64, binary: newrelic-infra, format: tar+gzip }
+          - { os: linux,   arch: arm64, binary: newrelic-infra, format: tar+gzip }
           - { os: windows, arch: amd64, binary: newrelic-infra.exe, format: zip }
-          - { os: darwin,  arch: arm64, binary: newrelic-infra, format: tar }
-          - { os: darwin,  arch: amd64, binary: newrelic-infra, format: tar }
+          - { os: windows, arch: arm64, binary: newrelic-infra.exe, format: zip }
+          - { os: darwin,  arch: arm64, binary: newrelic-infra, format: tar+gzip }
+          - { os: darwin,  arch: amd64, binary: newrelic-infra, format: tar+gzip }
 
     permissions:
       packages: write
@@ -118,29 +57,27 @@ jobs:
           mkdir -p integrations
           
           if [ "${{ matrix.os }}" = "windows" ]; then
-            URL="https://download.newrelic.com/infrastructure_agent/binaries/windows/${{ matrix.arch }}/nri-docker-${{ matrix.arch }}.${{ env.NRI_DOCKER_VERSION }}.zip"
+            # we always package amd64 docker because arm64 doesn't exist.
+            URL="https://download.newrelic.com/infrastructure_agent/binaries/windows/amd64/nri-docker-amd64.${{ env.NRI_DOCKER_VERSION }}.zip"
             curl -L -o nri-docker.zip "$URL"
-            mkdir -p integrations-tmp
-            unzip -j nri-docker.zip -d integrations-tmp/
-            mv integrations-tmp/nri-docker.exe integrations/nri-docker.exe
-            rm -rf integrations-tmp
+            unzip -j nri-docker.zip '*/nri-docker.exe' -d integrations
             rm nri-docker.zip
           elif [ "${{ matrix.os }}" = "linux" ]; then
             URL="https://download.newrelic.com/infrastructure_agent/binaries/linux/${{ matrix.arch }}/nri-docker_linux_${{ env.NRI_DOCKER_VERSION }}_${{ matrix.arch }}.tar.gz"
             echo $URL
             curl -L -o nri-docker.tar.gz "$URL"
-            mkdir -p integrations-tmp
-            tar -xzf nri-docker.tar.gz -C integrations-tmp/ --strip-components=1
-            mv integrations-tmp/var/db/newrelic-infra/newrelic-integrations/bin/nri-docker integrations/nri-docker
-            rm -rf integrations-tmp
+            tar -xzf nri-docker.tar.gz --strip-components=6 -C integrations
             rm nri-docker.tar.gz
           fi
 
       - name: Compile Binary
         run: |
-          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build \
-            -o ${{ matrix.binary }} \
-            ./cmd/newrelic-infra
+          # force amd64 if OS is windows because compiling infra arm64 is unsupported
+          GOARCH_VALUE=${{ matrix.os == 'windows' && 'amd64' || matrix.arch }}
+          
+          GOOS=${{ matrix.os }} GOARCH=$GOARCH_VALUE go build \
+          -o ${{ matrix.binary }} \
+          ./cmd/newrelic-infra
 
       - name: Package Artifact
         id: package
@@ -148,11 +85,11 @@ jobs:
           if [ "${{ matrix.os }}" = "windows" ]; then
             FILENAME="newrelic-infra-${{ matrix.arch }}.zip"
             zip -r $FILENAME ${{ matrix.binary }} integrations/
-            echo "mime=application/zip" >> $GITHUB_OUTPUT
+            echo "mime=application/vnd.newrelic.agent.content.v1.tar+gzip" >> $GITHUB_OUTPUT
           else
             FILENAME="newrelic-infra-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
             tar -cvzf $FILENAME ${{ matrix.binary }} integrations/
-            echo "mime=application/vnd.oci.image.layer.v1.tar+gzip" >> $GITHUB_OUTPUT
+            echo "mime=application/vnd.newrelic.agent.content.v1.zip" >> $GITHUB_OUTPUT
           fi
           echo "filename=$FILENAME" >> $GITHUB_OUTPUT
 
@@ -168,16 +105,16 @@ jobs:
             "${{ steps.package.outputs.filename }}": {
               "org.opencontainers.image.title": "${{ steps.package.outputs.filename }}",
               "org.opencontainers.image.version": "${{ env.AGENT_VERSION }}",
-              "com.newrelic.artifact.type": "binary"
+              "com.newrelic.artifact.type": "package"
             }
           }
           EOF
           
           DIGEST=$(oras push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }} \
-            --artifact-type application/vnd.newrelic.agent.v1+${{ matrix.format }} \
+            --artifact-type application/vnd.newrelic.agent.v1 \
             --artifact-platform ${{ matrix.os }}/${{ matrix.arch }} \
             --annotation-file layer_annotations.json \
-            ${{ steps.package.outputs.filename }}:application/vnd.newrelic.agent.v1+${{ matrix.format }} | grep "Digest:" | awk '{print $2}')
+            ${{ steps.package.outputs.filename }}:application/vnd.newrelic.agent.v1.${{ matrix.format }} | grep "Digest:" | awk '{print $2}')
           
           echo "$DIGEST" > digest-${{ matrix.os }}-${{ matrix.arch }}.txt
           
