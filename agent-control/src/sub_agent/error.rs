@@ -46,6 +46,10 @@ pub enum SupervisorCreationError {
     SupervisorAssemble(#[from] SubAgentBuilderError),
     #[error("could not start the supervisor: {0}")]
     SupervisorStart(#[from] SupervisorStarterError),
+    #[error("could not build the supervisor: {0}")]
+    SupervisorBuild(String),
+    #[error("could not start the supervisor: {0}")]
+    StartSupervisor(String),
 }
 
 #[derive(Error, Debug)]
