@@ -1,6 +1,8 @@
 use serde_yaml::Value;
-use std::{fs, io::Write, path::PathBuf, thread, time::Duration};
+use std::{fs, io::Write, path::PathBuf};
 use tracing::info;
+
+use crate::tools::file::write;
 
 pub const LOCAL_CONFIG_FILE_NAME: &str = "local_config.yaml";
 
@@ -31,12 +33,7 @@ pub fn update_config(config_path: &str, new_content: &str) {
 
     info!("Updating configuration to: \n---\n{}\n---", updated_content);
 
-    fs::write(config_path, updated_content).unwrap_or_else(|e| {
-        panic!("failed to write YAML configuration: {}", e);
-    });
-
-    // Wait a few seconds to prevent doing anything before the configuration is written
-    thread::sleep(Duration::from_secs(3));
+    write(config_path, updated_content);
 }
 
 /// Merges two YAML values, with `new` taking precedence over `base`
@@ -77,11 +74,7 @@ pub fn write_agent_local_config(config_dir: &str, content: String) {
     fs::create_dir_all(&path).unwrap_or_else(|err| {
         panic!("Error creating local config: {err}");
     });
-    fs::write(path.join(LOCAL_CONFIG_FILE_NAME), content).unwrap_or_else(|err| {
-        panic!("Error writing local config: {err}");
-    });
-    // Wait a few seconds to prevent doing anything before the configuration is written
-    thread::sleep(Duration::from_secs(3));
+    write(path.join(LOCAL_CONFIG_FILE_NAME), content);
 }
 
 /// Replaces all the occurrences of `old` to `new` in the provided `config_path`.
@@ -91,12 +84,7 @@ pub fn replace_string_in_file(config_path: &str, old: &str, new: &str) {
 
     let updated_content = config_content.replace(old, new);
 
-    fs::write(config_path, updated_content).unwrap_or_else(|err| {
-        panic!("Error writing to {config_path}: {err}");
-    });
-
-    // Wait a few seconds to prevent doing anything before the configuration is written
-    thread::sleep(Duration::from_secs(3));
+    write(config_path, updated_content);
 }
 
 /// Appends `content` to the configuration file in `config_path`
@@ -110,6 +98,7 @@ pub fn append_to_config_file(config_path: &str, content: &str) {
     writeln!(config_file, "{content}").unwrap_or_else(|err| {
         panic!("Error appending content to '{config_path}' file: {err}");
     });
-    // Wait a few seconds to prevent doing anything before the configuration is written
-    thread::sleep(Duration::from_secs(3));
+    config_file.sync_data().unwrap_or_else(|err| {
+        panic!("Error syncing data to disk for '{config_path}' file: {err}");
+    });
 }

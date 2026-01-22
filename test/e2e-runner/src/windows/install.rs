@@ -1,10 +1,10 @@
-use std::{fs, path::PathBuf, process::Command, time::Duration};
+use std::{path::PathBuf, process::Command, time::Duration};
 
 use tempfile::tempdir;
 use tracing::{debug, info};
 
 use crate::{
-    tools::test::retry,
+    tools::{file::write, test::retry},
     windows::powershell::{exec_powershell_cmd, exec_powershell_command},
 };
 
@@ -179,8 +179,7 @@ $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
     debug!("Install script content: \n{install_command}");
     let script_dir = tempdir().expect("failed to create temp dir for script");
     let script_path = script_dir.path().join("install_command.ps1");
-    fs::write(&script_path, &install_command)
-        .unwrap_or_else(|err| panic!("failed to write install script: {err}"));
+    write(&script_path, &install_command);
 
     info!("Executing install script to install Agent Control through the recipe");
     let output = retry(3, Duration::from_secs(30), "recipe installation", || {

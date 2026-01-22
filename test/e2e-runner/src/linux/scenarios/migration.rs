@@ -1,4 +1,4 @@
-use std::{fs, time::Duration};
+use std::time::Duration;
 
 use tracing::{debug, info};
 
@@ -9,7 +9,7 @@ use crate::{
         install::{Args, RecipeData, install_agent_control_from_recipe},
         service,
     },
-    tools::{config, nrql, test::retry},
+    tools::{config, file::write, nrql, test::retry},
 };
 
 pub fn test_migration(args: Args) {
@@ -90,7 +90,7 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
     debug!("Output:\n{output}");
 
     // Update infra-agent configuration
-    fs::write(
+    write(
         "/etc/newrelic-infra.yml",
         format!(
             r#"
@@ -101,10 +101,7 @@ license_key: {}
     "#,
             args.nr_license_key
         ),
-    )
-    .unwrap_or_else(|err| {
-        panic!("Error updating infra-agent config: {err}");
-    });
+    );
 
     // Run a mysql service and install the nri-mysql integration
     let docker_command =
@@ -120,7 +117,7 @@ license_key: {}
         panic!("Could not install nri-mysql: {err}");
     });
 
-    fs::write(
+    write(
         "/etc/newrelic-infra/integrations.d/nri-mysql-config.yml",
         format!(
             r#"
@@ -139,10 +136,7 @@ integrations:
     inventory_source: config/mysql
 "#
         ),
-    )
-    .unwrap_or_else(|err| {
-        panic!("Error writing nri-mysql config: {err}");
-    });
+    );
 
     service::restart_service("newrelic-infra");
 }
