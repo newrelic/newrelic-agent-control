@@ -85,11 +85,9 @@ jobs:
           if [ "${{ matrix.os }}" = "windows" ]; then
             FILENAME="newrelic-infra-${{ matrix.arch }}.zip"
             zip -r $FILENAME ${{ matrix.binary }} integrations/
-            echo "mime=application/vnd.newrelic.agent.content.v1.tar+gzip" >> $GITHUB_OUTPUT
           else
             FILENAME="newrelic-infra-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
             tar -cvzf $FILENAME ${{ matrix.binary }} integrations/
-            echo "mime=application/vnd.newrelic.agent.content.v1.zip" >> $GITHUB_OUTPUT
           fi
           echo "filename=$FILENAME" >> $GITHUB_OUTPUT
 
