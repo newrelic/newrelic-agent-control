@@ -10,6 +10,7 @@ use crate::cli::{
         proxy_config::ProxyConfig,
     },
 };
+use fs::file::{LocalFile, writer::FileWriter};
 use std::{collections::HashMap, path::PathBuf};
 use tracing::info;
 
@@ -154,7 +155,7 @@ fn write_config_and_generate_system_identity(args: &Args) -> Result<(), CliError
 
     let yaml = generate_config_and_system_identity(args, provide_identity)?;
 
-    std::fs::write(&args.output_path, yaml).map_err(|err| {
+    LocalFile.write(&args.output_path, yaml).map_err(|err| {
         CliError::Command(format!(
             "error writing the configuration file to '{}': {}",
             args.output_path.to_string_lossy(),
@@ -176,13 +177,14 @@ fn write_env_var_config(args: &Args) -> Result<(), CliError> {
 
     let yaml = generate_env_var_config(args)?;
 
-    std::fs::write(path, yaml).map_err(|err| {
+    LocalFile.write(path, yaml).map_err(|err| {
         CliError::Command(format!(
             "error writing the environment variables file to '{}': {}",
             path.display(),
             err
         ))
     })?;
+
     info!(env_vars_path=%path.display(), "Environment variables file generated successfully");
 
     Ok(())
@@ -215,7 +217,7 @@ fn generate_env_var_config(args: &Args) -> Result<String, CliError> {
 fn generate_config_and_system_identity<F>(
     args: &Args,
     provide_identity_fn: F,
-) -> Result<Vec<u8>, CliError>
+) -> Result<String, CliError>
 where
     F: Fn(&Args) -> Result<Identity, CliError>,
 {
@@ -249,10 +251,8 @@ where
         agents: args.agent_set.into(),
     };
 
-    let mut buffer = Vec::new();
-    serde_yaml::to_writer(&mut buffer, &config)
-        .map_err(|err| CliError::Command(format!("failed to serialize configuration: {err}")))?;
-    Ok(buffer)
+    serde_yaml::to_string(&config)
+        .map_err(|err| CliError::Command(format!("failed to serialize configuration: {err}")))
 }
 
 #[cfg(test)]
@@ -375,11 +375,8 @@ mod tests {
     ) {
         let args = create_test_args(fleet_enabled, region, agent_set, proxy_config);
 
-        let yaml = String::from_utf8(
-            generate_config_and_system_identity(&args, identity_provider_mock)
-                .expect("result expected to be OK"),
-        )
-        .unwrap();
+        let yaml = generate_config_and_system_identity(&args, identity_provider_mock)
+            .expect("result expected to be OK");
 
         // Check that the config can be used in Agent Control
         let _: AgentControlConfig =
