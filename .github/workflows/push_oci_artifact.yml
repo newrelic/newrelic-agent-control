@@ -114,10 +114,10 @@ jobs:
             --artifact-type application/vnd.newrelic.agent.v1 \
             --artifact-platform ${{ matrix.os }}/${{ matrix.arch }} \
             --annotation-file layer_annotations.json \
-            ${{ steps.package.outputs.filename }}:application/vnd.newrelic.agent.v1.${{ matrix.format }} | grep "Digest:" | awk '{print $2}')
+            ${{ steps.package.outputs.filename }}:application/vnd.newrelic.agent.content.v1.${{ matrix.format }} | grep "Digest:" | awk '{print $2}')
           
           echo "$DIGEST" > digest-${{ matrix.os }}-${{ matrix.arch }}.txt
-          
+
       - name: Upload Digest Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -145,7 +145,7 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u ${{ github.actor }} --password-stdin
           REPO="ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}"
           VERSION="${{ env.AGENT_VERSION }}"
-        
+          
           # Combine all downloaded digests into a single string for the command
           # Each entry looks like REPO@sha256:xxxx
           DIGEST_LIST=""
