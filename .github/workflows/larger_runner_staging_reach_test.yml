@@ -7,18 +7,21 @@ permissions:
   contents: read
 
 jobs:
-  k8s-e2e-tests:
+  reach-staging:
     runs-on: linux-4-core-nr-control
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Install xh
         run: |
-          sudo apt update
-          sudo apt install -y xh
+          nix profile add nixpkgs#xh
 
       - name: Attempt to reach staging URLs
         run: |
-          xh get https://staging-publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json --no-check-status --all --pretty all
-          xh get https://system-identity-oauth.staging-service.newrelic.com/oauth2/token --no-check-status --all --pretty all
-          xh get https://opamp.staging-service.newrelic.com/v1/opamp --no-check-status --all --pretty all
+          xh get https://staging-publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json --no-check-status --all --pretty all --print HBhbm
+          xh get https://system-identity-oauth.staging-service.newrelic.com/oauth2/token --no-check-status --all --pretty all --print HBhbm
+          xh get https://opamp.staging-service.newrelic.com/v1/opamp --no-check-status --all --pretty all --print HBhbm
