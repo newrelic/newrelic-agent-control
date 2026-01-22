@@ -1,15 +1,13 @@
-use crate::on_host::tools::oci_artifact::push_agent_package;
+use crate::on_host::tools::oci_artifact::{REGISTRY_URL, push_agent_package};
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use httpmock::{MockServer, When};
 use newrelic_agent_control::http::config::ProxyConfig;
+use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::downloader::{OCIAgentDownloader, OCIArtifactDownloader};
 use oci_client::client::{ClientConfig, ClientProtocol};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tempfile::tempdir;
-
-// Registry created in the make target executing oci-registry.sh
-const REGISTRY_URL: &str = "localhost:5001";
 
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
@@ -17,9 +15,18 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
     let dir = tempdir().unwrap();
     let tmp_dir_to_compress = tempdir().unwrap();
     let file_to_push = dir.path().join("layer_digest.tar.gz");
-    TestDataHelper::compress_tar_gz(tmp_dir_to_compress.path(), file_to_push.as_path());
+    TestDataHelper::compress_tar_gz(
+        tmp_dir_to_compress.path(),
+        file_to_push.as_path(),
+        "important content",
+        "file1.txt",
+    );
 
-    let (artifact_digest, reference) = push_agent_package(&file_to_push, REGISTRY_URL);
+    let (artifact_digest, reference) = push_agent_package(
+        &file_to_push,
+        REGISTRY_URL,
+        PackageMediaType::AgentPackageLayerTarGz,
+    );
 
     let temp_dir = tempdir().unwrap();
     let local_agent_data_dir = temp_dir.path();
@@ -56,9 +63,18 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
     let dir = tempdir().unwrap();
     let tmp_dir_to_compress = tempdir().unwrap();
     let file_to_push = dir.path().join("layer_digest.tar.gz");
-    TestDataHelper::compress_tar_gz(tmp_dir_to_compress.path(), file_to_push.as_path());
+    TestDataHelper::compress_tar_gz(
+        tmp_dir_to_compress.path(),
+        file_to_push.as_path(),
+        "important content",
+        "file1.txt",
+    );
 
-    let (artifact_digest, reference) = push_agent_package(&file_to_push, REGISTRY_URL);
+    let (artifact_digest, reference) = push_agent_package(
+        &file_to_push,
+        REGISTRY_URL,
+        PackageMediaType::AgentPackageLayerTarGz,
+    );
 
     // Proxy server will request the target server, allowing requests to that host only
     let proxy_server = MockServer::start();

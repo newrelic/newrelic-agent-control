@@ -2,6 +2,7 @@ mod attributes;
 mod empty_config;
 mod filesystem_ops;
 mod health_check;
+mod install_remote_package;
 mod invalid_remote_config;
 mod multiple_executables;
 mod multiple_remote_config;

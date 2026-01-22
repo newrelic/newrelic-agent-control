@@ -1,25 +1,34 @@
+use crate::on_host::tools::oci_artifact::REGISTRY_URL;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use crate::on_host::tools::{
     oci_artifact::push_agent_package, oci_package_manager::new_testing_oci_package_manager,
 };
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::package::manager::{PackageData, PackageManager};
+use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::package_manager::get_package_path;
 use tempfile::tempdir;
-
-// Registry created in the make target executing oci-registry.sh
-const REGISTRY_URL: &str = "localhost:5001";
 
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix), needs elevated privileges on Windows"]
 fn test_install_and_uninstall_with_oci_registry() {
+    const FILENAME: &str = "file1.txt";
     let dir = tempdir().unwrap();
     let tmp_dir_to_compress = tempdir().unwrap();
     let file_to_push = dir.path().join("layer_digest.tar.gz");
 
-    TestDataHelper::compress_tar_gz(tmp_dir_to_compress.path(), file_to_push.as_path());
+    TestDataHelper::compress_tar_gz(
+        tmp_dir_to_compress.path(),
+        file_to_push.as_path(),
+        "important content",
+        FILENAME,
+    );
 
-    let (_artifact_digest, reference) = push_agent_package(&file_to_push, REGISTRY_URL);
+    let (_artifact_digest, reference) = push_agent_package(
+        &file_to_push,
+        REGISTRY_URL,
+        PackageMediaType::AgentPackageLayerTarGz,
+    );
 
     let temp_dir = tempdir().unwrap();
     let base_path = temp_dir.path().to_path_buf();
@@ -43,7 +52,10 @@ fn test_install_and_uninstall_with_oci_registry() {
     );
 
     let installed_package = installed_package_result.unwrap();
-    TestDataHelper::test_data_uncompressed(installed_package.installation_path.as_path());
+    TestDataHelper::test_tar_gz_uncompressed(
+        installed_package.installation_path.as_path(),
+        FILENAME,
+    );
     // Verify location
     // The path should be base_path/agent_id/oci_registry__port__repo_tag
     let expected_path = get_package_path(&base_path, &agent_id, &pkg_id, &reference).unwrap();
@@ -61,17 +73,25 @@ fn test_install_and_uninstall_with_oci_registry() {
 #[test]
 #[ignore = "needs oci registry, needs elevated privileges on Windows"]
 fn test_install_skips_download_if_exists_with_oci_registry() {
+    const FILENAME: &str = "payload.txt";
+
     let dir = tempdir().unwrap();
     let content_dir = tempdir().unwrap();
 
-    let payload_file_source = content_dir.path().join("payload.txt");
-    std::fs::write(&payload_file_source, "ORIGINAL_CONTENT").unwrap();
-
     let file_to_push = dir.path().join("layer_digest.tar.gz");
 
-    TestDataHelper::compress_tar_gz(content_dir.path(), file_to_push.as_path());
+    TestDataHelper::compress_tar_gz(
+        content_dir.path(),
+        file_to_push.as_path(),
+        "ORIGINAL_CONTENT",
+        FILENAME,
+    );
 
-    let (_artifact_digest, reference) = push_agent_package(&file_to_push, REGISTRY_URL);
+    let (_artifact_digest, reference) = push_agent_package(
+        &file_to_push,
+        REGISTRY_URL,
+        PackageMediaType::AgentPackageLayerTarGz,
+    );
 
     let temp_dir = tempdir().unwrap();
     let base_path = temp_dir.path().to_path_buf();
@@ -89,7 +109,7 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
         .install(&agent_id, package_data.clone())
         .expect("First install failed");
 
-    let installed_file_path = installed_1.installation_path.join("payload.txt");
+    let installed_file_path = installed_1.installation_path.join(FILENAME);
     assert!(
         installed_file_path.exists(),
         "Payload file should exist after install"

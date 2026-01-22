@@ -37,7 +37,7 @@ use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::values::ConfigRepo;
 use fs::directory_manager::DirectoryManagerFs;
-use oci_client::client::ClientConfig;
+use oci_client::client::{ClientConfig, ClientProtocol};
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
@@ -164,11 +164,17 @@ impl AgentControlRunner {
             &self.base_paths.remote_dir,
         ));
 
+        // We are setting client http in debug_assertions mode for tests
+        let oci_client_config = ClientConfig {
+            #[cfg(debug_assertions)]
+            protocol: ClientProtocol::Http,
+            ..Default::default()
+        };
+
         let packages_downloader =
-            OCIArtifactDownloader::try_new(self.proxy, self.runtime, ClientConfig::default())
-                .map_err(|err| {
-                    RunError(format!("failed to create OCIRefDownloader client: {err}"))
-                })?;
+            OCIArtifactDownloader::try_new(self.proxy, self.runtime, oci_client_config).map_err(
+                |err| RunError(format!("failed to create OCIRefDownloader client: {err}")),
+            )?;
 
         let package_manager = OCIPackageManager::new(
             packages_downloader,
@@ -227,6 +233,7 @@ impl AgentControlRunner {
         .map_err(|err| RunError(err.to_string()))
     }
 }
+
 pub fn agent_control_opamp_non_identifying_attributes(
     identifiers: &Identifiers,
 ) -> HashMap<String, DescriptionValueType> {

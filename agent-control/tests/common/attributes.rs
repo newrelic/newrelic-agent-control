@@ -36,6 +36,22 @@ pub fn check_latest_non_identifying_attributes_match_expected(
     .map_err(|e| format!("Non identifying attributes don't match: {e}"))
 }
 
+pub fn check_identifying_attributes_contains_expected(
+    opamp_server: &FakeServer,
+    instance_id: &InstanceID,
+    expected_subset: Vec<KeyValue>,
+) -> Result<(), String> {
+    let current_attributes = opamp_server
+        .get_attributes(instance_id)
+        .ok_or_else(|| "Identifying attributes not found".to_string())?;
+
+    check_opamp_attributes_contains(
+        expected_subset,
+        current_attributes.identifying_attributes.clone(),
+    )
+    .map_err(|e| format!("Identifying attributes missing required elements: {e}"))
+}
+
 fn check_opamp_attributes(
     mut expected_vec: Vec<KeyValue>,
     mut current_vec: Vec<KeyValue>,
@@ -46,6 +62,25 @@ fn check_opamp_attributes(
         return Err(format!(
             "Expected != Found\nExpected:\n{expected_vec:?}\nFound:\n{current_vec:?}\n"
         ));
+    }
+    Ok(())
+}
+
+fn check_opamp_attributes_contains(
+    subset_vec: Vec<KeyValue>,
+    superset_vec: Vec<KeyValue>,
+) -> Result<(), String> {
+    for expected in subset_vec {
+        let found = superset_vec
+            .iter()
+            .find(|&current| current.key == expected.key && current.value == expected.value);
+
+        if found.is_none() {
+            return Err(format!(
+                "Required attribute key '{}' with value '{:?}' not found in actual attributes.",
+                expected.key, expected.value
+            ));
+        }
     }
     Ok(())
 }
