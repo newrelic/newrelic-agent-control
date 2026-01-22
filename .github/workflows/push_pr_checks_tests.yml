@@ -318,6 +318,7 @@ jobs:
           minikube-version: v1.35.0
           kubernetes-version: "v1.30.14"
           driver: docker
+          cache: false
 
       - name: Install Tilt
         run: |

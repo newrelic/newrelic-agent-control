@@ -57,6 +57,7 @@ jobs:
           kubernetes-version: "v1.30.14"
           start-args: ${{ inputs.minikube_start_args }}
           driver: docker
+          cache: false
 
       - name: Install Tilt
         run: |
