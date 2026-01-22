@@ -318,7 +318,6 @@ jobs:
           minikube-version: v1.35.0
           kubernetes-version: "v1.30.14"
           driver: docker
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Tilt
         run: |
