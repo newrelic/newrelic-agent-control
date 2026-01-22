@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use crate::tools::test::TestResult;
+use crate::common::test::TestResult;
 
 /// Executes a PowerShell command and returns its output or an error.
 pub fn exec_powershell_command(command: &str) -> TestResult<String> {

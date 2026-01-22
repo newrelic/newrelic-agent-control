@@ -77,7 +77,9 @@ where
                         oci_reference: package.download.oci.reference.clone(),
                     },
                 )
-                .map_err(|err| SupervisorStarterError::InstallPackage(err.to_string()))?;
+                .map_err(|err| {
+                    SupervisorStarterError::InstallPackage(id.to_string(), err.to_string())
+                })?;
             debug!(%id, "Package successfully installed");
         }
 

@@ -106,10 +106,10 @@ end
   root@vagrant:~# /newrelic-agent-control/target/debug/e2e-runner infra-agent --help
   Arguments to be set for every test that needs Agent Control installation
 
-  Usage: e2e-runner infra-agent [OPTIONS] --deb-package-dir <DEB_PACKAGE_DIR> --nr-api-key <NR_API_KEY> --nr-license-key <NR_LICENSE_KEY> --nr-account-id <NR_ACCOUNT_ID> --system-identity-client-id <SYSTEM_IDENTITY_CLIENT_ID> --agent-control-private-key <AGENT_CONTROL_PRIVATE_KEY> --agent-control-version <AGENT_CONTROL_VERSION>
+  Usage: e2e-runner infra-agent [OPTIONS] --artifacts-package-dir <DEB_PACKAGE_DIR> --nr-api-key <NR_API_KEY> --nr-license-key <NR_LICENSE_KEY> --nr-account-id <NR_ACCOUNT_ID> --system-identity-client-id <SYSTEM_IDENTITY_CLIENT_ID> --agent-control-private-key <AGENT_CONTROL_PRIVATE_KEY> --agent-control-version <AGENT_CONTROL_VERSION>
 
   Options:
-        --deb-package-dir <DEB_PACKAGE_DIR>
+        --artifacts-package-dir <DEB_PACKAGE_DIR>
             Folder where '.deb' packages are stored
         --recipes-repo <RECIPES_REPO>
             Recipes repository [default: https://github.com/newrelic/open-install-library.git]

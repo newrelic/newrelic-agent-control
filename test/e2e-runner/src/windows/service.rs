@@ -1,4 +1,4 @@
-use crate::tools::test::TestResult;
+use crate::common::test::TestResult;
 
 use super::powershell::exec_powershell_command;
 use std::thread;
@@ -48,11 +48,4 @@ pub fn restart_service(service_name: &str) {
     check_service_running(service_name).expect("service must be running");
 
     info!(service = service_name, "Service restarted successfully");
-}
-
-/// Stops a Windows service using PowerShell.
-pub fn stop_service(service_name: &str) {
-    let cmd = format!("Stop-Service -Name '{}' -Force", service_name);
-    exec_powershell_command(&cmd)
-        .unwrap_or_else(|err| panic!("could not stop '{service_name} service: {err}'"));
 }

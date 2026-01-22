@@ -6,6 +6,9 @@ on:
     paths:
       - "Tiltfile"
       - "test/k8s-e2e/**"
+      - "test/e2e-runner/**"
+      - "agent-control/agent-type-registry/**"
+      - "build/**"
   merge_group:
 
 permissions:

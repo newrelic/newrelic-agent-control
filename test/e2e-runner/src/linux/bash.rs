@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use crate::tools::test::TestResult;
+use crate::common::test::TestResult;
 
 /// Executes a bash command and returns its output or an error.
 pub fn exec_bash_command(command: &str) -> TestResult<String> {

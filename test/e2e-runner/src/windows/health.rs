@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use crate::tools::test::TestResult;
+use crate::common::test::TestResult;
 
 /// Response from the agent-control HTTP endpoint
 #[derive(Debug, Serialize, Deserialize)]

@@ -1,14 +1,11 @@
-use std::time::Duration;
-
-use tracing::info;
-
+use crate::common::{Args, RecipeData};
+use crate::linux::DEFAULT_NR_INFRA_PATH;
 use crate::{
-    linux::{
-        self,
-        install::{Args, RecipeData, install_agent_control_from_recipe},
-    },
-    tools::{config, logs::ShowLogsOnDrop, nrql, test::retry},
+    common::{config, logs::ShowLogsOnDrop, nrql, test::retry},
+    linux::{self, install::install_agent_control_from_recipe},
 };
+use std::time::Duration;
+use tracing::info;
 
 /// ac-e2e-onhost-2 fleet on canaries account
 const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg";
@@ -38,7 +35,7 @@ pub fn test_remote_config_is_applied(args: Args) {
 
     info!("Setup infra-agent config");
     config::write_agent_local_config(
-        "/etc/newrelic-agent-control/local-data/nr-infra",
+        DEFAULT_NR_INFRA_PATH,
         r#"
 config_agent:
   status_server_enabled: true
@@ -71,7 +68,7 @@ config_agent:
         r#"SELECT * FROM SystemSample WHERE `test_id` = '{test_id}' AND `config_origin` = 'remote' LIMIT 1"#
     );
     info!(nrql = nrql_query, "Checking results of NRQL");
-    let retries = 120;
+    let retries = 60;
     retry(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     })
