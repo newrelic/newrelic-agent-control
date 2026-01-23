@@ -7,9 +7,9 @@ The package manager handles downloading, extracting, installing packages from OC
 Package references are constructed from three components:
 - Registry URL (e.g., `registry.example.com`)
 - Repository path (e.g., `agents/my-agent`)
-- Version (optional): Can be tag (`:v1.0.0`), digest (`@sha256:...`), or both
+- Version (optional): Can be a tag (`:v1.0.0`), a digest (`@sha256:...`), when both are specified the digest takes precedence.
 
-Such data is taken from the AgentType configuration, from the Packages section.
+This data is taken from the Packages section of the AgentType configuration.
 
 ## Package Installation Process
 
@@ -20,8 +20,7 @@ final_path:        <base>/packages/<agent-id>/stored_packages/<package-id>/<sani
 ```
 
 The `final_path` location is where the extracted package will reside after installation and can be referenced 
-by the agent through the variable `${nr-sub:packages.infra-agent.dir}`. 
-
+by the agent through the variable `${nr-sub:packages.infra-agent.dir}`.
 
 **Steps**:
 1. Create temporary download directory
@@ -30,7 +29,7 @@ by the agent through the variable `${nr-sub:packages.infra-agent.dir}`.
 4. Extract archive based on `PackageType` (tar.gz or zip) derived from the mime type
 5. Delete temporary directory (always, even on failure)
 
-Currently, the whole operation is blocking the subAgent thread, until it terminates. 
+Currently, the whole operation blocks the sub-agent thread until it terminates. 
 In the next iterations, we will have a non-blocking implementation to avoid the subAgent to be blocked by this operation.
 
 ## Error Handling

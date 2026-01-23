@@ -336,7 +336,7 @@ Each package definition accepts the following fields:
 Note that a Package version. Can be:
   - A tag (`:v1.0.0`)
   - A digest (`@sha256:...`)
-  - Both tag and digest (`:v1.0.0@sha256:...`)
+  - Both tag and digest (`:v1.0.0@sha256:...`), when both are specified the digest takes precedence.
 
 **Accessing Package Contents:**
 

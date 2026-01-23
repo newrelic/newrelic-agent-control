@@ -23,8 +23,7 @@ The remote configurations and in general any files expected to dynamically chang
 
 - The remote configurations, the hash and its state of AC and each sub-agent are stored in their respective subfolder inside `fleet-data`, in a file named `remote_config.yaml`.
 - On the other hand, host identifiers and the agent ULID are store in `instance_id.yaml`.
-
-Moreover, `filesystem` is the directory where Agent Control will render files for each sub-agent. Each agent could also create
+ - Moreover, `filesystem` is the directory where Agent Control will render files for each sub-agent. Each agent could also create
 its own subdirectories inside it to store files that are not managed by AC but are expected to be persistent across restarts.
 
 #### Logs
@@ -34,7 +33,7 @@ following a similar directory structure for AC and the sub-agents.
 
 ### What's about K8s?
 
-In k8s deployments, the same structure is followed, but configMaps and secrets.
+In k8s deployments, the same structure is followed, but configMaps and secrets are used.
 The private key of the system identity is stored in a secret that by default is stored in `agent-control-auth` secret.
 Everything that is static is expected in `local-data-<agentID>`, on the other hand, everything dynamic is stored in `fleet-data-<agentID>`
 Obviously, there are no packages stored.
