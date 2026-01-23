@@ -21,7 +21,7 @@ agentControlDeployment:
         # Fleet with name 'AC-FC E2E tests'. The sub-agent reports data to the 'General Testing' account.
         fleet_id: MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTliZTAzZC03MDYwLTcxMDctOTUwYS04YTFiODc3YjJiN2Q
       log:
-        level: debug
+        level: trace
       agents:
         infra:
           agent_type: newrelic/com.newrelic.infrastructure:0.1.0
