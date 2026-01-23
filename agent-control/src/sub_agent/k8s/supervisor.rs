@@ -3,7 +3,7 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
 use crate::checkers::guid::k8s::checker::{K8sGuidChecker, spawn_guid_checker};
-use crate::checkers::health::health_checker::spawn_health_checker;
+use crate::checkers::health::health_checker::{HealthCheckerError, spawn_health_checker};
 use crate::checkers::health::k8s::health_checker::K8sHealthChecker;
 use crate::checkers::health::with_start_time::StartTime;
 use crate::checkers::version::k8s::checkers::{K8sAgentVersionChecker, spawn_version_checker};
@@ -15,10 +15,9 @@ use crate::k8s::annotations::Annotations;
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
 use crate::k8s::utils::retain_not_null;
-use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
+use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssemblerError};
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
-use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
-use crate::sub_agent::supervisor::stopper::SupervisorStopper;
+use crate::sub_agent::supervisor::{Supervisor, SupervisorStarter};
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadCollectionStopperExt,
     ThreadContextStopperError,
@@ -34,6 +33,22 @@ use tracing::{debug, info, info_span, trace, warn};
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
 const SUPERVISOR_THREAD_NAME: &str = "supervisor";
 
+// TODO: check errors
+#[derive(Debug, thiserror::Error)]
+pub enum SupervisorStarterError {
+    #[error("the kube client returned an error: {0}")]
+    Generic(#[from] crate::k8s::error::K8sError),
+
+    #[error("building k8s resources: {0}")]
+    ConfigError(String),
+
+    #[error("installing packages: {0}")]
+    InstallPackage(String),
+
+    #[error("building health checkers: {0}")]
+    HealthError(#[from] HealthCheckerError),
+}
+
 #[derive(Debug, Clone)]
 pub struct NotStartedSupervisorK8s {
     pub(super) agent_identity: AgentIdentity,
@@ -43,15 +58,13 @@ pub struct NotStartedSupervisorK8s {
 }
 
 impl SupervisorStarter for NotStartedSupervisorK8s {
-    type SupervisorStopper = StartedSupervisorK8s;
+    type Supervisor = StartedSupervisorK8s;
+    type Error = SupervisorStarterError;
 
-    /// Starts the supervisor, it will periodically:
-    /// * Check and update the corresponding k8s resources
-    /// * Check health
     fn start(
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<StartedSupervisorK8s, SupervisorStarterError> {
+    ) -> Result<Self::Supervisor, Self::Error> {
         info!("Starting k8s supervisor");
         let resources = Arc::new(self.build_dynamic_objects()?);
 
@@ -64,15 +77,22 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
         .into_iter()
         .flatten()
         .collect();
-
         info!("K8s supervisor started");
+
+        // Reuse structures
+        let Self {
+            agent_identity,
+            k8s_client,
+            k8s_config,
+            ..
+        } = self;
 
         Ok(StartedSupervisorK8s {
             thread_contexts,
+            k8s_client,
             sub_agent_internal_publisher,
-            k8s_client: self.k8s_client,
-            agent_identity: self.agent_identity,
-            k8s_config: self.k8s_config,
+            agent_identity,
+            k8s_config,
         })
     }
 }
@@ -268,9 +288,62 @@ pub struct StartedSupervisorK8s {
     pub(super) k8s_config: K8s,
 }
 
-impl SupervisorStopper for StartedSupervisorK8s {
-    fn stop(self) -> Result<(), ThreadContextStopperError> {
-        // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
+impl Supervisor for StartedSupervisorK8s {
+    type ApplyError = ApplyError;
+    type StopError = ThreadContextStopperError;
+
+    fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, Self::ApplyError> {
+        // Retrieve config, if unchanged do nothing
+        let new_k8s_config: K8s = effective_agent
+            .try_into()
+            .map_err(ApplyError::IncomingConfig)?;
+
+        if new_k8s_config == self.k8s_config {
+            // No changes, return same supervisor
+            debug!(
+                agent_id = %self.agent_identity.id,
+                "K8s configuration unchanged, no action taken"
+            );
+            return Ok(self);
+        }
+
+        debug!(
+            agent_id = %self.agent_identity.id,
+            "Applying new configuration to K8s supervisor"
+        );
+
+        debug!(
+            agent_id = %self.agent_identity.id,
+            "Stopping old supervisor"
+        );
+
+        // Reuse structures
+        let Self {
+            thread_contexts,
+            agent_identity,
+            k8s_client,
+            sub_agent_internal_publisher,
+            ..
+        } = self;
+
+        let span = info_span!("stopping_supervisor", agent_id = %agent_identity.id);
+        span.in_scope(|| thread_contexts.stop())
+            .map_err(ApplyError::StoppingPreviousSupervisor)?;
+
+        debug!(agent_id = %agent_identity.id, "Old supervisor stopped");
+
+        // Build a supervisor starter from the new configuration...
+        let new_starter = NotStartedSupervisorK8s::new(agent_identity, k8s_client, new_k8s_config);
+
+        // ...and start it
+        debug!(agent_id = %new_starter.agent_identity.id, "Starting new supervisor");
+
+        new_starter
+            .start(sub_agent_internal_publisher)
+            .map_err(ApplyError::StartingSupervisor)
+    }
+
+    fn stop(self) -> Result<(), Self::StopError> {
         let span = info_span!("stopping_supervisor", agent_id = %self.agent_identity.id);
         span.in_scope(|| self.thread_contexts.stop())
     }
@@ -292,45 +365,33 @@ pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::config::helmrelease_v2_type_meta;
-    use crate::agent_control::run::Environment;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::runtime_config::k8s::{K8sHealthConfig, K8sObjectMeta};
+    use crate::agent_type::runtime_config::k8s::K8sObjectMeta;
+    use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
-    use crate::event::SubAgentEvent;
-    use crate::event::broadcaster::unbounded::UnboundedBroadcast;
     use crate::event::channel::pub_sub;
+    use crate::k8s::annotations::Annotations;
     use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
-    use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
-    use crate::opamp::remote_config::hash::{ConfigState, Hash};
-    use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
-    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
-    use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
-    use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
-    use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
-    use crate::sub_agent::{NotStartedSubAgent, SubAgent};
-    use crate::values::config::{Config, RemoteConfig};
-    use crate::values::config_repository::tests::MockConfigRepository;
-    use crate::values::yaml_config::YAMLConfig;
+    use crate::k8s::labels::Labels;
+    use crate::sub_agent::identity::AgentIdentity;
+    use crate::sub_agent::supervisor::Supervisor;
+    use crate::sub_agent::supervisor::SupervisorStarter;
     use assert_matches::assert_matches;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-    use k8s_openapi::serde_json;
     use kube::api::DynamicObject;
     use kube::core::TypeMeta;
-    use predicates::prelude::predicate;
     use serde_json::json;
     use std::collections::{BTreeMap, HashMap};
     use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
-    use tracing_test::traced_test;
 
     const TEST_API_VERSION: &str = "test/v1";
     const TEST_KIND: &str = "test";
     const TEST_NAMESPACE: &str = "default";
     const TEST_NAME: &str = "test-name";
-
     const TEST_AGENT_ID: &str = "k8s-test";
     const TEST_GENT_FQN: &str = "ns/test:0.1.2";
 
@@ -478,6 +539,43 @@ pub mod tests {
         );
     }
 
+    #[test]
+    fn test_supervisor_apply() {
+        let (sub_agent_internal_publisher, _) = pub_sub();
+
+        let config = K8s {
+            objects: HashMap::from([("obj".to_string(), k8s_object())]),
+            health: Some(Default::default()),
+            ..K8s::default()
+        };
+
+        let not_started = not_started_supervisor(config.clone(), None);
+        let started = SupervisorStarter::start(not_started, sub_agent_internal_publisher)
+            .expect("supervisor started");
+
+        // Apply new config
+        let effective_agent = EffectiveAgent::new(
+            AgentIdentity::from((
+                AgentID::try_from(TEST_AGENT_ID).unwrap(),
+                AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
+            )),
+            Runtime {
+                deployment: Deployment {
+                    k8s: Some(config),
+                    ..Deployment::default()
+                },
+            },
+        );
+
+        let Ok(started) = started.apply(effective_agent) else {
+            // We need to do this because the started supervisor does not implement `Debug`!
+            // We could implement that but we'd need to also do it for the nested types which
+            // might not have sensible implementations (e.g. thread contexts).
+            panic!("supervisor applied");
+        };
+        Supervisor::stop(started).expect("stopped");
+    }
+
     fn k8s_object() -> K8sObject {
         K8sObject {
             api_version: TEST_API_VERSION.to_string(),
@@ -530,134 +628,5 @@ pub mod tests {
         }
 
         NotStartedSupervisorK8s::new(agent_identity, Arc::new(mock_client), config)
-    }
-
-    #[traced_test]
-    #[test]
-    fn k8s_sub_agent_start_and_monitor_health() {
-        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-        let mut sub_agent_publisher = UnboundedBroadcast::default();
-        let sub_agent_consumer = sub_agent_publisher.subscribe();
-
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from(TEST_AGENT_ID).unwrap(),
-            AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
-        ));
-
-        let mut k8s_obj = k8s_sample_runtime_config(true);
-        k8s_obj.health = Some(K8sHealthConfig {
-            interval: Duration::from_millis(500).into(),
-            ..Default::default()
-        });
-
-        // instance K8s client mock
-        let mut mock_client = MockSyncK8sClient::default();
-        mock_client
-            .expect_apply_dynamic_object_if_changed()
-            .returning(|_| Ok(()));
-        mock_client
-            .expect_get_dynamic_object()
-            .returning(|_, _, _| {
-                Ok(Some(Arc::new(DynamicObject {
-                    types: Some(helmrelease_v2_type_meta()),
-                    metadata: Default::default(),
-                    data: Default::default(),
-                })))
-            });
-        let mocked_client = Arc::new(mock_client);
-
-        let mut config_repository = MockConfigRepository::new();
-        let yaml_config = YAMLConfig::default();
-        let remote_config = RemoteConfig {
-            config: yaml_config.clone(),
-            hash: Hash::from("a-hash"),
-            state: ConfigState::Applying,
-        };
-        config_repository
-            .expect_load_remote()
-            .with(
-                predicate::eq(agent_identity.id.clone()),
-                predicate::always(),
-            )
-            .return_once(|_, _| Ok(Some(Config::RemoteConfig(remote_config))));
-
-        config_repository
-            .expect_update_state()
-            .once()
-            .with(
-                predicate::eq(agent_identity.id.clone()),
-                predicate::eq(ConfigState::Applied),
-            )
-            .returning(|_, _| Ok(()));
-
-        let remote_config_parser = MockRemoteConfigParser::new();
-
-        let mut effective_agents_assembler = MockEffectiveAgentAssembler::new();
-        let effective_agent = EffectiveAgent::new(
-            agent_identity.clone(),
-            Runtime {
-                deployment: Deployment::default(),
-            },
-        );
-        effective_agents_assembler.should_assemble_agent(
-            &agent_identity,
-            &yaml_config,
-            &Environment::K8s,
-            effective_agent.clone(),
-            1,
-        );
-
-        let agent_identity_clone = agent_identity.clone();
-        let mut supervisor_builder = MockSupervisorBuilder::new();
-        supervisor_builder
-            .expect_build_supervisor()
-            .with(predicate::eq(effective_agent))
-            .returning(move |_| {
-                Ok(NotStartedSupervisorK8s::new(
-                    agent_identity_clone.clone(),
-                    mocked_client.clone(),
-                    k8s_obj.clone(),
-                ))
-            });
-
-        SubAgent::new(
-            agent_identity,
-            Option::<MockStartedOpAMPClient>::None,
-            Arc::new(supervisor_builder),
-            sub_agent_publisher,
-            None,
-            (
-                sub_agent_internal_publisher.clone(),
-                sub_agent_internal_consumer,
-            ),
-            Arc::new(remote_config_parser),
-            Arc::new(config_repository),
-            Arc::new(effective_agents_assembler),
-            Environment::K8s,
-        )
-        .run();
-
-        let timeout = Duration::from_secs(3);
-
-        // sub agent will publish first SubAgentStarted event
-        match sub_agent_consumer.recv_timeout(timeout).unwrap() {
-            SubAgentEvent::HealthUpdated(_, _) => {
-                panic!("SubAgentStarted event expected")
-            }
-            SubAgentEvent::SubAgentStarted(identity, _) => {
-                assert_eq!(identity.id.as_str(), TEST_AGENT_ID)
-            }
-        }
-
-        match sub_agent_consumer.recv_timeout(timeout).unwrap() {
-            SubAgentEvent::HealthUpdated(_, h) => {
-                if h.is_healthy() {
-                    panic!("unhealthy event expected")
-                }
-            }
-            SubAgentEvent::SubAgentStarted(_, _) => {
-                panic!("unhealthy event expected")
-            }
-        }
     }
 }

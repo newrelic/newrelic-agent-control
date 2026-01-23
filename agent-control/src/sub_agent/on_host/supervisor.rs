@@ -1,6 +1,8 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConfig;
-use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystemEntries;
+use crate::agent_type::runtime_config::on_host::filesystem::rendered::{
+    FileSystemEntries, FileSystemEntriesError,
+};
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::agent_type::runtime_config::version_config::rendered::OnHostVersionConfig;
 use crate::checkers::health::health_checker::{Health, HealthCheckerError, spawn_health_checker};
@@ -14,14 +16,15 @@ use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::package::manager::{PackageData, PackageManager};
-use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
+use crate::package::oci::package_manager::OCIPackageManagerError;
+use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssemblerError};
+use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::command_os::{CommandOSNotStarted, CommandOSStarted};
 use crate::sub_agent::on_host::command::error::CommandError;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::command::restart_policy::RestartPolicy;
-use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
-use crate::sub_agent::supervisor::stopper::SupervisorStopper;
+use crate::sub_agent::supervisor::{Supervisor, SupervisorStarter};
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
@@ -37,8 +40,69 @@ use tracing::{Dispatch, debug, dispatcher, error, info, warn};
 const WAIT_FOR_EXIT_TIMEOUT: Duration = Duration::from_secs(1);
 const HEALTHY_DELAY: Duration = Duration::from_secs(10);
 
-pub struct StartedSupervisorOnHost {
+// TODO: check errors
+#[derive(Debug, thiserror::Error)]
+pub enum SupervisorStarterError {
+    #[error("building k8s resources: {0}")]
+    ConfigError(String),
+
+    #[error("installing packages: {0}")]
+    InstallPackage(String),
+
+    #[error("building health checkers: {0}")]
+    HealthError(#[from] HealthCheckerError),
+
+    #[error("supervisor could not be built: {0}")]
+    BuildError(#[from] SubAgentBuilderError),
+
+    #[error("creation of required files for sub-agent failed: {0}")]
+    FileSystem(FileSystemEntriesError),
+}
+
+#[derive(Debug, Error)]
+#[error("Error applying incoming configuration: {0}")]
+pub enum ApplyError {
+    #[error("The incoming configuration has errors: {0}")]
+    IncomingConfig(EffectiveAgentsAssemblerError),
+    #[error("Error stopping previous supervisor: {0}")]
+    StoppingPreviousSupervisor(ThreadContextStopperError),
+    #[error("Error starting new supervisor: {0}")]
+    StartingSupervisor(String),
+    #[error("Error stopping new supervisor: {0}")]
+    StoppingSupervisor(String),
+    #[error("Configuration error: {0}")]
+    MissingConfiguration(String),
+    #[error("installing packages: {0}")]
+    InstallPackage(String),
+}
+
+fn install_packages<PM: PackageManager>(
+    package_manager: &Arc<PM>,
+    agent_id: &AgentID,
+    packages: &RenderedPackages,
+) -> Result<(), OCIPackageManagerError> {
+    for (id, package) in packages {
+        debug!(%id, "Installing package");
+        package_manager.install(
+            agent_id,
+            PackageData {
+                id: id.clone(),
+                oci_reference: package.download.oci.reference.clone(),
+            },
+        )?;
+        debug!(%id, "Package successfully installed");
+    }
+    Ok(())
+}
+
+pub struct StartedSupervisorOnHost<PM>
+where
+    PM: PackageManager,
+{
     pub thread_contexts: Vec<StartedThreadContext>,
+    pub package_manager: Arc<PM>,
+    pub agent_identity: AgentIdentity,
+    pub internal_publisher: EventPublisher<SubAgentInternalEvent>,
 }
 
 pub struct NotStartedSupervisorOnHost<PM>
@@ -60,58 +124,87 @@ impl<PM> SupervisorStarter for NotStartedSupervisorOnHost<PM>
 where
     PM: PackageManager,
 {
-    type SupervisorStopper = StartedSupervisorOnHost;
+    type Supervisor = StartedSupervisorOnHost<PM>;
+    type Error = SubAgentBuilderError;
 
     fn start(
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
-        let (health_publisher, health_consumer) = pub_sub();
+    ) -> Result<Self::Supervisor, Self::Error> {
+        install_packages(
+            &self.package_manager,
+            &self.agent_identity.id,
+            &self.packages_config,
+        )
+        .map_err(|e| SubAgentBuilderError::PackageInstallation(e.to_string()))?;
 
-        for (id, package) in &self.packages_config {
-            // Currently we are always installing the package without checking if it's already installed.
-            debug!(%id, "Installing package");
-            self.package_manager
-                .install(
-                    &self.agent_identity.id,
-                    PackageData {
-                        id: id.clone(),
-                        oci_reference: package.download.oci.reference.clone(),
-                    },
-                )
-                .map_err(|err| {
-                    SupervisorStarterError::InstallPackage(id.to_string(), err.to_string())
-                })?;
-            debug!(%id, "Package successfully installed");
-        }
-
-        self.filesystem_entries
-            .write(&LocalFile, &DirectoryManagerFs)
-            .map_err(SupervisorStarterError::FileSystem)?;
-
-        let executable_thread_contexts = self
-            .executables
-            .iter()
-            .map(|e| self.start_process_thread(e, health_publisher.clone()));
-
-        self.check_subagent_version(sub_agent_internal_publisher.clone());
-
-        let thread_contexts: Vec<StartedThreadContext> =
-            vec![self.start_health_check(sub_agent_internal_publisher.clone(), health_consumer)?]
-                .into_iter()
-                .flatten()
-                .collect();
-
-        let thread_contexts = executable_thread_contexts
-            .into_iter()
-            .chain(thread_contexts)
-            .collect();
-
-        Ok(StartedSupervisorOnHost { thread_contexts })
+        self.spin_up(sub_agent_internal_publisher)
     }
 }
 
-impl SupervisorStopper for StartedSupervisorOnHost {
+impl<PM> Supervisor for StartedSupervisorOnHost<PM>
+where
+    PM: PackageManager,
+{
+    type ApplyError = ApplyError;
+    type StopError = ThreadContextStopperError;
+
+    fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, Self::ApplyError> {
+        let onhost_config = effective_agent
+            .get_onhost_config()
+            .map_err(|err| ApplyError::MissingConfiguration(err.to_string()))?
+            .clone();
+
+        let agent_identity = self.agent_identity.clone();
+        let package_manager = self.package_manager.clone();
+        let internal_publisher = self.internal_publisher.clone();
+
+        let installation_result = install_packages(
+            &package_manager,
+            &agent_identity.id,
+            &onhost_config.packages,
+        );
+
+        self.stop().map_err(|err| {
+            if let Err(install_err) = &installation_result {
+                error!(
+                    "Failure stopping supervisor. Note that installation also failed: {}",
+                    install_err
+                );
+            }
+            ApplyError::StoppingSupervisor(err.to_string())
+        })?;
+
+        installation_result.map_err(|inst_err| ApplyError::InstallPackage(inst_err.to_string()))?;
+
+        let executables = onhost_config
+            .executables
+            .into_iter()
+            .map(|e| {
+                ExecutableData::new(e.id, e.path)
+                    .with_args(e.args.0)
+                    .with_env(e.env.0)
+                    .with_restart_policy(e.restart_policy.into())
+            })
+            .collect();
+
+        let starter = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            onhost_config.health,
+            onhost_config.version,
+            onhost_config.packages,
+            package_manager,
+        )
+        .with_filesystem_entries(FileSystemEntries::from(onhost_config.filesystem));
+
+        let new_started_supervisor = starter
+            .spin_up(internal_publisher)
+            .map_err(|e| ApplyError::StartingSupervisor(e.to_string()))?;
+
+        Ok(new_started_supervisor)
+    }
+
     fn stop(self) -> Result<(), ThreadContextStopperError> {
         let mut stop_result = Ok(());
         for thread_context in self.thread_contexts {
@@ -126,7 +219,6 @@ impl SupervisorStopper for StartedSupervisorOnHost {
                 }
             }
         }
-
         stop_result
     }
 }
@@ -226,6 +318,44 @@ where
             // Basically, it's the same as passing "|x| SubAgentInternalEvent::UpdateAttributesMessage(x)"
             SubAgentInternalEvent::AgentAttributesUpdated,
         )
+    }
+
+    fn spin_up(
+        self,
+        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    ) -> Result<StartedSupervisorOnHost<PM>, SubAgentBuilderError> {
+        let (health_publisher, health_consumer) = pub_sub();
+
+        self.filesystem_entries
+            .write(&LocalFile, &DirectoryManagerFs)
+            .map_err(|e| SubAgentBuilderError::SupervisorError(e.to_string()))?;
+
+        let executable_thread_contexts = self
+            .executables
+            .iter()
+            .map(|e| self.start_process_thread(e, health_publisher.clone()));
+
+        self.check_subagent_version(sub_agent_internal_publisher.clone());
+
+        let thread_contexts: Vec<StartedThreadContext> = vec![
+            self.start_health_check(sub_agent_internal_publisher.clone(), health_consumer)
+                .map_err(|e| SubAgentBuilderError::SupervisorError(e.to_string()))?,
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+
+        let thread_contexts = executable_thread_contexts
+            .into_iter()
+            .chain(thread_contexts)
+            .collect();
+
+        Ok(StartedSupervisorOnHost {
+            thread_contexts,
+            package_manager: self.package_manager,
+            agent_identity: self.agent_identity,
+            internal_publisher: sub_agent_internal_publisher,
+        })
     }
 
     fn start_process_thread(
@@ -456,23 +586,6 @@ impl HealthHandler {
     }
 }
 
-#[derive(Debug, Error)]
-#[error("Error applying incoming configuration: {0}")]
-pub enum ApplyError {
-    #[error("The incoming configuration has errors: {0}")]
-    IncomingConfig(EffectiveAgentsAssemblerError),
-    #[error("Error stopping previous supervisor: {0}")]
-    StoppingPreviousSupervisor(ThreadContextStopperError),
-    #[error("Error starting new supervisor: {0}")]
-    StartingSupervisor(String),
-    #[error("Error stopping new supervisor: {0}")]
-    StoppingSupervisor(String),
-    #[error("Configuration error: {0}")]
-    MissingConfiguration(String),
-    #[error("installing packages: {0}")]
-    InstallPackage(String),
-}
-
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -480,14 +593,18 @@ pub mod tests {
     use crate::checkers::health::health_checker::HEALTH_CHECKER_THREAD_NAME;
     use crate::event::channel::pub_sub;
     use crate::package::manager::tests::MockPackageManager;
-    use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
+    use crate::sub_agent::supervisor::Supervisor;
     use serde::Deserialize;
     use std::collections::HashMap;
     use std::thread;
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
+
+    fn get_empty_packages() -> RenderedPackages {
+        HashMap::new()
+    }
 
     #[derive(Clone, Deserialize)]
     struct TextExecutableData {
@@ -562,15 +679,16 @@ pub mod tests {
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
 
-        let started_supervisor = supervisor.start(sub_agent_internal_publisher);
+        let started_supervisor = supervisor
+            .start(sub_agent_internal_publisher)
+            .expect("failed to start");
+
         if let Some(duration) = run_warmup_time {
             thread::sleep(duration)
         }
 
-        // stopping the agent should be instantaneous since terminating sleep is fast.
-        // no restarts should occur.
         let start = Instant::now();
-        started_supervisor.expect("no error").stop().unwrap();
+        started_supervisor.stop().expect("failed to stop");
         let duration = start.elapsed();
 
         let max_duration = WAIT_FOR_EXIT_TIMEOUT + DURATION_DELTA;
@@ -701,6 +819,8 @@ pub mod tests {
                 }
             }
         }
+
+        thread::sleep(Duration::from_secs(1));
         assert!(logs_contain("NR-command"));
     }
 
@@ -734,14 +854,73 @@ pub mod tests {
             MockPackageManager::new_arc(),
         );
 
-        // run the agent with wrong command so it enters in restart policy
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
-        let agent = agent.start(sub_agent_internal_publisher);
-        // wait two seconds to ensure restart policy thread is sleeping
+        let agent = agent
+            .start(sub_agent_internal_publisher)
+            .expect("failed start");
+
         thread::sleep(Duration::from_secs(2));
-        agent.expect("no error").stop().expect("no error");
+        agent.stop().expect("failed stop");
 
         assert!(timer.elapsed() < Duration::from_secs(10));
+    }
+
+    #[test]
+    #[traced_test]
+    fn test_supervisor_fixed_backoff_retry_3_times() {
+        let backoff = Backoff::default()
+            .with_initial_delay(Duration::new(0, 100))
+            .with_max_retries(3)
+            .with_last_retry_interval(Duration::new(30, 0));
+
+        let executables = vec![
+            #[cfg(target_family = "unix")]
+            build_test_exec_data(r#"{"id":"echo","path":"echo","args":["hello!"]}"#)
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
+            #[cfg(target_family = "windows")]
+            build_test_exec_data(r#"{"id":"cmd","path":"cmd","args":["/C","echo","hello!"]}"#)
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
+        ];
+
+        let agent_identity = AgentIdentity::from((
+            "echo".to_owned().try_into().unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            OnHostHealthConfig::default(),
+            None,
+            get_empty_packages(),
+            MockPackageManager::new_arc(),
+        );
+
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+        let agent = agent.start(sub_agent_internal_publisher).expect("no error");
+
+        for thread_context in agent.thread_contexts {
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+                let _ = thread_context.stop();
+            } else {
+                while !thread_context.is_thread_finished() {
+                    thread::sleep(Duration::from_millis(15));
+                }
+            }
+        }
+
+        thread::sleep(Duration::from_secs(1));
+
+        tracing_test::internal::logs_assert("newrelic_agent_control", |lines| {
+            let count = lines.iter().filter(|line| line.contains("hello!")).count();
+            match count {
+                4 => Ok(()),
+                n => Err(format!(
+                    "Expected 4 lines with 'hello!' corresponding to 1 run + 3 retries, got {n}"
+                )),
+            }
+        })
+        .unwrap();
     }
 
     #[test]
@@ -753,8 +932,6 @@ pub mod tests {
 
         let exec_id = "echo-process";
 
-        // FIXME using "echo 'hello!'" as a command clashes with the previous test when checking
-        // the logger output. Why? See https://github.com/dbrgn/tracing-test/pull/19/ for clues.
         let executables = vec![
             #[cfg(target_family = "unix")]
             build_test_exec_data(r#"{"id":"echo-process","path":"echo","args":[]}"#)
@@ -780,8 +957,9 @@ pub mod tests {
 
         let (health_publisher, health_consumer) = pub_sub();
 
-        let executable_thread_contexts = agent
-            .executables
+        let executables_clone = agent.executables.clone();
+
+        let executable_thread_contexts = executables_clone
             .iter()
             .map(|e| agent.start_process_thread(e, health_publisher.clone()));
 
@@ -791,10 +969,8 @@ pub mod tests {
             }
         }
 
-        // Fix the start times to allow comparison
         let start_time = SystemTime::now();
 
-        // It starts once and restarts 3 times, hence 4 healthy events and a final unhealthy one
         let expected_ordered_events: Vec<(String, HealthWithStartTime)> = [
             (
                 exec_id.to_string(),
@@ -827,7 +1003,6 @@ pub mod tests {
             .as_ref()
             .try_iter()
             .map(|event| {
-                // Patch start_time for health events to allow comparison
                 (
                     event.0.clone(),
                     HealthWithStartTime::new(event.1.into(), start_time),
@@ -855,10 +1030,6 @@ pub mod tests {
         let (health_publisher, health_consumer) = pub_sub();
         let health_handler = HealthHandler::new(exec_data.id.clone(), health_publisher);
 
-        // Don't use the "_" expression for the publisher.
-        // Renaming it to "_" drops the channel. Hence, it will be disconnected.
-        // `wait_for_exit` then gets out on the first iteration and this test will
-        // always pass even when it shouldn't.
         let (_stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
         let _ = wait_exit(
             command,
@@ -879,7 +1050,6 @@ pub mod tests {
             .as_ref()
             .try_iter()
             .map(|event| {
-                // Patch start_time for health events to allow comparison
                 (
                     event.0.clone(),
                     HealthWithStartTime::new(event.1.into(), start_time),
@@ -921,9 +1091,5 @@ pub mod tests {
         );
 
         assert!(health_consumer.as_ref().is_empty())
-    }
-
-    fn get_empty_packages() -> RenderedPackages {
-        HashMap::new()
     }
 }
