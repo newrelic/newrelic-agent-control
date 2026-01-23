@@ -23,8 +23,8 @@ jobs:
       - name: "Attempt to reach staging URLs: Public keys"
         run: xh get https://staging-publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json --all --pretty all --print HBhbm
 
-      - name: "Attempt to reach staging URLs: OpAMP"
-        run: xh get https://opamp.staging-service.newrelic.com/v1/opamp --all --pretty all --print HBhbm
-
       - name: "Attempt to reach staging URLs: System Identity OAuth"
         run: xh get https://system-identity-oauth.staging-service.newrelic.com/oauth2/token --all --pretty all --print HBhbm
+
+      - name: "Attempt to reach staging URLs: OpAMP"
+        run: xh get https://opamp.staging-service.newrelic.com/v1/opamp --all --pretty all --print HBhbm
