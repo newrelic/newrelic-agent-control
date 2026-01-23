@@ -71,7 +71,6 @@ jobs:
       - name: Run k8s e2e-test ${{ matrix.group }}
         id: e2e_test
         uses: newrelic/newrelic-integration-e2e-action@c548a33a0c2941a4db4899ded766923eb3178e0e # v1
-        continue-on-error: true
         env:
           # SI L2->L2 for AC
           NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_FC_STAG_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
@@ -89,7 +88,7 @@ jobs:
           license_key: ${{ secrets.AC_FC_STAG_E2E_LICENSE_KEY }}
 
       - name: Dump logs, stop Tilt on failure
-        if: failure() && steps.e2e_test.outcome == 'failure'
+        if: always() && steps.e2e_test.outcome == 'failure'
         run: |
           kubectl logs --tail=-1 -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
           kubectl logs --tail=-1 -l app.kubernetes.io/instance=nr-infra --all-containers --prefix=true -n newrelic-agents
