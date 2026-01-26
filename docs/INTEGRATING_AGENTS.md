@@ -330,8 +330,6 @@ files can be templated, so a directory contains an arbitrary number of files (a 
 Defines OCI packages containing the executables and data to be downloaded and installed for the sub-agent. 
 This is a map where keys are package identifiers and values contain package metadata and download configuration.
 
-Each package definition accepts the following fields:
-
 
 Note that a Package version. Can be:
   - A tag (`:v1.0.0`)

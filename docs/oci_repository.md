@@ -9,7 +9,7 @@ Package references are constructed from three components:
 - Repository path (e.g., `agents/my-agent`)
 - Version (optional): Can be a tag (`:v1.0.0`), a digest (`@sha256:...`), when both are specified the digest takes precedence.
 
-This data is taken from the Packages section of the AgentType configuration.
+This data is taken from the Packages section of the [AgentType configuration](./INTEGRATING_AGENTS.md).
 
 ## Package Installation Process
 
@@ -30,6 +30,7 @@ by the agent through the variable `${nr-sub:packages.infra-agent.dir}`.
 5. Delete temporary directory (always, even on failure)
 
 Currently, the whole operation blocks the sub-agent thread until it terminates. 
+Notice that the old subAgent (and therefore the binary) is stopped before the new one is downloaded and executed. 
 In the next iterations, we will have a non-blocking implementation to avoid the subAgent to be blocked by this operation.
 
 ## Error Handling
