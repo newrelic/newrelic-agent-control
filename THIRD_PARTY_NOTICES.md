@@ -1850,6 +1850,7 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * CC0-1.0
+* MIT-0
 
 ## ppv-lite86 <https://crates.io/crates/ppv-lite86>
 
