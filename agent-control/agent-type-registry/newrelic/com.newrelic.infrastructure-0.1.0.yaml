@@ -187,8 +187,6 @@ deployment:
           - --config
           - "${nr-sub:filesystem_agent_dir}\\config\\newrelic-infra.yaml"
         env:
-          NRIA_APP_DATA_DIR: "${nr-sub:filesystem_agent_dir}\\data"
-          NRIA_AGENT_DIR: "${nr-sub:filesystem_agent_dir}\\data"
           NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR: "${nr-sub:packages.infra-agent.dir}\\integrations"
           NRIA_SAFE_BIN_DIR: "${nr-sub:packages.infra-agent.dir}\\integrations"
           NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}\\integrations.d"

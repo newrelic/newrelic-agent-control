@@ -1,4 +1,4 @@
-use crate::common::config::add_configs_for_infra_agent_and_logs;
+use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
 use crate::common::logs::ShowLogsOnDrop;
 use crate::common::test::retry;
 use crate::common::{Args, RecipeData, nrql};
@@ -24,12 +24,30 @@ pub fn test_infra_agent(args: Args) {
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
     );
 
-    // Add infra agent specific configuration
-    add_configs_for_infra_agent_and_logs(
+    let debug_log_config = ac_debug_logging_config(windows::DEFAULT_LOG_PATH);
+
+    update_config(
         windows::DEFAULT_CONFIG_PATH,
-        windows::DEFAULT_LOG_PATH,
+        format!(
+            r#"
+host_id: {test_id}
+agents:
+  nr-infra:
+    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+{debug_log_config}
+"#
+        ),
+    );
+
+    // TODO we should get the version dynamically from the recipe itself
+    write_agent_local_config(
         windows::DEFAULT_NR_INFRA_PATH,
-        &test_id,
+        r#"
+config_agent:
+  license_key: '{{NEW_RELIC_LICENSE_KEY}}'
+version: v1.71.4
+"#
+        .to_string(),
     );
 
     windows::service::restart_service(SERVICE_NAME);

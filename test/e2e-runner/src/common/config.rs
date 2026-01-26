@@ -60,50 +60,20 @@ log:
     )
 }
 
-pub fn ac_infra_agent_config() -> String {
-    r#"
-agents:
-  nr-infra:
-    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
-"#
-    .to_string()
-}
-
-pub fn ac_host_config(test_id: &str) -> String {
-    format!(
-        r#"
+pub fn update_config_for_host_id(config_path: &str, test_id: &str) {
+    update_config(
+        config_path,
+        format!(
+            r#"
 host_id: {test_id}
 "#
+        ),
     )
-    .to_string()
-}
-
-// TODO we should get the version dynamically from the recipe itself
-pub fn infra_agent_config() -> String {
-    r#"
-config_agent:
-  license_key: '{{NEW_RELIC_LICENSE_KEY}}'
-version: v1.71.4
-"#
-    .to_string()
 }
 
 /// Modifies the agent-control configuration file to enable debug logging and write logs to a file.
 pub fn update_config_for_debug_logging(config_path: &str, log_file_path: &str) {
     update_config(config_path, ac_debug_logging_config(log_file_path))
-}
-
-/// Modifies the agent-control configuration file to enable debug logging and write logs to a file.
-pub fn add_configs_for_infra_agent_and_logs(
-    config_path: &str,
-    log_file_path: &str,
-    agent_path: &str,
-    test_id: &str,
-) {
-    update_config(config_path, ac_debug_logging_config(log_file_path));
-    update_config(config_path, ac_infra_agent_config());
-    update_config(config_path, ac_host_config(test_id));
-    write_agent_local_config(agent_path, infra_agent_config());
 }
 
 /// Writes a file [LOCAL_CONFIG_FILE_NAME] containing the provided `content` in the provided `config_dir`.

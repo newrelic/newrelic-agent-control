@@ -21,7 +21,8 @@ pub fn test_installation_with_infra_agent(args: Args) {
 
     info!("Setup Agent Control config");
     config::update_config_for_debug_logging(linux::DEFAULT_CONFIG_PATH, linux::DEFAULT_LOG_PATH);
-    config::update_config(linux::DEFAULT_CONFIG_PATH, config::ac_host_config(&test_id));
+    config::update_config_for_host_id(linux::DEFAULT_CONFIG_PATH, &test_id);
+
     linux::service::restart_service(linux::SERVICE_NAME);
     let _show_logs = ShowLogsOnDrop::from(linux::DEFAULT_LOG_PATH);
 
