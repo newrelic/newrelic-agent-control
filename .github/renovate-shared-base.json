@@ -69,6 +69,7 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
+        "Cargo.toml",
         "**/Cargo.toml"
       ],
       "matchStrings": [
