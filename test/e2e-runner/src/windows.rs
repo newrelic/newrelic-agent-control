@@ -4,6 +4,7 @@ use clap::Parser;
 pub mod install;
 pub mod scenarios;
 
+mod cleanup;
 mod health;
 mod powershell;
 mod service;

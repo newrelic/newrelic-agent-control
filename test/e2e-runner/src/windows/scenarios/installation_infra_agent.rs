@@ -3,7 +3,9 @@ use crate::common::logs::ShowLogsOnDrop;
 use crate::common::test::retry;
 use crate::common::{Args, RecipeData, nrql};
 use crate::windows;
+use crate::windows::cleanup::CleanAcOnDrop;
 use crate::windows::install::install_agent_control_from_recipe;
+use crate::windows::service::STATUS_RUNNING;
 use std::thread;
 use std::time::Duration;
 use tracing::info;
@@ -54,13 +56,17 @@ version: v1.71.4
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));
 
-    // At the end of the test, we print the logs.
+    // We need to clean up the resources after showing the logs.
+    // Otherwise, log files get removed before we can print them.
+    // Remember that Drop is called in the reverse order of creation.
+    let _clean_ac = CleanAcOnDrop::from(SERVICE_NAME);
     let _show_logs = ShowLogsOnDrop::from(windows::DEFAULT_LOG_PATH);
 
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));
 
-    windows::service::check_service_running(SERVICE_NAME).expect("service should be running");
+    windows::service::check_service_status(SERVICE_NAME, STATUS_RUNNING)
+        .expect("service should be running");
 
     info!("Verifying service health");
     let status_endpoint = format!("http://localhost:{DEFAULT_STATUS_PORT}/status");
