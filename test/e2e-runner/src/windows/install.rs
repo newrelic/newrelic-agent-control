@@ -4,10 +4,11 @@ use tempfile::tempdir;
 use tracing::{debug, info};
 
 use crate::common::RecipeData;
-use crate::{
-    common::{file::write, test::retry},
-    windows::powershell::{exec_powershell_cmd, exec_powershell_command},
-};
+use crate::common::exec::exec_cmd;
+use crate::common::file::write;
+use crate::{common::test::retry, windows::powershell::exec_ps};
+
+pub const SERVICE_NAME: &str = "newrelic-agent-control";
 
 /// Installs Agent Control using the recipe as configured in the provided [RecipeData].
 ///
@@ -25,7 +26,7 @@ pub fn install_agent_control_from_recipe(data: &RecipeData) {
     );
     info!(%recipes_repo, %recipes_branch, "Checking out recipes repo");
     debug!("Running command: \n{git_command}");
-    let _ = exec_powershell_command(&git_command)
+    let _ = exec_ps(&git_command)
         .unwrap_or_else(|err| panic!("could not checkout recipes repository: {err}"));
 
     let install_newrelic_cli_command = r#"
@@ -34,7 +35,7 @@ msiexec.exe /qn /i "$env:TEMP\NewRelicCLIInstaller.msi" | Out-Null;
 "#;
     info!("Installing newrelic cli",);
     debug!("Running command: \n{install_newrelic_cli_command}");
-    let _ = exec_powershell_command(install_newrelic_cli_command)
+    let _ = exec_ps(install_newrelic_cli_command)
         .unwrap_or_else(|err| panic!("could not install New Relic CLI: {err}"));
 
     // By default, the windows recipe will download the zip file from https://download.newrelic.com and put it
@@ -59,8 +60,8 @@ msiexec.exe /qn /i "$env:TEMP\NewRelicCLIInstaller.msi" | Out-Null;
         let copy_zip_command = format!("cp {} {}", zip_name.display(), extract_path);
         info!("Copying zip file");
         debug!("Running command: \n{copy_zip_command}");
-        let _ = exec_powershell_command(&copy_zip_command)
-            .unwrap_or_else(|err| panic!("could not copy zip: {err}"));
+        let _ =
+            exec_ps(&copy_zip_command).unwrap_or_else(|err| panic!("could not copy zip: {err}"));
     }
 
     // Install agent control through recipe
@@ -124,7 +125,7 @@ $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
             .arg("-File")
             .arg(&script_path);
 
-        exec_powershell_cmd(cmd)
+        exec_cmd(cmd)
     })
     .unwrap_or_else(|err| panic!("failure executing recipe after retries: {err}"));
 

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use tracing::warn;
 
 pub mod config;
+pub mod exec;
 pub mod file;
 pub mod logs;
 pub mod nrql;

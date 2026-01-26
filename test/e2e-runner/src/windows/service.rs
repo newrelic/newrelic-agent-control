@@ -1,6 +1,6 @@
 use crate::common::test::{TestResult, retry};
 
-use super::powershell::exec_powershell_command;
+use super::powershell::exec_ps;
 use std::thread;
 use std::time::Duration;
 use tracing::info;
@@ -22,8 +22,7 @@ pub fn check_service_status(service_name: &str, service_status: &str) -> TestRes
 /// Gets the current status of a Windows service as a string using PowerShell.
 fn get_service_status(service_name: &str) -> String {
     let cmd = format!("(Get-Service -Name '{}').Status", service_name);
-    let result = exec_powershell_command(&cmd)
-        .unwrap_or_else(|err| panic!("could not get service status: {err}"));
+    let result = exec_ps(&cmd).unwrap_or_else(|err| panic!("could not get service status: {err}"));
     let stdout_line = result
         .lines()
         .find(|line| line.starts_with("Stdout"))
@@ -40,8 +39,7 @@ fn get_service_status(service_name: &str) -> String {
 pub fn restart_service(service_name: &str) {
     info!(service = service_name, "Restarting service");
     let cmd = format!("Restart-Service -Name '{}' -Force", service_name);
-    exec_powershell_command(&cmd)
-        .unwrap_or_else(|err| panic!("could not restart '{service_name}' service: {err}"));
+    exec_ps(&cmd).unwrap_or_else(|err| panic!("could not restart '{service_name}' service: {err}"));
 
     // Wait a moment for the service to fully restart
     info!("Waiting for service to restart...");
@@ -55,8 +53,7 @@ pub fn restart_service(service_name: &str) {
 /// Stops a Windows service using PowerShell.
 pub fn stop_service(service_name: &str) {
     let cmd = format!("Stop-Service -Name '{}' -Force", service_name);
-    exec_powershell_command(&cmd)
-        .unwrap_or_else(|err| panic!("could not stop '{service_name} service: {err}'"));
+    exec_ps(&cmd).unwrap_or_else(|err| panic!("could not stop '{service_name} service: {err}'"));
 
     retry(30, Duration::from_secs(5), "check service stopped", || {
         check_service_status(service_name, STATUS_STOPPED)

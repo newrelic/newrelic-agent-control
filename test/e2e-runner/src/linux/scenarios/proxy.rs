@@ -21,11 +21,11 @@ const EXPECTED_DOMAINS: &[&str] = &[
     // Keys generation and Agent Control authentication
     "publickeys.newrelic.com",
     "system-identity-oauth.service.newrelic.com",
-    "identity-api.newrelic.com",
     // Agent Control OpAMP requests
     "opamp.service.newrelic.com",
     // Infra-Agent connections
     "infra-api.newrelic.com",
+    "identity-api.newrelic.com",
 ];
 
 pub fn test_agent_control_proxy(args: Args) {

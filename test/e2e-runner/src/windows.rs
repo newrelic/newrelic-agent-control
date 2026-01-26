@@ -8,6 +8,7 @@ mod cleanup;
 mod health;
 mod powershell;
 mod service;
+mod utils;
 
 const DEFAULT_CONFIG_PATH: &str =
     r"C:\Program Files\New Relic\newrelic-agent-control\local-data\agent-control\local_config.yaml";
@@ -27,6 +28,9 @@ pub fn run_windows_e2e() {
     match cli.scenario {
         WindowsScenarios::InfraAgent(args) => {
             scenarios::installation_infra_agent::test_infra_agent(args);
+        }
+        WindowsScenarios::Proxy(args) => {
+            scenarios::proxy::test_proxy(args);
         }
     }
 }

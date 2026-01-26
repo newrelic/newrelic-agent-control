@@ -4,14 +4,14 @@ use crate::common::test::retry;
 use crate::common::{Args, RecipeData, nrql};
 use crate::windows;
 use crate::windows::cleanup::CleanAcOnDrop;
-use crate::windows::install::install_agent_control_from_recipe;
+use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe};
+use crate::windows::scenarios::INFRA_AGENT_VERSION;
 use crate::windows::service::STATUS_RUNNING;
 use std::thread;
 use std::time::Duration;
 use tracing::info;
 
 const DEFAULT_STATUS_PORT: u16 = 51200;
-const SERVICE_NAME: &str = "newrelic-agent-control";
 
 /// Runs a complete Windows E2E installation test.
 pub fn test_infra_agent(args: Args) {
@@ -41,15 +41,16 @@ agents:
         ),
     );
 
-    // TODO we should get the version dynamically from the recipe itself
     write_agent_local_config(
         windows::DEFAULT_NR_INFRA_PATH,
-        r#"
+        format!(
+            r#"
 config_agent:
-  license_key: '{{NEW_RELIC_LICENSE_KEY}}'
-version: v1.71.4
-"#
-        .to_string(),
+  license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
+version: {}
+"#,
+            INFRA_AGENT_VERSION
+        ),
     );
 
     windows::service::restart_service(SERVICE_NAME);
