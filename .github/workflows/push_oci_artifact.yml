@@ -117,7 +117,7 @@ jobs:
           echo "$DIGEST" > digest-${{ matrix.os }}-${{ matrix.arch }}.txt
 
       - name: Upload Digest Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: digest-${{ matrix.os }}-${{ matrix.arch }}
           path: digest-${{ matrix.os }}-${{ matrix.arch }}.txt
@@ -132,7 +132,7 @@ jobs:
         uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6 # v1
 
       - name: Download All Digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           path: digests
           pattern: digest-*
