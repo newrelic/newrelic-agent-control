@@ -355,19 +355,19 @@ client_timeout: 3s
         impl TestCase {
             fn run(self, vault: &Vault) {
                 let actual = vault.get_secret(self.secret_path);
-                if self.expected.is_ok() {
-                    assert_eq!(
-                        self.expected.unwrap(),
-                        actual.unwrap_or("".to_string()),
-                        "Test Name: {}",
-                        self._name
-                    );
-                } else {
-                    assert!(actual.is_err());
-                    assert_eq!(
-                        self.expected.unwrap_err().to_string(),
-                        actual.unwrap_err().to_string()
-                    );
+                match self.expected {
+                    Ok(expected) => {
+                        assert_eq!(
+                            expected,
+                            actual.unwrap_or("".to_string()),
+                            "Test Name: {}",
+                            self._name
+                        );
+                    }
+                    Err(err) => {
+                        assert!(actual.is_err());
+                        assert_eq!(err.to_string(), actual.unwrap_err().to_string());
+                    }
                 }
             }
         }
