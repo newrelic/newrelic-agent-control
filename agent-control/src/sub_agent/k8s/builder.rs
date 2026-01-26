@@ -11,6 +11,7 @@ use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::k8s::supervisor::SupervisorError;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::values::config_repository::ConfigRepository;
@@ -116,7 +117,7 @@ impl SupervisorBuilderK8s {
 
 impl SupervisorBuilder for SupervisorBuilderK8s {
     type Starter = NotStartedSupervisorK8s;
-    type Error = SubAgentBuilderError;
+    type Error = SupervisorError;
 
     fn build_supervisor(
         &self,
@@ -125,7 +126,9 @@ impl SupervisorBuilder for SupervisorBuilderK8s {
         let agent_identity = effective_agent.get_agent_identity();
         debug!("Building supervisors {}", agent_identity,);
 
-        let k8s_objects = effective_agent.get_k8s_config()?;
+        let k8s_objects = effective_agent
+            .get_k8s_config()
+            .map_err(SupervisorError::RuntimeConfig)?;
 
         // Validate Kubernetes objects against the list of supported resources.
         let supported_set: HashSet<(&str, &str)> = self
@@ -138,10 +141,10 @@ impl SupervisorBuilder for SupervisorBuilderK8s {
         for k8s_obj in k8s_objects.objects.values() {
             let obj_key = (k8s_obj.api_version.as_str(), k8s_obj.kind.as_str());
             if !supported_set.contains(&obj_key) {
-                return Err(SubAgentBuilderError::UnsupportedK8sObject(format!(
-                    "Unsupported Kubernetes object with api_version '{}' and kind '{}'",
-                    k8s_obj.api_version, k8s_obj.kind
-                )));
+                return Err(SupervisorError::UnsupportedK8sObject {
+                    api_version: k8s_obj.api_version.to_string(),
+                    kind: k8s_obj.kind.to_string(),
+                });
             }
         }
 
@@ -310,8 +313,11 @@ pub mod tests {
 
         let result = supervisor_builder.build_supervisor(effective_agent);
         assert_matches!(
-            result.expect_err("Expected error"),
-            SubAgentBuilderError::UnsupportedK8sObject(_)
+            result,
+            Err(SupervisorError::UnsupportedK8sObject {
+                api_version: _,
+                kind: _
+            })
         );
     }
 

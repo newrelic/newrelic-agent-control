@@ -16,9 +16,7 @@ use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::package::manager::{PackageData, PackageManager};
-use crate::package::oci::package_manager::OCIPackageManagerError;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssemblerError};
-use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::command_os::{CommandOSNotStarted, CommandOSStarted};
 use crate::sub_agent::on_host::command::error::CommandError;
@@ -40,56 +38,42 @@ use tracing::{Dispatch, debug, dispatcher, error, info, warn};
 const WAIT_FOR_EXIT_TIMEOUT: Duration = Duration::from_secs(1);
 const HEALTHY_DELAY: Duration = Duration::from_secs(10);
 
-// TODO: check errors
 #[derive(Debug, thiserror::Error)]
-pub enum SupervisorStarterError {
-    #[error("building k8s resources: {0}")]
-    ConfigError(String),
-
+pub enum SupervisorError {
     #[error("installing packages: {0}")]
     InstallPackage(String),
-
     #[error("building health checkers: {0}")]
     HealthError(#[from] HealthCheckerError),
-
-    #[error("supervisor could not be built: {0}")]
-    BuildError(#[from] SubAgentBuilderError),
-
-    #[error("creation of required files for sub-agent failed: {0}")]
+    #[error("failed to write sub-agent files: {0}")]
     FileSystem(FileSystemEntriesError),
+    #[error("package installation failed: {0}")]
+    Install(InstallPackageError),
+    #[error("missing runtime configuration: {0}")]
+    RuntimeConfig(EffectiveAgentsAssemblerError),
+    #[error("failure stopping supervisor: {0}")]
+    Stop(ThreadContextStopperError),
 }
 
 #[derive(Debug, Error)]
-#[error("Error applying incoming configuration: {0}")]
-pub enum ApplyError {
-    #[error("The incoming configuration has errors: {0}")]
-    IncomingConfig(EffectiveAgentsAssemblerError),
-    #[error("Error stopping previous supervisor: {0}")]
-    StoppingPreviousSupervisor(ThreadContextStopperError),
-    #[error("Error starting new supervisor: {0}")]
-    StartingSupervisor(String),
-    #[error("Error stopping new supervisor: {0}")]
-    StoppingSupervisor(String),
-    #[error("Configuration error: {0}")]
-    MissingConfiguration(String),
-    #[error("installing packages: {0}")]
-    InstallPackage(String),
-}
+#[error("failure installing package: '{0}': {1}")]
+pub struct InstallPackageError(String, String);
 
 fn install_packages<PM: PackageManager>(
     package_manager: &Arc<PM>,
     agent_id: &AgentID,
     packages: &RenderedPackages,
-) -> Result<(), OCIPackageManagerError> {
+) -> Result<(), InstallPackageError> {
     for (id, package) in packages {
         debug!(%id, "Installing package");
-        package_manager.install(
-            agent_id,
-            PackageData {
-                id: id.clone(),
-                oci_reference: package.download.oci.reference.clone(),
-            },
-        )?;
+        package_manager
+            .install(
+                agent_id,
+                PackageData {
+                    id: id.clone(),
+                    oci_reference: package.download.oci.reference.clone(),
+                },
+            )
+            .map_err(|err| InstallPackageError(id.to_string(), err.to_string()))?;
         debug!(%id, "Package successfully installed");
     }
     Ok(())
@@ -125,7 +109,7 @@ where
     PM: PackageManager,
 {
     type Supervisor = StartedSupervisorOnHost<PM>;
-    type Error = SubAgentBuilderError;
+    type Error = SupervisorError;
 
     fn start(
         self,
@@ -136,7 +120,7 @@ where
             &self.agent_identity.id,
             &self.packages_config,
         )
-        .map_err(|e| SubAgentBuilderError::PackageInstallation(e.to_string()))?;
+        .map_err(SupervisorError::Install)?;
 
         self.spin_up(sub_agent_internal_publisher)
     }
@@ -146,13 +130,13 @@ impl<PM> Supervisor for StartedSupervisorOnHost<PM>
 where
     PM: PackageManager,
 {
-    type ApplyError = ApplyError;
+    type ApplyError = SupervisorError;
     type StopError = ThreadContextStopperError;
 
     fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, Self::ApplyError> {
         let onhost_config = effective_agent
             .get_onhost_config()
-            .map_err(|err| ApplyError::MissingConfiguration(err.to_string()))?
+            .map_err(SupervisorError::RuntimeConfig)?
             .clone();
 
         let agent_identity = self.agent_identity.clone();
@@ -172,10 +156,10 @@ where
                     install_err
                 );
             }
-            ApplyError::StoppingSupervisor(err.to_string())
+            SupervisorError::Stop(err)
         })?;
 
-        installation_result.map_err(|inst_err| ApplyError::InstallPackage(inst_err.to_string()))?;
+        installation_result.map_err(SupervisorError::Install)?;
 
         let executables = onhost_config
             .executables
@@ -198,9 +182,7 @@ where
         )
         .with_filesystem_entries(FileSystemEntries::from(onhost_config.filesystem));
 
-        let new_started_supervisor = starter
-            .spin_up(internal_publisher)
-            .map_err(|e| ApplyError::StartingSupervisor(e.to_string()))?;
+        let new_started_supervisor = starter.spin_up(internal_publisher)?;
 
         Ok(new_started_supervisor)
     }
@@ -267,7 +249,7 @@ where
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         health_consumer: EventConsumer<(String, HealthWithStartTime)>,
-    ) -> Result<Option<StartedThreadContext>, SupervisorStarterError> {
+    ) -> Result<Option<StartedThreadContext>, SupervisorError> {
         let start_time = StartTime::now();
         let client_timeout = Duration::from(self.health_config.clone().timeout);
         let http_config = HttpConfig::new(client_timeout, client_timeout, ProxyConfig::default());
@@ -323,12 +305,12 @@ where
     fn spin_up(
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<StartedSupervisorOnHost<PM>, SubAgentBuilderError> {
+    ) -> Result<StartedSupervisorOnHost<PM>, SupervisorError> {
         let (health_publisher, health_consumer) = pub_sub();
 
         self.filesystem_entries
             .write(&LocalFile, &DirectoryManagerFs)
-            .map_err(|e| SubAgentBuilderError::SupervisorError(e.to_string()))?;
+            .map_err(SupervisorError::FileSystem)?;
 
         let executable_thread_contexts = self
             .executables
@@ -337,13 +319,11 @@ where
 
         self.check_subagent_version(sub_agent_internal_publisher.clone());
 
-        let thread_contexts: Vec<StartedThreadContext> = vec![
-            self.start_health_check(sub_agent_internal_publisher.clone(), health_consumer)
-                .map_err(|e| SubAgentBuilderError::SupervisorError(e.to_string()))?,
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
+        let thread_contexts: Vec<StartedThreadContext> =
+            vec![self.start_health_check(sub_agent_internal_publisher.clone(), health_consumer)?]
+                .into_iter()
+                .flatten()
+                .collect();
 
         let thread_contexts = executable_thread_contexts
             .into_iter()

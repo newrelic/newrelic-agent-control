@@ -33,20 +33,22 @@ use tracing::{debug, info, info_span, trace, warn};
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
 const SUPERVISOR_THREAD_NAME: &str = "supervisor";
 
-// TODO: check errors
-#[derive(Debug, thiserror::Error)]
-pub enum SupervisorStarterError {
+#[derive(Debug, Error)]
+pub enum SupervisorError {
     #[error("the kube client returned an error: {0}")]
     Generic(#[from] crate::k8s::error::K8sError),
-
     #[error("building k8s resources: {0}")]
     ConfigError(String),
-
-    #[error("installing packages: {0}")]
-    InstallPackage(String),
-
     #[error("building health checkers: {0}")]
     HealthError(#[from] HealthCheckerError),
+    #[error("the incoming configuration has errors: {0}")]
+    IncomingConfig(EffectiveAgentsAssemblerError),
+    #[error("error stopping previous supervisor: {0}")]
+    StoppingPreviousSupervisor(ThreadContextStopperError),
+    #[error("missing runtime configuration: {0}")]
+    RuntimeConfig(EffectiveAgentsAssemblerError),
+    #[error("unsupported Kubernetes object with api_version '{api_version}' and kind '{kind}'")]
+    UnsupportedK8sObject { api_version: String, kind: String },
 }
 
 #[derive(Debug, Clone)]
@@ -59,7 +61,7 @@ pub struct NotStartedSupervisorK8s {
 
 impl SupervisorStarter for NotStartedSupervisorK8s {
     type Supervisor = StartedSupervisorK8s;
-    type Error = SupervisorStarterError;
+    type Error = SupervisorError;
 
     fn start(
         self,
@@ -111,7 +113,7 @@ impl NotStartedSupervisorK8s {
         }
     }
 
-    pub fn build_dynamic_objects(&self) -> Result<Vec<DynamicObject>, SupervisorStarterError> {
+    pub fn build_dynamic_objects(&self) -> Result<Vec<DynamicObject>, SupervisorError> {
         self.k8s_config
             .objects
             .values()
@@ -119,10 +121,7 @@ impl NotStartedSupervisorK8s {
             .collect()
     }
 
-    fn create_dynamic_object(
-        &self,
-        k8s_obj: &K8sObject,
-    ) -> Result<DynamicObject, SupervisorStarterError> {
+    fn create_dynamic_object(&self, k8s_obj: &K8sObject) -> Result<DynamicObject, SupervisorError> {
         let types = TypeMeta {
             api_version: k8s_obj.api_version.clone(),
             kind: k8s_obj.kind.clone(),
@@ -149,9 +148,8 @@ impl NotStartedSupervisorK8s {
         // but the change detector would see this as a difference if we don't remove them beforehand.
         retain_not_null(&mut k8s_obj_fields);
 
-        let data = serde_json::to_value(&k8s_obj_fields).map_err(|e| {
-            SupervisorStarterError::ConfigError(format!("Error serializing fields: {e}"))
-        })?;
+        let data = serde_json::to_value(&k8s_obj_fields)
+            .map_err(|e| SupervisorError::ConfigError(format!("Error serializing fields: {e}")))?;
 
         Ok(DynamicObject {
             types: Some(types),
@@ -193,7 +191,7 @@ impl NotStartedSupervisorK8s {
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
-    ) -> Result<Option<StartedThreadContext>, SupervisorStarterError> {
+    ) -> Result<Option<StartedThreadContext>, SupervisorError> {
         let start_time = StartTime::now();
 
         let Some(health_config) = &self.k8s_config.health else {
@@ -269,7 +267,7 @@ impl NotStartedSupervisorK8s {
     pub(super) fn apply_resources<'a>(
         resources: impl Iterator<Item = &'a DynamicObject>,
         k8s_client: &SyncK8sClient,
-    ) -> Result<(), SupervisorStarterError> {
+    ) -> Result<(), SupervisorError> {
         debug!("Applying k8s objects if changed");
         for res in resources {
             trace!("K8s object: {:?}", res);
@@ -289,14 +287,14 @@ pub struct StartedSupervisorK8s {
 }
 
 impl Supervisor for StartedSupervisorK8s {
-    type ApplyError = ApplyError;
+    type ApplyError = SupervisorError;
     type StopError = ThreadContextStopperError;
 
     fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, Self::ApplyError> {
         // Retrieve config, if unchanged do nothing
         let new_k8s_config: K8s = effective_agent
             .try_into()
-            .map_err(ApplyError::IncomingConfig)?;
+            .map_err(SupervisorError::IncomingConfig)?;
 
         if new_k8s_config == self.k8s_config {
             // No changes, return same supervisor
@@ -328,7 +326,7 @@ impl Supervisor for StartedSupervisorK8s {
 
         let span = info_span!("stopping_supervisor", agent_id = %agent_identity.id);
         span.in_scope(|| thread_contexts.stop())
-            .map_err(ApplyError::StoppingPreviousSupervisor)?;
+            .map_err(SupervisorError::StoppingPreviousSupervisor)?;
 
         debug!(agent_id = %agent_identity.id, "Old supervisor stopped");
 
@@ -338,26 +336,13 @@ impl Supervisor for StartedSupervisorK8s {
         // ...and start it
         debug!(agent_id = %new_starter.agent_identity.id, "Starting new supervisor");
 
-        new_starter
-            .start(sub_agent_internal_publisher)
-            .map_err(ApplyError::StartingSupervisor)
+        new_starter.start(sub_agent_internal_publisher)
     }
 
     fn stop(self) -> Result<(), Self::StopError> {
         let span = info_span!("stopping_supervisor", agent_id = %self.agent_identity.id);
         span.in_scope(|| self.thread_contexts.stop())
     }
-}
-
-#[derive(Debug, Error)]
-#[error("Error applying incoming configuration: {0}")]
-pub enum ApplyError {
-    #[error("The incoming configuration has errors: {0}")]
-    IncomingConfig(EffectiveAgentsAssemblerError),
-    #[error("Error stopping previous supervisor: {0}")]
-    StoppingPreviousSupervisor(ThreadContextStopperError),
-    #[error("Error starting new supervisor: {0}")]
-    StartingSupervisor(SupervisorStarterError),
 }
 
 #[cfg(test)]
@@ -496,7 +481,7 @@ pub mod tests {
             )
             .err()
             .unwrap(); // cannot use unwrap_err because the  underlying EventPublisher doesn't implement Debug
-        assert_matches!(err, SupervisorStarterError::HealthError(_))
+        assert_matches!(err, SupervisorError::HealthError(_))
     }
 
     #[test]

@@ -979,7 +979,7 @@ agents:
                     .once()
                     .with(predicate::eq(identity))
                     .returning(|_| {
-                        Err(SubAgentBuilderError::UnsupportedK8sObject(
+                        Err(SubAgentBuilderError::OpampClientBuilderError(
                             "some error".to_string(),
                         ))
                     });
@@ -1381,7 +1381,7 @@ agents:
                 .with(predicate::eq(identity.clone()))
                 .returning(move |_| {
                     if &identity.id.to_string() == "remote-id2" {
-                        Err(SubAgentBuilderError::UnsupportedK8sObject(
+                        Err(SubAgentBuilderError::OpampClientBuilderError(
                             "some error".to_string(),
                         ))
                     } else {
