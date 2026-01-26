@@ -1,4 +1,5 @@
-use crate::{linux::install::Args, tools::test::TestResult};
+use crate::common::Args;
+use crate::common::test::TestResult;
 use reqwest::blocking::Client;
 use serde::Serialize;
 use serde_json::Value;
@@ -56,18 +57,21 @@ impl Region {
 ///
 /// * `Ok(Vec<Value>)` - The NRQL query results on success
 /// * `Err` - Error if the query fails, returns errors, or has no results
-pub fn check_query_results_are_not_empty(args: &Args, nrql_query: &str) -> TestResult<Vec<Value>> {
+pub fn check_query_results_are_not_empty(
+    install_args: &Args,
+    nrql_query: &str,
+) -> TestResult<Vec<Value>> {
     let client = Client::builder().timeout(CLIENT_TIMEOUT).build()?;
-    check_query_results_are_not_empty_with_client(args, nrql_query, client)
+    check_query_results_are_not_empty_with_client(install_args, nrql_query, client)
 }
 
 /// Helper to execute [check_query_results_are_not_empty] with custom setup. Eg: setting up proxy.
 fn check_query_results_are_not_empty_with_client(
-    args: &Args,
+    install_args: &Args,
     nrql_query: &str,
     client: Client,
 ) -> TestResult<Vec<Value>> {
-    let api_endpoint = Region::try_from(args.nr_region.as_str())?.api_endpoint();
+    let api_endpoint = Region::try_from(install_args.nr_region.as_str())?.api_endpoint();
     let url = format!("{}/graphql", api_endpoint);
     let graphql_query = format!(
         r#"{{
@@ -79,13 +83,13 @@ fn check_query_results_are_not_empty_with_client(
     }}
   }}
 }}"#,
-        args.nr_account_id, nrql_query,
+        install_args.nr_account_id, nrql_query,
     );
 
     let response = client
         .post(&url)
         .header("Content-Type", "application/json")
-        .header("API-Key", args.nr_api_key.as_str())
+        .header("API-Key", &install_args.nr_api_key)
         .json(&GraphQLRequest {
             query: graphql_query,
         })

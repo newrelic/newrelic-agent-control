@@ -1,15 +1,10 @@
-use std::time::Duration;
-
-use tracing::{debug, info};
-
+use crate::common::{Args, RecipeData};
 use crate::{
-    linux::{
-        self,
-        bash::exec_bash_command,
-        install::{Args, RecipeData, install_agent_control_from_recipe},
-    },
-    tools::{config, logs::ShowLogsOnDrop, nrql, test::retry},
+    common::{config, logs::ShowLogsOnDrop, nrql, test::retry},
+    linux::{self, bash::exec_bash_command, install::install_agent_control_from_recipe},
 };
+use std::time::Duration;
+use tracing::{debug, info};
 
 const PROXY_CONTAINER_NAME: &str = "mitmproxy-e2e";
 const PROXY_URL: &str = "http://localhost:8080";
@@ -54,14 +49,8 @@ pub fn test_agent_control_proxy(args: Args) {
     );
 
     info!("Setup Agent Control config with proxy");
-    let debug_log_config = config::debug_logging_config(linux::DEFAULT_LOG_PATH);
-    let config_content = format!(
-        r#"
-host_id: {test_id}
-{debug_log_config}
-"#
-    );
-    config::update_config(linux::DEFAULT_CONFIG_PATH, &config_content);
+    config::update_config_for_debug_logging(linux::DEFAULT_CONFIG_PATH, linux::DEFAULT_LOG_PATH);
+    config::update_config_for_host_id(linux::DEFAULT_CONFIG_PATH, &test_id);
 
     linux::service::restart_service(linux::SERVICE_NAME);
     let _show_logs = ShowLogsOnDrop::from(linux::DEFAULT_LOG_PATH);
@@ -69,7 +58,7 @@ host_id: {test_id}
     info!("Verifying that agent is reporting data through proxy");
     let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `host.id` = '{test_id}' LIMIT 1"#);
     info!(nrql = nrql_query, "Checking results of NRQL");
-    let retries = 120;
+    let retries = 60;
     retry(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     })

@@ -1,4 +1,6 @@
-use crate::{tools::remove_dirs, windows::service};
+use crate::common::remove_dirs;
+use crate::windows::service;
+use tracing::error;
 
 const AGENT_CONTROL_DIRS: &[&str] = &[
     r"C:\Program Files\New Relic\newrelic-agent-control\",
@@ -20,6 +22,8 @@ impl<'a> From<&'a str> for CleanAcOnDrop<'a> {
 impl<'a> Drop for CleanAcOnDrop<'a> {
     fn drop(&mut self) {
         service::stop_service(self.service_name);
-        remove_dirs(AGENT_CONTROL_DIRS).expect("expected directories to be removed");
+        _ = remove_dirs(AGENT_CONTROL_DIRS).inspect_err(|err| {
+            error!("Failed to remove Agent Control directories: {}", err);
+        });
     }
 }

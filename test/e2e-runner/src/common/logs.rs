@@ -1,7 +1,7 @@
 use std::fs;
 use tracing::{debug, error, info};
 
-use crate::tools::test::TestResult;
+use crate::common::test::TestResult;
 
 /// Tool to show logs when a test is over
 pub struct ShowLogsOnDrop<'a> {

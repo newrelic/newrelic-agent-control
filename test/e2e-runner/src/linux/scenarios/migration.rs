@@ -1,22 +1,20 @@
-use std::time::Duration;
-
-use tracing::{debug, info};
-
+use crate::common::file::write;
+use crate::common::logs::ShowLogsOnDrop;
+use crate::common::{Args, RecipeData};
 use crate::{
-    linux::{
-        self,
-        bash::exec_bash_command,
-        install::{Args, RecipeData, install_agent_control_from_recipe},
-        service,
-    },
-    tools::{config, file::write, nrql, test::retry},
+    common::{config, nrql, test::retry},
+    linux::{self, bash::exec_bash_command, install::install_agent_control_from_recipe, service},
 };
+use std::time::Duration;
+use tracing::{debug, info};
 
 pub fn test_migration(args: Args) {
     let test_id = format!(
         "onhost-e2e-infra-agent_{}",
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
     );
+
+    let _show_logs = ShowLogsOnDrop::from(linux::DEFAULT_LOG_PATH);
 
     info!("Setting up the infra-agent to report some mysql data");
     install_and_setup_infra_agent_with_mysql(&args, test_id.as_str());
@@ -26,7 +24,7 @@ pub fn test_migration(args: Args) {
         r#"SELECT * FROM MysqlSample WHERE label.test_id = '{test_id}' AND label.test_installed_agent = 'infra_agent' LIMIT 1"#
     );
     info!(nrql = nrql_query, "Checking results of NRQL");
-    let retries = 12;
+    let retries = 60;
     retry(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&args, &nrql_query)
     })
@@ -56,7 +54,7 @@ pub fn test_migration(args: Args) {
         r#"SELECT * FROM MysqlSample WHERE label.test_id = '{test_id}' AND label.test_installed_agent = 'agent_control' LIMIT 1"#
     );
     info!(nrql = nrql_query, "Checking results of NRQL");
-    let retries = 12;
+    let retries = 60;
     retry(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     })

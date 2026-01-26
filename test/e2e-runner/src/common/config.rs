@@ -1,13 +1,10 @@
+use crate::common::file::write;
 use serde_yaml::Value;
 use std::{fs, io::Write, path::PathBuf};
 use tracing::info;
 
-use crate::tools::file::write;
-
-pub const LOCAL_CONFIG_FILE_NAME: &str = "local_config.yaml";
-
 /// Updates the agent control config in `config_path` to include the content specified in `new_content`
-pub fn update_config(config_path: &str, new_content: &str) {
+pub fn update_config(config_path: &str, new_content: String) {
     // Read the existing configuration file
     let content = fs::read_to_string(config_path).unwrap_or_else(|e| {
         panic!("failed to read configuration file at {config_path:?}: {e}");
@@ -19,7 +16,7 @@ pub fn update_config(config_path: &str, new_content: &str) {
     });
 
     // Parse the new content
-    let new_config: Value = serde_yaml::from_str(new_content).unwrap_or_else(|e| {
+    let new_config: Value = serde_yaml::from_str(&new_content).unwrap_or_else(|e| {
         panic!("failed to merge YAML configuration with content {new_content:?}: {e}");
     });
 
@@ -48,7 +45,7 @@ fn merge_yaml_mappings(base: Value, new: Value) -> Value {
 }
 
 /// Return configuration for debug logging as a string
-pub fn debug_logging_config(log_file_path: &str) -> String {
+pub fn ac_debug_logging_config(log_file_path: &str) -> String {
     format!(
         r#"
 log:
@@ -63,18 +60,29 @@ log:
     )
 }
 
+pub fn update_config_for_host_id(config_path: &str, test_id: &str) {
+    update_config(
+        config_path,
+        format!(
+            r#"
+host_id: {test_id}
+"#
+        ),
+    )
+}
+
 /// Modifies the agent-control configuration file to enable debug logging and write logs to a file.
 pub fn update_config_for_debug_logging(config_path: &str, log_file_path: &str) {
-    update_config(config_path, &debug_logging_config(log_file_path))
+    update_config(config_path, ac_debug_logging_config(log_file_path))
 }
 
 /// Writes a file [LOCAL_CONFIG_FILE_NAME] containing the provided `content` in the provided `config_dir`.
 pub fn write_agent_local_config(config_dir: &str, content: String) {
     let path = PathBuf::from(config_dir);
-    fs::create_dir_all(&path).unwrap_or_else(|err| {
+    fs::create_dir_all(path.parent().unwrap()).unwrap_or_else(|err| {
         panic!("Error creating local config: {err}");
     });
-    write(path.join(LOCAL_CONFIG_FILE_NAME), content);
+    write(path, content);
 }
 
 /// Replaces all the occurrences of `old` to `new` in the provided `config_path`.
