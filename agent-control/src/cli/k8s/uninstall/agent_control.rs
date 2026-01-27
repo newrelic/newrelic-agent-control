@@ -10,6 +10,7 @@ use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
 use clap::Parser;
 use kube::api::TypeMeta;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 
 #[derive(Debug, Clone, Parser)]
@@ -70,7 +71,26 @@ fn objects_to_delete(kinds_available: &HashSet<TypeMeta>) -> Vec<TypeMeta> {
     });
 
     tm_to_delete.retain(|tm| kinds_available.contains(tm));
+
+    // Introduce an ad-hoc ordering to ensure:
+    // 1. Deterministic results
+    // 2. Instrumentation CRs go first (i.e. before the K8s operator if present)
+    tm_to_delete.sort_by(instrumentations_first);
     tm_to_delete
+}
+
+fn instrumentations_first(a: &TypeMeta, b: &TypeMeta) -> Ordering {
+    if a.kind == "Instrumentation" && b.kind == "Instrumentation" {
+        a.api_version.cmp(&b.api_version)
+    } else if a.kind == "Instrumentation" {
+        Ordering::Less
+    } else if b.kind == "Instrumentation" {
+        Ordering::Greater
+    } else if a.kind == b.kind {
+        a.api_version.cmp(&b.api_version)
+    } else {
+        a.kind.cmp(&b.kind)
+    }
 }
 
 fn delete_agent_control_crs(
@@ -92,4 +112,123 @@ fn delete_agent_control_crs(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_instrumentations_first() {
+        let instrumentation = TypeMeta {
+            api_version: "v1".to_string(),
+            kind: "Instrumentation".to_string(),
+        };
+        let config_map = TypeMeta {
+            api_version: "v1".to_string(),
+            kind: "ConfigMap".to_string(),
+        };
+        let deployment = TypeMeta {
+            api_version: "apps/v1".to_string(),
+            kind: "Deployment".to_string(),
+        };
+
+        // Instrumentation should come before others
+        assert_eq!(
+            instrumentations_first(&instrumentation, &config_map),
+            Ordering::Less
+        );
+        assert_eq!(
+            instrumentations_first(&config_map, &instrumentation),
+            Ordering::Greater
+        );
+
+        // Others should be sorted alphabetically by kind
+        assert_eq!(
+            instrumentations_first(&config_map, &deployment),
+            Ordering::Less // "ConfigMap" < "Deployment"
+        );
+        assert_eq!(
+            instrumentations_first(&deployment, &config_map),
+            Ordering::Greater
+        );
+
+        // Same kind should be sorted by api_version
+        let deployment_v2 = TypeMeta {
+            api_version: "apps/v2".to_string(),
+            kind: "Deployment".to_string(),
+        };
+        assert_eq!(
+            instrumentations_first(&deployment, &deployment_v2),
+            Ordering::Less // "apps/v1" < "apps/v2"
+        );
+    }
+
+    #[test]
+    fn test_objects_to_delete_ordering_logic() {
+        let mut list = [
+            TypeMeta {
+                api_version: "v1".to_string(),
+                kind: "ConfigMap".to_string(),
+            },
+            TypeMeta {
+                api_version: "apps/v1".to_string(),
+                kind: "Deployment".to_string(),
+            },
+            TypeMeta {
+                api_version: "v1".to_string(),
+                kind: "Service".to_string(),
+            },
+            TypeMeta {
+                api_version: "v1".to_string(),
+                kind: "Instrumentation".to_string(),
+            },
+        ];
+
+        list.sort_by(instrumentations_first);
+
+        assert_eq!(list[0].kind, "Instrumentation");
+        assert_eq!(list[1].kind, "ConfigMap");
+        assert_eq!(list[2].kind, "Deployment");
+        assert_eq!(list[3].kind, "Service");
+    }
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn test_instrumentations_first_reflexivity(
+            kind in prop_oneof!["Instrumentation", "[a-zA-Z0-9]+"],
+            version in "[a-zA-Z0-9]+"
+        ) {
+            let tm = TypeMeta {
+                kind,
+                api_version: version,
+            };
+            // Comparison with itself MUST be Equal
+            assert_eq!(instrumentations_first(&tm, &tm), Ordering::Equal);
+        }
+
+        #[test]
+        fn test_instrumentations_always_first(
+            mut list in proptest::collection::vec(
+                (
+                    prop_oneof![Just("Instrumentation".to_string()), "[a-zA-Z0-9]+"],
+                    "[a-zA-Z0-9]+"
+                ).prop_map(|(kind, api_version)| TypeMeta { kind, api_version }),
+                0..50
+            )
+        ) {
+            list.sort_by(instrumentations_first);
+
+            let mut seen_non_instrumentation = false;
+            for item in list {
+                if item.kind == "Instrumentation" {
+                    prop_assert!(!seen_non_instrumentation, "Found Instrumentation after a non-Instrumentation item");
+                } else {
+                    seen_non_instrumentation = true;
+                }
+            }
+        }
+    }
 }
