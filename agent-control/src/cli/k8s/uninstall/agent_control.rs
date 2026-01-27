@@ -76,7 +76,7 @@ fn objects_to_delete(kinds_available: &HashSet<TypeMeta>) -> Vec<TypeMeta> {
     // 1. Deterministic results
     // 2. Instrumentation CRs go first (i.e. before the K8s operator if present)
     tm_to_delete.sort_by(instrumentations_first);
-    tm_to_delete
+    dbg!(tm_to_delete)
 }
 
 fn instrumentations_first(a: &TypeMeta, b: &TypeMeta) -> Ordering {
