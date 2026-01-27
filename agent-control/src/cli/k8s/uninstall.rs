@@ -10,6 +10,7 @@ use tracing::info;
 use super::errors::K8sCliError;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::error::K8sError;
 use crate::utils::retry::retry;
 
 pub mod agent_control;
@@ -42,23 +43,26 @@ impl<'a> Deleter<'a> {
     ) -> Result<(), K8sCliError> {
         info!(%name, type=tm.kind, "Deleting resource");
         retry(self.max_attempts, self.interval, || {
-            let res = self
-                .k8s_client
-                .delete_dynamic_object(tm, name, namespace)
-                .map_err(|err| {
-                    K8sCliError::DeleteResource(format!(
-                        "could not delete resource '{}' of type '{}': {}",
-                        name, tm.kind, err
-                    ))
-                })?;
-            if is_resource_deleted(res) {
-                info!(%name, type=tm.kind, "Resource deleted");
-                Ok(())
-            } else {
-                Err(K8sCliError::DeleteResource(format!(
-                    "deletion of resource '{}' of type '{}' is not complete",
-                    name, tm.kind
-                )))
+            match self.k8s_client.delete_dynamic_object(tm, name, namespace) {
+                Ok(res) => {
+                    if is_resource_deleted(res) {
+                        info!(%name, type=tm.kind, "Resource deleted");
+                        Ok(())
+                    } else {
+                        Err(K8sCliError::DeleteResource(format!(
+                            "deletion of resource '{}' of type '{}' is not complete",
+                            name, tm.kind
+                        )))
+                    }
+                }
+                Err(K8sError::MissingAPIResource(_)) => {
+                    info!(%name, type=tm.kind, "Resource kind missing, considering deleted");
+                    Ok(())
+                }
+                Err(err) => Err(K8sCliError::DeleteResource(format!(
+                    "could not delete resource '{}' of type '{}': {}",
+                    name, tm.kind, err
+                ))),
             }
         })
     }
@@ -71,23 +75,32 @@ impl<'a> Deleter<'a> {
     ) -> Result<(), K8sCliError> {
         retry(self.max_attempts, self.interval, || {
             info!(type=tm.kind, %selector, "Deleting resources");
-            let res = self
+            match self
                 .k8s_client
                 .delete_dynamic_object_collection(tm, namespace, selector)
-                .map_err(|err| {
-                    K8sCliError::DeleteResource(format!(
-                        "failed to delete resources of type '{}': {}",
-                        tm.kind, err
-                    ))
-                })?;
-            if is_collection_deleted(res) {
-                info!(type=tm.kind, %selector, "Resources deleted");
-                Ok(())
-            } else {
-                Err(K8sCliError::DeleteResource(format!(
-                    "deletion of resources of type '{}' is not complete",
-                    tm.kind
-                )))
+            {
+                Ok(res) => {
+                    if is_collection_deleted(res) {
+                        info!(type=tm.kind, %selector, "Resources deleted");
+                        Ok(())
+                    } else {
+                        Err(K8sCliError::DeleteResource(format!(
+                            "deletion of resources of type '{}' is not complete",
+                            tm.kind
+                        )))
+                    }
+                }
+                Err(K8sError::MissingAPIResource(_)) => {
+                    info!(
+                        type = tm.kind,
+                        %selector, "Resource kind missing, considering deleted"
+                    );
+                    Ok(())
+                }
+                Err(err) => Err(K8sCliError::DeleteResource(format!(
+                    "failed to delete resources of type '{}': {}",
+                    tm.kind, err
+                ))),
             }
         })
     }
