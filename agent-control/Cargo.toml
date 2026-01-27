@@ -75,7 +75,7 @@ oci-spec = "0.8.4"
 flate2 = "1.1.8"
 tar = "0.4.44"
 zip = "7.2.0"
-oci-client = { version = "0.15.0", features = ["rustls-tls"], default-features = false }
+oci-client = { version = "0.16.0", features = ["rustls-tls"], default-features = false }
 rustls-pki-types = { version = "1.14.0", features = ["std"] }
 
 [target.'cfg(target_family = "unix")'.dependencies]
