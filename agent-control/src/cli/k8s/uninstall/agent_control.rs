@@ -50,7 +50,7 @@ fn delete_owned_objects(
     namespace: &str,
 ) -> Result<(), K8sCliError> {
     let ac_owned_label_selector = Labels::default().selector();
-    let deleter = Deleter::new(k8s_client).with_patch_finalizers(true);
+    let deleter = Deleter::with_default_retry_setup(k8s_client);
     for tm in objects_to_delete(kinds_available) {
         deleter.delete_collection_with_retry(&tm, namespace, &ac_owned_label_selector)?;
     }
@@ -86,7 +86,7 @@ fn delete_agent_control_crs(
 
     crs_to_delete.retain(|(tm, _)| kinds_available.contains(tm));
 
-    let deleter = Deleter::new(k8s_client);
+    let deleter = Deleter::with_default_retry_setup(k8s_client);
     for (tm, object_name) in crs_to_delete {
         deleter.delete_object_with_retry(&tm, object_name, namespace)?;
     }
