@@ -1,19 +1,19 @@
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
 use crate::common::exec::LongRunningProcess;
-use crate::common::logs::ShowLogsOnDrop;
+use crate::common::logs::show_logs;
 use crate::common::nrql::check_query_results_are_not_empty;
+use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
-use crate::common::{Args, RecipeData};
-use crate::windows;
-use crate::windows::cleanup::CleanAcOnDrop;
+use crate::common::{Args, RecipeData, remove_dirs};
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe};
 use crate::windows::powershell::{download_file, exec_ps, extract};
 use crate::windows::scenarios::INFRA_AGENT_VERSION;
-use crate::windows::service::{STATUS_RUNNING, check_service_status};
+use crate::windows::service::{STATUS_RUNNING, check_service_status, stop_service};
 use crate::windows::utils::as_user_dir;
+use crate::windows::{self, AGENT_CONTROL_DIRS};
 use std::process::Command;
 use std::time::Duration;
-use tracing::info;
+use tracing::{info, warn};
 
 const MITMPROXY_VERSION: &str = "12.2.1";
 const PROXY_URL: &str = "http://localhost:8080";
@@ -58,6 +58,15 @@ pub fn test_proxy(args: Args) {
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
     );
 
+    let _clean_up = CleanUp::new(|| {
+        let _ =
+            show_logs(windows::DEFAULT_LOG_PATH).inspect_err(|e| warn!("Fail to show logs: {}", e));
+        stop_service(SERVICE_NAME);
+        _ = remove_dirs(AGENT_CONTROL_DIRS).inspect_err(|err| {
+            warn!("Failed to remove Agent Control directories: {}", err);
+        });
+    });
+
     let debug_log_config = ac_debug_logging_config(windows::DEFAULT_LOG_PATH);
 
     // Install cli does not support adding infra-agent config yet on windows, so we need to update the config manually
@@ -87,10 +96,6 @@ version: {INFRA_AGENT_VERSION}
     );
 
     windows::service::restart_service(SERVICE_NAME);
-
-    let _clean_ac = CleanAcOnDrop::from(SERVICE_NAME);
-    // At the end of the test, we print the logs.
-    let _show_logs = ShowLogsOnDrop::from(windows::DEFAULT_LOG_PATH);
 
     retry_panic(
         10,

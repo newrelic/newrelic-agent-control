@@ -8,6 +8,7 @@ pub mod exec;
 pub mod file;
 pub mod logs;
 pub mod nrql;
+pub mod on_drop;
 pub mod test;
 
 /// Removes the directories receives as list

@@ -1,15 +1,15 @@
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
-use crate::common::logs::ShowLogsOnDrop;
+use crate::common::logs::show_logs;
+use crate::common::on_drop::CleanUp;
 use crate::common::test::retry;
-use crate::common::{Args, RecipeData, nrql};
-use crate::windows;
-use crate::windows::cleanup::CleanAcOnDrop;
+use crate::common::{Args, RecipeData, nrql, remove_dirs};
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe};
 use crate::windows::scenarios::INFRA_AGENT_VERSION;
-use crate::windows::service::STATUS_RUNNING;
+use crate::windows::service::{STATUS_RUNNING, stop_service};
+use crate::windows::{self, AGENT_CONTROL_DIRS};
 use std::thread;
 use std::time::Duration;
-use tracing::info;
+use tracing::{info, warn};
 
 const DEFAULT_STATUS_PORT: u16 = 51200;
 
@@ -57,11 +57,14 @@ version: {}
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));
 
-    // We need to clean up the resources after showing the logs.
-    // Otherwise, log files get removed before we can print them.
-    // Remember that Drop is called in the reverse order of creation.
-    let _clean_ac = CleanAcOnDrop::from(SERVICE_NAME);
-    let _show_logs = ShowLogsOnDrop::from(windows::DEFAULT_LOG_PATH);
+    let _clean_up = CleanUp::new(|| {
+        let _ =
+            show_logs(windows::DEFAULT_LOG_PATH).inspect_err(|e| warn!("Fail to show logs: {}", e));
+        stop_service(SERVICE_NAME);
+        _ = remove_dirs(AGENT_CONTROL_DIRS).inspect_err(|err| {
+            warn!("Failed to remove Agent Control directories: {}", err);
+        });
+    });
 
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));

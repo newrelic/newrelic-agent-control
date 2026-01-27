@@ -21,7 +21,7 @@ impl<'a> Drop for ShowLogsOnDrop<'a> {
 }
 
 /// Shows logs from the specified path (supports glob patterns).
-fn show_logs(logs_path: &str) -> TestResult<()> {
+pub fn show_logs(logs_path: &str) -> TestResult<()> {
     info!("Showing Agent Control logs");
 
     let pattern = format!("{}*", logs_path);
