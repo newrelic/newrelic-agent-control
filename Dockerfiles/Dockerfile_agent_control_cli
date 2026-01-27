@@ -1,29 +1,24 @@
 # Docker file used for the installation of the the Agent Control on k8s.
 
+# Use official alpine images as base stages for kubectl and helm
+# Automatically updated by Renovate
+FROM alpine/helm:4.1.0 AS helm
+FROM alpine/kubectl:1.35.0 AS kubectl
+
 FROM debian:trixie-slim
 
 ARG TARGETARCH
-# Automatically bumpled by a Renovate regex rule.
-ARG HELM_VERSION=v4.0.1
 
 COPY --chmod=755 bin/newrelic-agent-control-k8s-cli-${TARGETARCH} /bin/newrelic-agent-control-cli
 
+# Copy kubectl and helm from official alpine images
+COPY --from=kubectl /usr/local/bin/kubectl /usr/local/bin/kubectl
+COPY --from=helm /usr/bin/helm /usr/local/bin/helm
+
 RUN apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y ca-certificates curl && \
+    apt-get install -y ca-certificates && \
     apt-get clean
-
-# Install latest stable kubectl
-RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$TARGETARCH/kubectl"&& \
-    chmod +x kubectl && \
-    mv kubectl /usr/local/bin/kubectl
-
-# Install Helm
-RUN curl -LO "https://get.helm.sh/helm-$HELM_VERSION-linux-$TARGETARCH.tar.gz" && \
-    tar -xzf "helm-$HELM_VERSION-linux-$TARGETARCH.tar.gz" && \
-    chmod +x "linux-$TARGETARCH/helm" && \
-    mv "linux-$TARGETARCH/helm" /usr/local/bin/helm && \
-    rm -rf "helm-$HELM_VERSION-linux-$TARGETARCH.tar.gz" linux-$TARGETARCH
 
 # Create a home directory for nobody user and set ownership
 # This is so Helm can actually run as it tries to write to the home directory
