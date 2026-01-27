@@ -2,7 +2,6 @@ use crate::agent_control::defaults::{
     HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
 use crate::agent_control::run::Environment;
-use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystemEntries;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
@@ -16,7 +15,7 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
-use crate::sub_agent::supervisor::builder::SupervisorBuilder;
+use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::sub_agent::{SubAgentBuilder, error::SubAgentBuilderError};
 use crate::values::config_repository::ConfigRepository;
 use opamp_client::operation::settings::DescriptionValueType;
@@ -120,20 +119,20 @@ impl<PM> SupervisorBuilder for SupervisorBuilderOnHost<PM>
 where
     PM: PackageManager,
 {
-    type SupervisorStarter = NotStartedSupervisorOnHost<PM>;
+    type Starter = NotStartedSupervisorOnHost<PM>;
+    type Error = SubAgentBuilderError;
 
     fn build_supervisor(
         &self,
         effective_agent: EffectiveAgent,
-    ) -> Result<Self::SupervisorStarter, SubAgentBuilderError> {
+    ) -> Result<Self::Starter, Self::Error> {
         debug!(
             "Building Executable supervisors {}",
             effective_agent.get_agent_identity(),
         );
+        let agent_identity = effective_agent.get_agent_identity().clone();
 
         let on_host = effective_agent.get_onhost_config()?.clone();
-
-        let enable_file_logging = on_host.enable_file_logging;
 
         let executables = on_host
             .executables
@@ -146,18 +145,16 @@ where
             })
             .collect();
 
-        let executable_supervisors = NotStartedSupervisorOnHost::new(
-            effective_agent.get_agent_identity().clone(),
+        Ok(NotStartedSupervisorOnHost::new(
+            agent_identity,
             executables,
             on_host.health,
             on_host.version,
-            on_host.packages.clone(),
+            on_host.packages,
             self.package_manager.clone(),
         )
-        .with_file_logging(enable_file_logging, self.logging_path.to_path_buf())
-        .with_filesystem_entries(FileSystemEntries::from(on_host.filesystem));
-
-        Ok(executable_supervisors)
+        .with_file_logging(on_host.enable_file_logging, self.logging_path.to_path_buf())
+        .with_filesystem_entries(on_host.filesystem.into()))
     }
 }
 
@@ -179,9 +176,8 @@ mod tests {
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
-    use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
-    use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
-    use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
+    use crate::sub_agent::supervisor::tests::MockSupervisorStarter;
+    use crate::sub_agent::supervisor::tests::{MockSupervisor, MockSupervisorBuilder};
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::values::config::{Config, RemoteConfig};
     use crate::values::config_repository::tests::MockConfigRepository;
@@ -268,7 +264,7 @@ mod tests {
         instance_id_getter.should_get(&agent_identity.id, sub_agent_instance_id.clone());
         instance_id_getter.should_get(&agent_control_id, agent_control_instance_id.clone());
 
-        let mut started_supervisor = MockSupervisorStopper::new();
+        let mut started_supervisor = MockSupervisor::new();
         started_supervisor.should_stop();
 
         let mut stopped_supervisor = MockSupervisorStarter::new();
@@ -392,7 +388,7 @@ mod tests {
             .times(1)
             .returning(|_, _| Ok(()));
 
-        let mut started_supervisor = MockSupervisorStopper::new();
+        let mut started_supervisor = MockSupervisor::new();
         started_supervisor.should_stop();
 
         let mut stopped_supervisor = MockSupervisorStarter::new();

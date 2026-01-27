@@ -29,11 +29,6 @@ use crate::{
 
 use std::{error::Error, marker::Sized};
 
-// TODO: the traits in these modules will be replaced by the ones defined there.
-pub mod builder;
-pub mod starter;
-pub mod stopper;
-
 /// Constructs a supervisor for managing sub-agent lifecycle.
 ///
 /// This trait is responsible for building a supervisor starter based on an effective agent

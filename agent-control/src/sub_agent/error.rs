@@ -1,6 +1,5 @@
 use super::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use super::remote_config_parser::RemoteConfigParserError;
-use super::supervisor::starter::SupervisorStarterError;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystemEntriesError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
@@ -45,8 +44,6 @@ pub enum SupervisorCreationError {
     EffectiveAgentAssemble(#[from] EffectiveAgentsAssemblerError),
     #[error("could not build the supervisor from an effective agent: {0}")]
     SupervisorAssemble(#[from] SubAgentBuilderError),
-    #[error("could not start the supervisor: {0}")]
-    SupervisorStart(#[from] SupervisorStarterError),
     #[error("could not build the supervisor: {0}")]
     SupervisorBuild(String),
     #[error("could not start the supervisor: {0}")]

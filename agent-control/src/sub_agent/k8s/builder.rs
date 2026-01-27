@@ -12,7 +12,7 @@ use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
-use crate::sub_agent::supervisor::builder::SupervisorBuilder;
+use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::values::config_repository::ConfigRepository;
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
@@ -115,12 +115,13 @@ impl SupervisorBuilderK8s {
 }
 
 impl SupervisorBuilder for SupervisorBuilderK8s {
-    type SupervisorStarter = NotStartedSupervisorK8s;
+    type Starter = NotStartedSupervisorK8s;
+    type Error = SubAgentBuilderError;
 
     fn build_supervisor(
         &self,
         effective_agent: EffectiveAgent,
-    ) -> Result<Self::SupervisorStarter, SubAgentBuilderError> {
+    ) -> Result<Self::Starter, Self::Error> {
         let agent_identity = effective_agent.get_agent_identity();
         debug!("Building supervisors {}", agent_identity,);
 
@@ -144,7 +145,6 @@ impl SupervisorBuilder for SupervisorBuilderK8s {
             }
         }
 
-        // Clone the k8s_client on each build.
         Ok(NotStartedSupervisorK8s::new(
             agent_identity.clone(),
             self.k8s_client.clone(),
@@ -171,8 +171,8 @@ pub mod tests {
     use crate::opamp::operations::start_settings;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
-    use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
-    use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
+    use crate::sub_agent::supervisor::tests::MockSupervisorStarter;
+    use crate::sub_agent::supervisor::tests::{MockSupervisor, MockSupervisorBuilder};
     use crate::values::config_repository::tests::MockConfigRepository;
     use crate::{
         k8s::client::MockSyncK8sClient, opamp::client_builder::tests::MockOpAMPClientBuilder,
@@ -201,7 +201,8 @@ pub mod tests {
             ..Default::default()
         };
 
-        let supervisor_assembler = MockSupervisorBuilder::<MockSupervisorStarter>::new();
+        let supervisor_assembler =
+            MockSupervisorBuilder::<MockSupervisorStarter<MockSupervisor>>::new();
         let remote_config_parser = MockRemoteConfigParser::new();
 
         let effective_agents_assembler = MockEffectiveAgentAssembler::new();
@@ -237,7 +238,8 @@ pub mod tests {
             ..Default::default()
         };
 
-        let supervisor_assembler = MockSupervisorBuilder::<MockSupervisorStarter>::new();
+        let supervisor_assembler =
+            MockSupervisorBuilder::<MockSupervisorStarter<MockSupervisor>>::new();
         let remote_config_parser = MockRemoteConfigParser::new();
 
         let effective_agents_assembler = MockEffectiveAgentAssembler::new();
@@ -262,7 +264,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_supervisor_build_ok() {
+    fn supervisor_build_ok() {
         let agent_identity = AgentIdentity::from((
             AgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
@@ -287,7 +289,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_supervisor_build_fails_for_invalid_k8s_object_kind() {
+    fn supervisor_build_fails_for_invalid_k8s_object_kind() {
         let agent_identity = AgentIdentity::from((
             AgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
