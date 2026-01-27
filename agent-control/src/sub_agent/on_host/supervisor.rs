@@ -896,16 +896,18 @@ pub mod tests {
 
         thread::sleep(Duration::from_secs(1));
 
-        tracing_test::internal::logs_assert("newrelic_agent_control", |lines| {
-            let count = lines.iter().filter(|line| line.contains("hello!")).count();
+        logs_assert(|lines| {
+            let count = lines
+                .iter()
+                .filter(|l| l.contains("Restarting supervisor"))
+                .count();
             match count {
-                4 => Ok(()),
+                3 => Ok(()),
                 n => Err(format!(
-                    "Expected 4 lines with 'hello!' corresponding to 1 run + 3 retries, got {n}"
+                    "The supervisor should be restarted 3 times. Expected 3 lines, got {n}"
                 )),
             }
-        })
-        .unwrap();
+        });
     }
 
     #[test]
