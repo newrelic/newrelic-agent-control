@@ -13,7 +13,7 @@ use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost;
+use crate::sub_agent::on_host::supervisor::{NotStartedSupervisorOnHost, SupervisorError};
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::sub_agent::{SubAgentBuilder, error::SubAgentBuilderError};
@@ -120,7 +120,7 @@ where
     PM: PackageManager,
 {
     type Starter = NotStartedSupervisorOnHost<PM>;
-    type Error = SubAgentBuilderError;
+    type Error = SupervisorError;
 
     fn build_supervisor(
         &self,
@@ -132,7 +132,10 @@ where
         );
         let agent_identity = effective_agent.get_agent_identity().clone();
 
-        let on_host = effective_agent.get_onhost_config()?.clone();
+        let on_host = effective_agent
+            .get_onhost_config()
+            .map_err(SupervisorError::RuntimeConfig)?
+            .clone();
 
         let executables = on_host
             .executables

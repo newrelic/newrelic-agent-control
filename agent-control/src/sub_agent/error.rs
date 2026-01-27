@@ -1,6 +1,5 @@
 use super::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use super::remote_config_parser::RemoteConfigParserError;
-use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystemEntriesError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::values::config_repository::ConfigRepositoryError;
@@ -58,14 +57,6 @@ pub enum SubAgentBuilderError {
     ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
     #[error("OpAMP client error: {0}")]
     OpampClientBuilderError(String),
-    #[error("unsupported K8s object: {0}")]
-    UnsupportedK8sObject(String),
-    #[error("failed to write sub-agent files: {0}")]
-    FileSystem(#[from] FileSystemEntriesError),
-    #[error("supervisor step failed: {0}")]
-    SupervisorError(String),
-    #[error("failed to install required packages: {0}")]
-    PackageInstallation(String),
 }
 
 #[derive(Error, Debug)]
