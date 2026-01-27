@@ -37,7 +37,7 @@ pub fn remove_flux_crs(namespace: &str, release_name: &str) -> Result<(), K8sCli
     let k8s_client = try_new_k8s_client()?;
     let helmrelease_type_meta = helmrelease_v2_type_meta();
     let helmrepository_type_meta = helmrepository_type_meta();
-    let deleter = Deleter::with_default_retry_setup(&k8s_client);
+    let deleter = Deleter::new(&k8s_client);
     let all_api_resources = retrieve_api_resources(&k8s_client)?;
 
     if all_api_resources.contains(&helmrelease_type_meta) {
@@ -307,6 +307,7 @@ mod tests {
             k8s_client: &mock_k8s_client,
             max_attempts: 10,
             interval: Duration::from_millis(10),
+            patch_finalizers: false,
         };
         let result = delete_helmchart_object(&deleter, TEST_RELEASE_NAME, &helmrelease);
         assert!(result.is_ok());
