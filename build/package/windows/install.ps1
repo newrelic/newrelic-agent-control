@@ -3,7 +3,7 @@
 
 param(
     [Parameter(Mandatory=$false)]
-    [switch]$ServiceOverwrite = $false,
+    [switch]$ServiceOverwrite = $true,
 
     # Configuration generation inputs
     [Parameter(Mandatory=$false)]
@@ -90,6 +90,9 @@ $acIdentityKeyPath = [IO.Path]::Combine($acIdentityKeyDir, 'agent-control-identi
 $acEnvFilePath = [IO.Path]::Combine($acProgramFilesDir, 'environment_variables.yaml')
 $acExecPath = [IO.Path]::Combine($acProgramFilesDir, 'newrelic-agent-control.exe')
 
+# Define marker file path to detect successful previous installations
+$installMarkerPath = [IO.Path]::Combine($acProgramFilesDir, '.nr-ac-install')
+
 $acDataDir = [IO.Path]::Combine($env:ProgramData, 'New Relic\newrelic-agent-control')
 $acLogsDir = [IO.Path]::Combine($acDataDir, 'logs')
 
@@ -164,11 +167,20 @@ if ($ProxyCABundleFile) { $cliArgs += @('--proxy-ca-bundle-file', $ProxyCABundle
 if ($ProxyCABundleDir) { $cliArgs += @('--proxy-ca-bundle-dir', $ProxyCABundleDir) }
 if ($ProxyIgnoreSystem) { $cliArgs += '--ignore-system-proxy', 'true' }
 
-Write-Host "Generating configuration..."
-& ".\newrelic-agent-control-cli.exe" @cliArgs
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Configuration generation failed with exit code $LASTEXITCODE"
-    exit $LASTEXITCODE
+# Logic to skip configuration generation if previously installed
+if (Test-Path $installMarkerPath) {
+    Write-Host "Previous installation detected. Skipping configuration generation..."
+}
+else {
+    # This prevents the "invalid path: local key path already exists" error
+    # during configuration generation on retries.
+    Write-Host "Generating configuration..."
+    & ".\newrelic-agent-control-cli.exe" @cliArgs
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Configuration generation failed with exit code $LASTEXITCODE"
+        exit $LASTEXITCODE
+    }
 }
 
 
@@ -205,6 +217,10 @@ while ($TRIES -lt $MAX_RETRIES) {
 
     if ($STATUS -eq $true) {
         Write-Host "Agent status check ok."
+
+        # Create marker file to signal successful installation
+        New-Item -Path $installMarkerPath -ItemType File -Force | Out-Null
+
         break
     } elseif ($TRIES -eq $MAX_RETRIES) {
         Write-Error "New Relic Agent Control has not started or is un-healthy after installing. Please try again later, or see our documentation for installing manually https://docs.newrelic.com/docs/using-new-relic/cross-product-functions/install-configure/install-new-relic"
