@@ -55,8 +55,11 @@ pub enum SupervisorError {
 }
 
 #[derive(Debug, Error)]
-#[error("failure installing package: '{0}': {1}")]
-pub struct InstallPackageError(String, String);
+#[error("failure installing package: '{id}': {err_msg}")]
+pub struct InstallPackageError {
+    id: String,
+    err_msg: String,
+}
 
 fn install_packages<PM: PackageManager>(
     package_manager: &Arc<PM>,
@@ -73,7 +76,10 @@ fn install_packages<PM: PackageManager>(
                     oci_reference: package.download.oci.reference.clone(),
                 },
             )
-            .map_err(|err| InstallPackageError(id.to_string(), err.to_string()))?;
+            .map_err(|err| InstallPackageError {
+                id: id.to_string(),
+                err_msg: err.to_string(),
+            })?;
         debug!(%id, "Package successfully installed");
     }
     Ok(())
@@ -319,11 +325,10 @@ where
 
         self.check_subagent_version(sub_agent_internal_publisher.clone());
 
-        let thread_contexts: Vec<StartedThreadContext> =
-            vec![self.start_health_check(sub_agent_internal_publisher.clone(), health_consumer)?]
+        let thread_contexts =
+            [self.start_health_check(sub_agent_internal_publisher.clone(), health_consumer)?]
                 .into_iter()
-                .flatten()
-                .collect();
+                .flatten();
 
         let thread_contexts = executable_thread_contexts
             .into_iter()

@@ -36,11 +36,11 @@ const SUPERVISOR_THREAD_NAME: &str = "supervisor";
 #[derive(Debug, Error)]
 pub enum SupervisorError {
     #[error("the kube client returned an error: {0}")]
-    Generic(#[from] crate::k8s::error::K8sError),
+    K8s(#[from] crate::k8s::error::K8sError),
     #[error("building k8s resources: {0}")]
-    ConfigError(String),
+    K8sConfig(String),
     #[error("building health checkers: {0}")]
-    HealthError(#[from] HealthCheckerError),
+    HealthChecker(#[from] HealthCheckerError),
     #[error("the incoming configuration has errors: {0}")]
     IncomingConfig(EffectiveAgentsAssemblerError),
     #[error("error stopping previous supervisor: {0}")]
@@ -149,7 +149,7 @@ impl NotStartedSupervisorK8s {
         retain_not_null(&mut k8s_obj_fields);
 
         let data = serde_json::to_value(&k8s_obj_fields)
-            .map_err(|e| SupervisorError::ConfigError(format!("Error serializing fields: {e}")))?;
+            .map_err(|e| SupervisorError::K8sConfig(format!("Error serializing fields: {e}")))?;
 
         Ok(DynamicObject {
             types: Some(types),
@@ -481,7 +481,7 @@ pub mod tests {
             )
             .err()
             .unwrap(); // cannot use unwrap_err because the  underlying EventPublisher doesn't implement Debug
-        assert_matches!(err, SupervisorError::HealthError(_))
+        assert_matches!(err, SupervisorError::HealthChecker(_))
     }
 
     #[test]
