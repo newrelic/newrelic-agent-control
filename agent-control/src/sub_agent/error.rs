@@ -25,8 +25,6 @@ pub enum SubAgentError {
     ConfigRepositoryError(#[from] ConfigRepositoryError),
     #[error("error publishing event: {0}")]
     EventPublisherError(#[from] EventPublisherError),
-    #[error("no configuration found")]
-    NoConfiguration,
 }
 
 #[derive(Error, Debug)]
