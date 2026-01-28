@@ -49,6 +49,9 @@ pub fn uninstall_agent_control(
     //    had listed before the deletions started.
     // 3. The Instrumentation deletion attempts, coming after the Operator is out, will fail as
     //    its Resource API no longer exists at this point.
+    // So we split the list of objects to delete into a pair, first one with Instrumentations only,
+    // as filtered by `instrumentations_filter` (which we might extend in the future) and the
+    // second one with everything else.
     let instrumentations_filter = [instrumentation_v1beta3_type_meta()];
     let (instrumentations_only, no_instrumentations): (Vec<_>, Vec<_>) = valid_objects_to_delete
         .into_iter()
