@@ -12,6 +12,8 @@ $serviceName = "newrelic-agent-control"
 $acDir = [IO.Path]::Combine($env:ProgramFiles, 'New Relic\newrelic-agent-control')
 $acExecPath = [IO.Path]::Combine($acDir, 'newrelic-agent-control.exe')
 
+$markerPath = [IO.Path]::Combine($acDir, '.nr-ac-install')
+
 # Stop and remove the service if exists
 $existingService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 if ($existingService) {
@@ -29,6 +31,11 @@ if ($existingService) {
 if (Test-Path $acExecPath) {
     Write-Host "Deleting $acExecPath..."
     Remove-Item -Path $acExecPath -Force
+}
+
+if (Test-Path $markerPath) {
+    Write-Host "Removing installation marker file..."
+    Remove-Item -Path $markerPath -Force
 }
 
 Write-Host "Uninstallation completed!"
