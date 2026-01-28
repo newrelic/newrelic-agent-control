@@ -61,30 +61,6 @@ pub struct InstallPackageError {
     err_msg: String,
 }
 
-fn install_packages<PM: PackageManager>(
-    package_manager: &Arc<PM>,
-    agent_id: &AgentID,
-    packages: &RenderedPackages,
-) -> Result<(), InstallPackageError> {
-    for (id, package) in packages {
-        debug!(%id, "Installing package");
-        package_manager
-            .install(
-                agent_id,
-                PackageData {
-                    id: id.clone(),
-                    oci_reference: package.download.oci.reference.clone(),
-                },
-            )
-            .map_err(|err| InstallPackageError {
-                id: id.to_string(),
-                err_msg: err.to_string(),
-            })?;
-        debug!(%id, "Package successfully installed");
-    }
-    Ok(())
-}
-
 pub struct StartedSupervisorOnHost<PM>
 where
     PM: PackageManager,
@@ -140,14 +116,19 @@ where
     type StopError = ThreadContextStopperError;
 
     fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, Self::ApplyError> {
+        // Get configuration from effective agent
         let onhost_config = effective_agent
             .get_onhost_config()
             .map_err(SupervisorError::RuntimeConfig)?
             .clone();
 
-        let agent_identity = self.agent_identity.clone();
-        let package_manager = self.package_manager.clone();
-        let internal_publisher = self.internal_publisher.clone();
+        // Reuse supervisor inner fields
+        let Self {
+            agent_identity,
+            package_manager,
+            internal_publisher,
+            thread_contexts,
+        } = self;
 
         let installation_result = install_packages(
             &package_manager,
@@ -155,12 +136,9 @@ where
             &onhost_config.packages,
         );
 
-        self.stop().map_err(|err| {
-            if let Err(install_err) = &installation_result {
-                error!(
-                    "Failure stopping supervisor. Note that installation also failed: {}",
-                    install_err
-                );
+        stop_supervisor_threads(thread_contexts).map_err(|err| {
+            if let Err(err) = &installation_result {
+                error!("Failure stopping supervisor. Note that installation also failed: {err}",);
             }
             SupervisorError::Stop(err)
         })?;
@@ -194,20 +172,7 @@ where
     }
 
     fn stop(self) -> Result<(), ThreadContextStopperError> {
-        let mut stop_result = Ok(());
-        for thread_context in self.thread_contexts {
-            let thread_name = thread_context.thread_name().to_string();
-            match thread_context.stop_blocking() {
-                Ok(_) => info!("{} stopped", thread_name),
-                Err(error_msg) => {
-                    error!("Stopping '{thread_name}': {error_msg}");
-                    if stop_result.is_ok() {
-                        stop_result = Err(error_msg);
-                    }
-                }
-            }
-        }
-        stop_result
+        stop_supervisor_threads(self.thread_contexts)
     }
 }
 
@@ -433,6 +398,51 @@ where
 
         NotStartedThreadContext::new(executable_data.bin.clone(), callback).start()
     }
+}
+
+/// Helper to install packages when starting a new supervisor or applying new configuration.
+fn install_packages<PM: PackageManager>(
+    package_manager: &Arc<PM>,
+    agent_id: &AgentID,
+    packages: &RenderedPackages,
+) -> Result<(), InstallPackageError> {
+    for (id, package) in packages {
+        debug!(%id, "Installing package");
+        package_manager
+            .install(
+                agent_id,
+                PackageData {
+                    id: id.clone(),
+                    oci_reference: package.download.oci.reference.clone(),
+                },
+            )
+            .map_err(|err| InstallPackageError {
+                id: id.to_string(),
+                err_msg: err.to_string(),
+            })?;
+        debug!(%id, "Package successfully installed");
+    }
+    Ok(())
+}
+
+/// Helper to stop supervisor threads logging results
+fn stop_supervisor_threads(
+    thread_contexts: Vec<StartedThreadContext<()>>,
+) -> Result<(), ThreadContextStopperError> {
+    let mut stop_result = Ok(());
+    for thread_context in thread_contexts {
+        let thread_name = thread_context.thread_name().to_string();
+        match thread_context.stop_blocking() {
+            Ok(_) => info!("{} stopped", thread_name),
+            Err(error_msg) => {
+                error!("Stopping '{thread_name}': {error_msg}");
+                if stop_result.is_ok() {
+                    stop_result = Err(error_msg);
+                }
+            }
+        }
+    }
+    stop_result
 }
 
 /// Waits for the command to complete or be cancelled
