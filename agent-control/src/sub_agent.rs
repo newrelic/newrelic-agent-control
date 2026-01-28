@@ -235,15 +235,7 @@ where
             };
             let remote_config = remote_config.with_state(state);
 
-            if let Some(opamp_client) = &self.maybe_opamp_client {
-                let _ = report_state(
-                    remote_config.state.clone(),
-                    remote_config.hash,
-                    opamp_client,
-                );
-            }
-            // As the hash might have changed state from the above operations, we store it
-            self.update_remote_config_state(remote_config.state);
+            self.report_and_persist_state(remote_config.state, &remote_config.hash);
         }
 
         started_supervisor
@@ -391,7 +383,7 @@ where
             && config.hash == rc.hash
             && !rc.state.is_applying()
         {
-            let _ = report_state(rc.state, rc.hash, opamp_client);
+            self.report_state(rc.state, &rc.hash);
             return old_supervisor;
         }
 
@@ -403,7 +395,7 @@ where
         }
 
         info!(hash = config.hash.to_string(), "Applying remote config");
-        let _ = report_state(ConfigState::Applying, config.hash.clone(), opamp_client);
+        self.report_state(ConfigState::Applying, &config.hash);
 
         // Start transforming the remote config
         // Attempt to parse/validate the remote config
@@ -425,12 +417,11 @@ where
             // Report error parsing configuration and keep the previous supervisor
             Err(err) => {
                 warn!("Failed to parse remote configuration: {err}");
-                let _ = report_state(
+                self.report_state(
                     ConfigState::Failed {
                         error_message: err.to_string(),
                     },
-                    config.hash,
-                    opamp_client,
+                    &config.hash,
                 );
                 old_supervisor
             }
@@ -486,12 +477,11 @@ where
                     return None;
                 }
 
-                let _ = report_state(
+                self.report_state(
                     ConfigState::Failed {
                         error_message: format!("invalid config: {err}"),
                     },
-                    hash.clone(),
-                    opamp_client,
+                    hash,
                 );
                 old_supervisor
             }
@@ -537,7 +527,7 @@ where
     // If resetting to local config and the local config is broken, the remote configuration is
     // still reported as Applied because the remote configuration was deleted.
     fn report_reset_to_broken_local(&self, hash: &Hash, opamp_client: &C) {
-        let _ = report_state(ConfigState::Applied, hash.clone(), opamp_client);
+        self.report_state(ConfigState::Applied, hash);
         let _ = opamp_client
             .update_effective_config()
             .inspect_err(|e| error!("Effective config update failed: {e}"));
@@ -560,12 +550,11 @@ where
             ),
             Err(err) => {
                 warn!("Failed to build supervisor: {err}");
-                let _ = report_state(
+                self.report_state(
                     ConfigState::Failed {
                         error_message: format!("could not build the supervisor: {err}"),
                     },
-                    hash.clone(),
-                    opamp_client,
+                    hash,
                 );
                 None
             }
@@ -582,7 +571,7 @@ where
     ) -> Option<AgentSupervisor<B>> {
         stop_supervisor(old_supervisor);
         // Report the config as applied
-        let _ = report_state(ConfigState::Applied, config.hash.clone(), opamp_client);
+        self.report_state(ConfigState::Applied, &config.hash);
         // The effective config needs to be reported with the empty config.
         let _ = opamp_client
             .update_effective_config()
@@ -608,8 +597,7 @@ where
             .apply(effective_agent)
             // Report Applied and return the updated supervisor when apply is successful
             .inspect(|_| {
-                self.update_remote_config_state(ConfigState::Applied);
-                let _ = report_state(ConfigState::Applied, hash.clone(), opamp_client);
+                self.report_and_persist_state(ConfigState::Applied, hash);
             })
             // Report Failed and return the supervisor from the corresponding error when apply fails
             .inspect_err(|err| {
@@ -618,8 +606,7 @@ where
                 let state = ConfigState::Failed {
                     error_message: err.to_string(),
                 };
-                self.update_remote_config_state(state.clone());
-                let _ = report_state(state, hash.clone(), opamp_client);
+                self.report_and_persist_state(state, hash);
             })
             .ok()
     }
@@ -641,9 +628,8 @@ where
             .start(self.sub_agent_internal_publisher.clone())
             // Alter the state depending on the outcome
             .inspect(|_| {
-                self.update_remote_config_state(ConfigState::Applied);
                 // Report the empty remote config as applied
-                let _ = report_state(ConfigState::Applied, hash.clone(), opamp_client);
+                self.report_and_persist_state(ConfigState::Applied, hash);
             })
             .inspect_err(|e| {
                 error!("Failure starting the supervisor: {e}");
@@ -651,8 +637,7 @@ where
                 let state = ConfigState::Failed {
                     error_message: e.to_string(),
                 };
-                self.update_remote_config_state(state.clone());
-                let _ = report_state(state, hash.clone(), opamp_client);
+                self.report_and_persist_state(state, hash);
             })
             // Return it
             .ok()
@@ -688,10 +673,17 @@ where
         )
     }
 
-    fn update_remote_config_state(&self, config_state: ConfigState) {
+    fn report_state(&self, state: ConfigState, hash: &Hash) {
+        if let Some(opamp_client) = self.maybe_opamp_client.as_ref() {
+            let _ = report_state(state, hash.clone(), opamp_client);
+        }
+    }
+
+    fn report_and_persist_state(&self, state: ConfigState, hash: &Hash) {
+        self.report_state(state.clone(), hash);
         let _ = self
             .config_repository
-            .update_state(&self.identity.id, config_state)
+            .update_state(&self.identity.id, state)
             .inspect_err(|err| {
                 warn!("Could not update the config state: {err}");
             });
