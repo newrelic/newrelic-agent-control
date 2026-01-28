@@ -76,13 +76,12 @@ The steps below work for the `x86_64-pc-windows-msvc` target only. It is also po
 
 #### AC Service Windows vs Linux
 
-On Linux, Agent Control is expected to run as a system service, managed by `systemd`. 
+On Linux, Agent Control is expected to run as a system service, managed by `systemd`.
 Such service file is packaged in the `.deb` and `.rpm` installers by goreleaser and it is installed and enabled by the `postinstall.sh` script.
 
 On the other hand, on Windows, Agent Control is expected to run as a Windows Service that is installed using the `install.ps1` script that takes care of registering the service and install AC.
 
 On both Operating Systems, an `environment_variables.yaml` file is created to store environment variables that Agent Control will use when running as a service. This file is created at installation time and it is located at the Agent Control configuration directory.
-
 
 ### Kubernetes
 
