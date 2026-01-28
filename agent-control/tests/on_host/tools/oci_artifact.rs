@@ -65,15 +65,17 @@ pub fn push_agent_package(
             hex_bytes(digest(&SHA256, blob_data.as_slice()).as_ref())
         );
 
+        let size = blob_data.len();
+
         oci_client
-            .push_blob(&blob_reference, &blob_data, blob_digest.as_str())
+            .push_blob(&blob_reference, blob_data, blob_digest.as_str())
             .await
             .unwrap();
 
         let blob_descriptor = OciDescriptor {
             media_type: LayerMediaType::AgentPackage(media_type).to_string(),
             digest: blob_digest.clone(),
-            size: blob_data.len() as i64,
+            size: size as i64,
             ..Default::default()
         };
 
@@ -84,7 +86,11 @@ pub fn push_agent_package(
             hex_bytes(digest(&SHA256, empty_config).as_ref())
         );
         oci_client
-            .push_blob(&blob_reference, empty_config, empty_config_digest.as_str())
+            .push_blob(
+                &blob_reference,
+                empty_config.as_slice(),
+                empty_config_digest.as_str(),
+            )
             .await
             .unwrap();
 
