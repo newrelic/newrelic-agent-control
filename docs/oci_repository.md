@@ -41,6 +41,15 @@ In the next iterations, we will have a non-blocking implementation to avoid the 
 - Extraction errors → Delete partial installation directory, fail
 - Temp cleanup errors → Installation fails
 
+
+## Local Development
+When developing and debugging locally, you can use a local OCI registry. You can run it using zot: 
+```bash
+$ ./tools/oci-registry.sh run  
+```
+
+Notice that AC is already configured to use HTTP as protocol when connecting to `localhost:5001` if executed/built __without__ `--release`.
+
 ## Installation Process
 Currently, there is no installation step or script execution, just extraction.
 We expect to support installation scripts in the future. TODO
