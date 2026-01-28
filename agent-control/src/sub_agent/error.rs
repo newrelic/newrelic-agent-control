@@ -1,5 +1,4 @@
 use super::effective_agents_assembler::EffectiveAgentsAssemblerError;
-use super::remote_config_parser::RemoteConfigParserError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::values::config_repository::ConfigRepositoryError;
@@ -26,27 +25,6 @@ pub enum SubAgentError {
     ConfigRepositoryError(#[from] ConfigRepositoryError),
     #[error("error publishing event: {0}")]
     EventPublisherError(#[from] EventPublisherError),
-    #[error("no configuration found")]
-    NoConfiguration,
-}
-
-/// Errors that can occur when creating a supervisor, including when receiving a remote config.
-#[derive(Error, Debug)]
-pub enum SupervisorCreationError {
-    #[error("failed remote config hash for remote config: {0}")]
-    RemoteConfigHash(String),
-    #[error("could not parse the remote config: {0}")]
-    RemoteConfigParse(#[from] RemoteConfigParserError),
-    #[error("no configuration found")]
-    NoConfiguration,
-    #[error("could not assemble the effective agent from YAML config: {0}")]
-    EffectiveAgentAssemble(#[from] EffectiveAgentsAssemblerError),
-    #[error("could not build the supervisor from an effective agent: {0}")]
-    SupervisorAssemble(#[from] SubAgentBuilderError),
-    #[error("could not build the supervisor: {0}")]
-    SupervisorBuild(String),
-    #[error("could not start the supervisor: {0}")]
-    StartSupervisor(String),
 }
 
 #[derive(Error, Debug)]
