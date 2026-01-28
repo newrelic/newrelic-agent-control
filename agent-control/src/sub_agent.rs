@@ -33,7 +33,7 @@ use crossbeam::select;
 use effective_agents_assembler::EffectiveAgentsAssemblerError;
 use effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use error::SubAgentStopError;
-use error::{SubAgentBuilderError, SubAgentError, SupervisorCreationError};
+use error::{SubAgentBuilderError, SubAgentError};
 use event_handler::on_health::on_health;
 use identity::AgentIdentity;
 use opamp_client::StartedClient;
@@ -190,16 +190,17 @@ where
 
         let config = maybe_persisted_config?;
 
-        let effective_agent = self
+        // The error is merely shown in logs and the unhealthy message
+        let effective_agent: Result<EffectiveAgent, String> = self
             .effective_agent(config.get_yaml_config().clone())
-            .map_err(SupervisorCreationError::from)
-            .inspect_err(|e| error!("Failed to create effective agent: {e}"));
+            .map_err(|err| format!("effective agent cannot be assembled from YAML config: {err}"))
+            .inspect_err(|err| error!("Failed to create effective agent: {err}"));
 
         let not_started_supervisor = effective_agent.and_then(|effective_agent| {
             self.supervisor_builder
                 .build_supervisor(effective_agent)
-                .map_err(|e| SupervisorCreationError::SupervisorBuild(e.to_string()))
-                .inspect_err(|e| error!("Failed to create supervisor: {e}"))
+                .map_err(|err| format!("could not build the supervisor: {err}"))
+                .inspect_err(|err| error!("Failed to create supervisor: {err}"))
         });
 
         let started_supervisor = not_started_supervisor.and_then(|stopped_supervisor| {
@@ -215,13 +216,13 @@ where
             self.maybe_opamp_client.as_ref().inspect(|c| {
                 let _ = c
                     .update_effective_config()
-                    .inspect_err(|e| error!("Failed to update effective config: {e}"));
+                    .inspect_err(|err| error!("Failed to update effective config: {err}"));
             });
 
             stopped_supervisor
                 .start(self.sub_agent_internal_publisher.clone())
-                .map_err(|e| SupervisorCreationError::StartSupervisor(e.to_string()))
-                .inspect_err(|e| error!("Failed to start supervisor: {e}"))
+                .map_err(|err| format!("could not start the supervisor: {err}"))
+                .inspect_err(|err| error!("Failed to start supervisor: {err}"))
         });
 
         // After all operations, set the hash to a final state
