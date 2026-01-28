@@ -193,14 +193,18 @@ where
         // The error is merely shown in logs and the unhealthy message
         let effective_agent: Result<EffectiveAgent, String> = self
             .effective_agent(config.get_yaml_config().clone())
-            .map_err(|err| format!("effective agent cannot be assembled from YAML config: {err}"))
-            .inspect_err(|err| error!("Failed to create effective agent: {err}"));
+            .map_err(|err| {
+                error!("Failed to create effective agent: {err}");
+                format!("effective agent cannot be assembled from YAML config: {err}")
+            });
 
         let not_started_supervisor = effective_agent.and_then(|effective_agent| {
             self.supervisor_builder
                 .build_supervisor(effective_agent)
-                .map_err(|err| format!("could not build the supervisor: {err}"))
-                .inspect_err(|err| error!("Failed to create supervisor: {err}"))
+                .map_err(|err| {
+                    error!("Failed to create supervisor: {err}");
+                    format!("could not build the supervisor: {err}")
+                })
         });
 
         let started_supervisor = not_started_supervisor.and_then(|stopped_supervisor| {
@@ -221,8 +225,10 @@ where
 
             stopped_supervisor
                 .start(self.sub_agent_internal_publisher.clone())
-                .map_err(|err| format!("could not start the supervisor: {err}"))
-                .inspect_err(|err| error!("Failed to start supervisor: {err}"))
+                .map_err(|err| {
+                    error!("Failed to start supervisor: {err}");
+                    format!("could not start the supervisor: {err}")
+                })
         });
 
         // After all operations, set the hash to a final state
