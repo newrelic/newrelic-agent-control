@@ -41,14 +41,10 @@ pub fn uninstall_agent_control(
     // We filter the static list of objects we want to delete against what is actually available in the cluster.
     let valid_objects_to_delete = objects_to_delete(&kinds_available);
 
-    // We need to handle the Instrumentation resources separately because we order the resource
-    // deletion like this:
-    // 1. Owned objects on the AC namespace. This deletes the Operator HelmRelease first, which
-    //    ends up removing the Instrumentation CRD.
-    // 2. Owned objects on the Agents namespace, which includes the Instrumentation CR that we
-    //    had listed before the deletions started.
-    // 3. The Instrumentation deletion attempts, coming after the Operator is out, will fail as
-    //    its Resource API no longer exists at this point.
+    // We need to delete the `Instrumentation` objects first because the corresponding CRD is
+    // created by another agent (the K8s Operator). If this agent is uninstalled before removing
+    // the Instrumentation resources then these deletion attempts will fail.
+    //
     // So we split the list of objects to delete into a pair, first one with Instrumentations only,
     // as filtered by `instrumentations_filter` (which we might extend in the future) and the
     // second one with everything else.
