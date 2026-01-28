@@ -1,5 +1,6 @@
 use crate::agent_control::config::{
     default_group_version_kinds, helmrelease_v2_type_meta, helmrepository_type_meta,
+    instrumentation_v1beta3_type_meta,
 };
 use crate::cli::k8s::errors::K8sCliError;
 use crate::cli::k8s::install::agent_control::REPOSITORY_NAME;
@@ -36,23 +37,43 @@ pub fn uninstall_agent_control(
 
     // we delete first the AC so that it does not interfere (by recreating resources that we have just deleted).
     delete_agent_control_crs(&k8s_client, &kinds_available, namespace, release_name)?;
-    // Deleting remaining objects owned by AC
-    delete_owned_objects(&k8s_client, &kinds_available, namespace)?;
-    // Deleting remaining objects owned by AC in the namespace_agents. for example the instrumentation CR.
-    delete_owned_objects(&k8s_client, &kinds_available, namespace_agents)?;
+
+    // We filter the static list of objects we want to delete against what is actually available in the cluster.
+    let valid_objects_to_delete = objects_to_delete(&kinds_available);
+
+    // We need to handle the Instrumentation resources separately because we order the resource
+    // deletion like this:
+    // 1. Owned objects on the AC namespace. This deletes the Operator HelmRelease first, which
+    //    ends up removing the Instrumentation CRD.
+    // 2. Owned objects on the Agents namespace, which includes the Instrumentation CR that we
+    //    had listed before the deletions started.
+    // 3. The Instrumentation deletion attempts, coming after the Operator is out, will fail as
+    //    its Resource API no longer exists at this point.
+    let instrumentations_filter = [instrumentation_v1beta3_type_meta()];
+    let (instrumentations_only, no_instrumentations): (Vec<_>, Vec<_>) = valid_objects_to_delete
+        .into_iter()
+        .partition(|tm| instrumentations_filter.contains(tm));
+
+    // Operating over Instrumentations only.
+    delete_owned_objects(&k8s_client, &instrumentations_only, namespace)?;
+    delete_owned_objects(&k8s_client, &instrumentations_only, namespace_agents)?;
+
+    // Operating over everything else.
+    delete_owned_objects(&k8s_client, &no_instrumentations, namespace)?;
+    delete_owned_objects(&k8s_client, &no_instrumentations, namespace_agents)?;
 
     Ok(())
 }
 
 fn delete_owned_objects(
     k8s_client: &SyncK8sClient,
-    kinds_available: &HashSet<TypeMeta>,
+    objects_to_delete: &[TypeMeta],
     namespace: &str,
 ) -> Result<(), K8sCliError> {
     let ac_owned_label_selector = Labels::default().selector();
     let deleter = Deleter::with_default_retry_setup(k8s_client);
-    for tm in objects_to_delete(kinds_available) {
-        deleter.delete_collection_with_retry(&tm, namespace, &ac_owned_label_selector)?;
+    for tm in objects_to_delete {
+        deleter.delete_collection_with_retry(tm, namespace, &ac_owned_label_selector)?;
     }
     Ok(())
 }
