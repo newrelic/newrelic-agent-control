@@ -1325,12 +1325,6 @@ Distributed under the following license(s):
 
 * MIT
 
-## jwt <https://crates.io/crates/jwt>
-
-Distributed under the following license(s):
-
-* MIT
-
 ## k8s-openapi <https://crates.io/crates/k8s-openapi>
 
 Distributed under the following license(s):
@@ -2298,6 +2292,13 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## signature <https://crates.io/crates/signature>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
 
 ## simd-adler32 <https://crates.io/crates/simd-adler32>
 
