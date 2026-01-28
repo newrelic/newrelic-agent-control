@@ -70,8 +70,10 @@ pub trait SubAgentBuilder {
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError>;
 }
 
+/// Type alias to easy references to a particular [SupervisorStarter].
 type AgentSupervisorStarter<B> = <B as SupervisorBuilder>::Starter;
 
+/// Type alias to easy references to a particular [Supervisor].
 type AgentSupervisor<B> = <AgentSupervisorStarter<B> as SupervisorStarter>::Supervisor;
 
 /// SubAgentStopper is implementing the StartedSubAgent trait.
@@ -248,6 +250,11 @@ where
             .ok()
     }
 
+    /// Spawns a thread that will listen to OpAMP and internal events.
+    ///
+    /// When it starts, it initializes the supervisor (if any) and start listening and handling events until
+    /// [SubAgentInternalEvent::StopRequested] is received. Then, it stops the supervisor (if any) and the
+    /// OpAMP client.
     pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
         spawn_named_thread("Subagent runtime", move || {
             let span = info_span!("start_agent", id=%self.identity.id);
@@ -370,7 +377,6 @@ where
     }
 
     /// This function handles the remote config received from OpAMP.
-    ///
     fn handle_remote_config(
         &self,
         opamp_client: &C,
