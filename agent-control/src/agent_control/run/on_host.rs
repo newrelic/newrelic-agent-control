@@ -167,7 +167,7 @@ impl AgentControlRunner {
         // We are setting client http in debug_assertions mode for tests
         let oci_client_config = ClientConfig {
             #[cfg(debug_assertions)]
-            protocol: ClientProtocol::Http,
+            protocol: ClientProtocol::HttpsExcept(vec!["localhost".to_string()]),
             ..Default::default()
         };
 
