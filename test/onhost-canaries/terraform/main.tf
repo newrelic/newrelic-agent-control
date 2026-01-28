@@ -104,13 +104,6 @@ locals {
   // At the moment windows is not installing infra-agent so we only add the alerts to linux hosts
   // so we use the linux_hostnames variable instead of this one.
   hostnames = [for k, v in local.ec2_instances : "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}"]
-
-  # Filtered list for linux hostnames
-  linux_hostnames = [
-    for k, v in local.ec2_instances :
-    "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}"
-    if v.platform == "linux"
-  ]
   infra_staging = var.nr_region == "Staging" ? "true" : "false"
 }
 
@@ -152,7 +145,7 @@ variable "nr_region" {
 module "alerts" {
   source = "../../terraform/modules/nr_alerts"
 
-  for_each = toset(local.linux_hostnames)
+  for_each = toset(local.hostnames)
 
   api_key           = var.api_key
   account_id        = var.account_id
