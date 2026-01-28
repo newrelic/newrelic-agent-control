@@ -97,7 +97,9 @@ fn _main(
     #[cfg(target_os = "windows")]
     if let Some(tear_down_fn) = tear_down_windows_service {
         // We call this even if run_result is Err to clear the 1061 state
-        tear_down_fn(run_result.as_ref())?;
+        if let Err(e) = tear_down_fn(run_result.as_ref().copied()) {
+            error!("Failed to report service stop to Windows: {e}");
+        }
     }
 
     if let Err(ref e) = run_result {
