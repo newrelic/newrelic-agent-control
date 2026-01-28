@@ -13,7 +13,7 @@ use newrelic_agent_control::instrumentation::tracing::TracingGuardBox;
 use newrelic_agent_control::utils::is_elevated::is_elevated;
 use std::error::Error;
 use std::process::ExitCode;
-use tracing::{error, info, trace};
+use tracing::{debug, error, info, trace};
 
 #[cfg(target_os = "windows")]
 use newrelic_agent_control::command::windows::{WINDOWS_SERVICE_NAME, setup_windows_service};
@@ -89,17 +89,24 @@ fn _main(
         .then(|| setup_windows_service(application_event_publisher))
         .transpose()?;
 
-    // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-    AgentControlRunner::new(agent_control_run_config, application_event_consumer)?.run()?;
+    // Create the actual agent control runner with the rest of required configs
+    // and the application_event_consumer and capture the result to report the error in windows
+    let run_result = AgentControlRunner::new(agent_control_run_config, application_event_consumer)
+        .and_then(|runner| runner.run().map_err(Box::from));
 
     #[cfg(target_os = "windows")]
     if let Some(tear_down_fn) = tear_down_windows_service {
-        tear_down_fn()?;
+        // We call this even if run_result is Err to clear the 1061 state
+        tear_down_fn(run_result.as_ref())?;
     }
 
-    info!("Exiting gracefully");
+    if let Err(ref e) = run_result {
+        error!("Agent Control Runner failed: {e}");
+    } else {
+        info!("Exiting gracefully");
+    }
 
-    Ok(())
+    run_result
 }
 
 /// Enables using the typical keypress (Ctrl-C) to stop the agent control process at any moment.
