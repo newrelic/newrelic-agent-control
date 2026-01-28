@@ -46,6 +46,8 @@ use std::time::SystemTime;
 use tracing::{debug, info};
 
 pub const HOST_ID_VARIABLE_NAME: &str = "host_id";
+#[cfg(debug_assertions)]
+pub const OCI_TEST_REGISTRY_URL: &str = "localhost:5001";
 
 #[cfg(target_family = "windows")]
 pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Windows;
@@ -167,7 +169,7 @@ impl AgentControlRunner {
         // We are setting client http in debug_assertions mode for tests
         let oci_client_config = ClientConfig {
             #[cfg(debug_assertions)]
-            protocol: ClientProtocol::HttpsExcept(vec!["localhost:5001".to_string()]),
+            protocol: ClientProtocol::HttpsExcept(vec![OCI_TEST_REGISTRY_URL.to_string()]),
             ..Default::default()
         };
 

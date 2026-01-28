@@ -8,12 +8,13 @@ use crate::common::retry::retry;
 use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
-use crate::on_host::tools::oci_artifact::{REGISTRY_URL, push_agent_package};
+use crate::on_host::tools::oci_artifact::push_agent_package;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use opamp_client::opamp::proto::any_value::Value;
 use std::time::Duration;
@@ -224,7 +225,7 @@ fn create_agent_type(local_dir: &TempDir, agent_id: &str, platform: &Platform) -
   type: {pkg_type}
   download:
     oci:
-      registry: {REGISTRY_URL}
+      registry: {OCI_TEST_REGISTRY_URL}
       repository: test
       version: ${{nr-var:fake_variable}}
 "#
@@ -273,7 +274,7 @@ fn push_testing_package_platform(platform: &Platform, version: &str) -> String {
             );
             let (_, reference) = push_agent_package(
                 &path,
-                REGISTRY_URL,
+                OCI_TEST_REGISTRY_URL,
                 PackageMediaType::AgentPackageLayerTarGz,
             );
 
