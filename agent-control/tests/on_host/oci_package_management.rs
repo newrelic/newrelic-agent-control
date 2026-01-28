@@ -1,9 +1,9 @@
-use crate::on_host::tools::oci_artifact::REGISTRY_URL;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use crate::on_host::tools::{
     oci_artifact::push_agent_package, oci_package_manager::new_testing_oci_package_manager,
 };
 use newrelic_agent_control::agent_control::agent_id::AgentID;
+use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::package::manager::{PackageData, PackageManager};
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::package_manager::get_package_path;
@@ -26,7 +26,7 @@ fn test_install_and_uninstall_with_oci_registry() {
 
     let (_artifact_digest, reference) = push_agent_package(
         &file_to_push,
-        REGISTRY_URL,
+        OCI_TEST_REGISTRY_URL,
         PackageMediaType::AgentPackageLayerTarGz,
     );
 
@@ -89,7 +89,7 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
 
     let (_artifact_digest, reference) = push_agent_package(
         &file_to_push,
-        REGISTRY_URL,
+        OCI_TEST_REGISTRY_URL,
         PackageMediaType::AgentPackageLayerTarGz,
     );
 

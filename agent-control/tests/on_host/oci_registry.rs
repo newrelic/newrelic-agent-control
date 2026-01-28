@@ -1,6 +1,7 @@
-use crate::on_host::tools::oci_artifact::{REGISTRY_URL, push_agent_package};
+use crate::on_host::tools::oci_artifact::push_agent_package;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use httpmock::{MockServer, When};
+use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::http::config::ProxyConfig;
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::downloader::{OCIAgentDownloader, OCIArtifactDownloader};
@@ -24,7 +25,7 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
 
     let (artifact_digest, reference) = push_agent_package(
         &file_to_push,
-        REGISTRY_URL,
+        OCI_TEST_REGISTRY_URL,
         PackageMediaType::AgentPackageLayerTarGz,
     );
 
@@ -72,7 +73,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
 
     let (artifact_digest, reference) = push_agent_package(
         &file_to_push,
-        REGISTRY_URL,
+        OCI_TEST_REGISTRY_URL,
         PackageMediaType::AgentPackageLayerTarGz,
     );
 

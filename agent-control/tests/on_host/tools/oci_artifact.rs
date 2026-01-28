@@ -14,8 +14,6 @@ use std::path::PathBuf;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
-pub const REGISTRY_URL: &str = "localhost:5001";
-
 /// Creates a tag to be used when pushing OCI artifacts to the testing server.
 /// The tag is built using the [Backtrace] so it is expected to be different for
 /// different tests.
