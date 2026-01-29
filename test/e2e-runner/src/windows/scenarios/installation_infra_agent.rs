@@ -1,16 +1,14 @@
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
-use crate::common::file::remove_dirs;
-use crate::common::logs::show_logs;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::{retry, retry_panic};
 use crate::common::{Args, RecipeData, nrql};
-use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe};
+use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
 use crate::windows::scenarios::INFRA_AGENT_VERSION;
-use crate::windows::service::{STATUS_RUNNING, stop_service};
-use crate::windows::{self, AGENT_CONTROL_DIRS};
+use crate::windows::service::STATUS_RUNNING;
+use crate::windows::{self};
 use std::thread;
 use std::time::Duration;
-use tracing::{info, warn};
+use tracing::info;
 
 const DEFAULT_STATUS_PORT: u16 = 51200;
 
@@ -58,14 +56,7 @@ version: {}
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));
 
-    let _clean_up = CleanUp::new(|| {
-        let _ =
-            show_logs(windows::DEFAULT_LOG_PATH).inspect_err(|e| warn!("Fail to show logs: {}", e));
-        stop_service(SERVICE_NAME);
-        _ = remove_dirs(AGENT_CONTROL_DIRS).inspect_err(|err| {
-            warn!("Failed to remove Agent Control directories: {}", err);
-        });
-    });
+    let _clean_up = CleanUp::new(tear_down_test);
 
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));

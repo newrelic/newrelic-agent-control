@@ -1,11 +1,14 @@
 use std::{path::PathBuf, process::Command, time::Duration};
 
 use tempfile::tempdir;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::common::RecipeData;
 use crate::common::exec::exec_cmd;
-use crate::common::file::write;
+use crate::common::file::{remove_dirs, write};
+use crate::common::logs::show_logs;
+use crate::windows::service::stop_service;
+use crate::windows::{AGENT_CONTROL_DIRS, DEFAULT_LOG_PATH};
 use crate::{common::test::retry, windows::powershell::exec_ps};
 
 pub const SERVICE_NAME: &str = "newrelic-agent-control";
@@ -130,4 +133,12 @@ $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
     .unwrap_or_else(|err| panic!("failure executing recipe after retries: {err}"));
 
     debug!("Output:\n{output}");
+}
+
+pub fn tear_down_test() {
+    let _ = show_logs(DEFAULT_LOG_PATH).inspect_err(|e| warn!("Fail to show logs: {}", e));
+    stop_service(SERVICE_NAME);
+    _ = remove_dirs(AGENT_CONTROL_DIRS).inspect_err(|err| {
+        warn!("Failed to remove Agent Control directories: {}", err);
+    });
 }

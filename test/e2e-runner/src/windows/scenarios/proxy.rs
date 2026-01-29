@@ -1,20 +1,18 @@
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
 use crate::common::exec::LongRunningProcess;
-use crate::common::file::remove_dirs;
-use crate::common::logs::show_logs;
 use crate::common::nrql::check_query_results_are_not_empty;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{Args, RecipeData};
-use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe};
+use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
 use crate::windows::powershell::{download_file, exec_ps, extract};
 use crate::windows::scenarios::INFRA_AGENT_VERSION;
-use crate::windows::service::{STATUS_RUNNING, check_service_status, stop_service};
+use crate::windows::service::{STATUS_RUNNING, check_service_status};
 use crate::windows::utils::as_user_dir;
-use crate::windows::{self, AGENT_CONTROL_DIRS};
+use crate::windows::{self};
 use std::process::Command;
 use std::time::Duration;
-use tracing::{info, warn};
+use tracing::info;
 
 const MITMPROXY_VERSION: &str = "12.2.1";
 const PROXY_URL: &str = "http://localhost:8080";
@@ -59,14 +57,7 @@ pub fn test_proxy(args: Args) {
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
     );
 
-    let _clean_up = CleanUp::new(|| {
-        let _ =
-            show_logs(windows::DEFAULT_LOG_PATH).inspect_err(|e| warn!("Fail to show logs: {}", e));
-        stop_service(SERVICE_NAME);
-        _ = remove_dirs(AGENT_CONTROL_DIRS).inspect_err(|err| {
-            warn!("Failed to remove Agent Control directories: {}", err);
-        });
-    });
+    let _clean_up = CleanUp::new(tear_down_test);
 
     let debug_log_config = ac_debug_logging_config(windows::DEFAULT_LOG_PATH);
 
