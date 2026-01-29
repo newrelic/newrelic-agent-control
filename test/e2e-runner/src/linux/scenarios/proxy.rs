@@ -1,6 +1,9 @@
+use crate::common::on_drop::CleanUp;
+use crate::common::test::retry_panic;
 use crate::common::{Args, RecipeData};
+use crate::linux::install::tear_down_test;
 use crate::{
-    common::{config, logs::ShowLogsOnDrop, nrql, test::retry},
+    common::{config, nrql},
     linux::{self, bash::exec_bash_command, install::install_agent_control_from_recipe},
 };
 use std::time::Duration;
@@ -21,11 +24,11 @@ const EXPECTED_DOMAINS: &[&str] = &[
     // Keys generation and Agent Control authentication
     "publickeys.newrelic.com",
     "system-identity-oauth.service.newrelic.com",
-    "identity-api.newrelic.com",
     // Agent Control OpAMP requests
     "opamp.service.newrelic.com",
     // Infra-Agent connections
     "infra-api.newrelic.com",
+    "identity-api.newrelic.com",
 ];
 
 pub fn test_agent_control_proxy(args: Args) {
@@ -41,6 +44,9 @@ pub fn test_agent_control_proxy(args: Args) {
         fleet_id: FLEET_ID.to_string(),
         ..Default::default()
     };
+
+    let _clean_up = CleanUp::new(tear_down_test);
+
     install_agent_control_from_recipe(&recipe_data);
 
     let test_id = format!(
@@ -53,17 +59,13 @@ pub fn test_agent_control_proxy(args: Args) {
     config::update_config_for_host_id(linux::DEFAULT_CONFIG_PATH, &test_id);
 
     linux::service::restart_service(linux::SERVICE_NAME);
-    let _show_logs = ShowLogsOnDrop::from(linux::DEFAULT_LOG_PATH);
 
     info!("Verifying that agent is reporting data through proxy");
     let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `host.id` = '{test_id}' LIMIT 1"#);
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
-    retry(retries, Duration::from_secs(10), "nrql assertion", || {
+    retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
-    })
-    .unwrap_or_else(|err| {
-        panic!("query '{nrql_query}' failed after {retries} retries: {err}");
     });
 
     info!(
@@ -104,15 +106,12 @@ fn setup_mitmproxy() {
     // Wait for mitmproxy to generate certificates
     info!("Waiting for mitmproxy to generate certificates");
     let retries = 30;
-    retry(
+    retry_panic(
         retries,
         Duration::from_secs(2),
         "wait for proxy cert",
-        || exec_bash_command(&format!("test -f {}", PROXY_CA_CERT)),
-    )
-    .unwrap_or_else(|err| {
-        panic!("Proxy certificate not generated after {retries} retries: {err}");
-    });
+        || exec_bash_command(&format!("test -f {}", PROXY_CA_CERT)).map(|_| ()),
+    );
 
     // Add proxy CA certificate to system trust store
     info!("Adding proxy CA certificate to system trust store");
@@ -130,11 +129,8 @@ fn setup_mitmproxy() {
     info!("Verifying proxy is working");
     let test_proxy_cmd =
         format!("curl --max-time 5 --proxy {PROXY_URL} -I -L https://newrelic.com/",);
-    retry(10, Duration::from_secs(2), "test proxy connection", || {
-        exec_bash_command(&test_proxy_cmd)
-    })
-    .unwrap_or_else(|err| {
-        panic!("Proxy is not working correctly: {err}");
+    retry_panic(10, Duration::from_secs(2), "test proxy connection", || {
+        exec_bash_command(&test_proxy_cmd).map(|_| ())
     });
 
     info!("Mitmproxy setup completed successfully");

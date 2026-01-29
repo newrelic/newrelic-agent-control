@@ -211,6 +211,8 @@ while ($TRIES -lt $MAX_RETRIES) {
     Try { $statusCheckOutput = Invoke-WebRequest -Uri "http://localhost:51200/status" -UseBasicParsing -ErrorAction SilentlyContinue } Catch {    }
     $statusContent = if ($statusCheckOutput.Content) { $statusCheckOutput.Content } else { "{}" }
 
+    Write-Host "Status check output: $statusContent"
+
     # Parse JSON for .agent_control.healthy
     $statusJson = $statusContent | ConvertFrom-Json
     $STATUS = $statusJson.agent_control.healthy

@@ -1,29 +1,12 @@
-use crate::common::test::TestResult;
-use std::fs;
 use std::path::PathBuf;
-use tracing::warn;
 
 pub mod config;
+pub mod exec;
 pub mod file;
 pub mod logs;
 pub mod nrql;
+pub mod on_drop;
 pub mod test;
-
-/// Removes the directories receives as list
-pub fn remove_dirs(dirs: &[&str]) -> TestResult<()> {
-    for dir in dirs {
-        match fs::remove_dir_all(dir) {
-            Ok(_) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                warn!(directory = dir, "Directory not found");
-            }
-            Err(e) => {
-                return Err(format!("could not remove {:?}: {}", dir, e).into());
-            }
-        }
-    }
-    Ok(())
-}
 
 /// Arguments to be set for every test that needs Agent Control installation
 #[derive(Default, Debug, Clone, clap::Parser)]

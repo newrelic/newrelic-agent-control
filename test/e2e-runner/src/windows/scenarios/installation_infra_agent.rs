@@ -1,17 +1,16 @@
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
-use crate::common::logs::ShowLogsOnDrop;
-use crate::common::test::retry;
+use crate::common::on_drop::CleanUp;
+use crate::common::test::{retry, retry_panic};
 use crate::common::{Args, RecipeData, nrql};
-use crate::windows;
-use crate::windows::cleanup::CleanAcOnDrop;
-use crate::windows::install::install_agent_control_from_recipe;
+use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
+use crate::windows::scenarios::INFRA_AGENT_VERSION;
 use crate::windows::service::STATUS_RUNNING;
+use crate::windows::{self};
 use std::thread;
 use std::time::Duration;
 use tracing::info;
 
 const DEFAULT_STATUS_PORT: u16 = 51200;
-const SERVICE_NAME: &str = "newrelic-agent-control";
 
 /// Runs a complete Windows E2E installation test.
 pub fn test_infra_agent(args: Args) {
@@ -19,6 +18,9 @@ pub fn test_infra_agent(args: Args) {
         args,
         ..Default::default()
     };
+
+    let _clean_up = CleanUp::new(tear_down_test);
+
     install_agent_control_from_recipe(&recipe_data);
 
     let test_id = format!(
@@ -41,26 +43,21 @@ agents:
         ),
     );
 
-    // TODO we should get the version dynamically from the recipe itself
     write_agent_local_config(
         windows::DEFAULT_NR_INFRA_PATH,
-        r#"
+        format!(
+            r#"
 config_agent:
-  license_key: '{{NEW_RELIC_LICENSE_KEY}}'
-version: v1.71.4
-"#
-        .to_string(),
+  license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
+version: {}
+"#,
+            INFRA_AGENT_VERSION
+        ),
     );
 
     windows::service::restart_service(SERVICE_NAME);
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));
-
-    // We need to clean up the resources after showing the logs.
-    // Otherwise, log files get removed before we can print them.
-    // Remember that Drop is called in the reverse order of creation.
-    let _clean_ac = CleanAcOnDrop::from(SERVICE_NAME);
-    let _show_logs = ShowLogsOnDrop::from(windows::DEFAULT_LOG_PATH);
 
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));
@@ -83,11 +80,8 @@ version: v1.71.4
     let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `host.id` = '{test_id}' LIMIT 1"#);
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
-    retry(retries, Duration::from_secs(10), "nrql assertion", || {
+    retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
-    })
-    .unwrap_or_else(|err| {
-        panic!("query '{nrql_query}' failed after {retries} retries: {err}");
     });
 
     info!("Test completed successfully");

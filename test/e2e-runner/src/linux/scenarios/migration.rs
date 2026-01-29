@@ -1,6 +1,8 @@
 use crate::common::file::write;
-use crate::common::logs::ShowLogsOnDrop;
+use crate::common::on_drop::CleanUp;
+use crate::common::test::retry_panic;
 use crate::common::{Args, RecipeData};
+use crate::linux::install::tear_down_test;
 use crate::{
     common::{config, nrql, test::retry},
     linux::{self, bash::exec_bash_command, install::install_agent_control_from_recipe, service},
@@ -14,7 +16,7 @@ pub fn test_migration(args: Args) {
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
     );
 
-    let _show_logs = ShowLogsOnDrop::from(linux::DEFAULT_LOG_PATH);
+    let _clean_up = CleanUp::new(tear_down_test);
 
     info!("Setting up the infra-agent to report some mysql data");
     install_and_setup_infra_agent_with_mysql(&args, test_id.as_str());
@@ -25,11 +27,8 @@ pub fn test_migration(args: Args) {
     );
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
-    retry(retries, Duration::from_secs(10), "nrql assertion", || {
+    retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&args, &nrql_query)
-    })
-    .unwrap_or_else(|err| {
-        panic!("query '{nrql_query}' failed after {retries} retries: {err}");
     });
 
     info!("Installing Agent Control that will automatically run migration");
@@ -55,11 +54,8 @@ pub fn test_migration(args: Args) {
     );
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
-    retry(retries, Duration::from_secs(10), "nrql assertion", || {
+    retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
-    })
-    .unwrap_or_else(|err| {
-        panic!("query '{nrql_query}' failed after {retries} retries: {err}");
     });
 }
 
