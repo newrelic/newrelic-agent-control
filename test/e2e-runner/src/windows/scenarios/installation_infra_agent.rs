@@ -2,7 +2,7 @@ use crate::common::config::{ac_debug_logging_config, update_config, write_agent_
 use crate::common::file::remove_dirs;
 use crate::common::logs::show_logs;
 use crate::common::on_drop::CleanUp;
-use crate::common::test::retry;
+use crate::common::test::{retry, retry_panic};
 use crate::common::{Args, RecipeData, nrql};
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe};
 use crate::windows::scenarios::INFRA_AGENT_VERSION;
@@ -88,11 +88,8 @@ version: {}
     let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `host.id` = '{test_id}' LIMIT 1"#);
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
-    retry(retries, Duration::from_secs(10), "nrql assertion", || {
+    retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
-    })
-    .unwrap_or_else(|err| {
-        panic!("query '{nrql_query}' failed after {retries} retries: {err}");
     });
 
     info!("Test completed successfully");

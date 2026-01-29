@@ -1,5 +1,6 @@
 use crate::common::file::write;
 use crate::common::logs::ShowLogsOnDrop;
+use crate::common::test::retry_panic;
 use crate::common::{Args, RecipeData};
 use crate::{
     common::{config, nrql, test::retry},
@@ -25,11 +26,8 @@ pub fn test_migration(args: Args) {
     );
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
-    retry(retries, Duration::from_secs(10), "nrql assertion", || {
+    retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&args, &nrql_query)
-    })
-    .unwrap_or_else(|err| {
-        panic!("query '{nrql_query}' failed after {retries} retries: {err}");
     });
 
     info!("Installing Agent Control that will automatically run migration");
@@ -55,11 +53,8 @@ pub fn test_migration(args: Args) {
     );
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
-    retry(retries, Duration::from_secs(10), "nrql assertion", || {
+    retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
-    })
-    .unwrap_or_else(|err| {
-        panic!("query '{nrql_query}' failed after {retries} retries: {err}");
     });
 }
 

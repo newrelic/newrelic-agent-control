@@ -1,4 +1,4 @@
-use crate::common::test::{TestResult, retry};
+use crate::common::test::{TestResult, retry_panic};
 
 use super::powershell::exec_ps;
 use std::thread;
@@ -55,8 +55,7 @@ pub fn stop_service(service_name: &str) {
     let cmd = format!("Stop-Service -Name '{}' -Force", service_name);
     exec_ps(&cmd).unwrap_or_else(|err| panic!("could not stop '{service_name} service: {err}'"));
 
-    retry(30, Duration::from_secs(5), "check service stopped", || {
+    retry_panic(30, Duration::from_secs(5), "check service stopped", || {
         check_service_status(service_name, STATUS_STOPPED)
-    })
-    .expect("check service stop failed");
+    });
 }
