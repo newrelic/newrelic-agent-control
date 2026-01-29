@@ -14,6 +14,8 @@ use windows_service::{
     service_control_handler::{self, ServiceControlHandlerResult, ServiceStatusHandle},
 };
 
+/// Global handle used by the event handler to signal state changes (like StopPending) to Windows.
+/// This allows the closure to access the handle, which is only available after registration.
 pub static GLOBAL_SERVICE_HANDLE: OnceLock<ServiceStatusHandle> = OnceLock::new();
 
 /// Defines the name for the Windows Service.
