@@ -1,8 +1,9 @@
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
+use crate::common::file::remove_dirs;
 use crate::common::logs::show_logs;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry;
-use crate::common::{Args, RecipeData, nrql, remove_dirs};
+use crate::common::{Args, RecipeData, nrql};
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe};
 use crate::windows::scenarios::INFRA_AGENT_VERSION;
 use crate::windows::service::{STATUS_RUNNING, stop_service};

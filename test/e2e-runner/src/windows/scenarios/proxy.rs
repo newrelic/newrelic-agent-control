@@ -1,10 +1,11 @@
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
 use crate::common::exec::LongRunningProcess;
+use crate::common::file::remove_dirs;
 use crate::common::logs::show_logs;
 use crate::common::nrql::check_query_results_are_not_empty;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
-use crate::common::{Args, RecipeData, remove_dirs};
+use crate::common::{Args, RecipeData};
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe};
 use crate::windows::powershell::{download_file, exec_ps, extract};
 use crate::windows::scenarios::INFRA_AGENT_VERSION;
