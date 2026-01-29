@@ -23,16 +23,23 @@ type WinServiceResult = Result<(), Box<dyn Error>>;
 /// It returns a function to tear the service down when the Agent Control finishes its execution.
 pub fn setup_windows_service(
     application_event_publisher: EventPublisher<ApplicationEvent>,
-) -> Result<impl Fn() -> WinServiceResult, Box<dyn Error>> {
+) -> Result<impl Fn(Result<(), &Box<dyn Error>>) -> WinServiceResult, Box<dyn Error>> {
     let windows_status_handler = service_control_handler::register(
         WINDOWS_SERVICE_NAME,
         windows_event_handler(application_event_publisher),
     )?;
     windows_status_handler.set_service_status(WindowsServiceStatus::Running.into())?;
 
-    Ok(move || {
-        // TODO: check if we should inform of stop-requested in case the graceful shutdown takes too long.
-        windows_status_handler.set_service_status(WindowsServiceStatus::Stopped.into())?;
+    Ok(move |run_result: Result<(), &Box<dyn Error>>| {
+        let mut status = ServiceStatus::from(WindowsServiceStatus::Stopped);
+
+        // If the runner failed, report a non-zero exit code to Windows
+        if let Err(err) = run_result {
+            error!("Service stopping due to error: {err}");
+            status.exit_code = ServiceExitCode::Win32(1);
+        }
+
+        windows_status_handler.set_service_status(status)?;
         Ok(())
     })
 }
