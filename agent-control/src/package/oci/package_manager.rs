@@ -359,6 +359,7 @@ mod tests {
     use crate::package::oci::downloader::tests::MockOCIDownloader;
     use crate::utils::extract::tests::TestDataHelper;
     use fs::directory_manager::mock::MockDirectoryManager;
+    use fs::file::writer::FileWriter;
     use mockall::predicate::eq;
     use oci_spec::distribution::Reference;
     use std::str::FromStr;
@@ -400,7 +401,7 @@ mod tests {
 
         downloader
             .expect_download()
-            .times(3)
+            .times(1)
             .returning(move |_reference, download_dir| Ok(fake_compressed_package(download_dir)));
 
         let pm = OCIPackageManager::new(
@@ -423,6 +424,50 @@ mod tests {
         let old_package = pm.install(&agent_id, new_package_version("v1")).unwrap();
         assert!(!untracked_package_path.exists());
         assert!(old_package.installation_path.exists());
+    }
+
+    #[test]
+    fn test_removes_only_packages_from_agent_id() {
+        let mut downloader = MockOCIDownloader::new();
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+
+        let root_dir = tempdir().unwrap();
+
+        downloader
+            .expect_download()
+            .times(1)
+            .returning(move |_reference, download_dir| Ok(fake_compressed_package(download_dir)));
+
+        let pm = OCIPackageManager::new(
+            downloader,
+            DirectoryManagerFs {},
+            PathBuf::from(root_dir.path()),
+        );
+
+        // Existing package from a different agent id should not be removed
+        let other_agent_package = get_package_path(
+            root_dir.path(),
+            &AgentID::try_from("other-agent-id").unwrap(),
+            &TEST_PACKAGE_ID.to_string(),
+            &Reference::from_str("newrelic/fake-agent:v0").unwrap(),
+        )
+        .unwrap();
+        DirectoryManagerFs.create(&other_agent_package).unwrap();
+
+        // Spurious file at installed packages level should not be removed
+        let pkg_id_dir =
+            get_generic_package_location_path(root_dir.path(), &agent_id, INSTALLED_PCK_LOCATION)
+                .unwrap();
+        DirectoryManagerFs.create(&pkg_id_dir).unwrap();
+        let pkg_id_level_spurious_file = pkg_id_dir.join("pkg_id_spurious_file");
+        LocalFile
+            .write(&pkg_id_level_spurious_file, "content".to_string())
+            .unwrap();
+
+        let current_package = pm.install(&agent_id, new_package_version("v1")).unwrap();
+        assert!(current_package.installation_path.exists());
+        assert!(other_agent_package.exists());
+        assert!(pkg_id_level_spurious_file.exists());
     }
 
     #[test]
