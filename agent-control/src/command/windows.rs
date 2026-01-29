@@ -44,10 +44,15 @@ impl Drop for PanicStatusHandler {
     }
 }
 
+/// Type alias for the Windows service teardown closure to reduce type complexity.
+pub type WinServiceTeardown = Box<dyn Fn(Result<(), &Box<dyn Error>>) -> WinServiceResult>;
+
 /// WinServiceSetup contains the function to call teardown and the panic handler
 pub struct WinServiceSetup {
+    /// A guard that ensures the service reports a stopped state to Windows if the process panics.
     pub panic_handler: PanicStatusHandler,
-    pub teardown: Box<dyn Fn(Result<(), &Box<dyn Error>>) -> WinServiceResult>,
+    /// A closure called at the end of execution to transition the service to the stopped state.
+    pub teardown: WinServiceTeardown,
 }
 
 /// Sets up the Windows Service by creating the status handler and setting the service status as [WindowsServiceStatus::Running].
