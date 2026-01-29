@@ -44,31 +44,31 @@ impl Drop for PanicStatusHandler {
     }
 }
 
+/// WinServiceSetup contains the function to call teardown and the panic handler
+pub struct WinServiceSetup {
+    pub panic_handler: PanicStatusHandler,
+    pub teardown: Box<dyn Fn(Result<(), &Box<dyn Error>>) -> WinServiceResult>,
+}
+
 /// Sets up the Windows Service by creating the status handler and setting the service status as [WindowsServiceStatus::Running].
 /// It returns a function to tear the service down when the Agent Control finishes its execution
 /// and a PanicHandler that will communicate the service that is stopped if the thead is panicking.
 pub fn setup_windows_service(
     application_event_publisher: EventPublisher<ApplicationEvent>,
-) -> Result<
-    (
-        PanicStatusHandler,
-        impl Fn(Result<(), &Box<dyn Error>>) -> WinServiceResult,
-    ),
-    Box<dyn Error>,
-> {
+) -> Result<WinServiceSetup, Box<dyn Error>> {
     let windows_status_handler = service_control_handler::register(
         WINDOWS_SERVICE_NAME,
         windows_event_handler(application_event_publisher),
     )?;
 
     // Store the handle globally so it can be accessed from inside the windows_event_handler
-    let _ = GLOBAL_SERVICE_HANDLE.set(windows_status_handler.clone());
+    let _ = GLOBAL_SERVICE_HANDLE.set(windows_status_handler);
 
     windows_status_handler.set_service_status(WindowsServiceStatus::Running.into())?;
 
     // Create the panic handler by cloning the handle
     let panic_handler = PanicStatusHandler {
-        handle: windows_status_handler.clone(),
+        handle: windows_status_handler,
     };
 
     // Return both the guard and the teardown closure
@@ -84,7 +84,10 @@ pub fn setup_windows_service(
         Ok(())
     };
 
-    Ok((panic_handler, teardown))
+    Ok(WinServiceSetup {
+        panic_handler,
+        teardown: Box::new(teardown),
+    })
 }
 
 /// Handles windows services events and stops the Agent Control if the specific events are received.

@@ -71,7 +71,7 @@ fn _main(
     let (mut _panic_handler, tear_down_windows_service) = as_windows_service
         .then(|| setup_windows_service(application_event_publisher.clone()))
         .transpose()?
-        .map(|(guard, teardown)| (Some(guard), Some(teardown)))
+        .map(|setup| (Some(setup.panic_handler), Some(setup.teardown)))
         .unwrap_or((None, None));
 
     #[cfg(not(feature = "disable-asroot"))]
