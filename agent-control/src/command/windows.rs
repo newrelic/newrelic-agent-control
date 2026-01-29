@@ -49,7 +49,13 @@ impl Drop for PanicStatusHandler {
 /// and a PanicHandler that will communicate the service that is stopped if the thead is panicking.
 pub fn setup_windows_service(
     application_event_publisher: EventPublisher<ApplicationEvent>,
-) -> Result<(PanicStatusHandler, impl Fn(Result<(), &Box<dyn Error>>) -> WinServiceResult), Box<dyn Error>> {
+) -> Result<
+    (
+        PanicStatusHandler,
+        impl Fn(Result<(), &Box<dyn Error>>) -> WinServiceResult,
+    ),
+    Box<dyn Error>,
+> {
     let windows_status_handler = service_control_handler::register(
         WINDOWS_SERVICE_NAME,
         windows_event_handler(application_event_publisher),
@@ -79,7 +85,6 @@ pub fn setup_windows_service(
     };
 
     Ok((panic_handler, teardown))
-
 }
 
 /// Handles windows services events and stops the Agent Control if the specific events are received.
@@ -95,7 +100,7 @@ pub fn windows_event_handler(
                 if let Some(handle) = GLOBAL_SERVICE_HANDLE.get() {
                     let _ = handle.set_service_status(WindowsServiceStatus::StopPending.into());
                 }
-                
+
                 let _ = publisher
                     .publish(ApplicationEvent::StopRequested)
                     .inspect_err(|err| error!("Could not send agent control stop request {err}"));
@@ -123,17 +128,17 @@ impl From<WindowsServiceStatus> for ServiceStatus {
             WindowsServiceStatus::Running => (
                 ServiceState::Running,
                 ServiceControlAccept::STOP,
-                std::time::Duration::default()
+                std::time::Duration::default(),
             ),
             WindowsServiceStatus::StopPending => (
                 ServiceState::StopPending,
                 ServiceControlAccept::empty(),
-                std::time::Duration::from_secs(10) // Tells Windows to wait for cleanup
+                std::time::Duration::from_secs(10), // Tells Windows to wait for cleanup
             ),
             WindowsServiceStatus::Stopped => (
                 ServiceState::Stopped,
                 ServiceControlAccept::empty(),
-                std::time::Duration::default()
+                std::time::Duration::default(),
             ),
         };
 
