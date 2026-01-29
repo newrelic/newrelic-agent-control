@@ -4,7 +4,9 @@ use std::{fs, io::Write, path::PathBuf};
 use tracing::info;
 
 /// Updates the agent control config in `config_path` to include the content specified in `new_content`
-pub fn update_config(config_path: &str, new_content: String) {
+pub fn update_config(config_path: impl AsRef<str>, new_content: impl AsRef<str>) {
+    let config_path = config_path.as_ref();
+    let new_content = new_content.as_ref();
     // Read the existing configuration file
     let content = fs::read_to_string(config_path).unwrap_or_else(|e| {
         panic!("failed to read configuration file at {config_path:?}: {e}");
@@ -16,7 +18,7 @@ pub fn update_config(config_path: &str, new_content: String) {
     });
 
     // Parse the new content
-    let new_config: Value = serde_yaml::from_str(&new_content).unwrap_or_else(|e| {
+    let new_config: Value = serde_yaml::from_str(new_content).unwrap_or_else(|e| {
         panic!("failed to merge YAML configuration with content {new_content:?}: {e}");
     });
 
@@ -54,7 +56,7 @@ log:
     enabled: true
     path: {log_file_path}
   format:
-    target: true
+    target: false
     formatter: pretty
 "#
     )

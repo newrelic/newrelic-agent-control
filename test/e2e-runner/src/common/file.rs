@@ -1,6 +1,10 @@
-use std::fs::OpenOptions;
+use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::Path;
+
+use tracing::warn;
+
+use crate::common::test::TestResult;
 
 /// Writes contents to a file and ensures data is flushed to disk before returning.
 /// If the file does not exist, it will be created. If it does exist, it will be truncated.
@@ -29,4 +33,20 @@ pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) {
             err
         )
     });
+}
+
+/// Removes the directories receives as list
+pub fn remove_dirs(dirs: &[&str]) -> TestResult<()> {
+    for dir in dirs {
+        match fs::remove_dir_all(dir) {
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                warn!(directory = dir, "Directory not found");
+            }
+            Err(e) => {
+                return Err(format!("could not remove {:?}: {}", dir, e).into());
+            }
+        }
+    }
+    Ok(())
 }

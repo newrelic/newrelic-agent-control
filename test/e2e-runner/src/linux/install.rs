@@ -1,4 +1,6 @@
 use crate::common::RecipeData;
+use crate::common::logs::show_logs;
+use crate::linux::DEFAULT_LOG_PATH;
 use crate::{common::test::retry, linux::bash::exec_bash_command};
 use std::time::Duration;
 use tempfile::tempdir;
@@ -107,4 +109,8 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
     })
     .unwrap_or_else(|err| panic!("failure executing recipe after retries: {err}"));
     debug!("Output:\n{output}");
+}
+
+pub fn tear_down_test() {
+    let _ = show_logs(DEFAULT_LOG_PATH);
 }

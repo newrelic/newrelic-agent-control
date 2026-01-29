@@ -46,7 +46,7 @@ impl Region {
 /// Executes a single NRQL query against the New Relic GraphQL API.
 ///
 /// This function sends a GraphQL query to execute NRQL, check that
-/// results are not empty and return its results.
+/// results are not empty.
 ///
 /// # Arguments
 ///
@@ -55,14 +55,12 @@ impl Region {
 ///
 /// # Returns
 ///
-/// * `Ok(Vec<Value>)` - The NRQL query results on success
+/// * `Ok(())` - The NRQL query results on success
 /// * `Err` - Error if the query fails, returns errors, or has no results
-pub fn check_query_results_are_not_empty(
-    install_args: &Args,
-    nrql_query: &str,
-) -> TestResult<Vec<Value>> {
+pub fn check_query_results_are_not_empty(install_args: &Args, nrql_query: &str) -> TestResult<()> {
     let client = Client::builder().timeout(CLIENT_TIMEOUT).build()?;
-    check_query_results_are_not_empty_with_client(install_args, nrql_query, client)
+    check_query_results_are_not_empty_with_client(install_args, nrql_query, client)?;
+    Ok(())
 }
 
 /// Helper to execute [check_query_results_are_not_empty] with custom setup. Eg: setting up proxy.

@@ -41,6 +41,7 @@ enum LinuxScenarios {
 enum WindowsScenarios {
     /// Simple installation of Agent Control on Windows with an Infrastructure Agent
     InfraAgent(Args),
+    Proxy(Args),
 }
 
 #[derive(Parser)]

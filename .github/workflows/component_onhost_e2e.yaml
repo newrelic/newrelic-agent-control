@@ -71,7 +71,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [ infra-agent ]
+        group: [ infra-agent, proxy ]
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - uses: ./.github/actions/install-rust-toolchain
@@ -84,7 +84,7 @@ jobs:
       - name: "Windows e2e ${{ matrix.group }}"
         shell: powershell
         run: |
-          "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" | Out-File -FilePath $env:TEMP\newrelic-agent-control-priv.key
+          "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" | Out-File -Encoding utf8 -FilePath $env:TEMP\newrelic-agent-control-priv.key
           & "${{ github.workspace }}\target\debug\e2e-runner.exe" --log-level=debug ${{ matrix.group }} `
             --artifacts-package-dir .\dist `
             --nr-api-key "${{ secrets.E2E_API_KEY }}" `
@@ -94,4 +94,4 @@ jobs:
             --system-identity-client-id "${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}" `
             --agent-control-private-key "$env:TEMP\newrelic-agent-control-priv.key" `
             --agent-control-version "0.900.${{ github.run_id }}" `
-            --recipes-repo-branch "main"
+            --recipes-repo-branch "gsanchez/fix/win-recipe"
