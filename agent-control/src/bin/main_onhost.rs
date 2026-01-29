@@ -13,7 +13,7 @@ use newrelic_agent_control::instrumentation::tracing::TracingGuardBox;
 use newrelic_agent_control::utils::is_elevated::is_elevated;
 use std::error::Error;
 use std::process::ExitCode;
-use tracing::{debug, error, info, trace};
+use tracing::{error, info, trace};
 
 #[cfg(target_os = "windows")]
 use newrelic_agent_control::command::windows::{WINDOWS_SERVICE_NAME, setup_windows_service};
