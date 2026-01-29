@@ -185,7 +185,7 @@ module "alerts" {
       name          = "Memory usage (bytes)"
       metric        = "max(memoryResidentSizeBytes) OR 0"
       sample        = "ProcessSample"
-      threshold     = 20000000
+      threshold     = 22000000
       duration      = 600
       operator      = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
