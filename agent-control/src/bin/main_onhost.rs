@@ -64,6 +64,16 @@ fn _main(
     _tracer: Vec<TracingGuardBox>, // Needs to take ownership of the tracer as it can be shutdown on drop
     #[cfg(target_os = "windows")] as_windows_service: bool,
 ) -> Result<(), Box<dyn Error>> {
+    trace!("creating the global context");
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+
+    #[cfg(target_os = "windows")]
+    let (mut _panic_handler, tear_down_windows_service) = as_windows_service
+        .then(|| setup_windows_service(application_event_publisher.clone()))
+        .transpose()?
+        .map(|(guard, teardown)| (Some(guard), Some(teardown)))
+        .unwrap_or((None, None));
+
     #[cfg(not(feature = "disable-asroot"))]
     if !is_elevated()? {
         return Err("Program must run with elevated permissions".into());
@@ -78,16 +88,8 @@ fn _main(
 
     install_rustls_default_crypto_provider();
 
-    trace!("creating the global context");
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-
     trace!("creating the signal handler");
-    create_shutdown_signal_handler(application_event_publisher.clone())?;
-
-    #[cfg(target_os = "windows")]
-    let tear_down_windows_service = as_windows_service
-        .then(|| setup_windows_service(application_event_publisher))
-        .transpose()?;
+    create_shutdown_signal_handler(application_event_publisher)?;
 
     // Create the actual agent control runner with the rest of required configs
     // and the application_event_consumer and capture the result to report the error in windows

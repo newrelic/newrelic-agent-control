@@ -24,11 +24,32 @@ pub const WINDOWS_SERVICE_NAME: &str = "newrelic-agent-control";
 /// Type alias to simplify [setup_windows_service] definition.
 type WinServiceResult = Result<(), Box<dyn Error>>;
 
+/// A handler that ensures the service reports a "Stopped" status if the process panics.
+pub struct PanicStatusHandler {
+    handle: ServiceStatusHandle,
+}
+
+impl Drop for PanicStatusHandler {
+    fn drop(&mut self) {
+        // If we are dropping during a panic, report the stop to Windows
+        if std::thread::panicking() {
+            let mut status = ServiceStatus::from(WindowsServiceStatus::Stopped);
+            // Non-zero exit code indicates an abnormal termination
+            status.exit_code = ServiceExitCode::Win32(1);
+
+            let _ = self.handle.set_service_status(status).inspect_err(|e| {
+                error!("Failed to set stopped status during panic: {e}");
+            });
+        }
+    }
+}
+
 /// Sets up the Windows Service by creating the status handler and setting the service status as [WindowsServiceStatus::Running].
-/// It returns a function to tear the service down when the Agent Control finishes its execution.
+/// It returns a function to tear the service down when the Agent Control finishes its execution
+/// and a PanicHandler that will communicate the service that is stopped if the thead is panicking.
 pub fn setup_windows_service(
     application_event_publisher: EventPublisher<ApplicationEvent>,
-) -> Result<impl Fn(Result<(), &Box<dyn Error>>) -> WinServiceResult, Box<dyn Error>> {
+) -> Result<(PanicStatusHandler, impl Fn(Result<(), &Box<dyn Error>>) -> WinServiceResult), Box<dyn Error>> {
     let windows_status_handler = service_control_handler::register(
         WINDOWS_SERVICE_NAME,
         windows_event_handler(application_event_publisher),
@@ -39,7 +60,13 @@ pub fn setup_windows_service(
 
     windows_status_handler.set_service_status(WindowsServiceStatus::Running.into())?;
 
-    Ok(move |run_result: Result<(), &Box<dyn Error>>| {
+    // Create the panic handler by cloning the handle
+    let panic_handler = PanicStatusHandler {
+        handle: windows_status_handler.clone(),
+    };
+
+    // Return both the guard and the teardown closure
+    let teardown = move |run_result: Result<(), &Box<dyn Error>>| {
         let mut status = ServiceStatus::from(WindowsServiceStatus::Stopped);
 
         if let Err(err) = run_result {
@@ -49,7 +76,10 @@ pub fn setup_windows_service(
 
         windows_status_handler.set_service_status(status)?;
         Ok(())
-    })
+    };
+
+    Ok((panic_handler, teardown))
+
 }
 
 /// Handles windows services events and stops the Agent Control if the specific events are received.
