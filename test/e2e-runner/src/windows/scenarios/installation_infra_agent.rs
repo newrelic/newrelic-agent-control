@@ -18,6 +18,9 @@ pub fn test_infra_agent(args: Args) {
         args,
         ..Default::default()
     };
+
+    let _clean_up = CleanUp::new(tear_down_test);
+
     install_agent_control_from_recipe(&recipe_data);
 
     let test_id = format!(
@@ -55,8 +58,6 @@ version: {}
     windows::service::restart_service(SERVICE_NAME);
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));
-
-    let _clean_up = CleanUp::new(tear_down_test);
 
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));

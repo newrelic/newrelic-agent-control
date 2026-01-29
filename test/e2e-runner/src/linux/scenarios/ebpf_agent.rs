@@ -1,10 +1,14 @@
 use crate::common::Args;
 use crate::common::RecipeData;
+use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::linux::{DEFAULT_NR_EBPF_PATH, DEFAULT_NR_INFRA_PATH};
 use crate::{
-    common::{config, logs::ShowLogsOnDrop, nrql},
-    linux::{self, install::install_agent_control_from_recipe},
+    common::{config, nrql},
+    linux::{
+        self,
+        install::{install_agent_control_from_recipe, tear_down_test},
+    },
 };
 use std::time::Duration;
 use tracing::info;
@@ -16,7 +20,11 @@ pub fn test_ebpf_agent(args: Args) {
         recipe_list: "agent-control,ebpf-agent-installer".to_string(),
         ..Default::default()
     };
+
+    let _clean_up = CleanUp::new(tear_down_test);
+
     install_agent_control_from_recipe(&recipe_data);
+
     let test_id = format!(
         "onhost-e2e-infra-agent_{}",
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
@@ -60,7 +68,6 @@ config_agent:
     );
 
     linux::service::restart_service(linux::SERVICE_NAME);
-    let _show_logs = ShowLogsOnDrop::from(linux::DEFAULT_LOG_PATH);
 
     let nrql_query = format!(
         r#"SELECT * FROM Metric WHERE metricName = 'ebpf.tcp.connection_duration' AND deployment.name = '{test_id}' LIMIT 1"#

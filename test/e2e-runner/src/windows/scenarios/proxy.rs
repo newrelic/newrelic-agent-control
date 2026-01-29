@@ -51,13 +51,14 @@ pub fn test_proxy(args: Args) {
         fleet_id: FLEET_ID.to_string(),
         ..Default::default()
     };
+
+    let _clean_up = CleanUp::new(tear_down_test);
+
     install_agent_control_from_recipe(&recipe_data);
     let test_id = format!(
         "onhost-e2e-proxy_{}",
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
     );
-
-    let _clean_up = CleanUp::new(tear_down_test);
 
     let debug_log_config = ac_debug_logging_config(windows::DEFAULT_LOG_PATH);
 
