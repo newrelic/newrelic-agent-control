@@ -12,7 +12,7 @@ pub struct PackageData {
 }
 
 /// Information about an installed package
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct InstalledPackageData {
     pub id: String, // same type as the packages map on an agent type definition
     pub installation_path: PathBuf,
