@@ -20,6 +20,9 @@ jobs:
         run: |
           nix profile add nixpkgs#xh
 
+      - name: Print the IP of this machine
+        run: xh get https://api.ipify.org?format=json
+
       - name: "Attempt to reach staging URLs: Public keys"
         run: xh get https://staging-publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json --all --pretty all --print HBhbm
 
