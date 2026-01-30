@@ -196,7 +196,7 @@ deployment:
             version: ${nr-var:version}
     filesystem:
       config:
-        newrelic-infra.yaml: |
+        newrelic-infra.yml: |
           ${nr-var:config_agent}
       integrations.d: ${nr-var:config_integrations}
       logging.d: ${nr-var:config_logging}
@@ -205,7 +205,7 @@ deployment:
         path: ${nr-sub:packages.infra-agent.dir}/newrelic-infra
         args:
           - --config
-          - ${nr-sub:filesystem_agent_dir}/config/newrelic-infra.yaml
+          - ${nr-sub:filesystem_agent_dir}/config/newrelic-infra.yml
         env:
           NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}/integrations.d"
           NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:filesystem_agent_dir}/logging.d"
@@ -234,7 +234,7 @@ deployment:
             version: ${nr-var:version}
     filesystem:
       config:
-        newrelic-infra.yaml: |
+        newrelic-infra.yml: |
           ${nr-var:config_agent}
       integrations.d: ${nr-var:config_integrations}
       logging.d: ${nr-var:config_logging}
@@ -243,7 +243,7 @@ deployment:
         path: ${nr-sub:packages.infra-agent.dir}\\newrelic-infra.exe
         args:
           - --config
-          - ${nr-sub:filesystem_agent_dir}\\config\\newrelic-infra.yaml
+          - ${nr-sub:filesystem_agent_dir}\\config\\newrelic-infra.yml
         env:
           NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}\\integrations.d"
           NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:filesystem_agent_dir}\\logging.d"
