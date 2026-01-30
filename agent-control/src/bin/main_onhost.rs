@@ -64,6 +64,16 @@ fn _main(
     _tracer: Vec<TracingGuardBox>, // Needs to take ownership of the tracer as it can be shutdown on drop
     #[cfg(target_os = "windows")] as_windows_service: bool,
 ) -> Result<(), Box<dyn Error>> {
+    trace!("creating the global context");
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+
+    #[cfg(target_os = "windows")]
+    let (mut _panic_handler, tear_down_windows_service) = as_windows_service
+        .then(|| setup_windows_service(application_event_publisher.clone()))
+        .transpose()?
+        .map(|setup| (Some(setup.panic_handler), Some(setup.teardown)))
+        .unwrap_or((None, None));
+
     #[cfg(not(feature = "disable-asroot"))]
     if !is_elevated()? {
         return Err("Program must run with elevated permissions".into());
@@ -78,28 +88,29 @@ fn _main(
 
     install_rustls_default_crypto_provider();
 
-    trace!("creating the global context");
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-
     trace!("creating the signal handler");
-    create_shutdown_signal_handler(application_event_publisher.clone())?;
+    create_shutdown_signal_handler(application_event_publisher)?;
 
-    #[cfg(target_os = "windows")]
-    let tear_down_windows_service = as_windows_service
-        .then(|| setup_windows_service(application_event_publisher))
-        .transpose()?;
-
-    // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-    AgentControlRunner::new(agent_control_run_config, application_event_consumer)?.run()?;
+    // Create the actual agent control runner with the rest of required configs
+    // and the application_event_consumer and capture the result to report the error in windows
+    let run_result = AgentControlRunner::new(agent_control_run_config, application_event_consumer)
+        .and_then(|runner| runner.run().map_err(Box::from));
 
     #[cfg(target_os = "windows")]
     if let Some(tear_down_fn) = tear_down_windows_service {
-        tear_down_fn()?;
+        // We call this even if run_result is Err to clear the 1061 state
+        if let Err(e) = tear_down_fn(run_result.as_ref().copied()) {
+            error!("Failed to report service stop to Windows: {e}");
+        }
     }
 
-    info!("Exiting gracefully");
+    if let Err(ref e) = run_result {
+        error!("Agent Control Runner failed: {e}");
+    } else {
+        info!("Exiting gracefully");
+    }
 
-    Ok(())
+    run_result
 }
 
 /// Enables using the typical keypress (Ctrl-C) to stop the agent control process at any moment.
