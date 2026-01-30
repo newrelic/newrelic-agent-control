@@ -2,11 +2,11 @@ use crate::sub_agent::on_host::command::error::CommandError;
 use std::os::windows::io::AsRawHandle;
 use std::process::Child;
 use tracing::error;
-use windows::Win32::Foundation::{CloseHandle, HANDLE};
+use windows::Win32::Foundation::HANDLE;
 use windows::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-    SetInformationJobObject,
+    SetInformationJobObject, TerminateJobObject,
 };
 
 /// Represents a Windows Job Object used to manage and control a group of processes.
@@ -50,7 +50,7 @@ impl JobObject {
     /// Kills the JobObject, terminating all associated processes.
     pub fn kill(self) -> Result<(), CommandError> {
         unsafe {
-            CloseHandle(self.handle)
+            TerminateJobObject(self.handle, 0)
                 .map_err(|e| CommandError::WinError(format!("closing JobObject handle: {e}")))?;
         }
         Ok(())
@@ -61,8 +61,38 @@ impl JobObject {
 impl Drop for JobObject {
     fn drop(&mut self) {
         unsafe {
-            let _ =
-                CloseHandle(self.handle).inspect_err(|err| error!(%err,"Fail to kill a JobObject"));
+            let _ = TerminateJobObject(self.handle, 0)
+                .inspect_err(|err| error!(%err,"Fail to kill a JobObject"));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::retry::retry;
+    use std::process::Command;
+    use std::time::Duration;
+
+    #[test]
+    fn test_job_object_kills_process() {
+        let job = JobObject::new().expect("Failed to create JobObject");
+        let mut child = Command::new("cmd")
+            .args(["/C", "timeout", "/T", "15"])
+            .spawn()
+            .expect("Failed to spawn process");
+
+        job.assign_process(&child)
+            .expect("Failed to assign process to JobObject");
+
+        job.kill().unwrap();
+        retry(100, Duration::from_millis(100), || {
+            if child.try_wait().is_ok_and(|status| status.is_some()) {
+                Ok::<(), &str>(())
+            } else {
+                Err("process still running")
+            }
+        })
+        .expect("Failed to wait on process");
     }
 }
