@@ -8,7 +8,21 @@ permissions:
 
 jobs:
   reach-staging:
+    name: Reach staging URLs on larger runner (${{ matrix.name }})
     runs-on: linux-4-core-nr-control
+    continue-on-error: false
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "Public keys"
+            url: "https://staging-publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json"
+          - name: "System Identity OAuth"
+            url: "https://system-identity-oauth.staging-service.newrelic.com/oauth2/token"
+          - name: "OpAMP"
+            url: "https://opamp.staging-service.newrelic.com/v1/opamp"
+          - name: "Test Runner VIP"
+            url: "https://fleet-management-e2e-test-runner.vip.cf.nr-ops.net"
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -23,11 +37,5 @@ jobs:
       - name: Print the IP of this machine
         run: xh get https://api.ipify.org?format=json
 
-      - name: "Attempt to reach staging URLs: Public keys"
-        run: xh get https://staging-publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json --all --pretty all --print HBhbm
-
-      - name: "Attempt to reach staging URLs: System Identity OAuth"
-        run: xh get https://system-identity-oauth.staging-service.newrelic.com/oauth2/token --all --pretty all --print HBhbm
-
-      - name: "Attempt to reach staging URLs: OpAMP"
-        run: xh get https://opamp.staging-service.newrelic.com/v1/opamp --all --pretty all --print HBhbm
+      - name: "Attempt to reach staging URLs: ${{ matrix.name }}"
+        run: xh get ${{ matrix.url }} --all --pretty all --print HBhbm
