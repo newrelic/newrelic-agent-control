@@ -330,6 +330,9 @@ jobs:
             x86_64-unknown-linux-musl
 
       - uses: ./.github/actions/rust-cache
+        # We have faced issues 'hashFiles('**/Cargo.lock') failed.' in this job. As we couldn't pinpoint
+        # the exact cause, we are adding continue-on-error to avoid blocking merges.
+        continue-on-error: true
         with:
           identifier: 'test-dev'
           restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}

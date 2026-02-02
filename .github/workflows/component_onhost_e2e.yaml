@@ -94,4 +94,4 @@ jobs:
             --system-identity-client-id "${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}" `
             --agent-control-private-key "$env:TEMP\newrelic-agent-control-priv.key" `
             --agent-control-version "0.900.${{ github.run_id }}" `
-            --recipes-repo-branch "gsanchez/fix/win-recipe"
+            --recipes-repo-branch "main"
