@@ -6,9 +6,14 @@ use crate::package::manager::{InstalledPackageData, PackageData, PackageManager}
 use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::package::oci::downloader::OCIArtifactDownloader;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
+use fs::file::LocalFile;
+use fs::file::reader::FileReader;
 use oci_client::Reference;
+use std::collections::HashMap;
+use std::fmt::Display;
 use std::io;
 use std::path::{Component, Path, PathBuf};
+use std::sync::Mutex;
 use thiserror::Error;
 use tracing::{debug, error, warn};
 
@@ -23,6 +28,7 @@ where
     downloader: D,
     directory_manager: DM,
     remote_dir: PathBuf,
+    latest_installed_packages: Mutex<HashMap<AgentID, InstalledPackageData>>,
 }
 
 #[derive(Debug, Error)]
@@ -38,6 +44,31 @@ pub enum OCIPackageManagerError {
     // Naming produces a non-normalized suffix. Should not happen but we can identify bugs with it.
     #[error("Package reference naming validation produces a non-normalized suffix: {0}")]
     NotNormalSuffix(String),
+    #[error("errors removing packages: {0}")]
+    RetainPackageErrors(RetainPackageErrors),
+}
+
+#[derive(Debug, Default)]
+pub struct RetainPackageErrors(Vec<(String, OCIPackageManagerError)>);
+impl RetainPackageErrors {
+    pub fn push(&mut self, package_id: String, error: OCIPackageManagerError) {
+        self.0.push((package_id, error));
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+impl Display for RetainPackageErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let errors = self
+            .0
+            .iter()
+            .map(|(package_id, error)| format!("package_id: {package_id}, error: {error}"))
+            .reduce(|acc, s| format!("{acc}, {s}"))
+            .unwrap_or_default();
+        write!(f, "[{errors}]")?;
+        Ok(())
+    }
 }
 
 const TEMP_PCK_LOCATION: &str = "__temp_packages";
@@ -53,6 +84,7 @@ where
             downloader,
             directory_manager,
             remote_dir,
+            latest_installed_packages: Mutex::new(HashMap::new()),
         }
     }
 
@@ -109,6 +141,94 @@ where
         );
         Ok(())
     }
+
+    /// Retains the given installed package and the previously retained one, uninstalling any other installed packages for the agent.
+    fn retain_packages(
+        &self,
+        agent_id: &AgentID,
+        installed_package: InstalledPackageData,
+    ) -> Result<(), OCIPackageManagerError> {
+        let mut pkg_to_retain = vec![installed_package.clone()];
+        if let Some(previous_package) = self
+            .latest_installed_packages
+            .lock()
+            .expect("fail to acquire lock")
+            .insert(agent_id.clone(), installed_package)
+        {
+            pkg_to_retain.push(previous_package);
+        };
+
+        let installed_packages = self.installed_packages(agent_id)?;
+
+        let mut errors = RetainPackageErrors::default();
+        for pck_to_remove in installed_packages {
+            if pkg_to_retain.contains(&pck_to_remove) {
+                continue;
+            }
+            debug!(
+                "Removing {} package {}",
+                pck_to_remove.id,
+                pck_to_remove.installation_path.display()
+            );
+            if let Err(e) = self.uninstall(agent_id, pck_to_remove.clone()) {
+                errors.push(pck_to_remove.id, e);
+            }
+        }
+        if !errors.is_empty() {
+            return Err(OCIPackageManagerError::RetainPackageErrors(errors));
+        }
+
+        Ok(())
+    }
+
+    /// Lists all installed packages for the given agent.
+    fn installed_packages(
+        &self,
+        agent_id: &AgentID,
+    ) -> Result<Vec<InstalledPackageData>, OCIPackageManagerError> {
+        let installed_packages_dir =
+            get_generic_package_location_path(&self.remote_dir, agent_id, INSTALLED_PCK_LOCATION)?;
+
+        let mut installed_packages = vec![];
+        let id_dirs = LocalFile
+            .dir_entries(&installed_packages_dir)
+            .map_err(OCIPackageManagerError::Install)?;
+
+        for id_path in id_dirs {
+            if !id_path.is_dir() {
+                debug!(
+                    "Unexpected file found on packages id dir: {}",
+                    id_path.display()
+                );
+                continue;
+            }
+
+            let Some(package_id) = id_path.file_name().map(|name| name.to_string_lossy()) else {
+                debug!(
+                    "Unexpected file found on packages id dir: {}",
+                    id_path.display()
+                );
+                continue;
+            };
+            let package_dirs = LocalFile
+                .dir_entries(&id_path)
+                .map_err(OCIPackageManagerError::Install)?;
+            for package_dir in package_dirs {
+                if !package_dir.is_dir() {
+                    debug!(
+                        "Unexpected file found on packages dir: {}",
+                        package_dir.display()
+                    );
+                    continue;
+                }
+                installed_packages.push(InstalledPackageData {
+                    id: package_id.to_string(),
+                    installation_path: package_dir,
+                });
+            }
+        }
+        Ok(installed_packages)
+    }
 }
 
 pub fn get_package_path(
@@ -136,12 +256,20 @@ fn get_generic_package_path(
     package_id: &PackageID,
     package_reference: &Reference,
 ) -> Result<PathBuf, OCIPackageManagerError> {
+    let package_id_path = get_generic_package_location_path(base_path, agent_id, location)?;
+    Ok(package_id_path
+        .join(package_id)
+        .join(compute_path_suffix(package_reference)?))
+}
+fn get_generic_package_location_path(
+    base_path: &Path,
+    agent_id: &AgentID,
+    location: &str,
+) -> Result<PathBuf, OCIPackageManagerError> {
     Ok(base_path
         .join(PACKAGES_FOLDER_NAME)
         .join(agent_id)
-        .join(location)
-        .join(package_id)
-        .join(compute_path_suffix(package_reference)?))
+        .join(location))
 }
 
 /// Computes the download destination of a package [`Reference`] depending on the available fields.
@@ -191,6 +319,11 @@ where
     ///
     /// The temporary location is deleted before this function returns, regardless of the install
     /// success or failure.
+    ///
+    /// # Package Retention Policy
+    /// The Package Manager keeps track of the latest installed package. Each install operation executes
+    /// an older packages purge operation. The purge operation retains the latest tracked package (current in execution)
+    /// and new installed. The main goal of this is to avoid a never ending disk usage growth on package updates.
     fn install(
         &self,
         agent_id: &AgentID,
@@ -210,10 +343,14 @@ where
                 package_path.display()
             );
 
-            return Ok(InstalledPackageData {
+            let installed_package = InstalledPackageData {
                 id: package_data.id,
                 installation_path: package_path,
-            });
+            };
+
+            self.retain_packages(agent_id, installed_package.clone())?;
+
+            return Ok(installed_package);
         }
 
         let temp_package_path = get_temp_package_path(
@@ -225,7 +362,7 @@ where
 
         // If we face an error during installation, we must ensure the temporary directory is deleted.
         // We hide the error of the folder if something else went wrong.
-        let archive = self
+        let installed_package = self
             .install_archive(&package_data, &temp_package_path, &package_path)
             .inspect_err(|_| _ = self.directory_manager.delete(&temp_package_path))?;
 
@@ -233,7 +370,9 @@ where
             .delete(&temp_package_path)
             .map_err(OCIPackageManagerError::Install)?;
 
-        Ok(archive)
+        self.retain_packages(agent_id, installed_package.clone())?;
+
+        Ok(installed_package)
     }
 
     fn uninstall(
@@ -254,6 +393,7 @@ mod tests {
     use crate::package::oci::downloader::tests::MockOCIDownloader;
     use crate::utils::extract::tests::TestDataHelper;
     use fs::directory_manager::mock::MockDirectoryManager;
+    use fs::file::writer::FileWriter;
     use mockall::predicate::eq;
     use oci_spec::distribution::Reference;
     use std::str::FromStr;
@@ -265,8 +405,171 @@ mod tests {
         Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap()
     }
 
-    fn new_package(path: &Path) -> LocalAgentPackage {
+    fn new_local_package(path: &Path) -> LocalAgentPackage {
         LocalAgentPackage::new(PackageMediaType::AgentPackageLayerTarGz, path.to_path_buf())
+    }
+
+    fn new_package_version(version: &str) -> PackageData {
+        PackageData {
+            id: TEST_PACKAGE_ID.to_string(),
+            oci_reference: Reference::from_str(format!("newrelic/fake-agent:{}", version).as_str())
+                .unwrap(),
+        }
+    }
+
+    fn fake_compressed_package(download_dir: &Path) -> LocalAgentPackage {
+        DirectoryManagerFs.create(download_dir).unwrap();
+        let downloaded_file = download_dir.join("layer_digest.tar.gz");
+        let tmp_dir_to_compress = tempdir().unwrap();
+        TestDataHelper::compress_tar_gz(tmp_dir_to_compress.path(), downloaded_file.as_path());
+
+        new_local_package(&downloaded_file)
+    }
+
+    #[test]
+    fn test_removes_untracked_packages_on_install() {
+        let mut downloader = MockOCIDownloader::new();
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+
+        let root_dir = tempdir().unwrap();
+
+        downloader
+            .expect_download()
+            .times(1)
+            .returning(move |_reference, download_dir| Ok(fake_compressed_package(download_dir)));
+
+        let pm = OCIPackageManager::new(
+            downloader,
+            DirectoryManagerFs,
+            PathBuf::from(root_dir.path()),
+        );
+
+        let untracked_package_path = get_package_path(
+            root_dir.path(),
+            &agent_id,
+            &TEST_PACKAGE_ID.to_string(),
+            &Reference::from_str("newrelic/fake-agent:v0").unwrap(),
+        )
+        .unwrap();
+        DirectoryManagerFs.create(&untracked_package_path).unwrap();
+
+        assert!(untracked_package_path.exists());
+
+        let old_package = pm.install(&agent_id, new_package_version("v1")).unwrap();
+        assert!(!untracked_package_path.exists());
+        assert!(old_package.installation_path.exists());
+    }
+
+    #[test]
+    fn test_removes_only_packages_from_agent_id() {
+        let mut downloader = MockOCIDownloader::new();
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+
+        let root_dir = tempdir().unwrap();
+
+        downloader
+            .expect_download()
+            .times(1)
+            .returning(move |_reference, download_dir| Ok(fake_compressed_package(download_dir)));
+
+        let pm = OCIPackageManager::new(
+            downloader,
+            DirectoryManagerFs,
+            PathBuf::from(root_dir.path()),
+        );
+
+        // Existing package from a different agent id should not be removed
+        let other_agent_package = get_package_path(
+            root_dir.path(),
+            &AgentID::try_from("other-agent-id").unwrap(),
+            &TEST_PACKAGE_ID.to_string(),
+            &Reference::from_str("newrelic/fake-agent:v0").unwrap(),
+        )
+        .unwrap();
+        DirectoryManagerFs.create(&other_agent_package).unwrap();
+
+        // Spurious file at installed packages level should not be removed
+        let pkg_id_dir =
+            get_generic_package_location_path(root_dir.path(), &agent_id, INSTALLED_PCK_LOCATION)
+                .unwrap();
+        DirectoryManagerFs.create(&pkg_id_dir).unwrap();
+        let pkg_id_level_spurious_file = pkg_id_dir.join("pkg_id_spurious_file");
+        LocalFile
+            .write(&pkg_id_level_spurious_file, "content".to_string())
+            .unwrap();
+
+        let current_package = pm.install(&agent_id, new_package_version("v1")).unwrap();
+        assert!(current_package.installation_path.exists());
+        assert!(other_agent_package.exists());
+        assert!(pkg_id_level_spurious_file.exists());
+    }
+
+    #[test]
+    fn test_removes_older_packages_when_new_installs() {
+        let mut downloader = MockOCIDownloader::new();
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+
+        let root_dir = tempdir().unwrap();
+
+        downloader
+            .expect_download()
+            .times(3)
+            .returning(move |_reference, download_dir| Ok(fake_compressed_package(download_dir)));
+
+        let pm = OCIPackageManager::new(
+            downloader,
+            DirectoryManagerFs,
+            PathBuf::from(root_dir.path()),
+        );
+
+        let old_package = pm.install(&agent_id, new_package_version("v1")).unwrap();
+        assert!(old_package.installation_path.exists());
+
+        let previous_package = pm.install(&agent_id, new_package_version("v2")).unwrap();
+        assert!(old_package.installation_path.exists());
+        assert!(previous_package.installation_path.exists());
+
+        let current_package = pm.install(&agent_id, new_package_version("v3")).unwrap();
+        assert!(!old_package.installation_path.exists());
+        assert!(previous_package.installation_path.exists());
+        assert!(current_package.installation_path.exists());
+    }
+
+    #[test]
+    fn test_supports_rollback() {
+        let mut downloader = MockOCIDownloader::new();
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+
+        let root_dir = tempdir().unwrap();
+
+        downloader
+            .expect_download()
+            .times(3)
+            .returning(move |_reference, download_dir| Ok(fake_compressed_package(download_dir)));
+
+        let pm = OCIPackageManager::new(
+            downloader,
+            DirectoryManagerFs,
+            PathBuf::from(root_dir.path()),
+        );
+
+        let v1_package = pm.install(&agent_id, new_package_version("v1")).unwrap();
+        assert!(v1_package.installation_path.exists());
+
+        let v2_package = pm.install(&agent_id, new_package_version("v2")).unwrap();
+        assert!(v1_package.installation_path.exists());
+        assert!(v2_package.installation_path.exists());
+
+        let v1_rollback_package = pm.install(&agent_id, new_package_version("v1")).unwrap();
+        assert!(v1_package.installation_path.exists());
+        assert!(v2_package.installation_path.exists());
+        assert!(v1_rollback_package.installation_path.exists());
+
+        let v3_package = pm.install(&agent_id, new_package_version("v3")).unwrap();
+        assert!(v3_package.installation_path.exists());
+        assert!(v1_package.installation_path.exists());
+        assert!(v1_rollback_package.installation_path.exists());
+        assert!(!v2_package.installation_path.exists());
     }
 
     #[test]
@@ -287,24 +590,13 @@ mod tests {
             .expect_download()
             .with(eq(test_reference()), eq(download_dir.clone()))
             .once()
-            .returning(move |_, _| {
-                // Mock downloader behavior creating a compressed file with known content
-                DirectoryManagerFs {}.create(&download_dir).unwrap();
-                let downloaded_file = download_dir.join("layer_digest.tar.gz");
-                let tmp_dir_to_compress = tempdir().unwrap();
-                TestDataHelper::compress_tar_gz(
-                    tmp_dir_to_compress.path(),
-                    downloaded_file.as_path(),
-                );
+            .returning(move |_, _| Ok(fake_compressed_package(&download_dir)));
 
-                Ok(new_package(&downloaded_file))
-            });
-
-        let pm = OCIPackageManager {
+        let pm = OCIPackageManager::new(
             downloader,
-            directory_manager: DirectoryManagerFs {},
-            remote_dir: PathBuf::from(root_dir.path()),
-        };
+            DirectoryManagerFs,
+            PathBuf::from(root_dir.path()),
+        );
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
@@ -337,19 +629,19 @@ mod tests {
             .once()
             .returning(move |_, _| {
                 // Mock downloader behavior creating a compressed file with known content, but WRONG FORMAT
-                DirectoryManagerFs {}.create(&download_dir).unwrap();
+                DirectoryManagerFs.create(&download_dir).unwrap();
                 let downloaded_file = download_dir.join("layer_digest.tar.gz");
                 let tmp_dir_to_compress = tempdir().unwrap();
                 TestDataHelper::compress_zip(tmp_dir_to_compress.path(), downloaded_file.as_path());
 
-                Ok(new_package(&downloaded_file))
+                Ok(new_local_package(&downloaded_file))
             });
 
-        let pm = OCIPackageManager {
+        let pm = OCIPackageManager::new(
             downloader,
-            directory_manager: DirectoryManagerFs {},
-            remote_dir: PathBuf::from(root_dir.path()),
-        };
+            DirectoryManagerFs,
+            PathBuf::from(root_dir.path()),
+        );
 
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
@@ -389,11 +681,8 @@ mod tests {
             .once()
             .returning(|_| Ok(()));
 
-        let pm = OCIPackageManager {
-            downloader,
-            directory_manager,
-            remote_dir,
-        };
+        let pm = OCIPackageManager::new(downloader, directory_manager, remote_dir);
+
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
@@ -443,11 +732,8 @@ mod tests {
                 ))
             });
 
-        let pm = OCIPackageManager {
-            downloader,
-            directory_manager,
-            remote_dir,
-        };
+        let pm = OCIPackageManager::new(downloader, directory_manager, remote_dir);
+
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
@@ -494,7 +780,7 @@ mod tests {
             .expect_download()
             .with(eq(test_reference()), eq(download_dir.clone()))
             .once()
-            .returning(move |_, _| Ok(new_package(&downloaded_file)));
+            .returning(move |_, _| Ok(new_local_package(&downloaded_file)));
 
         directory_manager
             .expect_create()
@@ -508,11 +794,8 @@ mod tests {
             .once()
             .returning(|_| Ok(()));
 
-        let pm = OCIPackageManager {
-            downloader,
-            directory_manager,
-            remote_dir,
-        };
+        let pm = OCIPackageManager::new(downloader, directory_manager, remote_dir);
+
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
@@ -565,18 +848,7 @@ mod tests {
             .expect_download()
             .with(eq(test_reference()), eq(download_dir.clone()))
             .once()
-            .returning(move |_, _| {
-                // Mock downloader behavior creating a compressed file with known content
-                DirectoryManagerFs {}.create(&download_dir_copy).unwrap();
-                let downloaded_file = download_dir_copy.join("layer_digest.tar.gz");
-                let tmp_dir_to_compress = tempdir().unwrap();
-                TestDataHelper::compress_tar_gz(
-                    tmp_dir_to_compress.path(),
-                    downloaded_file.as_path(),
-                );
-
-                Ok(new_package(&downloaded_file))
-            });
+            .returning(move |_, _| Ok(fake_compressed_package(&download_dir_copy)));
 
         directory_manager
             .expect_delete()
@@ -584,11 +856,8 @@ mod tests {
             .once()
             .returning(|_| Err(io::Error::other("error deleting directory")));
 
-        let pm = OCIPackageManager {
-            downloader,
-            directory_manager,
-            remote_dir,
-        };
+        let pm = OCIPackageManager::new(downloader, directory_manager, remote_dir);
+
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
@@ -612,11 +881,7 @@ mod tests {
             .once()
             .returning(|_| Ok(()));
 
-        let pm = OCIPackageManager {
-            downloader,
-            directory_manager,
-            remote_dir: PathBuf::from("/tmp/base"),
-        };
+        let pm = OCIPackageManager::new(downloader, directory_manager, PathBuf::from("/tmp/base"));
         let installed_package = InstalledPackageData {
             id: TEST_PACKAGE_ID.to_string(),
             installation_path: package_path,
@@ -671,11 +936,11 @@ mod tests {
 
         downloader.expect_download().times(0);
 
-        let pm = OCIPackageManager {
+        let pm = OCIPackageManager::new(
             downloader,
-            directory_manager: DirectoryManagerFs {},
-            remote_dir: PathBuf::from(remote_dir.path()),
-        };
+            DirectoryManagerFs,
+            PathBuf::from(remote_dir.path()),
+        );
 
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
