@@ -23,6 +23,10 @@ jobs:
             url: "https://opamp.staging-service.newrelic.com/v1/opamp"
           - name: "Test Runner VIP"
             url: "https://fleet-management-e2e-test-runner.vip.cf.nr-ops.net"
+          - name: "Test Runner VIP tags"
+            url: "https://staging-fleet-management-e2e-test-runner.vip.cf.nr-ops.net/test-runner/tags"
+          - name: "Test Runner VIP check"
+            url: "https://fleet-management-e2e-test-runner.vip.cf.nr-ops.net/status/check"
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
