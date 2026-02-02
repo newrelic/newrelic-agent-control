@@ -10,6 +10,7 @@ use fs::file::LocalFile;
 use fs::file::reader::FileReader;
 use oci_client::Reference;
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
@@ -43,6 +44,31 @@ pub enum OCIPackageManagerError {
     // Naming produces a non-normalized suffix. Should not happen but we can identify bugs with it.
     #[error("Package reference naming validation produces a non-normalized suffix: {0}")]
     NotNormalSuffix(String),
+    #[error("errors removing packages: {0}")]
+    RetainPackageErrors(RetainPackageErrors),
+}
+
+#[derive(Debug, Default)]
+pub struct RetainPackageErrors(Vec<(String, OCIPackageManagerError)>);
+impl RetainPackageErrors {
+    pub fn push(&mut self, package_id: String, error: OCIPackageManagerError) {
+        self.0.push((package_id, error));
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+impl Display for RetainPackageErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let errors = self
+            .0
+            .iter()
+            .map(|(package_id, error)| format!("package_id: {package_id}, error: {error}"))
+            .reduce(|acc, s| format!("{acc}, {s}"))
+            .unwrap_or_default();
+        write!(f, "[{errors}]")?;
+        Ok(())
+    }
 }
 
 const TEMP_PCK_LOCATION: &str = "__temp_packages";
@@ -122,28 +148,36 @@ where
         agent_id: &AgentID,
         installed_package: InstalledPackageData,
     ) -> Result<(), OCIPackageManagerError> {
-        let mut retained_packages = vec![installed_package.clone()];
+        let mut pkg_to_retain = vec![installed_package.clone()];
         if let Some(previous_package) = self
             .latest_installed_packages
             .lock()
             .expect("fail to acquire lock")
             .insert(agent_id.clone(), installed_package)
         {
-            retained_packages.push(previous_package);
+            pkg_to_retain.push(previous_package);
         };
 
         let installed_packages = self.installed_packages(agent_id)?;
-        installed_packages
-            .into_iter()
-            .filter(|package| !retained_packages.contains(package))
-            .try_for_each(|pck_to_remove| {
-                debug!(
-                    "Removing {} package {}",
-                    pck_to_remove.id,
-                    pck_to_remove.installation_path.display()
-                );
-                self.uninstall(agent_id, pck_to_remove.clone())
-            })?;
+
+        let mut errors = RetainPackageErrors::default();
+        for pck_to_remove in installed_packages {
+            if pkg_to_retain.contains(&pck_to_remove) {
+                continue;
+            }
+            debug!(
+                "Removing {} package {}",
+                pck_to_remove.id,
+                pck_to_remove.installation_path.display()
+            );
+            if let Err(e) = self.uninstall(agent_id, pck_to_remove.clone()) {
+                errors.push(pck_to_remove.id, e);
+            }
+        }
+        if !errors.is_empty() {
+            return Err(OCIPackageManagerError::RetainPackageErrors(errors));
+        }
+
         Ok(())
     }
 
@@ -406,7 +440,7 @@ mod tests {
 
         let pm = OCIPackageManager::new(
             downloader,
-            DirectoryManagerFs {},
+            DirectoryManagerFs,
             PathBuf::from(root_dir.path()),
         );
 
@@ -440,7 +474,7 @@ mod tests {
 
         let pm = OCIPackageManager::new(
             downloader,
-            DirectoryManagerFs {},
+            DirectoryManagerFs,
             PathBuf::from(root_dir.path()),
         );
 
@@ -484,7 +518,7 @@ mod tests {
 
         let pm = OCIPackageManager::new(
             downloader,
-            DirectoryManagerFs {},
+            DirectoryManagerFs,
             PathBuf::from(root_dir.path()),
         );
 
@@ -515,7 +549,7 @@ mod tests {
 
         let pm = OCIPackageManager::new(
             downloader,
-            DirectoryManagerFs {},
+            DirectoryManagerFs,
             PathBuf::from(root_dir.path()),
         );
 
@@ -560,7 +594,7 @@ mod tests {
 
         let pm = OCIPackageManager::new(
             downloader,
-            DirectoryManagerFs {},
+            DirectoryManagerFs,
             PathBuf::from(root_dir.path()),
         );
         let package_data = PackageData {
@@ -595,7 +629,7 @@ mod tests {
             .once()
             .returning(move |_, _| {
                 // Mock downloader behavior creating a compressed file with known content, but WRONG FORMAT
-                DirectoryManagerFs {}.create(&download_dir).unwrap();
+                DirectoryManagerFs.create(&download_dir).unwrap();
                 let downloaded_file = download_dir.join("layer_digest.tar.gz");
                 let tmp_dir_to_compress = tempdir().unwrap();
                 TestDataHelper::compress_zip(tmp_dir_to_compress.path(), downloaded_file.as_path());
@@ -605,7 +639,7 @@ mod tests {
 
         let pm = OCIPackageManager::new(
             downloader,
-            DirectoryManagerFs {},
+            DirectoryManagerFs,
             PathBuf::from(root_dir.path()),
         );
 
@@ -904,7 +938,7 @@ mod tests {
 
         let pm = OCIPackageManager::new(
             downloader,
-            DirectoryManagerFs {},
+            DirectoryManagerFs,
             PathBuf::from(remote_dir.path()),
         );
 
