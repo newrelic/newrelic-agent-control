@@ -1,6 +1,7 @@
 use crate::agent_type::runtime_config::on_host::filesystem::{DirEntriesMap, SafePath};
 use ::fs::{directory_manager::DirectoryManager, file::writer::FileWriter};
-use std::{collections::HashMap, io};
+use std::collections::HashMap;
+use std::path::PathBuf;
 use thiserror::Error;
 use tracing::trace;
 
@@ -13,47 +14,41 @@ impl FileSystem {
         file_writer: &impl FileWriter,
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
-        self.0.iter().try_for_each(|(path, dir_entries)| {
+        self.0.iter().try_for_each(|(dir_path, dir_entries)| {
             // Create the base directory so that we support empty directories
-            dir_manager.create(path.as_ref())?;
-            create_files(file_writer, dir_manager, path, dir_entries)?;
-            Ok(())
+            dir_manager.create(dir_path.as_ref()).map_err(|err| {
+                FileSystemEntriesError(format!("creating directory {dir_path:?}: {err}"))
+            })?;
+            dir_entries
+                .0
+                .iter()
+                .try_for_each(|(sub_path, file_content)| {
+                    let file_path = dir_path.as_ref().join(sub_path);
+                    create_file(file_writer, dir_manager, &file_path, file_content)
+                })
         })
     }
 }
 
-fn create_files(
+fn create_file(
     file_writer: &impl FileWriter,
     dir_manager: &impl DirectoryManager,
-    path: &SafePath,
-    dir_entries: &DirEntriesMap,
+    file_path: &PathBuf,
+    file_content: &String,
 ) -> Result<(), FileSystemEntriesError> {
-    dir_entries
-        .0
-        .iter()
-        .try_for_each(|(sub_path, file_content)| {
-            let file_path = path.as_ref().join(sub_path);
-
-            trace!("Writing filesystem entry to {}", file_path.display());
-            let parent_dir = file_path.parent().ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::InvalidFilename,
-                    format!("{} has no parent dir", file_path.display()),
-                )
-            })?;
-            dir_manager.create(parent_dir)?;
-            // Will overwrite files if they already exist!
-            file_writer.write(file_path.as_path(), file_content.to_owned())
-        })?;
-    Ok(())
+    trace!("Writing filesystem entry to {}", file_path.display());
+    let parent_dir = file_path.parent().ok_or_else(|| {
+        FileSystemEntriesError(format!("{} has no parent dir", file_path.display()))
+    })?;
+    dir_manager.create(parent_dir).map_err(|err| {
+        FileSystemEntriesError(format!("creating directory {parent_dir:?}: {err}"))
+    })?;
+    // Will overwrite files if they already exist!
+    file_writer
+        .write(file_path.as_path(), file_content.to_owned())
+        .map_err(|err| FileSystemEntriesError(format!("creating file {file_path:?}: {err}")))
 }
 
 #[derive(Debug, Error)]
 #[error("file system entries error: {0}")]
-pub struct FileSystemEntriesError(io::Error);
-
-impl From<io::Error> for FileSystemEntriesError {
-    fn from(value: io::Error) -> Self {
-        FileSystemEntriesError(value)
-    }
-}
+pub struct FileSystemEntriesError(String);
