@@ -164,7 +164,7 @@ impl FileSystem {
 }
 
 impl Templateable for DirEntriesType {
-    type Output = rendered::DirEntriesType;
+    type Output = DirEntriesMap;
     /// Replaces placeholders in the content with values from the `Variables` map.
     ///
     /// Behaves differently depending on the variant:
@@ -180,13 +180,9 @@ impl Templateable for DirEntriesType {
                     .into_iter()
                     .map(|(k, v)| Ok((k, v.template_with(variables)?)))
                     .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
-                Ok(rendered::DirEntriesType::FixedWithTemplatedContent(
-                    rendered_map,
-                ))
+                Ok(DirEntriesMap(rendered_map))
             }
-            DirEntriesType::FullyTemplated(tv) => Ok(rendered::DirEntriesType::FullyTemplated(
-                tv.template_with(variables)?,
-            )),
+            DirEntriesType::FullyTemplated(tv) => Ok(tv.template_with(variables)?),
         }
     }
 }
@@ -282,10 +278,12 @@ fn check_basedir_escape_safety(path: &Path) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use fs::directory_manager::DirectoryManagerFs;
+    use fs::file::LocalFile;
     use rstest::rstest;
     use serde_yaml::Value;
-
-    use super::*;
+    use tempfile::TempDir;
 
     #[rstest]
     #[case::can_basic_path("valid/path", Result::is_ok)]
@@ -326,7 +324,7 @@ mod tests {
 
         let expected_filesystem = rendered::FileSystem(HashMap::from([(
             SafePath(PathBuf::from("/base/dir/my/path")),
-            rendered::DirEntriesType::FixedWithTemplatedContent(HashMap::from([(
+            DirEntriesMap(HashMap::from([(
                 PathBuf::from("my/file/path").try_into().unwrap(),
                 "some content".to_string(),
             )])),
@@ -426,13 +424,14 @@ mod tests {
         key: ${nr-var:some_dir_var}
 "another/path/to/my-dir":
     ${nr-var:some_var_that_renders_to_a_yaml_mapping}
+"empty/dir": {}
 "#;
 
     #[test]
     fn parse_and_template_filesystem() {
         let parsed = serde_yaml::from_str::<FileSystem>(FILESYSTEM_EXAMPLE);
         assert!(
-            parsed.as_ref().is_ok_and(|fs| fs.0.len() == 3),
+            parsed.as_ref().is_ok_and(|fs| fs.0.len() == 4),
             "Parsed filesystem: {parsed:?}"
         );
 
@@ -476,15 +475,16 @@ mod tests {
     fn rendered_files() {
         let parsed = serde_yaml::from_str::<FileSystem>(FILESYSTEM_EXAMPLE);
         assert!(
-            parsed.as_ref().is_ok_and(|fs| fs.0.len() == 3),
+            parsed.as_ref().is_ok_and(|fs| fs.0.len() == 4),
             "Parsed filesystem: {parsed:?}"
         );
+        let tmp_dir = TempDir::new().unwrap();
 
         let parsed = parsed.unwrap();
         let variables = Variables::from_iter(vec![
             (
                 Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-                Variable::new_final_string_variable("/test/base/dir"),
+                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy().to_string()),
             ),
             (
                 Namespace::Variable.namespaced_name("some_file_var"),
@@ -515,6 +515,7 @@ mod tests {
         let templated = parsed.template_with(&variables);
         assert!(templated.is_ok(), "Templated filesystem: {templated:?}");
         let templated = templated.unwrap();
+        templated.write(&LocalFile, &DirectoryManagerFs).unwrap();
 
         // Expected rendered paths with contents.
         // All paths must be prepended by the sub-agent's generated dir and the
@@ -522,42 +523,45 @@ mod tests {
         // They also must have all variables rendered and have the correct content.
         let expected_rendered = [
             (
-                PathBuf::from("/test/base/dir/another/path/to/my-dir/fileA"),
+                tmp_dir.path().join("another/path/to/my-dir/fileA"),
                 String::from("contentA"),
             ),
             (
-                PathBuf::from("/test/base/dir/path/to/my-dir/filepath1"),
+                tmp_dir.path().join("path/to/my-dir/filepath1"),
                 String::from("file1 content"),
             ),
             (
-                PathBuf::from("/test/base/dir/path/to/my-dir/filepath2"),
+                tmp_dir.path().join("path/to/my-dir/filepath2"),
                 String::from("key: dir_var_value\n"),
             ),
             (
-                PathBuf::from("/test/base/dir/some/files/path/to/my-file"),
+                tmp_dir.path().join("some/files/path/to/my-file"),
                 String::from("something file_var_value"),
             ),
             (
-                PathBuf::from("/test/base/dir/some/files/another/path/to/my-file"),
+                tmp_dir.path().join("some/files/another/path/to/my-file"),
                 String::from("some\nmulti-line\ncontent\n"),
             ),
             (
-                PathBuf::from("/test/base/dir/another/path/to/my-dir/fileB"),
+                tmp_dir.path().join("another/path/to/my-dir/fileB"),
                 String::from("multi-line\ncontentB"),
             ),
         ];
-        let rendered = templated.expand_paths();
-        assert_eq!(
-            rendered.len(),
-            expected_rendered.len(),
-            "Rendered filesystem not same size as expected: {rendered:?}, expected: {expected_rendered:?}"
+        let empty_dir = tmp_dir.path().join("empty/dir");
+        assert!(
+            empty_dir.exists() && empty_dir.is_dir(),
+            "Empty dir was not created"
         );
 
-        assert!(
-            rendered.iter().all(|(r_p, r_s)| expected_rendered
-                .iter()
-                .any(|(e_p, e_s)| e_p == r_p && e_s == r_s)),
-            "Rendered filesystem not matching expected: {rendered:?}, expected: {expected_rendered:?}"
-        );
+        for (r_path, r_content) in expected_rendered.iter() {
+            println!("Checking rendered file at path: {}", r_path.display());
+            let read_content = std::fs::read_to_string(r_path).unwrap();
+            assert_eq!(
+                &read_content,
+                r_content,
+                "File content mismatch for path: {}",
+                r_path.display()
+            );
+        }
     }
 }

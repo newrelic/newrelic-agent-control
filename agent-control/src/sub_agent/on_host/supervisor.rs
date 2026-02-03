@@ -1,7 +1,7 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConfig;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::{
-    FileSystemEntries, FileSystemEntriesError,
+    FileSystem, FileSystemEntriesError,
 };
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::agent_type::runtime_config::version_config::rendered::OnHostVersionConfig;
@@ -83,7 +83,7 @@ where
     package_manager: Arc<PM>,
     packages_config: RenderedPackages,
     version_config: Option<OnHostVersionConfig>,
-    filesystem_entries: FileSystemEntries,
+    filesystem: FileSystem,
 }
 
 impl<PM> SupervisorStarter for NotStartedSupervisorOnHost<PM>
@@ -164,7 +164,7 @@ where
             onhost_config.packages,
             package_manager,
         )
-        .with_filesystem_entries(FileSystemEntries::from(onhost_config.filesystem));
+        .with_filesystem(onhost_config.filesystem);
 
         let new_started_supervisor = starter.spin_up(internal_publisher)?;
 
@@ -197,15 +197,12 @@ where
             package_manager,
             packages_config: packages,
             version_config,
-            filesystem_entries: FileSystemEntries::default(),
+            filesystem: FileSystem::default(),
         }
     }
 
-    pub fn with_filesystem_entries(self, filesystem_entries: FileSystemEntries) -> Self {
-        Self {
-            filesystem_entries,
-            ..self
-        }
+    pub fn with_filesystem(self, filesystem: FileSystem) -> Self {
+        Self { filesystem, ..self }
     }
 
     pub fn with_file_logging(self, log_to_file: bool, logging_path: PathBuf) -> Self {
@@ -279,7 +276,7 @@ where
     ) -> Result<StartedSupervisorOnHost<PM>, SupervisorError> {
         let (health_publisher, health_consumer) = pub_sub();
 
-        self.filesystem_entries
+        self.filesystem
             .write(&LocalFile, &DirectoryManagerFs)
             .map_err(SupervisorError::FileSystem)?;
 

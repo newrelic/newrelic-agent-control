@@ -157,7 +157,7 @@ where
             self.package_manager.clone(),
         )
         .with_file_logging(on_host.enable_file_logging, self.logging_path.to_path_buf())
-        .with_filesystem_entries(on_host.filesystem.into()))
+        .with_filesystem(on_host.filesystem))
     }
 }
 
