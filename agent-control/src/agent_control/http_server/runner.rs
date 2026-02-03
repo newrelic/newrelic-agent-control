@@ -9,7 +9,6 @@ use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Runtime;
-use tokio::sync::mpsc;
 use tracing::dispatcher;
 use tracing::{debug, error, info};
 
@@ -96,9 +95,9 @@ impl Runner {
         // Create 2 unbounded channel to send the Agent Control and Sub Agent Sync events
         // to the Async Status Server
         let (async_agent_control_event_publisher, async_agent_control_event_consumer) =
-            mpsc::unbounded_channel::<AgentControlEvent>();
+            tokio::sync::mpsc::unbounded_channel::<AgentControlEvent>();
         let (async_sub_agent_event_publisher, async_sub_agent_event_consumer) =
-            mpsc::unbounded_channel::<SubAgentEvent>();
+            tokio::sync::mpsc::unbounded_channel::<SubAgentEvent>();
 
         // Run an OS Thread that listens to sync channel and forwards the events
         // to an async channel

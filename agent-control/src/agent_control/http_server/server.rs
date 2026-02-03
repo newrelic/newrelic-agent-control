@@ -7,23 +7,20 @@ use crate::agent_control::http_server::status_updater::on_agent_control_event_up
 use crate::event::{AgentControlEvent, SubAgentEvent};
 use actix_web::{App, HttpServer, dev::ServerHandle, web};
 use std::sync::Arc;
-use std::sync::mpsc;
 use tokio::runtime::Handle;
-use tokio::sync::RwLock;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::{debug, error, info};
 
 pub async fn run_status_server(
     server_config: ServerConfig,
-    agent_control_event_consumer: UnboundedReceiver<AgentControlEvent>,
-    sub_agent_event_consumer: UnboundedReceiver<SubAgentEvent>,
+    agent_control_event_consumer: tokio::sync::mpsc::UnboundedReceiver<AgentControlEvent>,
+    sub_agent_event_consumer: tokio::sync::mpsc::UnboundedReceiver<SubAgentEvent>,
     maybe_opamp_client_config: Option<OpAMPClientConfig>,
-    startup_publisher: mpsc::Sender<Result<(), String>>,
+    startup_publisher: std::sync::mpsc::Sender<Result<(), String>>,
 ) -> Result<(), StatusServerError> {
     // channel to share the Server handle between "threads". This way we can
     // get the Server in the main "thread" and stop the Server once the
     // event process loop finishes.
-    let (server_handle_publisher, server_handle_consumer) = mpsc::channel();
+    let (server_handle_publisher, server_handle_consumer) = std::sync::mpsc::channel();
 
     // structure to contain the status of the Agent Control. It will be written
     // by the Event Processor on Agent Control Events, and read from the
@@ -34,7 +31,7 @@ pub async fn run_status_server(
         Status::default()
     };
 
-    let status = Arc::new(RwLock::new(status));
+    let status = Arc::new(tokio::sync::RwLock::new(status));
 
     // Tokio Runtime
     let rt = Handle::current();
@@ -83,9 +80,9 @@ pub async fn run_status_server(
 
 async fn run_server(
     server_config: ServerConfig,
-    tx: mpsc::Sender<ServerHandle>,
-    status: Arc<RwLock<Status>>,
-    startup_publisher: mpsc::Sender<Result<(), String>>,
+    tx: std::sync::mpsc::Sender<ServerHandle>,
+    status: Arc<tokio::sync::RwLock<Status>>,
+    startup_publisher: std::sync::mpsc::Sender<Result<(), String>>,
 ) -> std::io::Result<()> {
     info!(
         "starting HTTP server at http://{}:{}",
