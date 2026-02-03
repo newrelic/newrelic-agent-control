@@ -180,6 +180,7 @@ deployment:
           ${nr-var:config_agent}
       integrations.d: ${nr-var:config_integrations}
       logging.d: ${nr-var:config_logging}
+      # this is needed in order to create the logging integration directory expected by fluentBit
       newrelic-infra/newrelic-integrations/logging: { }
     executables:
       - id: newrelic-infra

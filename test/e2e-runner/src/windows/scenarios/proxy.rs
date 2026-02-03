@@ -81,6 +81,8 @@ agents:
         format!(
             r#"
 config_agent:
+  log:
+    level: debug
   proxy: {PROXY_URL}
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
 version: {INFRA_AGENT_VERSION}
