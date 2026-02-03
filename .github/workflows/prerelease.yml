@@ -189,6 +189,7 @@ jobs:
       environment: production
       # AC US Production Account `host-canaries-production` fleet
       fleet_id: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWFlM2EyLTA3OTctNzczYS05Y2JjLWMzNzZkMjAwMWFkZg"
+      windows_fleet_id: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWMyMjljLWVhYTQtN2JmNi04YWIyLTU2ZWI0YjE2ZWZjZQ"
       operation: apply
       package_version: ${{ github.event.inputs.tag || github.event.release.tag_name }}
     secrets:

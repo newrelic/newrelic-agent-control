@@ -128,8 +128,41 @@
     # Pre-release version of the agent control is used by default
     repo_endpoint: http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview
     extract_dest: "C:\\temp\\newrelic-agent-control"
+    agent_control_private_key: "C:\\temp\\newrelic-agent-control\\priv.key"
+    infra_staging: true
 
   tasks:
+    - name: Gather facts
+      setup:
+
+    - name: Configure hostname
+      include_role:
+        name: caos.ansible_roles.hostname
+
+#    At the moment there is no publishing of the last infra-agent package to a public repository, and we use the Github
+#    package repository that can't be on constant sync with the latest infra-agent version.
+#    We may use this commented code to gather the latest infra-agent version once Fleet creates an infra-agent oci repo
+#    and the agent-type points to it.
+#
+#    - name: Get Infra Agent release info from GitHub API
+#      ansible.windows.win_uri:
+#        url: https://api.github.com/repos/newrelic/infrastructure-agent/releases/latest
+#        method: GET
+#        return_content: yes
+#      register: github_api_response
+#
+#    - name: Extract version from API response
+#      ansible.builtin.set_fact:
+#        infra_version: "v{{ github_api_response.json.tag_name }}"
+
+    - name: Set infra version matching an existing one in the Github oci package repo
+      ansible.builtin.set_fact:
+        infra_version: "v1.71.4"
+
+    - name: Display the infra-agent version
+      ansible.builtin.debug:
+        msg: "The latest infra-agent version is {{ infra_version }}"
+
     - name: Ensure temp directory exists
       ansible.windows.win_file:
         path: C:\temp
@@ -138,7 +171,7 @@
     - name: Download Agent Control zip
       ansible.windows.win_get_url:
         url: "{{ repo_endpoint }}/binaries/windows/amd64/newrelic-agent-control_{{ package_version }}_windows_amd64.zip"
-        dest: "C:\\temp\\newrelic-agent-control_0.100.19917356190_windows_amd64.zip"
+        dest: "C:\\temp\\newrelic-agent-control_{{ package_version }}_windows_amd64.zip"
         force: yes
 
     - name: Extract Agent Control zip
@@ -153,27 +186,77 @@
 
           Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
 
-    - name: Execute install.ps1
+    - name: Import the L2 private key from env-var
+      copy:
+        dest: "{{ agent_control_private_key }}"
+        # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
+        content: "{{ lookup('ansible.builtin.env', 'NR_SYSTEM_IDENTITY_PRIVATE_KEY') }}"
+
+    - name: Execute New Relic Agent Control install script
       ansible.windows.win_powershell:
         chdir: "{{ extract_dest }}"
         script: |
-          .\install.ps1
+          $cliArgs = @{
+              LicenseKey          = "{{ nr_license_key }}"
+              Region              = "{{ 'Staging' if infra_staging | bool else 'us' }}"
+              ServiceOverwrite    = $true
+              FleetEnabled        = $true
+              FleetId             = "{{ windows_fleet_id }}"
+              AuthClientId        = "{{ system_identity_client_id }}"
+              AuthPrivateKeyPath  = "{{ agent_control_private_key }}"
+          }
+          
+          & .\install.ps1 @cliArgs
+      register: install_result
+      failed_when:
+        - install_result.exit_code is defined
+        - install_result.exit_code != 0
+        - install_result.exit_code != 133
 
-    - name: Wait for Agent Control to start
-      pause:
-        seconds: 30
+    - name: Register agent control version
+      ansible.windows.win_command: '"C:\Program Files\New Relic\newrelic-agent-control\newrelic-agent-control.exe" --version'
+      register: version
 
-    - name: Check if agent-control is running
+    - name: Debug agent control version
+      debug:
+        var: version.stdout
+
+    - name: Update agents configuration in local_config.yaml
       ansible.windows.win_powershell:
         script: |
-          $status = Invoke-RestMethod -Uri http://localhost:51200/status -Method Get
-          $pattern = 'agent_control":{"healthy":(\w+)'
-          $isHealthy = $status.agent_control.healthy
-          $match = $isHealthy | Select-String -Pattern $pattern
-          if ($match) {
-            $healthyStatus = $match.Matches.Groups[1].Value
-            if ($healthyStatus -eq "true") {
-              exit 0
-            } 
-          }
-          exit 1
+          $configPath = "C:\Program Files\New Relic\newrelic-agent-control\local-data\agent-control\local_config.yaml"
+          $content = Get-Content $configPath -Raw
+          
+          $oldAgents = "agents: {}"
+          $newAgents = @"
+          agents:
+            nr-infra:
+              agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+          "@
+          
+          $newContent = $content -replace [regex]::Escape($oldAgents), $newAgents
+          [IO.File]::WriteAllText($configPath, $newContent)
+
+    - name: Ensure temp directory exists
+      ansible.windows.win_file:
+        path: "C:\\Program Files\\New Relic\\newrelic-agent-control\\local-data\\nr-infra"
+        state: directory
+
+    - name: Infra Agent config file
+      copy:
+        dest: "C:\\Program Files\\New Relic\\newrelic-agent-control\\local-data\\nr-infra\\local_config.yaml"
+        content: |
+          {% raw %}
+          config_agent:
+            staging: {% endraw -%} {{ infra_staging }} {%- raw %}
+            enable_process_metrics: true
+            status_server_enabled: true
+            status_server_port: 18003
+            license_key: '{{NEW_RELIC_LICENSE_KEY}}'
+          version: {% endraw -%} {{ infra_version }} {%- raw %}
+          {% endraw %}
+
+    - name: Restart New Relic Agent Control service
+      ansible.windows.win_service:
+        name: newrelic-agent-control
+        state: restarted

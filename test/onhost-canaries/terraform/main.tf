@@ -29,7 +29,13 @@ variable "package_version" {
 }
 
 variable "fleet_id" {
-  description = "New Relic Fleet ID"
+  description = "New Relic Linux Fleet ID"
+  type        = string
+}
+
+
+variable "windows_fleet_id" {
+  description = "New Relic Windows Fleet ID"
   type        = string
 }
 
@@ -101,16 +107,7 @@ locals {
   // If env-provisioner changes the way it computes the hostnames, we need to change
   // it here too. However, terraform plan will properly list all the resources that
   // will be created and we can spot any problems with the hostnames.
-  // At the moment windows is not installing infra-agent so we only add the alerts to linux hosts
-  // so we use the linux_hostnames variable instead of this one.
   hostnames = [for k, v in local.ec2_instances : "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}"]
-
-  # Filtered list for linux hostnames
-  linux_hostnames = [
-    for k, v in local.ec2_instances :
-    "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}"
-    if v.platform == "linux"
-  ]
   infra_staging = var.nr_region == "Staging" ? "true" : "false"
 }
 
@@ -125,7 +122,7 @@ module "agent_control-canary-env-provisioner" {
   ssh_pub_key        = "AAAAB3NzaC1yc2EAAAADAQABAAABAQDH9C7BS2XrtXGXFFyL0pNku/Hfy84RliqvYKpuslJFeUivf5QY6Ipi8yXfXn6TsRDbdxfGPi6oOR60Fa+4cJmCo6N5g57hBS6f2IdzQBNrZr7i1I/a3cFeK6XOc1G1tQaurx7Pu+qvACfJjLXKG66tHlaVhAHd/1l2FocgFNUDFFuKS3mnzt9hKys7sB4aO3O0OdohN/0NJC4ldV8/OmeXqqfkiPWcgPx3C8bYyXCX7QJNBHKrzbX1jW51Px7SIDWFDV6kxGwpQGGBMJg/k79gjjM+jhn4fg1/VP/Fx37mAnfLqpcTfiOkzSE80ORGefQ1XfGK/Dpa3ITrzRYW8xlR caos-dev-arm"
   inventory_template = "../ansible/inventory-template.tmpl"
   inventory_output   = var.inventory_output
-  ansible_playbook   = "-e system_identity_client_id=${var.system_identity_client_id} -e nr_license_key=${var.license_key} -e repo_endpoint=${var.repository_endpoint} -e package_version=${var.package_version} -e fleet_id=${var.fleet_id} -e opamp_endpoint=${var.opamp_endpoint} -e token_endpoint=${var.token_endpoint} -e signature_validation_endpoint=${var.signature_validation_endpoint} -e otlp_endpoint=${var.otlp_endpoint} -e infra_staging=${local.infra_staging} ../ansible/install_ac_with_basic_config.yml"
+  ansible_playbook   = "-e system_identity_client_id=${var.system_identity_client_id} -e nr_license_key=${var.license_key} -e repo_endpoint=${var.repository_endpoint} -e package_version=${var.package_version} -e fleet_id=${var.fleet_id} -e windows_fleet_id=${var.windows_fleet_id} -e opamp_endpoint=${var.opamp_endpoint} -e token_endpoint=${var.token_endpoint} -e signature_validation_endpoint=${var.signature_validation_endpoint} -e otlp_endpoint=${var.otlp_endpoint} -e infra_staging=${local.infra_staging} ../ansible/install_ac_with_basic_config.yml"
   ec2_otels          = local.ec2_instances
 }
 
@@ -152,7 +149,7 @@ variable "nr_region" {
 module "alerts" {
   source = "../../terraform/modules/nr_alerts"
 
-  for_each = toset(local.linux_hostnames)
+  for_each = toset(local.hostnames)
 
   api_key           = var.api_key
   account_id        = var.account_id

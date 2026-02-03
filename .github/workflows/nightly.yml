@@ -160,6 +160,7 @@ jobs:
       environment: staging
       # AC Staging Account `host-canaries-staging` fleet
       fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlhZTNiNS01Yjg5LTdkNjYtYWU0MC1lNmZkOTY2ZDFhMDA"
+      windows_fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTljMjNjYy0yM2I2LTc1OTYtODBkNy0yMzAzYWIyYzcwMTA"
       operation: apply
       package_version: 0.100.${{ github.run_id }}
     secrets:
