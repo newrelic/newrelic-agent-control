@@ -10,6 +10,7 @@ use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::instrumentation::tracing::TracingGuardBox;
+use newrelic_agent_control::rollback_probation::retrieve_rollback_probation_data;
 use newrelic_agent_control::utils::is_elevated::is_elevated;
 use std::error::Error;
 use std::process::ExitCode;
@@ -22,6 +23,25 @@ use newrelic_agent_control::command::windows::{WINDOWS_SERVICE_NAME, setup_windo
 windows_service::define_windows_service!(ffi_service_main, service_main);
 
 fn main() -> ExitCode {
+    // Let's check for rollback
+    let maybe_boot_data = retrieve_rollback_probation_data();
+    if maybe_boot_data.is_none() {
+        info!("No previous boot data found.");
+    }
+    let boot_data = maybe_boot_data.unwrap_or_default();
+    info!(
+        "Current boot data: status={:?}, previous_version={:?}, backup_path={:?}, n_attempts={}",
+        boot_data.status(),
+        boot_data.previous_version(),
+        boot_data.backup_path(),
+        boot_data.n_attempts()
+    );
+
+    if boot_data.should_trigger_rollback() {
+        // Restore files and exit
+        todo!();
+    }
+
     #[cfg(target_family = "unix")]
     {
         Command::run(AGENT_CONTROL_MODE_ON_HOST, _main)
@@ -44,6 +64,8 @@ fn main() -> ExitCode {
 #[cfg(target_os = "windows")]
 /// Entry-point for Windows Service
 fn service_main(_arguments: Vec<std::ffi::OsString>) {
+    // panic!("Making Windows service fail to test reboots");
+
     let _ = Command::run(AGENT_CONTROL_MODE_ON_HOST, |cfg, tracer| {
         _main(cfg, tracer, true)
     });
