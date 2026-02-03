@@ -14,24 +14,38 @@ impl FileSystem {
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
         self.0.iter().try_for_each(|(path, dir_entries)| {
+            // Create the base directory so that we support empty directories
             dir_manager.create(path.as_ref())?;
-            for (k, content) in &dir_entries.0 {
-                let final_path = path.as_ref().join(k);
-
-                trace!("Writing filesystem entry to {}", final_path.display());
-                let parent_dir = final_path.parent().ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidFilename,
-                        format!("{} has no parent dir", final_path.display()),
-                    )
-                })?;
-                dir_manager.create(parent_dir)?;
-                // Will overwrite files if they already exist!
-                file_writer.write(final_path.as_path(), content.to_owned())?;
-            }
+            create_files(file_writer, dir_manager, path, dir_entries)?;
             Ok(())
         })
     }
+}
+
+fn create_files(
+    file_writer: &impl FileWriter,
+    dir_manager: &impl DirectoryManager,
+    path: &SafePath,
+    dir_entries: &DirEntriesMap,
+) -> Result<(), FileSystemEntriesError> {
+    dir_entries
+        .0
+        .iter()
+        .try_for_each(|(sub_path, file_content)| {
+            let file_path = path.as_ref().join(sub_path);
+
+            trace!("Writing filesystem entry to {}", file_path.display());
+            let parent_dir = file_path.parent().ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidFilename,
+                    format!("{} has no parent dir", file_path.display()),
+                )
+            })?;
+            dir_manager.create(parent_dir)?;
+            // Will overwrite files if they already exist!
+            file_writer.write(file_path.as_path(), file_content.to_owned())
+        })?;
+    Ok(())
 }
 
 #[derive(Debug, Error)]
