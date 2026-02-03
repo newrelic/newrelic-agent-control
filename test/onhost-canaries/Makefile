@@ -42,6 +42,7 @@ define check_env_vars
 	$(call check_env_var,ENVIRONMENT)
 	$(call check_env_var,SLACK_WEBHOOK_URL)
 	$(call check_env_var,FLEET_ID)
+	$(call check_env_var,WINDOWS_FLEET_ID)
 	$(call check_env_var,AC_CANARY_WINDOWS_PASSWORD)
 	if [ "$$ENVIRONMENT" = "staging" ]; then \
 		$(call check_env_var,NR_LICENSE_KEY); \
@@ -70,6 +71,7 @@ test/onhost-canaries/terraform-plan:
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
 	TF_VAR_fleet_id=${FLEET_ID} \
+	TF_VAR_windows_fleet_id=${WINDOWS_FLEET_ID} \
 	TF_VAR_package_version=${PACKAGE_VERSION} \
 	TF_VAR_slack_webhook_url=${SLACK_WEBHOOK_URL} \
 	TF_VAR_windows_password="${AC_CANARY_WINDOWS_PASSWORD}" \
@@ -85,6 +87,7 @@ test/onhost-canaries/terraform-apply:
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
 	TF_VAR_fleet_id=${FLEET_ID} \
+	TF_VAR_windows_fleet_id=${WINDOWS_FLEET_ID} \
 	TF_VAR_package_version=${PACKAGE_VERSION} \
 	TF_VAR_slack_webhook_url=${SLACK_WEBHOOK_URL} \
 	TF_VAR_windows_password="${AC_CANARY_WINDOWS_PASSWORD}" \
@@ -99,6 +102,7 @@ test/onhost-canaries/terraform-destroy:
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
 	TF_VAR_fleet_id=${FLEET_ID} \
+	TF_VAR_windows_fleet_id=${WINDOWS_FLEET_ID} \
 	TF_VAR_package_version=${PACKAGE_VERSION} \
 	TF_VAR_slack_webhook_url=${SLACK_WEBHOOK_URL} \
 	TF_VAR_windows_password="${AC_CANARY_WINDOWS_PASSWORD}" \

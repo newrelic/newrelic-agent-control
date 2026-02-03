@@ -201,7 +201,7 @@
               Region              = "{{ 'Staging' if infra_staging | bool else 'us' }}"
               ServiceOverwrite    = $true
               FleetEnabled        = $true
-              FleetId             = "{{ fleet_id }}"
+              FleetId             = "{{ windows_fleet_id }}"
               AuthClientId        = "{{ system_identity_client_id }}"
               AuthPrivateKeyPath  = "{{ agent_control_private_key }}"
           }
