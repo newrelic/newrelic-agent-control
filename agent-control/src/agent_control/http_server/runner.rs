@@ -67,7 +67,7 @@ impl Runner {
 
         let thread_context = NotStartedThreadContext::new("Http server", callback).start();
 
-        // Wait for the server to start with a timeout
+        info!("Waiting for the HTTP status server to start");
         let startup_result =
             startup_consumer
                 .recv_timeout(STARTUP_TIMEOUT)
@@ -81,6 +81,7 @@ impl Runner {
                 })?;
 
         startup_result.map_err(StatusServerError::BindError)?;
+        info!("HTTP status server started");
 
         Ok(StartedHttpServer {
             thread_context: Some(thread_context),
