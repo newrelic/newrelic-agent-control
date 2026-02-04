@@ -47,7 +47,7 @@ variables:
         required: false
         default: calvarez780/nrdot-test
         variants:
-          ac_config_field: "oci_nrdot_allowed_repositories"
+          ac_config_field: "oci_nrdot_registry_repositories"
           values: [ "calvarez780/nrdot-test"  ]
     version:
       description: "Agent version"
