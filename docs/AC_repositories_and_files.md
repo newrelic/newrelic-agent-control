@@ -40,7 +40,7 @@ Obviously, there are no packages stored.
 
 ## Filesystem layout
 
-The following shows the directory structure used by Agent Control, assuming an existing sub-agent with the ID `newrelic-infra`.
+The following shows the directory structure used by Agent Control, assuming an existing sub-agent with the ID `nr-infra`.
 
 ### Linux
 
@@ -53,7 +53,7 @@ The following shows the directory structure used by Agent Control, assuming an e
 │       └── local-data
 │              ├── agent-control
 │              │    └── local_config.yaml
-│              └── newrelic-infra
+│              └── nr-infra
 │                   └── local_config.yaml
 └── var
     ├── lib
@@ -71,18 +71,19 @@ The following shows the directory structure used by Agent Control, assuming an e
     │       │    ├── agent-control
     │       │    │    ├── instance_id.yaml
     │       │    │    └── remote_config.yaml
-    │       │    └── newrelic-infra
+    │       │    └── nr-infra
     │       │         ├── instance_id.yaml
     │       │         └── remote_config.yaml 
     │       └── filesystem
-    │            └── newrelic-infra
+    │            └── nr-infra
     │                ├── integrations.d
     │                │   └── nri-redis.yaml
-    │                └── newrelic-infra.yaml
+    │                └── config
+    │                      └── newrelic-infra.yml
     └── log
         ├── newrelic-agent-control
         │   └── newrelic-agent-control.log.2025-01-15-23
-        └── newrelic-infra
+        └── nr-infra
             ├── stdout.log.2025-01-15-23
             └── stderr.log.2025-01-15-23
 ```
@@ -105,16 +106,17 @@ C:\Program Files\New Relic\newrelic-agent-control
 C:\ProgramData\New Relic\newrelic-agent-control
 ├───filesystem
 │   └───nr-infra
-│       ├───config
-│       │       newrelic-infra.yaml
-│       └───data
+│       ├───newrelic-infra
+│       │    └─── [...] Data files created by the infra agent
+│       └── config
+│             └── newrelic-infra.yml
 ├───fleet-data
 │   ├───agent-control
 │   │       instance_id.yaml
-│   │       remote_config.yaml 
+│   │       remote_config.yaml
 │   └───nr-infra
 │           instance_id.yaml
-│           remote_config.yaml 
+│           remote_config.yaml
 ├───logs
 │   └───nr-infra
 │           stderr.log.2026-01-19-22
@@ -122,7 +124,7 @@ C:\ProgramData\New Relic\newrelic-agent-control
     └───nr-infra
         ├───stored_packages
         │   └───infra-agent
-        │       └───oci_ghcr_io__newrelic__testing_infra_agent_v1_71_3
+        │       └───oci_ghcr_io__newrelic__testing_infra_agent_v1_71_4
         │           │   newrelic-infra.exe
         │           └───integrations
         │                   nri-docker.exe
