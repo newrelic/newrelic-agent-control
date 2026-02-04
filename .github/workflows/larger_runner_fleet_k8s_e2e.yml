@@ -143,7 +143,7 @@ jobs:
 
             if [ "$HTTP_CODE" -eq 200 ]; then
               echo "✅ Success: Triggered test suite (HTTP 200)"
-              cat response.json
+              cat response.json | jq .
               TEST_RUN_ID=$(cat response.json | jq -r '.testRunId')
               echo "Test Run ID: $TEST_RUN_ID"
               echo "test_run_id=$TEST_RUN_ID" >> "$GITHUB_OUTPUT"
@@ -168,6 +168,9 @@ jobs:
           TEST_RUN_ID="${{ steps.trigger-fc-test.outputs.test_run_id }}"
           TOKEN="${{ steps.get-token.outputs.token }}"
           URL_BASE="https://fleet-management-e2e-test-runner.staging-service.newrelic.com/test-runner/status"
+
+          echo "Waiting for 5 minutes before checking status..."
+          sleep 300
 
           # Timeout in seconds (10 minutes)
           TIMEOUT=600
