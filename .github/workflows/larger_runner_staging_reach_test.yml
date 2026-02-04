@@ -21,8 +21,6 @@ jobs:
             url: "https://system-identity-oauth.staging-service.newrelic.com/oauth2/token"
           - name: "OpAMP"
             url: "https://opamp.staging-service.newrelic.com/v1/opamp"
-          - name: "Test Runner VIP"
-            url: "https://fleet-management-e2e-test-runner.vip.cf.nr-ops.net"
           - name: "Test Runner VIP tags (IngDom)"
             url: "https://fleet-management-e2e-test-runner.staging-service.newrelic.com/test-runner/tags"
           - name: "Test Runner VIP check (IngDom)"
