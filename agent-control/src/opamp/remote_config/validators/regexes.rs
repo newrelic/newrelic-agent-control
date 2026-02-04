@@ -56,6 +56,7 @@ impl RegexValidator {
                     Regex::new(REGEX_EXEC_FIELD)?,
                     Regex::new(REGEX_BINARY_PATH_FIELD)?,
                     Regex::new(REGEX_NRI_FLEX)?,
+                    Regex::new(REGEX_PROXY_ENV_VAR)?,
                 ],
             )]),
         })
@@ -140,6 +141,14 @@ pub static REGEX_BINARY_PATH_FIELD: &str = r"(?i:(b|\\x62)(i|\\x69)(n|\\x6e)(a|\
 // deny using nri-flex
 pub static REGEX_NRI_FLEX: &str =
     r"(n|\\x6e)(r|\\x72)(i|\\x69)(\-|\\x2d)(f|\\x66)(l|\\x6c)(e|\\x65)(x|\\x78)";
+
+// deny environment variable syntax in proxy configuration
+// This prevents using {{VAR_NAME}} (infra agent syntax) or ${nr-env:VAR_NAME} (agent control syntax)
+// in the proxy field.
+// Example:
+// proxy: http://{{PROXY_HOST}}:8080
+// proxy: ${nr-env:HTTP_PROXY}
+pub static REGEX_PROXY_ENV_VAR: &str = r"(?i:(p|\\x70)(r|\\x72)(o|\\x6f)(x|\\x78)(y|\\x79))\s*:.*(\{\{|\$\{(n|\\x6e)(r|\\x72)(\-|\\x2d)(e|\\x65)(n|\\x6e)(v|\\x76):)";
 
 #[cfg(test)]
 pub(super) mod tests {
@@ -479,6 +488,21 @@ config:
                 agent_identity: infra_agent(),
                 config: CONFIG_WITH_BINARY_PATH_LOWERCASE,
             },
+            TestCase {
+                _name: "infra-agent config with proxy using infra agent env var syntax should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_PROXY_INFRA_ENV_VAR,
+            },
+            TestCase {
+                _name: "infra-agent config with proxy using agent control env var syntax should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_PROXY_AGENT_CONTROL_ENV_VAR,
+            },
+            TestCase {
+                _name: "infra-agent config with proxy using hexadecimal encoded env var syntax should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_PROXY_ENV_VAR_HEXADECIMAL,
+            },
         ];
 
         for test_case in test_cases {
@@ -750,10 +774,64 @@ config_integrations:
       inventory_source: config/apache
 "#;
 
+    // config with proxy using infra agent environment variable syntax to be denied
+    const CONFIG_WITH_PROXY_INFRA_ENV_VAR: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  proxy: http://{{PROXY_HOST}}:8080
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+"#;
+
+    // config with proxy using agent control environment variable syntax to be denied
+    const CONFIG_WITH_PROXY_AGENT_CONTROL_ENV_VAR: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  proxy: ${nr-env:HTTP_PROXY}
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+"#;
+
+    // config with proxy using hexadecimal encoded nr-env syntax to be denied
+    const CONFIG_WITH_PROXY_ENV_VAR_HEXADECIMAL: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  proxy: ${nr\x2denv:HTTP_PROXY}
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+"#;
+
     // infra agent config to be allowed
     const GOOD_INFRA_AGENT_CONFIG: &str = r#"
 config_agent:
-  license_key: your_license_key
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
   fedramp: true
   payload_compression_level: 7
   display_name: new_name
@@ -770,6 +848,7 @@ config_agent:
       - regex "pattern"
       - "string"
       - "string-with-wildcard*"
+      - ${nr-env:METRIC_ATTRIBUTE}
   log:
     file: /tmp/agent.log
     format: json
