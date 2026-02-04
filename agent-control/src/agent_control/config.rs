@@ -63,6 +63,28 @@ pub struct AgentControlConfig {
     /// configuration for every secrets provider that the current AgentControl instance should be able to access
     #[serde(default)]
     pub secrets_providers: Option<SecretsProvidersConfig>,
+
+    /// Contains the configuration related to host agent packages
+    #[serde(default)]
+    pub agent_packages: PackagesConfig,
+}
+
+const DEFAULT_SIGNATURE_VERIFICATION_ENABLED: bool = true;
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub struct PackagesConfig {
+    /// Indicates whether package signature verification is enabled or not
+    #[serde(default = "default_signature_verification_enabled")]
+    pub signature_verification_enabled: bool,
+}
+impl Default for PackagesConfig {
+    fn default() -> Self {
+        Self {
+            signature_verification_enabled: DEFAULT_SIGNATURE_VERIFICATION_ENABLED,
+        }
+    }
+}
+fn default_signature_verification_enabled() -> bool {
+    DEFAULT_SIGNATURE_VERIFICATION_ENABLED
 }
 
 impl TryFrom<YAMLConfig> for AgentControlConfig {
