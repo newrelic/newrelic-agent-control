@@ -85,6 +85,10 @@ jobs:
             > /tmp/agent-control-token.txt
 
           TOKEN=$(cat /tmp/agent-control-token.txt)
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Agent control token is empty!"
+            exit 1
+          fi
           echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
@@ -94,7 +98,7 @@ jobs:
       # This would be replaced with the actual E2E test that requires the larger runner.
       # It would "Install AC" and leave it running while we drive the staging endpoints.
       - name: Run k8s e2e-test ${{ matrix.group }}
-        id: e2e_test
+        id: e2e-ac-test
         uses: newrelic/newrelic-integration-e2e-action@c548a33a0c2941a4db4899ded766923eb3178e0e # v1
         env:
           # SI L2->L2 for AC
@@ -207,7 +211,7 @@ jobs:
           done
 
       - name: Dump logs, stop Tilt on failure
-        if: always()
+        if: always() && steps.e2e-ac-test.conclusion != 'skipped'
         run: |
           kubectl logs --tail=-1 -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
           kubectl logs --tail=-1 -l app.kubernetes.io/instance=nr-infra --all-containers --prefix=true -n newrelic-agents
