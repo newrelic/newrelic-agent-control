@@ -193,11 +193,11 @@ jobs:
             case "$HTTP_CODE" in
               404)
                 echo "⏳ [$ELAPSED s] Run not found / initializing (404). Retrying..."
-                sleep 5
+                sleep 30
                 ;;
               204)
                 echo "🏃 [$ELAPSED s] Tests are running (204). Retrying..."
-                sleep 10
+                sleep 30
                 ;;
               200)
                 echo "✅ [$ELAPSED s] Tests completed successfully (200)!"
