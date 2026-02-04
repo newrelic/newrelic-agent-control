@@ -7,22 +7,20 @@ use crate::agent_control::http_server::status_updater::on_agent_control_event_up
 use crate::event::{AgentControlEvent, SubAgentEvent};
 use actix_web::{App, HttpServer, dev::ServerHandle, web};
 use std::sync::Arc;
-use std::sync::mpsc;
 use tokio::runtime::Handle;
-use tokio::sync::RwLock;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::{debug, error, info};
 
 pub async fn run_status_server(
     server_config: ServerConfig,
-    agent_control_event_consumer: UnboundedReceiver<AgentControlEvent>,
-    sub_agent_event_consumer: UnboundedReceiver<SubAgentEvent>,
+    agent_control_event_consumer: tokio::sync::mpsc::UnboundedReceiver<AgentControlEvent>,
+    sub_agent_event_consumer: tokio::sync::mpsc::UnboundedReceiver<SubAgentEvent>,
     maybe_opamp_client_config: Option<OpAMPClientConfig>,
+    startup_publisher: std::sync::mpsc::Sender<Result<(), String>>,
 ) -> Result<(), StatusServerError> {
     // channel to share the Server handle between "threads". This way we can
     // get the Server in the main "thread" and stop the Server once the
     // event process loop finishes.
-    let (server_handle_publisher, server_handle_consumer) = mpsc::channel();
+    let (server_handle_publisher, server_handle_consumer) = std::sync::mpsc::channel();
 
     // structure to contain the status of the Agent Control. It will be written
     // by the Event Processor on Agent Control Events, and read from the
@@ -33,7 +31,7 @@ pub async fn run_status_server(
         Status::default()
     };
 
-    let status = Arc::new(RwLock::new(status));
+    let status = Arc::new(tokio::sync::RwLock::new(status));
 
     // Tokio Runtime
     let rt = Handle::current();
@@ -49,11 +47,16 @@ pub async fn run_status_server(
     debug!("spawning thread for status server");
     let status_clone = status.clone();
     let server_join_handle = rt.spawn(async {
-        let _ = run_server(server_config, server_handle_publisher, status_clone)
-            .await
-            .inspect_err(|err| {
-                error!(error_msg = %err, "starting HTTP server");
-            });
+        let _ = run_server(
+            server_config,
+            server_handle_publisher,
+            status_clone,
+            startup_publisher,
+        )
+        .await
+        .inspect_err(|err| {
+            error!(error_msg = %err, "starting HTTP server");
+        });
     });
 
     debug!("waiting for the event_join_handle");
@@ -77,8 +80,9 @@ pub async fn run_status_server(
 
 async fn run_server(
     server_config: ServerConfig,
-    tx: mpsc::Sender<ServerHandle>,
-    status: Arc<RwLock<Status>>,
+    tx: std::sync::mpsc::Sender<ServerHandle>,
+    status: Arc<tokio::sync::RwLock<Status>>,
+    startup_publisher: std::sync::mpsc::Sender<Result<(), String>>,
 ) -> std::io::Result<()> {
     info!(
         "starting HTTP server at http://{}:{}",
@@ -87,7 +91,7 @@ async fn run_server(
 
     let status_data = web::Data::new(status);
 
-    let server = HttpServer::new(move || {
+    let server = match HttpServer::new(move || {
         App::new()
             .app_data(status_data.clone())
             // TODO Do we want to log the requests?
@@ -95,12 +99,23 @@ async fn run_server(
             // .wrap(middleware::Logger::default())
             .service(web::resource("/status").to(status_handler))
     })
-    .bind((server_config.host.to_string(), server_config.port.into()))?
-    .workers(DEFAULT_WORKERS)
-    .run();
+    .bind((server_config.host.to_string(), server_config.port.into()))
+    {
+        Ok(server) => server,
+        Err(err) => {
+            // Signal startup failure (clone the error info for the channel)
+            let _ = startup_publisher.send(Err(err.to_string()));
+            return Err(err);
+        }
+    };
+
+    let server = server.workers(DEFAULT_WORKERS).run();
 
     // Send server handle back to the main thread
     let _ = tx.send(server.handle());
+
+    // Signal successful startup
+    let _ = startup_publisher.send(Ok(()));
 
     server.await
 }

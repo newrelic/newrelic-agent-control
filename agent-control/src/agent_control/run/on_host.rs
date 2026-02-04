@@ -211,7 +211,11 @@ impl AgentControlRunner {
             RegistryDynamicConfigValidator::new(self.agent_type_registry);
 
         // The http server stops on Drop. We need to keep it while the agent control is running.
-        let _http_server = self.http_server_runner.map(Runner::start);
+        let _http_server = self
+            .http_server_runner
+            .map(Runner::start)
+            .transpose()
+            .map_err(|err| RunError(format!("failed to start HTTP server: {err}")))?;
 
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
         AgentControl::new(

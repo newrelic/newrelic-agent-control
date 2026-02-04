@@ -20,4 +20,10 @@ pub enum StatusServerError {
     ServerConsumerError(#[from] RecvError),
     #[error("error waiting for async join handle {0}")]
     JoinHandleError(#[from] JoinError),
+    #[error("failed to bind HTTP server: {0}")]
+    BindError(String),
+    #[error("HTTP server startup timed out after {0:?}")]
+    StartupTimeout(std::time::Duration),
+    #[error("HTTP server thread failed during startup")]
+    StartupChannelClosed,
 }
