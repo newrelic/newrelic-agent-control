@@ -55,6 +55,8 @@ config_logging:
   logging.yaml:
     logs:
     - name: everything
+      attributes:
+        host.id: {test_id}
       winlog:
         channel: Security, Application, System, Operations Manager, windows-defender, windows-clustering, iis-log
 version: {}
