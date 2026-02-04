@@ -1,4 +1,4 @@
-name: 📞 k8s E2E tests (Larger Runner)
+name: 📞 K8s E2E tests with Fleet Control (Larger Runner)
 
 on:
   workflow_dispatch:
