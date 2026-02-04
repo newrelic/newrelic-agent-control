@@ -77,12 +77,16 @@ jobs:
         run: |
           echo "${{ secrets.AC_FC_STAG_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/cred.pem
 
-          newrelic-auth-cli authenticate \
+          if ! newrelic-auth-cli authenticate \
             --client-id "${{ secrets.AC_FC_STAG_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}" \
             --environment STAGING \
             --private-key-path /tmp/cred.pem \
-            --output-token-format PLAIN
-            > /tmp/agent-control-token.txt
+            --output-token-format PLAIN \
+            > /tmp/agent-control-token.txt 2> /tmp/auth-error.log; then
+              echo "::error::Authentication failed!"
+              cat /tmp/auth-error.log
+              exit 1
+          fi
 
           TOKEN=$(cat /tmp/agent-control-token.txt)
           if [ -z "$TOKEN" ]; then
