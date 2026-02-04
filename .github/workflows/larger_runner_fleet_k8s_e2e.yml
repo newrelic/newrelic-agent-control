@@ -66,6 +66,24 @@ jobs:
         with:
           tool: cargo-zigbuild@0.20.1
 
+      - run: |
+          echo "${{ secrets.AC_FC_STAG_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/cred.pem
+
+          docker run -v /tmp/cred.pem:/private-key.pem:ro \
+            newrelic/agent-control-system-identity-registration:latest authenticate \
+            --client-id c292e78c-d09f-4db5-a4d1-1103dbe43846 \
+            --environment STAGING \
+            --private-key-path /private-key.pem \
+            --output-token-format PLAIN
+            > /tmp/agent-control-token.txt
+
+          TOKEN=$(cat /tmp/agent-control-token.txt)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+          rm /tmp/cred.pem
+          rm /tmp/agent-control-token.txt
+
       # This would be replaced with the actual E2E test that requires the larger runner.
       # It would "Install AC" and leave it running while we drive the staging endpoints.
       - name: Run k8s e2e-test ${{ matrix.group }}
