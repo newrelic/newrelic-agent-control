@@ -69,16 +69,18 @@ jobs:
         with:
           tool: cargo-zigbuild@0.20.1
 
+      - name: Install newrelic-auth-rs
+        run: cargo install --locked --git https://github.com/newrelic/newrelic-auth-rs.git
+
       - name: Prepare SI for Fleet Control communication
         id: get-token
         run: |
           echo "${{ secrets.AC_FC_STAG_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/cred.pem
 
-          docker run -v /tmp/cred.pem:/private-key.pem:ro \
-            newrelic/agent-control-system-identity-registration:latest authenticate \
-            --client-id c292e78c-d09f-4db5-a4d1-1103dbe43846 \
+          newrelic-auth-cli authenticate \
+            --client-id "${{ secrets.AC_FC_STAG_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}" \
             --environment STAGING \
-            --private-key-path /private-key.pem \
+            --private-key-path /tmp/cred.pem \
             --output-token-format PLAIN
             > /tmp/agent-control-token.txt
 
