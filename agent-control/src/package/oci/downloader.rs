@@ -25,8 +25,10 @@ pub enum OCIDownloaderError {
     DownloadingArtifact(String),
     #[error("I/O error: {0}")]
     Io(std::io::Error),
-    #[error("OCI error: {0}")]
-    OciDistribution(OciDistributionError),
+    #[error("OCI manifest error, the registry, repository or version you are trying to download may not exist: {0}")]
+    OciManifest(OciDistributionError),
+    #[error("OCI downloading artifact blob error: {0}")]
+    OciBlob(OciDistributionError),
     #[error("certificate error: {0}")]
     Certificate(String),
 }
@@ -144,7 +146,7 @@ impl OCIArtifactDownloader {
             .client
             .pull_image_manifest(reference, &self.auth)
             .await
-            .map_err(OCIDownloaderError::OciDistribution)?;
+            .map_err(OCIDownloaderError::OciManifest)?;
 
         let (layer, media_type) = LocalAgentPackage::get_layer(&image_manifest).map_err(|e| {
             OCIDownloaderError::DownloadingArtifact(format!("validating package manifest: {e}"))
@@ -158,7 +160,7 @@ impl OCIArtifactDownloader {
         self.client
             .pull_blob(reference, &layer, &mut file)
             .await
-            .map_err(OCIDownloaderError::OciDistribution)?;
+            .map_err(OCIDownloaderError::OciBlob)?;
 
         // Ensure all data is flushed to disk before returning
         file.sync_data().await.map_err(OCIDownloaderError::Io)?;
