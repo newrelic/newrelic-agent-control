@@ -1,7 +1,7 @@
 [package]
 name = "newrelic_agent_control"
 description = "New Relic Agent Control"
-version = "1.8.1"
+version = "1.9.0"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -54,7 +54,7 @@ cfg-if = "1.0.4"
 # HOST_ID and HOST_NAME attributes are experimental fields and after 0.26.0 are not included by default.
 # Check <https://github.com/open-telemetry/opentelemetry-rust/pull/2098> for details.
 opentelemetry-semantic-conventions = { version = "0.31.0", features = [
-  "semconv_experimental",
+    "semconv_experimental",
 ] }
 http-serde = "2.1.1"
 config = { version = "0.15.19", features = ["yaml"] }
@@ -68,7 +68,7 @@ tracing-opentelemetry = "0.32.1"
 opentelemetry-otlp = { version = "0.31.0", features = ["reqwest-rustls"] }
 opentelemetry-http = { version = "0.31.0" }
 opentelemetry-appender-tracing = { version = "0.31.1", features = [
-  "experimental_use_tracing_span_context",
+    "experimental_use_tracing_span_context",
 ] }
 async-trait = "0.1.89"
 oci-spec = "0.8.4"
@@ -83,10 +83,10 @@ nix = { workspace = true, features = ["signal", "user", "hostname"] }
 
 [target.'cfg(target_family = "windows")'.dependencies]
 windows = { workspace = true, features = [
-  "Win32_System_Console",
-  "Win32_System_Threading",
-  "Win32_System_JobObjects",
-  "Win32_Security",
+    "Win32_System_Console",
+    "Win32_System_Threading",
+    "Win32_System_JobObjects",
+    "Win32_Security",
 ] }
 windows-service = "0.8.0"
 
