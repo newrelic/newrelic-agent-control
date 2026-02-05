@@ -157,7 +157,7 @@
 
     - name: Set infra version matching an existing one in the Github oci package repo
       ansible.builtin.set_fact:
-        infra_version: "v1.71.4"
+        infra_version: "1.72.1"
 
     - name: Display the infra-agent version
       ansible.builtin.debug:
