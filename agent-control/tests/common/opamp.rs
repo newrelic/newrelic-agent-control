@@ -5,8 +5,9 @@ use base64::prelude::{BASE64_STANDARD, BASE64_URL_SAFE_NO_PAD};
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 use newrelic_agent_control::opamp::remote_config::AGENT_CONFIG_PREFIX;
 use newrelic_agent_control::opamp::remote_config::signature::{
-    ED25519, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE, SignatureFields,
+    SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE, SignatureFields,
 };
+use newrelic_agent_control::signature::public_key::SigningAlgorithm::ED25519;
 use opamp_client::opamp::proto::{
     AgentConfigFile, AgentConfigMap, AgentDescription, AgentRemoteConfig, AgentToServer,
     ComponentHealth, CustomMessage, EffectiveConfig, RemoteConfigStatus, ServerToAgent,
@@ -115,7 +116,7 @@ impl RemoteConfigSignature {
                 cfg_key,
                 vec![SignatureFields {
                     signature: BASE64_STANDARD.encode(signature),
-                    signing_algorithm: ED25519,
+                    signing_algorithm: ED25519.as_ref().to_string(),
                     key_id: JWKS_PUBLIC_KEY_ID.to_string(),
                 }],
             );
@@ -327,7 +328,7 @@ async fn jwks_handler(state: web::Data<Arc<Mutex<ServerState>>>, _req: web::Byte
                 "n": null,
                 "x": enc_public_key,
                 "y": null,
-                "crv": "Ed25519"
+                "crv": ED25519.as_ref(),
             }
         ]
     });
