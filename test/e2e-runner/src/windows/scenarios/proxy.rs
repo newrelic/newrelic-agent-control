@@ -77,7 +77,7 @@ agents:
     );
 
     write_agent_local_config(
-        windows::DEFAULT_NR_INFRA_PATH,
+        &windows::local_config_path("nr-infra"),
         format!(
             r#"
 config_agent:

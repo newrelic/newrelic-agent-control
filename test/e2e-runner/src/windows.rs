@@ -17,11 +17,14 @@ const AGENT_CONTROL_DIRS: &[&str] = &[
 const DEFAULT_CONFIG_PATH: &str =
     r"C:\Program Files\New Relic\newrelic-agent-control\local-data\agent-control\local_config.yaml";
 
-const DEFAULT_NR_INFRA_PATH: &str =
-    r"C:\Program Files\New Relic\newrelic-agent-control\local-data\nr-infra\local_config.yaml";
-
 const DEFAULT_LOG_PATH: &str =
     r"C:\ProgramData\New Relic\newrelic-agent-control\logs\newrelic-agent-control.log";
+
+pub fn local_config_path(agent_id: &str) -> String {
+    format!(
+        r"C:\Program Files\New Relic\newrelic-agent-control\local-data\{agent_id}\local_config.yaml"
+    )
+}
 
 /// Run Windows e2e corresponding scenario which will panic on failure
 pub fn run_windows_e2e() {
@@ -35,6 +38,9 @@ pub fn run_windows_e2e() {
         }
         WindowsScenarios::Proxy(args) => {
             scenarios::proxy::test_proxy(args);
+        }
+        WindowsScenarios::Nrdot(args) => {
+            scenarios::installation_nrdot::test_nrdot(args);
         }
     }
 }
