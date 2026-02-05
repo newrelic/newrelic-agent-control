@@ -10,10 +10,16 @@ use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::instrumentation::tracing::TracingGuardBox;
-use newrelic_agent_control::rollback_probation::retrieve_rollback_probation_data;
+use newrelic_agent_control::rollback_probation::{
+    BootData, BootStatus, persist_rollback_probation_data, retrieve_rollback_probation_data,
+};
 use newrelic_agent_control::utils::is_elevated::is_elevated;
+use std::env;
 use std::error::Error;
+use std::fs;
 use std::process::ExitCode;
+use std::thread;
+use std::time::Duration;
 use tracing::{error, info, trace};
 
 #[cfg(target_os = "windows")]
@@ -28,7 +34,16 @@ fn main() -> ExitCode {
     if maybe_boot_data.is_none() {
         info!("No previous boot data found.");
     }
-    let boot_data = maybe_boot_data.unwrap_or_default();
+    let mut boot_data = maybe_boot_data.unwrap_or_default();
+
+    if boot_data.status() == &BootStatus::Validating {
+        const VERSION: &str = env!("CARGO_PKG_VERSION");
+        boot_data = boot_data.increment_crash_count(VERSION);
+        if let Err(e) = persist_rollback_probation_data(&boot_data) {
+            error!("Failed to persist boot data: {}", e);
+        }
+    }
+
     info!(
         "Current boot data: status={:?}, previous_version={:?}, backup_path={:?}, n_attempts={}",
         boot_data.status(),
@@ -38,8 +53,42 @@ fn main() -> ExitCode {
     );
 
     if boot_data.should_trigger_rollback() {
-        // Restore files and exit
-        todo!();
+        if let Some(backup_path) = boot_data.backup_path() {
+            let current_exe = env::current_exe().unwrap_or_default();
+            error!(
+                "Too many failures ({}) or explicit failure detected. Rolling back from {:?} to {:?}",
+                boot_data.n_attempts(),
+                current_exe,
+                backup_path
+            );
+
+            // Rename current to .failed
+            let failed_path = current_exe.with_extension("exe.failed");
+            // If the failed file already exists, we must remove it or rename will fail
+            if failed_path.exists() {
+                let _ = fs::remove_file(&failed_path);
+            }
+
+            if let Err(e) = fs::rename(&current_exe, &failed_path) {
+                error!("Failed to rename broken executable: {}", e);
+            } else {
+                // Restore backup
+                if let Err(e) = fs::rename(backup_path, &current_exe) {
+                    error!("Failed to restore backup: {}", e);
+                    // Try to restore the failed one back?
+                    let _ = fs::rename(&failed_path, &current_exe);
+                } else {
+                    info!("Rollback successful. Marking as stable and restarting.");
+                    let stable_data = BootData::default().set_status(BootStatus::Stable);
+                    let _ = persist_rollback_probation_data(&stable_data);
+                    // Trigger restart with ERROR_RESTART_APPLICATION (1467)
+                    // This signals SCM (and admins) that this was an intentional restart, not a crash.
+                    std::process::exit(1467);
+                }
+            }
+        } else {
+            error!("No backup path available for rollback.");
+        }
     }
 
     #[cfg(target_family = "unix")]
@@ -93,6 +142,22 @@ fn _main(
     let stop_handler = as_windows_service
         .then(|| setup_windows_service(application_event_publisher.clone()))
         .transpose()?;
+
+    // Start stabilization timer
+    thread::spawn(|| {
+        thread::sleep(Duration::from_secs(60));
+        // Check if we are still running and in validating state
+        if let Some(mut data) = retrieve_rollback_probation_data()
+            && data.status() == &BootStatus::Validating
+        {
+            info!("Probation period passed. Marking agent as stable.");
+            data = data.set_status(BootStatus::Stable);
+            if let Err(e) = persist_rollback_probation_data(&data) {
+                error!("Failed to mark as stable: {}", e);
+            }
+            // Optional: We could clean up backups here
+        }
+    });
 
     #[cfg(not(feature = "disable-asroot"))]
     if !is_elevated()? {

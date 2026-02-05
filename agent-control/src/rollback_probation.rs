@@ -1,5 +1,12 @@
 use serde::{Deserialize, Serialize};
-use std::{env, error::Error, fs, io::BufReader, path::PathBuf};
+use std::{
+    env,
+    error::Error,
+    fs,
+    io::BufReader,
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 #[derive(Debug, Default, PartialEq, Deserialize, Serialize)]
 pub enum BootStatus {
@@ -8,17 +15,19 @@ pub enum BootStatus {
     // Should check with retries
     #[default]
     Validating,
-    // Irrecoverable error, rollback required
-    Failed,
 }
 #[derive(Debug, Default, PartialEq, Deserialize, Serialize)]
 pub struct BootData {
     status: BootStatus,
+    #[serde(default)]
+    current_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     previous_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     backup_path: Option<PathBuf>,
     n_attempts: usize,
+    #[serde(default)]
+    last_crash_timestamp: u64,
 }
 
 impl BootData {
@@ -42,16 +51,33 @@ impl BootData {
         self.n_attempts
     }
 
-    pub fn increment_crash_count(self) -> Self {
-        BootData {
-            n_attempts: self.n_attempts + 1,
-            ..self
+    pub fn increment_crash_count(mut self, running_version: &str) -> Self {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        // If version changed, treats as new probation
+        if self.current_version != running_version {
+            self.n_attempts = 1;
+            self.current_version = running_version.to_string();
+            self.last_crash_timestamp = now;
+            return self;
         }
+
+        // If last crash was long ago (e.g. > 3600 seconds), reset count
+        // This handles "flaky but stable" scenarios where uptime is long enough.
+        if now.saturating_sub(self.last_crash_timestamp) > 3600 {
+            self.n_attempts = 1;
+        } else {
+            self.n_attempts += 1;
+        }
+        self.last_crash_timestamp = now;
+        self
     }
 
     pub fn should_trigger_rollback(&self) -> bool {
-        self.status == BootStatus::Failed
-            || (self.status == BootStatus::Validating && self.n_attempts >= 3)
+        self.status == BootStatus::Validating && self.n_attempts >= 3
     }
 }
 
@@ -63,7 +89,7 @@ pub fn retrieve_rollback_probation_data() -> Option<BootData> {
     serde_json::from_reader(boot_data_reader).ok()
 }
 
-pub fn persist_rollback_probation_data(data: BootData) -> Result<(), Box<dyn Error>> {
+pub fn persist_rollback_probation_data(data: &BootData) -> Result<(), Box<dyn Error>> {
     let cur_dir = env::current_dir()?;
     let boot_data_file = cur_dir.join("agent_control_boot_data.json");
     let serialized_data = serde_json::to_string_pretty(&data)?;
