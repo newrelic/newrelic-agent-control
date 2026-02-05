@@ -59,7 +59,7 @@ opentelemetry-semantic-conventions = { version = "0.31.0", features = [
 http-serde = "2.1.1"
 config = { version = "0.15.19", features = ["yaml"] }
 rustls = { version = "0.23.36", features = ["ring"] }
-x509-parser = "0.18.0"
+x509-parser = "0.18.1"
 ring = "0.17.14"
 bytes = "1.11.1"
 opentelemetry = { version = "0.31.0", features = ["trace"] }
