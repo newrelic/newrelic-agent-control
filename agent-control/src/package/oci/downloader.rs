@@ -3,7 +3,7 @@ use crate::http::config::ProxyConfig;
 use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::utils::retry::retry;
 use oci_client::client::{Certificate, CertificateEncoding, ClientConfig};
-use oci_client::errors::OciDistributionError;
+use oci_client::errors::{OciDistributionError, OciErrorCode};
 use oci_client::{Client, secrets::RegistryAuth};
 use oci_spec::distribution::Reference;
 use rustls_pki_types::CertificateDer;
@@ -31,6 +31,57 @@ pub enum OCIDownloaderError {
     OciBlob(OciDistributionError),
     #[error("certificate error: {0}")]
     Certificate(String),
+}
+
+impl OCIDownloaderError {
+    pub fn from_oci_error(err: OciDistributionError, context: &str) -> Self {
+        match err {
+            // Handle the structured Registry Error envelope
+            OciDistributionError::RegistryError { ref envelope, .. } => {
+                // Look at the first error in the envelope for primary categorization
+                if let Some(oci_err) = envelope.errors.first() {
+                    let msg = match oci_err.code {
+                        OciErrorCode::ManifestUnknown | OciErrorCode::NotFound => {
+                            format!("The requested version or tag does not exist in the registry (Context: {context})")
+                        }
+                        OciErrorCode::NameUnknown | OciErrorCode::NameInvalid => {
+                            format!("The repository name is invalid or could not be found (Context: {context})")
+                        }
+                        OciErrorCode::Unauthorized | OciErrorCode::Denied => {
+                            format!("Access denied: please check your registry credentials for {context}")
+                        }
+                        OciErrorCode::Toomanyrequests => {
+                            "Rate limit exceeded: the registry is throttling requests. Please wait before retrying.".to_string()
+                        }
+                        OciErrorCode::DigestInvalid | OciErrorCode::SizeInvalid => {
+                            format!("Integrity check failed: the {context} data is corrupted or mismatched")
+                        }
+                        _ => format!("Registry error ({:?}): {}", oci_err.code, oci_err.message),
+                    };
+                    OCIDownloaderError::DownloadingArtifact(msg)
+                } else {
+                    OCIDownloaderError::DownloadingArtifact(format!("Empty registry error envelope during {context}"))
+                }
+            }
+
+            // Handle standard network or auth wrappers
+            OciDistributionError::AuthenticationFailure(msg) => {
+                OCIDownloaderError::DownloadingArtifact(format!("Authentication failed: {msg}"))
+            }
+            OciDistributionError::ImageManifestNotFoundError(_) => {
+                OCIDownloaderError::OciManifest(err)
+            }
+
+            // Fallback for other OciDistributionError variants
+            _ => {
+                if context.contains("manifest") {
+                    OCIDownloaderError::OciManifest(err)
+                } else {
+                    OCIDownloaderError::OciBlob(err)
+                }
+            }
+        }
+    }
 }
 
 /// An interface for downloading Agent Packages from an OCI registry.
@@ -146,7 +197,7 @@ impl OCIArtifactDownloader {
             .client
             .pull_image_manifest(reference, &self.auth)
             .await
-            .map_err(OCIDownloaderError::OciManifest)?;
+            .map_err(|e| OCIDownloaderError::from_oci_error(e, "manifest pull"))?;
 
         let (layer, media_type) = LocalAgentPackage::get_layer(&image_manifest).map_err(|e| {
             OCIDownloaderError::DownloadingArtifact(format!("validating package manifest: {e}"))
@@ -160,7 +211,7 @@ impl OCIArtifactDownloader {
         self.client
             .pull_blob(reference, &layer, &mut file)
             .await
-            .map_err(OCIDownloaderError::OciBlob)?;
+            .map_err(|e| OCIDownloaderError::from_oci_error(e, "layer download"))?;
 
         // Ensure all data is flushed to disk before returning
         file.sync_data().await.map_err(OCIDownloaderError::Io)?;
