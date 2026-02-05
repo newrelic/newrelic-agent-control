@@ -41,6 +41,8 @@ enum LinuxScenarios {
 enum WindowsScenarios {
     /// Simple installation of Agent Control on Windows with an Infrastructure Agent
     InfraAgent(Args),
+    /// Simple installation of Agent Control on Windows with NRDOT Agent
+    Nrdot(Args),
     Proxy(Args),
 }
 

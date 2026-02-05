@@ -3,14 +3,12 @@ use crate::common::on_drop::CleanUp;
 use crate::common::test::{retry, retry_panic};
 use crate::common::{Args, RecipeData, nrql};
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
-use crate::windows::scenarios::INFRA_AGENT_VERSION;
+use crate::windows::scenarios::{DEFAULT_STATUS_PORT, INFRA_AGENT_VERSION};
 use crate::windows::service::STATUS_RUNNING;
 use crate::windows::{self};
 use std::thread;
 use std::time::Duration;
 use tracing::info;
-
-const DEFAULT_STATUS_PORT: u16 = 51200;
 
 /// Runs a complete Windows E2E installation test.
 pub fn test_infra_agent(args: Args) {
@@ -44,7 +42,7 @@ agents:
     );
 
     write_agent_local_config(
-        windows::DEFAULT_NR_INFRA_PATH,
+        &windows::local_config_path("nr-infra"),
         format!(
             r#"
 config_agent:

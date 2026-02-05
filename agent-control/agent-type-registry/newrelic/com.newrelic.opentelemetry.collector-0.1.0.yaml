@@ -2,6 +2,57 @@ namespace: newrelic
 name: com.newrelic.opentelemetry.collector
 version: 0.1.0
 variables:
+  windows:
+    config:
+      description: "Newrelic otel collector configuration"
+      type: yaml
+      required: false
+      default: { }
+    backoff_delay:
+      description: "seconds until next retry if agent fails to start"
+      type: string
+      required: false
+      default: 20s
+    enable_file_logging:
+      description: "enable logging the on host executables' logs to files"
+      type: bool
+      required: false
+      default: false
+    health_check:
+      # Note the configs added here must align with the health check extension being used on the collector config variable.
+      # See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/healthcheckv2extension/README.md#configuration
+      # For more details
+      path:
+        description: "path to health check endpoint"
+        type: string
+        required: false
+        default: "/health/status" # Taken from example at: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/healthcheckv2extension/README.md#configuration
+      port:
+        description: "port to health check endpoint"
+        type: number
+        required: false
+        default: 13133
+    oci:
+      registry:
+        description: "Package registry url"
+        type: string
+        required: false
+        default: docker.io
+        variants:
+          ac_config_field: "oci_nrdot_registry_urls"
+          values: [ "docker.io"  ]
+      repository:
+        description: "Package repository name"
+        type: string
+        required: false
+        default: newrelic/nrdot-agent-artifacts
+        variants:
+          ac_config_field: "oci_nrdot_registry_repositories"
+          values: [ "newrelic/nrdot-agent-artifacts"  ]
+    version:
+      description: "Agent version"
+      type: string
+      required: true
   linux:
     config:
       description: "Newrelic otel collector configuration"
@@ -68,6 +119,47 @@ variables:
         required: false
         default: null
 deployment:
+  windows:
+    enable_file_logging: ${nr-var:enable_file_logging}
+    health:
+      interval: 5s
+      initial_delay: 20s
+      timeout: 5s
+      http:
+        path: "${nr-var:health_check.path}"
+        port: ${nr-var:health_check.port}
+    packages:
+      nrdot:
+        type: zip
+        download:
+          oci:
+            registry: ${nr-var:oci.registry}
+            repository: ${nr-var:oci.repository}
+            version: ${nr-var:version}
+    version:
+      path: ${nr-sub:packages.nrdot.dir}\\nrdot-collector.exe
+      args:
+        - -v
+      regex: \d+\.\d+\.\d+
+    filesystem:
+      otel-config:
+        config.yaml: |
+          ${nr-var:config}
+    executables:
+      - # Important to note the binary name is nrdot-collector matching the new nrdot binary
+        id: nrdot-collector
+        path: ${nr-sub:packages.nrdot.dir}\\nrdot-collector.exe
+        args:
+          - --config
+          - ${nr-sub:filesystem_agent_dir}\\otel-config\\config.yaml
+        env:
+          # sets the otel-collector "env" source resource detector
+          OTEL_RESOURCE_ATTRIBUTES: "host.id=${nr-ac:host_id}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: ${nr-var:backoff_delay}
+
   linux:
     health:
       interval: 5s
