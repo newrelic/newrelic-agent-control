@@ -49,6 +49,16 @@ agents:
             r#"
 config_agent:
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
+  log:
+    level: debug
+config_logging:
+  logging.yaml:
+    logs:
+    - name: everything
+      attributes:
+        host.id: {test_id}
+      winlog:
+        channel: Security, Application, System, Operations Manager, windows-defender, windows-clustering, iis-log
 version: {}
 "#,
             INFRA_AGENT_VERSION
@@ -78,8 +88,18 @@ version: {}
     info!(response = status_json, "Agent Control is healthy");
 
     let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `host.id` = '{test_id}' LIMIT 1"#);
-    info!(nrql = nrql_query, "Checking results of NRQL");
-    let retries = 60;
+    info!(
+        nrql = nrql_query,
+        "Checking results of NRQL to check SystemSample"
+    );
+    let retries = 30;
+    retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
+        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
+    });
+
+    let nrql_query = format!(r#"SELECT * FROM Log WHERE `host.id` = '{test_id}' LIMIT 1"#);
+    info!(nrql = nrql_query, "Checking results of NRQL to check logs");
+    let retries = 30;
     retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     });
