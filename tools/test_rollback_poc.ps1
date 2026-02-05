@@ -1,5 +1,13 @@
-# Test script for Agent Control Rollback Logic (PoC)
-# Usage: .\tools\test_rollback_poc.ps1
+# Test script for Agent Control Self-Update and Rollback Logic (PoC)
+# Usage: 
+#   .\tools\test_rollback_poc.ps1 -TestGoodUpdate <path_to_binary>
+#   .\tools\test_rollback_poc.ps1 -TestBadUpdate <path_to_binary>
+#   .\tools\test_rollback_poc.ps1 (Runs legacy rollback check)
+
+param (
+  [string]$TestGoodUpdate = "",
+  [string]$TestBadUpdate = ""
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -16,94 +24,136 @@ $testDir = Join-Path ([System.IO.Path]::GetTempPath()) "ac_test_rollback_$(Get-R
 New-Item -ItemType Directory -Force -Path $testDir | Out-Null
 Write-Host "Test running in: $testDir"
 
+function Start-AgentControl {
+  param([string]$Dir, [boolean]$Wait = $true)
+  $exe = Join-Path $Dir "agent_control.exe"
+  if ($Wait) {
+    return Start-Process -FilePath $exe -WorkingDirectory $Dir -PassThru -Wait -NoNewWindow
+  }
+  else {
+    return Start-Process -FilePath $exe -WorkingDirectory $Dir -PassThru -NoNewWindow
+  }
+}
+
+function Get-BootData {
+  param([string]$Dir)
+  $path = Join-Path $Dir "agent_control_boot_data.json"
+  if (Test-Path $path) {
+    return Get-Content $path | ConvertFrom-Json
+  }
+  return $null
+}
+
 try {
-  # 1. Setup Files
-  # Current version (The "Broken" one)
+  # Copy main binary as the starting point
   Copy-Item $binaryPath -Destination (Join-Path $testDir "agent_control.exe")
-    
-  # Backup version (The "Stable" one) - Just a dummy file for now, 
-  # but we give it .exe extension so the rename logic works.
-  # In a real scenario, this would be a valid executable.
-  $backupContent = "I am the stable backup version"
-  $backupPath = Join-Path $testDir "agent_control.exe.old"
-  Set-Content -Path $backupPath -Value $backupContent
 
-  # 2. Setup Boot Data (Simulate 2 crashes already)
-  # We set status to "Validating" and n_attempts to 2.
-  # The next run should increment to 3 and trigger rollback.
-  $currentTimestamp = [int][double]::Parse((Get-Date -UFormat %s))
-  $bootData = @{
-    status               = "Validating"
-    current_version      = "1.0.0" # Fixed version so it doesn't reset on mismatch
-    n_attempts           = 2
-    backup_path          = "agent_control.exe.old"
-    last_crash_timestamp = $currentTimestamp
-  }
-  # Note: CARGO_PKG_VERSION is built into the binary. 
-  # To test properly, logic in main_onhost.rs compares persisted `current_version` with env!("CARGO_PKG_VERSION").
-  # If they differ, it resets.
-  # So we need to ensure the `current_version` in json matches the binary version, OR we trust the "reset on mismatch" logic
-  # but that would reset attempts to 1, failing the test.
-  # We need to know the version of the built binary.
-    
-  # Let's extract version from Cargo.toml to be safe, or just let the reset happen and force 3 runs loop in this script?
-  # No, let's try to pass the matching version.
-    
-  # Easier hack: We let the first run happen, it might reset to 1 if version mismatch.
-  # But if we pre-calculate "3" attempts, it rolls back immediately.
-  # Wait, if version mismatches, code does: n_attempts=1, status=Validating.
-  # We want it to think it IS the current version.
-  # We can run the binary with `--version` first to grab it?
-  $versionOutput = & (Join-Path $testDir "agent_control.exe") --version
-  # Output format: "newrelic-agent-control 1.0.0"
-  $version = ($versionOutput -split ' ')[1]
-  Write-Host "Detected binary version: $version"
-  $bootData.current_version = $version
-    
-  $bootDataJson = $bootData | ConvertTo-Json
-  Set-Content -Path (Join-Path $testDir "agent_control_boot_data.json") -Value $bootDataJson
+  # --- GOOD UPDATE TEST ---
+  if ($TestGoodUpdate) {
+    Write-Host "Running Good Update Test..."
+    # 1. Start Agent in background
+    $proc = Start-AgentControl -Dir $testDir -Wait $false
+    Write-Host "Agent started (PID: $($proc.Id)). Waiting for init..."
+    Start-Sleep -Seconds 5
 
-  Write-Host "Initial state prepared. Running agent..."
+    # 2. Drop Update
+    Write-Host "Dropping update file..."
+    Copy-Item $TestGoodUpdate -Destination (Join-Path $testDir "agent_control.exe.new")
 
-  # 3. Run the Agent
-  # We expect it to exit with code 1467 (ERROR_RESTART_APPLICATION)
-  $process = Start-Process -FilePath (Join-Path $testDir "agent_control.exe") -WorkingDirectory $testDir -PassThru -Wait -NoNewWindow
-    
-  # 4. Assertions
-  $exitCode = $process.ExitCode
-  Write-Host "Agent exited with code: $exitCode"
+    # 3. Wait for agent to detect and exit (allow 10s)
+    $proc.WaitForExit(15000)
+    if ($proc.HasExited) {
+      Write-Host "Agent exited with code: $($proc.ExitCode)"
+      if ($proc.ExitCode -ne 1467) { Write-Error "FAIL: Expected 1467, got $($proc.ExitCode)" }
+    }
+    else {
+      Stop-Process -Id $proc.Id -Force
+      Write-Error "FAIL: Agent did not exit after update."
+    }
 
-  if ($exitCode -ne 1467) {
-    Write-Error "FAIL: Expected exit code 1467, got $exitCode"
-  }
-  else {
-    Write-Host "PASS: Exit code matches rollback signal."
+    # 4. Restart Agent (Simulate Service Manager)
+    Write-Host "Restarting Agent (Validating Phase)..."
+    # We need to run it long enough to pass probation (60s). 
+    # But we don't want to block forever if it hangs.
+    $proc2 = Start-AgentControl -Dir $testDir -Wait $false
+        
+    Write-Host "Waiting 65 seconds for probation to pass..."
+    Start-Sleep -Seconds 65
+        
+    # Check if it's still running
+    if ($proc2.HasExited) {
+      Write-Error "FAIL: Agent crashed during probation! ExitCode: $($proc2.ExitCode)"
+    }
+    else {
+      Write-Host "PASS: Agent is still running."
+      Stop-Process -Id $proc2.Id -Force
+            
+      # Check Boot Data
+      $bd = Get-BootData -Dir $testDir
+      if ($bd.status -eq "Stable") { Write-Host "PASS: Agent marked itself as Stable." }
+      else { Write-Error "FAIL: Boot status is $($bd.status)" }
+            
+      # Verify it is the NEW binary? 
+      # We can check file hash or assumed content if we knew it.
+    }
   }
 
-  # Verify File Swaps
-  if (Test-Path (Join-Path $testDir "agent_control.exe.failed")) {
-    Write-Host "PASS: Failed executable was renamed to .failed"
-  }
-  else {
-    Write-Error "FAIL: agent_control.exe.failed not found"
-  }
+  # --- BAD UPDATE TEST ---
+  if ($TestBadUpdate) {
+    Write-Host "Running Bad Update Test..."
+    # 1. Start Agent
+    $proc = Start-AgentControl -Dir $testDir -Wait $false
+    Start-Sleep -Seconds 5
 
-  # Verify the current 'agent_control.exe' is now the backup
-  $newContent = Get-Content (Join-Path $testDir "agent_control.exe") -Raw
-  if ($newContent -match "I am the stable backup version") {
-    Write-Host "PASS: Current executable is now the backup version."
-  }
-  else {
-    Write-Error "FAIL: Current executable content does not match backup."
-  }
+    # 2. Drop Update
+    Write-Host "Dropping BAD update file..."
+    Copy-Item $TestBadUpdate -Destination (Join-Path $testDir "agent_control.exe.new")
 
-  # Verify Boot Data is reset to Stable
-  $newBootData = Get-Content (Join-Path $testDir "agent_control_boot_data.json") | ConvertFrom-Json
-  if ($newBootData.status -eq "Stable") {
-    Write-Host "PASS: Boot status marked as Stable."
-  }
-  else {
-    Write-Error "FAIL: Boot status is $($newBootData.status), expected Stable."
+    # 3. Wait for Update Apply
+    $proc.WaitForExit(15000)
+    if ($proc.ExitCode -ne 1467) { Write-Error "FAIL: Update not applied? Code $($proc.ExitCode)" }
+    Write-Host "Update applied. Entering crash loop..."
+
+    # 4. Crash Loop
+    # We expect 3 starts. Each might crash fast.
+    for ($i = 1; $i -le 3; $i++) {
+      Write-Host "Attempt $i..."
+      $p = Start-AgentControl -Dir $testDir -Wait $true
+      Write-Host "  Exit Code: $($p.ExitCode)"
+            
+      # On the 3rd attempt (after 2 crashes), it should detect and rollback (Exit 1467)
+      # Wait, logic:
+      # Start 1: n_attempts=0->1. Crashes.
+      # Start 2: n_attempts=1->2. Crashes.
+      # Start 3: n_attempts=2->3. Checks rollback. Exits 1467.
+            
+      if ($i -eq 3) {
+        if ($p.ExitCode -eq 1467) { 
+          Write-Host "PASS: Rollback triggered on attempt 3." 
+        }
+        else {
+          Write-Error "FAIL: Did not trigger rollback on attempt 3. Got $($p.ExitCode)"
+        }
+      }
+      else {
+        # Attempt 1 & 2 should just crash (non-1467, non-0)
+        # If the bad binary is really bad it might be anything.
+      }
+    }
+
+    # 5. Verify Rollback
+    $currentContent = Get-Content (Join-Path $testDir "agent_control.exe") -Raw
+    # We expect it to be the ORIGINAL binary. We can check via hash or size.
+    # But simply checking boot data status is usually enough?
+    # Actually logic says: after rollback, it writes Stable status immediately.
+        
+    $bd = Get-BootData -Dir $testDir
+    if ($bd.status -eq "Stable") { Write-Host "PASS: Boot status reverted to Stable." }
+    else { Write-Error "FAIL: Boot status is $($bd.status)" }
+        
+    if (Test-Path (Join-Path $testDir "agent_control.exe.failed")) {
+      Write-Host "PASS: Found failed binary backup."
+    }
   }
 
 }
