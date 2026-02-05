@@ -199,27 +199,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## asn1-rs <https://crates.io/crates/asn1-rs>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## asn1-rs-derive <https://crates.io/crates/asn1-rs-derive>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## asn1-rs-impl <https://crates.io/crates/asn1-rs-impl>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## async-broadcast <https://crates.io/crates/async-broadcast>
 
 Distributed under the following license(s):
@@ -663,13 +642,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
-
-## der-parser <https://crates.io/crates/der-parser>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
 
 ## deranged <https://crates.io/crates/deranged>
 
@@ -1611,13 +1583,6 @@ Distributed under the following license(s):
 
 * Apache-2.0
 
-## oid-registry <https://crates.io/crates/oid-registry>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## olpc-cjson <https://crates.io/crates/olpc-cjson>
 
 Distributed under the following license(s):
@@ -2052,13 +2017,6 @@ Distributed under the following license(s):
 * MIT
 
 ## rustc_version <https://crates.io/crates/rustc_version>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## rusticata-macros <https://crates.io/crates/rusticata-macros>
 
 Distributed under the following license(s):
 
@@ -3050,13 +3008,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * Unicode-3.0
-
-## x509-parser <https://crates.io/crates/x509-parser>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
 
 ## xattr <https://crates.io/crates/xattr>
 

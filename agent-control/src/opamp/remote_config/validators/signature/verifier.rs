@@ -1,8 +1,11 @@
-use crate::opamp::remote_config::signature::SigningAlgorithm;
 use base64::{Engine, prelude::BASE64_STANDARD};
+use ring::digest;
 use std::sync::Mutex;
 use thiserror::Error;
 use tracing::debug;
+
+use crate::signature::public_key::{PublicKey, SigningAlgorithm};
+use crate::signature::public_key_fetcher::PublicKeyFetcher;
 
 /// Represents any struct that is able to verify signatures and it is identified by a key.
 pub trait Verifier {
@@ -18,12 +21,50 @@ pub trait Verifier {
     fn key_id(&self) -> &str;
 }
 
+impl Verifier for PublicKey {
+    type Error = VerifierStoreError;
+
+    fn verify_signature(
+        &self,
+        signing_algorithm: &SigningAlgorithm,
+        msg: &[u8],
+        signature: &[u8],
+    ) -> Result<(), Self::Error> {
+        // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
+        // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
+        // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
+        // the signature against that.
+        let msg = digest::digest(&digest::SHA256, msg);
+        let msg = BASE64_STANDARD.encode(msg);
+
+        self.verify_signature(signing_algorithm, msg.as_bytes(), signature)
+            .map_err(|e| VerifierStoreError::VerifySignature(e.to_string()))?;
+
+        debug!(key_id = self.key_id(), "signature verification succeeded");
+
+        Ok(())
+    }
+
+    fn key_id(&self) -> &str {
+        self.key_id()
+    }
+}
+
 /// Defines how to fetch a new [Verifier].
 pub trait VerifierFetcher {
     type Error: std::error::Error;
     type Verifier: Verifier;
 
     fn fetch(&self) -> Result<Self::Verifier, Self::Error>;
+}
+
+impl VerifierFetcher for PublicKeyFetcher {
+    type Error = VerifierStoreError;
+    type Verifier = PublicKey;
+    fn fetch(&self) -> Result<Self::Verifier, Self::Error> {
+        self.fetch_latest_key()
+            .map_err(|e| VerifierStoreError::Fetch(e.to_string()))
+    }
 }
 
 #[derive(Error, Debug, PartialEq)]
@@ -110,7 +151,10 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use crate::signature::public_key::tests::TestKeyPair;
+
     use super::*;
+    use actix_web::Result;
     use assert_matches::assert_matches;
     use mockall::{Sequence, mock};
 
@@ -144,6 +188,8 @@ pub mod tests {
             fn fetch(&self) -> Result<<Self as VerifierFetcher>::Verifier, <Self as VerifierFetcher>::Error>;
         }
     }
+
+    // VerifierStore tests
 
     #[test]
     fn test_verify_sucess_cache_hit() {
@@ -264,6 +310,49 @@ pub mod tests {
             encode_signature(b"signature").as_bytes(),
         );
         assert_matches!(result, Err(VerifierStoreError::VerifySignature(_)));
+    }
+
+    // Verifier tests
+    #[test]
+    fn test_verify() {
+        let key_pair = TestKeyPair::new(0);
+        let pub_key = key_pair.public_key();
+        const MESSAGE: &[u8] = b"hello, world";
+
+        let signature = key_pair.sign(&config_signature_payload(MESSAGE));
+
+        <PublicKey as Verifier>::verify_signature(
+            &pub_key,
+            &SigningAlgorithm::ED25519,
+            MESSAGE,
+            &signature,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_verify_wrong_signature() {
+        let key_pair = TestKeyPair::new(0);
+        let pub_key = key_pair.public_key();
+        const MESSAGE: &[u8] = b"hello, world";
+
+        let signature = key_pair.sign(b"some other message");
+        assert_matches!(
+            <PublicKey as Verifier>::verify_signature(
+                &pub_key,
+                &SigningAlgorithm::ED25519,
+                MESSAGE,
+                &signature,
+            )
+            .unwrap_err(),
+            VerifierStoreError::VerifySignature(_)
+        );
+    }
+
+    /// Generates a payload to be signed as FC does for remote configs blobs.
+    pub fn config_signature_payload(msg: &[u8]) -> Vec<u8> {
+        let digest = digest::digest(&digest::SHA256, msg);
+        BASE64_STANDARD.encode(digest).as_bytes().to_vec()
     }
 
     fn encode_signature(s: &[u8]) -> String {
