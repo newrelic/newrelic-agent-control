@@ -21,6 +21,7 @@ use std::process::ExitCode;
 use std::thread;
 use std::time::Duration;
 use tracing::{error, info, trace};
+use windows::Win32::Foundation::ERROR_RESTART_APPLICATION;
 
 #[cfg(target_os = "windows")]
 use newrelic_agent_control::command::windows::{WINDOWS_SERVICE_NAME, setup_windows_service};
@@ -36,11 +37,10 @@ fn main() -> ExitCode {
     }
     let mut boot_data = maybe_boot_data.unwrap_or_default();
 
-    if boot_data.status() == &BootStatus::Validating {
-        const VERSION: &str = env!("CARGO_PKG_VERSION");
-        boot_data = boot_data.increment_crash_count(VERSION);
+    if boot_data.status() == BootStatus::Validating {
+        boot_data = boot_data.increment_crash_count();
         if let Err(e) = persist_rollback_probation_data(&boot_data) {
-            error!("Failed to persist boot data: {}", e);
+            error!("Failed to persist boot data: {e}");
         }
     }
 
@@ -55,39 +55,37 @@ fn main() -> ExitCode {
     if boot_data.should_trigger_rollback() {
         if let Some(backup_path) = boot_data.backup_path() {
             let current_exe = env::current_exe().unwrap_or_default();
-            error!(
-                "Too many failures ({}) or explicit failure detected. Rolling back from {:?} to {:?}",
-                boot_data.n_attempts(),
-                current_exe,
-                backup_path
+            let n_attempts = boot_data.n_attempts();
+            eprintln!(
+                "Too many failures ({n_attempts}) detected. Rolling back from {current_exe:?} to {backup_path:?}"
             );
 
             // Rename current to .failed
             let failed_path = current_exe.with_extension("exe.failed");
-            // If the failed file already exists, we must remove it or rename will fail
-            if failed_path.exists() {
-                let _ = fs::remove_file(&failed_path);
-            }
 
             if let Err(e) = fs::rename(&current_exe, &failed_path) {
-                error!("Failed to rename broken executable: {}", e);
+                eprintln!("Failed to rename broken executable: {e}");
             } else {
                 // Restore backup
                 if let Err(e) = fs::rename(backup_path, &current_exe) {
-                    error!("Failed to restore backup: {}", e);
-                    // Try to restore the failed one back?
-                    let _ = fs::rename(&failed_path, &current_exe);
+                    eprintln!("Failed to restore backup: {e}");
+                    // Try to restore the failed one back or just fail completely.
+                    fs::rename(&failed_path, &current_exe)
+                        .unwrap_or_else(|e| {
+                            eprintln!("Failed to restore the failed executable: {e}. Manual intervention required.");
+                                std::process::exit(1);
+                            });
                 } else {
-                    info!("Rollback successful. Marking as stable and restarting.");
+                    println!("Rollback successful. Marking as stable and restarting.");
                     let stable_data = BootData::default().set_status(BootStatus::Stable);
                     let _ = persist_rollback_probation_data(&stable_data);
                     // Trigger restart with ERROR_RESTART_APPLICATION (1467)
                     // This signals SCM (and admins) that this was an intentional restart, not a crash.
-                    std::process::exit(1467);
+                    std::process::exit(ERROR_RESTART_APPLICATION.0 as i32);
                 }
             }
         } else {
-            error!("No backup path available for rollback.");
+            eprintln!("No backup path available for rollback. Continuing.");
         }
     }
 
@@ -148,7 +146,7 @@ fn _main(
         thread::sleep(Duration::from_secs(60));
         // Check if we are still running and in validating state
         if let Some(mut data) = retrieve_rollback_probation_data()
-            && data.status() == &BootStatus::Validating
+            && data.status() == BootStatus::Validating
         {
             info!("Probation period passed. Marking agent as stable.");
             data = data.set_status(BootStatus::Stable);
@@ -156,6 +154,15 @@ fn _main(
                 error!("Failed to mark as stable: {}", e);
             }
             // Optional: We could clean up backups here
+        }
+    });
+
+    // Start update watcher (PoC)
+    // Runs in the background to detect a new binary at <exe_name>.new
+    thread::spawn(|| {
+        loop {
+            thread::sleep(Duration::from_secs(5));
+            check_for_updates();
         }
     });
 
@@ -210,4 +217,63 @@ pub fn create_shutdown_signal_handler(
             .inspect_err(|e| error!("Could not send agent control stop request: {}", e));
     })
     .inspect_err(|e| error!("Could not set signal handler: {e}"))
+}
+
+fn check_for_updates() {
+    let current_exe = match env::current_exe() {
+        Ok(exe) => exe,
+        Err(e) => {
+            error!("Failed to get current executable path: {e}");
+            return;
+        }
+    };
+
+    // Look for <exe>.new (e.g. newrelic-agent-control.exe.new)
+    // Note: on Windows we'll rename it to .exe during swap
+    let update_path = current_exe.with_extension("exe.new");
+
+    if update_path.exists() {
+        info!("Update found at {:?}", update_path);
+
+        // 1. Prepare Paths
+        let backup_path = current_exe.with_extension("exe.old");
+
+        // 2. Prepare BootData
+        let mut boot_data = retrieve_rollback_probation_data().unwrap_or_default();
+        let current_ver = boot_data.current_version().to_string();
+
+        boot_data = boot_data
+            .set_status(BootStatus::Validating)
+            .set_backup_path(Some(backup_path.clone()))
+            .set_previous_version(Some(current_ver));
+
+        if let Err(e) = persist_rollback_probation_data(&boot_data) {
+            error!("Failed to persist boot data before update: {e}");
+            return;
+        }
+
+        // 3. Perform File Swaps
+        if backup_path.exists()
+            && let Err(e) = fs::remove_file(&backup_path)
+        {
+            error!("Failed to remove existing backup file: {e}");
+            // Proceed with caution
+        }
+
+        if let Err(e) = fs::rename(&current_exe, &backup_path) {
+            error!("Failed to rename current exe to backup: {e}");
+            return;
+        }
+
+        if let Err(e) = fs::rename(&update_path, &current_exe) {
+            error!("Failed to rename update exe to current: {e}");
+            // Try to restore backup
+            let _ = fs::rename(&backup_path, &current_exe);
+            return;
+        }
+
+        // 4. Trigger Restart
+        info!("Update applied successfully. Triggering restart.");
+        std::process::exit(ERROR_RESTART_APPLICATION.0 as i32);
+    }
 }
