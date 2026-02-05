@@ -368,7 +368,7 @@ where
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "Processing health message"));
                             },
                             Ok(SubAgentInternalEvent::AgentAttributesUpdated(attributes)) => {
-                                info!("Recreating SubAgent with attributes: {:?}", attributes);
+                                debug!("Updating SubAgent attributes with: {:?}", attributes);
                                 let _ = self.maybe_opamp_client.as_ref().map(|c|
                                     update_opamp_attributes(c, attributes)
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing update agent attributes message")));
