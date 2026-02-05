@@ -32,7 +32,7 @@ variables:
         type: number
         required: false
         default: 13133
-    oci: # TODO: use final registry url
+    oci:
       registry:
         description: "Package registry url"
         type: string

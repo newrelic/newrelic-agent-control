@@ -131,25 +131,6 @@ config:
           metrics:
             system.network.connections:
               enabled: false
-        # Uncomment to enable process metrics, which can be noisy but valuable.
-        # processes:
-        # process:
-        #  metrics:
-        #    process.cpu.utilization:
-        #      enabled: true
-        #    process.cpu.time:
-        #      enabled: false
-  
-    #filelog:
-    #  include:
-    #    - /var/log/alternatives.log
-    #    - /var/log/cloud-init.log
-    #    - /var/log/auth.log
-    #    - /var/log/dpkg.log
-    #    - /var/log/syslog
-    #    - /var/log/messages
-    #    - /var/log/secure
-    #    - /var/log/yum.log
   
   processors:
     # group system.cpu metrics by cpu
@@ -305,22 +286,10 @@ config:
           - cumulativetodelta
           - batch
         exporters: [otlphttp]
-      #logs/host:
-      #  receivers: [filelog]
-      #  processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
-      #  exporters: [otlphttp]
-      #traces:
-      #  receivers: [otlp]
-      #  processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
-      #  exporters: [otlphttp]
       metrics:
         receivers: [otlp]
         processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
         exporters: [otlphttp]
-      #logs:
-      #  receivers: [otlp]
-      #  processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
-      #  exporters: [otlphttp]
   
     extensions: [health_check]
 "#;
