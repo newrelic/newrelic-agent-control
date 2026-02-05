@@ -45,10 +45,10 @@ variables:
         description: "Package repository name"
         type: string
         required: false
-        default: calvarez780/nrdot-test
+        default: newrelic/nrdot-agent-artifacts
         variants:
           ac_config_field: "oci_nrdot_registry_repositories"
-          values: [ "calvarez780/nrdot-test"  ]
+          values: [ "newrelic/nrdot-agent-artifacts"  ]
     version:
       description: "Agent version"
       type: string
