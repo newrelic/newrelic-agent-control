@@ -1,6 +1,5 @@
 use std::sync::mpsc::RecvError;
 use thiserror::Error;
-use tokio::task::JoinError;
 
 pub mod async_bridge;
 pub mod config;
@@ -19,7 +18,7 @@ pub enum StatusServerError {
     #[error("error receiving server handle {0}")]
     ServerConsumerError(#[from] RecvError),
     #[error("error waiting for async join handle {0}")]
-    JoinHandleError(#[from] JoinError),
+    JoinHandleError(String),
     #[error("failed to bind HTTP server: {0}")]
     BindError(String),
     #[error("HTTP server startup timed out after {0:?}")]

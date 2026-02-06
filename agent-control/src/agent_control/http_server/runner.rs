@@ -148,12 +148,11 @@ impl Drop for StartedHttpServer {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::sync::{Arc, OnceLock};
     use std::thread::sleep;
     use std::time::Duration;
 
     use assert_matches::assert_matches;
-    use serial_test::serial;
     use tracing_test::traced_test;
 
     use crate::agent_control::http_server::config::ServerConfig;
@@ -162,16 +161,27 @@ mod tests {
 
     use super::*;
 
+    /// Returns a static reference to the tokio runtime. The runtime is built the first time this function
+    /// is called.
+    pub fn tokio_runtime() -> Arc<tokio::runtime::Runtime> {
+        static RUNTIME_ONCE: OnceLock<Arc<tokio::runtime::Runtime>> = OnceLock::new();
+        RUNTIME_ONCE
+            .get_or_init(|| {
+                Arc::new(
+                    tokio::runtime::Builder::new_multi_thread()
+                        .worker_threads(5)
+                        .enable_all()
+                        .build()
+                        .unwrap(),
+                )
+            })
+            .clone()
+    }
+
     #[test]
     #[traced_test]
-    #[serial]
     fn test_server_stops_gracefully_when_dropped() {
-        let runtime = Arc::new(
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap(),
-        );
+        let runtime = tokio_runtime();
         let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
         let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let _started_http_server = Runner::new(
@@ -200,14 +210,8 @@ mod tests {
 
     #[test]
     #[traced_test]
-    #[serial]
     fn test_server_stops_gracefully_when_external_channels_close() {
-        let runtime = Arc::new(
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap(),
-        );
+        let runtime = tokio_runtime();
         let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
         let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let _http_server_runner = Runner::new(
@@ -236,14 +240,8 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_server_returns_error_on_bind_failure() {
-        let runtime = Arc::new(
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap(),
-        );
+        let runtime = tokio_runtime();
 
         // Bind a port to simulate it being in use
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();

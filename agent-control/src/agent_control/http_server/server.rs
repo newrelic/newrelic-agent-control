@@ -59,9 +59,12 @@ pub async fn run_status_server(
         });
     });
 
+    let mut join_handle_errors = Vec::new();
     debug!("waiting for the event_join_handle");
-    event_join_handle.await?;
-    debug!("event_join_handle succeeded");
+    if let Err(err) = event_join_handle.await {
+        join_handle_errors.push(err.to_string());
+    };
+    debug!("event_join_handle finished");
 
     // The server could have failed to start and in that case the channel will be closed.
     if let Ok(server_handle) = server_handle_consumer.recv() {
@@ -71,11 +74,19 @@ pub async fn run_status_server(
     }
 
     debug!("waiting for status server join handle");
-    server_join_handle.await?;
+    if let Err(err) = server_join_handle.await {
+        join_handle_errors.push(err.to_string());
+    };
 
     debug!("status server gracefully stopped");
 
-    Ok(())
+    if join_handle_errors.is_empty() {
+        Ok(())
+    } else {
+        Err(StatusServerError::JoinHandleError(
+            join_handle_errors.join(","),
+        ))
+    }
 }
 
 async fn run_server(
