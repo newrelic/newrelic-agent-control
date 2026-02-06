@@ -3,7 +3,7 @@ use crate::http::config::ProxyConfig;
 use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::utils::retry::retry;
 use oci_client::client::{Certificate, CertificateEncoding, ClientConfig};
-use oci_client::errors::OciDistributionError;
+use oci_client::errors::{OciDistributionError, OciErrorCode};
 use oci_client::{Client, secrets::RegistryAuth};
 use oci_spec::distribution::Reference;
 use rustls_pki_types::CertificateDer;
@@ -25,12 +25,44 @@ pub enum OCIDownloaderError {
     DownloadingArtifact(String),
     #[error("I/O error: {0}")]
     Io(std::io::Error),
-    #[error("OCI manifest error, the registry, repository or version you are trying to download may not exist: {0}")]
-    OciManifest(OciDistributionError),
-    #[error("OCI downloading artifact blob error: {0}")]
-    OciBlob(OciDistributionError),
+    #[error("Registry error: {0}")]
+    RegistryError(String),
+    #[error("the registry and repository are not found or reachable: {0}")]
+    ConnectionError(String),
     #[error("certificate error: {0}")]
     Certificate(String),
+}
+
+impl From<OciDistributionError> for OCIDownloaderError {
+    fn from(err: OciDistributionError) -> Self {
+        match err {
+            OciDistributionError::RegistryError { ref envelope, .. } => {
+                if let Some(oci_err) = envelope.errors.first() {
+                    let err_msg = match oci_err.code {
+                        OciErrorCode::ManifestUnknown | OciErrorCode::NotFound => {
+                            format!("The requested version does not exist in the registry: {err}")
+                        }
+                        OciErrorCode::NameUnknown | OciErrorCode::NameInvalid => {
+                            format!("The repository name is invalid or not found: {err}")
+                        }
+                        OciErrorCode::Unauthorized | OciErrorCode::Denied => {
+                            format!("Access denied, check credentials: {err}")
+                        }
+                        OciErrorCode::Toomanyrequests => {
+                            format!(
+                                "Rate limit exceeded: the registry is throttling requests: {err}"
+                            )
+                        }
+                        _ => format!("Registry error ({:?}): {}", oci_err.code, oci_err.message),
+                    };
+                    return OCIDownloaderError::RegistryError(err_msg);
+                }
+                OCIDownloaderError::RegistryError(err.to_string())
+            }
+            // Use _ to catch all other variants like AuthenticationFailure, etc.
+            _ => OCIDownloaderError::ConnectionError(err.to_string()),
+        }
+    }
 }
 
 /// An interface for downloading Agent Packages from an OCI registry.
@@ -145,8 +177,7 @@ impl OCIArtifactDownloader {
         let (image_manifest, _) = self
             .client
             .pull_image_manifest(reference, &self.auth)
-            .await
-            .map_err(OCIDownloaderError::OciManifest)?;
+            .await?;
 
         let (layer, media_type) = LocalAgentPackage::get_layer(&image_manifest).map_err(|e| {
             OCIDownloaderError::DownloadingArtifact(format!("validating package manifest: {e}"))
@@ -157,10 +188,7 @@ impl OCIArtifactDownloader {
             .await
             .map_err(OCIDownloaderError::Io)?;
 
-        self.client
-            .pull_blob(reference, &layer, &mut file)
-            .await
-            .map_err(OCIDownloaderError::OciBlob)?;
+        self.client.pull_blob(reference, &layer, &mut file).await?;
 
         // Ensure all data is flushed to disk before returning
         file.sync_data().await.map_err(OCIDownloaderError::Io)?;
@@ -227,9 +255,11 @@ pub mod tests {
     use httpmock::prelude::*;
     use mockall::mock;
     use oci_client::client::ClientProtocol;
+    use oci_client::errors::{OciDistributionError, OciEnvelope, OciError, OciErrorCode};
     use oci_client::manifest::{OciDescriptor, OciImageManifest};
     use oci_spec::distribution::Reference;
     use ring::digest::{SHA256, digest};
+    use rstest::rstest;
     use serde_json::json;
     use std::fs::File;
     use std::io::Write;
@@ -516,6 +546,43 @@ pub mod tests {
             "{}",
             err.to_string()
         );
+    }
+
+    #[rstest]
+    #[case::manifest_unknown(
+        OciDistributionError::RegistryError {
+        envelope: OciEnvelope { errors: vec![OciError { code: OciErrorCode::ManifestUnknown, message: "not found".into(), detail: Default::default() }] },
+        url: "url".into()
+            },
+        "The requested version does not exist"
+    )]
+    #[case::access_denied(
+        OciDistributionError::RegistryError {
+        envelope: OciEnvelope { errors: vec![OciError { code: OciErrorCode::Denied, message: "forbidden".into(), detail: Default::default() }] },
+        url: "url".into()
+            },
+        "Access denied"
+    )]
+    #[case::empty_envelope(
+        OciDistributionError::RegistryError {
+        envelope: OciEnvelope { errors: vec![] },
+        url: "url".into()
+            },
+        "Registry error:"
+    )]
+    fn test_from_oci_error_mapping(
+        #[case] input_error: OciDistributionError,
+        #[case] expected_msg: &str,
+    ) {
+        let err = OCIDownloaderError::from(input_error);
+        assert_matches!(err, OCIDownloaderError::RegistryError(msg) => { assert!(msg.contains(expected_msg)); });
+    }
+
+    #[test]
+    fn test_connection_error_fallback() {
+        let oci_err = OciDistributionError::AuthenticationFailure("bad login".to_string());
+        let err = OCIDownloaderError::from(oci_err);
+        assert_matches!(err, OCIDownloaderError::ConnectionError(msg) => { assert!(msg.contains("bad login")); });
     }
 
     fn hex_bytes(bytes: &[u8]) -> String {
