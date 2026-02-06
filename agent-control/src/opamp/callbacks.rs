@@ -118,10 +118,6 @@ where
                         error!(%self.agent_id, %err, "parsing config signature message: {:?}", custom_message);
                         state = ConfigState::Failed { error_message: format!("Invalid remote config signature format: {err}") };
                     },
-                    SignatureError::UnsupportedAlgorithm(err) => {
-                        error!(%self.agent_id, %err, "unsupported signature algorithm: {:?}", custom_message);
-                        state = ConfigState::Failed { error_message: format!("Unsupported signature algorithm: {err}") };
-                    }
                 }).ok()
             );
 
@@ -262,7 +258,7 @@ pub(crate) mod tests {
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoader;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::signature::{
-        ED25519, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
+        SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
     };
     use crate::opamp::remote_config::{AGENT_CONFIG_PREFIX, ConfigurationMap, OpampRemoteConfig};
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
@@ -508,7 +504,7 @@ pub(crate) mod tests {
                 expected_remote_config_state: ConfigState::Applying,
                 expected_signature: Some(Signatures::new_default(AGENT_CONFIG_PREFIX,
                     "fake config",
-                    ED25519,
+                    "ED25519",
                     "fake keyid",
                 )),
             },
