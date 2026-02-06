@@ -118,9 +118,10 @@ impl UptimeReporter {
     /// It propagates failures when computing the elapsed time (see [`SystemTime::elapsed`]),
     /// which won't emit the metric, so the caller can decide how to handle it.
     pub fn report(&self) -> Result<(), SystemTimeError> {
-        self.start_time
-            .elapsed()
-            .map(|t| trace!(monotonic_counter.uptime = t.as_secs_f64()))
+        let elapsed = self.start_time.elapsed()?;
+        let uptime_secs = elapsed.as_secs_f64();
+        trace!(monotonic_counter.uptime = uptime_secs);
+        Ok(())
     }
 }
 
