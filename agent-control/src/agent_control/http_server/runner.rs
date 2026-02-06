@@ -148,15 +148,14 @@ impl Drop for StartedHttpServer {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::thread::sleep;
     use std::time::Duration;
 
     use assert_matches::assert_matches;
-    use serial_test::serial;
     use tracing_test::traced_test;
 
     use crate::agent_control::http_server::config::ServerConfig;
+    use crate::agent_control::run::runtime::tests::tokio_runtime;
     use crate::event::AgentControlEvent;
     use crate::event::channel::pub_sub;
 
@@ -164,14 +163,8 @@ mod tests {
 
     #[test]
     #[traced_test]
-    #[serial]
     fn test_server_stops_gracefully_when_dropped() {
-        let runtime = Arc::new(
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap(),
-        );
+        let runtime = tokio_runtime();
         let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
         let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let _started_http_server = Runner::new(
@@ -200,14 +193,8 @@ mod tests {
 
     #[test]
     #[traced_test]
-    #[serial]
     fn test_server_stops_gracefully_when_external_channels_close() {
-        let runtime = Arc::new(
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap(),
-        );
+        let runtime = tokio_runtime();
         let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
         let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let _http_server_runner = Runner::new(
@@ -236,14 +223,8 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_server_returns_error_on_bind_failure() {
-        let runtime = Arc::new(
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap(),
-        );
+        let runtime = tokio_runtime();
 
         // Bind a port to simulate it being in use
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
