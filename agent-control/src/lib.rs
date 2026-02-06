@@ -14,6 +14,7 @@ pub mod event;
 pub mod http;
 pub mod instrumentation;
 pub mod k8s;
+pub mod oci;
 pub mod on_host;
 pub mod opamp;
 pub mod package;
