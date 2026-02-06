@@ -1,15 +1,7 @@
-use crate::http::client::{cert_paths_from_dir, certificate_error};
-use crate::http::config::ProxyConfig;
+use crate::oci::{Client, OciClientError};
 use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::utils::retry::retry;
-use oci_client::client::{Certificate, CertificateEncoding, ClientConfig};
-use oci_client::errors::{OciDistributionError, OciErrorCode};
-use oci_client::{Client, secrets::RegistryAuth};
 use oci_spec::distribution::Reference;
-use rustls_pki_types::CertificateDer;
-use rustls_pki_types::pem::PemObject;
-use std::fs::File;
-use std::io::BufReader;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -17,7 +9,6 @@ use thiserror::Error;
 use tokio;
 use tokio::runtime::Runtime;
 use tracing::debug;
-use url::Url;
 
 #[derive(Debug, Error)]
 pub enum OCIDownloaderError {
@@ -25,43 +16,8 @@ pub enum OCIDownloaderError {
     DownloadingArtifact(String),
     #[error("I/O error: {0}")]
     Io(std::io::Error),
-    #[error("registry error: {0}")]
-    RegistryError(String),
-    #[error("the registry and repository are not found or reachable: {0}")]
-    ConnectionError(String),
-    #[error("certificate error: {0}")]
-    Certificate(String),
-}
-
-impl From<OciDistributionError> for OCIDownloaderError {
-    fn from(err: OciDistributionError) -> Self {
-        match err {
-            OciDistributionError::RegistryError { ref envelope, .. } => {
-                let Some(oci_err) = envelope.errors.first() else {
-                    return OCIDownloaderError::RegistryError(err.to_string());
-                };
-
-                let err_msg = match oci_err.code {
-                    OciErrorCode::ManifestUnknown | OciErrorCode::NotFound => {
-                        format!("the requested version does not exist in the registry: {err}")
-                    }
-                    OciErrorCode::NameUnknown | OciErrorCode::NameInvalid => {
-                        format!("the repository name is invalid or not found: {err}")
-                    }
-                    OciErrorCode::Unauthorized | OciErrorCode::Denied => {
-                        format!("access denied, check credentials: {err}")
-                    }
-                    OciErrorCode::Toomanyrequests => {
-                        format!("rate limit exceeded: the registry is throttling requests: {err}")
-                    }
-                    _ => format!("registry error ({:?}): {}", oci_err.code, oci_err.message),
-                };
-                OCIDownloaderError::RegistryError(err_msg)
-            }
-            // Use _ to catch all other variants like AuthenticationFailure, etc.
-            _ => OCIDownloaderError::ConnectionError(err.to_string()),
-        }
-    }
+    #[error("failure on OCI client request: {0}")]
+    Client(OciClientError),
 }
 
 /// An interface for downloading Agent Packages from an OCI registry.
@@ -78,7 +34,6 @@ pub trait OCIAgentDownloader: Send + Sync {
 // This implementation avoids that since each download is expected to be done in a separate package directory.
 pub struct OCIArtifactDownloader {
     client: Client,
-    auth: RegistryAuth,
     runtime: Arc<Runtime>,
     max_retries: usize,
     retry_interval: Duration,
@@ -114,52 +69,17 @@ impl OCIAgentDownloader for OCIArtifactDownloader {
 const DEFAULT_RETRIES: usize = 0;
 
 impl OCIArtifactDownloader {
-    /// try_new requires a package dir where the artifacts will be downloaded and a proxy_config
-    /// that if url is empty will be ignored. By default, Auth is set to Anonymous, but it can be
-    /// modified with the with_auth method.
-    /// By default the number of retries is set to 0.
-    pub fn try_new(
-        proxy_config: ProxyConfig,
-        runtime: Arc<Runtime>,
-        client_config: ClientConfig,
-    ) -> Result<Self, OCIDownloaderError> {
-        let mut client_config = client_config;
-        Self::proxy_setup(proxy_config, &mut client_config)?;
-
-        Ok(OCIArtifactDownloader {
-            client: Client::new(client_config),
-            auth: RegistryAuth::Anonymous,
+    /// Returns an artifact downloader with default retries setup.
+    pub fn new(client: Client, runtime: Arc<Runtime>) -> Self {
+        OCIArtifactDownloader {
+            client,
             runtime,
             max_retries: DEFAULT_RETRIES,
             retry_interval: Duration::default(),
-        })
-    }
-
-    fn proxy_setup(
-        proxy_config: ProxyConfig,
-        client_config: &mut ClientConfig,
-    ) -> Result<(), OCIDownloaderError> {
-        let proxy_url = proxy_config.url_as_string();
-        if !proxy_url.is_empty() {
-            match Url::parse(&proxy_url).as_ref().map(Url::scheme) {
-                Ok("http") => client_config.http_proxy = Some(proxy_url),
-                Ok(_) | Err(_) => client_config.https_proxy = Some(proxy_url),
-            };
-
-            client_config.extra_root_certificates =
-                certs_from_paths(proxy_config.ca_bundle_file(), proxy_config.ca_bundle_dir())
-                    .map_err(|err| {
-                        OCIDownloaderError::Certificate(format!("invalid cert file: {err}"))
-                    })?;
         }
-
-        Ok(())
     }
 
-    pub fn with_auth(self, auth: RegistryAuth) -> Self {
-        Self { auth, ..self }
-    }
-
+    /// Returns a new downloader with the provided retry configuration.
     pub fn with_retries(self, retries: usize, retry_interval: Duration) -> Self {
         Self {
             max_retries: retries,
@@ -175,8 +95,9 @@ impl OCIArtifactDownloader {
     ) -> Result<LocalAgentPackage, OCIDownloaderError> {
         let (image_manifest, _) = self
             .client
-            .pull_image_manifest(reference, &self.auth)
-            .await?;
+            .pull_image_manifest(reference)
+            .await
+            .map_err(OCIDownloaderError::Client)?;
 
         let (layer, media_type) = LocalAgentPackage::get_layer(&image_manifest).map_err(|e| {
             OCIDownloaderError::DownloadingArtifact(format!("validating package manifest: {e}"))
@@ -187,7 +108,10 @@ impl OCIArtifactDownloader {
             .await
             .map_err(OCIDownloaderError::Io)?;
 
-        self.client.pull_blob(reference, &layer, &mut file).await?;
+        self.client
+            .pull_blob(reference, &layer, &mut file)
+            .await
+            .map_err(OCIDownloaderError::Client)?;
 
         // Ensure all data is flushed to disk before returning
         file.sync_data().await.map_err(OCIDownloaderError::Io)?;
@@ -198,71 +122,20 @@ impl OCIArtifactDownloader {
     }
 }
 
-/// Tries to extract certificates from the provided `ca_bundle_file` and `ca_bundle_dir` paths.
-fn certs_from_paths(
-    ca_bundle_file: &Path,
-    ca_bundle_dir: &Path,
-) -> Result<Vec<Certificate>, OCIDownloaderError> {
-    let mut certs = Vec::new();
-    // Certs from bundle file
-    certs.extend(certs_from_file(ca_bundle_file)?);
-    // Certs from bundle dir
-    for path in cert_paths_from_dir(ca_bundle_dir)
-        .map_err(|err| OCIDownloaderError::Certificate(err.to_string()))?
-    {
-        certs.extend(certs_from_file(&path)?)
-    }
-    Ok(certs)
-}
-
-/// Returns all certs bundled in the file corresponding to the provided path.
-fn certs_from_file(path: &Path) -> Result<Vec<Certificate>, OCIDownloaderError> {
-    if path.as_os_str().is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let file = File::open(path)
-        .map_err(|err| OCIDownloaderError::Certificate(certificate_error(path, err).to_string()))?;
-    let reader = BufReader::new(file);
-
-    rustls_pki_types::CertificateDer::pem_reader_iter(reader).try_fold(Vec::default(), |acc, r| {
-        match r {
-            Err(_) => Err(OCIDownloaderError::Certificate(
-                "invalid certificate encoding".to_string(),
-            )),
-            Ok(cert) => Ok(add_cert(acc, cert)),
-        }
-    })
-}
-
-fn add_cert<'a>(mut certs: Vec<Certificate>, cert: CertificateDer<'a>) -> Vec<Certificate> {
-    certs.push(Certificate {
-        encoding: CertificateEncoding::Pem,
-        data: cert.as_ref().to_vec(),
-    });
-    certs
-}
-
 #[cfg(test)]
 pub mod tests {
+    use crate::http::config::ProxyConfig;
+    use crate::oci::tests::FakeOciServer;
     use crate::package::oci::artifact_definitions::{
         LayerMediaType, ManifestArtifactType, PackageMediaType,
     };
 
     use super::*;
-    use assert_matches::assert_matches;
     use httpmock::prelude::*;
     use mockall::mock;
-    use oci_client::client::ClientProtocol;
-    use oci_client::errors::{OciDistributionError, OciEnvelope, OciError, OciErrorCode};
-    use oci_client::manifest::{OciDescriptor, OciImageManifest};
+    use oci_client::client::{ClientConfig, ClientProtocol};
     use oci_spec::distribution::Reference;
-    use ring::digest::{SHA256, digest};
-    use rstest::rstest;
     use serde_json::json;
-    use std::fs::File;
-    use std::io::Write;
-    use std::path::PathBuf;
     use std::str::FromStr;
     use tempfile::tempdir;
 
@@ -276,186 +149,6 @@ pub mod tests {
             ) -> Result<LocalAgentPackage, OCIDownloaderError>;
         }
     }
-
-    // ========== Proxy Tests ==========
-    #[test]
-    fn test_with_empty_proxy_url() {
-        let proxy_config = ProxyConfig::from_url("".to_string()); // Assuming ProxyConfig::new method exists
-
-        let mut client_config = ClientConfig::default();
-        let proxy_result = OCIArtifactDownloader::proxy_setup(proxy_config, &mut client_config);
-        assert!(proxy_result.is_ok());
-
-        assert_eq!(client_config.https_proxy, None);
-        assert_eq!(client_config.http_proxy, None);
-    }
-
-    #[test]
-    fn test_valid_http_proxy_url() {
-        let proxy_config = ProxyConfig::from_url("http://valid.proxy.url".to_string());
-
-        let mut client_config = ClientConfig::default();
-        let proxy_result = OCIArtifactDownloader::proxy_setup(proxy_config, &mut client_config);
-        assert!(proxy_result.is_ok());
-
-        assert_eq!(client_config.https_proxy, None);
-        assert_eq!(
-            client_config.http_proxy,
-            Some("http://valid.proxy.url/".to_string())
-        );
-    }
-
-    #[test]
-    fn test_proxy_url_without_scheme_with_certs() {
-        let dir = tempdir().unwrap();
-        let ca_bundle_dir = dir.path();
-
-        // Valid cert file
-        let file_path = dir.path().join("valid_cert.pem");
-        let mut file = File::create(&file_path).unwrap();
-        writeln!(file, "{}", valid_testing_cert()).unwrap();
-        // Empty cert file
-        let file_path = dir.path().join("empty_cert.pem");
-        let _ = File::create(&file_path).unwrap();
-        // Unrelated file
-        let file_path = dir.path().join("other-file.txt");
-        let mut file = File::create(&file_path).unwrap();
-        writeln!(file, "some content").unwrap();
-        // Invalid cert in no cert-file
-        let file_path = dir.path().join("invalid-cert.bk");
-        let mut file = File::create(&file_path).unwrap();
-        writeln!(file, "{INVALID_TESTING_CERT}").unwrap();
-
-        let proxy_config = ProxyConfig::new(
-            "valid.proxy.url",
-            Some(ca_bundle_dir.to_string_lossy().to_string()),
-            None,
-            false,
-        );
-
-        let mut client_config = ClientConfig::default();
-        let proxy_result = OCIArtifactDownloader::proxy_setup(proxy_config, &mut client_config);
-        assert!(proxy_result.is_ok());
-
-        assert_eq!(
-            client_config.https_proxy,
-            Some("valid.proxy.url".to_string())
-        );
-        assert_eq!(client_config.http_proxy, None);
-        assert_eq!(client_config.extra_root_certificates.len(), 1);
-    }
-
-    #[test]
-    fn test_try_new_with_https_proxy_url() {
-        let proxy_config = ProxyConfig::from_url("https://valid.proxy.url".to_string());
-
-        let mut client_config = ClientConfig::default();
-        let proxy_result = OCIArtifactDownloader::proxy_setup(proxy_config, &mut client_config);
-        assert!(proxy_result.is_ok());
-
-        assert_eq!(
-            client_config.https_proxy,
-            Some("https://valid.proxy.url/".to_string())
-        );
-        assert_eq!(client_config.http_proxy, None);
-    }
-
-    #[test]
-    fn test_certs_from_paths_no_certificates() {
-        let ca_bundle_file = PathBuf::default();
-        let ca_bundle_dir = PathBuf::default();
-        let certificates = certs_from_paths(&ca_bundle_file, &ca_bundle_dir).unwrap();
-        assert_eq!(certificates.len(), 0);
-    }
-
-    #[test]
-    fn test_certs_from_paths_non_existing_certificate_path() {
-        let ca_bundle_file = PathBuf::from("non-existing.pem");
-        let ca_bundle_dir = PathBuf::default();
-        let err = certs_from_paths(&ca_bundle_file, &ca_bundle_dir).unwrap_err();
-        assert_matches!(err, OCIDownloaderError::Certificate { .. });
-
-        let ca_bundle_file = PathBuf::default();
-        let ca_bundle_dir = PathBuf::from("non-existing-dir.pem");
-        let err = certs_from_paths(&ca_bundle_file, &ca_bundle_dir).unwrap_err();
-        assert_matches!(err, OCIDownloaderError::Certificate { .. });
-    }
-
-    #[test]
-    fn test_certs_from_paths_invalid_certificate_file() {
-        let dir = tempdir().unwrap();
-        let ca_bundle_file = dir.path().join("invalid_cert.pem");
-        let mut file = File::create(&ca_bundle_file).unwrap();
-        writeln!(file, "{INVALID_TESTING_CERT}").unwrap();
-
-        let ca_bundle_dir = PathBuf::default();
-        let err = certs_from_paths(&ca_bundle_file, &ca_bundle_dir).unwrap_err();
-        assert_matches!(err, OCIDownloaderError::Certificate { .. });
-    }
-
-    #[test]
-    fn test_certs_from_paths_valid_certificate_file() {
-        let dir = tempdir().unwrap();
-        let ca_bundle_file = dir.path().join("valid_cert.pem");
-        let mut file = File::create(&ca_bundle_file).unwrap();
-        writeln!(file, "{}", valid_testing_cert()).unwrap();
-
-        let ca_bundle_dir = PathBuf::default();
-        let certificates = certs_from_paths(&ca_bundle_file, &ca_bundle_dir).unwrap();
-        assert_eq!(certificates.len(), 1);
-    }
-
-    #[test]
-    fn test_certs_from_paths_dir_pointing_to_file() {
-        let dir = tempdir().unwrap();
-        let ca_bundle_dir = dir.path().join("valid_cert.pem");
-        let mut file = File::create(&ca_bundle_dir).unwrap();
-        writeln!(file, "{}", valid_testing_cert()).unwrap();
-
-        let ca_bundle_file = PathBuf::default();
-        let err = certs_from_paths(&ca_bundle_file, &ca_bundle_dir).unwrap_err();
-        assert_matches!(err, OCIDownloaderError::Certificate { .. });
-    }
-
-    #[test]
-    fn test_certs_from_paths_valid_certificate_dir() {
-        let dir = tempdir().unwrap();
-        let ca_bundle_dir = dir.path();
-
-        // Valid cert file
-        let file_path = dir.path().join("valid_cert.pem");
-        let mut file = File::create(&file_path).unwrap();
-        writeln!(file, "{}", valid_testing_cert()).unwrap();
-        // Empty cert file
-        let file_path = dir.path().join("empty_cert.pem");
-        let _ = File::create(&file_path).unwrap();
-        // Unrelated file
-        let file_path = dir.path().join("other-file.txt");
-        let mut file = File::create(&file_path).unwrap();
-        writeln!(file, "some content").unwrap();
-        // Invalid cert in no cert-file
-        let file_path = dir.path().join("invalid-cert.bk");
-        let mut file = File::create(&file_path).unwrap();
-        writeln!(file, "{INVALID_TESTING_CERT}").unwrap();
-
-        let ca_bundle_file = PathBuf::default();
-        let certificates = certs_from_paths(&ca_bundle_file, ca_bundle_dir).unwrap();
-        assert_eq!(certificates.len(), 1);
-    }
-
-    const INVALID_TESTING_CERT: &str =
-        "-----BEGIN CERTIFICATE-----\ninvalid!\n-----END CERTIFICATE-----";
-
-    fn valid_testing_cert() -> String {
-        let subject_alt_names = vec!["localhost".to_string()];
-        let rcgen::CertifiedKey {
-            cert,
-            signing_key: _,
-        } = rcgen::generate_simple_self_signed(subject_alt_names).unwrap();
-        cert.pem()
-    }
-
-    // ========== Fake OCI server Tests ==========
 
     #[test]
     fn test_download_agent_package_success() {
@@ -547,136 +240,16 @@ pub mod tests {
         );
     }
 
-    #[rstest]
-    #[case::manifest_unknown(
-        OciDistributionError::RegistryError {
-        envelope: OciEnvelope { errors: vec![OciError { code: OciErrorCode::ManifestUnknown, message: "not found".into(), detail: Default::default() }] },
-        url: "url".into()
-            },
-        "the requested version does not exist"
-    )]
-    #[case::access_denied(
-        OciDistributionError::RegistryError {
-        envelope: OciEnvelope { errors: vec![OciError { code: OciErrorCode::Denied, message: "forbidden".into(), detail: Default::default() }] },
-        url: "url".into()
-            },
-        "access denied"
-    )]
-    #[case::empty_envelope(
-        OciDistributionError::RegistryError {
-        envelope: OciEnvelope { errors: vec![] },
-        url: "url".into()
-            },
-        "Registry error:"
-    )]
-    fn test_from_oci_error_mapping(
-        #[case] input_error: OciDistributionError,
-        #[case] expected_msg: &str,
-    ) {
-        let err = OCIDownloaderError::from(input_error);
-        assert_matches!(err, OCIDownloaderError::RegistryError(msg) => { assert!(msg.contains(expected_msg)); });
-    }
-
-    #[test]
-    fn test_connection_error_fallback() {
-        let oci_err = OciDistributionError::AuthenticationFailure("bad login".to_string());
-        let err = OCIDownloaderError::from(oci_err);
-        assert_matches!(err, OCIDownloaderError::ConnectionError(msg) => { assert!(msg.contains("bad login")); });
-    }
-
-    fn hex_bytes(bytes: &[u8]) -> String {
-        bytes.iter().map(|b| format!("{:02x}", b)).collect()
-    }
-
-    struct FakeOciServer {
-        server: MockServer,
-        repo: String,
-        tag: String,
-        layers: Vec<(String, Vec<u8>)>, // (digest, content)
-        manifest: OciImageManifest,
-    }
-
-    impl FakeOciServer {
-        fn new(repo: &str, tag: &str) -> Self {
-            Self {
-                server: MockServer::start(),
-                repo: repo.to_string(),
-                tag: tag.to_string(),
-                layers: Vec::new(),
-                manifest: OciImageManifest::default(),
-            }
-        }
-        fn with_artifact_type(mut self, artifact_type: &str) -> Self {
-            self.manifest.artifact_type = Some(artifact_type.to_string());
-            self
-        }
-
-        fn with_layer(mut self, content: &[u8], media_type: &str) -> Self {
-            let digest = digest(&SHA256, content);
-            let digest_str = format!("sha256:{}", hex_bytes(digest.as_ref()));
-            self.layers.push((digest_str, content.to_vec()));
-
-            let layer_descriptor = OciDescriptor {
-                media_type: media_type.to_string(),
-                digest: self.layers.last().unwrap().0.clone(),
-                size: content.len() as i64,
-                ..Default::default()
-            };
-            self.manifest.layers.push(layer_descriptor);
-            self
-        }
-
-        fn build(self) -> Self {
-            self.setup_mocks();
-            self
-        }
-
-        fn setup_mocks(&self) {
-            // Mock manifest endpoint
-            let manifest_clone = self.manifest.clone();
-            self.server.mock(|when, then| {
-                when.method(GET)
-                    .path(format!("/v2/{}/manifests/{}", self.repo, self.tag));
-                then.status(200)
-                    .header("Content-Type", "application/vnd.oci.image.manifest.v1+json")
-                    .json_body_obj(&manifest_clone);
-            });
-
-            // Mock blob endpoints
-            for (digest, content) in &self.layers {
-                let content_clone = content.clone();
-                let digest_clone = digest.clone();
-                self.server.mock(move |when, then| {
-                    when.method(GET)
-                        .path(format!("/v2/{}/blobs/{}", self.repo, digest_clone));
-                    then.status(200)
-                        .header("Content-Type", "application/octet-stream")
-                        .body(&content_clone);
-                });
-            }
-        }
-
-        fn reference(&self) -> Reference {
-            Reference::from_str(&format!(
-                "{}/{}:{}",
-                self.server.address(),
-                self.repo,
-                self.tag
-            ))
-            .unwrap()
-        }
-    }
-
     fn create_downloader() -> OCIArtifactDownloader {
         let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());
-        OCIArtifactDownloader::try_new(
+        let client = Client::try_new(
             ProxyConfig::default(),
-            runtime,
             ClientConfig {
                 protocol: ClientProtocol::Http,
                 ..Default::default()
             },
         )
-        .unwrap()
+        .unwrap();
+        OCIArtifactDownloader::new(client, runtime)
     }
 }
