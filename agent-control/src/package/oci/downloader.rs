@@ -25,7 +25,7 @@ pub enum OCIDownloaderError {
     DownloadingArtifact(String),
     #[error("I/O error: {0}")]
     Io(std::io::Error),
-    #[error("Registry error: {0}")]
+    #[error("registry error: {0}")]
     RegistryError(String),
     #[error("the registry and repository are not found or reachable: {0}")]
     ConnectionError(String),
@@ -37,27 +37,26 @@ impl From<OciDistributionError> for OCIDownloaderError {
     fn from(err: OciDistributionError) -> Self {
         match err {
             OciDistributionError::RegistryError { ref envelope, .. } => {
-                if let Some(oci_err) = envelope.errors.first() {
-                    let err_msg = match oci_err.code {
-                        OciErrorCode::ManifestUnknown | OciErrorCode::NotFound => {
-                            format!("The requested version does not exist in the registry: {err}")
-                        }
-                        OciErrorCode::NameUnknown | OciErrorCode::NameInvalid => {
-                            format!("The repository name is invalid or not found: {err}")
-                        }
-                        OciErrorCode::Unauthorized | OciErrorCode::Denied => {
-                            format!("Access denied, check credentials: {err}")
-                        }
-                        OciErrorCode::Toomanyrequests => {
-                            format!(
-                                "Rate limit exceeded: the registry is throttling requests: {err}"
-                            )
-                        }
-                        _ => format!("Registry error ({:?}): {}", oci_err.code, oci_err.message),
-                    };
-                    return OCIDownloaderError::RegistryError(err_msg);
-                }
-                OCIDownloaderError::RegistryError(err.to_string())
+                let Some(oci_err) = envelope.errors.first() else {
+                    return OCIDownloaderError::RegistryError(err.to_string());
+                };
+
+                let err_msg = match oci_err.code {
+                    OciErrorCode::ManifestUnknown | OciErrorCode::NotFound => {
+                        format!("the requested version does not exist in the registry: {err}")
+                    }
+                    OciErrorCode::NameUnknown | OciErrorCode::NameInvalid => {
+                        format!("the repository name is invalid or not found: {err}")
+                    }
+                    OciErrorCode::Unauthorized | OciErrorCode::Denied => {
+                        format!("access denied, check credentials: {err}")
+                    }
+                    OciErrorCode::Toomanyrequests => {
+                        format!("rate limit exceeded: the registry is throttling requests: {err}")
+                    }
+                    _ => format!("registry error ({:?}): {}", oci_err.code, oci_err.message),
+                };
+                OCIDownloaderError::RegistryError(err_msg)
             }
             // Use _ to catch all other variants like AuthenticationFailure, etc.
             _ => OCIDownloaderError::ConnectionError(err.to_string()),
@@ -554,14 +553,14 @@ pub mod tests {
         envelope: OciEnvelope { errors: vec![OciError { code: OciErrorCode::ManifestUnknown, message: "not found".into(), detail: Default::default() }] },
         url: "url".into()
             },
-        "The requested version does not exist"
+        "the requested version does not exist"
     )]
     #[case::access_denied(
         OciDistributionError::RegistryError {
         envelope: OciEnvelope { errors: vec![OciError { code: OciErrorCode::Denied, message: "forbidden".into(), detail: Default::default() }] },
         url: "url".into()
             },
-        "Access denied"
+        "access denied"
     )]
     #[case::empty_envelope(
         OciDistributionError::RegistryError {
