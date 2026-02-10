@@ -97,6 +97,6 @@ mod tests {
     fn test_connection_error_fallback() {
         let oci_err = OciDistributionError::AuthenticationFailure("bad login".to_string());
         let err = OciErrorMessage::from(oci_err);
-        assert!(err.0.contains("bad logging"));
+        assert!(err.0.contains("bad login"));
     }
 }
