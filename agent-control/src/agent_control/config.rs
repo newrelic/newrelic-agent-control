@@ -20,6 +20,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
 use url::Url;
+use wrapper_with_default::WrapperWithDefault;
 
 /// AgentControlConfig represents the configuration for the agent control.
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
@@ -63,7 +64,22 @@ pub struct AgentControlConfig {
     /// configuration for every secrets provider that the current AgentControl instance should be able to access
     #[serde(default)]
     pub secrets_providers: Option<SecretsProvidersConfig>,
+
+    /// Contains the configuration related to host agent packages
+    #[serde(default)]
+    pub agent_packages: PackagesConfig,
 }
+
+#[derive(Debug, Default, Deserialize, PartialEq, Clone)]
+pub struct PackagesConfig {
+    /// Indicates whether package signature verification is enabled or not
+    pub signature_verification_enabled: SignatureVerificationEnabled,
+}
+
+const DEFAULT_SIGNATURE_VERIFICATION_ENABLED: bool = true;
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_SIGNATURE_VERIFICATION_ENABLED)]
+pub struct SignatureVerificationEnabled(bool);
 
 impl TryFrom<YAMLConfig> for AgentControlConfig {
     type Error = serde_yaml::Error;
