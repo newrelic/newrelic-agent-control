@@ -41,11 +41,11 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
     );
 
     let client = oci::Client::try_new(
-        ProxyConfig::default(),
         ClientConfig {
             protocol: ClientProtocol::Http,
             ..Default::default()
         },
+        ProxyConfig::default(),
     )
     .unwrap();
     let downloader = OCIArtifactDownloader::new(client, runtime);
@@ -115,11 +115,11 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
     );
 
     let client = oci::Client::try_new(
-        proxy_config,
         ClientConfig {
             protocol: ClientProtocol::Http,
             ..Default::default()
         },
+        proxy_config,
     )
     .unwrap();
     let downloader =

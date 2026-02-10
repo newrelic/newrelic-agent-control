@@ -243,11 +243,11 @@ pub mod tests {
     fn create_downloader() -> OCIArtifactDownloader {
         let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());
         let client = Client::try_new(
-            ProxyConfig::default(),
             ClientConfig {
                 protocol: ClientProtocol::Http,
                 ..Default::default()
             },
+            ProxyConfig::default(),
         )
         .unwrap();
         OCIArtifactDownloader::new(client, runtime)

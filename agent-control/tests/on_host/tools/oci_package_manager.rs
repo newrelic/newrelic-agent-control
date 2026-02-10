@@ -24,11 +24,11 @@ pub fn new_testing_oci_package_manager(
     );
 
     let client = oci::Client::try_new(
-        ProxyConfig::default(),
         ClientConfig {
             protocol: ClientProtocol::Http,
             ..Default::default()
         },
+        ProxyConfig::default(),
     )
     .unwrap();
     let downloader = OCIArtifactDownloader::new(client, runtime);

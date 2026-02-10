@@ -2,9 +2,9 @@
 
 use std::{fs::File, io::BufReader, path::Path};
 
+use http::uri::Scheme;
 use oci_client::client::{Certificate, CertificateEncoding, ClientConfig};
 use rustls_pki_types::pem::PemObject;
-use url::Url;
 
 use crate::http::{
     client::{HttpBuildError, cert_paths_from_dir, certificate_error},
@@ -19,18 +19,17 @@ pub(super) fn setup_proxy(
     proxy_config: ProxyConfig,
 ) -> Result<ClientConfig, OciClientError> {
     let mut config = client_config;
-    let proxy_url = proxy_config.url_as_string();
-    if !proxy_url.is_empty() {
-        match Url::parse(&proxy_url).as_ref().map(Url::scheme) {
-            Ok("http") => config.http_proxy = Some(proxy_url),
-            Ok(_) | Err(_) => config.https_proxy = Some(proxy_url),
-        };
+    if let Some(uri) = proxy_config.url() {
+        if uri.scheme() == Some(&Scheme::HTTP) {
+            config.http_proxy = Some(proxy_config.url_as_string());
+        } else {
+            config.https_proxy = Some(proxy_config.url_as_string());
+        }
 
         config.extra_root_certificates =
             certs_from_paths(proxy_config.ca_bundle_file(), proxy_config.ca_bundle_dir())
                 .map_err(|err| OciClientError::Build(err.to_string()))?;
     }
-
     Ok(config)
 }
 

@@ -18,6 +18,11 @@ mod proxy;
 pub use error::OciClientError;
 
 /// [oci_client::Client] wrapper with extended functionality.
+/// Besides centralizing common iteration with the [oci_client], this wrapper should easy a potential refactor if
+/// the upstream client extends its current approach.
+/// Specifically if it:
+/// - Allows injecting an http-client (we could leverage [crate::http::client::HttpClient]).
+/// - Starts using a common [oci-spec](https://crates.io/crates/oci-spec) for exposed types.
 #[derive(Clone)]
 pub struct Client {
     client: oci_client::Client,
@@ -27,19 +32,14 @@ pub struct Client {
 impl Client {
     /// Returns a new client with the provided configuration and [RegistryAuth::Anonymous] authentication.
     pub fn try_new(
-        proxy_config: ProxyConfig,
         client_config: ClientConfig,
+        proxy_config: ProxyConfig,
     ) -> Result<Self, OciClientError> {
         let client_config = proxy::setup_proxy(client_config, proxy_config)?;
         Ok(Self {
             client: oci_client::Client::new(client_config),
             auth: RegistryAuth::Anonymous,
         })
-    }
-
-    /// Sets up the provided authentication.
-    pub fn with_auth(self, auth: RegistryAuth) -> Self {
-        Self { auth, ..self }
     }
 
     /// Calls [oci_client::Client::pull_image_manifest] using the configured auth.
@@ -90,11 +90,11 @@ pub mod tests {
             .build();
 
         let client = Client::try_new(
-            ProxyConfig::default(),
             ClientConfig {
                 protocol: oci_client::client::ClientProtocol::Http,
                 ..Default::default()
             },
+            ProxyConfig::default(),
         )
         .unwrap();
 
