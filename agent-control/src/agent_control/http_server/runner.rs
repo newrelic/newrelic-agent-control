@@ -250,9 +250,7 @@ mod tests {
     /// Helper to find an available port by binding and immediately releasing it
     fn get_available_port() -> u16 {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-        drop(listener); // just releasing it explicitly
-        port
+        listener.local_addr().unwrap().port() // the port is released when the listener is dropped
     }
 
     /// Helper to check if the status endpoint responds successfully
