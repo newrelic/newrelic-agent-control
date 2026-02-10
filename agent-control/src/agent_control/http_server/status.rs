@@ -30,9 +30,24 @@ pub struct AgentControlStatus {
     last_error: Option<String>,
     #[serde(skip_serializing_if = "String::is_empty")]
     status: String,
+    #[serde(default = "unknown_version")]
+    version: String,
+}
+
+fn unknown_version() -> String {
+    "unknown".to_string()
 }
 
 impl AgentControlStatus {
+    pub fn new() -> Self {
+        Self {
+            healthy: false,
+            last_error: None,
+            status: String::new(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        }
+    }
+
     pub fn set_health(&mut self, health: HealthWithStartTime) {
         match Health::from(health) {
             Health::Healthy(healthy) => {
@@ -255,18 +270,18 @@ pub mod tests {
 
     impl AgentControlStatus {
         pub fn new_healthy(status: String) -> Self {
-            AgentControlStatus {
-                healthy: true,
-                last_error: None,
-                status,
-            }
+            let mut s = AgentControlStatus::new();
+            s.healthy = true;
+            s.last_error = None;
+            s.status = status;
+            s
         }
         pub fn new_unhealthy(status: String, last_error: String) -> Self {
-            AgentControlStatus {
-                healthy: false,
-                last_error: Some(last_error),
-                status,
-            }
+            let mut s = AgentControlStatus::new();
+            s.healthy = false;
+            s.last_error = Some(last_error);
+            s.status = status;
+            s
         }
     }
 

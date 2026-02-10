@@ -36,12 +36,22 @@ function Start-AgentControl {
 }
 
 function Get-BootData {
-  param([string]$Dir)
-  $path = Join-Path $Dir "agent_control_boot_data.json"
-  if (Test-Path $path) {
-    return Get-Content $path | ConvertFrom-Json
-  }
-  return $null
+    param([string]$Dir)
+    $path = Join-Path $Dir "agent_control_boot_data.json"
+    if (Test-Path $path) {
+        return Get-Content $path | ConvertFrom-Json
+    }
+    return $null
+}
+
+function Get-AgentControlStatus {
+    try {
+        $response = Invoke-RestMethod -Uri "http://localhost:5555/status" -Method Get -ErrorAction Stop
+        return $response.agent_control
+    }
+    catch {
+        return $null
+    }
 }
 
 try {
@@ -54,7 +64,19 @@ try {
     # 1. Start Agent in background
     $proc = Start-AgentControl -Dir $testDir -Wait $false
     Write-Host "Agent started (PID: $($proc.Id)). Waiting for init..."
-    Start-Sleep -Seconds 5
+    
+    # Wait for HTTP server to be up
+    $started = $false
+    for ($i=0; $i -lt 10; $i++) {
+        $status = Get-AgentControlStatus
+        if ($null -ne $status) { 
+            Write-Host "Agent is up. Version: $($status.version)"
+            $started = $true
+            break 
+        }
+        Start-Sleep -Seconds 1
+    }
+    if (-not $started) { throw "Agent failed to start HTTP server" }
 
     # 2. Drop Update
     Write-Host "Dropping update file..."
@@ -86,15 +108,20 @@ try {
     }
     else {
       Write-Host "PASS: Agent is still running."
+      
+      # Check status via HTTP
+      $status = Get-AgentControlStatus
+      if ($null -ne $status) {
+          Write-Host "Current Running Version: $($status.version)"
+          # Ideally we verify this is the "new" version if we had a way to distinguish.
+      }
+
       Stop-Process -Id $proc2.Id -Force
             
       # Check Boot Data
       $bd = Get-BootData -Dir $testDir
       if ($bd.status -eq "Stable") { Write-Host "PASS: Agent marked itself as Stable." }
       else { Write-Error "FAIL: Boot status is $($bd.status)" }
-            
-      # Verify it is the NEW binary? 
-      # We can check file hash or assumed content if we knew it.
     }
   }
 
