@@ -189,6 +189,7 @@ pub mod tests {
         }
     }
 
+    const MESSAGE: &[u8] = b"hello, world";
     // VerifierStore tests
 
     #[test]
@@ -317,7 +318,6 @@ pub mod tests {
     fn test_verify() {
         let key_pair = TestKeyPair::new(0);
         let pub_key = key_pair.public_key();
-        const MESSAGE: &[u8] = b"hello, world";
 
         let signature = key_pair.sign(&config_signature_payload(MESSAGE));
 
@@ -334,7 +334,6 @@ pub mod tests {
     fn test_verify_wrong_signature() {
         let key_pair = TestKeyPair::new(0);
         let pub_key = key_pair.public_key();
-        const MESSAGE: &[u8] = b"hello, world";
 
         let signature = key_pair.sign(b"some other message");
         assert_matches!(

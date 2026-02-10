@@ -189,11 +189,11 @@ pub mod tests {
         let test_key_pair = TestKeyPair::new(0);
         let pub_key = test_key_pair.public_key();
 
-        const MESSAGE: &[u8] = b"hello, world";
-        let signature = test_key_pair.sign(MESSAGE);
+        let msg: &[u8] = b"hello, world";
+        let signature = test_key_pair.sign(msg);
 
         pub_key
-            .verify_signature(&SigningAlgorithm::ED25519, MESSAGE, &signature)
+            .verify_signature(&SigningAlgorithm::ED25519, msg, &signature)
             .unwrap();
 
         assert_matches!(
@@ -210,7 +210,7 @@ pub mod tests {
             pub_key
                 .verify_signature(
                     &SigningAlgorithm::ED25519,
-                    MESSAGE,
+                    msg,
                     "wrong_signature".as_bytes(),
                 )
                 .unwrap_err(),
