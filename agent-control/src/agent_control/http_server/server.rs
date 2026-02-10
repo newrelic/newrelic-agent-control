@@ -8,7 +8,31 @@ use crate::event::{AgentControlEvent, SubAgentEvent};
 use actix_web::{App, HttpServer, dev::ServerHandle, web};
 use std::sync::Arc;
 use tokio::runtime::Handle;
+use tokio::task::JoinError;
 use tracing::{debug, error, info};
+
+/// Helper struct to manage [JoinError] when shutting down the server
+#[derive(Default)]
+struct JoinHandleErrors {
+    server: Option<JoinError>,
+    events: Option<JoinError>,
+}
+
+impl JoinHandleErrors {
+    fn is_empty(&self) -> bool {
+        self.server.is_none() && self.events.is_none()
+    }
+}
+
+impl std::fmt::Display for JoinHandleErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let messages: Vec<String> = [&self.server, &self.events]
+            .into_iter()
+            .filter_map(|err| err.as_ref().map(|err| err.to_string()))
+            .collect();
+        write!(f, "{}", messages.join(","))
+    }
+}
 
 pub async fn run_status_server(
     server_config: ServerConfig,
@@ -59,10 +83,10 @@ pub async fn run_status_server(
         });
     });
 
-    let mut join_handle_errors = Vec::new();
+    let mut join_handle_errors = JoinHandleErrors::default();
     debug!("waiting for the event_join_handle");
     if let Err(err) = event_join_handle.await {
-        join_handle_errors.push(err.to_string());
+        join_handle_errors.events = Some(err);
     };
     debug!("event_join_handle finished");
 
@@ -75,7 +99,7 @@ pub async fn run_status_server(
 
     debug!("waiting for status server join handle");
     if let Err(err) = server_join_handle.await {
-        join_handle_errors.push(err.to_string());
+        join_handle_errors.server = Some(err);
     };
 
     debug!("status server gracefully stopped");
@@ -84,7 +108,7 @@ pub async fn run_status_server(
         Ok(())
     } else {
         Err(StatusServerError::JoinHandleError(
-            join_handle_errors.join(","),
+            join_handle_errors.to_string(),
         ))
     }
 }

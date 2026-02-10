@@ -148,7 +148,7 @@ impl Drop for StartedHttpServer {
 
 #[cfg(test)]
 mod tests {
-    use std::net::{TcpListener, TcpStream};
+    use std::net::TcpListener;
     use std::time::Duration;
 
     use assert_matches::assert_matches;
@@ -174,7 +174,7 @@ mod tests {
                 port: port.into(),
                 ..Default::default()
             },
-            runtime.clone(),
+            runtime,
             agent_control_consumer,
             sub_agent_consumer,
             None,
@@ -257,7 +257,7 @@ mod tests {
 
     /// Helper to check if the status endpoint responds successfully
     fn assert_status_endpoint(port: u16) {
-        let response = reqwest::blocking::get(format!("http://127.0.0.1:{}/status", port))
+        let response = reqwest::blocking::get(format!("http://127.0.0.1:{port}/status"))
             .expect("The server should be up and running");
         assert!(response.status().is_success());
     }
@@ -265,11 +265,9 @@ mod tests {
     // Helper to check that the server is down
     fn assert_port_is_released(port: u16) {
         retry(20, Duration::from_millis(100), || {
-            if TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
-                Err(format!("the server is still up on {port}"))
-            } else {
-                Ok(())
-            }
+            TcpListener::bind(format!("127.0.0.1:{}", port))
+                .map(|_| ())
+                .map_err(|_| format!("the port {port} is still in use"))
         })
         .expect("The port should be released")
     }
