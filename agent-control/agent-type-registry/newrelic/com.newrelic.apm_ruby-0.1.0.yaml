@@ -3,6 +3,10 @@ name: com.newrelic.apm_ruby
 version: 0.1.0
 variables:
   k8s:
+    applicationName:
+      description: "application name to leverage"
+      type: string
+      required: true
     podLabelSelector:
       description: "Pod label selector"
       type: yaml
@@ -86,6 +90,8 @@ deployment:
           # Hence, the namespace is set to "nr-ac:namespace_agents".
           # Reference: https://github.com/newrelic/k8s-agents-operator/blob/92c19208864f051f03f457ee04b772fca5042162/api/v1beta1/instrumentation_webhook.go#L110C27-L110C72
           namespace: ${nr-ac:namespace_agents}
+          annotations:
+            newrelic.com/app-name: ${nr-var:applicationName}
         spec:
           agent:
             language: ruby

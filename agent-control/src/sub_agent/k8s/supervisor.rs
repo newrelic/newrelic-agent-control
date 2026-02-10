@@ -131,8 +131,9 @@ impl NotStartedSupervisorK8s {
         // Merge default labels with the ones coming from the config with default labels taking precedence.
         labels.append_extra_labels(&k8s_obj.metadata.labels);
 
-        let annotations =
+        let mut annotations =
             Annotations::new_agent_type_id_annotation(&self.agent_identity.agent_type_id);
+        annotations.append_extra_annotations(&k8s_obj.metadata.annotations);
 
         let metadata = ObjectMeta {
             name: Some(k8s_obj.metadata.name.clone()),
@@ -575,6 +576,7 @@ pub mod tests {
                 ]),
                 name: TEST_NAME.to_string(),
                 namespace: TEST_NAMESPACE.to_string(),
+                ..Default::default()
             },
             ..Default::default()
         }
