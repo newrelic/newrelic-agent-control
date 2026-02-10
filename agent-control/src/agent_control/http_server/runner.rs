@@ -148,59 +148,58 @@ impl Drop for StartedHttpServer {
 
 #[cfg(test)]
 mod tests {
-    use std::thread::sleep;
+    use std::net::{TcpListener, TcpStream};
     use std::time::Duration;
 
     use assert_matches::assert_matches;
-    use tracing_test::traced_test;
 
     use crate::agent_control::http_server::config::ServerConfig;
     use crate::agent_control::run::runtime::tests::tokio_runtime;
     use crate::event::AgentControlEvent;
     use crate::event::channel::pub_sub;
+    use crate::utils::retry::retry;
 
     use super::*;
 
     #[test]
-    #[traced_test]
     fn test_server_stops_gracefully_when_dropped() {
         let runtime = tokio_runtime();
+        let port = get_available_port();
         let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
         let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
-        let _started_http_server = Runner::new(
+
+        let started_http_server = Runner::new(
             ServerConfig {
                 enabled: true,
-                port: 0.into(),
+                port: port.into(),
                 ..Default::default()
             },
-            runtime,
+            runtime.clone(),
             agent_control_consumer,
             sub_agent_consumer,
             None,
         )
         .start()
         .expect("HTTP server should start successfully");
-        // server warm up
-        sleep(Duration::from_millis(100));
 
-        drop(_started_http_server);
+        assert_status_endpoint(port);
 
-        // wait for logs to be flushed
-        sleep(Duration::from_millis(100));
+        drop(started_http_server);
 
-        assert!(logs_contain("status server gracefully stopped"));
+        assert_port_is_released(port);
     }
 
     #[test]
-    #[traced_test]
     fn test_server_stops_gracefully_when_external_channels_close() {
         let runtime = tokio_runtime();
+        let port = get_available_port();
         let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
         let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
+
         let _http_server_runner = Runner::new(
             ServerConfig {
                 enabled: true,
-                port: 0.into(),
+                port: port.into(),
                 ..Default::default()
             },
             runtime,
@@ -210,16 +209,14 @@ mod tests {
         )
         .start()
         .expect("HTTP server should start successfully");
-        // server warm up
-        sleep(Duration::from_millis(100));
 
+        assert_status_endpoint(port);
+
+        // Drop the publishers to trigger shutdown
         drop(_agent_control_publisher);
         drop(_sub_agent_publisher);
 
-        // wait for logs to be flushed
-        sleep(Duration::from_millis(100));
-
-        assert!(logs_contain("status server gracefully stopped"));
+        assert_port_is_released(port);
     }
 
     #[test]
@@ -227,7 +224,7 @@ mod tests {
         let runtime = tokio_runtime();
 
         // Bind a port to simulate it being in use
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
 
         // Try to start the HTTP server on the already-bound port
@@ -248,5 +245,32 @@ mod tests {
 
         // The server should fail to start
         assert_matches!(result.err().unwrap(), StatusServerError::BindError(_));
+    }
+
+    /// Helper to find an available port by binding and immediately releasing it
+    fn get_available_port() -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener); // just releasing it explicitly
+        port
+    }
+
+    /// Helper to check if the status endpoint responds successfully
+    fn assert_status_endpoint(port: u16) {
+        let response = reqwest::blocking::get(format!("http://127.0.0.1:{}/status", port))
+            .expect("The server should be up and running");
+        assert!(response.status().is_success());
+    }
+
+    // Helper to check that the server is down
+    fn assert_port_is_released(port: u16) {
+        retry(20, Duration::from_millis(100), || {
+            if TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
+                Err(format!("the server is still up on {port}"))
+            } else {
+                Ok(())
+            }
+        })
+        .expect("The port should be released")
     }
 }
