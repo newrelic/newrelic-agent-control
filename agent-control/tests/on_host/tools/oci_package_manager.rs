@@ -3,6 +3,7 @@ use flate2::write::GzEncoder;
 use fs::directory_manager::DirectoryManagerFs;
 use newrelic_agent_control::{
     http::config::ProxyConfig,
+    oci,
     package::oci::{downloader::OCIArtifactDownloader, package_manager::OCIPackageManager},
 };
 use oci_client::client::{ClientConfig, ClientProtocol};
@@ -22,15 +23,15 @@ pub fn new_testing_oci_package_manager(
             .unwrap(),
     );
 
-    let downloader = OCIArtifactDownloader::try_new(
-        ProxyConfig::default(),
-        runtime,
+    let client = oci::Client::try_new(
         ClientConfig {
             protocol: ClientProtocol::Http,
             ..Default::default()
         },
+        ProxyConfig::default(),
     )
     .unwrap();
+    let downloader = OCIArtifactDownloader::new(client, runtime);
 
     OCIPackageManager::new(downloader, DirectoryManagerFs, base_path)
 }

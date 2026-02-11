@@ -16,6 +16,7 @@ use crate::checkers::health::noop::NoOpHealthChecker;
 use crate::event::channel::pub_sub;
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
+use crate::oci;
 use crate::on_host::file_store::FileStore;
 use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
@@ -173,10 +174,10 @@ impl AgentControlRunner {
             ..Default::default()
         };
 
-        let packages_downloader =
-            OCIArtifactDownloader::try_new(self.proxy, self.runtime, oci_client_config).map_err(
-                |err| RunError(format!("failed to create OCIRefDownloader client: {err}")),
-            )?;
+        let oci_client = oci::Client::try_new(oci_client_config, self.proxy)
+            .map_err(|err| RunError(format!("failed to create the OciClient: {err}")))?;
+
+        let packages_downloader = OCIArtifactDownloader::new(oci_client, self.runtime);
 
         let package_manager = OCIPackageManager::new(
             packages_downloader,

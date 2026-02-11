@@ -155,6 +155,11 @@ impl ProxyConfig {
         self.ignore_system_proxy
     }
 
+    /// Returns a reference to the underlying uri representation of the proxy url
+    pub fn url(&self) -> &Option<Uri> {
+        &self.url.0
+    }
+
     /// Returns a string representation of the proxy url.
     pub fn url_as_string(&self) -> String {
         self.url.to_string()
