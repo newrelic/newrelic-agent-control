@@ -1,3 +1,4 @@
+use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::oci_artifact::push_agent_package;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use httpmock::{MockServer, When};
@@ -33,12 +34,7 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
     let temp_dir = tempdir().unwrap();
     let local_agent_data_dir = temp_dir.path();
 
-    let runtime = Arc::new(
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap(),
-    );
+    let runtime = tokio_runtime();
 
     let client = oci::Client::try_new(
         ClientConfig {
@@ -107,12 +103,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
 
     let proxy_config = serde_yaml::from_str::<ProxyConfig>(&proxy_yaml).unwrap();
 
-    let runtime = Arc::new(
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap(),
-    );
+    let runtime = tokio_runtime();
 
     let client = oci::Client::try_new(
         ClientConfig {

@@ -9,19 +9,16 @@ use newrelic_agent_control::{
 use oci_client::client::{ClientConfig, ClientProtocol};
 use std::fs::File;
 use std::path::Path;
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 #[cfg(target_os = "windows")]
 use zip::write::SimpleFileOptions;
+
+use crate::common::runtime::tokio_runtime;
 
 pub fn new_testing_oci_package_manager(
     base_path: PathBuf,
 ) -> OCIPackageManager<OCIArtifactDownloader, DirectoryManagerFs> {
-    let runtime = Arc::new(
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap(),
-    );
+    let runtime = tokio_runtime();
 
     let client = oci::Client::try_new(
         ClientConfig {
