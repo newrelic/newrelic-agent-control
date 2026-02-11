@@ -1077,12 +1077,12 @@ dependencies = [
 
 [[package]]
 name = "ctrlc"
-version = "3.5.1"
+version = "3.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73736a89c4aff73035ba2ed2e565061954da00d4970fc9ac25dcc85a2a20d790"
+checksum = "e0b1fab2ae45819af2d0731d60f2afe17227ebb1a1538a236da84c93e9a60162"
 dependencies = [
  "dispatch2",
- "nix 0.30.1",
+ "nix",
  "windows-sys 0.61.2",
 ]
 
@@ -2811,7 +2811,7 @@ dependencies = [
  "kube",
  "mockall",
  "mockall_double",
- "nix 0.31.1",
+ "nix",
  "nr-auth",
  "oci-client",
  "oci-spec",
@@ -2856,18 +2856,6 @@ dependencies = [
  "wrapper_with_default",
  "x509-parser",
  "zip",
-]
-
-[[package]]
-name = "nix"
-version = "0.30.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74523f3a35e05aba87a1d978330aef40f67b0304ac79c1c00b294c9830543db6"
-dependencies = [
- "bitflags",
- "cfg-if",
- "cfg_aliases",
- "libc",
 ]
 
 [[package]]
@@ -3827,7 +3815,7 @@ dependencies = [
  "http 1.4.0",
  "konst",
  "mockall",
- "nix 0.31.1",
+ "nix",
  "rstest",
  "serde",
  "serde_json",
