@@ -11,6 +11,92 @@ Package references are constructed from three components:
 
 This data is taken from the Packages section of the [AgentType configuration](./INTEGRATING_AGENTS.md).
 
+## Package structure
+
+The packaged agent must comply with the [OCI image spec](https://github.com/opencontainers/image-spec). In short, that means
+that a manifest or index file must exist. Besides, Agent Control expects specific values for some fields.
+
+* `artifactType` must take one of the following values:
+
+    - `application/vnd.newrelic.agent.v1+tar`
+    - `application/vnd.newrelic.agent.v1+zip`
+
+* `config` must be set to empty as per the [empty descriptor guidance](https://github.com/opencontainers/image-spec/blob/v1.1.0-rc4/manifest.md#guidance-for-an-empty-descriptor)
+
+* `annotations` must contain
+    - `com.newrelic.artifact.type` with value `binary` or `agent-type`
+
+Manifest example:
+
+```json
+{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+  "artifactType": "application/vnd.newrelic.agent.v1+tar",
+  "config": {
+    "mediaType": "application/vnd.oci.empty.v1+json",
+    "digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "size": 2
+  },
+  "layers": [
+    {
+      "mediaType": "application/vnd.newrelic.agent.v1+tar",
+      "digest": "sha256:d2a84f4b8b650937ec8f73cd8be2c74add5a911ba64df27458ed8229da804a26",
+      "size": 12,
+      "annotations": {
+        "org.opencontainers.image.title": "agent-control",
+        "org.opencontainers.image.version": "2.4.1-rc1",
+        "com.newrelic.artifact.type": "binary"
+      }
+    }
+  ],
+  "annotations": {
+    "org.opencontainers.image.created": "2023-08-03T00:21:51Z"
+  }
+}
+```
+
+Index example
+
+```json
+{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.oci.image.index.v1+json",
+  "manifests": [
+    {
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "digest": "sha256:82677ba32d1276debe264d14ec5f7b1c61e2a9acbc8c6a6dff779d7133ec8487",
+      "size": 617,
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "artifactType": "application/vnd.newrelic.agent.v1+tar"
+    },
+    {
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "digest": "sha256:5a16021a5101f7ae0583cddae44ea715ad2cfd618b61b8982de1b847958260da",
+      "size": 617,
+      "platform": {
+        "architecture": "arm64",
+        "os": "linux"
+      },
+      "artifactType": "application/vnd.newrelic.agent.v1+tar"
+    },
+    {
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "digest": "sha256:13e6d06647bbaf4f44d4c29bb57e1078c9919da92e2aee3443c122c24b86d3cb",
+      "size": 502,
+      "platform": {
+        "architecture": "amd64",
+        "os": "windows"
+      },
+      "artifactType": "application/vnd.newrelic.agent.v1+zip"
+    }
+  ]
+}
+```
+
 ## Package Installation Process
 
 When an agent needs to install or update a package, the package manager leverages the following paths:

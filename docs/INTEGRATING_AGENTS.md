@@ -336,6 +336,8 @@ Note that a Package version. Can be:
   - A digest (`@sha256:...`)
   - Both tag and digest (`:v1.0.0@sha256:...`), when both are specified the digest takes precedence.
 
+The package in the OCI repository must follow a specific [structure](./oci_repository.md#package-structure).
+
 **Accessing Package Contents:**
 
 After installation, the package directory path is available via the reserved variable `${nr-sub:packages.<package-id>.dir}`, where `<package-id>` is the key used in the packages map.
