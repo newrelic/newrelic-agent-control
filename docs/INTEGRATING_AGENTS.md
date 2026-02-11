@@ -336,7 +336,8 @@ Note that a Package version. Can be:
   - A digest (`@sha256:...`)
   - Both tag and digest (`:v1.0.0@sha256:...`), when both are specified the digest takes precedence.
 
-The package in the OCI repository must follow a specific [structure](./oci_repository.md#package-structure).
+> [!WARNING]
+> The package in the OCI repository **MUST** follow a specific [structure](./oci_repository.md#package-structure).
 
 **Accessing Package Contents:**
 
