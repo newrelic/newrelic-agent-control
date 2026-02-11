@@ -22,7 +22,7 @@ regex = { workspace = true }
 futures = { version = "0.3.31" }
 tokio = { version = "1.49.0", features = ["rt-multi-thread", "macros", "sync"] }
 console-subscriber = { version = "0.5.0", optional = true }
-duration-str = "0.19.0"
+duration-str = "0.20.0"
 konst = { workspace = true }
 http = { workspace = true }
 reqwest = { workspace = true }
