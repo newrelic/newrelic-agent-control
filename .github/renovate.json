@@ -35,8 +35,8 @@
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": [
-        "^Dockerfiles/Dockerfile_agent_control_cli$"
+      "managerFilePatterns": [
+        "/^Dockerfiles/Dockerfile_agent_control_cli$/"
       ],
       "depNameTemplate": "alpine/helm",
       "datasourceTemplate": "docker",
@@ -46,8 +46,8 @@
     },
     {
       "customType": "regex",
-      "fileMatch": [
-        "^Dockerfiles/Dockerfile_agent_control_cli$"
+      "managerFilePatterns": [
+        "/^Dockerfiles/Dockerfile_agent_control_cli$/"
       ],
       "depNameTemplate": "alpine/kubectl",
       "datasourceTemplate": "docker",
@@ -57,8 +57,8 @@
     },
     {
       "customType": "regex",
-      "fileMatch": [
-        "^\\.goreleaser\\.yml$"
+      "managerFilePatterns": [
+        "/^.goreleaser.yml$/"
       ],
       "depNameTemplate": "newrelic/infrastructure-agent",
       "datasourceTemplate": "github-releases",
@@ -68,8 +68,8 @@
     },
     {
       "customType": "regex",
-      "fileMatch": [
-        "^\\.goreleaser\\.yml$"
+      "managerFilePatterns": [
+        "/^.goreleaser.yml$/"
       ],
       "depNameTemplate": "newrelic/nrdot-collector-releases",
       "datasourceTemplate": "github-releases",
@@ -79,8 +79,8 @@
     },
     {
       "customType": "regex",
-      "fileMatch": [
-        "(^|/)Cargo\\.toml$"
+      "managerFilePatterns": [
+        "**/Cargo.toml"
       ],
       "matchStrings": [
         "nr-auth = { git = \"https://github\\.com/newrelic/newrelic-auth-rs\\.git\", tag = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\" }"
@@ -91,8 +91,8 @@
     },
     {
       "customType": "regex",
-      "fileMatch": [
-        "(^|/)Cargo\\.toml$"
+      "managerFilePatterns": [
+        "**/Cargo.toml"
       ],
       "matchStrings": [
         "opamp-client = { git = \"https://github\\.com/newrelic/newrelic-opamp-rs\\.git\", tag = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\" }"
@@ -103,8 +103,8 @@
     },
     {
       "customType": "regex",
-      "fileMatch": [
-        "**/eks_cluster/variables\\.tf$"
+      "managerFilePatterns": [
+        "**/eks_cluster/variables.tf"
       ],
       "matchStrings": [
         "variable \"k8s_version\" {\n(.*\n)*?(..default.*=.*\"(?<currentValue>.*)\")\n(.*\n)*?}"
