@@ -22,7 +22,7 @@ fn test_config_generator_fleet_disabled_proxy() {
     cmd.args(args.split_ascii_whitespace());
     cmd.assert().success();
 
-    let expected_value: serde_yaml::Value = serde_yaml::from_str(
+    let expected_yaml = format!(
         r#"
 server:
   enabled: true
@@ -33,9 +33,11 @@ proxy:
   url: https://some.proxy.url/
   ca_bundle_dir: /test/bundle/dir
   ignore_system_proxy: true
+{}
     "#,
-    )
-    .unwrap();
+        log_section()
+    );
+    let expected_value: serde_yaml::Value = serde_yaml::from_str(&expected_yaml).unwrap();
     let actual_content = std::fs::read_to_string(&path).unwrap();
     let actual_value: serde_yaml::Value = serde_yaml::from_str(&actual_content).unwrap();
     assert_eq!(actual_value, expected_value);
@@ -61,16 +63,18 @@ fn test_config_generator_fleet_disabled_proxy_empty_fields() {
     cmd.args(args.split_ascii_whitespace());
     cmd.assert().success();
 
-    let expected_value: serde_yaml::Value = serde_yaml::from_str(
+    let expected_yaml = format!(
         r#"
 server:
   enabled: true
 agents:
   nr-infra:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+{}
     "#,
-    )
-    .unwrap();
+        log_section()
+    );
+    let expected_value: serde_yaml::Value = serde_yaml::from_str(&expected_yaml).unwrap();
     let actual_content = std::fs::read_to_string(&path).unwrap();
     let actual_value: serde_yaml::Value = serde_yaml::from_str(&actual_content).unwrap();
     assert_eq!(actual_value, expected_value);
@@ -97,8 +101,8 @@ fn test_config_generator_fleet_enabled_identity_provisioned() {
     cmd.args(args.split_ascii_whitespace());
     cmd.assert().success();
 
-    let expected_value: serde_yaml::Value = serde_yaml::from_str(
-        &format!(r#"
+    let expected_yaml = format!(
+        r#"
 fleet_control:
   endpoint: https://opamp.service.newrelic.com/v1/opamp
   signature_validation:
@@ -116,9 +120,11 @@ server:
 agents:
   nr-infra:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+{}
     "#,
-        ))
-    .unwrap();
+        log_section()
+    );
+    let expected_value: serde_yaml::Value = serde_yaml::from_str(&expected_yaml).unwrap();
     let actual_content = std::fs::read_to_string(&path).unwrap();
     let actual_value: serde_yaml::Value = serde_yaml::from_str(&actual_content).unwrap();
     assert_eq!(actual_value, expected_value);
@@ -153,4 +159,16 @@ NEW_RELIC_LICENSE_KEY: fake_license
     let actual_content = std::fs::read_to_string(&env_vars_path).unwrap();
     let actual_value: serde_yaml::Value = serde_yaml::from_str(&actual_content).unwrap();
     assert_eq!(actual_value, expected_value);
+}
+
+/// Returns the log section YAML for Windows, empty string for other platforms
+fn log_section() -> &'static str {
+    if cfg!(target_family = "windows") {
+        r#"
+log:
+  file:
+    enabled: true"#
+    } else {
+        ""
+    }
 }

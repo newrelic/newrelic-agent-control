@@ -3,7 +3,9 @@ use crate::cli::{
     error::CliError,
     on_host::{
         config_gen::{
-            config::{AgentSet, AuthConfig, Config, FleetControl, Server, SignatureValidation},
+            config::{
+                AgentSet, AuthConfig, Config, FleetControl, LogConfig, Server, SignatureValidation,
+            },
             identity::{Identity, provide_identity},
             region::{Region, region_parser},
         },
@@ -249,10 +251,24 @@ where
         server: Server { enabled: true },
         proxy: args.proxy_config.clone(),
         agents: args.agent_set.into(),
+        log: default_log_config(),
     };
 
     serde_yaml::to_string(&config)
         .map_err(|err| CliError::Command(format!("failed to serialize configuration: {err}")))
+}
+
+fn default_log_config() -> Option<LogConfig> {
+    #[cfg(target_family = "windows")]
+    {
+        Some(LogConfig {
+            file: Some(config::FileLogConfig { enabled: true }),
+        })
+    }
+    #[cfg(not(target_family = "windows"))]
+    {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -343,35 +359,35 @@ mod tests {
     }
 
     #[rstest]
-    #[case(false, Region::US, AgentSet::InfraAgent, None, EXPECTED_INFRA_US)]
-    #[case(false, Region::EU, AgentSet::Otel, None, EXPECTED_OTEL_EU)]
+    #[case(false, Region::US, AgentSet::InfraAgent, None, expected_infra_us())]
+    #[case(false, Region::EU, AgentSet::Otel, None, expected_otel_eu())]
     #[case(
         false,
         Region::STAGING,
         AgentSet::NoAgents,
         None,
-        EXPECTED_NONE_STAGING
+        expected_none_staging()
     )]
     #[case(
         true,
         Region::US,
         AgentSet::InfraAgent,
         None,
-        EXPECTED_FLEET_DISABLED_INFRA
+        expected_fleet_disabled_infra()
     )]
     #[case(
         false,
         Region::US,
         AgentSet::InfraAgent,
         some_proxy_config(),
-        EXPECTED_INFRA_US_PROXY
+        expected_infra_us_proxy()
     )]
     fn test_gen_config(
         #[case] fleet_enabled: bool,
         #[case] region: Region,
         #[case] agent_set: AgentSet,
         #[case] proxy_config: Option<ProxyConfig>,
-        #[case] expected: &str,
+        #[case] expected: String,
     ) {
         let args = create_test_args(fleet_enabled, region, agent_set, proxy_config);
 
@@ -386,7 +402,7 @@ mod tests {
         let parsed: serde_yaml::Value =
             serde_yaml::from_str(&yaml).expect("Invalid generated YAML");
         let expected_parsed: serde_yaml::Value =
-            serde_yaml::from_str(expected).expect("Invalid expectation");
+            serde_yaml::from_str(&expected).expect("Invalid expectation");
         assert_eq!(parsed, expected_parsed);
     }
 
@@ -472,7 +488,8 @@ mod tests {
         Some(proxy_config)
     }
 
-    const EXPECTED_INFRA_US: &str = r#"
+    // Reusable YAML sections
+    const FLEET_CONTROL_US: &str = r#"
 fleet_control:
   endpoint: https://opamp.service.newrelic.com/v1/opamp
   signature_validation:
@@ -484,15 +501,9 @@ fleet_control:
     provider: local
     private_key_path: /path/to/private/key
 
-server:
-  enabled: true
-
-agents:
-  nr-infra:
-    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
 "#;
 
-    const EXPECTED_OTEL_EU: &str = r#"
+    const FLEET_CONTROL_EU: &str = r#"
 fleet_control:
   endpoint: https://opamp.service.eu.newrelic.com/v1/opamp
   signature_validation:
@@ -504,15 +515,9 @@ fleet_control:
     provider: local
     private_key_path: /path/to/private/key
 
-server:
-  enabled: true
-
-agents:
-  nrdot:
-    agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"
 "#;
 
-    const EXPECTED_NONE_STAGING: &str = r#"
+    const FLEET_CONTROL_STAGING: &str = r#"
 fleet_control:
   endpoint: https://opamp.staging-service.newrelic.com/v1/opamp
   signature_validation:
@@ -524,44 +529,98 @@ fleet_control:
     provider: local
     private_key_path: /path/to/private/key
 
-server:
-  enabled: true
-
-agents: {}
 "#;
 
-    const EXPECTED_FLEET_DISABLED_INFRA: &str = r#"
+    const SERVER_SECTION: &str = r#"
 server:
   enabled: true
-
-agents:
-  nr-infra:
-    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
 "#;
 
-    const EXPECTED_INFRA_US_PROXY: &str = r#"
-fleet_control:
-  endpoint: https://opamp.service.newrelic.com/v1/opamp
-  signature_validation:
-    public_key_server_url: https://publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json
-  fleet_id: test-fleet-id
-  auth_config:
-    token_url: https://system-identity-oauth.service.newrelic.com/oauth2/token
-    client_id: test-client-id
-    provider: local
-    private_key_path: /path/to/private/key
-
-server:
-  enabled: true
-
+    const PROXY_SECTION: &str = r#"
 proxy:
   url: https://some.proxy.url/
   ca_bundle_dir: /test/bundle/dir
   ca_bundle_file: /test/bundle/file
   ignore_system_proxy: true
+"#;
 
+    const INFRA_AGENTS_SECTION: &str = r#"
 agents:
   nr-infra:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
 "#;
+
+    const OTEL_AGENTS_SECTION: &str = r#"
+agents:
+  nrdot:
+    agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"
+"#;
+
+    const NO_AGENTS_SECTION: &str = r#"agents: {}
+"#;
+
+    const LOG_SECTION: &str = r#"
+log:
+  file:
+    enabled: true
+"#;
+
+    // Helper functions to compose expected configs
+    fn log_section() -> String {
+        if cfg!(target_family = "windows") {
+            format!("\n{}", LOG_SECTION)
+        } else {
+            String::new()
+        }
+    }
+
+    fn expected_infra_us() -> String {
+        format!(
+            "{}{}{}{}",
+            FLEET_CONTROL_US,
+            SERVER_SECTION,
+            INFRA_AGENTS_SECTION,
+            log_section()
+        )
+    }
+
+    fn expected_otel_eu() -> String {
+        format!(
+            "{}{}{}{}",
+            FLEET_CONTROL_EU,
+            SERVER_SECTION,
+            OTEL_AGENTS_SECTION,
+            log_section()
+        )
+    }
+
+    fn expected_none_staging() -> String {
+        format!(
+            "{}{}{}{}",
+            FLEET_CONTROL_STAGING,
+            SERVER_SECTION,
+            NO_AGENTS_SECTION,
+            log_section()
+        )
+    }
+
+    fn expected_fleet_disabled_infra() -> String {
+        format!(
+            "{}{}{}",
+            SERVER_SECTION,
+            INFRA_AGENTS_SECTION,
+            log_section()
+        )
+    }
+
+    fn expected_infra_us_proxy() -> String {
+        format!(
+            "{}{}{}{}{}",
+            FLEET_CONTROL_US,
+            SERVER_SECTION,
+            PROXY_SECTION,
+            INFRA_AGENTS_SECTION,
+            log_section()
+        )
+    }
 }
