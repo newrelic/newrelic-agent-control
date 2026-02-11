@@ -16,15 +16,14 @@ This data is taken from the Packages section of the [AgentType configuration](./
 The packaged agent must comply with the [OCI image spec](https://github.com/opencontainers/image-spec). In short, that means
 that a manifest or index file must exist. Besides, Agent Control expects specific values for some fields.
 
-* `artifactType` must take one of the following values:
+* `layers/mediaType` must take one of the following values:
 
-    - `application/vnd.newrelic.agent.v1+tar`
-    - `application/vnd.newrelic.agent.v1+zip`
-
-* `config` must be set to empty as per the [empty descriptor guidance](https://github.com/opencontainers/image-spec/blob/v1.1.0-rc4/manifest.md#guidance-for-an-empty-descriptor)
+    - `application/vnd.newrelic.agent.content.v1.zip`
+    - `application/vnd.newrelic.agent.content.v1.tar+gzip`
+    - `application/vnd.newrelic.agent-type.content.v1.tar+gzip`
 
 * `annotations` must contain
-    - `com.newrelic.artifact.type` with value `binary` or `agent-type`
+    - `com.newrelic.artifact.type` with value `package` or `agent-type`
 
 Manifest example:
 
@@ -32,31 +31,31 @@ Manifest example:
 {
   "schemaVersion": 2,
   "mediaType": "application/vnd.oci.image.manifest.v1+json",
-  "artifactType": "application/vnd.newrelic.agent.v1+tar",
+  "artifactType": "application/vnd.newrelic.agent.v1",
   "config": {
-    "mediaType": "application/vnd.oci.empty.v1+json",
-    "digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-    "size": 2
+    "mediaType": "application/vnd.oci.image.config.v1+json",
+    "digest": "sha256:7758599fc4d06bd93a65bf28bc98fbff6c559a9a56be1ec3d75ff6aa8a8cfe6e",
+    "size": 39
   },
   "layers": [
     {
-      "mediaType": "application/vnd.newrelic.agent.v1+tar",
-      "digest": "sha256:d2a84f4b8b650937ec8f73cd8be2c74add5a911ba64df27458ed8229da804a26",
-      "size": 12,
+      "mediaType": "application/vnd.newrelic.agent.content.v1.zip",
+      "digest": "sha256:2e2e87f3a9403e735bee76c166b7139be36c1a76079f786e21ab2ce138cd9a1a",
+      "size": 21678636,
       "annotations": {
-        "org.opencontainers.image.title": "agent-control",
-        "org.opencontainers.image.version": "2.4.1-rc1",
-        "com.newrelic.artifact.type": "binary"
+        "com.newrelic.artifact.type": "package",
+        "org.opencontainers.image.title": "newrelic-infra-amd64.zip",
+        "org.opencontainers.image.version": "1.71.3"
       }
     }
   ],
   "annotations": {
-    "org.opencontainers.image.created": "2023-08-03T00:21:51Z"
+    "org.opencontainers.image.created": "2026-01-23T08:07:06Z"
   }
 }
 ```
 
-Index example
+Index example:
 
 ```json
 {
@@ -71,7 +70,7 @@ Index example
         "architecture": "amd64",
         "os": "linux"
       },
-      "artifactType": "application/vnd.newrelic.agent.v1+tar"
+      "artifactType": "application/vnd.newrelic.agent.v1"
     },
     {
       "mediaType": "application/vnd.oci.image.manifest.v1+json",
@@ -81,7 +80,7 @@ Index example
         "architecture": "arm64",
         "os": "linux"
       },
-      "artifactType": "application/vnd.newrelic.agent.v1+tar"
+      "artifactType": "application/vnd.newrelic.agent.v1"
     },
     {
       "mediaType": "application/vnd.oci.image.manifest.v1+json",
@@ -91,7 +90,7 @@ Index example
         "architecture": "amd64",
         "os": "windows"
       },
-      "artifactType": "application/vnd.newrelic.agent.v1+zip"
+      "artifactType": "application/vnd.newrelic.agent.v1"
     }
   ]
 }
