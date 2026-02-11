@@ -25,8 +25,7 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "Cargo.toml",
-        "**/Cargo.toml"
+        "/Cargo\\.toml$/"
       ],
       "matchStrings": [
         "rust-version\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+(?:\\.\\d+)?)\""
