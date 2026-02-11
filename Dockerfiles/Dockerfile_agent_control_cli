@@ -2,7 +2,7 @@
 
 # Use official alpine images as base stages for kubectl and helm
 # Automatically updated by Renovate
-FROM alpine/helm:4.1.0 AS helm
+FROM alpine/helm:4.1.1 AS helm
 FROM alpine/kubectl:1.35.0 AS kubectl
 
 FROM debian:trixie-slim
