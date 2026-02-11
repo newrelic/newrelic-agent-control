@@ -595,6 +595,22 @@ agents: {}
     }
 
     #[test]
+    fn basic_parse_with_windows_crlf() {
+        [
+            EXAMPLE_AGENTCONTROL_CONFIG,
+            EXAMPLE_SUBAGENTS_CONFIG,
+            EXAMPLE_K8S_CONFIG,
+        ]
+        .into_iter()
+        .for_each(|cfg_lf| {
+            let cfg_crlf = cfg_lf.replace("\n", "\r\n");
+            let from_lf: AgentControlConfig = serde_yaml::from_str(cfg_lf).unwrap();
+            let from_crlf: AgentControlConfig = serde_yaml::from_str(&cfg_crlf).unwrap();
+            assert_eq!(from_lf, from_crlf);
+        });
+    }
+
+    #[test]
     fn parse_with_wrong_agent_id() {
         let actual = serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_CONFIG_WRONG_AGENT_ID);
         assert!(actual.is_err());
