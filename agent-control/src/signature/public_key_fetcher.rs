@@ -53,11 +53,16 @@ impl PublicKeyFetcher {
         }
 
         if keys.is_empty() {
-            return Err(PubKeyFetcherError(format!(
-                "no valid keys found ({} invalid keys: {})",
-                errors.len(),
-                errors.join(", ")
-            )));
+            let error_msg = if errors.is_empty() {
+                "no keys found".to_string()
+            } else {
+                format!(
+                    "no valid keys found ({} invalid keys: {})",
+                    errors.len(),
+                    errors.join(", ")
+                )
+            };
+            return Err(PubKeyFetcherError(error_msg));
         }
 
         Ok(keys)
@@ -344,7 +349,7 @@ pub mod tests {
         );
         let err = result.unwrap_err();
         assert!(
-            err.0.contains("no valid keys found"),
+            err.0.contains("no keys found"),
             "Error should indicate no valid keys were found, got: {}",
             err.0
         );
