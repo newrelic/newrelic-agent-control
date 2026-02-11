@@ -168,7 +168,15 @@ That's great, but what happens during a key rotation? It depends on the specific
 * All keys were revoked
 
 ## Garbage collection
-TODO not implemented yet
+
+Agent Control stores in the system the two latest installed versions of each agent. Any other version of the package is removed from the system.
+You can think of it like a FIFO with size 2.
+
+Example:
+
+1. User installs infra agent version 1.0.0 (system stores infra 1.0.0)
+2. User installs infra agent version 3.0.0 (system stores infra 1.0.0 and 3.0.0)
+3. User installs infra agent version 2.0.0 (system stores infra 2.0.0 and 3.0.0)
 
 ## Agent Types Management
 TODO not implemented yet
