@@ -47,10 +47,10 @@ impl From<OciDistributionError> for OciErrorMessage {
                     }
                     _ => format!("registry error ({:?}): {}", oci_err.code, oci_err.message),
                 };
-                format!("the registry and repository are not found or reachable: {err_msg}").into()
+                format!("registry error: {err_msg}").into()
             }
             // Use _ to catch all other variants like AuthenticationFailure, etc.
-            _ => format!("registry error: {err}").into(),
+            _ => format!("the registry and repository are not found or reachable: {err}").into(),
         }
     }
 }
