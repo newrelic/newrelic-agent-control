@@ -603,7 +603,7 @@ agents: {}
         ]
         .into_iter()
         .for_each(|cfg_lf| {
-            let cfg_crlf = cfg_lf.replace("\n", "\n\r");
+            let cfg_crlf = cfg_lf.replace("\n", "\r\n");
             let from_lf: AgentControlConfig = serde_yaml::from_str(cfg_lf).unwrap();
             let from_crlf: AgentControlConfig = serde_yaml::from_str(&cfg_crlf).unwrap();
             assert_eq!(from_lf, from_crlf);
