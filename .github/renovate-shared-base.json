@@ -24,8 +24,9 @@
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": [
-        "(^|/)Cargo\\.toml$"
+      "managerFilePatterns": [
+        "Cargo.toml",
+        "**/Cargo.toml"
       ],
       "matchStrings": [
         "rust-version\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+(?:\\.\\d+)?)\""
