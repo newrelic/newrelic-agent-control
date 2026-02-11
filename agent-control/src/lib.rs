@@ -20,6 +20,7 @@ pub mod opamp;
 pub mod package;
 pub mod secret_retriever;
 pub mod secrets_provider;
+pub mod signature;
 pub mod sub_agent;
 pub mod utils;
 pub mod values;

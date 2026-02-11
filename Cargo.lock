@@ -2854,7 +2854,6 @@ dependencies = [
  "windows-service",
  "windows-sys 0.61.2",
  "wrapper_with_default",
- "x509-parser",
  "zip",
 ]
 
