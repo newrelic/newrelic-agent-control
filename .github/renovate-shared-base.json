@@ -21,20 +21,6 @@
   "prConcurrentLimit": 0,
   "printConfig": true,
   "prHourlyLimit": 0,
-  "customManagers": [
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/Cargo\\.toml$/"
-      ],
-      "matchStrings": [
-        "rust-version\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+(?:\\.\\d+)?)\""
-      ],
-      "datasourceTemplate": "github-tags",
-      "depNameTemplate": "rust",
-      "packageNameTemplate": "rust-lang/rust"
-    }
-  ],
   "packageRules": [
     {
       "groupName": "github actions",
