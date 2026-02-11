@@ -141,7 +141,31 @@ Currently, there is no installation step or script execution, just extraction.
 We expect to support installation scripts in the future. TODO
 
 ## Signature Verification
-TODO @danielorihuela
+
+Agent Control assumes the signature in the repository is in [Simple Signing format](https://github.com/sigstore/cosign/blob/main/specs/SIGNATURE_SPEC.md#payloads) and it's been created with the [external tool process](https://docs.sigstore.dev/cosign/signing/signing_with_containers/#sign-and-upload-a-generated-payload-in-another-format-from-another-tool). 
+
+> [!NOTE] 
+> NewRelic uses a private repository. It doesn't need extra-services like [Rekor](https://docs.sigstore.dev/logging/overview/) or [Fulcio](https://docs.sigstore.dev/certificate_authority/overview/). That's the reason why Agent Control uses the external tool process instead of `cosign sign`.
+
+As a result of the "external tool process", the OCI repository will contain two packages. One for the agent and one for the signature. The signature package contains, among other things, the payload that was signed (in json format) and it's signature in base64. Inside the payload, we find the hash of the signed agent package. This is enough to verify the signature, as we will see in a moment.
+
+Verification Flow:
+
+1. AC receives an order to download a package and it's data
+2. Downloads the signature package
+3. Verifies the signature is correct (the base64 signature "matches" the payload)
+4. Get artifact hash from payload
+5. Download artifact from hash (never the tag)
+6. Check downloaded artifact hash value is equal to the hash in the payload
+
+## Key Rotation
+
+We hid an important detail in the [Signature Verification section](./oci_repository.md#signature-verification), to make it easier to understand. Agent Control **ALWAYS** downloads the public key when verifying a signature/ This avoids the problem of using a revoked key while the cache isn't updated.
+
+That's great, but what happens during a key rotation? It depends on the specific use case. Agent Control always tries to verify the signature with every single public key published for that package. Avoiding downtimes. There are a couple of edge cases in which we can't do nothing. The user has to wait for the signature or disable signature verification.
+
+* The first key was published
+* All keys were revoked
 
 ## Garbage collection
 TODO not implemented yet
