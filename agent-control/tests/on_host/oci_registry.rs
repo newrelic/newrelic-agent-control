@@ -4,6 +4,7 @@ use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use httpmock::{MockServer, When};
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::http::config::ProxyConfig;
+use newrelic_agent_control::oci;
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::downloader::{OCIAgentDownloader, OCIArtifactDownloader};
 use oci_client::client::{ClientConfig, ClientProtocol};
@@ -35,15 +36,15 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
 
     let runtime = tokio_runtime();
 
-    let downloader = OCIArtifactDownloader::try_new(
-        ProxyConfig::default(),
-        runtime,
+    let client = oci::Client::try_new(
         ClientConfig {
             protocol: ClientProtocol::Http,
             ..Default::default()
         },
+        ProxyConfig::default(),
     )
     .unwrap();
+    let downloader = OCIArtifactDownloader::new(client, runtime);
 
     let _ = downloader
         .download(&reference, local_agent_data_dir)
@@ -104,16 +105,16 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
 
     let runtime = tokio_runtime();
 
-    let downloader = OCIArtifactDownloader::try_new(
-        proxy_config,
-        runtime,
+    let client = oci::Client::try_new(
         ClientConfig {
             protocol: ClientProtocol::Http,
             ..Default::default()
         },
+        proxy_config,
     )
-    .unwrap()
-    .with_retries(4, Duration::from_millis(100));
+    .unwrap();
+    let downloader =
+        OCIArtifactDownloader::new(client, runtime).with_retries(4, Duration::from_millis(100));
 
     let result = downloader.download(&reference, local_agent_data_dir);
     assert!(result.is_ok());

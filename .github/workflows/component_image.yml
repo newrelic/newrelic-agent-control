@@ -31,7 +31,7 @@ jobs:
       DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI: newrelic/newrelic-agent-control-cli
       DOCKER_PLATFORMS: "linux/amd64,linux/arm64"
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
 
@@ -54,7 +54,7 @@ jobs:
       - name: Install Zig
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
 
-      - uses: taiki-e/install-action@650c5ca14212efbbf3e580844b04bdccf68dac31 # v2.67.18
+      - uses: taiki-e/install-action@509565405a8a987e73cf742e26b26dcc72c4b01a # v2.67.26
         with:
           tool: cargo-zigbuild@0.20.1
 

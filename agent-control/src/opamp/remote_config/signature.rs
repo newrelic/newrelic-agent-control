@@ -1,3 +1,4 @@
+use crate::signature::public_key::SigningAlgorithm;
 use opamp_client::opamp::proto::CustomMessage;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Debug};
@@ -7,34 +8,6 @@ use thiserror::Error;
 pub const SIGNATURE_CUSTOM_CAPABILITY: &str = "com.newrelic.security.configSignature";
 /// signature custom message type
 pub const SIGNATURE_CUSTOM_MESSAGE_TYPE: &str = "newrelicRemoteConfigSignature";
-// Supported signature algorithms
-pub const ED25519: &str = "ED25519";
-
-/// Defines the supported algorithms for signing
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(try_from = "&str")]
-pub enum SigningAlgorithm {
-    ED25519,
-}
-
-impl TryFrom<&str> for SigningAlgorithm {
-    type Error = SignatureError;
-
-    fn try_from(s: &str) -> Result<Self, Self::Error> {
-        match s.to_uppercase().as_str() {
-            ED25519 => Ok(Self::ED25519),
-            _unsupported_algorithm => Err(SignatureError::UnsupportedAlgorithm(s.to_string())),
-        }
-    }
-}
-
-impl AsRef<str> for SigningAlgorithm {
-    fn as_ref(&self) -> &str {
-        match self {
-            SigningAlgorithm::ED25519 => ED25519,
-        }
-    }
-}
 
 /// Holds the signature custom message data. It is coupled to a RemoteConfig message and
 /// should be present in the same ServerToAgent message.
@@ -160,7 +133,8 @@ impl TryFrom<RawSignatureData> for SignatureData {
         Ok(Self {
             signature: s.signature,
             key_id: s.key_id,
-            signing_algorithm: s.signing_algorithm.as_str().try_into()?,
+            signing_algorithm: SigningAlgorithm::try_from(s.signing_algorithm.as_str())
+                .map_err(|e| SignatureError::InvalidData(e.to_string()))?,
         })
     }
 }
@@ -191,8 +165,6 @@ pub enum SignatureError {
     InvalidType,
     #[error("invalid config signature data: {0}")]
     InvalidData(String),
-    #[error("unsupported signature algorithm: {0}")]
-    UnsupportedAlgorithm(String),
 }
 
 impl TryFrom<&CustomMessage> for Signatures {
