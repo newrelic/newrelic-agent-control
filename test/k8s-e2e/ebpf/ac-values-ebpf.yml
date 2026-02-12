@@ -20,4 +20,4 @@ agentControlDeployment:
     agentsConfig:
       nr-ebpf:
         # Testing the latest released version of the chart
-        chart_version: "0.2.6" # TODO: move back to latest when issues are fixed
+        chart_version: "*"
