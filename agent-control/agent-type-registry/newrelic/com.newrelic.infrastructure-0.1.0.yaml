@@ -23,11 +23,6 @@ variables:
       type: string
       required: false
       default: 20s
-    enable_file_logging:
-      description: "enable logging the on host executables' logs to files"
-      type: bool
-      required: false
-      default: false
     health_port:
       description: "port for the Infra Agent status server"
       type: number
@@ -153,7 +148,8 @@ variables:
 
 deployment:
   windows:
-    enable_file_logging: ${nr-var:enable_file_logging}
+    # Infra-agent always logs to a file on Windows. To avoid duplicated logs we disable AC file logging on this platform.
+    enable_file_logging: false
     health:
       interval: 5s
       initial_delay: 5s
@@ -195,6 +191,10 @@ deployment:
           # For the same reason we are also changing the location of the integration binaries.
           NRIA_APP_DATA_DIR: "${nr-sub:filesystem_agent_dir}\\newrelic-infra"
           NRIA_AGENT_DIR: "${nr-sub:filesystem_agent_dir}\\newrelic-infra"
+          # On windows, logs are written to 'NRIA_APP_DATA_DIR/newrelic-infra.log' and this cannot be disabled.
+          # To avoid disks exhaustion issues, a default log rotation policy is applied to this log file.
+          NRIA_LOG_ROTATE_MAX_SIZE_MB: "50"
+          NRIA_LOG_ROTATE_MAX_FILES: "5"
           NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR: "${nr-sub:packages.infra-agent.dir}\\integrations"
           NRIA_SAFE_BIN_DIR: "${nr-sub:packages.infra-agent.dir}\\integrations"
           NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}\\integrations.d"

@@ -48,6 +48,9 @@ pub struct Config {
     pub proxy: Option<ProxyConfig>,
 
     pub agents: HashMap<String, Agent>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub log: Option<LogConfig>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -81,6 +84,14 @@ pub struct Agent {
     pub agent_type: String,
 }
 
+#[derive(Debug, PartialEq, Serialize)]
+pub struct LogConfig {
+    pub file: Option<FileLogConfig>,
+}
+#[derive(Debug, PartialEq, Serialize)]
+pub struct FileLogConfig {
+    pub enabled: bool,
+}
 /// Helper to avoid deserializing proxy values when empty or default
 fn is_none_or_empty(v: &Option<ProxyConfig>) -> bool {
     v.as_ref().is_none_or(|v| v.is_empty())
@@ -116,14 +127,25 @@ mod tests {
     }
 
     #[rstest]
-    #[case::no_proxy_config(
+    #[case::no_proxy_and_log_config(
         Config {
             fleet_control: None,
             server: Server { enabled: true },
             proxy: None,
             agents: HashMap::new(),
+            log: None,
         },
         r#"{"server":{"enabled":true},"agents":{}}"#
+    )]
+    #[case::some_log_config(
+        Config {
+            fleet_control: None,
+            server: Server { enabled: true },
+            proxy: None,
+            agents: HashMap::new(),
+            log: Some(LogConfig { file: Some(FileLogConfig { enabled: false }) }),
+        },
+        r#"{"server":{"enabled":true},"agents":{},"log":{"file":{"enabled":false}}}"#
     )]
     #[case::empty_proxy_config(
         Config {
@@ -131,6 +153,7 @@ mod tests {
             server: Server { enabled: false },
             proxy: Some(ProxyConfig::default()),
             agents: HashMap::new(),
+            log: None,
         },
         r#"{"server":{"enabled":false},"agents":{}}"#
     )]
@@ -140,6 +163,7 @@ mod tests {
             server: Server { enabled: true },
             proxy: Some(ProxyConfig { proxy_url: Some("http://proxy:8080".to_string()), ..Default::default() }),
             agents: AgentSet::InfraAgent.into(),
+            log: None,
         },
         r#"{"server":{"enabled":true},"proxy":{"url":"http://proxy:8080"},"agents":{"nr-infra":{"agent_type":"newrelic/com.newrelic.infrastructure:0.1.0"}}}"#
     )]

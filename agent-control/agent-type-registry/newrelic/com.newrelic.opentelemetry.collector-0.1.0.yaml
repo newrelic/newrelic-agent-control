@@ -17,7 +17,7 @@ variables:
       description: "enable logging the on host executables' logs to files"
       type: bool
       required: false
-      default: false
+      default: true
     health_check:
       # Note the configs added here must align with the health check extension being used on the collector config variable.
       # See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/healthcheckv2extension/README.md#configuration
