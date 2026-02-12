@@ -1,7 +1,7 @@
 # Package Manager
 
 Agent Control (AC) manages agent packages (and in the future agent types) distributed as OCI ([Open Container Initiative](https://opencontainers.org/)) artifacts.
-The package manager handles downloading, extracting, and installing packages from OCI registries.
+The package manager handles download, signature verification, extraction, installation and garbage collection of packages from OCI registries.
 
 ## Package structure (in the OCI repository)
 
