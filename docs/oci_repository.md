@@ -13,8 +13,11 @@ This data is taken from the Packages section of the [AgentType configuration](./
 
 ## Package structure
 
-The packaged agent must comply with the [OCI image spec](https://github.com/opencontainers/image-spec). In short, that means
-that a manifest or index file must exist. Besides, Agent Control expects specific values for some fields.
+The packaged agent must comply with the [OCI image spec](https://github.com/opencontainers/image-spec). The entrypoint can either
+be a manifest json or index json files.
+
+A [manifest](https://github.com/opencontainers/image-spec/blob/main/manifest.md#oci-image-manifest-specification) file includes the package data and metadata. Enough for an agent that supports a single environment (i.e. OS + architecture).
+In that file, Agent Control expects to find some specific keys and values.
 
 * `layers/mediaType` must take one of the following values:
 
@@ -25,7 +28,7 @@ that a manifest or index file must exist. Besides, Agent Control expects specifi
 * `annotations` must contain
     - `com.newrelic.artifact.type` with value `package` or `agent-type`
 
-Manifest example:
+Example:
 
 ```json
 {
@@ -55,7 +58,12 @@ Manifest example:
 }
 ```
 
-Index example:
+Then we have the [index](https://github.com/opencontainers/image-spec/blob/main/image-index.md#oci-image-index-specification) file. This includes a list of manifest files, and it's handy to support multiple environments.
+
+> [!NOTE]
+> Agent Control uses an [OCI client that supports every architecture and os in the spec](https://docs.rs/oci-client/latest/oci_client/manifest/struct.Platform.html).
+
+Example:
 
 ```json
 {
@@ -157,9 +165,34 @@ Verification Flow:
 5. Download artifact from hash (never the tag)
 6. Check downloaded artifact hash value is equal to the hash in the payload
 
+```mermaid
+sequenceDiagram
+    participant AC as Agent Control
+    participant OCI as OCI Repository
+    participant JWKS as PublicKey server
+
+    Note over AC, JWKS: Step 1: Check artifact signature
+    AC->>JWKS: Download public keys
+    JWKS-->>AC: Public keys in JWKS format
+    AC->>OCI: Download Signature Package
+    OCI-->>AC: Base64 Signature & Payload
+    AC->>AC: Verify Signature (the base64 signature "matches" the payload for at least one public key)
+    AC->>AC: Extract artifact hash from payload
+
+    Note over AC, OCI: Step 2: Download signed artifact
+    AC->>OCI: Download artifact by hash
+    OCI-->>AC: Artifact
+    
+    Note over AC: Step 3: Integrity Check
+    AC->>AC: Compute downloaded artifact hash
+    AC->>AC: Compare computed hash against the hash inside the payload
+
+    Note over AC: Result: Package Verified & Trusted
+```
+
 ## Key Rotation
 
-We hid an important detail in the [Signature Verification section](./oci_repository.md#signature-verification), to make it easier to understand. Agent Control **ALWAYS** downloads the public key when verifying a signature. This avoids the problem of using a revoked key while the cache isn't updated. The public keys are in JWKS format and it looks like that:
+Agent Control **ALWAYS** downloads the public key when verifying a signature. This avoids the problem of using a revoked key while the cache isn't updated. The public keys are in JWKS format and it looks like that:
 
 ```json
 {
