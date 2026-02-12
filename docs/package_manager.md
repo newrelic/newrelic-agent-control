@@ -1,22 +1,14 @@
-# OCI Repository and AgentControl
+# Package Manager
 
-## Overview
-AgentControl manages agent packages (and in the future agentTypes) distributed as OCI (Open Container Initiative) artifacts. 
-The package manager handles downloading, extracting, installing packages from OCI registries.
+Agent Control (AC) manages agent packages (and in the future agent types) distributed as OCI ([Open Container Initiative](https://opencontainers.org/)) artifacts.
+The package manager handles downloading, extracting, and installing packages from OCI registries.
 
-Package references are constructed from three components:
-- Registry URL (e.g., `registry.example.com`)
-- Repository path (e.g., `agents/my-agent`)
-- Version (optional): Can be a tag (`:v1.0.0`), a digest (`@sha256:...`), when both are specified the digest takes precedence.
-
-This data is taken from the Packages section of the [AgentType configuration](./INTEGRATING_AGENTS.md).
-
-## Package structure
+## Package structure (in the OCI repository)
 
 The packaged agent must comply with the [OCI image spec](https://github.com/opencontainers/image-spec). The entrypoint can either
-be a manifest json or index json files.
+be a manifest JSON file or an index JSON file.
 
-A [manifest](https://github.com/opencontainers/image-spec/blob/main/manifest.md#oci-image-manifest-specification) file includes the package data and metadata. Enough for an agent that supports a single environment (i.e. OS + architecture).
+A [manifest](https://github.com/opencontainers/image-spec/blob/main/manifest.md#oci-image-manifest-specification) file includes the package data and metadata, which is sufficient for an agent that supports a single environment (i.e. OS + architecture).
 In that file, Agent Control expects to find some specific keys and values.
 
 * `layers/mediaType` must take one of the following values:
@@ -104,6 +96,10 @@ Example:
 }
 ```
 
+## Package references
+
+Package references are constructed from the data configured in the [AgentType `packages` section](./INTEGRATING_AGENTS.md#packages).
+
 ## Package Installation Process
 
 When an agent needs to install or update a package, the package manager leverages the following paths:
@@ -119,80 +115,29 @@ by the agent through the variable `${nr-sub:packages.infra-agent.dir}`.
 1. Create temporary download directory
 2. Download artifact (expects exactly 1 layer/file), if the file was already downloaded, skip download
 3. Create final installation directory
-4. Extract archive based on `PackageType` (tar.gz or zip) derived from the mime type
+4. Extract archive based on `PackageType` (tar.gz or zip) derived from the MIME type
 5. Delete temporary directory (always, even on failure)
 
-Currently, the whole operation blocks the sub-agent thread until it terminates. 
-Notice that the old subAgent (and therefore the binary) is stopped before the new one is downloaded and executed. 
-In the next iterations, we will have a non-blocking implementation to avoid the subAgent to be blocked by this operation.
+The whole operation blocks the sub-agent thread until it terminates.
+Notice that the old sub-agent (and therefore the binary) is stopped before the new one is downloaded and executed.
+In the next iterations, we will have a non-blocking implementation to avoid the sub-agent being blocked by this operation.
 
-## Error Handling
-
-**Installation Failures**:
-- Download errors → Retry if configured, then fail
-- Invalid artifact (not exactly 1 file) → Fail with `InvalidData`
-- Extraction errors → Delete partial installation directory, fail
-- Temp cleanup errors → Installation fails
-
-
-## Local Development
-When developing and debugging locally, you can use a local OCI registry. You can run it using zot: 
-```bash
-$ ./tools/oci-registry.sh run  
-```
-
-Notice that AC is already configured to use HTTP as protocol when connecting to `localhost:5001` if executed/built __without__ `--release`.
-
-## Installation Process
-Currently, there is no installation step or script execution, just extraction.
-We expect to support installation scripts in the future. TODO
+There is no installation step or script execution, just extraction. We expect to support installation scripts in the future.
+TODO
 
 ## Signature Verification
 
-Agent Control assumes the signature in the repository is in [Simple Signing format](https://github.com/sigstore/cosign/blob/main/specs/SIGNATURE_SPEC.md#payloads) and it's been created with the [external tool process](https://docs.sigstore.dev/cosign/signing/signing_with_containers/#sign-and-upload-a-generated-payload-in-another-format-from-another-tool). 
+AC supports signature verifications. This assures users that a given agent was uploaded by the expected author and it hasn't been tampered.
+
+The signature in the OCI repository follows the [Simple Signing format](https://github.com/sigstore/cosign/blob/main/specs/SIGNATURE_SPEC.md#payloads) (the only supported format) and it's been created with the [external tool process](https://docs.sigstore.dev/cosign/signing/signing_with_containers/#sign-and-upload-a-generated-payload-in-another-format-from-another-tool). 
 
 > [!NOTE] 
 > NewRelic uses a private repository. It doesn't need extra-services like [Rekor](https://docs.sigstore.dev/logging/overview/) or [Fulcio](https://docs.sigstore.dev/certificate_authority/overview/). That's the reason why Agent Control uses the external tool process instead of `cosign sign`.
 
-As a result of the "external tool process", the OCI repository will contain two packages. One for the agent and one for the signature. The signature package contains, among other things, the payload that was signed (in json format) and it's signature in base64. Inside the payload, we find the hash of the signed agent package. This is enough to verify the signature, as we will see in a moment.
+As a result of the "external tool process", the OCI repository will contain two packages. One for the agent and one for the signature. The signature package contains, among other things, the payload that was signed (in json format) and it's signature in base64. Inside the payload, we find the hash of the signed agent package. This is enough to verify the signature of an artifact, as we will see later.
 
-Verification Flow:
-
-1. AC receives an order to download a package and it's data
-2. Downloads the signature package
-3. Verifies the signature is correct (the base64 signature "matches" the payload)
-4. Get artifact hash from payload
-5. Download artifact from hash (never the tag)
-6. Check downloaded artifact hash value is equal to the hash in the payload
-
-```mermaid
-sequenceDiagram
-    participant AC as Agent Control
-    participant OCI as OCI Repository
-    participant JWKS as PublicKey server
-
-    Note over AC, JWKS: Step 1: Check artifact signature
-    AC->>JWKS: Download public keys
-    JWKS-->>AC: Public keys in JWKS format
-    AC->>OCI: Download Signature Package
-    OCI-->>AC: Base64 Signature & Payload
-    AC->>AC: Verify Signature (the base64 signature "matches" the payload for at least one public key)
-    AC->>AC: Extract artifact hash from payload
-
-    Note over AC, OCI: Step 2: Download signed artifact
-    AC->>OCI: Download artifact by hash
-    OCI-->>AC: Artifact
-    
-    Note over AC: Step 3: Integrity Check
-    AC->>AC: Compute downloaded artifact hash
-    AC->>AC: Compare computed hash against the hash inside the payload
-
-    Note over AC: Result: Package Verified & Trusted
-```
-
-## Key Rotation
-
-Agent Control **ALWAYS** downloads the public key when verifying a signature. This avoids the problem of using a revoked key while the cache isn't updated. The public keys are in JWKS format and it looks like that:
+Public keys are **ALWAYS** downloaded when verifying a signature. This avoids problems with outdated caches, like using a revoked key.
+Public keys **MUST** be in JWKS format.
 
 ```json
 {
@@ -212,7 +157,7 @@ Agent Control **ALWAYS** downloads the public key when verifying a signature. Th
       "kty": "OKP",
       "alg": null,
       "use": "sig",
-      "kid": "key/0",
+      "kid": "key/1",
       "n": null,
       "e": null,
       "x": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -223,10 +168,41 @@ Agent Control **ALWAYS** downloads the public key when verifying a signature. Th
 }
 ```
 
-That's great, but what happens during a key rotation? It depends on the specific use case. Agent Control always tries to verify the signature with every single public key published for that package. Avoiding downtimes. There are a couple of edge cases in which we can't do nothing. The user has to wait for the signature or disable signature verification.
+Verification flow:
+
+```mermaid
+sequenceDiagram
+    participant AC as Agent Control
+    participant OCI as OCI Repository
+    participant JWKS as PublicKey server
+
+    Note over AC, JWKS: Step 1: Check artifact signature
+    AC->>JWKS: Download public keys
+    JWKS-->>AC: Public keys in JWKS format
+    AC->>OCI: Download Signature Package
+    OCI-->>AC: Base64 Signature & Payload
+    AC->>AC: Verify base64 signature against the payload (holds for at least one public key)
+    AC->>AC: Extract artifact hash from payload
+
+    Note over AC, OCI: Step 2: Download signed artifact
+    AC->>OCI: Download artifact by hash
+    OCI-->>AC: Artifact
+    
+    Note over AC: Step 3: Integrity Check
+    AC->>AC: Compute downloaded artifact hash
+    AC->>AC: Compare computed hash against the hash inside the payload
+
+    Note over AC: Result: Package Verified & Trusted
+```
+
+## Key Rotation
+
+What happens during a key rotation? It depends on the specific use case. AC tries to verify the signature with every public key published for that package. This approach avoids downtimes. In some situations, we can't dodge the downtime.
 
 * The first key was published
 * All keys were revoked
+
+The client can wait for the signature to be created or disable signature verification.
 
 ## Garbage collection
 
@@ -238,7 +214,23 @@ Example:
 2. User installs infra agent version 3.0.0 (system stores infra 1.0.0 and 3.0.0)
 3. User installs infra agent version 2.0.0 (system stores infra 2.0.0 and 3.0.0)
 
+## Error Handling
+
+**Installation Failures**:
+- Download errors → Retry if configured, then fail
+- Invalid artifact (not exactly 1 file) → Fail with `InvalidData`
+- Extraction errors → Delete partial installation directory, fail
+- Temp cleanup errors → Installation fails
+
+## Local Development
+
+If needed, you can run a local OCI registry using [zot](https://github.com/project-zot/zot) with
+
+```bash
+$ ./tools/oci-registry.sh run  
+```
+
+Notice that AC is already configured to use HTTP as protocol when connecting to `localhost:5001` if executed/built __without__ `--release`.
+
 ## Agent Types Management
 TODO not implemented yet
-
-
