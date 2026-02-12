@@ -15,4 +15,5 @@ pub struct Download {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Oci {
     pub reference: Reference,
+    pub public_key_url: Option<String>,
 }

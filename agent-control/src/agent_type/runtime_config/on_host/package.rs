@@ -31,6 +31,8 @@ pub struct Oci {
     /// Package version including tag, digest or tag + digest.
     #[serde(default)]
     pub version: TemplateableValue<String>,
+    /// Public key url is expected to be a jwks.
+    pub public_key_url: Option<TemplateableValue<String>>,
 }
 
 impl Templateable for Package {
@@ -57,6 +59,10 @@ impl Templateable for Oci {
         let registry = self.registry.template_with(variables)?;
         let repository = self.repository.template_with(variables)?;
         let mut version = self.version.template_with(variables)?;
+        let public_key_url = self
+            .public_key_url
+            .map(|pk| pk.template_with(variables))
+            .transpose()?;
 
         if !version.is_empty() && !version.starts_with('@') {
             version = format!(":{}", version);
@@ -69,7 +75,10 @@ impl Templateable for Oci {
             ))
         })?;
 
-        Ok(Self::Output { reference })
+        Ok(Self::Output {
+            reference,
+            public_key_url,
+        })
     }
 }
 
@@ -82,22 +91,33 @@ mod tests {
     use rstest::rstest;
 
     #[rstest]
-    #[case::only_digest(
+    #[case::digest_and_public_key_url(
         "@sha256:ec5f08ee7be8b557cd1fc5ae1a0ac985e8538da7c93f51a51eff4b277509a723",
-        None,
-        Some("sha256:ec5f08ee7be8b557cd1fc5ae1a0ac985e8538da7c93f51a51eff4b277509a723")
+        Some("https://github.com/rust-lang/crates.io-index")
     )]
-    #[case::tag_and_digest(
+    #[case::tag_and_public_key_url("a-tag", Some("https://github.com/rust-lang/crates.io-index"))]
+    #[case::full_version_and_public_key_url(
         "a-tag@sha256:ec5f08ee7be8b557cd1fc5ae1a0ac985e8538da7c93f51a51eff4b277509a723",
-        Some("a-tag"),
-        Some("sha256:ec5f08ee7be8b557cd1fc5ae1a0ac985e8538da7c93f51a51eff4b277509a723")
+        Some("https://github.com/rust-lang/crates.io-index")
     )]
-    #[case::empty_version("", Some("latest"), None)]
-    fn oci_template(
-        #[case] version: &str,
-        #[case] tag: Option<&str>,
-        #[case] digest: Option<&str>,
-    ) {
+    #[case::empty_version_and_public_key_url(
+        "",
+        Some("https://github.com/rust-lang/crates.io-index")
+    )]
+    #[case::no_version_and_no_public_key_url("", None)]
+    fn oci_template(#[case] version: &str, #[case] public_key_url: Option<&str>) {
+        let (expected_tag, expected_digest) = if version.is_empty() {
+            (Some("latest"), None)
+        } else {
+            let parts: Vec<&str> = version.splitn(2, '@').collect();
+            match parts.as_slice() {
+                ["", digest] => (None, Some(*digest)),        // Case: @digest
+                [tag, digest] => (Some(*tag), Some(*digest)), // Case: tag@digest
+                [tag] => (Some(*tag), None),                  // Case: tag
+                _ => (None, None),
+            }
+        };
+
         let mut variables = Variables::new();
         variables.insert(
             "nr-var:registry".to_string(),
@@ -111,21 +131,28 @@ mod tests {
             "nr-var:version".to_string(),
             Variable::new_final_string_variable(version.to_string()),
         );
+        if let Some(pk) = public_key_url {
+            variables.insert(
+                "nr-var:public-key".to_string(),
+                Variable::new_final_string_variable(pk.to_string()),
+            );
+        }
 
         let oci = Oci {
             registry: TemplateableValue::from_template("${nr-var:registry}".to_string()),
             repository: TemplateableValue::from_template("${nr-var:repository}".to_string()),
             version: TemplateableValue::from_template("${nr-var:version}".to_string()),
+            public_key_url: public_key_url
+                .map(|_| TemplateableValue::from_template("${nr-var:public-key}".to_string())),
         };
 
         let rendered_oci = oci.template_with(&variables);
-        assert!(rendered_oci.is_ok());
-
         let rendered_oci = rendered_oci.unwrap();
 
         assert_eq!(rendered_oci.reference.registry(), "registry.com");
         assert_eq!(rendered_oci.reference.repository(), "repo");
-        assert_eq!(rendered_oci.reference.tag(), tag);
-        assert_eq!(rendered_oci.reference.digest(), digest);
+        assert_eq!(rendered_oci.reference.tag(), expected_tag);
+        assert_eq!(rendered_oci.reference.digest(), expected_digest);
+        assert_eq!(rendered_oci.public_key_url.as_deref(), public_key_url);
     }
 }

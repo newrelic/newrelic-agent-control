@@ -446,6 +446,7 @@ deployment:
           oci:
             registry: ${nr-var:registry}
             repository: ${nr-var:repository}
+            public_key: ${nr-var:public_key}
             version: ${nr-var:version}
 "#;
 
