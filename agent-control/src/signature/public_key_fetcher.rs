@@ -11,6 +11,7 @@ use url::Url;
 pub struct PubKeyFetcherError(String);
 
 /// Fetches a public key from a JWKS remote server.
+#[derive(Clone)]
 pub struct PublicKeyFetcher {
     http_client: HttpClient,
 }

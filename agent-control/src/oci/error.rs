@@ -11,6 +11,12 @@ pub enum OciClientError {
     PullManifest(OciErrorMessage),
     #[error("failure pulling blob: {0}")]
     PullBlob(OciErrorMessage),
+    #[error("invalid reference format generated: {0}")]
+    InvalidReference(String),
+    #[error("image signature verification failed: {0}")]
+    Verify(String),
+    #[error("Failed to fetch public key: {0}")]
+    KeyFetch(String),
 }
 
 /// Simple string wrapper to represent curated messages coming from [oci_client].
@@ -57,7 +63,6 @@ impl From<OciDistributionError> for OciErrorMessage {
 
 #[cfg(test)]
 mod tests {
-
     use oci_client::errors::{OciEnvelope, OciError};
     use rstest::rstest;
 
@@ -65,21 +70,21 @@ mod tests {
 
     #[rstest]
     #[case::manifest_unknown(
-        OciDistributionError::RegistryError {
+        OciDistributionError::RegistryError{
         envelope: OciEnvelope { errors: vec![OciError { code: OciErrorCode::ManifestUnknown, message: "not found".into(), detail: Default::default() }] },
         url: "url".into()
             },
         "the requested version does not exist"
     )]
     #[case::access_denied(
-        OciDistributionError::RegistryError {
+        OciDistributionError::RegistryError{
         envelope: OciEnvelope { errors: vec![OciError { code: OciErrorCode::Denied, message: "forbidden".into(), detail: Default::default() }] },
         url: "url".into()
             },
         "access denied"
     )]
     #[case::empty_envelope(
-        OciDistributionError::RegistryError {
+        OciDistributionError::RegistryError{
         envelope: OciEnvelope { errors: vec![] },
         url: "url".into()
             },
