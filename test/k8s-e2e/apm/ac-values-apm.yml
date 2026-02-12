@@ -20,6 +20,8 @@ agentControlDeployment:
       log:
         insecure_fine_grained_level: newrelic_agent_control=debug,opamp_client=trace,off
       agents:
+        infra:
+          agent_type: newrelic/com.newrelic.infrastructure:0.1.0
         operator:
           agent_type: newrelic/com.newrelic.k8s_agent_operator:0.1.0
         # One agent per language
@@ -34,10 +36,24 @@ agentControlDeployment:
         dotnet-agent:
           agent_type: newrelic/com.newrelic.apm_dotnet:0.1.0
     agentsConfig:
+      infra:
+        chart_version: "*" # Use latest
+        chart_values:
+          global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
+            customAttributes:
+              cluster_name: ${nr-env:NR_CLUSTER_NAME}
       operator:
         chart_version: "*"
+        chart_values:
+          k8s-agents-operator:
+            controllerManager:
+              manager:
+                image:
+                  repository: "pgallina/poc"
+                  version: "apm4"
       # One agent per language
       java-agent:
+        applicationName: "my-java-app"
         podLabelSelector:
           matchExpressions:
             - key: "app"
@@ -49,24 +65,28 @@ agentControlDeployment:
               - key: NRI
                 operator: Exists
       python-agent:
+        applicationName: "my-python-app"
         podLabelSelector:
           matchExpressions:
             - key: "app"
               operator: "In"
               values: [ "pythonapp" ]
       node-agent:
+        applicationName: "my-node-app"
         podLabelSelector:
           matchExpressions:
             - key: "app"
               operator: "In"
               values: [ "nodeapp" ]
       ruby-agent:
+        applicationName: "my-ruby-app"
         podLabelSelector:
           matchExpressions:
             - key: "app"
               operator: "In"
               values: [ "rubyapp" ]
       dotnet-agent:
+        applicationName: "my-dotnet-app"
         podLabelSelector:
           matchExpressions:
             - key: "app"

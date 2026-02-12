@@ -109,7 +109,7 @@ local_resource(
 )
 
 ac_flags = [
-  '--timeout=150s',
+  '--timeout=100s',
   '--create-namespace',
   '--set=agentControlDeployment.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
   '--set=agentControlDeployment.chartVersion=0.0.1',
@@ -190,4 +190,4 @@ helm_resource(
 )
 
 # We had flaky e2e test failing due to timeout applying the chart on 30s
-update_settings(k8s_upsert_timeout_secs=200)
+update_settings(k8s_upsert_timeout_secs=100)

@@ -1,13 +1,13 @@
 description: E2E Test
 
-custom_test_key: appName
+custom_test_key: clusterName
 
 scenarios:
-    # This test spawns AC along with the APM operator and five sample apps (Java, Python, Node.js, Ruby and .NET).
-    # Each app is instrumented with its corresponding APM agent via an Instrumentation CR created by AC.
-    # The test validates that each agent is healthy via the AC /status endpoint and that data is being reported to New Relic.
-    # Sample apps are basic web servers that respond to HTTP requests. Each Pod includes a lightweight sidecar that waits for 
-    # readiness and continuously generates local traffic to help validate agent instrumentation.
+  # This test spawns AC along with the APM operator and five sample apps (Java, Python, Node.js, Ruby and .NET).
+  # Each app is instrumented with its corresponding APM agent via an Instrumentation CR created by AC.
+  # The test validates that each agent is healthy via the AC /status endpoint and that data is being reported to New Relic.
+  # Sample apps are basic web servers that respond to HTTP requests. Each Pod includes a lightweight sidecar that waits for
+  # readiness and continuously generates local traffic to help validate agent instrumentation.
   - description: Deploy SA with APM operator and Java, Python and Node.js agents
     before:
       - echo The cluster name of the test is ${SCENARIO_TAG}
@@ -21,8 +21,9 @@ scenarios:
       - kubectl create -f ./javaapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-java/ | kubectl create -f -
       - kubectl create -f ./nodeapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-node/ | kubectl create -f -
       - kubectl create -f ./rubyapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-ruby/ | kubectl create -f -
-        # the dotnet container for linux/arm64 is broken, it doesn't have the binary. Do not expect this to work in Mac MX minikube.
+      # the dotnet container for linux/arm64 is broken, it doesn't have the binary. Do not expect this to work in Mac MX minikube.
       - kubectl create -f ./dotnetapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-dotnet/ | kubectl create -f -
+      - kubectl get pods --all-namespaces   -o yaml
     after:
       - kubectl logs --tail=-1 -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
       - kubectl logs --tail=-1 -l app.kubernetes.io/instance=operator --all-containers --prefix=true -n newrelic-agents
@@ -30,13 +31,12 @@ scenarios:
       - cd ../../../ && tilt down
     tests:
       nrqls:
-        # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.
-        # Due to that, the queries end with a comment. We want to override the automatic `testKey` with our own that includes the language.
-        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-java' -- comment disabling the appended testKey: "
-        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-python' -- comment disabling the appended testKey: "
-        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-node' -- comment disabling the appended testKey: "
-        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-ruby' -- comment disabling the appended testKey: "
-        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-dotnet' -- comment disabling the appended testKey: "
+        # Checks that the metric exist for the test scenario, an extra where clusterName=$SCENARIO_TAG is always added.
+        - query: "FROM Transaction  SELECT average(duration) where appName = 'my-java-app' "
+        - query: "FROM Transaction  SELECT average(duration) where appName = 'my-python-app' "
+        - query: "FROM Transaction  SELECT average(duration) where appName = 'my-node-app' "
+        - query: "FROM Transaction  SELECT average(duration) where appName = 'my-ruby-app' "
+        - query: "FROM Transaction  SELECT average(duration) where appName = 'my-dotnet-app' "
       scripts:
         # Check agent is healthy
         - |
@@ -49,17 +49,30 @@ scenarios:
           kubectl port-forward pods/${POD_NAME} 51200 > /dev/null 2>&1 &
           PORT_FORWARD_PID=$!
           sleep 5
-          response=$(curl -s "http://localhost:51200/status")
-          echo "response ${response}"
-          for agent in dotnet-agent java-agent node-agent python-agent ruby-agent; do
-              agent_status=$(echo "$response" | jq -r ".agents[\"${agent}\"].health_info.healthy")
-              if [ "$agent_status" != "true" ]; then
-                echo "${agent} is not healthy. Failing..."
-                exit 1
-              fi
-              echo "${agent} is healthy. Success." 
+          success=false
+          for retry in $(seq 1 5); do
+            response=$(curl -s "http://localhost:51200/status")
+            all_healthy=true
+            for agent in dotnet-agent java-agent node-agent python-agent ruby-agent; do
+                agent_status=$(echo "$response" | jq -r ".agents[\"${agent}\"].health_info.healthy")
+                if [ "$agent_status" != "true" ]; then
+                  echo "${agent} is not healthy. Retry $retry..."
+                  all_healthy=false
+                else
+                  echo "${agent} is healthy. Success."
+                fi
+            done
+            if [ "$all_healthy" = true ]; then
+              success=true
+              break
+            fi
+            sleep 30
           done
           kill $PORT_FORWARD_PID
+          if [ "$success" != true ]; then
+            echo "Some agents are not healthy after retries. Failing..."
+            exit 1
+          fi
 
         # Check entity guid is being sent
         - |

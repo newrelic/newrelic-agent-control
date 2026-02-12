@@ -37,6 +37,8 @@ pub struct K8sObject {
 pub struct K8sObjectMeta {
     #[serde(default)]
     pub labels: BTreeMap<String, String>,
+    #[serde(default)]
+    pub annotations: BTreeMap<String, String>,
     pub name: String,
     pub namespace: String,
 }
@@ -76,6 +78,11 @@ impl Templateable for K8sObjectMeta {
         Ok(Self {
             labels: self
                 .labels
+                .into_iter()
+                .map(|(k, v)| Ok((k.template_with(variables)?, v.template_with(variables)?)))
+                .collect::<Result<BTreeMap<String, String>, AgentTypeError>>()?,
+            annotations: self
+                .annotations
                 .into_iter()
                 .map(|(k, v)| Ok((k.template_with(variables)?, v.template_with(variables)?)))
                 .collect::<Result<BTreeMap<String, String>, AgentTypeError>>()?,
@@ -157,6 +164,8 @@ objects:
       namespace: test-namespace
       labels:
         foo: bar
+      annotations:
+        foo2: bar2
     key: value # no spec field
 "#;
 
@@ -187,6 +196,11 @@ objects:
         assert_eq!(
             "bar",
             &k8s.objects["cr4"].metadata.clone().labels["foo"].clone()
+        );
+
+        assert_eq!(
+            "bar2",
+            &k8s.objects["cr4"].metadata.clone().annotations["foo2"].clone()
         );
 
         assert_eq!("test", &k8s.objects["cr4"].metadata.clone().name);

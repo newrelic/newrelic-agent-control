@@ -45,11 +45,18 @@ static AGENT_TYPE_APM_DOTNET: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/com.newrelic.apm_dotnet:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
-                ("mandatory fields only", r#"version: "some-version""#),
+                (
+                    "mandatory fields only",
+                    r#"
+                version: "some-version"
+                applicationName: "whatever"
+                "#,
+                ),
                 (
                     "check all value types are correct",
                     r#"
                 version: "some-string"
+                applicationName: "whatever"
                 podLabelSelector:
                     yaml: object
                 namespaceLabelSelector:
@@ -70,11 +77,18 @@ static AGENT_TYPE_APM_JAVA: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/com.newrelic.apm_java:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
-                ("mandatory fields only", r#"version: "some-version""#),
+                (
+                    "mandatory fields only",
+                    r#"
+                version: "some-version"
+                applicationName: "whatever"
+                "#,
+                ),
                 (
                     "check all value types are correct",
                     r#"
                 version: "some-string"
+                applicationName: "whatever"
                 podLabelSelector:
                     yaml: object
                 namespaceLabelSelector:
@@ -95,11 +109,18 @@ static AGENT_TYPE_APM_NODE: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/com.newrelic.apm_node:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
-                ("mandatory fields only", r#"version: "some-version""#),
+                (
+                    "mandatory fields only",
+                    r#"
+                version: "some-version"
+                applicationName: "whatever"
+                "#,
+                ),
                 (
                     "check all value types are correct",
                     r#"
                 version: "some-string"
+                applicationName: "whatever"
                 podLabelSelector:
                     yaml: object
                 namespaceLabelSelector:
@@ -120,11 +141,18 @@ static AGENT_TYPE_APM_PYTHON: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/com.newrelic.apm_python:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
-                ("mandatory fields only", r#"version: "some-version""#),
+                (
+                    "mandatory fields only",
+                    r#"
+                version: "some-version"
+                applicationName: "whatever"
+                "#,
+                ),
                 (
                     "check all value types are correct",
                     r#"
                 version: "some-string"
+                applicationName: "whatever"
                 podLabelSelector:
                     yaml: object
                 namespaceLabelSelector:
@@ -145,11 +173,18 @@ static AGENT_TYPE_APM_RUBY: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/com.newrelic.apm_ruby:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
-                ("mandatory fields only", r#"version: "some-version""#),
+                (
+                    "mandatory fields only",
+                    r#"
+                version: "some-version"
+                applicationName: "whatever"
+                "#,
+                ),
                 (
                     "check all value types are correct",
                     r#"
                 version: "some-string"
+                applicationName: "whatever"
                 podLabelSelector:
                     yaml: object
                 namespaceLabelSelector:
