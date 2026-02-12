@@ -79,10 +79,11 @@ impl SignatureValidator {
         let http_client = HttpClient::new(http_config)
             .map_err(|e| SignatureValidatorError::BuildingValidator(e.to_string()))?;
 
-        let public_key_fetcher = PublicKeyFetcher::new(http_client, public_key_server_url);
+        let public_key_fetcher = PublicKeyFetcher::new(http_client);
 
-        let pubkey_verifier_store = VerifierStore::try_new(public_key_fetcher)
-            .map_err(|err| SignatureValidatorError::BuildingValidator(err.to_string()))?;
+        let pubkey_verifier_store =
+            VerifierStore::try_new(public_key_fetcher, public_key_server_url)
+                .map_err(|err| SignatureValidatorError::BuildingValidator(err.to_string()))?;
 
         Ok(Self {
             public_key_store: Some(pubkey_verifier_store),

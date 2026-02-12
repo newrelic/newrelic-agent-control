@@ -13,17 +13,16 @@ pub struct PubKeyFetcherError(String);
 /// Fetches a public key from a JWKS remote server.
 pub struct PublicKeyFetcher {
     http_client: HttpClient,
-    url: Url,
 }
 
 impl PublicKeyFetcher {
-    pub fn new(http_client: HttpClient, url: Url) -> Self {
-        Self { http_client, url }
+    pub fn new(http_client: HttpClient) -> Self {
+        Self { http_client }
     }
     /// Fetches the latest public key from the JWKS endpoint. The "latest" is the
     /// key at index 0 of the list.
-    pub fn fetch_latest_key(&self) -> Result<PublicKey, PubKeyFetcherError> {
-        let payload = self.fetch_jwks()?;
+    pub fn fetch_latest_key(&self, url: &Url) -> Result<PublicKey, PubKeyFetcherError> {
+        let payload = self.fetch_jwks(url)?;
 
         let Some(latest_key) = payload.keys.first() else {
             return Err(PubKeyFetcherError("missing key data".to_string()));
@@ -35,8 +34,8 @@ impl PublicKeyFetcher {
 
     /// Fetches all public keys from the JWKS endpoint. If any keys are invalid, they will be
     /// skipped and a warning will be logged. If no valid keys are found, an error will be returned.
-    pub fn fetch(&self) -> Result<Vec<PublicKey>, PubKeyFetcherError> {
-        let payload = self.fetch_jwks()?;
+    pub fn fetch(&self, url: &Url) -> Result<Vec<PublicKey>, PubKeyFetcherError> {
+        let payload = self.fetch_jwks(url)?;
 
         let mut keys = Vec::new();
         let mut errors = Vec::new();
@@ -68,10 +67,10 @@ impl PublicKeyFetcher {
         Ok(keys)
     }
 
-    fn fetch_jwks(&self) -> Result<PubKeyPayload, PubKeyFetcherError> {
+    fn fetch_jwks(&self, url: &Url) -> Result<PubKeyPayload, PubKeyFetcherError> {
         let request = Request::builder()
             .method("GET")
-            .uri(self.url.as_str())
+            .uri(url.as_str())
             .body(Vec::new())
             .map_err(|e| PubKeyFetcherError(format!("building request: {}", e)))?;
 
@@ -195,10 +194,9 @@ pub mod tests {
 
         let fetcher = PublicKeyFetcher {
             http_client: HttpClient::new(HttpConfig::default()).unwrap(),
-            url: server.url,
         };
 
-        let public_keys = fetcher.fetch_latest_key().unwrap();
+        let public_keys = fetcher.fetch_latest_key(&server.url).unwrap();
 
         assert_eq!(
             public_keys.key_id(),
@@ -223,10 +221,9 @@ pub mod tests {
 
         let fetcher = PublicKeyFetcher {
             http_client: HttpClient::new(HttpConfig::default()).unwrap(),
-            url: server.url,
         };
 
-        let public_keys = fetcher.fetch().unwrap();
+        let public_keys = fetcher.fetch(&server.url).unwrap();
 
         assert_eq!(public_keys.len(), 3, "Expected 3 keys to be fetched");
 
@@ -262,12 +259,9 @@ pub mod tests {
             }),
         ]);
 
-        let fetcher = PublicKeyFetcher {
-            http_client,
-            url: mock_server.url,
-        };
+        let fetcher = PublicKeyFetcher { http_client };
 
-        let result = fetcher.fetch();
+        let result = fetcher.fetch(&mock_server.url);
 
         let err = result.unwrap_err();
         assert!(
@@ -310,12 +304,9 @@ pub mod tests {
             }),
         ]);
 
-        let fetcher = PublicKeyFetcher {
-            http_client,
-            url: mock_server.url,
-        };
+        let fetcher = PublicKeyFetcher { http_client };
 
-        let result = fetcher.fetch();
+        let result = fetcher.fetch(&mock_server.url);
 
         assert!(
             result.is_ok(),
@@ -336,12 +327,9 @@ pub mod tests {
 
         let mock_server = JwksMockServer::new(vec![]);
 
-        let fetcher = PublicKeyFetcher {
-            http_client,
-            url: mock_server.url,
-        };
+        let fetcher = PublicKeyFetcher { http_client };
 
-        let result = fetcher.fetch();
+        let result = fetcher.fetch(&mock_server.url);
 
         assert!(
             result.is_err(),
@@ -375,10 +363,11 @@ pub mod tests {
 
             let fetcher = PublicKeyFetcher {
                 http_client: http_client.clone(),
-                url: server.url(&path).parse().unwrap(),
             };
 
-            let result = fetcher.fetch_latest_key();
+            let url = &server.url(&path).parse().unwrap();
+
+            let result = fetcher.fetch_latest_key(url);
 
             let err = result.expect_err(&format!("Expected an error for status {}", status_code));
             let err_msg = err.0;
