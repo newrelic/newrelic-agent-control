@@ -1,17 +1,22 @@
-use super::runtime::tokio_runtime;
+use std::collections::BTreeMap;
+use std::net;
+use std::sync::{Arc, Mutex};
+
 use actix_web::{App, HttpResponse, HttpServer, web};
-use base64::prelude::BASE64_STANDARD;
-use base64::prelude::{BASE64_URL_SAFE_NO_PAD, Engine};
+use base64::prelude::{BASE64_STANDARD, BASE64_URL_SAFE_NO_PAD, Engine};
 use http::Uri;
-use oci_client::Reference;
+use oci_client::client::{ClientConfig, ClientProtocol::Http};
+use oci_client::manifest::{OciDescriptor, OciImageManifest, OciManifest::Image};
+use oci_client::secrets::RegistryAuth::Anonymous;
+use oci_client::{Client, Reference};
+use ring::digest::{SHA256, digest};
 use ring::rand::SystemRandom;
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::json;
-use sigstore::cosign::{ClientBuilder, CosignCapabilities, SignatureLayer};
-use sigstore::registry::{Auth, ClientConfig, OciReference};
-use std::sync::Mutex;
-use std::{net, sync::Arc};
 use tokio::task::JoinHandle;
+
+use super::runtime::tokio_runtime;
+use crate::common::oci::{hex_bytes, push_empty_config_descriptor};
 
 const JWKS_SERVER_PATH: &str = "/jwks";
 const JWKS_PUBLIC_KEY_ID: &str = "fakeOCIKeyName/0";
@@ -26,6 +31,7 @@ pub struct OCISigner {
     handle: JoinHandle<()>,
     state: Arc<Mutex<ServerState>>,
     port: u16,
+    oci_client: Client,
 }
 
 impl OCISigner {
@@ -43,10 +49,16 @@ impl OCISigner {
 
         let handle = tokio_runtime().spawn(Self::run_http_server(listener, state.clone()));
 
+        let oci_client = Client::new(ClientConfig {
+            protocol: Http,
+            ..Default::default()
+        });
+
         Self {
             handle,
             state,
             port,
+            oci_client,
         }
     }
 
@@ -63,44 +75,94 @@ impl OCISigner {
     }
 
     async fn sign_artifact_async(&self, reference: Reference) {
-        let oci_reference: OciReference = reference.to_string().parse().unwrap();
+        let (cosign_signature_ref, source_image_digest) = self.triangulate(&reference).await;
 
-        let client_config = ClientConfig {
-            protocol: sigstore::registry::ClientProtocol::Http,
+        let signature_payload =
+            self.signature_payload(&source_image_digest, &reference.to_string());
+
+        let signature_layer = self
+            .push_signature_layer(&cosign_signature_ref, signature_payload)
+            .await;
+
+        let signature_manifest = OciImageManifest {
+            schema_version: 2,
+            media_type: Some("application/vnd.oci.image.manifest.v1+json".to_string()),
+            config: push_empty_config_descriptor(&self.oci_client, &cosign_signature_ref).await,
+            layers: vec![signature_layer],
             ..Default::default()
         };
-        let mut client = ClientBuilder::default()
-            .with_oci_client_config(client_config)
-            .build()
-            .unwrap();
 
-        // Triangulate to get the cosign signature image reference and source image digest
-        let (cosign_signature_image, source_image_digest) = client
-            .triangulate(&oci_reference, &Auth::Anonymous)
+        self.oci_client
+            .push_manifest(&cosign_signature_ref, &Image(signature_manifest))
             .await
             .unwrap();
+    }
 
-        // Create unsigned signature layer
-        let mut signature_layer =
-            SignatureLayer::new_unsigned(&oci_reference, &source_image_digest).unwrap();
+    /// Triangulate the reference to find the digest and build the cosign signature reference.
+    async fn triangulate(&self, reference: &Reference) -> (Reference, String) {
+        let digest = self
+            .oci_client
+            .fetch_manifest_digest(reference, &Anonymous)
+            .await
+            .unwrap();
+        let cosign_signature_image = Reference::with_tag(
+            reference.registry().to_string(),
+            reference.repository().to_string(),
+            format!("{}.sig", digest.replace(":", "-")),
+        );
+        (cosign_signature_image, digest)
+    }
 
-        // Sign the payload
+    /// Generates the cosign signature payload for the given source digest and reference.
+    fn signature_payload(&self, source_digest: &str, source_reference: &str) -> Vec<u8> {
+        let payload = json!({
+            "critical": {
+                "identity": {
+                    "docker-reference": source_reference
+                },
+                "image": {
+                    "docker-manifest-digest": source_digest
+                },
+                "type": "cosign container signature"
+            },
+            "optional": null
+        });
+        payload.to_string().into_bytes()
+    }
+
+    /// Pushes the signature layer to the registry and returns the corresponding descriptor.
+    async fn push_signature_layer(
+        &self,
+        signature_ref: &Reference,
+        signature_payload: Vec<u8>,
+    ) -> OciDescriptor {
+        let signature_payload_digest = digest(&SHA256, &signature_payload);
+        let digest_str = format!("sha256:{}", hex_bytes(signature_payload_digest.as_ref()));
+
+        let encoded_signature;
         {
             let state = self.state.lock().unwrap();
-            let signature = state.key_pair.sign(signature_layer.raw_data.as_ref());
-            signature_layer.signature = Some(BASE64_STANDARD.encode(signature.as_ref()));
+            let signature = state.key_pair.sign(&signature_payload);
+            encoded_signature = BASE64_STANDARD.encode(signature.as_ref());
         }
 
-        // Push the signature to the registry
-        client
-            .push_signature(
-                None,
-                &Auth::Anonymous,
-                &cosign_signature_image,
-                vec![signature_layer],
-            )
+        let signature_layer = OciDescriptor {
+            media_type: "application/vnd.dev.cosign.simplesigning.v1+json".to_string(),
+            digest: digest_str.clone(),
+            size: signature_payload.len() as i64,
+            annotations: Some(BTreeMap::from([(
+                "dev.cosignproject.cosign/signature".to_string(),
+                encoded_signature,
+            )])),
+            ..Default::default()
+        };
+
+        self.oci_client
+            .push_blob(signature_ref, signature_payload, &digest_str)
             .await
             .unwrap();
+
+        signature_layer
     }
 
     async fn run_http_server(listener: net::TcpListener, state: Arc<Mutex<ServerState>>) {

@@ -114,7 +114,6 @@ futures = "0.3.31"
 rcgen = { version = "0.14.7", features = ["crypto"] }
 rstest = { workspace = true }
 tokio-stream = { version = "0.1.18", features = ["net"] }
-sigstore= { version="0.13.0", default-features = false, features = ["cosign"]}
 
 [build-dependencies]
 glob = "0.3.3"

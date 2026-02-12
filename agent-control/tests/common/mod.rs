@@ -4,6 +4,7 @@ pub(crate) mod attributes;
 pub(super) mod effective_config;
 pub(super) mod global_logger;
 pub(super) mod health;
+pub(super) mod oci;
 pub(super) mod oci_signer;
 pub(super) mod opamp;
 pub(super) mod process_finder;
