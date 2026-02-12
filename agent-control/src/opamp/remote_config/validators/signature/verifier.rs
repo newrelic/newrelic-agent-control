@@ -3,6 +3,7 @@ use ring::digest;
 use std::sync::Mutex;
 use thiserror::Error;
 use tracing::debug;
+use url::Url;
 
 use crate::signature::public_key::{PublicKey, SigningAlgorithm};
 use crate::signature::public_key_fetcher::PublicKeyFetcher;
@@ -55,14 +56,14 @@ pub trait VerifierFetcher {
     type Error: std::error::Error;
     type Verifier: Verifier;
 
-    fn fetch(&self) -> Result<Self::Verifier, Self::Error>;
+    fn fetch(&self, url: &Url) -> Result<Self::Verifier, Self::Error>;
 }
 
 impl VerifierFetcher for PublicKeyFetcher {
     type Error = VerifierStoreError;
     type Verifier = PublicKey;
-    fn fetch(&self) -> Result<Self::Verifier, Self::Error> {
-        self.fetch_latest_key()
+    fn fetch(&self, url: &Url) -> Result<Self::Verifier, Self::Error> {
+        self.fetch_latest_key(url)
             .map_err(|e| VerifierStoreError::Fetch(e.to_string()))
     }
 }
@@ -92,6 +93,7 @@ where
     F: VerifierFetcher<Verifier = V>,
 {
     verifier: Mutex<V>,
+    public_key_url: Url,
     fetcher: F,
 }
 
@@ -100,12 +102,13 @@ where
     V: Verifier,
     F: VerifierFetcher<Verifier = V>,
 {
-    pub fn try_new(fetcher: F) -> Result<Self, VerifierStoreError> {
+    pub fn try_new(fetcher: F, public_key_url: Url) -> Result<Self, VerifierStoreError> {
         fetcher
-            .fetch()
+            .fetch(&public_key_url)
             .map(|verifier| Self {
                 verifier: Mutex::new(verifier),
                 fetcher,
+                public_key_url,
             })
             .map_err(|err| VerifierStoreError::Fetch(err.to_string()))
     }
@@ -132,7 +135,7 @@ where
             debug!("keyId doesn't match, fetching new verifier",);
             *verifier = self
                 .fetcher
-                .fetch()
+                .fetch(&self.public_key_url)
                 .map_err(|err| VerifierStoreError::Fetch(err.to_string()))?;
 
             if !verifier.key_id().eq_ignore_ascii_case(key_id) {
@@ -156,7 +159,7 @@ pub mod tests {
     use super::*;
     use actix_web::Result;
     use assert_matches::assert_matches;
-    use mockall::{Sequence, mock};
+    use mockall::{Sequence, mock, predicate};
 
     #[derive(Debug, Error)]
     #[error("some error: {0}")]
@@ -185,7 +188,7 @@ pub mod tests {
             type Error = MockVerifierError;
             type Verifier = MockVerifier;
 
-            fn fetch(&self) -> Result<<Self as VerifierFetcher>::Verifier, <Self as VerifierFetcher>::Error>;
+            fn fetch(&self, url: &Url) -> Result<<Self as VerifierFetcher>::Verifier, <Self as VerifierFetcher>::Error>;
         }
     }
 
@@ -195,21 +198,26 @@ pub mod tests {
     #[test]
     fn test_verify_sucess_cache_hit() {
         const KEY_ID: &str = "key-id";
+        let pk_url = Url::try_from("https://localhost/some.url").unwrap();
         let mut fetcher = MockVerifierFetcher::new();
-        fetcher.expect_fetch().once().returning(|| {
-            let mut verifier = MockVerifier::new();
-            verifier
-                .expect_key_id()
-                .once()
-                .return_const(KEY_ID.to_string());
-            verifier
-                .expect_verify_signature()
-                .once()
-                .returning(|_, _, _| Ok(()));
-            Ok(verifier)
-        });
+        fetcher
+            .expect_fetch()
+            .with(predicate::eq(pk_url.clone()))
+            .once()
+            .returning(|_| {
+                let mut verifier = MockVerifier::new();
+                verifier
+                    .expect_key_id()
+                    .once()
+                    .return_const(KEY_ID.to_string());
+                verifier
+                    .expect_verify_signature()
+                    .once()
+                    .returning(|_, _, _| Ok(()));
+                Ok(verifier)
+            });
 
-        let store = VerifierStore::try_new(fetcher).unwrap();
+        let store = VerifierStore::try_new(fetcher, pk_url).unwrap();
         store
             .verify_signature(
                 &SigningAlgorithm::ED25519,
@@ -224,13 +232,15 @@ pub mod tests {
     fn test_verify_sucess_cache_miss() {
         const KEY_ID1: &str = "key-id-1";
         const KEY_ID2: &str = "key-id-2";
+        let pk_url = Url::try_from("https://localhost/some.url").unwrap();
         let mut fetcher = MockVerifierFetcher::new();
         let mut seq = Sequence::new();
         fetcher
             .expect_fetch()
+            .with(predicate::eq(pk_url.clone()))
             .once()
             .in_sequence(&mut seq)
-            .returning(|| {
+            .returning(|_| {
                 let mut verifier = MockVerifier::new();
                 verifier
                     .expect_key_id()
@@ -241,9 +251,10 @@ pub mod tests {
             });
         fetcher
             .expect_fetch()
+            .with(predicate::eq(pk_url.clone()))
             .once()
             .in_sequence(&mut seq)
-            .returning(|| {
+            .returning(|_| {
                 let mut verifier = MockVerifier::new();
                 verifier
                     .expect_key_id()
@@ -256,7 +267,7 @@ pub mod tests {
                 Ok(verifier)
             });
 
-        let store = VerifierStore::try_new(fetcher).unwrap();
+        let store = VerifierStore::try_new(fetcher, pk_url).unwrap();
         store
             .verify_signature(
                 &SigningAlgorithm::ED25519,
@@ -270,13 +281,15 @@ pub mod tests {
     #[test]
     fn test_signature_decode_fail() {
         const KEY_ID: &str = "key-id";
+        let pk_url = Url::try_from("https://localhost/some.url").unwrap();
         let mut fetcher = MockVerifierFetcher::new();
         fetcher
             .expect_fetch()
+            .with(predicate::eq(pk_url.clone()))
             .once()
-            .returning(|| Ok(MockVerifier::new()));
+            .returning(|_| Ok(MockVerifier::new()));
 
-        let store = VerifierStore::try_new(fetcher).unwrap();
+        let store = VerifierStore::try_new(fetcher, pk_url).unwrap();
         let result = store.verify_signature(
             &SigningAlgorithm::ED25519,
             KEY_ID,
@@ -289,21 +302,26 @@ pub mod tests {
     #[test]
     fn test_signature_check_mismatch() {
         const KEY_ID: &str = "key-id";
+        let pk_url = Url::try_from("https://localhost/some.url").unwrap();
         let mut fetcher = MockVerifierFetcher::new();
-        fetcher.expect_fetch().once().returning(|| {
-            let mut verifier = MockVerifier::new();
-            verifier
-                .expect_key_id()
-                .once()
-                .return_const(KEY_ID.to_string());
-            verifier
-                .expect_verify_signature()
-                .once()
-                .returning(|_, _, _| Err(MockVerifierError("invalid signature".to_string())));
-            Ok(verifier)
-        });
+        fetcher
+            .expect_fetch()
+            .with(predicate::eq(pk_url.clone()))
+            .once()
+            .returning(|_| {
+                let mut verifier = MockVerifier::new();
+                verifier
+                    .expect_key_id()
+                    .once()
+                    .return_const(KEY_ID.to_string());
+                verifier
+                    .expect_verify_signature()
+                    .once()
+                    .returning(|_, _, _| Err(MockVerifierError("invalid signature".to_string())));
+                Ok(verifier)
+            });
 
-        let store = VerifierStore::try_new(fetcher).unwrap();
+        let store = VerifierStore::try_new(fetcher, pk_url).unwrap();
         let result = store.verify_signature(
             &SigningAlgorithm::ED25519,
             KEY_ID,
