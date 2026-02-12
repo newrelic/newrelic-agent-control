@@ -1,6 +1,10 @@
+use crate::common::runtime::tokio_runtime;
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use fs::directory_manager::DirectoryManagerFs;
+use newrelic_agent_control::http::client::HttpClient;
+use newrelic_agent_control::http::config::HttpConfig;
+use newrelic_agent_control::signature::public_key_fetcher::PublicKeyFetcher;
 use newrelic_agent_control::{
     http::config::ProxyConfig,
     oci,
@@ -13,12 +17,13 @@ use std::path::PathBuf;
 #[cfg(target_os = "windows")]
 use zip::write::SimpleFileOptions;
 
-use crate::common::runtime::tokio_runtime;
-
 pub fn new_testing_oci_package_manager(
     base_path: PathBuf,
 ) -> OCIPackageManager<OCIArtifactDownloader, DirectoryManagerFs> {
     let runtime = tokio_runtime();
+
+    let http_client = HttpClient::new(HttpConfig::default()).unwrap();
+    let fetcher = PublicKeyFetcher::new(http_client);
 
     let client = oci::Client::try_new(
         ClientConfig {
@@ -26,6 +31,7 @@ pub fn new_testing_oci_package_manager(
             ..Default::default()
         },
         ProxyConfig::default(),
+        fetcher,
     )
     .unwrap();
     let downloader = OCIArtifactDownloader::new(client, runtime);
