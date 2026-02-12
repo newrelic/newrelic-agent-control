@@ -265,7 +265,7 @@ fn default_log_config() -> Option<LogConfig> {
             file: Some(config::FileLogConfig { enabled: true }),
         })
     }
-    #[cfg(not(target_family = "windows"))]
+    #[cfg(target_family = "unix")]
     {
         None
     }

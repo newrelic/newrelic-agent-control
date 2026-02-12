@@ -33,9 +33,8 @@ proxy:
   url: https://some.proxy.url/
   ca_bundle_dir: /test/bundle/dir
   ignore_system_proxy: true
-{}
+{LOG_SECTION}
     "#,
-        log_section()
     );
     let expected_value: serde_yaml::Value = serde_yaml::from_str(&expected_yaml).unwrap();
     let actual_content = std::fs::read_to_string(&path).unwrap();
@@ -70,9 +69,8 @@ server:
 agents:
   nr-infra:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
-{}
+{LOG_SECTION}
     "#,
-        log_section()
     );
     let expected_value: serde_yaml::Value = serde_yaml::from_str(&expected_yaml).unwrap();
     let actual_content = std::fs::read_to_string(&path).unwrap();
@@ -120,9 +118,8 @@ server:
 agents:
   nr-infra:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
-{}
+{LOG_SECTION}
     "#,
-        log_section()
     );
     let expected_value: serde_yaml::Value = serde_yaml::from_str(&expected_yaml).unwrap();
     let actual_content = std::fs::read_to_string(&path).unwrap();
@@ -161,14 +158,12 @@ NEW_RELIC_LICENSE_KEY: fake_license
     assert_eq!(actual_value, expected_value);
 }
 
-/// Returns the log section YAML for Windows, empty string for other platforms
-fn log_section() -> &'static str {
-    if cfg!(target_family = "windows") {
-        r#"
+#[cfg(target_family = "windows")]
+const LOG_SECTION: &str = r#"
 log:
   file:
-    enabled: true"#
-    } else {
-        ""
-    }
-}
+    enabled: true
+"#;
+
+#[cfg(target_family = "unix")]
+const LOG_SECTION: &str = "";
