@@ -159,7 +159,36 @@ Verification Flow:
 
 ## Key Rotation
 
-We hid an important detail in the [Signature Verification section](./oci_repository.md#signature-verification), to make it easier to understand. Agent Control **ALWAYS** downloads the public key when verifying a signature/ This avoids the problem of using a revoked key while the cache isn't updated.
+We hid an important detail in the [Signature Verification section](./oci_repository.md#signature-verification), to make it easier to understand. Agent Control **ALWAYS** downloads the public key when verifying a signature. This avoids the problem of using a revoked key while the cache isn't updated. The public keys are in JWKS format and it looks like that:
+
+```json
+{
+  "keys": [
+    {
+      "kty": "OKP",
+      "alg": null,
+      "use": "sig",
+      "kid": "key/0",
+      "n": null,
+      "e": null,
+      "x": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "y": null,
+      "crv": "Ed25519"
+    },
+    {
+      "kty": "OKP",
+      "alg": null,
+      "use": "sig",
+      "kid": "key/0",
+      "n": null,
+      "e": null,
+      "x": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "y": null,
+      "crv": "Ed25519"
+    }
+  ]
+}
+```
 
 That's great, but what happens during a key rotation? It depends on the specific use case. Agent Control always tries to verify the signature with every single public key published for that package. Avoiding downtimes. There are a couple of edge cases in which we can't do nothing. The user has to wait for the signature or disable signature verification.
 
@@ -168,8 +197,7 @@ That's great, but what happens during a key rotation? It depends on the specific
 
 ## Garbage collection
 
-Agent Control stores in the system the two latest installed versions of each agent. Any other version of the package is removed from the system.
-You can think of it like a FIFO with size 2.
+Agent Control keeps track of the latest installed package. Each install operation executes an old package purge operation, which retains the latest tracked package (i.e. package currently running) and the new installed package. You can think of it like a FIFO with size 2.
 
 Example:
 
