@@ -165,6 +165,9 @@ mod tests {
                         "${nr-var:repository}".to_string(),
                     ),
                     version: TemplateableValue::from_template("${nr-var:version}".to_string()),
+                    public_key_url: Some(TemplateableValue::from_template(
+                        "${nr-var:public-key-url}".to_string(),
+                    )),
                 },
             },
         };
@@ -177,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn test_packages_reserved_variable_dir() {
+    fn test_packages_reserved_variable_dir_and_no_public_key_url() {
         // Define an OnHost with one package and an executable using the reserved var
         let yaml = r#"
 executables:
@@ -754,6 +757,7 @@ packages:
         registry: ${nr-var:registry}
         repository: ${nr-var:repository}
         version: ${nr-var:version}
+        public_key_url: ${nr-var:public-key-url}
   otel-second:
     type: tar.gz
     download:
@@ -761,5 +765,6 @@ packages:
         registry: ${nr-var:registry}
         repository: ${nr-var:repository}
         version: ${nr-var:version}
+        public_key_url: ${nr-var:public-key-url}
 "#;
 }
