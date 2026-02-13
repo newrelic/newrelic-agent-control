@@ -69,7 +69,7 @@ impl OCISigner {
             .unwrap()
     }
 
-    /// Generates and push a cosign singature artifact to the reference.
+    /// Generates and push a cosign signature artifact to the reference.
     pub fn sign_artifact(&self, reference: Reference) {
         tokio_runtime().block_on(async { self.sign_artifact_async(reference).await });
     }
