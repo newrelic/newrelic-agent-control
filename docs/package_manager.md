@@ -60,7 +60,9 @@ Then we have the [manifest](https://github.com/opencontainers/image-spec/blob/ma
 > AC can handle artifacts regardless of the entrypoint (manifest or index).
 > However, AC suggests using the index approach. If the author of an agent decides to use a manifest, acknowledge that AC might behave in strange ways.
 
-In that file, Agent Control expects to find some specific keys and values.
+There, AC expects to find some specific keys and values.
+
+* `artifactType` must exist and have value `application/vnd.newrelic.agent.v1`
 
 * `layers/mediaType` must take one of the following values:
 
