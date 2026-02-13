@@ -11,7 +11,8 @@ be a manifest JSON file or an index JSON file.
 The [index](https://github.com/opencontainers/image-spec/blob/main/image-index.md#oci-image-index-specification) file includes a list of manifest files, and it's handy to support multiple environments. Agents that want to integrate with AC should use this approach.
 
 > [!NOTE]
-> Agent Control uses an [OCI client that supports every architecture and os in the spec](https://docs.rs/oci-client/latest/oci_client/manifest/struct.Platform.html).
+> AC uses an [OCI client that supports every architecture and os in the spec](https://docs.rs/oci-client/latest/oci_client/manifest/struct.Platform.html).
+> To make sure the platform is supported by AC and not only the OCI client, check out [AC compatibility section](https://docs.newrelic.com/docs/new-relic-control/agent-control/overview/#requirements-and-compatibility).
 
 Example:
 
