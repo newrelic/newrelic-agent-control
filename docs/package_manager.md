@@ -211,13 +211,16 @@ The client can wait for the signature to be created or disable signature verific
 
 ## Garbage collection
 
-Agent Control keeps track of the latest installed package. Each install operation executes an old package purge operation, which retains the latest tracked package (i.e. package currently running) and the new installed package. You can think of it like a FIFO with size 2.
+AC keeps track of the latest installed package. Each install operation executes an old package purge operation, which retains the latest tracked package (i.e. package currently running) and the new installed package. You can think of it like a FIFO with size 2. 
+
+On restart, AC only retains the current package. The previous package will be deleted.
 
 Example:
 
 1. User installs infra agent version 1.0.0 (system stores infra 1.0.0)
 2. User installs infra agent version 3.0.0 (system stores infra 1.0.0 and 3.0.0)
 3. User installs infra agent version 2.0.0 (system stores infra 2.0.0 and 3.0.0)
+4. Restart (system stores infra 2.0.0)
 
 ## Error Handling
 
