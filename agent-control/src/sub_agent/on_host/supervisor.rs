@@ -1468,7 +1468,8 @@ pub mod tests {
                     .is_some_and(|n| n.to_string_lossy().starts_with("stdout"))
             })
             .map(|p| fs::read_to_string(p).unwrap_or_default())
-            // we just merge all contents
+            // we just merge all contents to handle the corner case of multiple log files
+            // e.g. hourly log rotation while the test is running
             .collect::<Vec<_>>()
             .join("\n");
 
