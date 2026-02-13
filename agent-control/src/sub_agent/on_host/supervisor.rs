@@ -69,6 +69,7 @@ where
     pub package_manager: Arc<PM>,
     pub agent_identity: AgentIdentity,
     pub internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    pub logging_path: PathBuf,
 }
 
 pub struct NotStartedSupervisorOnHost<PM>
@@ -128,6 +129,7 @@ where
             package_manager,
             internal_publisher,
             thread_contexts,
+            logging_path,
         } = self;
 
         let installation_result = install_packages(
@@ -164,7 +166,8 @@ where
             onhost_config.packages,
             package_manager,
         )
-        .with_filesystem(onhost_config.filesystem);
+        .with_filesystem(onhost_config.filesystem)
+        .with_file_logging(onhost_config.enable_file_logging, logging_path);
 
         let new_started_supervisor = starter.spin_up(internal_publisher)?;
 
@@ -302,6 +305,7 @@ where
             package_manager: self.package_manager,
             agent_identity: self.agent_identity,
             internal_publisher: sub_agent_internal_publisher,
+            logging_path: self.logging_path,
         })
     }
 
@@ -581,15 +585,22 @@ impl HealthHandler {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env, Executable};
+    use crate::agent_type::runtime_config::on_host::rendered::OnHost;
+    use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
+    use crate::agent_type::runtime_config::restart_policy::rendered::RestartPolicyConfig;
     use crate::checkers::health::health_checker::HEALTH_CHECKER_THREAD_NAME;
     use crate::event::channel::pub_sub;
     use crate::package::manager::tests::MockPackageManager;
+    use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use crate::sub_agent::supervisor::Supervisor;
     use serde::Deserialize;
     use std::collections::HashMap;
+    use std::fs;
     use std::thread;
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
@@ -1085,5 +1096,495 @@ pub mod tests {
         );
 
         assert!(health_consumer.as_ref().is_empty())
+    }
+
+    #[test]
+    fn test_supervisor_reloading_keeps_file_logging() {
+        let dir = tempfile::tempdir().unwrap();
+        let logging_path = dir.path().to_path_buf();
+
+        let echo_cmd = if cfg!(windows) { "cmd" } else { "echo" };
+        let unique_str_1 = "run1_unique_string";
+        let args_1 = if cfg!(windows) {
+            vec![
+                "/C".to_string(),
+                "echo".to_string(),
+                unique_str_1.to_string(),
+            ]
+        } else {
+            vec![unique_str_1.to_string()]
+        };
+
+        let exec_data_1 = ExecutableData {
+            id: "echo-agent".to_string(),
+            bin: echo_cmd.to_string(),
+            args: args_1,
+            env: HashMap::new(),
+            shutdown_timeout: Duration::from_secs(5),
+            restart_policy: RestartPolicy::default(),
+        };
+
+        let agent_identity = AgentIdentity::from((
+            AgentID::try_from("test-agent".to_string()).unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+
+        let supervisor = NotStartedSupervisorOnHost::new(
+            agent_identity.clone(),
+            vec![exec_data_1],
+            OnHostHealthConfig::default(),
+            None,
+            get_empty_packages(),
+            Arc::new(MockPackageManager::new()),
+        )
+        .with_file_logging(true, logging_path.clone());
+
+        let (pub_internal, _sub_internal) = pub_sub();
+        let started_supervisor = supervisor
+            .spin_up(pub_internal.clone())
+            .expect("failed to start");
+
+        // Wait a bit for the process to run and write logs
+        std::thread::sleep(Duration::from_secs(2));
+
+        let unique_str_2 = "run2_unique_string";
+        let args_2 = if cfg!(windows) {
+            vec![
+                "/C".to_string(),
+                "echo".to_string(),
+                unique_str_2.to_string(),
+            ]
+        } else {
+            vec![unique_str_2.to_string()]
+        };
+
+        let executable_rendered = Executable {
+            id: "echo-agent".to_string(),
+            path: echo_cmd.to_string(),
+            args: Args(args_2),
+            env: Env(HashMap::new()),
+            restart_policy: RestartPolicyConfig::default(),
+        };
+
+        let on_host_config = OnHost {
+            executables: vec![executable_rendered],
+            enable_file_logging: true,
+            health: OnHostHealthConfig::default(),
+            version: None,
+            filesystem: FileSystem::default(),
+            packages: get_empty_packages(),
+        };
+
+        let runtime = Runtime {
+            deployment: Deployment {
+                linux: cfg!(unix).then(|| on_host_config.clone()),
+                windows: cfg!(windows).then(|| on_host_config.clone()),
+                k8s: None,
+            },
+        };
+
+        let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);
+
+        let started_supervisor = started_supervisor
+            .apply(effective_agent)
+            .expect("failed to apply");
+
+        // Wait a bit for the process to run and write logs
+        std::thread::sleep(Duration::from_secs(2));
+
+        started_supervisor.stop().expect("failed to stop");
+
+        // Verify logs
+        let agent_logs_dir = logging_path.join(agent_identity.id.to_string());
+        assert!(
+            agent_logs_dir.exists(),
+            "Log directory {:?} does not exist",
+            agent_logs_dir
+        );
+
+        let all_contents = fs::read_dir(agent_logs_dir)
+            .expect("should find logs dir")
+            .map(|entry| entry.expect("entry").path())
+            .filter(|p| {
+                // The `echo` commands should write to stdout, so we look for these files only.
+                // Filtering by prefix because the timestamp is appended to the file name.
+                p.file_prefix()
+                    .is_some_and(|n| n.to_string_lossy().starts_with("stdout"))
+            })
+            .map(|p| fs::read_to_string(p).unwrap_or_default())
+            // we just merge all contents
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(
+            all_contents.contains(unique_str_1),
+            "First run log not found (pre-apply)"
+        );
+
+        assert!(
+            all_contents.contains(unique_str_2),
+            "Second run log not found (post-apply)"
+        );
+    }
+
+    #[test]
+    fn test_supervisor_reloading_enables_file_logging() {
+        let dir = tempfile::tempdir().unwrap();
+        let logging_path = dir.path().to_path_buf();
+
+        let echo_cmd = if cfg!(windows) { "cmd" } else { "echo" };
+        let unique_str_1 = "run1_unique_string";
+        let args_1 = if cfg!(windows) {
+            vec![
+                "/C".to_string(),
+                "echo".to_string(),
+                unique_str_1.to_string(),
+            ]
+        } else {
+            vec![unique_str_1.to_string()]
+        };
+
+        let exec_data_1 = ExecutableData {
+            id: "echo-agent".to_string(),
+            bin: echo_cmd.to_string(),
+            args: args_1,
+            env: HashMap::new(),
+            shutdown_timeout: Duration::from_secs(5),
+            restart_policy: RestartPolicy::default(),
+        };
+
+        let agent_identity = AgentIdentity::from((
+            AgentID::try_from("test-agent".to_string()).unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+
+        // Start with logging DISABLED
+        let supervisor = NotStartedSupervisorOnHost::new(
+            agent_identity.clone(),
+            vec![exec_data_1],
+            OnHostHealthConfig::default(),
+            None,
+            get_empty_packages(),
+            Arc::new(MockPackageManager::new()),
+        )
+        .with_file_logging(false, logging_path.clone());
+
+        let (pub_internal, _sub_internal) = pub_sub();
+        let started_supervisor = supervisor
+            .spin_up(pub_internal.clone())
+            .expect("failed to start");
+
+        std::thread::sleep(Duration::from_secs(2));
+
+        let unique_str_2 = "run2_unique_string";
+        let args_2 = if cfg!(windows) {
+            vec![
+                "/C".to_string(),
+                "echo".to_string(),
+                unique_str_2.to_string(),
+            ]
+        } else {
+            vec![unique_str_2.to_string()]
+        };
+
+        let executable_rendered = Executable {
+            id: "echo-agent".to_string(),
+            path: echo_cmd.to_string(),
+            args: Args(args_2),
+            env: Env(HashMap::new()),
+            restart_policy: RestartPolicyConfig::default(),
+        };
+
+        // ENABLING file logging on reload
+        let on_host_config = OnHost {
+            executables: vec![executable_rendered],
+            enable_file_logging: true,
+            health: OnHostHealthConfig::default(),
+            version: None,
+            filesystem: FileSystem::default(),
+            packages: get_empty_packages(),
+        };
+
+        let runtime = Runtime {
+            deployment: Deployment {
+                linux: cfg!(unix).then(|| on_host_config.clone()),
+                windows: cfg!(windows).then(|| on_host_config.clone()),
+                k8s: None,
+            },
+        };
+
+        let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);
+
+        let started_supervisor = started_supervisor
+            .apply(effective_agent)
+            .expect("failed to apply");
+
+        std::thread::sleep(Duration::from_secs(2));
+
+        started_supervisor.stop().expect("failed to stop");
+
+        let agent_logs_dir = logging_path.join(agent_identity.id.to_string());
+        assert!(
+            agent_logs_dir.exists(),
+            "Log directory {:?} should exist",
+            agent_logs_dir
+        );
+
+        let all_contents = fs::read_dir(agent_logs_dir)
+            .expect("should find logs dir")
+            .map(|entry| entry.expect("entry").path())
+            .filter(|p| {
+                // The `echo` commands should write to stdout, so we look for these files only.
+                // Filtering by prefix because the timestamp is appended to the file name.
+                p.file_prefix()
+                    .is_some_and(|n| n.to_string_lossy().starts_with("stdout"))
+            })
+            .map(|p| fs::read_to_string(p).unwrap_or_default())
+            // we just merge all contents
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(
+            !all_contents.contains(unique_str_1),
+            "First run log SHOULD NOT be found (it was disabled)"
+        );
+
+        assert!(
+            all_contents.contains(unique_str_2),
+            "Second run log SHOULD be found (it was enabled)"
+        );
+    }
+
+    #[test]
+    fn test_supervisor_reloading_disables_file_logging() {
+        let dir = tempfile::tempdir().unwrap();
+        let logging_path = dir.path().to_path_buf();
+
+        let echo_cmd = if cfg!(windows) { "cmd" } else { "echo" };
+        let unique_str_1 = "run1_unique_string";
+        let args_1 = if cfg!(windows) {
+            vec![
+                "/C".to_string(),
+                "echo".to_string(),
+                unique_str_1.to_string(),
+            ]
+        } else {
+            vec![unique_str_1.to_string()]
+        };
+
+        let exec_data_1 = ExecutableData {
+            id: "echo-agent".to_string(),
+            bin: echo_cmd.to_string(),
+            args: args_1,
+            env: HashMap::new(),
+            shutdown_timeout: Duration::from_secs(5),
+            restart_policy: RestartPolicy::default(),
+        };
+
+        let agent_identity = AgentIdentity::from((
+            AgentID::try_from("test-agent".to_string()).unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+
+        // Start with logging ENABLED
+        let supervisor = NotStartedSupervisorOnHost::new(
+            agent_identity.clone(),
+            vec![exec_data_1],
+            OnHostHealthConfig::default(),
+            None,
+            get_empty_packages(),
+            Arc::new(MockPackageManager::new()),
+        )
+        .with_file_logging(true, logging_path.clone());
+
+        let (pub_internal, _sub_internal) = pub_sub();
+        let started_supervisor = supervisor
+            .spin_up(pub_internal.clone())
+            .expect("failed to start");
+
+        std::thread::sleep(Duration::from_secs(2));
+
+        let unique_str_2 = "run2_unique_string";
+        let args_2 = if cfg!(windows) {
+            vec![
+                "/C".to_string(),
+                "echo".to_string(),
+                unique_str_2.to_string(),
+            ]
+        } else {
+            vec![unique_str_2.to_string()]
+        };
+
+        let executable_rendered = Executable {
+            id: "echo-agent".to_string(),
+            path: echo_cmd.to_string(),
+            args: Args(args_2),
+            env: Env(HashMap::new()),
+            restart_policy: RestartPolicyConfig::default(),
+        };
+
+        // DISABLING file logging on reload
+        let on_host_config = OnHost {
+            executables: vec![executable_rendered],
+            enable_file_logging: false,
+            health: OnHostHealthConfig::default(),
+            version: None,
+            filesystem: FileSystem::default(),
+            packages: get_empty_packages(),
+        };
+
+        let runtime = Runtime {
+            deployment: Deployment {
+                linux: cfg!(unix).then(|| on_host_config.clone()),
+                windows: cfg!(windows).then(|| on_host_config.clone()),
+                k8s: None,
+            },
+        };
+
+        let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);
+
+        let started_supervisor = started_supervisor
+            .apply(effective_agent)
+            .expect("failed to apply");
+
+        std::thread::sleep(Duration::from_secs(2));
+
+        started_supervisor.stop().expect("failed to stop");
+
+        let agent_logs_dir = logging_path.join(agent_identity.id.to_string());
+        assert!(
+            agent_logs_dir.exists(),
+            "Log directory {:?} should exist (from first run)",
+            agent_logs_dir
+        );
+
+        let all_contents = fs::read_dir(agent_logs_dir)
+            .expect("should find logs dir")
+            .map(|entry| entry.expect("entry").path())
+            .filter(|p| {
+                // The `echo` commands should write to stdout, so we look for these files only.
+                // Filtering by prefix because the timestamp is appended to the file name.
+                p.file_prefix()
+                    .is_some_and(|n| n.to_string_lossy().starts_with("stdout"))
+            })
+            .map(|p| fs::read_to_string(p).unwrap_or_default())
+            // we just merge all contents to handle the corner case of multiple log files
+            // e.g. hourly log rotation while the test is running
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(
+            all_contents.contains(unique_str_1),
+            "First run log SHOULD be found (it was enabled)"
+        );
+
+        assert!(
+            !all_contents.contains(unique_str_2),
+            "Second run log SHOULD NOT be found (it was disabled)"
+        );
+    }
+
+    #[test]
+    fn test_supervisor_reloading_keeps_file_logging_disabled() {
+        let dir = tempfile::tempdir().unwrap();
+        let logging_path = dir.path().to_path_buf();
+
+        let echo_cmd = if cfg!(windows) { "cmd" } else { "echo" };
+        let unique_str_1 = "run1_unique_string";
+        let args_1 = if cfg!(windows) {
+            vec![
+                "/C".to_string(),
+                "echo".to_string(),
+                unique_str_1.to_string(),
+            ]
+        } else {
+            vec![unique_str_1.to_string()]
+        };
+
+        let exec_data_1 = ExecutableData {
+            id: "echo-agent".to_string(),
+            bin: echo_cmd.to_string(),
+            args: args_1,
+            env: HashMap::new(),
+            shutdown_timeout: Duration::from_secs(5),
+            restart_policy: RestartPolicy::default(),
+        };
+
+        let agent_identity = AgentIdentity::from((
+            AgentID::try_from("test-agent".to_string()).unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+
+        // Start with logging DISABLED
+        let supervisor = NotStartedSupervisorOnHost::new(
+            agent_identity.clone(),
+            vec![exec_data_1],
+            OnHostHealthConfig::default(),
+            None,
+            get_empty_packages(),
+            Arc::new(MockPackageManager::new()),
+        )
+        .with_file_logging(false, logging_path.clone());
+
+        let (pub_internal, _sub_internal) = pub_sub();
+        let started_supervisor = supervisor
+            .spin_up(pub_internal.clone())
+            .expect("failed to start");
+
+        std::thread::sleep(Duration::from_secs(2));
+
+        let unique_str_2 = "run2_unique_string";
+        let args_2 = if cfg!(windows) {
+            vec![
+                "/C".to_string(),
+                "echo".to_string(),
+                unique_str_2.to_string(),
+            ]
+        } else {
+            vec![unique_str_2.to_string()]
+        };
+
+        let executable_rendered = Executable {
+            id: "echo-agent".to_string(),
+            path: echo_cmd.to_string(),
+            args: Args(args_2),
+            env: Env(HashMap::new()),
+            restart_policy: RestartPolicyConfig::default(),
+        };
+
+        // KEEP logging DISABLED on reload
+        let on_host_config = OnHost {
+            executables: vec![executable_rendered],
+            enable_file_logging: false,
+            health: OnHostHealthConfig::default(),
+            version: None,
+            filesystem: FileSystem::default(),
+            packages: get_empty_packages(),
+        };
+
+        let runtime = Runtime {
+            deployment: Deployment {
+                linux: cfg!(unix).then(|| on_host_config.clone()),
+                windows: cfg!(windows).then(|| on_host_config.clone()),
+                k8s: None,
+            },
+        };
+
+        let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);
+
+        let started_supervisor = started_supervisor
+            .apply(effective_agent)
+            .expect("failed to apply");
+
+        std::thread::sleep(Duration::from_secs(2));
+
+        started_supervisor.stop().expect("failed to stop");
+
+        let agent_logs_dir = logging_path.join(agent_identity.id.to_string());
+        assert!(
+            !agent_logs_dir.exists(),
+            "Log directory {:?} should NOT exist",
+            agent_logs_dir
+        );
     }
 }
