@@ -1,10 +1,9 @@
 version: 2
 project_name: newrelic-agent-control
 env:
-  # Artifacts Versions
-  # Currently the only way to update the sub-agent versions is rebuild the binary of the agent-control
-  - NEWRELIC_INFRA_AGENT_VERSION=1.72.3
-  - NR_OTEL_COLLECTOR_VERSION=1.11.0
+  # This version should be kept fixed.
+  - NEWRELIC_INFRA_AGENT_VERSION=1.71.1
+  - NR_OTEL_COLLECTOR_VERSION=1.5.0
 builds:
   # Linux builds using cargo zigbuild
   - id: newrelic-agent-control-linux

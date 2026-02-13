@@ -58,28 +58,6 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^.goreleaser.yml$/"
-      ],
-      "depNameTemplate": "newrelic/infrastructure-agent",
-      "datasourceTemplate": "github-releases",
-      "matchStrings": [
-        " *- NEWRELIC_INFRA_AGENT_VERSION=(?<currentValue>.+)"
-      ]
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^.goreleaser.yml$/"
-      ],
-      "depNameTemplate": "newrelic/nrdot-collector-releases",
-      "datasourceTemplate": "github-releases",
-      "matchStrings": [
-        " *- NR_OTEL_COLLECTOR_VERSION=(?<currentValue>.+)"
-      ]
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
         "**/Cargo.toml"
       ],
       "matchStrings": [
