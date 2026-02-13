@@ -1,22 +1,22 @@
-use std::collections::BTreeMap;
-use std::net;
-use std::sync::{Arc, Mutex};
-
+use super::runtime::tokio_runtime;
+use crate::common::oci::{hex_bytes, push_empty_config_descriptor};
 use actix_web::{App, HttpResponse, HttpServer, web};
-use base64::prelude::{BASE64_STANDARD, BASE64_URL_SAFE_NO_PAD, Engine};
+use base64::prelude::BASE64_STANDARD;
+use base64::prelude::{BASE64_URL_SAFE_NO_PAD, Engine};
 use http::Uri;
 use oci_client::client::{ClientConfig, ClientProtocol::Http};
 use oci_client::manifest::{OciDescriptor, OciImageManifest, OciManifest::Image};
 use oci_client::secrets::RegistryAuth::Anonymous;
 use oci_client::{Client, Reference};
-use ring::digest::{SHA256, digest};
+use ring::digest::SHA256;
+use ring::digest::digest;
 use ring::rand::SystemRandom;
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::json;
+use std::collections::BTreeMap;
+use std::sync::Mutex;
+use std::{net, sync::Arc};
 use tokio::task::JoinHandle;
-
-use super::runtime::tokio_runtime;
-use crate::common::oci::{hex_bytes, push_empty_config_descriptor};
 
 const JWKS_SERVER_PATH: &str = "/jwks";
 const JWKS_PUBLIC_KEY_ID: &str = "fakeOCIKeyName/0";

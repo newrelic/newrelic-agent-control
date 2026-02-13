@@ -5,10 +5,13 @@ pub(super) mod effective_config;
 pub(super) mod global_logger;
 pub(super) mod health;
 pub(super) mod oci;
-pub(super) mod oci_signer;
 pub(super) mod opamp;
 pub(super) mod process_finder;
 pub(super) mod remote_config_status;
 pub(super) mod retry;
 /// Includes helpers to handle the _async_ code execution in non-tokio-tests.
 pub(super) mod runtime;
+
+// TODO remove allow when the tests are created
+#[allow(dead_code)]
+pub(super) mod oci_signer;

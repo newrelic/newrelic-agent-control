@@ -25,7 +25,7 @@ pub async fn push_empty_config_descriptor(
 
     OciDescriptor {
         media_type: "application/vnd.oci.empty.v1+json".to_string(),
-        digest: empty_config_digest.clone(),
+        digest: empty_config_digest,
         size: empty_config.len() as i64,
         ..Default::default()
     }
