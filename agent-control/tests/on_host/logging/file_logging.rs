@@ -3,7 +3,8 @@ use super::level::TIME_FORMAT;
 use crate::on_host::cli::cmd_with_config_file;
 use newrelic_agent_control::{
     agent_control::defaults::{
-        AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+        AGENT_CONTROL_ID, AGENT_CONTROL_LOG_FILENAME, FOLDER_NAME_LOCAL_DATA,
+        STORE_KEY_LOCAL_DATA_CONFIG,
     },
     on_host::file_store::build_config_name,
 };
@@ -34,8 +35,8 @@ fn default_log_level_no_root() {
         .join(FOLDER_NAME_LOCAL_DATA)
         .join(AGENT_CONTROL_ID);
     std::fs::create_dir_all(&config_path).unwrap();
-    let log_dir = dir.path().join("log");
-    let log_path = log_dir.join("agent_control.log");
+    let log_dir = dir.path().join("log").join(AGENT_CONTROL_ID);
+    let log_path = log_dir.join(AGENT_CONTROL_LOG_FILENAME);
 
     // Write the config file
     build_logging_config(
@@ -81,8 +82,8 @@ fn default_log_level_as_root() {
         .join(FOLDER_NAME_LOCAL_DATA)
         .join(AGENT_CONTROL_ID);
     std::fs::create_dir_all(&config_path).unwrap();
-    let log_dir = dir.path().join("log");
-    let log_path = log_dir.join("agent_control.log");
+    let log_dir = dir.path().join("log").join(AGENT_CONTROL_ID);
+    let log_path = log_dir.join(AGENT_CONTROL_LOG_FILENAME);
 
     // Write the config file
     build_logging_config(

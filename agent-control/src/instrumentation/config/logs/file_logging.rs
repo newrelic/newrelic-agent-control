@@ -1,5 +1,5 @@
 use super::config::LoggingConfigError;
-use crate::agent_control::defaults::AGENT_CONTROL_LOG_FILENAME;
+use crate::agent_control::defaults::{AGENT_CONTROL_ID, AGENT_CONTROL_LOG_FILENAME};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
@@ -22,7 +22,7 @@ impl FileLoggingConfig {
 
         // if path is not specified into the config we fall back to a default path
         let path = self.path.unwrap_or(LogFilePath::new(
-            default_dir.clone(),
+            default_dir.join(AGENT_CONTROL_ID),
             PathBuf::from(AGENT_CONTROL_LOG_FILENAME),
         ));
         let file_appender = tracing_appender::rolling::hourly(path.parent, path.file_name);
