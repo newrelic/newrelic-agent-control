@@ -68,9 +68,6 @@ In that file, Agent Control expects to find some specific keys and values.
     - `application/vnd.newrelic.agent.content.v1.tar+gzip`
     - `application/vnd.newrelic.agent-type.content.v1.tar+gzip`
 
-* `annotations` must contain
-    - `com.newrelic.artifact.type` with value `package` or `agent-type`
-
 Example:
 
 ```json
