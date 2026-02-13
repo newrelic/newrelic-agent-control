@@ -169,10 +169,6 @@ fn trace_log_level_as_root() {
                 .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "TRACE.*creating the global context")
-                .unwrap(),
-        )
-        .stdout(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "INFO.*Starting the agents supervisor runtime",
             )

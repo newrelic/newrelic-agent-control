@@ -8,6 +8,8 @@ use crate::agent_control::defaults::ENVIRONMENT_VARIABLES_FILE_NAME;
 use crate::agent_control::run::Environment;
 #[cfg(debug_assertions)]
 use crate::agent_control::run::set_debug_dirs;
+use crate::event::ApplicationEvent;
+use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
 use crate::instrumentation::tracing::{
     TracingConfig, TracingError, TracingGuardBox, try_init_tracing,
 };
@@ -73,6 +75,21 @@ pub struct Command {
     pub logs_dir: Option<std::path::PathBuf>,
 }
 
+/// Context passed to the main loop, containing all initialized components.
+pub struct RunContext {
+    /// Configuration for the runner
+    pub run_config: AgentControlRunConfig,
+    /// This must be kept alive for the duration of the program to ensure logs and traces are flushed.
+    pub tracer: Vec<TracingGuardBox>,
+    /// The publishing end of the internal application event bus.
+    pub application_event_publisher: EventPublisher<ApplicationEvent>,
+    /// The consuming end of the internal application event bus.
+    pub application_event_consumer: EventConsumer<ApplicationEvent>,
+    /// A handler used to signal the application to stop when running as a Windows Service
+    #[cfg(target_family = "windows")]
+    pub stop_handler: Option<windows::WindowsServiceStopHandler>,
+}
+
 impl Command {
     /// Checks if the flag to show the version was set
     fn print_version(&self) -> bool {
@@ -85,10 +102,14 @@ impl Command {
     }
 
     /// Runs the provided main function or shows the binary information according to flags
-    pub fn run<F: Fn(AgentControlRunConfig, Vec<TracingGuardBox>) -> Result<(), Box<dyn Error>>>(
+    pub fn run<F>(
         ac_running_mode: Environment,
         main_fn: F,
-    ) -> ExitCode {
+        #[cfg(target_os = "windows")] as_windows_service: bool,
+    ) -> ExitCode
+    where
+        F: FnOnce(RunContext) -> Result<(), Box<dyn Error>>,
+    {
         // Get command line args
         let flags = Self::parse();
 
@@ -109,6 +130,24 @@ impl Command {
             println!("FLAGS: {flags:#?}");
             return ExitCode::SUCCESS;
         }
+
+        // We need to create the pub_sub here so the Windows Service Stop handler is capable
+        // of publishing a stop signal to the application for a Graceful Shutdown.
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+
+        #[cfg(target_family = "windows")]
+        let stop_handler = match as_windows_service
+            .then(|| {
+                crate::command::windows::setup_windows_service(application_event_publisher.clone())
+            })
+            .transpose()
+        {
+            Ok(handler) => handler,
+            Err(e) => {
+                println!("Failed to setup Windows service: {e}");
+                return ExitCode::FAILURE;
+            }
+        };
 
         let env_file_path = base_paths.local_dir.join(ENVIRONMENT_VARIABLES_FILE_NAME);
         if env_file_path.exists() {
@@ -131,7 +170,16 @@ impl Command {
             return ExitCode::FAILURE;
         };
 
-        match main_fn(run_config, tracer) {
+        let run_context = RunContext {
+            run_config,
+            tracer,
+            application_event_publisher,
+            application_event_consumer,
+            #[cfg(target_os = "windows")]
+            stop_handler,
+        };
+
+        match main_fn(run_context) {
             Ok(_) => {
                 info!("The agent control main process exited successfully");
                 ExitCode::SUCCESS

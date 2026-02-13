@@ -39,11 +39,14 @@ enum LinuxScenarios {
 
 #[derive(Debug, clap::Subcommand)]
 enum WindowsScenarios {
-    /// Simple installation of Agent Control on Windows with an Infrastructure Agent
+    /// Simple installation of Agent Control on Windows with an Infrastructure Agent.
     InfraAgent(Args),
-    /// Simple installation of Agent Control on Windows with NRDOT Agent
+    /// Simple installation of Agent Control on Windows with NRDOT Agent.
     Nrdot(Args),
     Proxy(Args),
+    /// Simple installation of Agent Control on Windows with update to wrong and correct config
+    /// to test service stop and start.
+    WrongConfig(Args),
 }
 
 #[derive(Parser)]

@@ -3,20 +3,19 @@
 //! It implements the basic functionality of parsing the command line arguments and either
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
+use newrelic_agent_control::agent_control::run::AgentControlRunner;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
-use newrelic_agent_control::agent_control::run::{AgentControlRunConfig, AgentControlRunner};
-use newrelic_agent_control::command::Command;
+use newrelic_agent_control::command::{Command, RunContext};
 use newrelic_agent_control::event::ApplicationEvent;
-use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
+use newrelic_agent_control::event::channel::EventPublisher;
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
-use newrelic_agent_control::instrumentation::tracing::TracingGuardBox;
 use newrelic_agent_control::utils::is_elevated::is_elevated;
 use std::error::Error;
 use std::process::ExitCode;
 use tracing::{error, info, trace};
 
 #[cfg(target_os = "windows")]
-use newrelic_agent_control::command::windows::{WINDOWS_SERVICE_NAME, setup_windows_service};
+use newrelic_agent_control::command::windows::WINDOWS_SERVICE_NAME;
 
 #[cfg(target_os = "windows")]
 windows_service::define_windows_service!(ffi_service_main, service_main);
@@ -33,9 +32,7 @@ fn main() -> ExitCode {
             .is_err()
         {
             // Not running as Windows Service, run normally
-            return Command::run(AGENT_CONTROL_MODE_ON_HOST, |cfg, tracer| {
-                _main(cfg, tracer, false)
-            });
+            return Command::run(AGENT_CONTROL_MODE_ON_HOST, _main, false);
         }
         ExitCode::SUCCESS
     }
@@ -44,9 +41,7 @@ fn main() -> ExitCode {
 #[cfg(target_os = "windows")]
 /// Entry-point for Windows Service
 fn service_main(_arguments: Vec<std::ffi::OsString>) {
-    let _ = Command::run(AGENT_CONTROL_MODE_ON_HOST, |cfg, tracer| {
-        _main(cfg, tracer, true)
-    });
+    let _ = Command::run(AGENT_CONTROL_MODE_ON_HOST, _main, true);
 }
 
 /// This is the actual main function.
@@ -59,19 +54,7 @@ fn service_main(_arguments: Vec<std::ffi::OsString>) {
 /// could not read Agent Control config from /invalid/path: error loading the agent control config: \`error retrieving config: \`missing field \`agents\`\`\`
 /// Error: ConfigRead(LoadConfigError(ConfigError(missing field \`agents\`)))
 /// ```
-fn _main(
-    agent_control_run_config: AgentControlRunConfig,
-    _tracer: Vec<TracingGuardBox>, // Needs to take ownership of the tracer as it can be shutdown on drop
-    #[cfg(target_os = "windows")] as_windows_service: bool,
-) -> Result<(), Box<dyn Error>> {
-    trace!("creating the global context");
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-
-    #[cfg(target_os = "windows")]
-    let stop_handler = as_windows_service
-        .then(|| setup_windows_service(application_event_publisher.clone()))
-        .transpose()?;
-
+fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
     #[cfg(not(feature = "disable-asroot"))]
     if !is_elevated()? {
         return Err("Program must run with elevated permissions".into());
@@ -87,15 +70,18 @@ fn _main(
     install_rustls_default_crypto_provider();
 
     trace!("creating the signal handler");
-    create_shutdown_signal_handler(application_event_publisher)?;
+    create_shutdown_signal_handler(run_context.application_event_publisher)?;
 
     // Create the actual agent control runner with the rest of required configs
     // and the application_event_consumer and capture the result to report the error in windows
-    let run_result = AgentControlRunner::new(agent_control_run_config, application_event_consumer)
-        .and_then(|runner| Ok(runner.run()?));
+    let run_result = AgentControlRunner::new(
+        run_context.run_config,
+        run_context.application_event_consumer,
+    )
+    .and_then(|runner| Ok(runner.run()?));
 
-    #[cfg(target_os = "windows")]
-    if let Some(handler) = stop_handler {
+    #[cfg(target_family = "windows")]
+    if let Some(handler) = run_context.stop_handler {
         // Teardown notifies Windows that we're stopping intentionally, avoiding a 1061 state.
         // 1061 occurs in Windows when a service is busy, unresponsive, or experiencing a conflict,
         // preventing it from starting, stopping, or restarting.
