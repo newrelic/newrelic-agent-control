@@ -69,6 +69,7 @@ where
     pub package_manager: Arc<PM>,
     pub agent_identity: AgentIdentity,
     pub internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    pub logging_path: PathBuf,
 }
 
 pub struct NotStartedSupervisorOnHost<PM>
@@ -128,6 +129,7 @@ where
             package_manager,
             internal_publisher,
             thread_contexts,
+            logging_path,
         } = self;
 
         let installation_result = install_packages(
@@ -164,7 +166,8 @@ where
             onhost_config.packages,
             package_manager,
         )
-        .with_filesystem(onhost_config.filesystem);
+        .with_filesystem(onhost_config.filesystem)
+        .with_file_logging(onhost_config.enable_file_logging, logging_path);
 
         let new_started_supervisor = starter.spin_up(internal_publisher)?;
 
@@ -302,6 +305,7 @@ where
             package_manager: self.package_manager,
             agent_identity: self.agent_identity,
             internal_publisher: sub_agent_internal_publisher,
+            logging_path: self.logging_path,
         })
     }
 
