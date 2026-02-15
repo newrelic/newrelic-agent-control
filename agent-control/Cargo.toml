@@ -19,7 +19,7 @@ tracing = { workspace = true, features = ["attributes"] }
 ctrlc = { version = "3.5.2", features = ["termination"] }
 serde_yaml = { workspace = true }
 regex = { workspace = true }
-futures = { version = "0.3.31" }
+futures = { version = "0.3.32" }
 tokio = { version = "1.49.0", features = ["rt-multi-thread", "macros", "sync"] }
 console-subscriber = { version = "0.5.0", optional = true }
 duration-str = "0.20.0"
@@ -111,7 +111,7 @@ fake = { version = "4.4.0", features = ["derive", "http"] }
 prost = "0.14.3"
 httpmock = { version = "0.8.3", features = ["proxy"] }
 serial_test = "3.3.1"
-futures = "0.3.31"
+futures = "0.3.32"
 rcgen = { version = "0.14.7", features = ["crypto"] }
 rstest = { workspace = true }
 tokio-stream = { version = "0.1.18", features = ["net"] }
