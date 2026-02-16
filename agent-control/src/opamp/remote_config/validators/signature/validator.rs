@@ -4,7 +4,6 @@ use crate::http::config::ProxyConfig;
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::validators::signature::verifier::VerifierStore;
-use crate::signature::public_key::PublicKey;
 use crate::signature::public_key_fetcher::PublicKeyFetcher;
 use crate::sub_agent::identity::AgentIdentity;
 use serde::Deserialize;
@@ -47,7 +46,7 @@ fn default_signature_validator_config_enabled() -> bool {
 }
 
 pub struct SignatureValidator {
-    public_key_store: Option<VerifierStore<PublicKey, PublicKeyFetcher>>,
+    public_key_store: Option<VerifierStore>,
 }
 
 impl SignatureValidator {
