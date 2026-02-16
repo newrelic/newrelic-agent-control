@@ -411,6 +411,7 @@ fn install_packages<PM: PackageManager>(
                 PackageData {
                     id: id.clone(),
                     oci_reference: package.download.oci.reference.clone(),
+                    public_key_url: package.download.oci.public_key_url.clone(),
                 },
             )
             .map_err(|err| InstallPackageError {

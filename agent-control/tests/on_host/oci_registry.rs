@@ -47,7 +47,7 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
     let downloader = OCIArtifactDownloader::new(client, runtime);
 
     let _ = downloader
-        .download(&reference, local_agent_data_dir)
+        .download(&reference, &None, local_agent_data_dir)
         .unwrap();
 
     // Verify that the expected files were created by digest and media type
@@ -116,7 +116,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
     let downloader =
         OCIArtifactDownloader::new(client, runtime).with_retries(4, Duration::from_millis(100));
 
-    let result = downloader.download(&reference, local_agent_data_dir);
+    let result = downloader.download(&reference, &None, local_agent_data_dir);
     assert!(result.is_ok());
 
     // Verify that the expected files were created by digest and media type
