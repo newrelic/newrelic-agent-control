@@ -1,25 +1,43 @@
 use super::{Client, OciClientError};
-use crate::signature::public_key::{PublicKey, SigningAlgorithm};
+use crate::signature::public_key::PublicKey;
 use base64::Engine;
 use oci_client::Reference;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use tracing::{debug, info};
 
+/// Internal helper struct that groups the raw signature data downloaded from the registry
+/// with its parsed representation.
 #[derive(Debug, Clone)]
 pub struct SignatureLayer {
     pub simple_signing: SimpleSigning,
+    /// The digest of the OCI layer containing this signature.
     pub oci_digest: String,
+    /// The raw bytes of the payload (used for cryptographic verification).
     pub raw_data: Vec<u8>,
+    /// The base64 encoded signature.
     pub signature: String,
 }
 
+/// Represents the JSON payload of a Cosign signature.
+///
+/// This structure follows the "Simple Signing" format used by Sigstore/Cosign to store
+/// claims about an image. It corresponds to the payload that is signed by the private key.
+///
+/// For more details, see the [Cosign Signature Specification](https://github.com/sigstore/cosign/blob/main/specs/SIGNATURE_SPEC.md#payload).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SimpleSigning {
     pub critical: Critical,
     pub optional: Option<BTreeMap<String, String>>,
 }
 
+/// The `critical` section of the payload.
+///
+/// According to the specification, consumers MUST reject the signature if the critical
+/// section contains any fields they do not understand. It ensures that the signature
+/// is strictly bound to a specific image digest and identity.
+///
+/// See: [Critical Section Spec](https://github.com/sigstore/cosign/blob/main/specs/SIGNATURE_SPEC.md#critical-header)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Critical {
     pub identity: ImageIdentity,
@@ -28,6 +46,10 @@ pub struct Critical {
     pub type_field: String,
 }
 
+/// Represents the identity of the image or the signer within the critical section.
+///
+/// - When used in `image`: contains the docker-reference (digest) of the signed artifact.
+/// - When used in `identity`: contains the docker-reference of the signing identity (often empty in basic key pairs).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageIdentity {
     #[serde(rename = "docker-reference")]
@@ -123,11 +145,7 @@ pub fn verify_signatures(
         checked_count += 1;
 
         for key in trusted_keys {
-            match key.verify_signature(
-                &SigningAlgorithm::ED25519,
-                &layer.raw_data,
-                &signature_bytes,
-            ) {
+            match key.verify_signature(&layer.raw_data, &signature_bytes) {
                 Ok(_) => {
                     info!(
                         "Valid signature found in layer {} and verified via OCI using key {}!",

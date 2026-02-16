@@ -5,7 +5,7 @@ use thiserror::Error;
 use tracing::debug;
 use url::Url;
 
-use crate::signature::public_key::{PublicKey, SigningAlgorithm};
+use crate::signature::public_key::PublicKey;
 use crate::signature::public_key_fetcher::PublicKeyFetcher;
 
 #[derive(Error, Debug, PartialEq)]
@@ -52,7 +52,6 @@ impl VerifierStore {
     /// key_id doesn't match the Verifier's key id.
     pub fn verify_signature(
         &self,
-        algorithm: &SigningAlgorithm,
         key_id: &str,
         msg: &[u8],
         signature: &[u8],
@@ -89,7 +88,7 @@ impl VerifierStore {
         let msg = BASE64_STANDARD.encode(msg);
 
         verifier
-            .verify_signature(algorithm, msg.as_bytes(), &decoded_signature)
+            .verify_signature(msg.as_bytes(), &decoded_signature)
             .map_err(|e| VerifierStoreError::VerifySignature(e.to_string()))?;
 
         debug!(
@@ -137,12 +136,7 @@ pub mod tests {
 
         let store = VerifierStore::try_new(fetcher, server.url.clone()).unwrap();
         store
-            .verify_signature(
-                &SigningAlgorithm::ED25519,
-                key_id.as_str(),
-                MESSAGE,
-                &signature,
-            )
+            .verify_signature(key_id.as_str(), MESSAGE, &signature)
             .expect("Signature verification should success");
     }
 
@@ -185,7 +179,6 @@ pub mod tests {
         // Verify with key_pair_2's key_id - triggers refetch, gets key_pair_2
         store
             .verify_signature(
-                &SigningAlgorithm::ED25519,
                 &key_pair_1.key_id(),
                 MESSAGE,
                 &sign_like_fleet(&key_pair_1, MESSAGE),
@@ -202,12 +195,7 @@ pub mod tests {
         let fetcher = PublicKeyFetcher::new(HttpClient::new(HttpConfig::default()).unwrap());
 
         let store = VerifierStore::try_new(fetcher, server.url).unwrap();
-        let result = store.verify_signature(
-            &SigningAlgorithm::ED25519,
-            key_id.as_str(),
-            MESSAGE,
-            b"not-base-64",
-        );
+        let result = store.verify_signature(key_id.as_str(), MESSAGE, b"not-base-64");
         assert_matches!(result, Err(VerifierStoreError::DecodingSignature(_)));
     }
 
@@ -221,7 +209,6 @@ pub mod tests {
 
         let store = VerifierStore::try_new(fetcher, server.url.clone()).unwrap();
         let result = store.verify_signature(
-            &SigningAlgorithm::ED25519,
             key_id.as_str(),
             MESSAGE,
             encode_signature(b"signature").as_bytes(),
