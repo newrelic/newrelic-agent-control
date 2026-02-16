@@ -31,7 +31,6 @@ use crate::package::oci::package_manager::OCIPackageManager;
 use crate::secret_retriever::on_host::retrieve::OnHostSecretRetriever;
 use crate::secrets_provider::SecretsProviders;
 use crate::secrets_provider::file::FileSecretProvider;
-use crate::signature::public_key_fetcher::PublicKeyFetcher;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
@@ -175,17 +174,7 @@ impl AgentControlRunner {
             ..Default::default()
         };
 
-        let key_fetcher_config = HttpConfig {
-            proxy: self.proxy.clone(),
-            ..Default::default()
-        };
-
-        let key_http_client = HttpClient::new(key_fetcher_config)
-            .map_err(|err| RunError(format!("failed to create key fetcher http client: {err}")))?;
-
-        let key_fetcher = PublicKeyFetcher::new(key_http_client);
-
-        let oci_client = oci::Client::try_new(oci_client_config, self.proxy, key_fetcher)
+        let oci_client = oci::Client::try_new(oci_client_config, self.proxy)
             .map_err(|err| RunError(format!("failed to create the OciClient: {err}")))?;
 
         let packages_downloader = OCIArtifactDownloader::new(oci_client, self.runtime);

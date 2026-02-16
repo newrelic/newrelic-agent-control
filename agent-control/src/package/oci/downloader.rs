@@ -242,10 +242,6 @@ pub mod tests {
 
     fn create_downloader() -> OCIArtifactDownloader {
         let runtime = Arc::new(Runtime::new().unwrap());
-        let http_client =
-            crate::http::client::HttpClient::new(crate::http::config::HttpConfig::default())
-                .unwrap();
-        let fetcher = crate::signature::public_key_fetcher::PublicKeyFetcher::new(http_client);
 
         let client = Client::try_new(
             ClientConfig {
@@ -253,7 +249,6 @@ pub mod tests {
                 ..Default::default()
             },
             ProxyConfig::default(),
-            fetcher,
         )
         .unwrap();
         OCIArtifactDownloader::new(client, runtime)

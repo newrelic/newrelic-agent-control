@@ -15,7 +15,7 @@ pub enum OciClientError {
     InvalidReference(String),
     #[error("image signature verification failed: {0}")]
     Verify(String),
-    #[error("Failed to fetch public key: {0}")]
+    #[error("failed to fetch public key: {0}")]
     KeyFetch(String),
 }
 

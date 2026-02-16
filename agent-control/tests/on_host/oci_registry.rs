@@ -3,28 +3,22 @@ use crate::on_host::tools::oci_artifact::push_agent_package;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use httpmock::{MockServer, When};
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
-use newrelic_agent_control::http::client::HttpClient;
-use newrelic_agent_control::http::config::{HttpConfig, ProxyConfig};
+use newrelic_agent_control::http::config::ProxyConfig;
 use newrelic_agent_control::oci;
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::downloader::{OCIAgentDownloader, OCIArtifactDownloader};
-use newrelic_agent_control::signature::public_key_fetcher::PublicKeyFetcher;
 use oci_client::client::{ClientConfig, ClientProtocol};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tempfile::tempdir;
 
 fn create_client_with_proxy(proxy_config: ProxyConfig) -> oci::Client {
-    let http_client = HttpClient::new(HttpConfig::default()).unwrap();
-    let fetcher = PublicKeyFetcher::new(http_client);
-
     oci::Client::try_new(
         ClientConfig {
             protocol: ClientProtocol::Http,
             ..Default::default()
         },
         proxy_config,
-        fetcher,
     )
     .unwrap()
 }
