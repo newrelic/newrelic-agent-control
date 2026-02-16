@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{path::Path, time::Duration};
 
 use crate::{
     common::{
@@ -88,6 +88,7 @@ fn collect_stdout_logs(log_dir: &std::path::Path, agent_id: &str) -> String {
 /// * `reload_file_logging` - value of `enable_file_logging` after reload
 /// * `reload_message` - message echoed to stdout after reload
 fn run_file_logging_scenario(
+    agent_id: &str,
     initial_file_logging: bool,
     initial_message: &str,
     reload_file_logging: bool,
@@ -99,8 +100,6 @@ fn run_file_logging_scenario(
     let local_dir = tempdir.path().join("local");
     let remote_dir = tempdir.path().join("remote");
     let log_dir = tempdir.path().join("logs");
-
-    let agent_id = "test-agent";
 
     // Write the agent type definition
     create_file(
@@ -181,24 +180,24 @@ fn test_file_logging_reload(
     #[case] second_run_enabled: bool,
     #[case] second_run_message: &str,
 ) {
-    let agent_id = "test-agent";
+    let agent_id = format!("file-logging-test-agent-{first_run_enabled}-{second_run_enabled}");
 
     let (_tempdir, log_dir) = run_file_logging_scenario(
+        &agent_id,
         first_run_enabled,
         first_run_message,
         second_run_enabled,
         second_run_message,
     );
 
-    let log_dir_path = std::path::Path::new(&log_dir);
-    let agent_logs_dir = log_dir_path.join(agent_id);
+    let log_dir_path = Path::new(&log_dir);
+    let agent_logs_dir = log_dir_path.join(&agent_id);
     assert!(
         agent_logs_dir.exists(),
-        "Log directory {:?} does not exist",
-        agent_logs_dir
+        "Log directory {agent_logs_dir:?} does not exist"
     );
 
-    let all_contents = collect_stdout_logs(log_dir_path, agent_id);
+    let all_contents = collect_stdout_logs(log_dir_path, &agent_id);
 
     // If the logs are enabled for the run the string must be found, same for disabled and not found
     assert_eq!(
@@ -219,11 +218,12 @@ fn test_file_logging_reload(
 fn onhost_supervisor_reloading_keeps_file_logging_disabled() {
     let unique_str_1 = "keeps_disabled_run1";
     let unique_str_2 = "keeps_disabled_run2";
-    let agent_id = "test-agent";
+    let agent_id = "test-agent-logs-always-disabled";
 
-    let (_tempdir, log_dir) = run_file_logging_scenario(false, unique_str_1, false, unique_str_2);
+    let (_tempdir, log_dir) =
+        run_file_logging_scenario(agent_id, false, unique_str_1, false, unique_str_2);
 
-    let log_dir_path = std::path::Path::new(&log_dir);
+    let log_dir_path = Path::new(&log_dir);
     let agent_logs_dir = log_dir_path.join(agent_id);
     assert!(
         !agent_logs_dir.exists(),
