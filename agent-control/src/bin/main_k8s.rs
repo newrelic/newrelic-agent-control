@@ -4,19 +4,21 @@
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
 
+use newrelic_agent_control::agent_control::run::AgentControlRunner;
 use newrelic_agent_control::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
-use newrelic_agent_control::agent_control::run::{AgentControlRunConfig, AgentControlRunner};
-use newrelic_agent_control::command::Command;
+use newrelic_agent_control::command::{Command, RunContext};
 use newrelic_agent_control::event::ApplicationEvent;
-use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
+use newrelic_agent_control::event::channel::EventPublisher;
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
-use newrelic_agent_control::instrumentation::tracing::TracingGuardBox;
 use std::error::Error;
 use std::process::ExitCode;
 use tracing::{error, info, trace};
 
 fn main() -> ExitCode {
-    Command::run(AGENT_CONTROL_MODE_K8S, _main)
+    #[cfg(target_family = "unix")]
+    return Command::run(AGENT_CONTROL_MODE_K8S, _main);
+    #[cfg(target_family = "windows")]
+    return Command::run(AGENT_CONTROL_MODE_K8S, _main, false);
 }
 
 /// This is the actual main function.
@@ -29,20 +31,18 @@ fn main() -> ExitCode {
 /// could not read Agent Control config from /invalid/path: error loading the agent control config: \`error retrieving config: \`missing field \`agents\`\`\`
 /// Error: ConfigRead(LoadConfigError(ConfigError(missing field \`agents\`)))
 /// ```
-fn _main(
-    agent_control_run_config: AgentControlRunConfig,
-    _tracer: Vec<TracingGuardBox>, // Needs to take ownership of the tracer as it can be shutdown on drop
-) -> Result<(), Box<dyn Error>> {
+fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
     install_rustls_default_crypto_provider();
 
-    trace!("creating the global context");
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-
     trace!("creating the signal handler");
-    create_shutdown_signal_handler(application_event_publisher)?;
+    create_shutdown_signal_handler(run_context.application_event_publisher)?;
 
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-    AgentControlRunner::new(agent_control_run_config, application_event_consumer)?.run()?;
+    AgentControlRunner::new(
+        run_context.run_config,
+        run_context.application_event_consumer,
+    )?
+    .run()?;
 
     info!("exiting gracefully");
 
