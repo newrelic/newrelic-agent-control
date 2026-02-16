@@ -63,10 +63,7 @@ version: {}
         ),
     );
 
-    windows::service::restart_service(SERVICE_NAME);
-    info!("Waiting 10 seconds for service to start");
-    thread::sleep(Duration::from_secs(10));
-
+    windows::service::restart_service(SERVICE_NAME, STATUS_RUNNING);
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));
 

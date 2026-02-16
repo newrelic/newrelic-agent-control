@@ -155,9 +155,10 @@ where
             on_host.version,
             on_host.packages,
             self.package_manager.clone(),
-        )
-        .with_file_logging(on_host.enable_file_logging, self.logging_path.to_path_buf())
-        .with_filesystem(on_host.filesystem))
+            on_host.enable_file_logging,
+            self.logging_path.to_path_buf(),
+            on_host.filesystem,
+        ))
     }
 }
 

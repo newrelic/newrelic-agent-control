@@ -90,7 +90,7 @@ version: {INFRA_AGENT_VERSION}
         ),
     );
 
-    windows::service::restart_service(SERVICE_NAME);
+    windows::service::restart_service(SERVICE_NAME, STATUS_RUNNING);
 
     retry_panic(
         10,

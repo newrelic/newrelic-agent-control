@@ -71,7 +71,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [ infra-agent, nrdot, proxy ]
+        group: [ infra-agent, nrdot, proxy, wrong-config ]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/install-rust-toolchain

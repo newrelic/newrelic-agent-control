@@ -35,6 +35,21 @@ pub fn update_config(config_path: impl AsRef<str>, new_content: impl AsRef<str>)
     write(config_path, updated_content);
 }
 
+/// Updates the agent control agents config in `config_path` to the specified in `new_content`
+pub fn modify_agents_config(config_path: impl AsRef<str>, actual_content: &str, new_content: &str) {
+    let config_path = config_path.as_ref();
+    let content = fs::read_to_string(config_path).unwrap_or_else(|e| {
+        panic!("failed to read configuration file at {config_path:?}: {e}");
+    });
+
+    // Replace the valid empty map with an unclosed one to break YAML parsing
+    let updated_content = content.replace(actual_content, new_content);
+
+    info!("Updating configuration to: \n---\n{}\n---", updated_content);
+
+    write(config_path, updated_content);
+}
+
 /// Merges two YAML values, with `new` taking precedence over `base`
 fn merge_yaml_mappings(base: Value, new: Value) -> Value {
     let mut merged = base;

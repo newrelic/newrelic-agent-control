@@ -17,7 +17,7 @@ variable "base_subnet_ids" {
 variable "k8s_version" {
   description = "Kubernetes version"
   type        = string
-  default     = "1.34"
+  default     = "1.35"
 }
 #  Amazon EKS aws-ebs-csi-driver add-on (https://docs.aws.amazon.com/es_es/eks/latest/userguide/ebs-csi.html)
 #  Execute ·aws eks describe-addon-versions --addon-name aws-ebs-csi-driver" to see if needs update when updating the cluster version
