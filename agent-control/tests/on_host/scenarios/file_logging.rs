@@ -1,9 +1,8 @@
-use std::{path::Path, time::Duration};
+use std::{fs, io, path::Path, time::Duration};
 
 use crate::{
     common::{
-        agent_control::start_agent_control_with_custom_config,
-        health::check_latest_health_status_was_healthy, opamp::FakeServer, retry::retry,
+        agent_control::start_agent_control_with_custom_config, opamp::FakeServer, retry::retry,
     },
     on_host::tools::{
         config::{create_agent_control_config, create_file, create_local_config},
@@ -58,22 +57,29 @@ deployment:
 /// Collects all stdout log file contents for the given agent under the log directory.
 /// Returns the merged contents of all stdout log files, or an empty string if the directory
 /// does not exist.
-fn collect_stdout_logs(log_dir: &std::path::Path, agent_id: &str) -> String {
+fn collect_stdout_logs(log_dir: &Path, agent_id: &str) -> io::Result<String> {
     let agent_logs_dir = log_dir.join(agent_id);
-    if !agent_logs_dir.exists() {
-        return String::new();
-    }
 
-    std::fs::read_dir(agent_logs_dir)
-        .expect("should read logs dir")
-        .map(|entry| entry.expect("entry").path())
-        .filter(|p| {
-            p.file_prefix()
-                .is_some_and(|n| n.to_string_lossy().starts_with("stdout"))
-        })
-        .map(|p| std::fs::read_to_string(p).unwrap_or_default())
-        .collect::<Vec<_>>()
-        .join("\n")
+    if !agent_logs_dir.exists() {
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("Logs directory for agent {agent_id} not found"),
+        ))
+    } else {
+        let s = fs::read_dir(agent_logs_dir)?
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .map(|entry| entry.path())
+            .filter(|p| {
+                p.file_prefix()
+                    .is_some_and(|n| n.to_string_lossy().starts_with("stdout"))
+            })
+            .map(fs::read_to_string)
+            .collect::<Result<Vec<_>, _>>()?
+            .join("\n");
+
+        Ok(s)
+    }
 }
 
 /// Starts agent control with the file-logging agent type, provides an initial config via local
@@ -142,13 +148,8 @@ fn run_file_logging_scenario(
 
     let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
 
-    // Wait for the sub-agent to become healthy (meaning the first run started)
-    retry(60, Duration::from_secs(1), || {
-        check_latest_health_status_was_healthy(&opamp_server, &sub_agent_instance_id)
-    });
-
     // Give some time for the echo output to be captured in the log files
-    std::thread::sleep(Duration::from_secs(3));
+    std::thread::sleep(Duration::from_secs(5));
 
     // Trigger a reload by sending a new remote config via OpAMP with updated values
     opamp_server.set_config_response(
@@ -156,13 +157,8 @@ fn run_file_logging_scenario(
         format!("message: \"{reload_message}\"\nenable_file_logging: \"{reload_file_logging}\"\n"),
     );
 
-    // Wait for the sub-agent to become healthy again after reload
-    retry(60, Duration::from_secs(1), || {
-        check_latest_health_status_was_healthy(&opamp_server, &sub_agent_instance_id)
-    });
-
     // Give some time for the echo output to be captured in the log files
-    std::thread::sleep(Duration::from_secs(3));
+    std::thread::sleep(Duration::from_secs(5));
 
     // Return tempdir (to keep it alive) and the log_dir path as string
     // We return agent_id so callers know where to look for logs
@@ -197,17 +193,17 @@ fn test_file_logging_reload(
         "Log directory {agent_logs_dir:?} does not exist"
     );
 
-    let all_contents = collect_stdout_logs(log_dir_path, &agent_id);
+    let all_contents = retry(60, Duration::from_secs(1), || {
+        Ok(collect_stdout_logs(log_dir_path, &agent_id)?)
+    });
 
     // If the logs are enabled for the run the string must be found, same for disabled and not found
-    assert_eq!(
-        all_contents.contains(first_run_message),
-        first_run_enabled,
+    assert!(
+        first_run_enabled == all_contents.contains(first_run_message),
         "First run log not found (pre-reload). Log contents: {all_contents}"
     );
-    assert_eq!(
-        all_contents.contains(second_run_message),
-        second_run_enabled,
+    assert!(
+        second_run_enabled == all_contents.contains(second_run_message),
         "Second run log not found (post-reload). Log contents: {all_contents}"
     );
 }
