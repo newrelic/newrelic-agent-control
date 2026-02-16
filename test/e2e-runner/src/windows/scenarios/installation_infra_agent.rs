@@ -67,9 +67,6 @@ version: {}
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));
 
-    info!("Waiting 10 seconds for service to start");
-    thread::sleep(Duration::from_secs(10));
-
     windows::service::check_service_status(SERVICE_NAME, STATUS_RUNNING)
         .expect("service should be running");
 

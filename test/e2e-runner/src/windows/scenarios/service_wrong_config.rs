@@ -30,9 +30,6 @@ pub fn test_service_restart_depending_on_config_correctness(args: Args) {
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));
 
-    info!("Waiting 10 seconds for service to start");
-    thread::sleep(Duration::from_secs(10));
-
     windows::service::check_service_status(SERVICE_NAME, STATUS_STOPPED)
         .expect("service shouldn't be running");
 
@@ -42,9 +39,6 @@ pub fn test_service_restart_depending_on_config_correctness(args: Args) {
 
     // Expect restart to succeed
     windows::service::restart_service(SERVICE_NAME, STATUS_RUNNING);
-    info!("Waiting 10 seconds for service to start");
-    thread::sleep(Duration::from_secs(10));
-
     info!("Waiting 10 seconds for service to start");
     thread::sleep(Duration::from_secs(10));
 
