@@ -121,11 +121,13 @@ pub mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn test_verify_full_flow_integration() {
-        let kp = TestKeyPair::new(0);
-        let pub_key = kp.public_key();
+    async fn test_verify_integration_flow() {
+        let kp_signer = TestKeyPair::new(0);
+        let kp_wrong = TestKeyPair::new(1);
 
-        // Setup Mock Server
+        let pub_key_valid = kp_signer.public_key();
+        let pub_key_invalid = kp_wrong.public_key();
+
         let app_server = FakeOciServer::new("my-app", "v1")
             .with_layer(b"my binary", "application/vnd.oci.image.layer.v1.tar+gzip");
 
@@ -134,11 +136,16 @@ pub mod tests {
         let image_manifest_digest_str = format!("sha256:{}", hex_bytes(manifest_digest.as_ref()));
 
         let payload = serde_json::json!({
-            "critical": { "identity": { "docker-reference": "" }, "image": { "docker-reference": image_manifest_digest_str }, "type": "cosign container image signature" },
+            "critical": {
+                "identity": { "docker-reference": "" },
+                "image": { "docker-reference": image_manifest_digest_str },
+                "type": "cosign container image signature"
+            },
             "optional": {}
         });
         let payload_bytes = serde_json::to_vec(&payload).unwrap();
-        let sig_b64 = base64::engine::general_purpose::STANDARD.encode(kp.sign(&payload_bytes));
+        let sig_b64 =
+            base64::engine::general_purpose::STANDARD.encode(kp_signer.sign(&payload_bytes));
         let sig_tag = format!("{}.sig", image_manifest_digest_str.replace(':', "-"));
 
         let sig_server =
@@ -152,11 +159,40 @@ pub mod tests {
         let image_ref =
             Reference::from_str(&format!("{}/my-app:v1", registry_mock.address())).unwrap();
 
-        let result = client.verify(&image_ref, &[pub_key]).await;
+        let result_ok = client
+            .verify(&image_ref, std::slice::from_ref(&pub_key_valid))
+            .await;
+        assert!(
+            result_ok.is_ok(),
+            "Should verify successfully with the correct key"
+        );
+        assert!(
+            result_ok
+                .unwrap()
+                .whole()
+                .contains(&image_manifest_digest_str)
+        );
 
-        assert!(result.is_ok(), "Error verifying: {:?}", result.err());
-        let verified_ref = result.unwrap();
-        assert!(verified_ref.whole().contains(&image_manifest_digest_str));
+        let result_err = client
+            .verify(&image_ref, std::slice::from_ref(&pub_key_invalid))
+            .await;
+        assert!(
+            result_err.is_err(),
+            "Should fail when using a non-trusted key"
+        );
+        assert!(
+            result_err
+                .unwrap_err()
+                .to_string()
+                .contains("Verification failed")
+        );
+
+        let keys_mixed = vec![TestKeyPair::new(5).public_key(), pub_key_valid];
+        let result_mixed = client.verify(&image_ref, &keys_mixed).await;
+        assert!(
+            result_mixed.is_ok(),
+            "Should pass if at least one trusted key is valid"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -180,51 +216,6 @@ pub mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn test_verify_fails_with_wrong_key() {
-        let signer_kp = TestKeyPair::new(0);
-        let trusted_kp = TestKeyPair::new(1);
-
-        let app_server = FakeOciServer::new("my-app", "v1")
-            .with_layer(b"binary", "application/vnd.oci.image.layer.v1.tar+gzip");
-
-        let manifest_bytes = serde_json::to_vec(&app_server.manifest).unwrap();
-        let manifest_digest = digest(&SHA256, &manifest_bytes);
-        let image_manifest_digest_str = format!("sha256:{}", hex_bytes(manifest_digest.as_ref()));
-
-        let payload = serde_json::json!({
-            "critical": { "identity": { "docker-reference": "" }, "image": { "docker-reference": image_manifest_digest_str }, "type": "cosign container image signature" },
-            "optional": {}
-        });
-        let payload_bytes = serde_json::to_vec(&payload).unwrap();
-
-        let sig_b64 =
-            base64::engine::general_purpose::STANDARD.encode(signer_kp.sign(&payload_bytes));
-        let sig_tag = format!("{}.sig", image_manifest_digest_str.replace(':', "-"));
-
-        let sig_server =
-            FakeOciServer::new("my-app", &sig_tag).with_cosign_layer(&payload_bytes, &sig_b64);
-
-        let registry_mock = MockServer::start();
-        app_server.setup_mocks_on(&registry_mock);
-        sig_server.setup_mocks_on(&registry_mock);
-
-        let client = create_test_client();
-        let image_ref =
-            Reference::from_str(&format!("{}/my-app:v1", registry_mock.address())).unwrap();
-
-        let result = client.verify(&image_ref, &[trusted_kp.public_key()]).await;
-
-        assert!(result.is_err(), "Verification should fail with wrong key");
-
-        let err_msg = result.unwrap_err().to_string();
-        assert!(
-            err_msg.contains("Verification failed"),
-            "Unexpected error: {}",
-            err_msg
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_verify_fails_if_signature_missing() {
         let trusted_kp = TestKeyPair::new(0);
 
@@ -244,11 +235,11 @@ pub mod tests {
     }
 
     pub struct FakeOciServer {
-        pub server: Option<MockServer>,
-        pub repo: String,
-        pub tag: String,
-        pub layers: Vec<(String, Vec<u8>)>,
-        pub manifest: OciImageManifest,
+        server: Option<MockServer>,
+        repo: String,
+        tag: String,
+        layers: Vec<(String, Vec<u8>)>,
+        manifest: OciImageManifest,
     }
 
     impl FakeOciServer {

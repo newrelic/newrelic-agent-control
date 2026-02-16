@@ -47,7 +47,7 @@ impl AsRef<str> for SigningAlgorithm {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PublicKey {
     public_key: UnparsedPublicKey<Vec<u8>>,
     key_id: String,
