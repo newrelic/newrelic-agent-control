@@ -78,8 +78,8 @@ where
 {
     agent_identity: AgentIdentity,
     executables: Vec<ExecutableData>,
-    log_to_file: bool,
-    logging_path: PathBuf,
+    file_logging_enable: bool,
+    file_logging_path: PathBuf,
     health_config: OnHostHealthConfig,
     package_manager: Arc<PM>,
     packages_config: RenderedPackages,
@@ -165,9 +165,10 @@ where
             onhost_config.version,
             onhost_config.packages,
             package_manager,
-        )
-        .with_filesystem(onhost_config.filesystem)
-        .with_file_logging(onhost_config.enable_file_logging, logging_path);
+            onhost_config.enable_file_logging,
+            logging_path,
+            onhost_config.filesystem,
+        );
 
         let new_started_supervisor = starter.spin_up(internal_publisher)?;
 
@@ -183,36 +184,28 @@ impl<PM> NotStartedSupervisorOnHost<PM>
 where
     PM: PackageManager,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         agent_identity: AgentIdentity,
         executables: Vec<ExecutableData>,
         health_config: OnHostHealthConfig,
         version_config: Option<OnHostVersionConfig>,
-        packages: RenderedPackages,
+        packages_config: RenderedPackages,
         package_manager: Arc<PM>,
+        file_logging_enable: bool,
+        file_logging_path: PathBuf,
+        filesystem: FileSystem,
     ) -> Self {
         NotStartedSupervisorOnHost {
             agent_identity,
             executables,
-            log_to_file: false,
-            logging_path: PathBuf::default(),
+            file_logging_enable,
+            file_logging_path,
             health_config,
             package_manager,
-            packages_config: packages,
+            packages_config,
             version_config,
-            filesystem: FileSystem::default(),
-        }
-    }
-
-    pub fn with_filesystem(self, filesystem: FileSystem) -> Self {
-        Self { filesystem, ..self }
-    }
-
-    pub fn with_file_logging(self, log_to_file: bool, logging_path: PathBuf) -> Self {
-        Self {
-            log_to_file,
-            logging_path,
-            ..self
+            filesystem,
         }
     }
 
@@ -305,7 +298,7 @@ where
             package_manager: self.package_manager,
             agent_identity: self.agent_identity,
             internal_publisher: sub_agent_internal_publisher,
-            logging_path: self.logging_path,
+            logging_path: self.file_logging_path,
         })
     }
 
@@ -317,8 +310,8 @@ where
         let mut restart_policy = executable_data.restart_policy.clone();
         let exec_data = executable_data.clone();
         let agent_id = self.agent_identity.id.clone();
-        let log_to_file = self.log_to_file;
-        let logging_path = self.logging_path.clone();
+        let log_to_file = self.file_logging_enable;
+        let logging_path = self.file_logging_path.clone();
 
         let dispatch = dispatcher::get_default(|d: &Dispatch| d.clone());
         let span = tracing::Span::current();
@@ -678,6 +671,9 @@ pub mod tests {
             None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
+            false,
+            PathBuf::default(),
+            FileSystem::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -721,6 +717,9 @@ pub mod tests {
             None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
+            false,
+            PathBuf::default(),
+            FileSystem::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -761,6 +760,9 @@ pub mod tests {
             None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
+            false,
+            PathBuf::default(),
+            FileSystem::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -808,6 +810,9 @@ pub mod tests {
             None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
+            false,
+            PathBuf::default(),
+            FileSystem::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -855,6 +860,9 @@ pub mod tests {
             None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
+            false,
+            PathBuf::default(),
+            FileSystem::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -897,6 +905,9 @@ pub mod tests {
             None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
+            false,
+            PathBuf::default(),
+            FileSystem::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -958,6 +969,9 @@ pub mod tests {
             None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
+            false,
+            PathBuf::default(),
+            FileSystem::default(),
         );
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1136,8 +1150,10 @@ pub mod tests {
             None,
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
-        )
-        .with_file_logging(true, logging_path.clone());
+            true,
+            logging_path.clone(),
+            FileSystem::default(),
+        );
 
         let (pub_internal, _sub_internal) = pub_sub();
         let started_supervisor = supervisor
@@ -1266,8 +1282,10 @@ pub mod tests {
             None,
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
-        )
-        .with_file_logging(false, logging_path.clone());
+            false,
+            logging_path.clone(),
+            FileSystem::default(),
+        );
 
         let (pub_internal, _sub_internal) = pub_sub();
         let started_supervisor = supervisor
@@ -1394,8 +1412,10 @@ pub mod tests {
             None,
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
-        )
-        .with_file_logging(true, logging_path.clone());
+            true,
+            logging_path.clone(),
+            FileSystem::default(),
+        );
 
         let (pub_internal, _sub_internal) = pub_sub();
         let started_supervisor = supervisor
@@ -1523,8 +1543,10 @@ pub mod tests {
             None,
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
-        )
-        .with_file_logging(false, logging_path.clone());
+            false,
+            logging_path.clone(),
+            FileSystem::default(),
+        );
 
         let (pub_internal, _sub_internal) = pub_sub();
         let started_supervisor = supervisor
