@@ -83,6 +83,7 @@ fn collect_stdout_logs(log_dir: &std::path::Path, agent_id: &str) -> String {
 /// Returns the log_dir so callers can inspect the filesystem.
 ///
 /// # Arguments
+/// * `agent_id` - the agent id to use for the sub-agent
 /// * `initial_file_logging` - initial value of `enable_file_logging` variable
 /// * `initial_message` - message echoed to stdout in the first run
 /// * `reload_file_logging` - value of `enable_file_logging` after reload
@@ -139,8 +140,7 @@ fn run_file_logging_scenario(
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let sub_agent_instance_id =
-        get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths.clone());
+    let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
 
     // Wait for the sub-agent to become healthy (meaning the first run started)
     retry(60, Duration::from_secs(1), || {
@@ -180,7 +180,7 @@ fn test_file_logging_reload(
     #[case] second_run_enabled: bool,
     #[case] second_run_message: &str,
 ) {
-    let agent_id = format!("file-logging-test-agent-{first_run_enabled}-{second_run_enabled}");
+    let agent_id = format!("file-logging-agent-{first_run_enabled}-{second_run_enabled}");
 
     let (_tempdir, log_dir) = run_file_logging_scenario(
         &agent_id,
