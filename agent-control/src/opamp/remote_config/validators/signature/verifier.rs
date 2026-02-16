@@ -121,7 +121,7 @@ pub mod tests {
 
         // Fleet does encode the signature as Base64, too
         BASE64_STANDARD
-            .encode(&key_pair.sign(&msg.as_bytes()))
+            .encode(key_pair.sign(msg.as_bytes()))
             .as_bytes()
             .to_vec()
     }
