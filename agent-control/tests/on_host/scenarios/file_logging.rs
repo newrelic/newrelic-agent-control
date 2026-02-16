@@ -14,6 +14,7 @@ use crate::{
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use rstest::rstest;
 use tempfile::tempdir;
 
 const LOGGING_AGENT_TYPE_YAML: &str = r#"
@@ -169,15 +170,27 @@ fn run_file_logging_scenario(
     (tempdir, log_dir.to_string_lossy().to_string())
 }
 
-/// File logging is enabled initially and stays enabled after reload.
-/// Both the first and second run's output should be found in the log files.
-#[test]
-fn onhost_supervisor_reloading_keeps_file_logging() {
-    let unique_str_1 = "keeps_logging_run1";
-    let unique_str_2 = "keeps_logging_run2";
+/// File logging enable/disable combinations with before and after reload checks
+#[rstest]
+#[case::onhost_supervisor_reloading_keeps_file_logging(true, "logs_run1", true, "logs_run2")]
+#[case::onhost_supervisor_reloading_enables_file_logging(false, "logs_run1", true, "logs_run2")]
+#[case::onhost_supervisor_reloading_disables_file_logging(true, "logs_run1", false, "logs_run2")]
+fn test_file_logging_reload(
+    #[case] first_run_enabled: bool,
+    #[case] first_run_message: &str,
+    #[case] second_run_enabled: bool,
+    #[case] second_run_message: &str,
+) {
+    // let unique_str_1 = "keeps_logging_run1";
+    // let unique_str_2 = "keeps_logging_run2";
     let agent_id = "test-agent";
 
-    let (_tempdir, log_dir) = run_file_logging_scenario(true, unique_str_1, true, unique_str_2);
+    let (_tempdir, log_dir) = run_file_logging_scenario(
+        first_run_enabled,
+        first_run_message,
+        second_run_enabled,
+        second_run_message,
+    );
 
     let log_dir_path = std::path::Path::new(&log_dir);
     let agent_logs_dir = log_dir_path.join(agent_id);
@@ -189,75 +202,78 @@ fn onhost_supervisor_reloading_keeps_file_logging() {
 
     let all_contents = collect_stdout_logs(log_dir_path, agent_id);
 
-    assert!(
-        all_contents.contains(unique_str_1),
+    // If the logs are enabled for the run the string must be found, same for disabled and not found
+    assert_eq!(
+        all_contents.contains(first_run_message),
+        first_run_enabled,
         "First run log not found (pre-reload). Log contents: {all_contents}"
     );
-    assert!(
-        all_contents.contains(unique_str_2),
+    assert_eq!(
+        all_contents.contains(second_run_message),
+        second_run_enabled,
         "Second run log not found (post-reload). Log contents: {all_contents}"
     );
 }
 
-/// File logging is disabled initially and gets enabled after reload.
-/// Only the second run's output should be found in the log files.
-#[test]
-fn onhost_supervisor_reloading_enables_file_logging() {
-    let unique_str_1 = "enables_logging_run1";
-    let unique_str_2 = "enables_logging_run2";
-    let agent_id = "test-agent";
+// /// File logging is disabled initially and gets enabled after reload.
+// /// Only the second run's output should be found in the log files.
+// #[test]
+// fn onhost_supervisor_reloading_enables_file_logging() {
+//     let unique_str_1 = "enables_logging_run1";
+//     let unique_str_2 = "enables_logging_run2";
+//     let agent_id = "test-agent";
 
-    let (_tempdir, log_dir) = run_file_logging_scenario(false, unique_str_1, true, unique_str_2);
+//     let (_tempdir, log_dir) = run_file_logging_scenario(false, unique_str_1, true, unique_str_2);
 
-    let log_dir_path = std::path::Path::new(&log_dir);
-    let agent_logs_dir = log_dir_path.join(agent_id);
-    assert!(
-        agent_logs_dir.exists(),
-        "Log directory {:?} should exist after enabling logging",
-        agent_logs_dir
-    );
+//     let log_dir_path = std::path::Path::new(&log_dir);
+//     let agent_logs_dir = log_dir_path.join(agent_id);
+//     assert!(
+//         agent_logs_dir.exists(),
+//         "Log directory {:?} should exist after enabling logging",
+//         agent_logs_dir
+//     );
 
-    let all_contents = collect_stdout_logs(log_dir_path, agent_id);
+//     let all_contents = collect_stdout_logs(log_dir_path, agent_id);
 
-    assert!(
-        !all_contents.contains(unique_str_1),
-        "First run log SHOULD NOT be found (logging was disabled). Log contents: {all_contents}"
-    );
-    assert!(
-        all_contents.contains(unique_str_2),
-        "Second run log SHOULD be found (logging was enabled). Log contents: {all_contents}"
-    );
-}
+//     assert!(
+//         !all_contents.contains(unique_str_1),
+//         "First run log SHOULD NOT be found (logging was disabled). Log contents: {all_contents}"
+//     );
+//     assert!(
+//         all_contents.contains(unique_str_2),
+//         "Second run log SHOULD be found (logging was enabled). Log contents: {all_contents}"
+//     );
+// }
 
-/// File logging is enabled initially and gets disabled after reload.
-/// Only the first run's output should be found in the log files.
-#[test]
-fn onhost_supervisor_reloading_disables_file_logging() {
-    let unique_str_1 = "disables_logging_run1";
-    let unique_str_2 = "disables_logging_run2";
-    let agent_id = "test-agent";
+// /// File logging is enabled initially and gets disabled after reload.
+// /// Only the first run's output should be found in the log files.
+// #[test]
+// fn onhost_supervisor_reloading_disables_file_logging() {
+//     let unique_str_1 = "disables_logging_run1";
+//     let unique_str_2 = "disables_logging_run2";
+//     let agent_id = "test-agent";
 
-    let (_tempdir, log_dir) = run_file_logging_scenario(true, unique_str_1, false, unique_str_2);
+//     let (_tempdir, log_dir) = run_file_logging_scenario(true, unique_str_1, false, unique_str_2);
 
-    let log_dir_path = std::path::Path::new(&log_dir);
-    let agent_logs_dir = log_dir_path.join(agent_id);
-    assert!(
-        agent_logs_dir.exists(),
-        "Log directory {:?} should exist (from first run with logging enabled)",
-        agent_logs_dir
-    );
+//     let log_dir_path = std::path::Path::new(&log_dir);
+//     let agent_logs_dir = log_dir_path.join(agent_id);
+//     assert!(
+//         agent_logs_dir.exists(),
+//         "Log directory {:?} should exist (from first run with logging enabled)",
+//         agent_logs_dir
+//     );
 
-    let all_contents = collect_stdout_logs(log_dir_path, agent_id);
+//     let all_contents = collect_stdout_logs(log_dir_path, agent_id);
 
-    assert!(
-        all_contents.contains(unique_str_1),
-        "First run log SHOULD be found (logging was enabled). Log contents: {all_contents}"
-    );
-    assert!(
-        !all_contents.contains(unique_str_2),
-        "Second run log SHOULD NOT be found (logging was disabled). Log contents: {all_contents}"
-    );
-}
+//     assert!(
+//         all_contents.contains(unique_str_1),
+//         "First run log SHOULD be found (logging was enabled). Log contents: {all_contents}"
+//     );
+//     assert!(
+//         !all_contents.contains(unique_str_2),
+//         "Second run log SHOULD NOT be found (logging was disabled). Log contents: {all_contents}"
+//     );
+// }
 
 /// File logging is disabled initially and stays disabled after reload.
 /// No log directory should be created for the agent.
