@@ -23,8 +23,8 @@ pub use error::OciClientError;
 /// [oci_client::Client] wrapper with extended functionality.
 #[derive(Clone)]
 pub struct Client {
-    pub(crate) client: oci_client::Client,
-    pub(crate) auth: RegistryAuth,
+    client: oci_client::Client,
+    auth: RegistryAuth,
 }
 
 impl Client {
@@ -67,15 +67,15 @@ impl Client {
         reference: &Reference,
         trusted_keys: &[PublicKey],
     ) -> Result<Reference, OciClientError> {
-        // 1. Resolve image digest (Client logic)
-        let (_, digest_str) = self.pull_image_manifest(reference).await?;
-        debug!("Image resolved to digest: {}", digest_str);
+        // Resolve image digest (Client logic)
+        let (_, digest) = self.pull_image_manifest(reference).await?;
+        debug!("Image resolved to digest: {}", digest);
 
-        // 2. Calculate signature location (External logic)
-        let signature_ref = triangulate(reference, Some(&digest_str))?;
+        // Calculate signature location (External logic)
+        let signature_ref = triangulate(reference, &digest)?;
         debug!("Looking for signatures at: {}", signature_ref.whole());
 
-        // 3. Download signature layers (External logic, passing 'self')
+        // Download signature layers (External logic, passing 'self')
         let layers = fetch_trusted_signature_layers(self, &signature_ref).await?;
 
         if layers.is_empty() {
@@ -85,18 +85,14 @@ impl Client {
             )));
         }
 
-        // 4. Verify cryptography (External logic)
-        verify_signatures(&layers, &digest_str, trusted_keys)?;
+        // Verify cryptography (External logic)
+        verify_signatures(&layers, &digest, trusted_keys)?;
 
-        let pinned_ref_str = format!(
-            "{}/{}@{}",
-            reference.registry(),
-            reference.repository(),
-            digest_str
-        );
-
-        Reference::try_from(pinned_ref_str)
-            .map_err(|e| OciClientError::InvalidReference(e.to_string()))
+        Ok(Reference::with_digest(
+            reference.registry().to_string(),
+            reference.repository().to_string(),
+            digest,
+        ))
     }
 }
 
