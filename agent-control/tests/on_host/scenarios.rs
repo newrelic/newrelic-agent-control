@@ -1,5 +1,6 @@
 mod attributes;
 mod empty_config;
+mod file_logging;
 mod filesystem_ops;
 mod health_check;
 mod install_remote_package;
