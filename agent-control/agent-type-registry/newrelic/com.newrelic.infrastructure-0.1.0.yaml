@@ -151,8 +151,8 @@ deployment:
     # Infra-agent always logs to a file on Windows. To avoid duplicated logs we disable AC file logging on this platform.
     enable_file_logging: false
     health:
-      interval: 5s
-      initial_delay: 5s
+      interval: 30s
+      initial_delay: 60s
       timeout: 5s
       http:
         path: "/v1/status/health"
@@ -212,8 +212,8 @@ deployment:
   linux:
     enable_file_logging: ${nr-var:enable_file_logging}
     health:
-      interval: 5s
-      initial_delay: 5s
+      interval: 30s
+      initial_delay: 60s
       timeout: 5s
       http:
         path: "/v1/status/health"
