@@ -3,7 +3,9 @@ use crate::common::attributes::{
     check_identifying_attributes_contains_expected, convert_to_vec_key_value,
 };
 use crate::common::health::check_latest_health_status_was_healthy;
+use crate::common::oci_signer::OCISigner;
 use crate::common::opamp::FakeServer;
+use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::retry::retry;
 use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
@@ -16,6 +18,7 @@ use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
+use opamp_client::opamp::proto::RemoteConfigStatuses;
 use opamp_client::opamp::proto::any_value::Value;
 use std::time::Duration;
 use tempfile::{TempDir, tempdir};
@@ -48,6 +51,8 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
     pub const PCK_VERSION_1: &str = "1.0.0";
     pub const PCK_VERSION_2: &str = "2.0.0";
 
+    let signer = OCISigner::start();
+
     let local_dir = tempdir().expect("failed to create local temp dir");
     let agent_id = "nr-sleep-agent";
 
@@ -56,11 +61,16 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
     #[cfg(not(target_family = "windows"))]
     let platform = Platform::Linux;
 
-    let sleep_agent_type = create_agent_type(&local_dir, agent_id, &platform);
+    let sleep_agent_type = create_agent_type(
+        &local_dir,
+        agent_id,
+        &platform,
+        &signer.jwks_url().to_string(),
+    );
 
     // We push the 2 artifacts first version and updated one
-    let version = push_testing_package_platform(&platform, PCK_VERSION_1);
-    let updated_version = push_testing_package_platform(&platform, PCK_VERSION_2);
+    let version = push_testing_package_platform(&platform, PCK_VERSION_1, Some(&signer));
+    let updated_version = push_testing_package_platform(&platform, PCK_VERSION_2, Some(&signer));
 
     let mut opamp_server = FakeServer::start_new();
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -148,6 +158,78 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
     });
 }
 
+// TODO: this should pass with signatures in place
+#[test]
+#[ignore = "needs oci registry (use *with_oci_registry suffix), needs elevated privileges on Windows"]
+fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
+    pub const VERSION: &str = "1.2.3";
+
+    let signer = OCISigner::start();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let agent_id = "nr-sleep-agent";
+
+    #[cfg(target_os = "windows")]
+    let platform = Platform::Windows;
+    #[cfg(not(target_family = "windows"))]
+    let platform = Platform::Linux;
+
+    let sleep_agent_type = create_agent_type(
+        &local_dir,
+        agent_id,
+        &platform,
+        &signer.jwks_url().to_string(),
+    );
+
+    // Push unsigned package
+    let version = push_testing_package_platform(&platform, VERSION, None);
+
+    let mut opamp_server = FakeServer::start_new();
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    create_agent_control_config(
+        opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
+        "{}".to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+    let sleep_instance_id =
+        get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths.clone());
+
+    let agents = format!(
+        r#"
+        agents:
+          {agent_id}:
+            agent_type: "{sleep_agent_type}"
+        "#
+    );
+    opamp_server.set_config_response(ac_instance_id.clone(), agents);
+    // The agent-type use 'fake_variable' to get the agent version
+    let sleep_agent_cfg = format!("fake_variable: '{version}'").to_string();
+    opamp_server.set_config_response(sleep_instance_id.clone(), sleep_agent_cfg);
+
+    retry(60, Duration::from_secs(1), || {
+        // Remote config status should fail because the package is unsigned
+        check_latest_remote_config_status_is_expected(
+            &opamp_server,
+            &sleep_instance_id,
+            RemoteConfigStatuses::Failed as i32,
+        )?;
+        Ok(())
+    });
+}
+
 enum Platform {
     #[cfg(not(target_os = "windows"))]
     Linux,
@@ -211,7 +293,12 @@ impl Platform {
     }
 }
 
-fn create_agent_type(local_dir: &TempDir, agent_id: &str, platform: &Platform) -> String {
+fn create_agent_type(
+    local_dir: &TempDir,
+    agent_id: &str,
+    platform: &Platform,
+    public_key_url: &str,
+) -> String {
     let pkg_type = platform.pkg_type();
     let (shell_path, run_args, version_args) = platform.shell_info(agent_id);
 
@@ -228,7 +315,7 @@ fn create_agent_type(local_dir: &TempDir, agent_id: &str, platform: &Platform) -
       registry: {OCI_TEST_REGISTRY_URL}
       repository: test
       version: ${{nr-var:fake_variable}}
-      public_key: https://public.key
+      public_key: {public_key_url}
 "#
     );
 
@@ -259,11 +346,15 @@ fn create_agent_type(local_dir: &TempDir, agent_id: &str, platform: &Platform) -
         .build(local_dir.path().to_path_buf())
 }
 
-/// Push the package containing the platform-specific binary to be used in the custom agent
-fn push_testing_package_platform(platform: &Platform, version: &str) -> String {
+/// Push and signs the package containing the platform-specific binary to be used in the custom agent
+fn push_testing_package_platform(
+    platform: &Platform,
+    version: &str,
+    signer: Option<&OCISigner>,
+) -> String {
     let dir = tempdir().unwrap();
     let tmp_dir_to_compress = tempdir().unwrap();
-    match platform {
+    let reference = match platform {
         #[cfg(not(target_os = "windows"))]
         Platform::Linux => {
             let path = dir.path().join("layer_digest.tar.gz");
@@ -278,8 +369,7 @@ fn push_testing_package_platform(platform: &Platform, version: &str) -> String {
                 OCI_TEST_REGISTRY_URL,
                 PackageMediaType::AgentPackageLayerTarGz,
             );
-
-            reference.tag().unwrap().to_string()
+            reference
         }
         #[cfg(target_os = "windows")]
         Platform::Windows => {
@@ -295,8 +385,13 @@ fn push_testing_package_platform(platform: &Platform, version: &str) -> String {
                 OCI_TEST_REGISTRY_URL,
                 PackageMediaType::AgentPackageLayerZip,
             );
-
-            reference.tag().unwrap().to_string()
+            reference
         }
+    };
+
+    if let Some(signer) = signer {
+        signer.sign_artifact(&reference);
     }
+
+    reference.tag().unwrap().to_string()
 }
