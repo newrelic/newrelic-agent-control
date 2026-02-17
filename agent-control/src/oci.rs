@@ -1,5 +1,7 @@
 //! This module provides an [oci_client] wrapper.
 
+use std::{path::Path, sync::Arc};
+
 use crate::http::config::ProxyConfig;
 use oci_client::{
     Reference,
@@ -7,7 +9,7 @@ use oci_client::{
     manifest::OciImageManifest,
     secrets::RegistryAuth,
 };
-use tokio::io::AsyncWrite;
+use tokio::runtime::Runtime;
 use tracing::debug;
 
 mod error;
@@ -21,44 +23,62 @@ use crate::signature::public_key::PublicKey;
 pub use error::OciClientError;
 
 /// [oci_client::Client] wrapper with extended functionality.
+/// It also wraps all _async_ operations using the underlying runtime, all functions will
+/// block the current thread until completion.
 #[derive(Clone)]
 pub struct Client {
     client: oci_client::Client,
     auth: RegistryAuth,
+    runtime: Arc<Runtime>,
 }
 
 impl Client {
     pub fn try_new(
         client_config: ClientConfig,
         proxy_config: ProxyConfig,
+        runtime: Arc<Runtime>,
     ) -> Result<Self, OciClientError> {
         let client_config = proxy::setup_proxy(client_config, proxy_config)?;
         Ok(Self {
             client: oci_client::Client::new(client_config),
             auth: RegistryAuth::Anonymous,
+            runtime,
         })
     }
 
-    pub async fn pull_image_manifest(
+    pub fn pull_image_manifest(
         &self,
         reference: &Reference,
     ) -> Result<(OciImageManifest, String), OciClientError> {
-        self.client
-            .pull_image_manifest(reference, &self.auth)
-            .await
+        self.runtime
+            .block_on(self.client.pull_image_manifest(reference, &self.auth))
             .map_err(|err| OciClientError::PullManifest(err.into()))
     }
 
-    pub async fn pull_blob<T: AsyncWrite>(
+    /// Pulls  the specified blob through [oci_client::Client::pull_blob] and stores it in the specified file path.
+    pub fn pull_blob_to_file(
         &self,
         reference: &Reference,
         layer: impl AsLayerDescriptor,
-        out: T,
+        path: impl AsRef<Path>,
     ) -> Result<(), OciClientError> {
-        self.client
-            .pull_blob(reference, layer, out)
-            .await
-            .map_err(|err| OciClientError::PullBlob(err.into()))
+        self.runtime.block_on(async {
+            let mut file = tokio::fs::File::create(path).await.map_err(|err| {
+                OciClientError::PullBlob(format!("could not create file: {}", err).into())
+            })?;
+
+            self.client
+                .pull_blob(reference, layer, &mut file)
+                .await
+                .map_err(|err| OciClientError::PullBlob(err.to_string().into()))?;
+
+            // Ensure all data is flushed to disk before returning
+            file.sync_data().await.map_err(|err| {
+                OciClientError::PullBlob(format!("failure syncing data to disk: {err}").into())
+            })?;
+
+            Ok(())
+        })
     }
 
     /// High-level method to ensure an image is signed before using it.
@@ -68,7 +88,11 @@ impl Client {
         trusted_keys: &[PublicKey],
     ) -> Result<Reference, OciClientError> {
         // Resolve image digest (Client logic)
-        let (_, digest) = self.pull_image_manifest(reference).await?;
+        let (_, digest) = self
+            .client
+            .pull_image_manifest(reference, &self.auth)
+            .await
+            .map_err(|err| OciClientError::Verify(format!("could not fetch manifest: {err}")))?;
         debug!("Image resolved to digest: {}", digest);
 
         // Calculate signature location (External logic)
@@ -107,6 +131,7 @@ pub mod tests {
     use std::str::FromStr;
     use tempfile::tempdir;
 
+    use crate::agent_control::run::runtime::tests::tokio_runtime;
     use crate::signature::public_key::tests::TestKeyPair;
 
     fn create_test_client() -> Client {
@@ -116,6 +141,7 @@ pub mod tests {
                 ..Default::default()
             },
             ProxyConfig::default(),
+            tokio_runtime(),
         )
         .expect("Failed to create test Client")
     }
@@ -195,24 +221,24 @@ pub mod tests {
         );
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn test_client() {
+    #[test]
+    fn test_client() {
         let server = FakeOciServer::new("repo", "v1.2.3")
             .with_layer(b"some content", "fake-media_type")
             .build();
 
         let client = create_test_client();
         let reference = &server.reference();
-        let (image_manifest, _) = client.pull_image_manifest(reference).await.unwrap();
+        let (image_manifest, _) = client.pull_image_manifest(reference).unwrap();
         let layer = &image_manifest.layers[0];
         assert_eq!(layer.media_type, "fake-media_type");
 
         let tmp = tempdir().unwrap();
         let filepath = tmp.path().join(&layer.digest);
-        let mut file = tokio::fs::File::create(&filepath).await.unwrap();
-        client.pull_blob(reference, layer, &mut file).await.unwrap();
-        file.sync_data().await.unwrap();
-        assert_eq!(tokio::fs::read(filepath).await.unwrap(), b"some content");
+        client
+            .pull_blob_to_file(reference, layer, &filepath)
+            .expect("writing blob to file should not fail");
+        assert_eq!(std::fs::read(filepath).unwrap(), b"some content");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

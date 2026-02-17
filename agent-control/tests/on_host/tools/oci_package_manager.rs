@@ -17,17 +17,16 @@ use zip::write::SimpleFileOptions;
 pub fn new_testing_oci_package_manager(
     base_path: PathBuf,
 ) -> OCIPackageManager<OCIArtifactDownloader, DirectoryManagerFs> {
-    let runtime = tokio_runtime();
-
     let client = oci::Client::try_new(
         ClientConfig {
             protocol: ClientProtocol::Http,
             ..Default::default()
         },
         ProxyConfig::default(),
+        tokio_runtime(),
     )
     .unwrap();
-    let downloader = OCIArtifactDownloader::new(client, runtime);
+    let downloader = OCIArtifactDownloader::new(client);
 
     OCIPackageManager::new(downloader, DirectoryManagerFs, base_path)
 }

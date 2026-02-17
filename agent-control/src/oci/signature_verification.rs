@@ -65,7 +65,13 @@ pub async fn fetch_trusted_signature_layers(
     client: &Client,
     cosign_image_ref: &Reference,
 ) -> Result<Vec<SignatureLayer>, OciClientError> {
-    let (manifest, _) = client.pull_image_manifest(cosign_image_ref).await?;
+    let (manifest, _) = client
+        .client
+        .pull_image_manifest(cosign_image_ref, &client.auth)
+        .await
+        .map_err(|err| {
+            OciClientError::Verify(format!("could not fetch cosign_image_ref manifest: {err}"))
+        })?;
     let mut signature_layers = Vec::new();
 
     for layer in manifest.layers {
@@ -85,6 +91,7 @@ pub async fn fetch_trusted_signature_layers(
 
         let mut raw_data = Vec::new();
         if let Err(e) = client
+            .client
             .pull_blob(cosign_image_ref, &layer, &mut raw_data)
             .await
         {
