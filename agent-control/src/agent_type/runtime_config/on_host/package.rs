@@ -140,7 +140,7 @@ mod tests {
             "nr-var:version".to_string(),
             Variable::new_final_string_variable(version.to_string()),
         );
-        if let Some(pk) = public_key_url.clone() {
+        if let Some(pk) = &public_key_url {
             variables.insert(
                 "nr-var:public-key".to_string(),
                 Variable::new_final_string_variable(pk.to_string()),
