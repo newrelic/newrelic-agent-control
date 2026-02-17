@@ -4,7 +4,7 @@ use base64::Engine;
 use oci_client::Reference;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use tracing::{debug, info};
+use tracing::debug;
 
 /// Internal helper struct that groups the raw signature data downloaded from the registry
 /// with its parsed representation.
@@ -127,8 +127,9 @@ pub fn verify_signatures(
     for layer in layers {
         if layer.simple_signing.critical.image.docker_reference != expected_image_digest {
             debug!(
-                "Signature skipped: digest mismatch (claims {}, expected {})",
-                layer.simple_signing.critical.image.docker_reference, expected_image_digest
+                claims = layer.simple_signing.critical.image.docker_reference,
+                expected = expected_image_digest,
+                "Signature skipped: digest mismatch"
             );
             continue;
         }
@@ -147,22 +148,22 @@ pub fn verify_signatures(
         for key in trusted_keys {
             match key.verify_signature(&layer.raw_data, &signature_bytes) {
                 Ok(_) => {
-                    info!(
-                        "Valid signature found in layer {} and verified via OCI using key {}!",
-                        layer.oci_digest,
-                        key.key_id()
+                    debug!(
+                        layer = layer.oci_digest,
+                        key = key.key_id(),
+                        "Signature successfully verified"
                     );
                     return Ok(());
                 }
                 Err(e) => {
-                    debug!("Verification failed against key {}: {}", key.key_id(), e);
+                    debug!(key_id = key.key_id(), "Verification failed against {e}");
                 }
             }
         }
     }
 
     Err(OciClientError::Verify(format!(
-        "Verification failed. Checked {} candidates, but no valid signature found for digest {}",
+        "verification failed. Checked with {} public keys, but no valid signature found for digest {}",
         checked_count, expected_image_digest
     )))
 }
@@ -179,14 +180,14 @@ pub fn verify_signatures(
 /// * **Input Repo**: `registry.io/my-app`
 /// * **Input Digest**: `sha256:9f86...`
 /// * **Output Reference**: `registry.io/my-app:sha256-9f86....sig`
-pub fn triangulate(reference: &Reference, digest: &str) -> Result<Reference, OciClientError> {
+pub fn triangulate(reference: &Reference, digest: &str) -> Reference {
     let signature_tag = format!("{}.sig", digest.replace(':', "-"));
 
-    Ok(Reference::with_tag(
+    Reference::with_tag(
         reference.registry().to_string(),
         reference.repository().to_string(),
         signature_tag,
-    ))
+    )
 }
 
 #[cfg(test)]
@@ -200,7 +201,7 @@ mod tests {
         let repo = "my-registry.io/my-repo";
         let digest = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
         let reference = Reference::from_str(&format!("{}:latest", repo)).unwrap();
-        let result = triangulate(&reference, digest).unwrap();
+        let result = triangulate(&reference, digest);
         assert!(result.tag().unwrap().ends_with(".sig"));
     }
 
@@ -251,8 +252,8 @@ mod tests {
 
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("Verification failed"));
-        assert!(err_msg.contains("Checked 0 candidates"));
+        assert!(err_msg.contains("verification failed"));
+        assert!(err_msg.contains("Checked with 0 public keys"));
     }
 
     #[test]

@@ -12,7 +12,7 @@ use tracing::debug;
 
 mod error;
 mod proxy;
-pub mod signature_verification;
+mod signature_verification;
 
 use crate::oci::signature_verification::{
     fetch_trusted_signature_layers, triangulate, verify_signatures,
@@ -72,7 +72,7 @@ impl Client {
         debug!("Image resolved to digest: {}", digest);
 
         // Calculate signature location (External logic)
-        let signature_ref = triangulate(reference, &digest)?;
+        let signature_ref = triangulate(reference, &digest);
         debug!("Looking for signatures at: {}", signature_ref.whole());
 
         // Download signature layers (External logic, passing 'self')
@@ -184,7 +184,7 @@ pub mod tests {
             result_err
                 .unwrap_err()
                 .to_string()
-                .contains("Verification failed")
+                .contains("verification failed")
         );
 
         let keys_mixed = vec![TestKeyPair::new(5).public_key(), pub_key_valid];
