@@ -1,3 +1,4 @@
+use crate::common::runtime::tokio_runtime;
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use fs::directory_manager::DirectoryManagerFs;
@@ -12,8 +13,6 @@ use std::path::Path;
 use std::path::PathBuf;
 #[cfg(target_os = "windows")]
 use zip::write::SimpleFileOptions;
-
-use crate::common::runtime::tokio_runtime;
 
 pub fn new_testing_oci_package_manager(
     base_path: PathBuf,

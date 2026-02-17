@@ -120,7 +120,6 @@ impl RemoteConfigValidator for SignatureValidator {
 
             public_key_store
                 .verify_signature(
-                    signature.signature_algorithm(),
                     signature.key_id(),
                     config_content.as_bytes(),
                     signature.signature(),

@@ -12,6 +12,16 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tempfile::tempdir;
 
+fn create_client_with_proxy(proxy_config: ProxyConfig) -> oci::Client {
+    oci::Client::try_new(
+        ClientConfig {
+            protocol: ClientProtocol::Http,
+            ..Default::default()
+        },
+        proxy_config,
+    )
+    .unwrap()
+}
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
 fn test_download_artifact_from_local_registry_with_oci_registry() {
@@ -36,14 +46,8 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
 
     let runtime = tokio_runtime();
 
-    let client = oci::Client::try_new(
-        ClientConfig {
-            protocol: ClientProtocol::Http,
-            ..Default::default()
-        },
-        ProxyConfig::default(),
-    )
-    .unwrap();
+    let client = create_client_with_proxy(ProxyConfig::default());
+
     let downloader = OCIArtifactDownloader::new(client, runtime);
 
     let _ = downloader
@@ -105,14 +109,8 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
 
     let runtime = tokio_runtime();
 
-    let client = oci::Client::try_new(
-        ClientConfig {
-            protocol: ClientProtocol::Http,
-            ..Default::default()
-        },
-        proxy_config,
-    )
-    .unwrap();
+    let client = create_client_with_proxy(proxy_config);
+
     let downloader =
         OCIArtifactDownloader::new(client, runtime).with_retries(4, Duration::from_millis(100));
 

@@ -47,7 +47,7 @@ impl AsRef<str> for SigningAlgorithm {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PublicKey {
     public_key: UnparsedPublicKey<Vec<u8>>,
     key_id: String,
@@ -58,18 +58,9 @@ impl PublicKey {
         self.key_id.as_str()
     }
 
-    pub fn verify_signature(
-        &self,
-        signing_algorithm: &SigningAlgorithm,
-        msg: &[u8],
-        signature: &[u8],
-    ) -> Result<(), PubKeyError> {
+    pub fn verify_signature(&self, msg: &[u8], signature: &[u8]) -> Result<(), PubKeyError> {
         self.public_key.verify(msg, signature).map_err(|_| {
-            PubKeyError::ValidatingSignature(format!(
-                "with key id {} and algorithm {}",
-                self.key_id,
-                signing_algorithm.as_ref()
-            ))
+            PubKeyError::ValidatingSignature(format!("with key id {}", self.key_id,))
         })?;
 
         debug!(%self.key_id, "signature verification succeeded");
@@ -192,27 +183,17 @@ pub mod tests {
         let msg: &[u8] = b"hello, world";
         let signature = test_key_pair.sign(msg);
 
-        pub_key
-            .verify_signature(&SigningAlgorithm::ED25519, msg, &signature)
-            .unwrap();
+        pub_key.verify_signature(msg, &signature).unwrap();
 
         assert_matches!(
             pub_key
-                .verify_signature(
-                    &SigningAlgorithm::ED25519,
-                    "wrong_message".as_bytes(),
-                    &signature,
-                )
+                .verify_signature("wrong_message".as_bytes(), &signature,)
                 .unwrap_err(),
             PubKeyError::ValidatingSignature(_)
         );
         assert_matches!(
             pub_key
-                .verify_signature(
-                    &SigningAlgorithm::ED25519,
-                    msg,
-                    "wrong_signature".as_bytes(),
-                )
+                .verify_signature(msg, "wrong_signature".as_bytes(),)
                 .unwrap_err(),
             PubKeyError::ValidatingSignature(_)
         );
