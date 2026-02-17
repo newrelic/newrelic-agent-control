@@ -59,10 +59,18 @@ impl Templateable for Oci {
         let registry = self.registry.template_with(variables)?;
         let repository = self.repository.template_with(variables)?;
         let mut version = self.version.template_with(variables)?;
+
         let public_key_url = self
             .public_key_url
             .map(|pk| pk.template_with(variables))
             .transpose()?;
+
+        let public_key_url = public_key_url
+            .map(|s| s.parse())
+            .transpose()
+            .map_err(|err| {
+                AgentTypeError::OCIReferenceParsingError(format!("invalid public_key_url: {err}"))
+            })?;
 
         if !version.is_empty() && !version.starts_with('@') {
             version = format!(":{}", version);
@@ -89,23 +97,24 @@ mod tests {
     use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
     use crate::agent_type::variable::Variable;
     use rstest::rstest;
+    use url::Url;
 
     #[rstest]
     #[case::digest_and_public_key_url(
         "@sha256:ec5f08ee7be8b557cd1fc5ae1a0ac985e8538da7c93f51a51eff4b277509a723",
-        Some("https://github.com/rust-lang/crates.io-index")
+        Some("https://github.com/rust-lang/crates.io-index".parse().unwrap())
     )]
-    #[case::tag_and_public_key_url("a-tag", Some("https://github.com/rust-lang/crates.io-index"))]
+    #[case::tag_and_public_key_url("a-tag", Some("https://github.com/rust-lang/crates.io-index".parse().unwrap()))]
     #[case::full_version_and_public_key_url(
         "a-tag@sha256:ec5f08ee7be8b557cd1fc5ae1a0ac985e8538da7c93f51a51eff4b277509a723",
-        Some("https://github.com/rust-lang/crates.io-index")
+        Some("https://github.com/rust-lang/crates.io-index".parse().unwrap())
     )]
     #[case::empty_version_and_public_key_url(
         "",
-        Some("https://github.com/rust-lang/crates.io-index")
+        Some("https://github.com/rust-lang/crates.io-index".parse().unwrap())
     )]
     #[case::no_version_and_no_public_key_url("", None)]
-    fn oci_template(#[case] version: &str, #[case] public_key_url: Option<&str>) {
+    fn oci_template(#[case] version: &str, #[case] public_key_url: Option<Url>) {
         let (expected_tag, expected_digest) = if version.is_empty() {
             (Some("latest"), None)
         } else {
@@ -131,7 +140,7 @@ mod tests {
             "nr-var:version".to_string(),
             Variable::new_final_string_variable(version.to_string()),
         );
-        if let Some(pk) = public_key_url {
+        if let Some(pk) = &public_key_url {
             variables.insert(
                 "nr-var:public-key".to_string(),
                 Variable::new_final_string_variable(pk.to_string()),
@@ -143,6 +152,7 @@ mod tests {
             repository: TemplateableValue::from_template("${nr-var:repository}".to_string()),
             version: TemplateableValue::from_template("${nr-var:version}".to_string()),
             public_key_url: public_key_url
+                .clone()
                 .map(|_| TemplateableValue::from_template("${nr-var:public-key}".to_string())),
         };
 
@@ -153,6 +163,6 @@ mod tests {
         assert_eq!(rendered_oci.reference.repository(), "repo");
         assert_eq!(rendered_oci.reference.tag(), expected_tag);
         assert_eq!(rendered_oci.reference.digest(), expected_digest);
-        assert_eq!(rendered_oci.public_key_url.as_deref(), public_key_url);
+        assert_eq!(rendered_oci.public_key_url, public_key_url);
     }
 }

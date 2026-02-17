@@ -9,6 +9,7 @@ use thiserror::Error;
 use tokio;
 use tokio::runtime::Runtime;
 use tracing::debug;
+use url::Url;
 
 #[derive(Debug, Error)]
 pub enum OCIDownloaderError {
@@ -25,6 +26,7 @@ pub trait OCIAgentDownloader: Send + Sync {
     fn download(
         &self,
         reference: &Reference,
+        public_key_url: &Option<Url>,
         destination_dir: &Path,
     ) -> Result<LocalAgentPackage, OCIDownloaderError>;
 }
@@ -50,6 +52,7 @@ impl OCIAgentDownloader for OCIArtifactDownloader {
     fn download(
         &self,
         reference: &Reference,
+        _public_key_url: &Option<Url>, // TODO: will be used when signatures are actually checked
         package_dir: &Path,
     ) -> Result<LocalAgentPackage, OCIDownloaderError> {
         debug!("Downloading '{reference}'",);
@@ -145,6 +148,7 @@ pub mod tests {
             fn download(
                 &self,
                 reference: &Reference,
+                public_key_url: &Option<Url>,
                 package_dir: &Path,
             ) -> Result<LocalAgentPackage, OCIDownloaderError>;
         }
@@ -163,7 +167,7 @@ pub mod tests {
         let downloader = create_downloader();
         let dest_dir = tempdir().unwrap();
         let local_agent_package = downloader
-            .download(&server.reference(), dest_dir.path())
+            .download(&server.reference(), &None, dest_dir.path())
             .unwrap();
 
         assert_eq!(
@@ -189,7 +193,7 @@ pub mod tests {
         let downloader = create_downloader();
         let dest_dir = tempdir().unwrap();
         let local_agent_package = downloader
-            .download(&server.reference(), dest_dir.path())
+            .download(&server.reference(), &None, dest_dir.path())
             .unwrap();
 
         assert_eq!(
@@ -211,7 +215,7 @@ pub mod tests {
         let downloader = create_downloader();
         let dest_dir = tempdir().unwrap();
         let err = downloader
-            .download(&server.reference(), dest_dir.path())
+            .download(&server.reference(), &None, dest_dir.path())
             .unwrap_err();
         assert!(err.to_string().contains("validating package manifest"));
     }
@@ -231,7 +235,7 @@ pub mod tests {
         let downloader = create_downloader();
         let dest_dir = tempdir().unwrap();
         let err = downloader
-            .download(&reference, dest_dir.path())
+            .download(&reference, &None, dest_dir.path())
             .unwrap_err();
         assert!(
             err.to_string().contains("download attempts exceeded"),
