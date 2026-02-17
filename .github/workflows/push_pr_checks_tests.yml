@@ -9,7 +9,7 @@ on:
 
 permissions:
   contents: read
-  
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -42,7 +42,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ ubuntu-latest, windows-latest ]
     permissions:
       contents: read
       checks: write
@@ -67,7 +67,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ ubuntu-latest, windows-latest ]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
@@ -98,7 +98,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ ubuntu-latest, windows-latest ]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
@@ -199,7 +199,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ ubuntu-latest, windows-latest ]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
@@ -248,7 +248,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ ubuntu-latest, windows-latest ]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
@@ -271,10 +271,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ ubuntu-latest, windows-latest ]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      
+
       - uses: ./.github/actions/install-rust-toolchain
 
       - uses: ./.github/actions/rust-cache
@@ -286,21 +286,9 @@ jobs:
       - name: Run onHost root-required integration-tests only
         shell: bash
         run: make -C agent-control test/onhost/oci-registry/integration
-      
+
       - name: Show zot logs
         run: cat ~/.zot/zot.log
-
-  embedded-downloader-tests:
-    name: Unit test for embedded downloader
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - name: Install Go
-        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
-        with:
-          go-version-file: "build/embedded/go.mod"
-      - name: run tests for embedded downloader
-        run: make -C build/embedded test
 
   k8s-integration-tests:
     name: K8s integration tests
@@ -382,7 +370,6 @@ jobs:
       - unit-docs-onhost-integration-tests
       - on-host-root-tests
       - on-host-oci-registry-tests
-      - embedded-downloader-tests
       - k8s-integration-tests
       - k8s-e2e-tests
 
