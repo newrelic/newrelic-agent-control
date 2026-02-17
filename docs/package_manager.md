@@ -6,13 +6,23 @@ The package manager handles download, signature verification, extraction, instal
 ## Package structure (in the OCI repository)
 
 The packaged agent must comply with the [OCI image spec](https://github.com/opencontainers/image-spec). The entrypoint can either
-be a manifest JSON file or an index JSON file.
-
-The [index](https://github.com/opencontainers/image-spec/blob/main/image-index.md#oci-image-index-specification) file includes a list of manifest files, and it's handy to support multiple environments. Agents that want to integrate with AC should use this approach.
+be a [manifest](https://github.com/opencontainers/image-spec/blob/main/manifest.md#oci-image-manifest-specification) JSON file or an [index](https://github.com/opencontainers/image-spec/blob/main/image-index.md#oci-image-index-specification) JSON file, but for AC we expect the entrypoint to be an `index`. That's the way OCI supports multi-arch.
 
 > [!NOTE]
-> AC uses an [OCI client that supports every architecture and os in the spec](https://docs.rs/oci-client/latest/oci_client/manifest/struct.Platform.html).
-> To make sure the platform is supported by AC and not only the OCI client, check out [AC compatibility section](https://docs.newrelic.com/docs/new-relic-control/agent-control/overview/#requirements-and-compatibility).
+> The OCI spec has some [rough edges, at least around the multi-arch topic](https://github.com/oras-project/oras/issues/1538).
+
+The `index` file includes a list of manifest files. AC expects:
+
+* each manifest entry in the array to have a `platform` section with the `architecture` and `os` fields
+
+  Check fields and possible values in the [Image Index Property Descriptions section of the spec](https://github.com/opencontainers/image-spec/blob/main/image-index.md#image-index-property-descriptions). However, to know if AC supports a specific architecture and os, we must look at the [oci_client crate support](https://docs.rs/oci-client/latest/oci_client/manifest/struct.Platform.html) and the [AC compatibility section](https://docs.newrelic.com/docs/new-relic-control/agent-control/overview/#requirements-and-compatibility). If it appears on both, then it's supported.
+
+  The section is automatically handled by the [oci_client](https://github.com/oras-project/rust-oci-client/blob/4541487ec759eef2a511e385d95e72e78aa37f69/src/client.rs#L974), which automatically detects the platform and retrieves the correct manifest from the index.
+
+> [!NOTE]
+> The `artifactType` field in a given manifest entry of the `index` is not verified by AC, nor by the [client](https://docs.rs/oci-client/latest/oci_client/manifest/struct.ImageIndexEntry.html).
+
+Other than that, it must follow the OCI spec.
 
 Example:
 
@@ -55,21 +65,32 @@ Example:
 }
 ```
 
-Then we have the [manifest](https://github.com/opencontainers/image-spec/blob/main/manifest.md#oci-image-manifest-specification) file, which includes the package data and metadata.
+Then we have the `manifest` file, which includes the package data and metadata.
 
 > [!NOTE]
 > AC can handle artifacts regardless of the entrypoint (manifest or index).
-> However, AC suggests using the index approach. If the author of an agent decides to use a manifest, acknowledge that AC might behave in strange ways.
+> However, AC suggests using the index approach. If the author of an agent decides to use a manifest as the entrypoint, they must understand that AC might behave in strange ways.
 
 There, AC expects to find some specific keys and values.
+
+* `config` must exist, have value `application/vnd.oci.image.config.v1+json` and contain the `architecture` and `os` [properties](https://github.com/opencontainers/image-spec/blob/main/config.md#properties)
+
+  ```json
+  {
+    "architecture": "amd64",
+    "os": "linux"
+  }
+  ```
+
+  This is not required by AC itself. However, it adds support for external tooling. For example, [oras](https://github.com/oras-project/oras). 
 
 * `artifactType` must exist and have value `application/vnd.newrelic.agent.v1`
 
 * `layers/mediaType` must take one of the following values:
 
-    - `application/vnd.newrelic.agent.content.v1.zip`
-    - `application/vnd.newrelic.agent.content.v1.tar+gzip`
-    - `application/vnd.newrelic.agent-type.content.v1.tar+gzip`
+  - `application/vnd.newrelic.agent.content.v1.zip`
+  - `application/vnd.newrelic.agent.content.v1.tar+gzip`
+  - `application/vnd.newrelic.agent-type.content.v1.tar+gzip`
 
 Example:
 
