@@ -1,3 +1,4 @@
+use crate::common::config::INFRA_AGENT_VERSION;
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
 use crate::common::exec::LongRunningProcess;
 use crate::common::nrql::check_query_results_are_not_empty;
@@ -6,7 +7,6 @@ use crate::common::test::retry_panic;
 use crate::common::{Args, RecipeData};
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
 use crate::windows::powershell::{download_file, exec_ps, extract};
-use crate::windows::scenarios::INFRA_AGENT_VERSION;
 use crate::windows::service::{STATUS_RUNNING, check_service_status};
 use crate::windows::utils::as_user_dir;
 use crate::windows::{self};
@@ -64,7 +64,7 @@ pub fn test_proxy(args: Args) {
 
     // Install cli does not support adding infra-agent config yet on windows, so we need to update the config manually
     update_config(
-        windows::DEFAULT_CONFIG_PATH,
+        windows::DEFAULT_AC_CONFIG_PATH,
         format!(
             r#"
 host_id: {test_id}

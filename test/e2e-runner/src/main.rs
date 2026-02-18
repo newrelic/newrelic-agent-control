@@ -26,9 +26,6 @@ enum LinuxScenarios {
     /// Local installation of Agent Control with eBPF agent. Uses the infra agent to generate traffic and checks that
     /// the eBPF agent reports data.
     EBPFAgent(Args),
-    /// Migration of an Infrastructure Agent installation. It spawns a mysql docker service, reports mysql metrics
-    /// through the infra-agent and checks that metrics keep reporting after migration.
-    Migration(Args),
     /// Local installation of Agent Control with NRDot. It checks that nr-dot eventually reports data.
     NrdotAgent(Args),
     /// Checks that remote configuration for a sub-agent has been applied.

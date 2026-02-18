@@ -1,7 +1,6 @@
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, error::ErrorKind};
-use newrelic_agent_control::cli::on_host::host_monitoring_gen;
 use newrelic_agent_control::cli::on_host::migrate_folders;
 use newrelic_agent_control::cli::{logs, on_host::config_gen};
 use tracing::{Level, error};
@@ -23,10 +22,6 @@ enum Commands {
     /// Generate Agent Control configuration according to the provided configuration data.
     /// It generates the AC config, and it creates the system identity
     GenerateConfig(config_gen::Args),
-    /// Generate Host Monitoring configuration according to the provided configuration data and what is found in the system.
-    /// It generates either infra-agent or otel configuration.
-    /// in case of infra-agent, the proxy configuration is included if provided, and we try to migrate from the old configuration.
-    HostMonitoring(host_monitoring_gen::Args),
     /// Migrates legacy on-host directories (>v1.4.0) to the new layout. Intended to be run by post-installation package scripts only.
     FilesBackwardsCompatibilityMigrationFromV120,
 }
@@ -48,9 +43,6 @@ fn main() -> ExitCode {
                     .exit()
             }
             config_gen::generate(args)
-        }
-        Commands::HostMonitoring(args) => {
-            host_monitoring_gen::generate_host_monitoring_config(args)
         }
         Commands::FilesBackwardsCompatibilityMigrationFromV120 => migrate_folders::migrate(),
     };

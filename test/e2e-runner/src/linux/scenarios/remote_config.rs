@@ -1,7 +1,6 @@
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{Args, RecipeData};
-use crate::linux::DEFAULT_NR_INFRA_PATH;
 use crate::linux::install::tear_down_test;
 use crate::{
     common::{config, nrql},
@@ -37,11 +36,11 @@ pub fn test_remote_config_is_applied(args: Args) {
     config::append_to_config_file(ENV_VARS_FILE, format!("TEST_ID: {test_id}").as_str());
 
     info!("Setup Agent Control config for debug logging");
-    config::update_config_for_debug_logging(linux::DEFAULT_CONFIG_PATH, linux::DEFAULT_LOG_PATH);
+    config::update_config_for_debug_logging(linux::DEFAULT_AC_CONFIG_PATH, linux::DEFAULT_LOG_PATH);
 
     info!("Setup infra-agent config");
     config::write_agent_local_config(
-        DEFAULT_NR_INFRA_PATH,
+        &linux::local_config_path("nr-infra"),
         r#"
 config_agent:
   status_server_enabled: true

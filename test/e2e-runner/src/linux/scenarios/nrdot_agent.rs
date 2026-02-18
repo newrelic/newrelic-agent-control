@@ -1,9 +1,12 @@
+use crate::common::config::NRDOT_CONFIG;
+use crate::common::config::NRDOT_VERSION;
+use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{Args, RecipeData};
 use crate::linux::install::tear_down_test;
 use crate::{
-    common::{config, nrql},
+    common::nrql,
     linux::{self, install::install_agent_control_from_recipe},
 };
 use std::time::Duration;
@@ -26,8 +29,21 @@ pub fn test_nrdot_agent(args: Args) {
     );
 
     info!("Setup Agent Control config with nr-dot");
-    config::update_config_for_debug_logging(linux::DEFAULT_CONFIG_PATH, linux::DEFAULT_LOG_PATH);
-    config::update_config_for_host_id(linux::DEFAULT_CONFIG_PATH, &test_id);
+    let debug_log_config = ac_debug_logging_config(linux::DEFAULT_LOG_PATH);
+    update_config(
+        linux::DEFAULT_AC_CONFIG_PATH,
+        format!(
+            r#"
+host_id: {test_id}
+agents:
+  nrdot:
+    agent_type: newrelic/com.newrelic.opentelemetry.collector:0.1.0
+{debug_log_config}
+"#
+        ),
+    );
+
+    write_agent_local_config(&linux::local_config_path("nrdot"), nrdot_config());
 
     linux::service::restart_service(linux::SERVICE_NAME);
 
@@ -39,4 +55,12 @@ pub fn test_nrdot_agent(args: Args) {
     retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     });
+}
+
+pub fn nrdot_config() -> String {
+    format!(
+        r#"
+{NRDOT_CONFIG}
+"#
+    )
 }
