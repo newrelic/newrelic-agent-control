@@ -1,16 +1,12 @@
 //! Implementation of the generate-config command for the on-host cli.
 use crate::cli::{
     error::CliError,
-    on_host::{
-        config_gen::{
-            config::{
-                AgentSet, AuthConfig, Config, FleetControl, LogConfig, Server, SignatureValidation,
-            },
-            identity::{Identity, provide_identity},
-            region::{Region, region_parser},
-        },
-        proxy_config::ProxyConfig,
+    on_host::config_gen::{
+        config::{AuthConfig, Config, FleetControl, LogConfig, Server, SignatureValidation},
+        identity::{Identity, provide_identity},
+        region::{Region, region_parser},
     },
+    on_host::proxy_config::ProxyConfig,
 };
 use fs::file::{LocalFile, writer::FileWriter};
 use std::{collections::HashMap, path::PathBuf};
@@ -41,10 +37,6 @@ pub struct Args {
     /// Fleet identifier
     #[arg(long, default_value_t)]
     fleet_id: String,
-
-    /// Set of agents to be used as local configuration.
-    #[arg(long, required = true)]
-    agent_set: AgentSet,
 
     /// Organization identifier
     #[arg(long, default_value_t)]
@@ -250,7 +242,7 @@ where
         fleet_control,
         server: Server { enabled: true },
         proxy: args.proxy_config.clone(),
-        agents: args.agent_set.into(),
+        agents: HashMap::new(),
         log: default_log_config(),
     };
 
@@ -287,7 +279,6 @@ mod tests {
                 fleet_disabled: false,
                 region: Region::US,
                 fleet_id: Default::default(),
-                agent_set: AgentSet::NoAgents,
                 organization_id: Default::default(),
                 auth_parent_client_id: Default::default(),
                 auth_parent_client_secret: Default::default(),
@@ -303,16 +294,16 @@ mod tests {
 
     #[rstest]
     #[case::fleet_disabled(
-        || String::from("--fleet-disabled --output-path /some/path --agent-set otel --region us")
+        || String::from("--fleet-disabled --output-path /some/path --region us")
     )]
     #[case::identity_already_provided(
-        || format!("--output-path /some/path --agent-set otel --region us --fleet-id some-id --auth-private-key-path {} --auth-client-id some-client-id", pwd())
+        || format!("--output-path /some/path --region us --fleet-id some-id --auth-private-key-path {} --auth-client-id some-client-id", pwd())
     )]
     #[case::token_based_identity(
-        || format!("--output-path /some/path --agent-set otel --region us --fleet-id some-id --auth-private-key-path {} --auth-parent-token TOKEN --auth-parent-client-id id --organization-id org-id", pwd())
+        || format!("--output-path /some/path --region us --fleet-id some-id --auth-private-key-path {} --auth-parent-token TOKEN --auth-parent-client-id id --organization-id org-id", pwd())
     )]
     #[case::client_id_and_secret_based_identity(
-        || format!("--output-path /some/path --agent-set otel --region us --fleet-id some-id --auth-private-key-path {} --auth-parent-client-secret SECRET --auth-parent-client-id id --organization-id org-id", pwd())
+        || format!("--output-path /some/path --region us --fleet-id some-id --auth-private-key-path {} --auth-parent-client-secret SECRET --auth-parent-client-id id --organization-id org-id", pwd())
     )]
     fn test_args_validation(#[case] args: fn() -> String) {
         let cmd = Args::command().no_binary_name(true);
@@ -325,28 +316,28 @@ mod tests {
 
     #[rstest]
     #[case::missing_identity_creation_method(
-        || format!("--output-path /some/path --agent-set otel --region us --auth-private-key-path {}", pwd())
+        || format!("--output-path /some/path --region us --auth-private-key-path {}", pwd())
     )]
     #[case::missing_private_key_path(
-        || String::from("--output-path /some/path --agent-set otel --region us --auth-client-id some-client-id")
+        || String::from("--output-path /some/path --region us --auth-client-id some-client-id")
     )]
     #[case::nonexisting_private_key_path(
-        || String::from("--output-path /some/path --agent-set otel --region us --auth-client-id some-client-id --auth-private-key-path /do-not/exist")
+        || String::from("--output-path /some/path --region us --auth-client-id some-client-id --auth-private-key-path /do-not/exist")
     )]
     #[case::missing_auth_parent_client_id_with_token(
-        || format!("--output-path /some/path --agent-set otel --region us --auth-private-key-path {} --auth-parent-token TOKEN --organization-id org-id", pwd())
+        || format!("--output-path /some/path --region us --auth-private-key-path {} --auth-parent-token TOKEN --organization-id org-id", pwd())
     )]
     #[case::missing_org_id_with_token(
-        || format!("--output-path /some/path --agent-set otel --region us --auth-private-key-path {} --auth-parent-token TOKEN --auth-parent-client-id id", pwd())
+        || format!("--output-path /some/path --region us --auth-private-key-path {} --auth-parent-token TOKEN --auth-parent-client-id id", pwd())
     )]
     #[case::missing_org_id_with_secret(
-        || format!("--output-path /some/path --agent-set otel --region us --auth-private-key-path {} --auth-parent-client-secret SECRET --organization-id org-id", pwd())
+        || format!("--output-path /some/path --region us --auth-private-key-path {} --auth-parent-client-secret SECRET --organization-id org-id", pwd())
     )]
     #[case::missing_auth_parent_client_id_with_secret(
-        || format!("--output-path /some/path --agent-set otel --region us --auth-private-key-path {} --auth-parent-client-secret SECRET --auth-parent-client-id id", pwd())
+        || format!("--output-path /some/path --region us --auth-private-key-path {} --auth-parent-client-secret SECRET --auth-parent-client-id id", pwd())
     )]
     #[case::invalid_proxy_config(
-        || String::from("--fleet-disabled --output-path /some/path --agent-set otel --region us --proxy-url https::/invalid")
+        || String::from("--fleet-disabled --output-path /some/path --region us --proxy-url https::/invalid")
     )]
     fn test_args_validation_errors(#[case] args: fn() -> String) {
         let cmd = Args::command().no_binary_name(true);
@@ -359,37 +350,18 @@ mod tests {
     }
 
     #[rstest]
-    #[case(false, Region::US, AgentSet::InfraAgent, None, expected_infra_us())]
-    #[case(false, Region::EU, AgentSet::Otel, None, expected_otel_eu())]
-    #[case(
-        false,
-        Region::STAGING,
-        AgentSet::NoAgents,
-        None,
-        expected_none_staging()
-    )]
-    #[case(
-        true,
-        Region::US,
-        AgentSet::InfraAgent,
-        None,
-        expected_fleet_disabled_infra()
-    )]
-    #[case(
-        false,
-        Region::US,
-        AgentSet::InfraAgent,
-        some_proxy_config(),
-        expected_infra_us_proxy()
-    )]
+    #[case(false, Region::US, None, expected_us())]
+    #[case(false, Region::EU, None, expected_eu())]
+    #[case(false, Region::STAGING, None, expected_staging())]
+    #[case(true, Region::US, None, expected_fleet_disabled())]
+    #[case(false, Region::US, some_proxy_config(), expected_us_proxy())]
     fn test_gen_config(
         #[case] fleet_enabled: bool,
         #[case] region: Region,
-        #[case] agent_set: AgentSet,
         #[case] proxy_config: Option<ProxyConfig>,
         #[case] expected: String,
     ) {
-        let args = create_test_args(fleet_enabled, region, agent_set, proxy_config);
+        let args = create_test_args(fleet_enabled, region, proxy_config);
 
         let yaml = generate_config_and_system_identity(&args, identity_provider_mock)
             .expect("result expected to be OK");
@@ -419,7 +391,7 @@ mod tests {
 
         let yaml = generate_env_var_config(&args).expect("should generate env var config");
 
-        let parsed: std::collections::HashMap<String, String> =
+        let parsed: HashMap<String, String> =
             serde_yaml::from_str(&yaml).expect("YAML should parse to a map");
 
         // Always contains the OTEL endpoint env var
@@ -453,7 +425,6 @@ mod tests {
     fn create_test_args(
         fleet_enabled: bool,
         region: Region,
-        agent_set: AgentSet,
         proxy_config: Option<ProxyConfig>,
     ) -> Args {
         Args {
@@ -462,7 +433,6 @@ mod tests {
             region,
             fleet_id: "test-fleet-id".to_string(),
             organization_id: "test-org-id".to_string(),
-            agent_set,
             auth_parent_client_id: "parent-client-id".to_string(),
             auth_parent_client_secret: "parent-client-secret".to_string(),
             auth_parent_token: "parent-token".to_string(),
@@ -544,18 +514,6 @@ proxy:
   ignore_system_proxy: true
 "#;
 
-    const INFRA_AGENTS_SECTION: &str = r#"
-agents:
-  nr-infra:
-    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
-"#;
-
-    const OTEL_AGENTS_SECTION: &str = r#"
-agents:
-  nrdot:
-    agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"
-"#;
-
     const NO_AGENTS_SECTION: &str = r#"agents: {}
 "#;
 
@@ -574,27 +532,27 @@ log:
         }
     }
 
-    fn expected_infra_us() -> String {
+    fn expected_us() -> String {
         format!(
             "{}{}{}{}",
             FLEET_CONTROL_US,
             SERVER_SECTION,
-            INFRA_AGENTS_SECTION,
+            NO_AGENTS_SECTION,
             log_section()
         )
     }
 
-    fn expected_otel_eu() -> String {
+    fn expected_eu() -> String {
         format!(
             "{}{}{}{}",
             FLEET_CONTROL_EU,
             SERVER_SECTION,
-            OTEL_AGENTS_SECTION,
+            NO_AGENTS_SECTION,
             log_section()
         )
     }
 
-    fn expected_none_staging() -> String {
+    fn expected_staging() -> String {
         format!(
             "{}{}{}{}",
             FLEET_CONTROL_STAGING,
@@ -604,22 +562,17 @@ log:
         )
     }
 
-    fn expected_fleet_disabled_infra() -> String {
-        format!(
-            "{}{}{}",
-            SERVER_SECTION,
-            INFRA_AGENTS_SECTION,
-            log_section()
-        )
+    fn expected_fleet_disabled() -> String {
+        format!("{}{}{}", SERVER_SECTION, NO_AGENTS_SECTION, log_section())
     }
 
-    fn expected_infra_us_proxy() -> String {
+    fn expected_us_proxy() -> String {
         format!(
             "{}{}{}{}{}",
             FLEET_CONTROL_US,
             SERVER_SECTION,
             PROXY_SECTION,
-            INFRA_AGENTS_SECTION,
+            NO_AGENTS_SECTION,
             log_section()
         )
     }

@@ -1,9 +1,11 @@
-use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
+use crate::common::config::{
+    INFRA_AGENT_VERSION, ac_debug_logging_config, update_config, write_agent_local_config,
+};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::{retry, retry_panic};
 use crate::common::{Args, RecipeData, nrql};
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
-use crate::windows::scenarios::{DEFAULT_STATUS_PORT, INFRA_AGENT_VERSION};
+use crate::windows::scenarios::DEFAULT_STATUS_PORT;
 use crate::windows::service::STATUS_RUNNING;
 use crate::windows::{self};
 use std::thread;
@@ -29,7 +31,7 @@ pub fn test_infra_agent(args: Args) {
     let debug_log_config = ac_debug_logging_config(windows::DEFAULT_LOG_PATH);
 
     update_config(
-        windows::DEFAULT_CONFIG_PATH,
+        windows::DEFAULT_AC_CONFIG_PATH,
         format!(
             r#"
 host_id: {test_id}

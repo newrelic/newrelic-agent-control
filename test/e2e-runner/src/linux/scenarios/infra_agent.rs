@@ -1,3 +1,4 @@
+use crate::common::config::write_agent_local_config;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{Args, RecipeData};
@@ -28,8 +29,31 @@ pub fn test_installation_with_infra_agent(args: Args) {
     );
 
     info!("Setup Agent Control config");
-    config::update_config_for_debug_logging(linux::DEFAULT_CONFIG_PATH, linux::DEFAULT_LOG_PATH);
-    config::update_config_for_host_id(linux::DEFAULT_CONFIG_PATH, &test_id);
+    let debug_log_config = config::ac_debug_logging_config(linux::DEFAULT_LOG_PATH);
+    let config = format!(
+        r#"
+host_id: {test_id}
+agents:
+  nr-infra:
+    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+  nr-ebpf:
+    agent_type: "newrelic/com.newrelic.ebpf:0.1.0"
+{debug_log_config}
+"#
+    );
+    config::update_config(linux::DEFAULT_AC_CONFIG_PATH, config);
+
+    write_agent_local_config(
+        &linux::local_config_path("nr-infra"),
+        String::from(
+            r#"
+config_agent:
+  status_server_enabled: true
+  status_server_port: 18003
+  license_key: '{{NEW_RELIC_LICENSE_KEY}}'
+    "#,
+        ),
+    );
 
     linux::service::restart_service(linux::SERVICE_NAME);
 
