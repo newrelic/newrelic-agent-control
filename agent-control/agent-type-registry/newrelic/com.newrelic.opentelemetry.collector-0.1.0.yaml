@@ -122,8 +122,8 @@ deployment:
   windows:
     enable_file_logging: ${nr-var:enable_file_logging}
     health:
-      interval: 5s
-      initial_delay: 20s
+      interval: 30s
+      initial_delay: 90s
       timeout: 5s
       http:
         path: "${nr-var:health_check.path}"
@@ -162,8 +162,8 @@ deployment:
 
   linux:
     health:
-      interval: 5s
-      initial_delay: 5s
+      interval: 30s
+      initial_delay: 90s
       timeout: 5s
       http:
         path: "${nr-var:health_check.path}"
