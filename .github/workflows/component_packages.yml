@@ -71,13 +71,25 @@ jobs:
         with:
           tool: cargo-zigbuild@0.20.1
 
-      - name: Install Windows cross-compilation dependencies
+      - name: Install cross-compilation system dependencies
         run: |
-          sudo apt-get install -y llvm
+          sudo apt-get update && sudo apt-get install -y llvm
+          sudo ln -sf /usr/bin/llvm-ar /usr/bin/llvm-lib
+          go install github.com/tc-hib/go-winres@latest
 
       - name: Install cargo-xwin
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-xwin
+
+      - name: Pre-cache Windows MSVC SDK
         run: |
-          cargo install --locked cargo-xwin --force
+          rm -rf ~/.cache/cargo-xwin
+          WORK_DIR=$(mktemp -d)
+          cd "$WORK_DIR"
+          cargo new pre_cache_dummy
+          cd pre_cache_dummy
+          cargo xwin build --target x86_64-pc-windows-msvc
 
       - name: If pre-release, set tag and verify it matches Cargo.toml version
         if: ${{ inputs.pre-release}}

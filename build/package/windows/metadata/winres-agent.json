@@ -1,0 +1,17 @@
+{
+  "RT_VERSION": {
+    "#1": {
+      "0000": {
+        "info": {
+          "0409": {
+            "CompanyName": "New Relic, Inc.",
+            "FileDescription": "An orchestrator that manages specialized agents to efficiently collect metrics, traces, logs, and events for New Relic.",
+            "LegalCopyright": "© 2026 New Relic, Inc.",
+            "OriginalFilename": "newrelic-agent-control.exe",
+            "ProductName": "New Relic Agent Control"
+          }
+        }
+      }
+    }
+  }
+}
