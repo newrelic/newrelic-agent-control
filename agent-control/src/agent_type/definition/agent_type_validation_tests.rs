@@ -414,10 +414,11 @@ static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
         .into(),
         values_linux: AgentTypeValues {
             cases: HashMap::from([
-                ("mandatory fields only", ""),
+                ("mandatory fields only", r#"version: "some-version""#),
                 (
                     "check all value types are correct",
                     r#"
+                version: "some-version"
                 config: "some file contents"
                 backoff_delay: "10s"
                 health_check.path: "/health"
@@ -428,7 +429,23 @@ static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
             ..Default::default()
         }
         .into(),
-        ..Default::default()
+        values_windows: AgentTypeValues {
+            cases: HashMap::from([
+                ("mandatory fields only", r#"version: "some-version""#),
+                (
+                    "check all value types are correct",
+                    r#"
+                version: "some-version"
+                config: "some file contents"
+                backoff_delay: "10s"
+                health_check.path: "/health"
+                health_check.port: 12345
+                "#,
+                ),
+            ]),
+            ..Default::default()
+        }
+        .into(),
     });
 
 static AGENT_TYPE_OTEL_COLLECTOR_OLD: LazyLock<AgentTypeValuesTestCase> =
