@@ -13,7 +13,7 @@ pub enum OciClientError {
     PullBlob(OciErrorMessage),
     #[error("invalid reference format generated: {0}")]
     InvalidReference(String),
-    #[error("image signature verification failed: {0}")]
+    #[error("signature verification failed: {0}")]
     Verify(String),
     #[error("failed to fetch public key: {0}")]
     KeyFetch(String),

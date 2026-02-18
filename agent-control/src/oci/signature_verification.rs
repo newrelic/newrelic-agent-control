@@ -48,20 +48,22 @@ pub struct SimpleSigning {
 /// See: [Critical Section Spec](https://github.com/sigstore/cosign/blob/main/specs/SIGNATURE_SPEC.md#critical-header)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Critical {
-    pub identity: ImageIdentity,
-    pub image: ImageIdentity,
+    pub identity: Identity,
+    pub image: Image,
     #[serde(rename = "type")]
     pub type_field: String,
 }
 
-/// Represents the identity of the image or the signer within the critical section.
-///
-/// - When used in `image`: contains the docker-reference (digest) of the signed artifact.
-/// - When used in `identity`: contains the docker-reference of the signing identity (often empty in basic key pairs).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ImageIdentity {
+pub struct Identity {
     #[serde(rename = "docker-reference")]
     pub docker_reference: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Image {
+    #[serde(rename = "docker-manifest-digest")]
+    pub docker_manifest_digest: String,
 }
 
 impl Client {
@@ -172,9 +174,12 @@ impl Client {
                 continue;
             }
 
-            let Ok(simple_signing) = serde_json::from_slice::<SimpleSigning>(&raw_data) else {
-                debug!("Failed to parse signature layer JSON. Skipping.");
-                continue;
+            let simple_signing = match serde_json::from_slice::<SimpleSigning>(&raw_data) {
+                Ok(simple_signing) => simple_signing,
+                Err(err) => {
+                    debug!("Failed to parse signature layer JSON. Skipping: {err}");
+                    continue;
+                }
             };
 
             signature_layers.push(SignatureLayer {
@@ -206,9 +211,9 @@ pub fn verify_signatures(
     let mut checked_count = 0;
 
     for layer in layers {
-        if layer.simple_signing.critical.image.docker_reference != expected_image_digest {
+        if layer.simple_signing.critical.image.docker_manifest_digest != expected_image_digest {
             debug!(
-                claims = layer.simple_signing.critical.image.docker_reference,
+                claims = layer.simple_signing.critical.image.docker_manifest_digest,
                 expected = expected_image_digest,
                 "Signature skipped: digest mismatch"
             );
@@ -314,7 +319,7 @@ mod tests {
         let payload = serde_json::json!({
             "critical": {
                 "identity": { "docker-reference": "" },
-                "image": { "docker-reference": valid_digest },
+                "image": { "docker-manifest-digest": valid_digest },
                 "type": "cosign container image signature"
             },
             "optional": {}
@@ -347,7 +352,7 @@ mod tests {
         let payload = serde_json::json!({
             "critical": {
                 "identity": { "docker-reference": "" },
-                "image": { "docker-reference": digest },
+                "image": { "docker-manifest-digest": digest },
                 "type": "cosign container image signature"
             },
             "optional": {}
@@ -373,7 +378,7 @@ mod tests {
         let json_data = r#"{
             "critical": {
                 "identity": { "docker-reference": "registry.com/image" },
-                "image": { "docker-reference": "sha256:abcd" },
+                "image": { "docker-manifest-digest": "sha256:abcd" },
                 "type": "cosign container image signature"
             },
             "optional": {
@@ -388,7 +393,7 @@ mod tests {
             parsed.critical.type_field,
             "cosign container image signature"
         );
-        assert_eq!(parsed.critical.image.docker_reference, "sha256:abcd");
+        assert_eq!(parsed.critical.image.docker_manifest_digest, "sha256:abcd");
         assert_eq!(parsed.optional.unwrap().get("creator").unwrap(), "cosign");
     }
 }

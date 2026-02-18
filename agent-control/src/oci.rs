@@ -151,7 +151,7 @@ pub mod tests {
         let payload = serde_json::json!({
             "critical": {
                 "identity": { "docker-reference": "" },
-                "image": { "docker-reference": image_manifest_digest_str },
+                "image": { "docker-manifest-digest": image_manifest_digest_str },
                 "type": "cosign container image signature"
             },
             "optional": {}
