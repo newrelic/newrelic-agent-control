@@ -60,8 +60,6 @@ config_agent:
         String::from(
             r#"
 config_agent:
-  status_server_enabled: true
-  status_server_port: 18003
   license_key: '{{NEW_RELIC_LICENSE_KEY}}'
     "#,
         ),

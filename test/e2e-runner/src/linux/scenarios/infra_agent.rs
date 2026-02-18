@@ -36,8 +36,6 @@ host_id: {test_id}
 agents:
   nr-infra:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
-  nr-ebpf:
-    agent_type: "newrelic/com.newrelic.ebpf:0.1.0"
 {debug_log_config}
 "#
     );
