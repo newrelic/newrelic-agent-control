@@ -174,10 +174,10 @@ impl AgentControlRunner {
             ..Default::default()
         };
 
-        let oci_client = oci::Client::try_new(oci_client_config, self.proxy)
+        let oci_client = oci::Client::try_new(oci_client_config, self.proxy, self.runtime.clone())
             .map_err(|err| RunError(format!("failed to create the OciClient: {err}")))?;
 
-        let packages_downloader = OCIArtifactDownloader::new(oci_client, self.runtime);
+        let packages_downloader = OCIArtifactDownloader::new(oci_client);
 
         let package_manager = OCIPackageManager::new(
             packages_downloader,

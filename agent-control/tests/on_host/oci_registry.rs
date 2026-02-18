@@ -19,6 +19,7 @@ fn create_client_with_proxy(proxy_config: ProxyConfig) -> oci::Client {
             ..Default::default()
         },
         proxy_config,
+        tokio_runtime(),
     )
     .unwrap()
 }
@@ -44,11 +45,9 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
     let temp_dir = tempdir().unwrap();
     let local_agent_data_dir = temp_dir.path();
 
-    let runtime = tokio_runtime();
-
     let client = create_client_with_proxy(ProxyConfig::default());
 
-    let downloader = OCIArtifactDownloader::new(client, runtime);
+    let downloader = OCIArtifactDownloader::new(client);
 
     let _ = downloader
         .download(&reference, &None, local_agent_data_dir)
@@ -107,12 +106,9 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
 
     let proxy_config = serde_yaml::from_str::<ProxyConfig>(&proxy_yaml).unwrap();
 
-    let runtime = tokio_runtime();
-
     let client = create_client_with_proxy(proxy_config);
 
-    let downloader =
-        OCIArtifactDownloader::new(client, runtime).with_retries(4, Duration::from_millis(100));
+    let downloader = OCIArtifactDownloader::new(client).with_retries(4, Duration::from_millis(100));
 
     let result = downloader.download(&reference, &None, local_agent_data_dir);
     assert!(result.is_ok());

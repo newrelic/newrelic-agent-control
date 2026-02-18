@@ -1,10 +1,18 @@
 use super::{Client, OciClientError};
-use crate::signature::public_key::PublicKey;
+use crate::{
+    http::{
+        client::HttpClient,
+        config::{HttpConfig, ProxyConfig},
+    },
+    signature::{public_key::PublicKey, public_key_fetcher::PublicKeyFetcher},
+};
 use base64::Engine;
 use oci_client::Reference;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::Duration};
 use tracing::debug;
+
+const DEFAULT_PUBLIC_KEY_FETCH_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Internal helper struct that groups the raw signature data downloaded from the registry
 /// with its parsed representation.
@@ -56,55 +64,128 @@ pub struct ImageIdentity {
     pub docker_reference: String,
 }
 
-/// Fetches and parses candidate signature layers from the triangulated signature image.
-///
-/// This function pulls the image manifest and iterates through its layers, filtering for
-/// those that match the Cosign `SimpleSigning` media type and contain the required
-/// signature annotation. Valid layers are downloaded and deserialized for verification.
-pub async fn fetch_trusted_signature_layers(
-    client: &Client,
-    cosign_image_ref: &Reference,
-) -> Result<Vec<SignatureLayer>, OciClientError> {
-    let (manifest, _) = client.pull_image_manifest(cosign_image_ref).await?;
-    let mut signature_layers = Vec::new();
+impl Client {
+    /// Helper to build the [PublicKeyFetcher] corresponding to the client.
+    pub(super) fn try_build_public_key_fetcher(
+        proxy_config: ProxyConfig,
+    ) -> Result<PublicKeyFetcher, OciClientError> {
+        let http_config = HttpConfig::new(
+            DEFAULT_PUBLIC_KEY_FETCH_TIMEOUT,
+            DEFAULT_PUBLIC_KEY_FETCH_TIMEOUT,
+            proxy_config,
+        );
+        let http_client = HttpClient::new(http_config)
+            .map_err(|err| OciClientError::Build(format!("failure building http-client: {err}")))?;
 
-    for layer in manifest.layers {
-        if layer.media_type != "application/vnd.dev.cosign.simplesigning.v1+json" {
-            continue;
-        }
-
-        let Some(signature) = layer
-            .annotations
-            .as_ref()
-            .and_then(|a| a.get("dev.cosignproject.cosign/signature"))
-            .cloned()
-        else {
-            debug!("Layer missing signature annotation, skipping");
-            continue;
-        };
-
-        let mut raw_data = Vec::new();
-        if let Err(e) = client
-            .pull_blob(cosign_image_ref, &layer, &mut raw_data)
-            .await
-        {
-            debug!("Failed to pull blob for signature layer: {}", e);
-            continue;
-        }
-
-        let Ok(simple_signing) = serde_json::from_slice::<SimpleSigning>(&raw_data) else {
-            debug!("Failed to parse signature layer JSON. Skipping.");
-            continue;
-        };
-
-        signature_layers.push(SignatureLayer {
-            simple_signing,
-            oci_digest: layer.digest,
-            raw_data,
-            signature,
-        });
+        Ok(PublicKeyFetcher::new(http_client))
     }
-    Ok(signature_layers)
+
+    /// Verifies the `reference` signature through [verify_signatures] trying out each public-key in `public_keys`.
+    pub(super) async fn verify_signature_with_public_keys(
+        &self,
+        reference: &Reference,
+        public_keys: &[PublicKey],
+    ) -> Result<Reference, OciClientError> {
+        // Resolve image digest
+        let digest = match reference.digest() {
+            Some(digest) => {
+                debug!(%digest, "Artifact digest was already informed");
+                digest.to_string()
+            }
+            None => {
+                let (_, digest) = self
+                    .client
+                    .pull_image_manifest(reference, &self.auth)
+                    .await
+                    .map_err(|err| {
+                        OciClientError::Verify(format!("could not fetch manifest: {err}"))
+                    })?;
+                debug!(%digest, "Artifact digest resolved");
+                digest
+            }
+        };
+
+        // Calculate signature location
+        let signature_ref = triangulate(reference, &digest);
+        debug!("Looking for signatures at: {}", signature_ref.whole());
+
+        // Download signature layers
+        let layers = self.fetch_trusted_signature_layers(&signature_ref).await?;
+
+        if layers.is_empty() {
+            return Err(OciClientError::Verify(format!(
+                "No signature layers found for artifact {}",
+                reference.whole()
+            )));
+        }
+
+        // Verify cryptography (External logic)
+        verify_signatures(&layers, &digest, public_keys)?;
+
+        Ok(Reference::with_digest(
+            reference.registry().to_string(),
+            reference.repository().to_string(),
+            digest,
+        ))
+    }
+
+    /// Fetches and parses candidate signature layers from the triangulated signature image.
+    ///
+    /// This function pulls the image manifest and iterates through its layers, filtering for
+    /// those that match the Cosign `SimpleSigning` media type and contain the required
+    /// signature annotation. Valid layers are downloaded and deserialized for verification.
+    pub(super) async fn fetch_trusted_signature_layers(
+        &self,
+        cosign_image_ref: &Reference,
+    ) -> Result<Vec<SignatureLayer>, OciClientError> {
+        let (manifest, _) = self
+            .client
+            .pull_image_manifest(cosign_image_ref, &self.auth)
+            .await
+            .map_err(|err| {
+                OciClientError::Verify(format!("could not fetch cosign_image_ref manifest: {err}"))
+            })?;
+        let mut signature_layers = Vec::new();
+
+        for layer in manifest.layers {
+            if layer.media_type != "application/vnd.dev.cosign.simplesigning.v1+json" {
+                continue;
+            }
+
+            let Some(signature) = layer
+                .annotations
+                .as_ref()
+                .and_then(|a| a.get("dev.cosignproject.cosign/signature"))
+                .cloned()
+            else {
+                debug!("Layer missing signature annotation, skipping");
+                continue;
+            };
+
+            let mut raw_data = Vec::new();
+            if let Err(e) = self
+                .client
+                .pull_blob(cosign_image_ref, &layer, &mut raw_data)
+                .await
+            {
+                debug!("Failed to pull blob for signature layer: {}", e);
+                continue;
+            }
+
+            let Ok(simple_signing) = serde_json::from_slice::<SimpleSigning>(&raw_data) else {
+                debug!("Failed to parse signature layer JSON. Skipping.");
+                continue;
+            };
+
+            signature_layers.push(SignatureLayer {
+                simple_signing,
+                oci_digest: layer.digest,
+                raw_data,
+                signature,
+            });
+        }
+        Ok(signature_layers)
+    }
 }
 
 /// Iterates through candidate signature layers and attempts to cryptographically verify them.

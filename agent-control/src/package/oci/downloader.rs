@@ -3,11 +3,8 @@ use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::utils::retry::retry;
 use oci_spec::distribution::Reference;
 use std::path::Path;
-use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
-use tokio;
-use tokio::runtime::Runtime;
 use tracing::debug;
 use url::Url;
 
@@ -36,7 +33,6 @@ pub trait OCIAgentDownloader: Send + Sync {
 // This implementation avoids that since each download is expected to be done in a separate package directory.
 pub struct OCIArtifactDownloader {
     client: Client,
-    runtime: Arc<Runtime>,
     max_retries: usize,
     retry_interval: Duration,
 }
@@ -57,8 +53,7 @@ impl OCIAgentDownloader for OCIArtifactDownloader {
     ) -> Result<LocalAgentPackage, OCIDownloaderError> {
         debug!("Downloading '{reference}'",);
         retry(self.max_retries, self.retry_interval, || {
-            self.runtime
-                .block_on(self.download_package_artifact(reference, package_dir))
+            self.download_package_artifact(reference, package_dir)
                 .inspect_err(|e| debug!("Download '{reference}' failed with error: {e}"))
         })
         .map_err(|e| {
@@ -73,10 +68,9 @@ const DEFAULT_RETRIES: usize = 0;
 
 impl OCIArtifactDownloader {
     /// Returns an artifact downloader with default retries setup.
-    pub fn new(client: Client, runtime: Arc<Runtime>) -> Self {
+    pub fn new(client: Client) -> Self {
         OCIArtifactDownloader {
             client,
-            runtime,
             max_retries: DEFAULT_RETRIES,
             retry_interval: Duration::default(),
         }
@@ -91,7 +85,7 @@ impl OCIArtifactDownloader {
         }
     }
 
-    async fn download_package_artifact(
+    fn download_package_artifact(
         &self,
         reference: &Reference,
         package_dir: &Path,
@@ -99,7 +93,6 @@ impl OCIArtifactDownloader {
         let (image_manifest, _) = self
             .client
             .pull_image_manifest(reference)
-            .await
             .map_err(OCIDownloaderError::Client)?;
 
         let (layer, media_type) = LocalAgentPackage::get_layer(&image_manifest).map_err(|e| {
@@ -107,17 +100,9 @@ impl OCIArtifactDownloader {
         })?;
 
         let layer_path = package_dir.join(layer.digest.replace(':', "_"));
-        let mut file = tokio::fs::File::create(&layer_path)
-            .await
-            .map_err(OCIDownloaderError::Io)?;
-
         self.client
-            .pull_blob(reference, &layer, &mut file)
-            .await
+            .pull_blob_to_file(reference, &layer, &layer_path)
             .map_err(OCIDownloaderError::Client)?;
-
-        // Ensure all data is flushed to disk before returning
-        file.sync_data().await.map_err(OCIDownloaderError::Io)?;
 
         debug!("Artifact written to {}", layer_path.display());
 
@@ -127,6 +112,7 @@ impl OCIArtifactDownloader {
 
 #[cfg(test)]
 pub mod tests {
+    use crate::agent_control::run::runtime::tests::tokio_runtime;
     use crate::http::config::ProxyConfig;
     use crate::oci::tests::FakeOciServer;
     use crate::package::oci::artifact_definitions::{
@@ -245,16 +231,15 @@ pub mod tests {
     }
 
     fn create_downloader() -> OCIArtifactDownloader {
-        let runtime = Arc::new(Runtime::new().unwrap());
-
         let client = Client::try_new(
             ClientConfig {
                 protocol: ClientProtocol::Http,
                 ..Default::default()
             },
             ProxyConfig::default(),
+            tokio_runtime(),
         )
         .unwrap();
-        OCIArtifactDownloader::new(client, runtime)
+        OCIArtifactDownloader::new(client)
     }
 }
