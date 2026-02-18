@@ -2,7 +2,8 @@
 
 use std::{path::Path, sync::Arc};
 
-use crate::http::config::ProxyConfig;
+use crate::{http::config::ProxyConfig, signature::public_key_fetcher::PublicKeyFetcher};
+
 use oci_client::{
     Reference,
     client::{AsLayerDescriptor, ClientConfig},
@@ -10,26 +11,22 @@ use oci_client::{
     secrets::RegistryAuth,
 };
 use tokio::runtime::Runtime;
-use tracing::debug;
+use url::Url;
 
 mod error;
 mod proxy;
 mod signature_verification;
 
-use crate::oci::signature_verification::{
-    fetch_trusted_signature_layers, triangulate, verify_signatures,
-};
-use crate::signature::public_key::PublicKey;
 pub use error::OciClientError;
 
 /// [oci_client::Client] wrapper with extended functionality.
 /// It also wraps all _async_ operations using the underlying runtime, all functions will
 /// block the current thread until completion.
-#[derive(Clone)]
 pub struct Client {
     client: oci_client::Client,
     auth: RegistryAuth,
     runtime: Arc<Runtime>,
+    public_key_fetcher: PublicKeyFetcher,
 }
 
 impl Client {
@@ -38,14 +35,17 @@ impl Client {
         proxy_config: ProxyConfig,
         runtime: Arc<Runtime>,
     ) -> Result<Self, OciClientError> {
-        let client_config = proxy::setup_proxy(client_config, proxy_config)?;
+        let client_config = proxy::setup_proxy(client_config, proxy_config.clone())?;
+        let public_key_fetcher = Self::try_build_public_key_fetcher(proxy_config)?;
         Ok(Self {
             client: oci_client::Client::new(client_config),
             auth: RegistryAuth::Anonymous,
+            public_key_fetcher,
             runtime,
         })
     }
 
+    /// Wraps [oci_client::Client::pull_image_manifest].
     pub fn pull_image_manifest(
         &self,
         reference: &Reference,
@@ -81,48 +81,27 @@ impl Client {
         })
     }
 
-    /// High-level method to ensure an image is signed before using it.
-    pub async fn verify(
+    /// Obtains public keys from the provided `public_key_url` and performs signature verification of the provided
+    /// `reference`. If verification succeeds, it returns the `reference` (identified by digest) that has been
+    /// verified.
+    pub fn verify_signature(
         &self,
         reference: &Reference,
-        trusted_keys: &[PublicKey],
+        public_key_url: &Url,
     ) -> Result<Reference, OciClientError> {
-        // Resolve image digest (Client logic)
-        let (_, digest) = self
-            .client
-            .pull_image_manifest(reference, &self.auth)
-            .await
-            .map_err(|err| OciClientError::Verify(format!("could not fetch manifest: {err}")))?;
-        debug!("Image resolved to digest: {}", digest);
-
-        // Calculate signature location (External logic)
-        let signature_ref = triangulate(reference, &digest);
-        debug!("Looking for signatures at: {}", signature_ref.whole());
-
-        // Download signature layers (External logic, passing 'self')
-        let layers = fetch_trusted_signature_layers(self, &signature_ref).await?;
-
-        if layers.is_empty() {
-            return Err(OciClientError::Verify(format!(
-                "No signature layers found for image {}",
-                reference.whole()
-            )));
-        }
-
-        // Verify cryptography (External logic)
-        verify_signatures(&layers, &digest, trusted_keys)?;
-
-        Ok(Reference::with_digest(
-            reference.registry().to_string(),
-            reference.repository().to_string(),
-            digest,
-        ))
+        let public_keys = self
+            .public_key_fetcher
+            .fetch(public_key_url)
+            .map_err(|err| OciClientError::Verify(format!("could not fetch public keys: {err}")))?;
+        self.runtime
+            .block_on(self.verify_signature_with_public_keys(reference, &public_keys))
     }
 }
 
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use assert_matches::assert_matches;
     use base64::Engine;
     use httpmock::{Method::GET, MockServer};
     use oci_client::manifest::OciDescriptor;
@@ -133,6 +112,8 @@ pub mod tests {
 
     use crate::agent_control::run::runtime::tests::tokio_runtime;
     use crate::signature::public_key::tests::TestKeyPair;
+    use crate::signature::public_key_fetcher::tests::JwksMockServer;
+    use rstest::rstest;
 
     fn create_test_client() -> Client {
         Client::try_new(
@@ -146,13 +127,23 @@ pub mod tests {
         .expect("Failed to create test Client")
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn test_verify_integration_flow() {
-        let kp_signer = TestKeyPair::new(0);
-        let kp_wrong = TestKeyPair::new(1);
-
-        let pub_key_valid = kp_signer.public_key();
-        let pub_key_invalid = kp_wrong.public_key();
+    #[rstest]
+    #[case::valid_signer_key(1, Some(0))]
+    #[case::wrong_key(1, None)]
+    #[case::mixed_keys_with_valid(2, Some(1))]
+    fn test_verify_signature(#[case] num_jwks_keys: usize, #[case] signer_position: Option<usize>) {
+        // Build the key pairs for the list
+        let jwks_key_pairs: Vec<TestKeyPair> = (0..num_jwks_keys).map(TestKeyPair::new).collect();
+        // The signer key corresponds to the key position in `signer_position` if any, otherwise
+        // it is public key that is not included in the list
+        let separate_signer;
+        let kp_signer = match signer_position {
+            Some(pos) => &jwks_key_pairs[pos],
+            None => {
+                separate_signer = TestKeyPair::new(num_jwks_keys + 1);
+                &separate_signer
+            }
+        };
 
         let app_server = FakeOciServer::new("my-app", "v1")
             .with_layer(b"my binary", "application/vnd.oci.image.layer.v1.tar+gzip");
@@ -177,6 +168,12 @@ pub mod tests {
         let sig_server =
             FakeOciServer::new("my-app", &sig_tag).with_cosign_layer(&payload_bytes, &sig_b64);
 
+        let jwks_keys: Vec<serde_json::Value> = jwks_key_pairs
+            .iter()
+            .map(|kp| serde_json::to_value(kp.public_key_jwk()).unwrap())
+            .collect();
+        let jwks_server = JwksMockServer::new(jwks_keys);
+
         let registry_mock = MockServer::start();
         app_server.setup_mocks_on(&registry_mock);
         sig_server.setup_mocks_on(&registry_mock);
@@ -185,40 +182,36 @@ pub mod tests {
         let image_ref =
             Reference::from_str(&format!("{}/my-app:v1", registry_mock.address())).unwrap();
 
-        let result_ok = client
-            .verify(&image_ref, std::slice::from_ref(&pub_key_valid))
-            .await;
-        assert!(
-            result_ok.is_ok(),
-            "Should verify successfully with the correct key"
-        );
-        assert!(
-            result_ok
-                .unwrap()
-                .whole()
-                .contains(&image_manifest_digest_str)
-        );
+        let result = client.verify_signature(&image_ref, &jwks_server.url);
 
-        let result_err = client
-            .verify(&image_ref, std::slice::from_ref(&pub_key_invalid))
-            .await;
-        assert!(
-            result_err.is_err(),
-            "Should fail when using a non-trusted key"
-        );
-        assert!(
-            result_err
-                .unwrap_err()
-                .to_string()
-                .contains("verification failed")
-        );
+        if signer_position.is_some() {
+            let verified_ref = result.expect("verification should succeed");
+            assert!(verified_ref.whole().contains(&image_manifest_digest_str));
+        } else {
+            assert_matches!(result, Err(OciClientError::Verify(_)));
+        }
+    }
 
-        let keys_mixed = vec![TestKeyPair::new(5).public_key(), pub_key_valid];
-        let result_mixed = client.verify(&image_ref, &keys_mixed).await;
-        assert!(
-            result_mixed.is_ok(),
-            "Should pass if at least one trusted key is valid"
-        );
+    #[test]
+    fn test_verify_fails_if_signature_is_missing() {
+        let trusted_kp = TestKeyPair::new(0);
+
+        let app_server = FakeOciServer::new("my-app", "v1")
+            .with_layer(b"binary", "application/vnd.oci.image.layer.v1.tar+gzip");
+
+        let jwks_keys = vec![serde_json::to_value(trusted_kp.public_key_jwk()).unwrap()];
+        let jwks_server = JwksMockServer::new(jwks_keys);
+
+        let registry_mock = MockServer::start();
+        app_server.setup_mocks_on(&registry_mock);
+
+        let client = create_test_client();
+        let image_ref =
+            Reference::from_str(&format!("{}/my-app:v1", registry_mock.address())).unwrap();
+
+        let result = client.verify_signature(&image_ref, &jwks_server.url);
+
+        assert_matches!(result, Err(OciClientError::Verify(_)));
     }
 
     #[test]
@@ -239,25 +232,6 @@ pub mod tests {
             .pull_blob_to_file(reference, layer, &filepath)
             .expect("writing blob to file should not fail");
         assert_eq!(std::fs::read(filepath).unwrap(), b"some content");
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn test_verify_fails_if_signature_missing() {
-        let trusted_kp = TestKeyPair::new(0);
-
-        let app_server = FakeOciServer::new("my-app", "v1")
-            .with_layer(b"binary", "application/vnd.oci.image.layer.v1.tar+gzip");
-
-        let registry_mock = MockServer::start();
-        app_server.setup_mocks_on(&registry_mock);
-
-        let client = create_test_client();
-        let image_ref =
-            Reference::from_str(&format!("{}/my-app:v1", registry_mock.address())).unwrap();
-
-        let result = client.verify(&image_ref, &[trusted_kp.public_key()]).await;
-
-        assert!(result.is_err());
     }
 
     pub struct FakeOciServer {
