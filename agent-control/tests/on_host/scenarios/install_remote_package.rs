@@ -5,7 +5,7 @@ use crate::common::attributes::{
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::oci_signer::OCISigner;
 use crate::common::opamp::FakeServer;
-use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
+use crate::common::remote_config_status::check_latest_remote_config_status;
 use crate::common::retry::retry;
 use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
@@ -158,7 +158,6 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
     });
 }
 
-// TODO: this should pass with signatures in place
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix), needs elevated privileges on Windows"]
 fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
@@ -204,8 +203,6 @@ fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
         start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
-    let sleep_instance_id =
-        get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths.clone());
 
     let agents = format!(
         r#"
@@ -215,17 +212,30 @@ fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
         "#
     );
     opamp_server.set_config_response(ac_instance_id.clone(), agents);
+
+    let sleep_instance_id =
+        get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths.clone());
     // The agent-type use 'fake_variable' to get the agent version
     let sleep_agent_cfg = format!("fake_variable: '{version}'").to_string();
     opamp_server.set_config_response(sleep_instance_id.clone(), sleep_agent_cfg);
 
     retry(60, Duration::from_secs(1), || {
         // Remote config status should fail because the package is unsigned
-        check_latest_remote_config_status_is_expected(
-            &opamp_server,
-            &sleep_instance_id,
-            RemoteConfigStatuses::Failed as i32,
-        )?;
+        check_latest_remote_config_status(&opamp_server, &sleep_instance_id, |config_status| {
+            if config_status.status == RemoteConfigStatuses::Failed as i32
+                && config_status
+                    .error_message
+                    .contains("signature verification failed")
+            {
+                Ok(())
+            } else {
+                Err(
+                    "Expected RemoteConfig failure because the signature verification failed"
+                        .to_string()
+                        .into(),
+                )
+            }
+        })?;
         Ok(())
     });
 }
@@ -315,7 +325,7 @@ fn create_agent_type(
       registry: {OCI_TEST_REGISTRY_URL}
       repository: test
       version: ${{nr-var:fake_variable}}
-      public_key: {public_key_url}
+      public_key_url: {public_key_url}
 "#
     );
 

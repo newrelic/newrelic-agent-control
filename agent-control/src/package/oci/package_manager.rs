@@ -92,7 +92,7 @@ where
     /// The package is first downloaded to `temp_package_path` and then extracted to `package_path`.
     fn install_archive(
         &self,
-        package_data: &PackageData,
+        package_data: PackageData,
         tmp_download_path: &Path,
         install_path: &Path,
     ) -> Result<InstalledPackageData, OCIPackageManagerError> {
@@ -367,7 +367,7 @@ where
         // If we face an error during installation, we must ensure the temporary directory is deleted.
         // We hide the error of the folder if something else went wrong.
         let installed_package = self
-            .install_archive(&package_data, &temp_package_path, &package_path)
+            .install_archive(package_data, &temp_package_path, &package_path)
             .inspect_err(|_| _ = self.directory_manager.delete(&temp_package_path))?;
 
         self.directory_manager
@@ -731,11 +731,7 @@ mod tests {
             .expect_download()
             .with(eq(test_reference()), eq(None), eq(download_dir))
             .once()
-            .returning(|_, _, _| {
-                Err(OCIDownloaderError::DownloadingArtifact(
-                    "download failed".into(),
-                ))
-            });
+            .returning(|_, _, _| Err(OCIDownloaderError("download failed".into())));
 
         let pm = OCIPackageManager::new(downloader, directory_manager, remote_dir);
 
