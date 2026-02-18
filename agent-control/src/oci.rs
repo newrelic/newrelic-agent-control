@@ -136,13 +136,9 @@ pub mod tests {
         let jwks_key_pairs: Vec<TestKeyPair> = (0..num_jwks_keys).map(TestKeyPair::new).collect();
         // The signer key corresponds to the key position in `signer_position` if any, otherwise
         // it is public key that is not included in the list
-        let separate_signer;
         let kp_signer = match signer_position {
             Some(pos) => &jwks_key_pairs[pos],
-            None => {
-                separate_signer = TestKeyPair::new(num_jwks_keys + 1);
-                &separate_signer
-            }
+            None => &TestKeyPair::new(num_jwks_keys + 1),
         };
 
         let app_server = FakeOciServer::new("my-app", "v1")
