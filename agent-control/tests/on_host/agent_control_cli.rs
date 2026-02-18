@@ -25,6 +25,7 @@ fn test_config_generator_fleet_disabled_proxy() {
         r#"
 server:
   enabled: true
+agents: {{}}
 proxy:
   url: https://some.proxy.url/
   ca_bundle_dir: /test/bundle/dir
@@ -61,6 +62,7 @@ fn test_config_generator_fleet_disabled_proxy_empty_fields() {
         r#"
 server:
   enabled: true
+agents: {{}}
 {LOG_SECTION}
     "#,
     );
@@ -105,6 +107,7 @@ fleet_control:
 
 server:
   enabled: true
+agents: {{}}
 
 {LOG_SECTION}
     "#,
