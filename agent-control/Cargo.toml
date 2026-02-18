@@ -71,7 +71,7 @@ opentelemetry-appender-tracing = { version = "0.31.1", features = [
     "experimental_use_tracing_span_context",
 ] }
 async-trait = "0.1.89"
-oci-spec = "0.8.4"
+oci-spec = "0.9.0"
 flate2 = "1.1.9"
 tar = "0.4.44"
 zip = "8.1.0"
