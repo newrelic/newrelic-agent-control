@@ -49,6 +49,8 @@ builds:
       - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
     hooks:
       post:
+        # Patch the windows metadata (injecting the current year)
+        - cmd: ./build/scripts/patch_windows_metadata.sh ./build/package/windows/metadata/winres-agent.json {{ .Version }} {{ .Path }}
         - cmd: ./build/scripts/windows-exec-sign/sign.sh
           env:
             - SKIP_WINDOWS_SIGN={{ if index .Env "SKIP_WINDOWS_SIGN"}}{{ .Env.SKIP_WINDOWS_SIGN }}{{ else }}{{ end }}
@@ -91,6 +93,8 @@ builds:
         - cmd: sh -c 'while [ ! -f target/x86_64-pc-windows-msvc/release/newrelic-agent-control.exe ]; do echo "Waiting for newrelic-agent-control-windows build to complete..."; sleep 5; done'
           output: true
       post:
+        # Patch the CLI windows metadata (injecting the current year)
+        - cmd: ./build/scripts/patch_windows_metadata.sh ./build/package/windows/metadata/winres-cli.json {{ .Version }} {{ .Path }}
         # This step cannot be done inside the 'signs' section because that happens after packaging.
         - cmd: ./build/scripts/windows-exec-sign/sign.sh
           env:

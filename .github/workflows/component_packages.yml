@@ -75,9 +75,10 @@ jobs:
         run: |
           sudo apt-get install -y llvm
 
-      - name: Install cargo-xwin
+      - name: Install cargo-xwin and go-winres
         run: |
           cargo install --locked cargo-xwin --force
+          go install github.com/tc-hib/go-winres@latest
 
       - name: If pre-release, set tag and verify it matches Cargo.toml version
         if: ${{ inputs.pre-release}}
