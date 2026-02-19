@@ -130,7 +130,6 @@ deployment:
         port: ${nr-var:health_check.port}
     packages:
       nrdot:
-        type: zip
         download:
           oci:
             registry: ${nr-var:oci.registry}

@@ -189,7 +189,6 @@ executables:
     args: []
 packages:
   my-pkg:
-    type: tar
     download:
       oci:
         registry: my.registry
@@ -258,7 +257,6 @@ executables:
     args: []
 packages:
   my-pkg:
-    type: tar
     download:
       oci:
         registry: my.registry
@@ -751,7 +749,6 @@ executables:
         last_retry_interval: 30s
 packages:
   otel-first:
-    type: tar.gz
     download:
       oci:
         registry: ${nr-var:registry}
@@ -759,7 +756,6 @@ packages:
         version: ${nr-var:version}
         public_key_url: ${nr-var:public-key-url}
   otel-second:
-    type: tar.gz
     download:
       oci:
         registry: ${nr-var:registry}
