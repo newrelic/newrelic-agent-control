@@ -12,8 +12,7 @@ fn test_config_generator_fleet_disabled_proxy() {
     let args = format!(
         "generate-config 
           --fleet-disabled 
-          --agent-set infra-agent 
-          --region us 
+          --region us
           --proxy-url https://some.proxy.url/ 
           --proxy-ca-bundle-dir /test/bundle/dir 
           --ignore-system-proxy true 
@@ -26,9 +25,7 @@ fn test_config_generator_fleet_disabled_proxy() {
         r#"
 server:
   enabled: true
-agents:
-  nr-infra:
-    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+agents: {{}}
 proxy:
   url: https://some.proxy.url/
   ca_bundle_dir: /test/bundle/dir
@@ -51,8 +48,7 @@ fn test_config_generator_fleet_disabled_proxy_empty_fields() {
     let args = format!(
         "generate-config 
           --fleet-disabled 
-          --agent-set infra-agent 
-          --region us 
+          --region us
           --proxy-url= 
           --proxy-ca-bundle-dir= 
           --proxy-ca-bundle-file= 
@@ -66,9 +62,7 @@ fn test_config_generator_fleet_disabled_proxy_empty_fields() {
         r#"
 server:
   enabled: true
-agents:
-  nr-infra:
-    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+agents: {{}}
 {LOG_SECTION}
     "#,
     );
@@ -89,8 +83,7 @@ fn test_config_generator_fleet_enabled_identity_provisioned() {
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
     let args = format!(
         "generate-config 
-          --agent-set infra-agent 
-          --region us 
+          --region us
           --fleet-id FLEET-ID 
           --auth-client-id CLIENT-ID 
           --auth-private-key-path {key_path} 
@@ -114,10 +107,8 @@ fleet_control:
 
 server:
   enabled: true
+agents: {{}}
 
-agents:
-  nr-infra:
-    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
 {LOG_SECTION}
     "#,
     );
@@ -138,8 +129,7 @@ fn test_config_generator_environment_variables() {
         "generate-config 
           --fleet-disabled 
           --region us 
-          --agent-set no-agents 
-          --output-path {path} 
+          --output-path {path}
           --env-vars-file-path {env_vars_path} 
           --newrelic-license-key fake_license",
     );
