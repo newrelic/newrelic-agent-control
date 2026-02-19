@@ -17,6 +17,13 @@ impl Annotations {
         annotations
     }
 
+    /// Adds extra annotations to the collection WITHOUT replacing existing ones.
+    pub fn append_extra_annotations(&mut self, annotations: &BTreeMap<String, String>) {
+        for (label, value) in annotations.iter() {
+            self.0.entry(label.clone()).or_insert(value.clone());
+        }
+    }
+
     pub fn get(&self) -> BTreeMap<String, String> {
         self.0.clone()
     }
