@@ -165,6 +165,7 @@ deployment:
             registry: ${nr-var:oci.registry}
             repository: ${nr-var:oci.repository}
             version: ${nr-var:version}
+            public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrinfraagent/jwks.json
     version:
       path: ${nr-sub:packages.infra-agent.dir}\\newrelic-infra.exe
       args:
