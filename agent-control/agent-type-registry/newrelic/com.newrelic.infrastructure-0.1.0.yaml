@@ -159,7 +159,6 @@ deployment:
         port: ${nr-var:health_port}
     packages:
       infra-agent:
-        type: zip
         download:
           oci:
             registry: ${nr-var:oci.registry}
