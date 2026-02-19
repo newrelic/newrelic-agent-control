@@ -145,7 +145,9 @@ impl Client {
             .pull_image_manifest(cosign_image_ref, &self.auth)
             .await
             .map_err(|err| {
-                OciClientError::Verify(format!("could not fetch cosign_image_ref manifest: {err}"))
+                OciClientError::Verify(format!(
+                    "could not fetch signature  manifest '{cosign_image_ref}': {err}"
+                ))
             })?;
         let mut signature_layers = Vec::new();
 
