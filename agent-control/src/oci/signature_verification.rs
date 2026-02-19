@@ -296,7 +296,7 @@ mod tests {
         let kp = TestKeyPair::new(0);
         let good_digest = "sha256:1111";
         let payload = serde_json::json!({
-            "critical": { "identity": { "docker-reference": "" }, "image": { "docker-reference": good_digest }, "type": "cosign container image signature" },
+            "critical": { "identity": { "docker-reference": "" }, "image": { "docker-manifest-digest": good_digest }, "type": "cosign container image signature" },
             "optional": {}
         });
         let payload_bytes = serde_json::to_vec(&payload).unwrap();
