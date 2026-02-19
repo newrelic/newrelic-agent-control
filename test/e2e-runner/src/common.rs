@@ -57,6 +57,14 @@ pub struct Args {
     /// Flag to migrate existing infrastructure agent configuration. Currently used only in Linux.
     #[arg(long, default_value = "true")]
     pub migrate_config_infra: String,
+
+    /// Version of the infrastructure agent OCI image to use in tests
+    #[arg(long)]
+    pub infra_agent_version: Option<String>,
+
+    /// Version of the NRDot OCI image to use in tests
+    #[arg(long)]
+    pub nrdot_version: Option<String>,
 }
 
 /// Data to set up installation
