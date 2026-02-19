@@ -24,6 +24,9 @@ on:
 permissions:
   contents: read
 
+# NOTE: The below environment vars are bumped automatically by Renovate so we always use the latest
+# versions of the packages in our E2E tests. If you change the names or move these values outside
+# the GitHub workflows please update `renovate.json` accordingly to avoid breaking the automation!
 env:
   HOST_E2E_INFRA_AGENT_VERSION: "1.72.1"
   HOST_E2E_NRDOT_VERSION: "1.8.0"
