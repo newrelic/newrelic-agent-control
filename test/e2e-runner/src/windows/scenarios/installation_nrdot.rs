@@ -1,5 +1,4 @@
 use crate::common::config::NRDOT_CONFIG;
-use crate::common::config::NRDOT_VERSION;
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::{retry, retry_panic};
@@ -14,6 +13,11 @@ use tracing::info;
 
 /// Runs a complete Windows E2E installation test with NRDOT
 pub fn test_nrdot(args: Args) {
+    let nrdot_version = args
+        .nrdot_version
+        .clone()
+        .expect("--nrdot-version is required for this scenario");
+
     let recipe_data = RecipeData {
         args,
         ..Default::default()
@@ -43,7 +47,10 @@ agents:
         ),
     );
 
-    write_agent_local_config(&windows::local_config_path("nrdot"), nrdot_config());
+    write_agent_local_config(
+        &windows::local_config_path("nrdot"),
+        nrdot_config(&nrdot_version),
+    );
 
     windows::service::restart_service(SERVICE_NAME, STATUS_RUNNING);
     info!("Waiting 10 seconds for service to start");
@@ -76,10 +83,10 @@ agents:
     info!("Test completed successfully");
 }
 
-pub fn nrdot_config() -> String {
+pub fn nrdot_config(nrdot_version: &str) -> String {
     format!(
         r#"
-version: {NRDOT_VERSION}
+version: {nrdot_version}
 {NRDOT_CONFIG}
 "#
     )

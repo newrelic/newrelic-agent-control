@@ -3,10 +3,6 @@ use serde_yaml::Value;
 use std::{fs, io::Write, path::PathBuf};
 use tracing::info;
 
-// TODO we should get the version dynamically from the recipe itself
-pub const INFRA_AGENT_VERSION: &str = "1.72.1";
-pub const NRDOT_VERSION: &str = "1.8.0";
-
 /// Updates the agent control config in `config_path` to include the content specified in `new_content`
 pub fn update_config(config_path: impl AsRef<str>, new_content: impl AsRef<str>) {
     let config_path = config_path.as_ref();

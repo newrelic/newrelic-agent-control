@@ -1,4 +1,3 @@
-use crate::common::config::INFRA_AGENT_VERSION;
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
 use crate::common::exec::LongRunningProcess;
 use crate::common::nrql::check_query_results_are_not_empty;
@@ -40,6 +39,11 @@ const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWE5NjY2LTkxYzQtN2M0My1hNzZh
 
 /// Installs AC configured to use a proxy and verifies that the proxy is used.
 pub fn test_proxy(args: Args) {
+    let infra_agent_version = args
+        .infra_agent_version
+        .clone()
+        .expect("--infra-agent-version is required for this scenario");
+
     info!("Setting up proxy");
     let mitm_process = setup_mitmproxy();
 
@@ -85,7 +89,7 @@ config_agent:
     level: debug
   proxy: {PROXY_URL}
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
-version: {INFRA_AGENT_VERSION}
+version: {infra_agent_version}
 "#
         ),
     );
