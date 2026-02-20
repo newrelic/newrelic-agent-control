@@ -243,17 +243,38 @@ variables:
       type: bool
       required: false
       default: false
+    oci:
+      registry:
+        description: "Package registry url"
+        type: string
+        required: false
+        default: ghcr.io
+        variants:
+          ac_config_field: "oci_registry_urls"
+          values: [ "ghcr.io" ]
+      repository:
+        description: "Package repository name"
+        type: string
+        required: false
+        default: newrelic/infrastructure-agent-artifacts
+        variants:
+          ac_config_field: "oci_repository_urls"
+          values: [ "alvarocabanas/ebpf-test" ]
+    version:
+      description: "Agent version"
+      type: string
+      required: true
 deployment:
   linux:
     enable_file_logging: ${nr-var:enable_file_logging}
     version:
-      path: /usr/bin/nr-ebpf-agent-client
+      path: ${nr-sub:packages.infra-agent.dir}/nr-ebpf-agent-client
       args:
         - --version
       regex: \d+\.\d+\.\d+
     executables:
       - id: nr-ebpf-agent-client
-        path: /usr/bin/nr-ebpf-agent-client
+        path: ${nr-sub:packages.infra-agent.dir}/nr-ebpf-agent-client
         env:
           NEW_RELIC_LICENSE_KEY: "${nr-env:NEW_RELIC_LICENSE_KEY}"
           DEPLOYMENT_NAME: "${nr-var:config_agent.DEPLOYMENT_NAME}"
