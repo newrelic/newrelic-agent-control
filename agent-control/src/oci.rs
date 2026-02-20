@@ -81,9 +81,25 @@ impl Client {
         })
     }
 
-    /// Obtains public keys from the provided `public_key_url` and performs signature verification of the provided
-    /// `reference`. If verification succeeds, it returns the `reference` (identified by digest) that has been
-    /// verified.
+    /// Verifies the Cosign signature of an OCI artifact.
+    ///
+    /// This function performs signature verification on the manifest corresponding to the provided `reference`.
+    /// If the reference points to an index-manifest (multi-arch image), the signature of the index-manifest itself
+    /// is verified—not the platform-specific manifest underneath it.
+    ///
+    /// The expected signature format follows Cosign's "Simple Signing" specification:
+    /// - Signatures are stored as separate artifacts in the same registry
+    /// - Each signature is a JSON payload (Simple Signing format) containing a `critical` section with the
+    ///   manifest digest of the signed artifact
+    /// - The signature itself is base64-encoded in the layer's annotations under `dev.cosignproject.cosign/signature`
+    /// - Verification uses Ed25519 algorithm with the provided public keys
+    ///
+    /// Public keys are fetched from `public_key_url` and verification will be performed using each key in the
+    /// `public_key_url` result, considering that the verification succeed if the signature corresponds to one
+    /// of the public keys.
+    ///
+    /// If verification succeeds, the verified `reference` (identified by digest) is returned.
+    ///
     pub fn verify_signature(
         &self,
         reference: &Reference,
@@ -141,28 +157,10 @@ pub mod tests {
             None => &TestKeyPair::new(num_jwks_keys + 1),
         };
 
-        let app_server = FakeOciServer::new("my-app", "v1")
-            .with_layer(b"my binary", "application/vnd.oci.image.layer.v1.tar+gzip");
-
-        let manifest_bytes = serde_json::to_vec(&app_server.manifest).unwrap();
-        let manifest_digest = digest(&SHA256, &manifest_bytes);
-        let image_manifest_digest_str = format!("sha256:{}", hex_bytes(manifest_digest.as_ref()));
-
-        let payload = serde_json::json!({
-            "critical": {
-                "identity": { "docker-reference": "" },
-                "image": { "docker-reference": image_manifest_digest_str },
-                "type": "cosign container image signature"
-            },
-            "optional": {}
-        });
-        let payload_bytes = serde_json::to_vec(&payload).unwrap();
-        let sig_b64 =
-            base64::engine::general_purpose::STANDARD.encode(kp_signer.sign(&payload_bytes));
-        let sig_tag = format!("{}.sig", image_manifest_digest_str.replace(':', "-"));
-
-        let sig_server =
-            FakeOciServer::new("my-app", &sig_tag).with_cosign_layer(&payload_bytes, &sig_b64);
+        let mock_server = FakeOciServer::new("my-app", "v1")
+            .with_layer(b"my binary", "application/vnd.oci.image.layer.v1.tar+gzip")
+            .with_signature(kp_signer)
+            .build();
 
         let jwks_keys: Vec<serde_json::Value> = jwks_key_pairs
             .iter()
@@ -170,19 +168,18 @@ pub mod tests {
             .collect();
         let jwks_server = JwksMockServer::new(jwks_keys);
 
-        let registry_mock = MockServer::start();
-        app_server.setup_mocks_on(&registry_mock);
-        sig_server.setup_mocks_on(&registry_mock);
-
         let client = create_test_client();
-        let image_ref =
-            Reference::from_str(&format!("{}/my-app:v1", registry_mock.address())).unwrap();
+        let image_ref = mock_server.reference();
 
         let result = client.verify_signature(&image_ref, &jwks_server.url);
 
         if signer_position.is_some() {
             let verified_ref = result.expect("verification should succeed");
-            assert!(verified_ref.whole().contains(&image_manifest_digest_str));
+            assert!(
+                verified_ref
+                    .whole()
+                    .contains(&mock_server.manifest_digest())
+            );
         } else {
             assert_matches!(result, Err(OciClientError::Verify(_)));
         }
@@ -192,18 +189,15 @@ pub mod tests {
     fn test_verify_fails_if_signature_is_missing() {
         let trusted_kp = TestKeyPair::new(0);
 
-        let app_server = FakeOciServer::new("my-app", "v1")
-            .with_layer(b"binary", "application/vnd.oci.image.layer.v1.tar+gzip");
+        let mock_server = FakeOciServer::new("my-app", "v1")
+            .with_layer(b"binary", "application/vnd.oci.image.layer.v1.tar+gzip")
+            .build();
 
         let jwks_keys = vec![serde_json::to_value(trusted_kp.public_key_jwk()).unwrap()];
         let jwks_server = JwksMockServer::new(jwks_keys);
 
-        let registry_mock = MockServer::start();
-        app_server.setup_mocks_on(&registry_mock);
-
         let client = create_test_client();
-        let image_ref =
-            Reference::from_str(&format!("{}/my-app:v1", registry_mock.address())).unwrap();
+        let image_ref = mock_server.reference();
 
         let result = client.verify_signature(&image_ref, &jwks_server.url);
 
@@ -236,6 +230,7 @@ pub mod tests {
         tag: String,
         layers: Vec<(String, Vec<u8>)>,
         manifest: OciImageManifest,
+        signature: Option<(String, OciImageManifest)>,
     }
 
     impl FakeOciServer {
@@ -244,6 +239,7 @@ pub mod tests {
                 server: None,
                 repo: repo.to_string(),
                 tag: tag.to_string(),
+                signature: None,
                 layers: Vec::new(),
                 manifest: OciImageManifest::default(),
             }
@@ -271,38 +267,64 @@ pub mod tests {
             self
         }
 
-        pub fn with_cosign_layer(mut self, content: &[u8], signature: &str) -> Self {
-            let digest_hash = digest(&SHA256, content);
-            let digest_str = format!("sha256:{}", hex_bytes(digest_hash.as_ref()));
+        pub fn with_signature(mut self, signer: &TestKeyPair) -> Self {
+            // Sign the manifest
+            let manifest_bytes = serde_json::to_vec(&self.manifest).unwrap();
+            let manifest_digest = digest(&SHA256, &manifest_bytes);
+            let image_manifest_digest_str =
+                format!("sha256:{}", hex_bytes(manifest_digest.as_ref()));
+            let payload = serde_json::json!({
+                "critical": {
+                    "identity": { "docker-reference": "" },
+                    "image": { "docker-manifest-digest": image_manifest_digest_str },
+                    "type": "cosign container image signature"
+                },
+                "optional": {}
+            });
+            let payload_bytes = serde_json::to_vec(&payload).unwrap();
+            let sig_b64 =
+                base64::engine::general_purpose::STANDARD.encode(signer.sign(&payload_bytes));
+            let sig_tag = format!("{}.sig", image_manifest_digest_str.replace(':', "-"));
 
-            self.layers.push((digest_str.clone(), content.to_vec()));
+            // Setup the signature's manifest and the corresponding layer
+            let mut signature_manifest = OciImageManifest::default();
+
+            let digest_hash = digest(&SHA256, &payload_bytes);
+            let digest_str = format!("sha256:{}", hex_bytes(digest_hash.as_ref()));
+            self.layers
+                .push((digest_str.clone(), payload_bytes.clone()));
 
             let mut annotations = BTreeMap::new();
-            annotations.insert(
-                "dev.cosignproject.cosign/signature".to_string(),
-                signature.to_string(),
-            );
+            annotations.insert("dev.cosignproject.cosign/signature".to_string(), sig_b64);
 
             let layer_descriptor = OciDescriptor {
                 media_type: "application/vnd.dev.cosign.simplesigning.v1+json".to_string(),
                 digest: digest_str,
-                size: content.len() as i64,
+                size: payload_bytes.len() as i64,
                 annotations: Some(annotations),
                 ..Default::default()
             };
-            self.manifest.layers.push(layer_descriptor);
+
+            signature_manifest.layers.push(layer_descriptor);
+
+            self.signature = Some((sig_tag, signature_manifest));
+
             self
         }
 
         pub fn setup_mocks_on(&self, server: &MockServer) {
             let manifest_bytes = serde_json::to_vec(&self.manifest).unwrap();
-            server.mock(|when, then| {
-                when.method(GET)
-                    .path(format!("/v2/{}/manifests/{}", self.repo, self.tag));
-                then.status(200)
-                    .header("Content-Type", "application/vnd.oci.image.manifest.v1+json")
-                    .body(manifest_bytes);
-            });
+            let manifest_digest = self.manifest_digest();
+            // Mock manifest by tag
+            self.mock_manifest(server, &self.tag, manifest_bytes.clone());
+            // Mock manifest by digest
+            self.mock_manifest(server, &manifest_digest, manifest_bytes);
+            // Mock signature manifest
+            if let Some((sig_tag, sig_manifest)) = self.signature.as_ref() {
+                let manifest_bytes = serde_json::to_vec(sig_manifest).unwrap();
+                self.mock_manifest(server, sig_tag, manifest_bytes);
+            }
+            // Mock layers
             for (digest, content) in &self.layers {
                 let content_clone = content.clone();
                 let digest_clone = digest.clone();
@@ -315,6 +337,16 @@ pub mod tests {
             }
         }
 
+        fn mock_manifest(&self, server: &MockServer, path: &str, content: Vec<u8>) {
+            server.mock(|when, then| {
+                when.method(GET)
+                    .path(format!("/v2/{}/manifests/{}", self.repo, path));
+                then.status(200)
+                    .header("Content-Type", "application/vnd.oci.image.manifest.v1+json")
+                    .body(content);
+            });
+        }
+
         pub fn with_artifact_type(mut self, artifact_type: &str) -> Self {
             self.manifest.artifact_type = Some(artifact_type.to_string());
             self
@@ -323,6 +355,12 @@ pub mod tests {
         pub fn reference(&self) -> Reference {
             let addr = self.server.as_ref().expect("Call build() first").address();
             Reference::from_str(&format!("{}/{}:{}", addr, self.repo, self.tag)).unwrap()
+        }
+
+        pub fn manifest_digest(&self) -> String {
+            let manifest_bytes = serde_json::to_vec(&self.manifest).unwrap();
+            let manifest_digest = digest(&SHA256, &manifest_bytes);
+            format!("sha256:{}", hex_bytes(manifest_digest.as_ref()))
         }
     }
 

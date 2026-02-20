@@ -39,29 +39,24 @@ pub struct SimpleSigning {
     pub optional: Option<BTreeMap<String, String>>,
 }
 
-/// The `critical` section of the payload.
-///
-/// According to the specification, consumers MUST reject the signature if the critical
-/// section contains any fields they do not understand. It ensures that the signature
-/// is strictly bound to a specific image digest and identity.
-///
-/// See: [Critical Section Spec](https://github.com/sigstore/cosign/blob/main/specs/SIGNATURE_SPEC.md#critical-header)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Critical {
-    pub identity: ImageIdentity,
-    pub image: ImageIdentity,
+    pub identity: Identity,
+    pub image: Image,
     #[serde(rename = "type")]
     pub type_field: String,
 }
 
-/// Represents the identity of the image or the signer within the critical section.
-///
-/// - When used in `image`: contains the docker-reference (digest) of the signed artifact.
-/// - When used in `identity`: contains the docker-reference of the signing identity (often empty in basic key pairs).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ImageIdentity {
+pub struct Identity {
     #[serde(rename = "docker-reference")]
     pub docker_reference: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Image {
+    #[serde(rename = "docker-manifest-digest")]
+    pub docker_manifest_digest: String,
 }
 
 impl Client {
@@ -86,21 +81,21 @@ impl Client {
         reference: &Reference,
         public_keys: &[PublicKey],
     ) -> Result<Reference, OciClientError> {
-        // Resolve image digest
+        // Resolve manifest digest
         let digest = match reference.digest() {
             Some(digest) => {
-                debug!(%digest, "Artifact digest was already informed");
+                debug!(%digest, "Manifest digest was already informed");
                 digest.to_string()
             }
             None => {
-                let (_, digest) = self
+                let digest = self
                     .client
-                    .pull_image_manifest(reference, &self.auth)
+                    .fetch_manifest_digest(reference, &self.auth)
                     .await
                     .map_err(|err| {
                         OciClientError::Verify(format!("could not fetch manifest: {err}"))
                     })?;
-                debug!(%digest, "Artifact digest resolved");
+                debug!(%digest, "Manifest digest resolved");
                 digest
             }
         };
@@ -143,7 +138,9 @@ impl Client {
             .pull_image_manifest(cosign_image_ref, &self.auth)
             .await
             .map_err(|err| {
-                OciClientError::Verify(format!("could not fetch cosign_image_ref manifest: {err}"))
+                OciClientError::Verify(format!(
+                    "could not fetch signature  manifest '{cosign_image_ref}': {err}"
+                ))
             })?;
         let mut signature_layers = Vec::new();
 
@@ -172,9 +169,12 @@ impl Client {
                 continue;
             }
 
-            let Ok(simple_signing) = serde_json::from_slice::<SimpleSigning>(&raw_data) else {
-                debug!("Failed to parse signature layer JSON. Skipping.");
-                continue;
+            let simple_signing = match serde_json::from_slice::<SimpleSigning>(&raw_data) {
+                Ok(simple_signing) => simple_signing,
+                Err(err) => {
+                    debug!("Failed to parse signature layer JSON. Skipping: {err}");
+                    continue;
+                }
             };
 
             signature_layers.push(SignatureLayer {
@@ -206,9 +206,9 @@ pub fn verify_signatures(
     let mut checked_count = 0;
 
     for layer in layers {
-        if layer.simple_signing.critical.image.docker_reference != expected_image_digest {
+        if layer.simple_signing.critical.image.docker_manifest_digest != expected_image_digest {
             debug!(
-                claims = layer.simple_signing.critical.image.docker_reference,
+                claims = layer.simple_signing.critical.image.docker_manifest_digest,
                 expected = expected_image_digest,
                 "Signature skipped: digest mismatch"
             );
@@ -290,10 +290,7 @@ mod tests {
     fn test_verify_signatures_logic_success() {
         let kp = TestKeyPair::new(0);
         let good_digest = "sha256:1111";
-        let payload = serde_json::json!({
-            "critical": { "identity": { "docker-reference": "" }, "image": { "docker-reference": good_digest }, "type": "cosign container image signature" },
-            "optional": {}
-        });
+        let payload = simple_signing_payload(good_digest);
         let payload_bytes = serde_json::to_vec(&payload).unwrap();
         let signature = base64::engine::general_purpose::STANDARD.encode(kp.sign(&payload_bytes));
         let layer = SignatureLayer {
@@ -311,14 +308,7 @@ mod tests {
         let valid_digest = "sha256:1111";
         let attacker_digest = "sha256:6666";
 
-        let payload = serde_json::json!({
-            "critical": {
-                "identity": { "docker-reference": "" },
-                "image": { "docker-reference": valid_digest },
-                "type": "cosign container image signature"
-            },
-            "optional": {}
-        });
+        let payload = simple_signing_payload(valid_digest);
         let payload_bytes = serde_json::to_vec(&payload).unwrap();
         let signature = base64::engine::general_purpose::STANDARD.encode(kp.sign(&payload_bytes));
 
@@ -344,14 +334,7 @@ mod tests {
 
         let digest = "sha256:1111";
 
-        let payload = serde_json::json!({
-            "critical": {
-                "identity": { "docker-reference": "" },
-                "image": { "docker-reference": digest },
-                "type": "cosign container image signature"
-            },
-            "optional": {}
-        });
+        let payload = simple_signing_payload(digest);
         let payload_bytes = serde_json::to_vec(&payload).unwrap();
         let signature =
             base64::engine::general_purpose::STANDARD.encode(kp_signer.sign(&payload_bytes));
@@ -373,7 +356,7 @@ mod tests {
         let json_data = r#"{
             "critical": {
                 "identity": { "docker-reference": "registry.com/image" },
-                "image": { "docker-reference": "sha256:abcd" },
+                "image": { "docker-manifest-digest": "sha256:abcd" },
                 "type": "cosign container image signature"
             },
             "optional": {
@@ -388,7 +371,18 @@ mod tests {
             parsed.critical.type_field,
             "cosign container image signature"
         );
-        assert_eq!(parsed.critical.image.docker_reference, "sha256:abcd");
+        assert_eq!(parsed.critical.image.docker_manifest_digest, "sha256:abcd");
         assert_eq!(parsed.optional.unwrap().get("creator").unwrap(), "cosign");
+    }
+
+    fn simple_signing_payload(digest: &str) -> serde_json::Value {
+        serde_json::json!({
+            "critical": {
+                "identity": { "docker-reference": "" },
+                "image": { "docker-manifest-digest": digest },
+                "type": "cosign container image signature"
+            },
+            "optional": {}
+        })
     }
 }

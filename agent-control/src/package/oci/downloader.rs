@@ -1,22 +1,16 @@
-use crate::oci::{Client, OciClientError};
+use crate::oci::Client;
 use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::utils::retry::retry;
 use oci_spec::distribution::Reference;
 use std::path::Path;
 use std::time::Duration;
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, warn};
 use url::Url;
 
 #[derive(Debug, Error)]
-pub enum OCIDownloaderError {
-    #[error("downloading OCI artifact: {0}")]
-    DownloadingArtifact(String),
-    #[error("I/O error: {0}")]
-    Io(std::io::Error),
-    #[error("failure on OCI client request: {0}")]
-    Client(OciClientError),
-}
+#[error("downloading OCI artifact: {0}")]
+pub struct OCIDownloaderError(pub(super) String);
 
 /// An interface for downloading Agent Packages from an OCI registry.
 pub trait OCIAgentDownloader: Send + Sync {
@@ -33,6 +27,7 @@ pub trait OCIAgentDownloader: Send + Sync {
 // This implementation avoids that since each download is expected to be done in a separate package directory.
 pub struct OCIArtifactDownloader {
     client: Client,
+    signature_verification_enabled: bool,
     max_retries: usize,
     retry_interval: Duration,
 }
@@ -48,19 +43,16 @@ impl OCIAgentDownloader for OCIArtifactDownloader {
     fn download(
         &self,
         reference: &Reference,
-        _public_key_url: &Option<Url>, // TODO: will be used when signatures are actually checked
+        public_key_url: &Option<Url>,
         package_dir: &Path,
     ) -> Result<LocalAgentPackage, OCIDownloaderError> {
         debug!("Downloading '{reference}'",);
         retry(self.max_retries, self.retry_interval, || {
-            self.download_package_artifact(reference, package_dir)
+            let reference = self.verify_package_signature(reference, public_key_url)?;
+            self.download_package_artifact(&reference, package_dir)
                 .inspect_err(|e| debug!("Download '{reference}' failed with error: {e}"))
         })
-        .map_err(|e| {
-            OCIDownloaderError::DownloadingArtifact(format!(
-                "download attempts exceeded. Last error: {e}"
-            ))
-        })
+        .map_err(|e| OCIDownloaderError(format!("download attempts exceeded. Last error: {e}")))
     }
 }
 
@@ -68,9 +60,10 @@ const DEFAULT_RETRIES: usize = 0;
 
 impl OCIArtifactDownloader {
     /// Returns an artifact downloader with default retries setup.
-    pub fn new(client: Client) -> Self {
+    pub fn new(client: Client, signature_verification_enabled: bool) -> Self {
         OCIArtifactDownloader {
             client,
+            signature_verification_enabled,
             max_retries: DEFAULT_RETRIES,
             retry_interval: Duration::default(),
         }
@@ -85,6 +78,24 @@ impl OCIArtifactDownloader {
         }
     }
 
+    fn verify_package_signature(
+        &self,
+        reference: &Reference,
+        public_key_url: &Option<Url>,
+    ) -> Result<Reference, OCIDownloaderError> {
+        if !self.signature_verification_enabled {
+            warn!("Signature verification is disabled, skipping");
+            return Ok(reference.clone());
+        }
+        let Some(public_key_url) = public_key_url else {
+            warn!("No public_key_url for agent package, skipping signature verification");
+            return Ok(reference.clone());
+        };
+        self.client
+            .verify_signature(reference, public_key_url)
+            .map_err(|err| OCIDownloaderError(err.to_string()))
+    }
+
     fn download_package_artifact(
         &self,
         reference: &Reference,
@@ -93,16 +104,15 @@ impl OCIArtifactDownloader {
         let (image_manifest, _) = self
             .client
             .pull_image_manifest(reference)
-            .map_err(OCIDownloaderError::Client)?;
+            .map_err(|err| OCIDownloaderError(format!("pull artifact manifest failure: {err}")))?;
 
-        let (layer, media_type) = LocalAgentPackage::get_layer(&image_manifest).map_err(|e| {
-            OCIDownloaderError::DownloadingArtifact(format!("validating package manifest: {e}"))
-        })?;
+        let (layer, media_type) = LocalAgentPackage::get_layer(&image_manifest)
+            .map_err(|err| OCIDownloaderError(format!("validating package manifest: {err}")))?;
 
         let layer_path = package_dir.join(layer.digest.replace(':', "_"));
         self.client
             .pull_blob_to_file(reference, &layer, &layer_path)
-            .map_err(OCIDownloaderError::Client)?;
+            .map_err(|err| OCIDownloaderError(format!("download artifact failure: {err}")))?;
 
         debug!("Artifact written to {}", layer_path.display());
 
@@ -118,6 +128,8 @@ pub mod tests {
     use crate::package::oci::artifact_definitions::{
         LayerMediaType, ManifestArtifactType, PackageMediaType,
     };
+    use crate::signature::public_key::tests::TestKeyPair;
+    use crate::signature::public_key_fetcher::tests::JwksMockServer;
 
     use super::*;
     use httpmock::prelude::*;
@@ -142,6 +154,37 @@ pub mod tests {
 
     #[test]
     fn test_download_agent_package_success() {
+        let key_pair = TestKeyPair::new(0);
+        let jwks_server = JwksMockServer::new(vec![
+            serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
+        ]);
+        let server = FakeOciServer::new("test-repo", "v1.0.0")
+            .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
+            .with_layer(
+                b"test agent package content",
+                &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
+            )
+            .with_signature(&key_pair)
+            .build();
+
+        let downloader = create_downloader(true);
+        let dest_dir = tempdir().unwrap();
+        let local_agent_package = downloader
+            .download(&server.reference(), &Some(jwks_server.url), dest_dir.path())
+            .unwrap();
+
+        assert_eq!(
+            std::fs::read(local_agent_package.path()).unwrap(),
+            b"test agent package content"
+        );
+    }
+
+    #[test]
+    fn test_download_agent_package_success_signature_verification_disabled_and_unsigned_artifact() {
+        let key_pair = TestKeyPair::new(0);
+        let jwks_server = JwksMockServer::new(vec![
+            serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
+        ]);
         let server = FakeOciServer::new("test-repo", "v1.0.0")
             .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
             .with_layer(
@@ -150,7 +193,30 @@ pub mod tests {
             )
             .build();
 
-        let downloader = create_downloader();
+        let downloader = create_downloader(false);
+        let dest_dir = tempdir().unwrap();
+        let local_agent_package = downloader
+            .download(&server.reference(), &Some(jwks_server.url), dest_dir.path())
+            .unwrap();
+
+        assert_eq!(
+            std::fs::read(local_agent_package.path()).unwrap(),
+            b"test agent package content"
+        );
+    }
+
+    #[test]
+    fn test_download_agent_package_success_signature_verification_enabled_but_no_public_key_informed()
+     {
+        let server = FakeOciServer::new("test-repo", "v1.0.0")
+            .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
+            .with_layer(
+                b"test agent package content",
+                &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
+            )
+            .build();
+
+        let downloader = create_downloader(true);
         let dest_dir = tempdir().unwrap();
         let local_agent_package = downloader
             .download(&server.reference(), &None, dest_dir.path())
@@ -176,7 +242,7 @@ pub mod tests {
             )
             .build();
 
-        let downloader = create_downloader();
+        let downloader = create_downloader(false);
         let dest_dir = tempdir().unwrap();
         let local_agent_package = downloader
             .download(&server.reference(), &None, dest_dir.path())
@@ -198,7 +264,7 @@ pub mod tests {
             .with_artifact_type("application/vnd.unknown.type.v1")
             .build();
 
-        let downloader = create_downloader();
+        let downloader = create_downloader(false);
         let dest_dir = tempdir().unwrap();
         let err = downloader
             .download(&server.reference(), &None, dest_dir.path())
@@ -218,19 +284,40 @@ pub mod tests {
 
         let reference =
             Reference::from_str(&format!("{}/test-repo:v1.0.0", server.address())).unwrap();
-        let downloader = create_downloader();
+        let downloader = create_downloader(false);
         let dest_dir = tempdir().unwrap();
         let err = downloader
             .download(&reference, &None, dest_dir.path())
             .unwrap_err();
         assert!(
             err.to_string().contains("download attempts exceeded"),
-            "{}",
-            err.to_string()
+            "{err}"
         );
     }
 
-    fn create_downloader() -> OCIArtifactDownloader {
+    #[test]
+    fn test_download_with_unsigned_package() {
+        let key_pair = TestKeyPair::new(0);
+        let jwks_server = JwksMockServer::new(vec![
+            serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
+        ]);
+        let server = FakeOciServer::new("test-repo", "v1.0.0")
+            .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
+            .with_layer(
+                b"test agent package content",
+                &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
+            )
+            .build(); // No signature
+
+        let downloader = create_downloader(true);
+        let dest_dir = tempdir().unwrap();
+        let err = downloader
+            .download(&server.reference(), &Some(jwks_server.url), dest_dir.path())
+            .unwrap_err();
+        assert!(err.to_string().contains("signature verification"), "{err}");
+    }
+
+    fn create_downloader(signature_verification_enabled: bool) -> OCIArtifactDownloader {
         let client = Client::try_new(
             ClientConfig {
                 protocol: ClientProtocol::Http,
@@ -240,6 +327,6 @@ pub mod tests {
             tokio_runtime(),
         )
         .unwrap();
-        OCIArtifactDownloader::new(client)
+        OCIArtifactDownloader::new(client, signature_verification_enabled)
     }
 }
