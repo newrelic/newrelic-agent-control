@@ -16,13 +16,20 @@ on:
 
     inputs:
       scenarios:
-        description: 'JSON array of test scenarios to run'
+        description: "JSON array of test scenarios to run"
         required: false
         type: string
         default: '["remote-config", "ebpf-agent", "infra-agent", "nrdot-agent", "proxy"]'
 
 permissions:
   contents: read
+
+# NOTE: The below environment vars are bumped automatically by Renovate so we always use the latest
+# versions of the packages in our E2E tests. If you change the names or move these values outside
+# the GitHub workflows please update `renovate.json` accordingly to avoid breaking the automation!
+env:
+  HOST_E2E_INFRA_AGENT_VERSION: "1.72.1"
+  HOST_E2E_NRDOT_VERSION: "1.8.0"
 
 jobs:
   build-packages:
@@ -35,7 +42,7 @@ jobs:
 
   on-host-linux-e2e:
     name: OnHost Linux E2E tests
-    needs: [ build-packages ]
+    needs: [build-packages]
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -66,12 +73,12 @@ jobs:
 
   on-host-windows-e2e:
     name: OnHost Windows E2E tests
-    needs: [ build-packages ]
+    needs: [build-packages]
     runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        group: [ infra-agent, nrdot, proxy, wrong-config ]
+        group: [infra-agent, nrdot, proxy, wrong-config]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/install-rust-toolchain
@@ -94,4 +101,6 @@ jobs:
             --system-identity-client-id "${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}" `
             --agent-control-private-key "$env:TEMP\newrelic-agent-control-priv.key" `
             --agent-control-version "0.900.${{ github.run_id }}" `
-            --recipes-repo-branch "feat/removeAgents"
+            --recipes-repo-branch "feat/removeAgents" `
+            --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" `
+            --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}"

@@ -1,6 +1,4 @@
-use crate::common::config::{
-    INFRA_AGENT_VERSION, ac_debug_logging_config, update_config, write_agent_local_config,
-};
+use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::{retry, retry_panic};
 use crate::common::{Args, RecipeData, nrql};
@@ -14,6 +12,11 @@ use tracing::info;
 
 /// Runs a complete Windows E2E installation test.
 pub fn test_infra_agent(args: Args) {
+    let infra_agent_version = args
+        .infra_agent_version
+        .clone()
+        .expect("--infra-agent-version is required for this scenario");
+
     let recipe_data = RecipeData {
         args,
         ..Default::default()
@@ -59,9 +62,8 @@ config_logging:
         host.id: {test_id}
       winlog:
         channel: Security, Application, System, Operations Manager, windows-defender, windows-clustering, iis-log
-version: {}
-"#,
-            INFRA_AGENT_VERSION
+version: {infra_agent_version}
+"#
         ),
     );
 

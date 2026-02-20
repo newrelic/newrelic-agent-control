@@ -82,6 +82,30 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
+        "/^\\.github/workflows/.*\\.yaml$/"
+      ],
+      "depNameTemplate": "newrelic/infrastructure-agent-artifacts",
+      "packageNameTemplate": "newrelic/infrastructure-agent-artifacts",
+      "datasourceTemplate": "docker",
+      "matchStrings": [
+        "HOST_E2E_INFRA_AGENT_VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.*\\.yaml$/"
+      ],
+      "depNameTemplate": "newrelic/nrdot-agent-artifacts",
+      "packageNameTemplate": "newrelic/nrdot-agent-artifacts",
+      "datasourceTemplate": "docker",
+      "matchStrings": [
+        "HOST_E2E_NRDOT_VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
         "**/eks_cluster/variables.tf"
       ],
       "matchStrings": [
