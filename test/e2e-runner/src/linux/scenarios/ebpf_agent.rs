@@ -3,6 +3,7 @@ use crate::common::RecipeData;
 use crate::common::config::write_agent_local_config;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
+use crate::linux::scenarios::INFRA_AGENT_VERSION;
 use crate::{
     common::{config, nrql},
     linux::{
@@ -57,11 +58,13 @@ config_agent:
     // Infra agent config: it is used to generate traffic for eBPF metrics to appear
     write_agent_local_config(
         &linux::local_config_path("nr-infra"),
-        String::from(
+        format!(
             r#"
 config_agent:
-  license_key: '{{NEW_RELIC_LICENSE_KEY}}'
-    "#,
+  license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
+version: {}
+"#,
+            INFRA_AGENT_VERSION
         ),
     );
 

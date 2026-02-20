@@ -51,7 +51,6 @@
       NEW_RELIC_AUTH_PRIVATE_KEY_PATH={{ agent_control_private_key }} \
       NEW_RELIC_AGENT_VERSION={{ agent_control_version }} \
       NEW_RELIC_REGION={{ nr_region }} \
-      NEW_RELIC_AGENT_CONTROL_HOST_MONITORING_SOURCE={{ monitoring_source }} \
       NR_CLI_FLEET_ID={{ fleet_id }} \
       NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED={{ fleet_enabled }} \
       NR_AC_MIGRATE_INFRA_CONFIG={{ migrate_infra_config }} \
