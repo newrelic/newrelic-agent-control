@@ -39,13 +39,6 @@ pub struct SimpleSigning {
     pub optional: Option<BTreeMap<String, String>>,
 }
 
-/// The `critical` section of the payload.
-///
-/// According to the specification, consumers MUST reject the signature if the critical
-/// section contains any fields they do not understand. It ensures that the signature
-/// is strictly bound to a specific image digest and identity.
-///
-/// See: [Critical Section Spec](https://github.com/sigstore/cosign/blob/main/specs/SIGNATURE_SPEC.md#critical-header)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Critical {
     pub identity: Identity,
@@ -297,10 +290,7 @@ mod tests {
     fn test_verify_signatures_logic_success() {
         let kp = TestKeyPair::new(0);
         let good_digest = "sha256:1111";
-        let payload = serde_json::json!({
-            "critical": { "identity": { "docker-reference": "" }, "image": { "docker-manifest-digest": good_digest }, "type": "cosign container image signature" },
-            "optional": {}
-        });
+        let payload = simple_signing_payload(good_digest);
         let payload_bytes = serde_json::to_vec(&payload).unwrap();
         let signature = base64::engine::general_purpose::STANDARD.encode(kp.sign(&payload_bytes));
         let layer = SignatureLayer {
@@ -318,14 +308,7 @@ mod tests {
         let valid_digest = "sha256:1111";
         let attacker_digest = "sha256:6666";
 
-        let payload = serde_json::json!({
-            "critical": {
-                "identity": { "docker-reference": "" },
-                "image": { "docker-manifest-digest": valid_digest },
-                "type": "cosign container image signature"
-            },
-            "optional": {}
-        });
+        let payload = simple_signing_payload(valid_digest);
         let payload_bytes = serde_json::to_vec(&payload).unwrap();
         let signature = base64::engine::general_purpose::STANDARD.encode(kp.sign(&payload_bytes));
 
@@ -351,14 +334,7 @@ mod tests {
 
         let digest = "sha256:1111";
 
-        let payload = serde_json::json!({
-            "critical": {
-                "identity": { "docker-reference": "" },
-                "image": { "docker-manifest-digest": digest },
-                "type": "cosign container image signature"
-            },
-            "optional": {}
-        });
+        let payload = simple_signing_payload(digest);
         let payload_bytes = serde_json::to_vec(&payload).unwrap();
         let signature =
             base64::engine::general_purpose::STANDARD.encode(kp_signer.sign(&payload_bytes));
@@ -397,5 +373,16 @@ mod tests {
         );
         assert_eq!(parsed.critical.image.docker_manifest_digest, "sha256:abcd");
         assert_eq!(parsed.optional.unwrap().get("creator").unwrap(), "cosign");
+    }
+
+    fn simple_signing_payload(digest: &str) -> serde_json::Value {
+        serde_json::json!({
+            "critical": {
+                "identity": { "docker-reference": "" },
+                "image": { "docker-manifest-digest": digest },
+                "type": "cosign container image signature"
+            },
+            "optional": {}
+        })
     }
 }

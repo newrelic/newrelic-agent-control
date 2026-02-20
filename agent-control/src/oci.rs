@@ -81,9 +81,25 @@ impl Client {
         })
     }
 
-    /// Obtains public keys from the provided `public_key_url` and performs signature verification of the provided
-    /// `reference`. If verification succeeds, it returns the `reference` (identified by digest) that has been
-    /// verified.
+    /// Verifies the Cosign signature of an OCI artifact.
+    ///
+    /// This function performs signature verification on the manifest corresponding to the provided `reference`.
+    /// If the reference points to an index-manifest (multi-arch image), the signature of the index-manifest itself
+    /// is verified—not the platform-specific manifest underneath it.
+    ///
+    /// The expected signature format follows Cosign's "Simple Signing" specification:
+    /// - Signatures are stored as separate artifacts in the same registry
+    /// - Each signature is a JSON payload (Simple Signing format) containing a `critical` section with the
+    ///   manifest digest of the signed artifact
+    /// - The signature itself is base64-encoded in the layer's annotations under `dev.cosignproject.cosign/signature`
+    /// - Verification uses Ed25519 algorithm with the provided public keys
+    ///
+    /// Public keys are fetched from `public_key_url` and verification will be performed using each key in the
+    /// `public_key_url` result, considering that the verification succeed if the signature corresponds to one
+    /// of the public keys.
+    ///
+    /// If verification succeeds, the verified `reference` (identified by digest) is returned.
+    ///
     pub fn verify_signature(
         &self,
         reference: &Reference,
