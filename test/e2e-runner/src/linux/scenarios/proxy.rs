@@ -3,6 +3,7 @@ use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{Args, RecipeData};
 use crate::linux::install::tear_down_test;
+use crate::linux::scenarios::INFRA_AGENT_VERSION;
 use crate::{
     common::{config, nrql},
     linux::{self, bash::exec_bash_command, install::install_agent_control_from_recipe},
@@ -77,7 +78,9 @@ config_agent:
     level: debug
   proxy: {PROXY_URL}
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
-"#
+version: {}
+"#,
+            INFRA_AGENT_VERSION
         ),
     );
 
