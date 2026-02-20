@@ -6,7 +6,6 @@ use crate::common::test::retry_panic;
 use crate::common::{Args, RecipeData};
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
 use crate::windows::powershell::{download_file, exec_ps, extract};
-use crate::windows::scenarios::INFRA_AGENT_VERSION;
 use crate::windows::service::{STATUS_RUNNING, check_service_status};
 use crate::windows::utils::as_user_dir;
 use crate::windows::{self};
@@ -40,6 +39,11 @@ const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWE5NjY2LTkxYzQtN2M0My1hNzZh
 
 /// Installs AC configured to use a proxy and verifies that the proxy is used.
 pub fn test_proxy(args: Args) {
+    let infra_agent_version = args
+        .infra_agent_version
+        .clone()
+        .expect("--infra-agent-version is required for this scenario");
+
     info!("Setting up proxy");
     let mitm_process = setup_mitmproxy();
 
@@ -64,7 +68,7 @@ pub fn test_proxy(args: Args) {
 
     // Install cli does not support adding infra-agent config yet on windows, so we need to update the config manually
     update_config(
-        windows::DEFAULT_CONFIG_PATH,
+        windows::DEFAULT_AC_CONFIG_PATH,
         format!(
             r#"
 host_id: {test_id}
@@ -85,7 +89,7 @@ config_agent:
     level: debug
   proxy: {PROXY_URL}
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
-version: {INFRA_AGENT_VERSION}
+version: {infra_agent_version}
 "#
         ),
     );

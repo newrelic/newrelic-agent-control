@@ -441,11 +441,11 @@ deployment:
           - ${nr-var:config2}
     packages:
       infra-agent:
-        type: tar.gz
         download:
           oci:
             registry: ${nr-var:registry}
             repository: ${nr-var:repository}
+            public_key: ${nr-var:public_key}
             version: ${nr-var:version}
 "#;
 

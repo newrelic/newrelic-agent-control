@@ -1,11 +1,12 @@
+use crate::common::oci::{hex_bytes, push_empty_config_descriptor};
 use crate::common::runtime::block_on;
 use newrelic_agent_control::package::oci::artifact_definitions::{
     LayerMediaType, ManifestArtifactType, PackageMediaType,
 };
+use oci_client::Reference;
 use oci_client::client::{ClientConfig, ClientProtocol};
 use oci_client::manifest::{OCI_IMAGE_MEDIA_TYPE, OciDescriptor, OciImageManifest};
 use oci_client::{Client, annotations, manifest};
-use oci_spec::distribution::Reference;
 use ring::digest::{SHA256, digest};
 use std::backtrace::Backtrace;
 use std::collections::BTreeMap;
@@ -77,31 +78,11 @@ pub fn push_agent_package(
             ..Default::default()
         };
 
-        // Push empty config blob (required for OCI artifacts)
-        let empty_config = b"{}";
-        let empty_config_digest = format!(
-            "sha256:{}",
-            hex_bytes(digest(&SHA256, empty_config).as_ref())
-        );
-        oci_client
-            .push_blob(
-                &blob_reference,
-                empty_config.as_slice(),
-                empty_config_digest.as_str(),
-            )
-            .await
-            .unwrap();
-
         let image_manifest = OciImageManifest {
             media_type: Some(OCI_IMAGE_MEDIA_TYPE.to_string()),
             artifact_type: Some(ManifestArtifactType::AgentPackage.to_string()),
             layers: vec![blob_descriptor],
-            config: OciDescriptor {
-                media_type: "application/vnd.oci.empty.v1+json".to_string(),
-                digest: empty_config_digest.clone(),
-                size: empty_config.len() as i64,
-                ..Default::default()
-            },
+            config: push_empty_config_descriptor(&oci_client, &blob_reference).await,
             annotations: Some(annotations),
             ..Default::default()
         };
@@ -113,8 +94,4 @@ pub fn push_agent_package(
 
         (blob_digest, reference)
     })
-}
-
-fn hex_bytes(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }

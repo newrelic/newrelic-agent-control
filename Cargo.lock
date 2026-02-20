@@ -2812,7 +2812,6 @@ dependencies = [
  "nix",
  "nr-auth",
  "oci-client",
- "oci-spec",
  "opamp-client",
  "opentelemetry",
  "opentelemetry-appender-tracing",
@@ -2852,7 +2851,6 @@ dependencies = [
  "windows-service",
  "windows-sys 0.61.2",
  "wrapper_with_default",
- "x509-parser",
  "zip",
 ]
 

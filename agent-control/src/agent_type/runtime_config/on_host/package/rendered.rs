@@ -1,4 +1,5 @@
-use oci_spec::distribution::Reference;
+use oci_client::Reference;
+use url::Url;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Package {
@@ -15,4 +16,5 @@ pub struct Download {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Oci {
     pub reference: Reference,
+    pub public_key_url: Option<Url>,
 }

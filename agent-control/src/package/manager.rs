@@ -3,12 +3,14 @@ use crate::agent_control::agent_id::AgentID;
 use crate::package::oci::package_manager::OCIPackageManagerError;
 use oci_client::Reference;
 use std::path::PathBuf;
+use url::Url;
 
 /// Information required to reference and install a package
 #[derive(Debug, Clone)]
 pub struct PackageData {
     pub id: String, // same type as the packages map on an agent type definition
     pub oci_reference: Reference,
+    pub public_key_url: Option<Url>,
 }
 
 /// Information about an installed package

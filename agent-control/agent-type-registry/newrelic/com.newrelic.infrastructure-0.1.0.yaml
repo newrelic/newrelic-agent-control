@@ -151,15 +151,14 @@ deployment:
     # Infra-agent always logs to a file on Windows. To avoid duplicated logs we disable AC file logging on this platform.
     enable_file_logging: false
     health:
-      interval: 5s
-      initial_delay: 5s
+      interval: 30s
+      initial_delay: 60s
       timeout: 5s
       http:
         path: "/v1/status/health"
         port: ${nr-var:health_port}
     packages:
       infra-agent:
-        type: zip
         download:
           oci:
             registry: ${nr-var:oci.registry}
@@ -191,6 +190,13 @@ deployment:
           # For the same reason we are also changing the location of the integration binaries.
           NRIA_APP_DATA_DIR: "${nr-sub:filesystem_agent_dir}\\newrelic-infra"
           NRIA_AGENT_DIR: "${nr-sub:filesystem_agent_dir}\\newrelic-infra"
+          # TODO
+          # This is a non public infra-agent config variable that allows us to change the location of the agent temporary files, which is used currently
+          # for storing fluent-bit generated configuration files. Currently infra-agent does not clean-up on start this directory if
+          # not on the default location, making this configs to potentially grow indefinitely with fluent-bit generated files.
+          # In the future this clean up process should be handled by the infra-agent itself or by AC file system clean up policies (same as the ones
+          # that are going to remove integration configs whenever variables are removed)
+          NRIA_AGENT_TEMP_DIR: "${nr-sub:filesystem_agent_dir}\\newrelic-infra\\tmp"
           # On windows, logs are written to 'NRIA_APP_DATA_DIR/newrelic-infra.log' and this cannot be disabled.
           # To avoid disks exhaustion issues, a default log rotation policy is applied to this log file.
           NRIA_LOG_ROTATE_MAX_SIZE_MB: "50"
@@ -212,8 +218,8 @@ deployment:
   linux:
     enable_file_logging: ${nr-var:enable_file_logging}
     health:
-      interval: 5s
-      initial_delay: 5s
+      interval: 30s
+      initial_delay: 60s
       timeout: 5s
       http:
         path: "/v1/status/health"

@@ -228,6 +228,7 @@ fn create_agent_type(local_dir: &TempDir, agent_id: &str, platform: &Platform) -
       registry: {OCI_TEST_REGISTRY_URL}
       repository: test
       version: ${{nr-var:fake_variable}}
+      public_key: https://public.key
 "#
     );
 

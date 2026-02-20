@@ -1,9 +1,10 @@
+use crate::common::config::NRDOT_CONFIG;
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::{retry, retry_panic};
 use crate::common::{Args, RecipeData, nrql};
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
-use crate::windows::scenarios::{DEFAULT_STATUS_PORT, NRDOT_VERSION};
+use crate::windows::scenarios::DEFAULT_STATUS_PORT;
 use crate::windows::service::STATUS_RUNNING;
 use crate::windows::{self};
 use std::thread;
@@ -12,6 +13,11 @@ use tracing::info;
 
 /// Runs a complete Windows E2E installation test with NRDOT
 pub fn test_nrdot(args: Args) {
+    let nrdot_version = args
+        .nrdot_version
+        .clone()
+        .expect("--nrdot-version is required for this scenario");
+
     let recipe_data = RecipeData {
         args,
         ..Default::default()
@@ -29,7 +35,7 @@ pub fn test_nrdot(args: Args) {
     let debug_log_config = ac_debug_logging_config(windows::DEFAULT_LOG_PATH);
 
     update_config(
-        windows::DEFAULT_CONFIG_PATH,
+        windows::DEFAULT_AC_CONFIG_PATH,
         format!(
             r#"
 host_id: {test_id}
@@ -41,7 +47,10 @@ agents:
         ),
     );
 
-    write_agent_local_config(&windows::local_config_path("nrdot"), nrdot_config());
+    write_agent_local_config(
+        &windows::local_config_path("nrdot"),
+        nrdot_config(&nrdot_version),
+    );
 
     windows::service::restart_service(SERVICE_NAME, STATUS_RUNNING);
     info!("Waiting 10 seconds for service to start");
@@ -74,222 +83,11 @@ agents:
     info!("Test completed successfully");
 }
 
-fn nrdot_config() -> String {
+pub fn nrdot_config(nrdot_version: &str) -> String {
     format!(
         r#"
-version: {NRDOT_VERSION}
+version: {nrdot_version}
 {NRDOT_CONFIG}
 "#
     )
 }
-
-const NRDOT_CONFIG: &str = r#"
-config:
-  extensions:
-    health_check:
-  
-  receivers:
-    otlp:
-      protocols:
-        grpc:
-        http:
-  
-    hostmetrics:
-      # Default collection interval is 60s. Lower if you need finer granularity.
-      collection_interval: 60s
-      scrapers:
-        cpu:
-          metrics:
-            system.cpu.time:
-              enabled: false
-            system.cpu.utilization:
-              enabled: true
-        #load:
-        memory:
-          metrics:
-            system.memory.utilization:
-              enabled: true
-        paging:
-          metrics:
-            system.paging.utilization:
-              enabled: false
-            system.paging.faults:
-              enabled: false
-        filesystem:
-          metrics:
-            system.filesystem.utilization:
-              enabled: true
-        disk:
-          metrics:
-            system.disk.merged:
-              enabled: false
-            system.disk.pending_operations:
-              enabled: false
-            system.disk.weighted_io_time:
-              enabled: false
-        network:
-          metrics:
-            system.network.connections:
-              enabled: false
-  
-  processors:
-    # group system.cpu metrics by cpu
-    metricstransform:
-      transforms:
-        - include: system.cpu.utilization
-          action: update
-          operations:
-            - action: aggregate_labels
-              label_set: [ state ]
-              aggregation_type: mean
-        - include: system.paging.operations
-          action: update
-          operations:
-            - action: aggregate_labels
-              label_set: [ direction ]
-              aggregation_type: sum
-    # remove system.cpu metrics for states
-    filter/exclude_cpu_utilization:
-      metrics:
-        datapoint:
-          - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
-          - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
-          - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
-    filter/exclude_memory_utilization:
-      metrics:
-        datapoint:
-          - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
-          - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
-          - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
-          - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
-          - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
-    filter/exclude_memory_usage:
-      metrics:
-        datapoint:
-          - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
-          - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
-    filter/exclude_filesystem_utilization:
-      metrics:
-        datapoint:
-          - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
-    filter/exclude_filesystem_usage:
-      metrics:
-        datapoint:
-          - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
-          - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
-    filter/exclude_filesystem_inodes_usage:
-      metrics:
-        datapoint:
-          - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
-          - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
-    filter/exclude_system_disk:
-      metrics:
-        datapoint:
-          - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
-          - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
-          - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
-          - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
-          - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
-    filter/exclude_system_paging:
-      metrics:
-        datapoint:
-          - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
-          - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
-    filter/exclude_network:
-      metrics:
-        datapoint:
-          - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
-  
-    attributes/exclude_system_paging:
-      include:
-        match_type: strict
-        metric_names:
-          - system.paging.operations
-      actions:
-        - key: type
-          action: delete
-  
-    cumulativetodelta:
-  
-    transform/host:
-      metric_statements:
-        - context: metric
-          statements:
-            - set(metric.description, "")
-            - set(metric.unit, "")
-  
-    transform:
-      trace_statements:
-        - context: span
-          statements:
-            - truncate_all(span.attributes, 4095)
-            - truncate_all(resource.attributes, 4095)
-      log_statements:
-        - context: log
-          statements:
-            - truncate_all(log.attributes, 4095)
-            - truncate_all(resource.attributes, 4095)
-  
-    # used to prevent out of memory situations on the collector
-    memory_limiter:
-      check_interval: 1s
-      limit_mib: ${env:NEW_RELIC_MEMORY_LIMIT_MIB:-100}
-  
-    batch:
-  
-    resourcedetection:
-      detectors: ["system"]
-      system:
-        hostname_sources: ["os"]
-        resource_attributes:
-          host.id:
-            enabled: true
-  
-    resourcedetection/cloud:
-      detectors: ["gcp", "ec2", "azure"]
-      timeout: 2s
-      override: true
-  
-    # Gives OTEL_RESOURCE_ATTRIBUTES precedence over other sources.
-    # host.id is set from env whenever the collector is orchestrated by NR Agents.
-    resourcedetection/env:
-      detectors: ["env"]
-      timeout: 2s
-      override: true
-  
-  exporters:
-    otlphttp:
-      endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT:-https://otlp.nr-data.net}
-      headers:
-        api-key: ${env:NEW_RELIC_LICENSE_KEY}
-  
-  service:
-    pipelines:
-      metrics/host:
-        receivers: [hostmetrics]
-        processors:
-          - memory_limiter
-          - metricstransform
-          - filter/exclude_cpu_utilization
-          - filter/exclude_memory_utilization
-          - filter/exclude_memory_usage
-          - filter/exclude_filesystem_utilization
-          - filter/exclude_filesystem_usage
-          - filter/exclude_filesystem_inodes_usage
-          - filter/exclude_system_disk
-          - filter/exclude_network
-          - attributes/exclude_system_paging
-          - transform/host
-          - resourcedetection
-          - resourcedetection/cloud
-          - resourcedetection/env
-          - cumulativetodelta
-          - batch
-        exporters: [otlphttp]
-      metrics:
-        receivers: [otlp]
-        processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
-        exporters: [otlphttp]
-  
-    extensions: [health_check]
-"#;

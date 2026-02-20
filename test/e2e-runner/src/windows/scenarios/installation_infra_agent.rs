@@ -3,7 +3,7 @@ use crate::common::on_drop::CleanUp;
 use crate::common::test::{retry, retry_panic};
 use crate::common::{Args, RecipeData, nrql};
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
-use crate::windows::scenarios::{DEFAULT_STATUS_PORT, INFRA_AGENT_VERSION};
+use crate::windows::scenarios::DEFAULT_STATUS_PORT;
 use crate::windows::service::STATUS_RUNNING;
 use crate::windows::{self};
 use std::thread;
@@ -12,6 +12,11 @@ use tracing::info;
 
 /// Runs a complete Windows E2E installation test.
 pub fn test_infra_agent(args: Args) {
+    let infra_agent_version = args
+        .infra_agent_version
+        .clone()
+        .expect("--infra-agent-version is required for this scenario");
+
     let recipe_data = RecipeData {
         args,
         ..Default::default()
@@ -29,7 +34,7 @@ pub fn test_infra_agent(args: Args) {
     let debug_log_config = ac_debug_logging_config(windows::DEFAULT_LOG_PATH);
 
     update_config(
-        windows::DEFAULT_CONFIG_PATH,
+        windows::DEFAULT_AC_CONFIG_PATH,
         format!(
             r#"
 host_id: {test_id}
@@ -57,9 +62,8 @@ config_logging:
         host.id: {test_id}
       winlog:
         channel: Security, Application, System, Operations Manager, windows-defender, windows-clustering, iis-log
-version: {}
-"#,
-            INFRA_AGENT_VERSION
+version: {infra_agent_version}
+"#
         ),
     );
 
