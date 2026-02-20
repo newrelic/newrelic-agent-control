@@ -49,6 +49,7 @@ builds:
       - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
     hooks:
       post:
+        - cmd: /home/runner/go/bin/go-winres patch --no-backup --in ./build/package/windows/metadata/winres-agent.json --product-version {{ .Version }} --file-version {{ .Version }} {{ .Path }}
         - cmd: ./build/scripts/windows-exec-sign/sign.sh
           env:
             - SKIP_WINDOWS_SIGN={{ if index .Env "SKIP_WINDOWS_SIGN"}}{{ .Env.SKIP_WINDOWS_SIGN }}{{ else }}{{ end }}
@@ -91,6 +92,7 @@ builds:
         - cmd: sh -c 'while [ ! -f target/x86_64-pc-windows-msvc/release/newrelic-agent-control.exe ]; do echo "Waiting for newrelic-agent-control-windows build to complete..."; sleep 5; done'
           output: true
       post:
+        - cmd: /home/runner/go/bin/go-winres patch --no-backup --in ./build/package/windows/metadata/winres-cli.json --product-version {{ .Version }} --file-version {{ .Version }} {{ .Path }}
         # This step cannot be done inside the 'signs' section because that happens after packaging.
         - cmd: ./build/scripts/windows-exec-sign/sign.sh
           env:
