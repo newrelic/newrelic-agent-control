@@ -1,4 +1,4 @@
-use oci_spec::distribution::Reference;
+use oci_client::Reference;
 use url::Url;
 
 #[derive(Debug, Clone, PartialEq)]

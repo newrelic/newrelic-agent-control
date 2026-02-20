@@ -2812,7 +2812,6 @@ dependencies = [
  "nix",
  "nr-auth",
  "oci-client",
- "oci-spec",
  "opamp-client",
  "opentelemetry",
  "opentelemetry-appender-tracing",

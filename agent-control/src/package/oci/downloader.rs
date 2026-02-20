@@ -1,7 +1,7 @@
 use crate::oci::{Client, OciClientError};
 use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::utils::retry::retry;
-use oci_spec::distribution::Reference;
+use oci_client::Reference;
 use std::path::Path;
 use std::time::Duration;
 use thiserror::Error;
@@ -122,8 +122,8 @@ pub mod tests {
     use super::*;
     use httpmock::prelude::*;
     use mockall::mock;
+    use oci_client::Reference;
     use oci_client::client::{ClientConfig, ClientProtocol};
-    use oci_spec::distribution::Reference;
     use serde_json::json;
     use std::str::FromStr;
     use tempfile::tempdir;

@@ -2,7 +2,7 @@ use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
 use crate::agent_type::templates::Templateable;
-use oci_spec::distribution::Reference;
+use oci_client::Reference;
 use serde::Deserialize;
 use std::str::FromStr;
 

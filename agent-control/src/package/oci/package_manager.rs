@@ -399,7 +399,7 @@ mod tests {
     use fs::directory_manager::mock::MockDirectoryManager;
     use fs::file::writer::FileWriter;
     use mockall::predicate::eq;
-    use oci_spec::distribution::Reference;
+    use oci_client::Reference;
     use std::str::FromStr;
     use tempfile::tempdir;
 
