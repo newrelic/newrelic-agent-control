@@ -40,7 +40,7 @@ variables:
         default: docker.io
         variants:
           ac_config_field: "oci_nrdot_registry_urls"
-          values: [ "docker.io"  ]
+          values: [ "docker.io" ]
       repository:
         description: "Package repository name"
         type: string
@@ -48,7 +48,7 @@ variables:
         default: newrelic/nrdot-agent-artifacts
         variants:
           ac_config_field: "oci_nrdot_registry_repositories"
-          values: [ "newrelic/nrdot-agent-artifacts"  ]
+          values: [ "newrelic/nrdot-agent-artifacts" ]
     version:
       description: "Agent version"
       type: string
@@ -78,6 +78,27 @@ variables:
         type: number
         required: false
         default: 13133
+    oci:
+      registry:
+        description: "Package registry url"
+        type: string
+        required: false
+        default: docker.io
+        variants:
+          ac_config_field: "oci_nrdot_registry_repositories"
+          values: [ "docker.io" ]
+      repository:
+        description: "Package repository name"
+        type: string
+        required: false
+        default: newrelic/nrdot-agent-artifacts
+        variants:
+          ac_config_field: "oci_nrdot_registry_repositories"
+          values: [ "newrelic/nrdot-agent-artifacts" ]
+    version:
+      description: "Agent version"
+      type: string
+      required: true
   k8s:
     chart_values:
       nr-k8s-otel-collector:
@@ -160,6 +181,13 @@ deployment:
             backoff_delay: ${nr-var:backoff_delay}
 
   linux:
+    packages:
+      nrdot:
+        download:
+          oci:
+            registry: ${nr-var:oci.registry}
+            repository: ${nr-var:oci.repository}
+            version: ${nr-var:version}
     health:
       interval: 30s
       initial_delay: 90s
@@ -168,7 +196,7 @@ deployment:
         path: "${nr-var:health_check.path}"
         port: ${nr-var:health_check.port}
     version:
-      path: /usr/bin/nrdot-collector
+      path: ${nr-sub:packages.nrdot.dir}/nrdot-collector
       args:
         - -v
       regex: \d+\.\d+\.\d+
@@ -179,7 +207,7 @@ deployment:
     executables:
       - # Important to note the binary name is nrdot-collector matching the new nrdot binary
         id: nrdot-collector
-        path: /usr/bin/nrdot-collector
+        path: ${nr-sub:packages.nrdot.dir}/nrdot-collector
         args:
           - --config
           - ${nr-sub:filesystem_agent_dir}/otel-config/config.yaml

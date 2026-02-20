@@ -107,7 +107,16 @@ pub fn append_to_config_file(config_path: &str, content: &str) {
     });
 }
 
-pub const NRDOT_CONFIG: &str = r#"
+pub fn nrdot_config(nrdot_version: &str) -> String {
+    format!(
+        r#"
+version: {nrdot_version}
+{NRDOT_CONFIG}
+"#
+    )
+}
+
+const NRDOT_CONFIG: &str = r#"
 config:
   extensions:
     health_check:
