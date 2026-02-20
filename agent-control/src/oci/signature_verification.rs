@@ -88,21 +88,21 @@ impl Client {
         reference: &Reference,
         public_keys: &[PublicKey],
     ) -> Result<Reference, OciClientError> {
-        // Resolve image digest
+        // Resolve manifest digest
         let digest = match reference.digest() {
             Some(digest) => {
-                debug!(%digest, "Artifact digest was already informed");
+                debug!(%digest, "Manifest digest was already informed");
                 digest.to_string()
             }
             None => {
-                let (_, digest) = self
+                let digest = self
                     .client
-                    .pull_image_manifest(reference, &self.auth)
+                    .fetch_manifest_digest(reference, &self.auth)
                     .await
                     .map_err(|err| {
                         OciClientError::Verify(format!("could not fetch manifest: {err}"))
                     })?;
-                debug!(%digest, "Artifact digest resolved");
+                debug!(%digest, "Manifest digest resolved");
                 digest
             }
         };
