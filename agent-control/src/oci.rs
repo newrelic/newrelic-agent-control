@@ -298,23 +298,17 @@ pub mod tests {
 
         pub fn setup_mocks_on(&self, server: &MockServer) {
             let manifest_bytes = serde_json::to_vec(&self.manifest).unwrap();
-            server.mock(|when, then| {
-                when.method(GET)
-                    .path(format!("/v2/{}/manifests/{}", self.repo, self.tag));
-                then.status(200)
-                    .header("Content-Type", "application/vnd.oci.image.manifest.v1+json")
-                    .body(manifest_bytes);
-            });
+            let manifest_digest = self.manifest_digest();
+            // Mock manifest by tag
+            self.mock_manifest(server, &self.tag, manifest_bytes.clone());
+            // Mock manifest by digest
+            self.mock_manifest(server, &manifest_digest, manifest_bytes);
+            // Mock signature manifest
             if let Some((sig_tag, sig_manifest)) = self.signature.as_ref() {
                 let manifest_bytes = serde_json::to_vec(sig_manifest).unwrap();
-                server.mock(|when, then| {
-                    when.method(GET)
-                        .path(format!("/v2/{}/manifests/{}", self.repo, sig_tag));
-                    then.status(200)
-                        .header("Content-Type", "application/vnd.oci.image.manifest.v1+json")
-                        .body(manifest_bytes);
-                });
+                self.mock_manifest(server, sig_tag, manifest_bytes);
             }
+            // Mock layers
             for (digest, content) in &self.layers {
                 let content_clone = content.clone();
                 let digest_clone = digest.clone();
@@ -325,6 +319,16 @@ pub mod tests {
                     then.status(200).body(content_clone);
                 });
             }
+        }
+
+        fn mock_manifest(&self, server: &MockServer, path: &str, content: Vec<u8>) {
+            server.mock(|when, then| {
+                when.method(GET)
+                    .path(format!("/v2/{}/manifests/{}", self.repo, path));
+                then.status(200)
+                    .header("Content-Type", "application/vnd.oci.image.manifest.v1+json")
+                    .body(content);
+            });
         }
 
         pub fn with_artifact_type(mut self, artifact_type: &str) -> Self {

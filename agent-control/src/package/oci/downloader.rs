@@ -128,6 +128,8 @@ pub mod tests {
     use crate::package::oci::artifact_definitions::{
         LayerMediaType, ManifestArtifactType, PackageMediaType,
     };
+    use crate::signature::public_key::tests::TestKeyPair;
+    use crate::signature::public_key_fetcher::tests::JwksMockServer;
 
     use super::*;
     use httpmock::prelude::*;
@@ -152,6 +154,37 @@ pub mod tests {
 
     #[test]
     fn test_download_agent_package_success() {
+        let key_pair = TestKeyPair::new(0);
+        let jwks_server = JwksMockServer::new(vec![
+            serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
+        ]);
+        let server = FakeOciServer::new("test-repo", "v1.0.0")
+            .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
+            .with_layer(
+                b"test agent package content",
+                &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
+            )
+            .with_signature(&key_pair)
+            .build();
+
+        let downloader = create_downloader(true);
+        let dest_dir = tempdir().unwrap();
+        let local_agent_package = downloader
+            .download(&server.reference(), &Some(jwks_server.url), dest_dir.path())
+            .unwrap();
+
+        assert_eq!(
+            std::fs::read(local_agent_package.path()).unwrap(),
+            b"test agent package content"
+        );
+    }
+
+    #[test]
+    fn test_download_agent_package_success_signature_verification_disabled_and_unsigned_artifact() {
+        let key_pair = TestKeyPair::new(0);
+        let jwks_server = JwksMockServer::new(vec![
+            serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
+        ]);
         let server = FakeOciServer::new("test-repo", "v1.0.0")
             .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
             .with_layer(
@@ -160,7 +193,30 @@ pub mod tests {
             )
             .build();
 
-        let downloader = create_downloader();
+        let downloader = create_downloader(false);
+        let dest_dir = tempdir().unwrap();
+        let local_agent_package = downloader
+            .download(&server.reference(), &Some(jwks_server.url), dest_dir.path())
+            .unwrap();
+
+        assert_eq!(
+            std::fs::read(local_agent_package.path()).unwrap(),
+            b"test agent package content"
+        );
+    }
+
+    #[test]
+    fn test_download_agent_package_success_signature_verification_enabled_but_no_public_key_informed()
+     {
+        let server = FakeOciServer::new("test-repo", "v1.0.0")
+            .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
+            .with_layer(
+                b"test agent package content",
+                &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
+            )
+            .build();
+
+        let downloader = create_downloader(true);
         let dest_dir = tempdir().unwrap();
         let local_agent_package = downloader
             .download(&server.reference(), &None, dest_dir.path())
@@ -186,7 +242,7 @@ pub mod tests {
             )
             .build();
 
-        let downloader = create_downloader();
+        let downloader = create_downloader(false);
         let dest_dir = tempdir().unwrap();
         let local_agent_package = downloader
             .download(&server.reference(), &None, dest_dir.path())
@@ -208,7 +264,7 @@ pub mod tests {
             .with_artifact_type("application/vnd.unknown.type.v1")
             .build();
 
-        let downloader = create_downloader();
+        let downloader = create_downloader(false);
         let dest_dir = tempdir().unwrap();
         let err = downloader
             .download(&server.reference(), &None, dest_dir.path())
@@ -228,19 +284,40 @@ pub mod tests {
 
         let reference =
             Reference::from_str(&format!("{}/test-repo:v1.0.0", server.address())).unwrap();
-        let downloader = create_downloader();
+        let downloader = create_downloader(false);
         let dest_dir = tempdir().unwrap();
         let err = downloader
             .download(&reference, &None, dest_dir.path())
             .unwrap_err();
         assert!(
             err.to_string().contains("download attempts exceeded"),
-            "{}",
-            err.to_string()
+            "{err}"
         );
     }
 
-    fn create_downloader() -> OCIArtifactDownloader {
+    #[test]
+    fn test_download_with_unsigned_package() {
+        let key_pair = TestKeyPair::new(0);
+        let jwks_server = JwksMockServer::new(vec![
+            serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
+        ]);
+        let server = FakeOciServer::new("test-repo", "v1.0.0")
+            .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
+            .with_layer(
+                b"test agent package content",
+                &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
+            )
+            .build(); // No signature
+
+        let downloader = create_downloader(true);
+        let dest_dir = tempdir().unwrap();
+        let err = downloader
+            .download(&server.reference(), &Some(jwks_server.url), dest_dir.path())
+            .unwrap_err();
+        assert!(err.to_string().contains("signature verification"), "{err}");
+    }
+
+    fn create_downloader(signature_verification_enabled: bool) -> OCIArtifactDownloader {
         let client = Client::try_new(
             ClientConfig {
                 protocol: ClientProtocol::Http,
@@ -250,6 +327,6 @@ pub mod tests {
             tokio_runtime(),
         )
         .unwrap();
-        OCIArtifactDownloader::new(client, false)
+        OCIArtifactDownloader::new(client, signature_verification_enabled)
     }
 }
