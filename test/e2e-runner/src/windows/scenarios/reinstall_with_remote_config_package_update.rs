@@ -120,6 +120,17 @@ version: {STARTING_NEWRELIC_INFRA_VERSION}
     // Install Agent Control again, this time with fleet enabled
     install_agent_control_from_recipe(&recipe_data);
 
+    info!("Verifying service health");
+    let status_endpoint = format!("http://localhost:{DEFAULT_STATUS_PORT}/status");
+    let status = retry_panic(30, Duration::from_secs(2), "health check", || {
+        windows::health::check_health(&status_endpoint)
+    });
+
+    info!("Agent Control is healthy");
+    let status_json = serde_json::to_string_pretty(&status)
+        .unwrap_or_else(|err| panic!("Failed to serialize status to JSON: {err}"));
+    info!(response = status_json, "Agent Control is healthy");
+
     // Validate remote configuration has been applied
     info!("Check that remote configuration has been applied and agent update occurred");
     let nrql_query = format!(
