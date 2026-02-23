@@ -21,19 +21,18 @@ const STARTING_NEWRELIC_INFRA_VERSION: &str = "1.72.1";
 const ENV_VARS_FILE: &str =
     r"C:\Program Files\New Relic\newrelic-agent-control\environment_variables.yaml";
 
-pub fn test_remote_config_with_version_is_applied(args: Args) {
+pub fn test_reinstall_with_remote_config_package_update(args: Args) {
     // Setup recipe data with fleet configuration
     let recipe_data = RecipeData {
         args,
         monitoring_source: "".to_string(), // Windows uses empty monitoring_source
-        fleet_enabled: true.to_string(),
-        fleet_id: FLEET_ID.to_string(),
+        fleet_enabled: false.to_string(),
         ..Default::default()
     };
 
     let _clean_up = CleanUp::new(tear_down_test);
 
-    // Install Agent Control with fleet enabled
+    // Install Agent Control with fleet disabled
     install_agent_control_from_recipe(&recipe_data);
 
     // Generate unique test ID with timestamp
@@ -43,17 +42,8 @@ pub fn test_remote_config_with_version_is_applied(args: Args) {
     );
 
     // Set up TEST_ID environment variable
-    // TODO: Verify environment_variables.yaml is supported on Windows
-    // If not, use host.id pattern like installation_infra_agent.rs instead
     info!("Setting up `TEST_ID` environment variable");
     config::append_to_config_file(ENV_VARS_FILE, format!("TEST_ID: {test_id}").as_str());
-
-    // Setup Agent Control config for debug logging
-    info!("Setup Agent Control config for debug logging");
-    config::update_config_for_debug_logging(
-        windows::DEFAULT_AC_CONFIG_PATH,
-        windows::DEFAULT_LOG_PATH,
-    );
 
     // Setup infra-agent config with local custom attribute
     info!("Setup infra-agent config");
@@ -83,8 +73,11 @@ version: {STARTING_NEWRELIC_INFRA_VERSION}
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
     retry_panic(retries, Duration::from_secs(5), "nrql assertion", || {
-        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
+        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query, |r| !r.is_empty())
     });
+
+    // Now reinstall with fleet enabled and validate that remote config is applied which should include an updated version of the infra agent causing a restart if the service is still running and eventually reporting with the new config values from fleet (config_origin = remote).
+    todo!();
 
     // Validate remote configuration has been applied
     info!("Check that remote configuration has been applied");
@@ -94,6 +87,6 @@ version: {STARTING_NEWRELIC_INFRA_VERSION}
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
     retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
-        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
+        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query, |r| !r.is_empty())
     });
 }
