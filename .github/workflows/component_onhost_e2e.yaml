@@ -84,7 +84,7 @@ jobs:
             nrdot,
             proxy,
             wrong-config,
-            # remote-config,
+            remote-config,
             reinstall-with-remote-sub-agent-update,
           ]
     steps:
