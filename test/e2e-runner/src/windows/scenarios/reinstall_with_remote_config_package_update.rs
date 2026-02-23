@@ -47,6 +47,7 @@ pub fn test_reinstall_with_remote_config_package_update(args: Args) {
     info!("Setting up `TEST_ID` environment variable");
     config::append_to_config_file(ENV_VARS_FILE, format!("TEST_ID: {test_id}").as_str());
 
+    info!("Adding infra-agent to AC config");
     update_config(
         windows::DEFAULT_AC_CONFIG_PATH,
         format!(
