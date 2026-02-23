@@ -57,10 +57,13 @@ impl Region {
 ///
 /// * `Ok(())` - The NRQL query results on success
 /// * `Err` - Error if the query fails, returns errors, or has no results
-pub fn check_query_results_are_not_empty(install_args: &Args, nrql_query: &str) -> TestResult<()> {
+pub fn check_query_results_are_not_empty(
+    install_args: &Args,
+    nrql_query: &str,
+    predicate: impl FnOnce(&Vec<Value>) -> bool,
+) -> TestResult<Vec<Value>> {
     let client = Client::builder().timeout(CLIENT_TIMEOUT).build()?;
-    check_query_results_are_not_empty_with_client(install_args, nrql_query, client)?;
-    Ok(())
+    check_query_results_are_not_empty_with_client(install_args, nrql_query, client, predicate)
 }
 
 /// Helper to execute [check_query_results_are_not_empty] with custom setup. Eg: setting up proxy.
@@ -68,6 +71,7 @@ fn check_query_results_are_not_empty_with_client(
     install_args: &Args,
     nrql_query: &str,
     client: Client,
+    predicate: impl FnOnce(&Vec<Value>) -> bool,
 ) -> TestResult<Vec<Value>> {
     let api_endpoint = Region::try_from(install_args.nr_region.as_str())?.api_endpoint();
     let url = format!("{}/graphql", api_endpoint);
@@ -112,21 +116,23 @@ fn check_query_results_are_not_empty_with_client(
     }
 
     // Extract results from the response
-    if let Some(results) = response_json
+    let result = response_json
         .get("data")
         .and_then(|d| d.get("actor"))
         .and_then(|a| a.get("account"))
         .and_then(|a| a.get("nrql"))
         .and_then(|n| n.get("results"))
-        .and_then(|r| r.as_array())
-        && !results.is_empty()
-    {
-        info!(
-            query = nrql_query,
-            "The NRQL query returned results as expected"
-        );
-        return Ok(results.clone());
-    }
+        .and_then(|r| r.as_array());
 
-    Err(format!("NRQL query '{nrql_query}' returned no results").into())
+    match result {
+        Some(results) if predicate(results) => {
+            info!(
+                query = nrql_query,
+                "The NRQL query returned results matching the predicate"
+            );
+            Ok(results.clone())
+        }
+        Some(results) => Err(format!("NRQL query '{nrql_query}' returned results, but they did not match the provided predicate.\n\tResults: {results:?}").into()),
+        None => Err(format!("NRQL query '{nrql_query}' returned no results").into()),
+  }
 }

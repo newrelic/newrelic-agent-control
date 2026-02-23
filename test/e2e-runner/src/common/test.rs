@@ -30,9 +30,9 @@ where
     Err(last_error.into())
 }
 
-pub fn retry_panic<F>(retries: i64, delay: Duration, err_context: impl AsRef<str>, f: F)
+pub fn retry_panic<F, T>(retries: i64, delay: Duration, err_context: impl AsRef<str>, f: F) -> T
 where
-    F: Fn() -> TestResult<()>,
+    F: Fn() -> TestResult<T>,
 {
     retry(retries, delay, err_context.as_ref(), f).unwrap_or_else(|err| {
         panic!(
@@ -41,5 +41,5 @@ where
             retries,
             err
         )
-    });
+    })
 }
