@@ -41,6 +41,8 @@ enum WindowsScenarios {
     /// Simple installation of Agent Control on Windows with NRDOT Agent.
     Nrdot(Args),
     Proxy(Args),
+    /// Tests that remote configuration for infra-agent has been applied via fleet management. Includes new version download.
+    RemoteConfig(Args),
     /// Simple installation of Agent Control on Windows with update to wrong and correct config
     /// to test service stop and start.
     WrongConfig(Args),
