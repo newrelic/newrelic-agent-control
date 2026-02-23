@@ -1,4 +1,4 @@
-use crate::common::config::NRDOT_CONFIG;
+use crate::common::config::nrdot_config;
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::{retry, retry_panic};
@@ -81,13 +81,4 @@ agents:
     });
 
     info!("Test completed successfully");
-}
-
-pub fn nrdot_config(nrdot_version: &str) -> String {
-    format!(
-        r#"
-version: {nrdot_version}
-{NRDOT_CONFIG}
-"#
-    )
 }

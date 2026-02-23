@@ -1,4 +1,4 @@
-use crate::common::config::NRDOT_CONFIG;
+use crate::common::config::nrdot_config;
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
@@ -12,6 +12,11 @@ use std::time::Duration;
 use tracing::info;
 
 pub fn test_nrdot_agent(args: Args) {
+    let nrdot_version = args
+        .nrdot_version
+        .clone()
+        .expect("--nrdot-version is required for this scenario");
+
     let recipe_data = RecipeData {
         args,
         monitoring_source: "otel".to_string(),
@@ -42,7 +47,10 @@ agents:
         ),
     );
 
-    write_agent_local_config(&linux::local_config_path("nrdot"), nrdot_config());
+    write_agent_local_config(
+        &linux::local_config_path("nrdot"),
+        nrdot_config(&nrdot_version),
+    );
 
     linux::service::restart_service(linux::SERVICE_NAME);
 
@@ -54,12 +62,4 @@ agents:
     retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     });
-}
-
-pub fn nrdot_config() -> String {
-    format!(
-        r#"
-{NRDOT_CONFIG}
-"#
-    )
 }
