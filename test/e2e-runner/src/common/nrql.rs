@@ -132,7 +132,7 @@ fn check_query_results_are_not_empty_with_client(
             );
             Ok(results.clone())
         }
-        Some(results) => Err(format!("NRQL query '{nrql_query}' returned results, but they did not match the provided predicate.\n\tResults: {results:?}").into()),
+        Some(results) => Err(format!("NRQL query '{nrql_query}' returned data, but it did not match the provided predicate.\n\tResults: {results:?}").into()),
         None => Err(format!("NRQL query '{nrql_query}' returned no results").into()),
   }
 }
