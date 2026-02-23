@@ -17,7 +17,6 @@ const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWM4YWE5LWM3YTgtN2I0ZS04NGE3
 const STARTING_NEWRELIC_INFRA_VERSION: &str = "1.72.1";
 
 /// Windows path for environment variables file
-/// TODO: Verify this file exists after installation and supports environment variable interpolation
 const ENV_VARS_FILE: &str =
     r"C:\Program Files\New Relic\newrelic-agent-control\environment_variables.yaml";
 
@@ -76,17 +75,26 @@ version: {STARTING_NEWRELIC_INFRA_VERSION}
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query, |r| !r.is_empty())
     });
 
-    // Now reinstall with fleet enabled and validate that remote config is applied which should include an updated version of the infra agent causing a restart if the service is still running and eventually reporting with the new config values from fleet (config_origin = remote).
-    todo!();
+    // Now reinstall with fleet enabled and validate that remote config is applied which should
+    // include an updated version of the infra agent, eventually reporting the new values
+    // (version bump from the previous and config_origin = remote).
+    let recipe_data = RecipeData {
+        fleet_enabled: true.to_string(),
+        fleet_id: FLEET_ID.to_string(),
+        ..recipe_data // reuse previous recipe data with just updated fleet configuration
+    };
+
+    // Install Agent Control again, this time with fleet enabled
+    install_agent_control_from_recipe(&recipe_data);
 
     // Validate remote configuration has been applied
-    info!("Check that remote configuration has been applied");
+    info!("Check that remote configuration has been applied and agent update occurred");
     let nrql_query = format!(
         r#"SELECT * FROM SystemSample WHERE `test_id` = '{test_id}' AND `config_origin` = 'remote' LIMIT 1"#
     );
     info!(nrql = nrql_query, "Checking results of NRQL");
-    let retries = 60;
-    retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
+    let retries = 25; // With a 15-sec interval should be enough to test this
+    retry_panic(retries, Duration::from_secs(15), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query, |r| !r.is_empty())
     });
 }
