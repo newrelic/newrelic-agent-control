@@ -87,6 +87,9 @@ impl Client {
     /// If the reference points to an index-manifest (multi-arch image), the signature of the index-manifest itself
     /// is verified—not the platform-specific manifest underneath it.
     ///
+    /// Validation skips transparency log verification as it supports verifying artifacts in a privately deployed
+    /// infrastructure (same as `cosign verify --private-infrastructure`).
+    ///
     /// The expected signature format follows Cosign's "Simple Signing" specification:
     /// - Signatures are stored as separate artifacts in the same registry
     /// - Each signature is a JSON payload (Simple Signing format) containing a `critical` section with the
@@ -98,7 +101,7 @@ impl Client {
     /// `public_key_url` result, considering that the verification succeed if the signature corresponds to one
     /// of the public keys.
     ///
-    /// If verification succeeds, the verified `reference` (identified by digest) is returned.
+    /// If verification succeeds, the verified `reference`, **including digest**, is returned.
     ///
     pub fn verify_signature(
         &self,
@@ -170,15 +173,16 @@ pub mod tests {
 
         let client = create_test_client();
         let image_ref = mock_server.reference();
+        assert!(image_ref.digest().is_none()); // The reference to be verified doesn't have digest
 
         let result = client.verify_signature(&image_ref, &jwks_server.url);
 
         if signer_position.is_some() {
             let verified_ref = result.expect("verification should succeed");
-            assert!(
-                verified_ref
-                    .whole()
-                    .contains(&mock_server.manifest_digest())
+            assert_eq!(
+                verified_ref.digest().unwrap(),
+                mock_server.manifest_digest(),
+                "The verified reference should inform the corresponding digest"
             );
         } else {
             assert_matches!(result, Err(OciClientError::Verify(_)));
@@ -357,6 +361,11 @@ pub mod tests {
             Reference::from_str(&format!("{}/{}:{}", addr, self.repo, self.tag)).unwrap()
         }
 
+        /// Returns the `digest` for the MockServer's manifest.
+        /// Check the [OCI specs](https://github.com/opencontainers/image-spec/blob/6529f89e290d8169adbddf15e43493b9fdd37b62/descriptor.md#L69)
+        /// for details.
+        /// We don't need JSON canonicalization (which would probably be required in real server implementation) because
+        /// we are always getting the same JSON representation of the manifest in the mock-server.
         pub fn manifest_digest(&self) -> String {
             let manifest_bytes = serde_json::to_vec(&self.manifest).unwrap();
             let manifest_digest = digest(&SHA256, &manifest_bytes);

@@ -48,8 +48,12 @@ impl OCIAgentDownloader for OCIArtifactDownloader {
     ) -> Result<LocalAgentPackage, OCIDownloaderError> {
         debug!("Downloading '{reference}'",);
         retry(self.max_retries, self.retry_interval, || {
-            let reference = self.verify_package_signature(reference, public_key_url)?;
-            self.download_package_artifact(&reference, package_dir)
+            let reference = if let Some(pk_url) = self.should_verify_signature(public_key_url) {
+                &self.verified_package_signature_reference(reference, pk_url)?
+            } else {
+                reference
+            };
+            self.download_package_artifact(reference, package_dir)
                 .inspect_err(|e| debug!("Download '{reference}' failed with error: {e}"))
         })
         .map_err(|e| OCIDownloaderError(format!("download attempts exceeded. Last error: {e}")))
@@ -78,19 +82,27 @@ impl OCIArtifactDownloader {
         }
     }
 
-    fn verify_package_signature(
-        &self,
-        reference: &Reference,
-        public_key_url: &Option<Url>,
-    ) -> Result<Reference, OCIDownloaderError> {
+    /// This helper returns the `public_key_url` if signature verification needs to be performed, None otherwise
+    fn should_verify_signature<'a>(&self, public_key_url: &'a Option<Url>) -> Option<&'a Url> {
         if !self.signature_verification_enabled {
             warn!("Signature verification is disabled, skipping");
-            return Ok(reference.clone());
+            return None;
         }
-        let Some(public_key_url) = public_key_url else {
-            warn!("No public_key_url for agent package, skipping signature verification");
-            return Ok(reference.clone());
+        let Some(pk_url) = public_key_url else {
+            warn!("Signature verification is disabled, skipping");
+            return None;
         };
+        Some(pk_url)
+    }
+
+    /// Returns the [Reference] after verifying its signature. The reference always includes the `digest` to
+    /// assure it is the same reference whose signature was verified.
+    /// It returns an error if signature verification fails.
+    fn verified_package_signature_reference(
+        &self,
+        reference: &Reference,
+        public_key_url: &Url,
+    ) -> Result<Reference, OCIDownloaderError> {
         self.client
             .verify_signature(reference, public_key_url)
             .map_err(|err| OCIDownloaderError(err.to_string()))

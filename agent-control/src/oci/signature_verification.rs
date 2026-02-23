@@ -113,6 +113,7 @@ impl Client {
                 OciClientError::Verify(format!("could not fetch signature manifest: {err}"))
             })?;
 
+        // Try to validate signature for each valid signature in the manifest's layers
         for layer in signature_manifest.layers {
             let Some(signature_data) = self
                 .try_get_signature_data_from_layer(layer, &signature_ref, &digest)
@@ -157,7 +158,7 @@ impl Client {
     /// Returns:
     /// * An error if there is a failure downloading the signature blob
     /// * `Ok(Some(SignatureData))` if some signature data is found in the layer
-    /// * `None` if some conditions are not met (there is no error but no valid signature is found)
+    /// * `Ok(None)` if some conditions are not met (there is no error but no valid signature is found)
     async fn try_get_signature_data_from_layer(
         &self,
         layer: OciDescriptor,
@@ -301,10 +302,9 @@ mod tests {
         let server = MockServer::start();
         let repo = "my-repo";
         let blob_digest = sha256_of(b"some content");
-        let blob_digest_clone = blob_digest.clone();
-        server.mock(move |when, then| {
+        server.mock(|when, then| {
             when.method(GET)
-                .path(format!("/v2/{repo}/blobs/{blob_digest_clone}"));
+                .path(format!("/v2/{repo}/blobs/{blob_digest}"));
             then.status(500);
         });
 
@@ -338,12 +338,10 @@ mod tests {
         let repo = "my-repo";
         let blob_content = make_blob(expected_digest);
         let blob_digest = sha256_of(&blob_content);
-        let blob_digest_clone = blob_digest.clone();
-        let blob_content_clone = blob_content.clone();
-        server.mock(move |when, then| {
+        server.mock(|when, then| {
             when.method(GET)
-                .path(format!("/v2/{repo}/blobs/{blob_digest_clone}"));
-            then.status(200).body(blob_content_clone);
+                .path(format!("/v2/{repo}/blobs/{blob_digest}"));
+            then.status(200).body(blob_content);
         });
 
         let layer = cosign_layer(blob_digest, sig_annotation);
@@ -369,11 +367,10 @@ mod tests {
         let payload = simple_signing_payload(expected_digest);
         let raw_sig = b"raw-signature-bytes";
         let blob_digest = sha256_of(&payload);
-        let blob_digest_clone = blob_digest.clone();
         let payload_clone = payload.clone();
-        server.mock(move |when, then| {
+        server.mock(|when, then| {
             when.method(GET)
-                .path(format!("/v2/{repo}/blobs/{blob_digest_clone}"));
+                .path(format!("/v2/{repo}/blobs/{blob_digest}"));
             then.status(200).body(payload_clone);
         });
 
@@ -395,10 +392,12 @@ mod tests {
         });
     }
 
-    #[test]
-    fn test_verify_success() {
-        // When the reference already contains a digest, the function uses it directly
-        // without issuing a fetch_manifest_digest HTTP call.
+    #[rstest]
+    #[case::reference_with_tag(|s: &FakeOciServer| s.reference())]
+    // When the reference already contains a digest, the function uses it directly
+    // without issuing a fetch_manifest_digest HTTP call.
+    #[case::reference_with_digest(|s: &FakeOciServer| s.reference().clone_with_digest(s.manifest_digest()))]
+    fn test_verify_success(#[case] ref_fn: impl Fn(&FakeOciServer) -> Reference) {
         let kp = TestKeyPair::new(10);
         let mock_server = FakeOciServer::new("my-app", "v1")
             .with_layer(
@@ -408,43 +407,13 @@ mod tests {
             .with_signature(&kp)
             .build();
 
-        let expected_digest = mock_server.manifest_digest();
-        let reference = mock_server.reference();
+        let reference = ref_fn(&mock_server);
 
         let result = tokio_runtime().block_on(
             create_test_client().verify_signature_with_public_keys(&reference, &[kp.public_key()]),
         );
 
-        let verified_ref = result.expect("verification should succeed");
-        assert_eq!(verified_ref.digest(), Some(expected_digest.as_str()));
-    }
-
-    #[test]
-    fn test_verify_with_digest() {
-        // When the reference already contains a digest, the function uses it directly
-        // without issuing a fetch_manifest_digest HTTP call.
-        let kp = TestKeyPair::new(10);
-        let mock_server = FakeOciServer::new("my-app", "v1")
-            .with_layer(
-                b"binary content",
-                "application/vnd.oci.image.layer.v1.tar+gzip",
-            )
-            .with_signature(&kp)
-            .build();
-
-        let base_ref = mock_server.reference();
         let expected_digest = mock_server.manifest_digest();
-        let ref_with_digest = Reference::with_digest(
-            base_ref.registry().to_string(),
-            base_ref.repository().to_string(),
-            expected_digest.clone(),
-        );
-
-        let result = tokio_runtime().block_on(
-            create_test_client()
-                .verify_signature_with_public_keys(&ref_with_digest, &[kp.public_key()]),
-        );
-
         let verified_ref = result.expect("verification should succeed");
         assert_eq!(verified_ref.digest(), Some(expected_digest.as_str()));
     }
