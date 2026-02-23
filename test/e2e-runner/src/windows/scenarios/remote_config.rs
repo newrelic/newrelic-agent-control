@@ -10,10 +10,10 @@ use crate::{
 use std::time::Duration;
 use tracing::info;
 
-/// Windows-specific fleet for ac-e2e-onhost-windows
-/// TODO: Replace with actual Windows fleet ID after fleet is created and configured in New Relic
-const FLEET_ID: &str = "WINDOWS_FLEET_ID_TODO";
+/// Windows-specific fleet for ac-e2e-onhost-win-1
+const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWM4YWE5LWM3YTgtN2I0ZS04NGE3LWU1YmE3NDRlNTM4Mw";
 
+// As of writing this test the latest version is 1.72.4 so an update should be triggered.
 const STARTING_NEWRELIC_INFRA_VERSION: &str = "1.72.1";
 
 /// Windows path for environment variables file
@@ -62,6 +62,7 @@ pub fn test_remote_config_with_version_is_applied(args: Args) {
         format!(
             r#"
 config_agent:
+  enable_process_metrics: true
   status_server_enabled: true
   status_server_port: 18003
   license_key: {{{{NEW_RELIC_LICENSE_KEY}}}}
