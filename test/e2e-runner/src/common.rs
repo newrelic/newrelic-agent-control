@@ -83,7 +83,7 @@ impl Default for RecipeData {
             args: Default::default(),
             fleet_id: Default::default(),
             proxy_url: Default::default(),
-            fleet_enabled: "false".to_string(),
+            fleet_enabled: false.to_string(),
             recipe_list: "agent-control".to_string(),
             #[cfg(target_family = "unix")]
             monitoring_source: "infra-agent".to_string(),
