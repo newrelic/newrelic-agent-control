@@ -70,10 +70,10 @@ config_agent:
   enable_process_metrics: true
   status_server_enabled: true
   status_server_port: 18003
-  license_key: {{{{NEW_RELIC_LICENSE_KEY}}}}
+  license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
   custom_attributes:
     config_origin: local
-    test_id: {{{{TEST_ID}}}}
+    test_id: '{{{{TEST_ID}}}}'
 version: {STARTING_NEWRELIC_INFRA_VERSION}
 "#
         ),
