@@ -101,7 +101,7 @@ jobs:
           echo SKIP_WINDOWS_SIGN="true" >> $GITHUB_ENV
 
       - name: Release packages with GoReleaser
-        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7
         with:
           args: release ${{ env.SKIP_UPLOAD_RELEASE }} ${{ env.SKIP_SIGN }} --clean --verbose --timeout 2h
         env:
