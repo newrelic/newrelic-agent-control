@@ -1,3 +1,4 @@
+use crate::common::config::update_config;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{Args, RecipeData};
@@ -45,6 +46,18 @@ pub fn test_reinstall_with_remote_config_package_update(args: Args) {
     // Set up TEST_ID environment variable
     info!("Setting up `TEST_ID` environment variable");
     config::append_to_config_file(ENV_VARS_FILE, format!("TEST_ID: {test_id}").as_str());
+
+    update_config(
+        windows::DEFAULT_AC_CONFIG_PATH,
+        format!(
+            r#"
+host_id: {test_id}
+agents:
+  nr-infra:
+    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+"#
+        ),
+    );
 
     // Setup infra-agent config with local custom attribute
     info!("Setup infra-agent config");
