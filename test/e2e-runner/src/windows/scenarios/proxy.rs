@@ -106,7 +106,7 @@ version: {infra_agent_version}
     let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `host.id` = '{test_id}' LIMIT 1"#);
     info!(nrql = nrql_query, "Checking results of NRQL");
     retry_panic(60, Duration::from_secs(10), "nrql assertion", || {
-        check_query_results_are_not_empty(&recipe_data.args, &nrql_query,|r| !r.is_empty())
+        check_query_results_are_not_empty(&recipe_data.args, &nrql_query, |r| !r.is_empty())
     });
 
     info!("Verifying proxy was used as expected by checking mitmproxy logs");
