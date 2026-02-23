@@ -7,24 +7,20 @@ use crate::{
     signature::{public_key::PublicKey, public_key_fetcher::PublicKeyFetcher},
 };
 use base64::Engine;
-use oci_client::Reference;
+use oci_client::{Reference, manifest::OciDescriptor};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, time::Duration};
 use tracing::debug;
 
 const DEFAULT_PUBLIC_KEY_FETCH_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Internal helper struct that groups the raw signature data downloaded from the registry
-/// with its parsed representation.
+/// Represents the signature data included in an OCI layer.
 #[derive(Debug, Clone)]
-pub struct SignatureLayer {
-    pub simple_signing: SimpleSigning,
-    /// The digest of the OCI layer containing this signature.
-    pub oci_digest: String,
-    /// The raw bytes of the payload (used for cryptographic verification).
-    pub raw_data: Vec<u8>,
-    /// The base64 encoded signature.
-    pub signature: String,
+struct SignatureData {
+    /// The message signed (raw data of the signature payload)
+    pub message: Vec<u8>,
+    /// The decoded signature.
+    pub signature: Vec<u8>,
 }
 
 /// Represents the JSON payload of a Cosign signature.
@@ -34,13 +30,13 @@ pub struct SignatureLayer {
 ///
 /// For more details, see the [Cosign Signature Specification](https://github.com/sigstore/cosign/blob/main/specs/SIGNATURE_SPEC.md#payload).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SimpleSigning {
+struct SimpleSigning {
     pub critical: Critical,
     pub optional: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Critical {
+struct Critical {
     pub identity: Identity,
     pub image: Image,
     #[serde(rename = "type")]
@@ -48,13 +44,13 @@ pub struct Critical {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Identity {
+struct Identity {
     #[serde(rename = "docker-reference")]
-    pub docker_reference: String,
+    pub docker_reference: String, // Unused for verification, only `docker-manifest-digest` is used. Check Cosign specs for details.
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Image {
+struct Image {
     #[serde(rename = "docker-manifest-digest")]
     pub docker_manifest_digest: String,
 }
@@ -75,7 +71,8 @@ impl Client {
         Ok(PublicKeyFetcher::new(http_client))
     }
 
-    /// Verifies the `reference` signature through [verify_signatures] trying out each public-key in `public_keys`.
+    /// Helper to verify the signature (as described in [super::Client::verify_signature]) using the provided
+    /// public keys.
     pub(super) async fn verify_signature_with_public_keys(
         &self,
         reference: &Reference,
@@ -88,6 +85,9 @@ impl Client {
                 digest.to_string()
             }
             None => {
+                // We cannot use `pull_image_manifest` because, in multi-platform artifacts, we need to obtain the
+                // index manifest and `pull_image_manifest` would resolve such index and return the artifact's manifest
+                // instead.
                 let digest = self
                     .client
                     .fetch_manifest_digest(reference, &self.auth)
@@ -104,149 +104,119 @@ impl Client {
         let signature_ref = triangulate(reference, &digest);
         debug!("Looking for signatures at: {}", signature_ref.whole());
 
-        // Download signature layers
-        let layers = self.fetch_trusted_signature_layers(&signature_ref).await?;
-
-        if layers.is_empty() {
-            return Err(OciClientError::Verify(format!(
-                "No signature layers found for artifact {}",
-                reference.whole()
-            )));
-        }
-
-        // Verify cryptography (External logic)
-        verify_signatures(&layers, &digest, public_keys)?;
-
-        Ok(Reference::with_digest(
-            reference.registry().to_string(),
-            reference.repository().to_string(),
-            digest,
-        ))
-    }
-
-    /// Fetches and parses candidate signature layers from the triangulated signature image.
-    ///
-    /// This function pulls the image manifest and iterates through its layers, filtering for
-    /// those that match the Cosign `SimpleSigning` media type and contain the required
-    /// signature annotation. Valid layers are downloaded and deserialized for verification.
-    pub(super) async fn fetch_trusted_signature_layers(
-        &self,
-        cosign_image_ref: &Reference,
-    ) -> Result<Vec<SignatureLayer>, OciClientError> {
-        let (manifest, _) = self
+        // Get the corresponding manifest
+        let (signature_manifest, _) = self
             .client
-            .pull_image_manifest(cosign_image_ref, &self.auth)
+            .pull_image_manifest(&signature_ref, &self.auth)
             .await
             .map_err(|err| {
-                OciClientError::Verify(format!(
-                    "could not fetch signature  manifest '{cosign_image_ref}': {err}"
-                ))
+                OciClientError::Verify(format!("could not fetch signature manifest: {err}"))
             })?;
-        let mut signature_layers = Vec::new();
 
-        for layer in manifest.layers {
-            if layer.media_type != "application/vnd.dev.cosign.simplesigning.v1+json" {
-                continue;
-            }
-
-            let Some(signature) = layer
-                .annotations
-                .as_ref()
-                .and_then(|a| a.get("dev.cosignproject.cosign/signature"))
-                .cloned()
+        for layer in signature_manifest.layers {
+            let Some(signature_data) = self
+                .try_get_signature_data_from_layer(layer, &signature_ref, &digest)
+                .await?
             else {
-                debug!("Layer missing signature annotation, skipping");
                 continue;
             };
 
-            let mut raw_data = Vec::new();
-            if let Err(e) = self
-                .client
-                .pull_blob(cosign_image_ref, &layer, &mut raw_data)
-                .await
-            {
-                debug!("Failed to pull blob for signature layer: {}", e);
-                continue;
-            }
-
-            let simple_signing = match serde_json::from_slice::<SimpleSigning>(&raw_data) {
-                Ok(simple_signing) => simple_signing,
-                Err(err) => {
-                    debug!("Failed to parse signature layer JSON. Skipping: {err}");
-                    continue;
+            for key in public_keys {
+                match key.verify_signature(&signature_data.message, &signature_data.signature) {
+                    Ok(()) => {
+                        // Valid signature found, return reference with digest
+                        return Ok(Reference::with_digest(
+                            reference.registry().to_string(),
+                            reference.repository().to_string(),
+                            digest,
+                        ));
+                    }
+                    Err(err) => {
+                        debug!(
+                            key_id = key.key_id(),
+                            "Signature verification failed: {err}"
+                        );
+                    }
                 }
-            };
-
-            signature_layers.push(SignatureLayer {
-                simple_signing,
-                oci_digest: layer.digest,
-                raw_data,
-                signature,
-            });
+            }
         }
-        Ok(signature_layers)
+        Err(OciClientError::Verify(format!(
+            "verification failed. Checked with {} public keys, but no valid signature found for reference '{}', digest ({})",
+            public_keys.len(),
+            reference.whole(),
+            digest
+        )))
     }
-}
 
-/// Iterates through candidate signature layers and attempts to cryptographically verify them.
-///
-/// This function performs two critical checks for each candidate layer:
-/// 1. **Claim Verification:** Ensures the `docker-reference` inside the Simple Signing payload
-///    matches the `expected_image_digest`. This prevents replay attacks where a valid signature
-///    for one image is maliciously attached to another.
-/// 2. **Signature Verification:** Decodes the base64 signature from the layer annotation and
-///    attempts to verify it against the provided `trusted_keys` using the Ed25519 algorithm.
-///
-/// Returns `Ok(())` as soon as a valid signature matching a trusted key is found.
-pub fn verify_signatures(
-    layers: &[SignatureLayer],
-    expected_image_digest: &str,
-    trusted_keys: &[PublicKey],
-) -> Result<(), OciClientError> {
-    let mut checked_count = 0;
+    /// Gets the [SignatureData] from the provided layer, reference and digest if all conditions are met:
+    /// * The layer's media_type matches the expected
+    /// * The signature is informed in the corresponding annotation in base64
+    /// * Contains the signature message as [SimpleSigning]
+    /// * The digest is informed in the corresponding field of the signature message
+    ///
+    /// Returns:
+    /// * An error if there is a failure downloading the signature blob
+    /// * `Ok(Some(SignatureData))` if some signature data is found in the layer
+    /// * `None` if some conditions are not met (there is no error but no valid signature is found)
+    async fn try_get_signature_data_from_layer(
+        &self,
+        layer: OciDescriptor,
+        reference: &Reference,
+        digest: &str,
+    ) -> Result<Option<SignatureData>, OciClientError> {
+        if layer.media_type != "application/vnd.dev.cosign.simplesigning.v1+json" {
+            debug!("Layer with unexpected media_type, skipping");
+            return Ok(None);
+        }
 
-    for layer in layers {
-        if layer.simple_signing.critical.image.docker_manifest_digest != expected_image_digest {
+        let Some(signature) = layer
+            .annotations
+            .as_ref()
+            .and_then(|a| a.get("dev.cosignproject.cosign/signature"))
+            .cloned()
+        else {
+            debug!("Layer missing signature annotation, skipping");
+            return Ok(None);
+        };
+
+        let mut raw_data = Vec::new();
+        self.client
+            .pull_blob(reference, &layer, &mut raw_data)
+            .await
+            .map_err(|err| {
+                OciClientError::Verify(format!("failure fetching signature layer: {err}"))
+            })?;
+
+        let signing_data = match serde_json::from_slice::<SimpleSigning>(&raw_data) {
+            Ok(simple_signing) => simple_signing,
+            Err(err) => {
+                debug!("Failed to parse signature layer JSON. Skipping: {err}");
+                return Ok(None);
+            }
+        };
+
+        if signing_data.critical.image.docker_manifest_digest != digest {
             debug!(
-                claims = layer.simple_signing.critical.image.docker_manifest_digest,
-                expected = expected_image_digest,
-                "Signature skipped: digest mismatch"
+                claims = signing_data.critical.image.docker_manifest_digest,
+                expected = digest,
+                "Signature layer skipped: digest mismatch"
             );
-            continue;
+            return Ok(None);
         }
 
-        let signature_bytes =
-            match base64::engine::general_purpose::STANDARD.decode(&layer.signature) {
-                Ok(b) => b,
-                Err(e) => {
-                    debug!("Skipping layer with invalid base64 signature: {}", e);
-                    continue;
-                }
-            };
-
-        checked_count += 1;
-
-        for key in trusted_keys {
-            match key.verify_signature(&layer.raw_data, &signature_bytes) {
-                Ok(_) => {
-                    debug!(
-                        layer = layer.oci_digest,
-                        key = key.key_id(),
-                        "Signature successfully verified"
-                    );
-                    return Ok(());
-                }
-                Err(e) => {
-                    debug!(key_id = key.key_id(), "Verification failed against {e}");
-                }
+        let signature_bytes = match base64::engine::general_purpose::STANDARD.decode(signature) {
+            Ok(b) => b,
+            Err(err) => {
+                debug!("Skipping layer with invalid base64 signature: {err}");
+                return Ok(None);
             }
-        }
-    }
+        };
 
-    Err(OciClientError::Verify(format!(
-        "verification failed. Checked with {} public keys, but no valid signature found for digest {}",
-        checked_count, expected_image_digest
-    )))
+        Ok(Some(SignatureData {
+            message: raw_data,
+            signature: signature_bytes,
+        }))
+    }
 }
 
 /// Deterministically derives the Cosign signature reference from a target image digest.
@@ -274,8 +244,253 @@ pub fn triangulate(reference: &Reference, digest: &str) -> Reference {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::http::config::ProxyConfig;
     use crate::signature::public_key::tests::TestKeyPair;
+    use crate::{agent_control::run::runtime::tests::tokio_runtime, oci::tests::FakeOciServer};
+    use assert_matches::assert_matches;
+    use base64::Engine;
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+    use httpmock::{Method::GET, MockServer};
+    use oci_client::{
+        Reference,
+        client::{ClientConfig, ClientProtocol},
+        manifest::OciDescriptor,
+    };
+    use ring::digest::{SHA256, digest};
+    use rstest::rstest;
+    use std::collections::BTreeMap;
     use std::str::FromStr;
+
+    /// Layers are skipped (Ok(None)) before any blob fetch when the media_type or annotation
+    /// conditions are not met.
+    #[rstest]
+    #[case::wrong_media_type("application/vnd.oci.image.layer.v1.tar+gzip", None)]
+    #[case::no_annotations("application/vnd.dev.cosign.simplesigning.v1+json", None)]
+    #[case::annotation_without_cosign_key(
+        "application/vnd.dev.cosign.simplesigning.v1+json",
+        Some("some.other.annotation")
+    )]
+    fn test_signature_data_from_layer_skipped_before_fetch(
+        #[case] media_type: &str,
+        #[case] annotation_key: Option<&str>,
+    ) {
+        let client = create_test_client();
+        let reference = Reference::from_str("localhost:1234/repo:tag").unwrap();
+        let annotations = annotation_key.map(|k| {
+            let mut m = BTreeMap::new();
+            m.insert(k.to_string(), "value".to_string());
+            m
+        });
+        let layer = OciDescriptor {
+            media_type: media_type.to_string(),
+            annotations,
+            ..Default::default()
+        };
+
+        let result = tokio_runtime().block_on(client.try_get_signature_data_from_layer(
+            layer,
+            &reference,
+            "sha256:abc",
+        ));
+
+        assert_matches!(result, Ok(None));
+    }
+
+    #[test]
+    fn test_signature_data_from_layer_fetch_failure_returns_error() {
+        let server = MockServer::start();
+        let repo = "my-repo";
+        let blob_digest = sha256_of(b"some content");
+        let blob_digest_clone = blob_digest.clone();
+        server.mock(move |when, then| {
+            when.method(GET)
+                .path(format!("/v2/{repo}/blobs/{blob_digest_clone}"));
+            then.status(500);
+        });
+
+        let layer = cosign_layer(blob_digest, &BASE64_STANDARD.encode(b"sig"));
+        let reference =
+            Reference::from_str(&format!("{}/{repo}:sha256-abc.sig", server.address())).unwrap();
+
+        let result = tokio_runtime().block_on(
+            create_test_client().try_get_signature_data_from_layer(layer, &reference, "sha256:abc"),
+        );
+
+        assert_matches!(result, Err(OciClientError::Verify(_)));
+    }
+
+    /// Layers are skipped (Ok(None)) when the blob fetch succeeds but the payload or signature
+    /// annotation fails validation.
+    #[rstest]
+    #[case::invalid_json(blob_invalid_json, "aGVsbG8=", "sha256:expected")]
+    #[case::digest_mismatch(blob_with_wrong_digest, "aGVsbG8=", "sha256:expected")]
+    #[case::invalid_base64_annotation(
+        blob_matching_digest,
+        "!!!not-valid-base64!!!",
+        "sha256:expected"
+    )]
+    fn test_signature_data_from_layer_skipped_after_fetch(
+        #[case] make_blob: fn(&str) -> Vec<u8>,
+        #[case] sig_annotation: &str,
+        #[case] expected_digest: &str,
+    ) {
+        let server = MockServer::start();
+        let repo = "my-repo";
+        let blob_content = make_blob(expected_digest);
+        let blob_digest = sha256_of(&blob_content);
+        let blob_digest_clone = blob_digest.clone();
+        let blob_content_clone = blob_content.clone();
+        server.mock(move |when, then| {
+            when.method(GET)
+                .path(format!("/v2/{repo}/blobs/{blob_digest_clone}"));
+            then.status(200).body(blob_content_clone);
+        });
+
+        let layer = cosign_layer(blob_digest, sig_annotation);
+        let reference =
+            Reference::from_str(&format!("{}/{repo}:sha256-expected.sig", server.address()))
+                .unwrap();
+
+        let result =
+            tokio_runtime().block_on(create_test_client().try_get_signature_data_from_layer(
+                layer,
+                &reference,
+                expected_digest,
+            ));
+
+        assert_matches!(result, Ok(None));
+    }
+
+    #[test]
+    fn test_valid_layer_returns_signature_data() {
+        let server = MockServer::start();
+        let repo = "my-repo";
+        let expected_digest = "sha256:expected-digest";
+        let payload = simple_signing_payload(expected_digest);
+        let raw_sig = b"raw-signature-bytes";
+        let blob_digest = sha256_of(&payload);
+        let blob_digest_clone = blob_digest.clone();
+        let payload_clone = payload.clone();
+        server.mock(move |when, then| {
+            when.method(GET)
+                .path(format!("/v2/{repo}/blobs/{blob_digest_clone}"));
+            then.status(200).body(payload_clone);
+        });
+
+        let layer = cosign_layer(blob_digest, &BASE64_STANDARD.encode(raw_sig));
+        let reference =
+            Reference::from_str(&format!("{}/{repo}:sha256-expected.sig", server.address()))
+                .unwrap();
+
+        let sig_data_result =
+            tokio_runtime().block_on(create_test_client().try_get_signature_data_from_layer(
+                layer,
+                &reference,
+                expected_digest,
+            ));
+
+        assert_matches!(sig_data_result, Ok(Some(s)) => {
+            assert_eq!(s.message, payload);
+            assert_eq!(s.signature, raw_sig);
+        });
+    }
+
+    #[test]
+    fn test_verify_success() {
+        // When the reference already contains a digest, the function uses it directly
+        // without issuing a fetch_manifest_digest HTTP call.
+        let kp = TestKeyPair::new(10);
+        let mock_server = FakeOciServer::new("my-app", "v1")
+            .with_layer(
+                b"binary content",
+                "application/vnd.oci.image.layer.v1.tar+gzip",
+            )
+            .with_signature(&kp)
+            .build();
+
+        let expected_digest = mock_server.manifest_digest();
+        let reference = mock_server.reference();
+
+        let result = tokio_runtime().block_on(
+            create_test_client().verify_signature_with_public_keys(&reference, &[kp.public_key()]),
+        );
+
+        let verified_ref = result.expect("verification should succeed");
+        assert_eq!(verified_ref.digest(), Some(expected_digest.as_str()));
+    }
+
+    #[test]
+    fn test_verify_with_digest() {
+        // When the reference already contains a digest, the function uses it directly
+        // without issuing a fetch_manifest_digest HTTP call.
+        let kp = TestKeyPair::new(10);
+        let mock_server = FakeOciServer::new("my-app", "v1")
+            .with_layer(
+                b"binary content",
+                "application/vnd.oci.image.layer.v1.tar+gzip",
+            )
+            .with_signature(&kp)
+            .build();
+
+        let base_ref = mock_server.reference();
+        let expected_digest = mock_server.manifest_digest();
+        let ref_with_digest = Reference::with_digest(
+            base_ref.registry().to_string(),
+            base_ref.repository().to_string(),
+            expected_digest.clone(),
+        );
+
+        let result = tokio_runtime().block_on(
+            create_test_client()
+                .verify_signature_with_public_keys(&ref_with_digest, &[kp.public_key()]),
+        );
+
+        let verified_ref = result.expect("verification should succeed");
+        assert_eq!(verified_ref.digest(), Some(expected_digest.as_str()));
+    }
+
+    #[test]
+    fn test_verify_with_empty_public_keys_returns_error() {
+        let kp = TestKeyPair::new(20);
+        let mock_server = FakeOciServer::new("my-app", "v1")
+            .with_layer(
+                b"binary content",
+                "application/vnd.oci.image.layer.v1.tar+gzip",
+            )
+            .with_signature(&kp)
+            .build();
+
+        let result = tokio_runtime().block_on(
+            create_test_client().verify_signature_with_public_keys(&mock_server.reference(), &[]),
+        );
+        assert_matches!(result, Err(OciClientError::Verify(_)));
+    }
+
+    #[test]
+    fn test_verify_with_no_signatures_returns_error() {
+        let kp = TestKeyPair::new(10);
+        let mock_server = FakeOciServer::new("my-app", "v1")
+            .with_layer(
+                b"binary content",
+                "application/vnd.oci.image.layer.v1.tar+gzip",
+            )
+            .build(); // `with_signature(kp)` is not called, there is no signature
+
+        let base_ref = mock_server.reference();
+        let expected_digest = mock_server.manifest_digest();
+        let ref_with_digest = Reference::with_digest(
+            base_ref.registry().to_string(),
+            base_ref.repository().to_string(),
+            expected_digest.clone(),
+        );
+
+        let result = tokio_runtime().block_on(
+            create_test_client()
+                .verify_signature_with_public_keys(&ref_with_digest, &[kp.public_key()]),
+        );
+
+        assert_matches!(result, Err(OciClientError::Verify(_)));
+    }
 
     #[test]
     fn test_triangulate_generates_correct_sig_tag() {
@@ -284,71 +499,6 @@ mod tests {
         let reference = Reference::from_str(&format!("{}:latest", repo)).unwrap();
         let result = triangulate(&reference, digest);
         assert!(result.tag().unwrap().ends_with(".sig"));
-    }
-
-    #[test]
-    fn test_verify_signatures_logic_success() {
-        let kp = TestKeyPair::new(0);
-        let good_digest = "sha256:1111";
-        let payload = simple_signing_payload(good_digest);
-        let payload_bytes = serde_json::to_vec(&payload).unwrap();
-        let signature = base64::engine::general_purpose::STANDARD.encode(kp.sign(&payload_bytes));
-        let layer = SignatureLayer {
-            simple_signing: serde_json::from_slice(&payload_bytes).unwrap(),
-            oci_digest: "sha256:layer".to_string(),
-            raw_data: payload_bytes,
-            signature,
-        };
-        assert!(verify_signatures(&[layer], good_digest, &[kp.public_key()]).is_ok());
-    }
-
-    #[test]
-    fn test_verify_signatures_replay_attack_fails() {
-        let kp = TestKeyPair::new(0);
-        let valid_digest = "sha256:1111";
-        let attacker_digest = "sha256:6666";
-
-        let payload = simple_signing_payload(valid_digest);
-        let payload_bytes = serde_json::to_vec(&payload).unwrap();
-        let signature = base64::engine::general_purpose::STANDARD.encode(kp.sign(&payload_bytes));
-
-        let layer = SignatureLayer {
-            simple_signing: serde_json::from_slice(&payload_bytes).unwrap(),
-            oci_digest: "sha256:layer".to_string(),
-            raw_data: payload_bytes,
-            signature,
-        };
-
-        let result = verify_signatures(&[layer], attacker_digest, &[kp.public_key()]);
-
-        assert!(result.is_err());
-        let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("verification failed"));
-        assert!(err_msg.contains("Checked with 0 public keys"));
-    }
-
-    #[test]
-    fn test_verify_signatures_wrong_key_fails() {
-        let kp_signer = TestKeyPair::new(0);
-        let kp_verifier = TestKeyPair::new(1);
-
-        let digest = "sha256:1111";
-
-        let payload = simple_signing_payload(digest);
-        let payload_bytes = serde_json::to_vec(&payload).unwrap();
-        let signature =
-            base64::engine::general_purpose::STANDARD.encode(kp_signer.sign(&payload_bytes));
-
-        let layer = SignatureLayer {
-            simple_signing: serde_json::from_slice(&payload_bytes).unwrap(),
-            oci_digest: "sha256:layer".to_string(),
-            raw_data: payload_bytes,
-            signature,
-        };
-
-        let result = verify_signatures(&[layer], digest, &[kp_verifier.public_key()]);
-
-        assert!(result.is_err());
     }
 
     #[test]
@@ -375,14 +525,58 @@ mod tests {
         assert_eq!(parsed.optional.unwrap().get("creator").unwrap(), "cosign");
     }
 
-    fn simple_signing_payload(digest: &str) -> serde_json::Value {
+    fn create_test_client() -> crate::oci::Client {
+        crate::oci::Client::try_new(
+            ClientConfig {
+                protocol: ClientProtocol::Http,
+                ..Default::default()
+            },
+            ProxyConfig::default(),
+            tokio_runtime(),
+        )
+        .expect("Failed to create test Client")
+    }
+
+    fn sha256_of(data: &[u8]) -> String {
+        let d = digest(&SHA256, data);
+        let hex: String = d.as_ref().iter().map(|b| format!("{:02x}", b)).collect();
+        format!("sha256:{hex}")
+    }
+
+    fn simple_signing_payload(image_digest: &str) -> Vec<u8> {
         serde_json::json!({
             "critical": {
-                "identity": { "docker-reference": "" },
-                "image": { "docker-manifest-digest": digest },
+                "identity": { "docker-reference": "registry.io/repo" },
+                "image": { "docker-manifest-digest": image_digest },
                 "type": "cosign container image signature"
             },
             "optional": {}
         })
+        .to_string()
+        .into_bytes()
+    }
+
+    fn blob_invalid_json(_: &str) -> Vec<u8> {
+        b"this is not valid json".to_vec()
+    }
+    fn blob_with_wrong_digest(_: &str) -> Vec<u8> {
+        simple_signing_payload("sha256:wrong-digest")
+    }
+    fn blob_matching_digest(digest: &str) -> Vec<u8> {
+        simple_signing_payload(digest)
+    }
+
+    fn cosign_layer(digest: String, sig_annotation: &str) -> OciDescriptor {
+        let mut annotations = BTreeMap::new();
+        annotations.insert(
+            "dev.cosignproject.cosign/signature".to_string(),
+            sig_annotation.to_string(),
+        );
+        OciDescriptor {
+            media_type: "application/vnd.dev.cosign.simplesigning.v1+json".to_string(),
+            digest,
+            annotations: Some(annotations),
+            ..Default::default()
+        }
     }
 }
