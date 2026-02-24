@@ -2816,12 +2816,6 @@ Distributed under the following license(s):
 
 * CDLA-Permissive-2.0
 
-## webpki-roots <https://crates.io/crates/webpki-roots>
-
-Distributed under the following license(s):
-
-* CDLA-Permissive-2.0
-
 ## widestring <https://crates.io/crates/widestring>
 
 Distributed under the following license(s):
