@@ -341,7 +341,7 @@ pub mod tests {
             }
         }
 
-        fn mock_manifest(&self, server: &MockServer, path: &str, content: Vec<u8>) {
+        pub fn mock_manifest(&self, server: &MockServer, path: &str, content: Vec<u8>) {
             server.mock(|when, then| {
                 when.method(GET)
                     .path(format!("/v2/{}/manifests/{}", self.repo, path));
@@ -357,7 +357,11 @@ pub mod tests {
         }
 
         pub fn reference(&self) -> Reference {
-            let addr = self.server.as_ref().expect("Call build() first").address();
+            self.reference_on_server(self.server.as_ref().expect("Call build() first"))
+        }
+
+        pub fn reference_on_server(&self, server: &MockServer) -> Reference {
+            let addr = server.address();
             Reference::from_str(&format!("{}/{}:{}", addr, self.repo, self.tag)).unwrap()
         }
 

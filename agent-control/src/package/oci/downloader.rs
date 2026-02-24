@@ -33,13 +33,15 @@ pub struct OCIArtifactDownloader {
 }
 
 impl OCIAgentDownloader for OCIArtifactDownloader {
-    /// Downloads an artifact from an OCI registry using a reference containing
-    /// all the required data to first pull the image manifest if it exists and then iterate all the
-    /// layers downloading each one and downloading the found package into a file where the name
-    /// is the digest. Tokio file is used for async_write so the blob can be read in chunks.
-    /// If retries are set up, it will retry downloading the artifact if it fails.
+    /// Download the artifact contained in the provided OCI `reference` and store its content to `package_dir`.
     ///
-    /// Returns a vector of PathBufs where each path corresponds to a downloaded layer.
+    /// If signature verification is enabled and a `public_key_url` is provided it first verifies the artifact's
+    /// signature and then downloads the artifact that has verified (the verified reference is identified by `digest`
+    /// in order to assure that the artifact downloaded is the one that has been verified).
+    ///
+    /// In case of failure, the download operation is retried as configured in the downloader and if all download
+    /// attempts are reached, it returns an error. If download succeeds, it returns the corresponding
+    /// [LocalAgentPackage] containing the package information.
     fn download(
         &self,
         reference: &Reference,
@@ -48,11 +50,13 @@ impl OCIAgentDownloader for OCIArtifactDownloader {
     ) -> Result<LocalAgentPackage, OCIDownloaderError> {
         debug!("Downloading '{reference}'",);
         retry(self.max_retries, self.retry_interval, || {
+            // Verify signature when needed
             let reference = if let Some(pk_url) = self.should_verify_signature(public_key_url) {
                 &self.verified_package_signature_reference(reference, pk_url)?
             } else {
                 reference
             };
+            // Download the package
             self.download_package_artifact(reference, package_dir)
                 .inspect_err(|e| debug!("Download '{reference}' failed with error: {e}"))
         })
@@ -144,6 +148,7 @@ pub mod tests {
     use crate::signature::public_key_fetcher::tests::JwksMockServer;
 
     use super::*;
+    use assert_matches::assert_matches;
     use httpmock::prelude::*;
     use mockall::mock;
     use oci_client::Reference;
@@ -327,6 +332,81 @@ pub mod tests {
             .download(&server.reference(), &Some(jwks_server.url), dest_dir.path())
             .unwrap_err();
         assert!(err.to_string().contains("signature verification"), "{err}");
+    }
+
+    #[test]
+    fn test_download_toctou_attackt() {
+        const ORIGINAL_CONTENT: &[u8] = b"A";
+        const MALICIOUS_CONTENT: &[u8] = b"B";
+
+        // Setup mock server with tag v1.0.0
+        let key_pair = TestKeyPair::new(0);
+        let jwks_server = JwksMockServer::new(vec![
+            serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
+        ]);
+        let oci_mock_a = FakeOciServer::new("test-repo", "v1.0.0")
+            .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
+            .with_layer(
+                ORIGINAL_CONTENT,
+                &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
+            )
+            .with_signature(&key_pair);
+        let server = MockServer::start();
+        oci_mock_a.setup_mocks_on(&server);
+
+        // Verify signature
+        let reference = oci_mock_a.reference_on_server(&server);
+        let downloader = create_downloader(true);
+        let verified_reference = downloader
+            .verified_package_signature_reference(&reference, &jwks_server.url)
+            .expect("Signature should be verified successfully");
+
+        // Move tag after signature is verified (TOCTOU attackt)
+        let oci_mock_b = FakeOciServer::new("test-repo", "v1.0.0")
+            .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
+            .with_layer(
+                MALICIOUS_CONTENT,
+                &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
+            );
+        oci_mock_b.setup_mocks_on(&server);
+
+        // The verified reference should still point to the original content
+        let dest_dir = tempdir().unwrap();
+        let local_agent_package = downloader
+            .download_package_artifact(&verified_reference, dest_dir.path())
+            .expect("Download should succeed");
+
+        assert_eq!(
+            std::fs::read(local_agent_package.path()).unwrap(),
+            ORIGINAL_CONTENT
+        );
+    }
+
+    #[test]
+    fn test_download_man_in_the_middle_attackt() {
+        let oci_mock = FakeOciServer::new("test-repo", "v1.0.0")
+            .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
+            .with_layer(
+                b"some content",
+                &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
+            );
+        let server = MockServer::start();
+        // Content doesn't match the digest
+        oci_mock.mock_manifest(
+            &server,
+            &oci_mock.manifest_digest(),
+            b"malicious content".to_vec(),
+        );
+        let reference = oci_mock
+            .reference_on_server(&server)
+            .clone_with_digest(oci_mock.manifest_digest());
+
+        let downloader = create_downloader(false);
+        let dest_dir = tempdir().unwrap();
+        let result = downloader.download(&reference, &None, dest_dir.path());
+        assert_matches!(result, Err(OCIDownloaderError(msg)) => {
+            assert!(msg.contains("Digest error"));
+        });
     }
 
     fn create_downloader(signature_verification_enabled: bool) -> OCIArtifactDownloader {
