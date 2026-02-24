@@ -22,6 +22,7 @@ const ENV_VARS_FILE: &str =
     r"C:\Program Files\New Relic\newrelic-agent-control\environment_variables.yaml";
 
 pub fn switch_infra_agent_version(args: Args) {
+    // We assume the below two are valid version strings, but we do not actually parse them
     let update_from_infra_agent_version = args
         .update_from_infra_agent_version
         .clone()
@@ -31,6 +32,11 @@ pub fn switch_infra_agent_version(args: Args) {
         .infra_agent_version
         .clone()
         .expect("--infra-agent-version is required for this scenario");
+
+    assert!(
+        update_from_infra_agent_version != update_to_infra_agent_version,
+        "--update-from-infra-agent-version and --infra-agent-version must be different versions for this test to be meaningful. Provided version: {update_from_infra_agent_version}"
+    );
 
     // Setup recipe data with fleet configuration
     let recipe_data = RecipeData {
@@ -108,39 +114,24 @@ version: {update_from_infra_agent_version}
 
     // Validate infra agent is reporting with local config
     info!("Check infra agent is reporting");
-    let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `test_id` = '{test_id}' LIMIT 1"#);
+    let nrql_query = format!(
+        r#"SELECT * FROM SystemSample WHERE `test_id` = '{test_id}' AND `agentVersion` = '{update_from_infra_agent_version}' LIMIT 1"#
+    );
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
-    dbg!(retry_panic(
-        retries,
-        Duration::from_secs(5),
-        "nrql assertion",
-        || {
-            nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query, |r| {
-                !r.is_empty()
-            })
-        }
-    ));
+    retry_panic(retries, Duration::from_secs(5), "nrql assertion", || {
+        nrql::check_query_results(&recipe_data.args, &nrql_query, |r| !r.is_empty())
+    });
 
     // Now change the version for the infra-agent installation, restart AC and check everything all
     // over again.
 
     // Setup infra-agent config with different version
-    info!("Setup infra-agent config");
-    config::write_agent_local_config(
-        &windows::local_config_path("nr-infra"),
-        format!(
-            r#"
-config_agent:
-  enable_process_metrics: true
-  status_server_enabled: true
-  status_server_port: 18003
-  license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
-  custom_attributes:
-    test_id: '{{{{TEST_ID}}}}'
-version: {update_to_infra_agent_version}
-"#
-        ),
+    info!("Replace infra-agent version");
+    config::modify_agents_config(
+        windows::local_config_path("nr-infra"),
+        update_from_infra_agent_version.to_string().as_str(),
+        update_to_infra_agent_version.to_string().as_str(),
     );
 
     // Restart service and wait for it to be running
@@ -165,17 +156,12 @@ version: {update_to_infra_agent_version}
 
     // Validate remote configuration has been applied
     info!("Check that remote configuration has been applied and agent update occurred");
-    let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `test_id` = '{test_id}' LIMIT 1"#);
+    let nrql_query = format!(
+        r#"SELECT * FROM SystemSample WHERE `test_id` = '{test_id}' AND `agentVersion` = '{update_to_infra_agent_version}' LIMIT 1"#
+    );
     info!(nrql = nrql_query, "Checking results of NRQL");
-    let retries = 25; // With a 15-sec interval should be enough to test this
-    dbg!(retry_panic(
-        retries,
-        Duration::from_secs(15),
-        "nrql assertion",
-        || {
-            nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query, |r| {
-                !r.is_empty()
-            })
-        }
-    ));
+    let retries = 60;
+    retry_panic(retries, Duration::from_secs(5), "nrql assertion", || {
+        nrql::check_query_results(&recipe_data.args, &nrql_query, |r| !r.is_empty())
+    });
 }
