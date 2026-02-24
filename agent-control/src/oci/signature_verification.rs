@@ -249,6 +249,7 @@ mod tests {
     use crate::signature::public_key::tests::TestKeyPair;
     use crate::{agent_control::run::runtime::tests::tokio_runtime, oci::tests::FakeOciServer};
     use assert_matches::assert_matches;
+    use aws_lc_rs::digest::{SHA256, digest};
     use base64::Engine;
     use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use httpmock::{Method::GET, MockServer};
@@ -257,7 +258,6 @@ mod tests {
         client::{ClientConfig, ClientProtocol},
         manifest::OciDescriptor,
     };
-    use ring::digest::{SHA256, digest};
     use rstest::rstest;
     use std::collections::BTreeMap;
     use std::str::FromStr;
