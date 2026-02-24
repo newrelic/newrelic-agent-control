@@ -19,7 +19,7 @@ on:
         description: "JSON array of test scenarios to run"
         required: false
         type: string
-        default: '["remote-config", "ebpf-agent", "infra-agent", "nrdot-agent", "proxy", "switch-infra-agent-version"]'
+        default: '["remote-config", "ebpf-agent", "infra-agent", "nrdot-agent", "proxy"]'
 
 permissions:
   contents: read
@@ -70,8 +70,6 @@ jobs:
             --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
             --agent-control-version "0.900.${{ github.run_id }}" \
             --recipes-repo-branch "feat/removeAgents" \
-            --update-from-infra-agent-version "1.71.1" \
-            --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" \
             --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}"
 
   on-host-windows-e2e:
