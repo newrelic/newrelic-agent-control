@@ -13,10 +13,6 @@ use std::thread;
 use std::time::Duration;
 use tracing::info;
 
-/// Windows-specific fleet for ac-e2e-onhost-win-1
-const _FLEET_ID: &str =
-    "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWM4YWE5LWM3YTgtN2I0ZS04NGE3LWU1YmE3NDRlNTM4Mw";
-
 /// Windows path for environment variables file
 const ENV_VARS_FILE: &str =
     r"C:\Program Files\New Relic\newrelic-agent-control\environment_variables.yaml";
@@ -53,7 +49,7 @@ pub fn switch_infra_agent_version(args: Args) {
 
     // Generate unique test ID with timestamp
     let test_id = format!(
-        "onhost-e2e-infra-agent_{}",
+        "onhost-e2e-infra-agent_switch-version_windows_{}",
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
     );
 
