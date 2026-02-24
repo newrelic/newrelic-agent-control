@@ -57,17 +57,17 @@ impl Region {
 ///
 /// * `Ok(())` - The NRQL query results on success
 /// * `Err` - Error if the query fails, returns errors, or has no results
-pub fn check_query_results_are_not_empty(
+pub fn check_query_results(
     install_args: &Args,
     nrql_query: &str,
     predicate: impl FnOnce(&Vec<Value>) -> bool,
 ) -> TestResult<Vec<Value>> {
     let client = Client::builder().timeout(CLIENT_TIMEOUT).build()?;
-    check_query_results_are_not_empty_with_client(install_args, nrql_query, client, predicate)
+    check_query_results_with_client(install_args, nrql_query, client, predicate)
 }
 
 /// Helper to execute [check_query_results_are_not_empty] with custom setup. Eg: setting up proxy.
-fn check_query_results_are_not_empty_with_client(
+fn check_query_results_with_client(
     install_args: &Args,
     nrql_query: &str,
     client: Client,
