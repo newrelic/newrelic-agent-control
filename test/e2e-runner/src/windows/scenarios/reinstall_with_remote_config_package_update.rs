@@ -111,6 +111,11 @@ version: {STARTING_NEWRELIC_INFRA_VERSION}
     // Now reinstall with fleet enabled and validate that remote config is applied which should
     // include an updated version of the infra agent, eventually reporting the new values
     // (version bump from the previous and config_origin = remote).
+
+    // Remove local config
+    // fs::remove_file(windows::DEFAULT_AC_CONFIG_PATH).expect("should remove file.");
+
+    // Create new recipe data with fleet enabled
     let recipe_data = RecipeData {
         fleet_enabled: true.to_string(),
         fleet_id: FLEET_ID.to_string(),
