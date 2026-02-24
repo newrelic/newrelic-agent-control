@@ -1,5 +1,5 @@
+use aws_lc_rs::digest;
 use base64::{Engine, prelude::BASE64_STANDARD};
-use ring::digest;
 use std::sync::Mutex;
 use thiserror::Error;
 use tracing::debug;

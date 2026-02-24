@@ -1,8 +1,8 @@
+use aws_lc_rs::digest::SHA256;
+use aws_lc_rs::digest::digest;
 use oci_client::Client;
 use oci_client::Reference;
 use oci_client::manifest::OciDescriptor;
-use ring::digest::SHA256;
-use ring::digest::digest;
 
 pub async fn push_empty_config_descriptor(
     oci_client: &Client,

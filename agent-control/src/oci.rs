@@ -121,10 +121,10 @@ impl Client {
 pub mod tests {
     use super::*;
     use assert_matches::assert_matches;
+    use aws_lc_rs::digest::{SHA256, digest};
     use base64::Engine;
     use httpmock::{Method::GET, MockServer};
     use oci_client::manifest::OciDescriptor;
-    use ring::digest::{SHA256, digest};
     use std::collections::BTreeMap;
     use std::str::FromStr;
     use tempfile::tempdir;

@@ -1,7 +1,7 @@
 use crate::signature::public_key_fetcher::KeyData;
+use aws_lc_rs::signature::UnparsedPublicKey;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use ring::signature::UnparsedPublicKey;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::debug;
@@ -100,7 +100,7 @@ impl TryFrom<&KeyData> for PublicKey {
 
         Ok(PublicKey {
             key_id: data.kid.to_string(),
-            public_key: UnparsedPublicKey::new(&ring::signature::ED25519, decoded_key),
+            public_key: UnparsedPublicKey::new(&aws_lc_rs::signature::ED25519, decoded_key),
         })
     }
 }
@@ -110,10 +110,10 @@ pub mod tests {
     use super::*;
     use crate::signature::public_key_fetcher::PubKeyPayload;
     use assert_matches::assert_matches;
+    use aws_lc_rs::rand::SystemRandom;
+    use aws_lc_rs::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey};
     use base64::Engine;
     use base64::prelude::{BASE64_STANDARD, BASE64_URL_SAFE_NO_PAD};
-    use ring::rand::SystemRandom;
-    use ring::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey};
     use serde_json::json;
 
     pub struct TestKeyPair {
@@ -130,7 +130,7 @@ pub mod tests {
             PublicKey {
                 key_id: self.key_id(),
                 public_key: UnparsedPublicKey::new(
-                    &ring::signature::ED25519,
+                    &aws_lc_rs::signature::ED25519,
                     self.key_pair.public_key().as_ref().to_vec(),
                 ),
             }

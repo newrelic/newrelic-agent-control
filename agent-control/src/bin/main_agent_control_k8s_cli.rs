@@ -8,9 +8,8 @@ use newrelic_agent_control::cli::k8s::uninstall::agent_control::{
 };
 use newrelic_agent_control::cli::k8s::uninstall::flux::{FluxUninstallData, remove_flux_crs};
 use newrelic_agent_control::cli::logs;
-use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use std::process::ExitCode;
-use tracing::{Level, debug, error};
+use tracing::{Level, error};
 
 /// Manage agent control resources
 #[derive(Debug, Parser)]
@@ -53,9 +52,6 @@ fn main() -> ExitCode {
         eprintln!("Failed to initialize tracing: {err}");
         return err.into();
     }
-
-    debug!("Installing default rustls crypto provider");
-    install_rustls_default_crypto_provider();
 
     let result = match cli.operation {
         Operations::InstallAgentControl(agent_control_data) => {

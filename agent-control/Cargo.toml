@@ -43,7 +43,7 @@ wrapper_with_default = { path = "../wrapper_with_default" }
 resource-detection = { path = "../resource-detection" }
 
 # K8S subagent dependencies
-kube = { version = "3.0.1", features = ["runtime", "derive", "ws"] }
+kube = { version = "3.0.1", default-features = false, features = [ "config", "runtime", "derive", "ws", "rustls-tls", "aws-lc-rs"] }
 k8s-openapi = { version = "0.27.0", features = ["v1_31"] }
 either = { version = "1.15.0" }
 
@@ -58,8 +58,7 @@ opentelemetry-semantic-conventions = { version = "0.31.0", features = [
 ] }
 http-serde = "2.1.1"
 config = { version = "0.15.19", features = ["yaml"] }
-rustls = { version = "0.23.36", features = ["ring"] }
-ring = "0.17.14"
+aws-lc-rs = "1.16.0"
 bytes = "1.11.1"
 opentelemetry = { version = "0.31.0", features = ["trace"] }
 opentelemetry_sdk = { version = "0.31.0", features = ["trace"] }
