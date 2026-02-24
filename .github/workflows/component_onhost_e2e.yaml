@@ -85,7 +85,7 @@ jobs:
             proxy,
             wrong-config,
             remote-config,
-            reinstall-with-remote-sub-agent-update,
+            switch-infra-agent-version,
           ]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -110,5 +110,6 @@ jobs:
             --agent-control-private-key "$env:TEMP\newrelic-agent-control-priv.key" `
             --agent-control-version "0.900.${{ github.run_id }}" `
             --recipes-repo-branch "feat/removeAgents" `
+            --update-from-infra-agent-version "1.72.1" `
             --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" `
             --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}"

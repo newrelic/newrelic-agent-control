@@ -45,8 +45,8 @@ pub fn run_windows_e2e() {
         WindowsScenarios::RemoteConfig(args) => {
             scenarios::remote_config::test_remote_config_is_applied(args);
         }
-        WindowsScenarios::ReinstallWithRemoteSubAgentUpdate(args) => {
-            scenarios::reinstall_with_remote_config_package_update::test_reinstall_with_remote_config_package_update(args);
+        WindowsScenarios::SwitchInfraAgentVersion(args) => {
+            scenarios::switch_infra_agent_version::switch_infra_agent_version(args);
         }
         WindowsScenarios::WrongConfig(args) => {
             scenarios::service_wrong_config::test_service_restart_depending_on_config_correctness(
