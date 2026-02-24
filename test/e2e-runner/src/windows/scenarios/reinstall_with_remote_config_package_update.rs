@@ -113,7 +113,8 @@ version: {STARTING_NEWRELIC_INFRA_VERSION}
     // (version bump from the previous and config_origin = remote).
 
     // Remove local config
-    fs::remove_file(windows::DEFAULT_AC_CONFIG_PATH).expect("should remove local config file.");
+    std::fs::remove_file(windows::DEFAULT_AC_CONFIG_PATH)
+        .expect("should remove local config file.");
 
     // Create new recipe data with fleet enabled
     let recipe_data = RecipeData {
@@ -124,6 +125,28 @@ version: {STARTING_NEWRELIC_INFRA_VERSION}
 
     // Install Agent Control again, this time with fleet enabled
     install_agent_control_from_recipe(&recipe_data);
+
+    info!("Restoring previous updated AC config");
+    update_config(
+        windows::DEFAULT_AC_CONFIG_PATH,
+        format!(
+            r#"
+host_id: {test_id}
+agents:
+  nr-infra:
+    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+"#
+        ),
+    );
+
+    // Restart service and wait for it to be running
+    windows::service::restart_service(SERVICE_NAME, STATUS_RUNNING);
+
+    info!("Waiting 10 seconds for service to start");
+    thread::sleep(Duration::from_secs(10));
+
+    windows::service::check_service_status(SERVICE_NAME, STATUS_RUNNING)
+        .expect("service should be running");
 
     info!("Verifying service health");
     let status_endpoint = format!("http://localhost:{DEFAULT_STATUS_PORT}/status");
