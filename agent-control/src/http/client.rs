@@ -32,9 +32,9 @@ pub struct HttpClient {
 impl HttpClient {
     /// Builds a reqwest blocking client according to the provided configuration.
     pub fn new(http_config: HttpConfig) -> Result<Self, HttpBuildError> {
+        // Use rust-tls backend with rustls-platform-verifier, which uses the platform's native certificate store.
         let mut builder = Client::builder()
-            .use_rustls_tls() // Use rust-tls backend
-            .tls_built_in_native_certs(true) // Load system (native) certificates
+            .tls_backend_rustls()
             .timeout(http_config.timeout)
             .connect_timeout(http_config.conn_timeout);
 
