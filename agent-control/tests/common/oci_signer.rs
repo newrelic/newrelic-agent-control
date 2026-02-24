@@ -70,12 +70,12 @@ impl OCISigner {
     }
 
     /// Generates and push a cosign signature artifact to the reference.
-    pub fn sign_artifact(&self, reference: Reference) {
+    pub fn sign_artifact(&self, reference: &Reference) {
         tokio_runtime().block_on(async { self.sign_artifact_async(reference).await });
     }
 
-    async fn sign_artifact_async(&self, reference: Reference) {
-        let (cosign_signature_ref, source_image_digest) = self.triangulate(&reference).await;
+    async fn sign_artifact_async(&self, reference: &Reference) {
+        let (cosign_signature_ref, source_image_digest) = self.triangulate(reference).await;
 
         let signature_payload =
             self.signature_payload(&source_image_digest, &reference.to_string());
