@@ -1,5 +1,6 @@
 use crate::common::oci::{hex_bytes, push_empty_config_descriptor};
 use crate::common::runtime::block_on;
+use aws_lc_rs::digest::{SHA256, digest};
 use newrelic_agent_control::package::oci::artifact_definitions::{
     LayerMediaType, ManifestArtifactType, PackageMediaType,
 };
@@ -7,7 +8,6 @@ use oci_client::Reference;
 use oci_client::client::{ClientConfig, ClientProtocol};
 use oci_client::manifest::{OCI_IMAGE_MEDIA_TYPE, OciDescriptor, OciImageManifest};
 use oci_client::{Client, annotations, manifest};
-use ring::digest::{SHA256, digest};
 use std::backtrace::Backtrace;
 use std::collections::BTreeMap;
 use std::hash::{DefaultHasher, Hash, Hasher};

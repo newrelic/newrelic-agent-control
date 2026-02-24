@@ -1,5 +1,8 @@
 use super::runtime::tokio_runtime;
 use actix_web::{App, HttpResponse, HttpServer, web};
+use aws_lc_rs::digest;
+use aws_lc_rs::rand::SystemRandom;
+use aws_lc_rs::signature::{Ed25519KeyPair, KeyPair as _};
 use base64::Engine;
 use base64::prelude::{BASE64_STANDARD, BASE64_URL_SAFE_NO_PAD};
 use newrelic_agent_control::opamp::instance_id::InstanceID;
@@ -15,9 +18,6 @@ use opamp_client::opamp::proto::{
 };
 use opamp_client::operation::instance_uid::InstanceUid;
 use prost::Message;
-use ring::digest;
-use ring::rand::SystemRandom;
-use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::json;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Mutex;
