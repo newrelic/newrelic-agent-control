@@ -335,7 +335,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_download_toctou_attackt() {
+    fn test_download_toctou_attack() {
         const ORIGINAL_CONTENT: &[u8] = b"A";
         const MALICIOUS_CONTENT: &[u8] = b"B";
 
@@ -361,7 +361,7 @@ pub mod tests {
             .verified_package_signature_reference(&reference, &jwks_server.url)
             .expect("Signature should be verified successfully");
 
-        // Move tag v1.0.0 after signature is verified (TOCTOU attackt)
+        // Move tag v1.0.0 after signature is verified (TOCTOU attack)
         let oci_mock_b = FakeOciServer::new("test-repo", "v1.0.0")
             .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
             .with_layer(
@@ -394,7 +394,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_download_man_in_the_middle_attackt() {
+    fn test_download_man_in_the_middle_attack() {
         let oci_mock = FakeOciServer::new("test-repo", "v1.0.0")
             .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
             .with_layer(
