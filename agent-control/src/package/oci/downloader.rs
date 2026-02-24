@@ -93,7 +93,7 @@ impl OCIArtifactDownloader {
             return None;
         }
         let Some(pk_url) = public_key_url else {
-            warn!("Signature verification is disabled, skipping");
+            warn!("No public_key_url for agent package, skipping signature verification");
             return None;
         };
         Some(pk_url)
