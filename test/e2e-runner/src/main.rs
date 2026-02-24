@@ -32,6 +32,9 @@ enum LinuxScenarios {
     RemoteConfig(Args),
     /// Checks that the Agent Control proxy support works as expected. It uses mitproxy as a docker service.
     Proxy(Args),
+    /// Installs Agent Control with an infra-agent at a given version, verifies it reports data, then
+    /// switches to a different version and verifies the agent updates and reports data at the new version.
+    SwitchInfraAgentVersion(Args),
 }
 
 #[derive(Debug, clap::Subcommand)]

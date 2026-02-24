@@ -40,5 +40,8 @@ pub fn run_linux_e2e() {
         LinuxScenarios::Proxy(args) => {
             scenarios::proxy::test_agent_control_proxy(args);
         }
+        LinuxScenarios::SwitchInfraAgentVersion(args) => {
+            scenarios::switch_infra_agent_version::switch_infra_agent_version(args);
+        }
     };
 }
