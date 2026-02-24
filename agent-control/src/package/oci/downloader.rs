@@ -361,14 +361,25 @@ pub mod tests {
             .verified_package_signature_reference(&reference, &jwks_server.url)
             .expect("Signature should be verified successfully");
 
-        // Move tag after signature is verified (TOCTOU attackt)
+        // Move tag v1.0.0 after signature is verified (TOCTOU attackt)
         let oci_mock_b = FakeOciServer::new("test-repo", "v1.0.0")
             .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
             .with_layer(
                 MALICIOUS_CONTENT,
                 &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
             );
-        oci_mock_b.setup_mocks_on(&server);
+        server.reset();
+        oci_mock_b.setup_mocks_on(&server); // Setup the new tag first (takes precedence)
+        oci_mock_a.setup_mocks_on(&server); // Also setup the previous (we need the previous digest and blobs)
+        // Sanity check to assure that the tag was effectively moved
+        let malicious_dest = tempdir().unwrap();
+        let malicious_pkg = downloader
+            .download_package_artifact(&reference, malicious_dest.path())
+            .unwrap();
+        assert_eq!(
+            std::fs::read(malicious_pkg.path()).unwrap(),
+            MALICIOUS_CONTENT
+        );
 
         // The verified reference should still point to the original content
         let dest_dir = tempdir().unwrap();
