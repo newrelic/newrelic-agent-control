@@ -8,9 +8,6 @@ fleet_id: ""
 # Flag to enable or disable fleet management functionality
 fleet_enabled: "true"
 
-# Flag to migrate existing infrastructure agent configuration
-migrate_infra_config: "true"
-
 # Local file system path where local packages (.deb) exists.
 local_package_path: ""
 

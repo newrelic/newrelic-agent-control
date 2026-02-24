@@ -131,8 +131,6 @@ end
               Specific version of agent control to install
           --nr-region <NR_REGION>
               New Relic region [default: US]
-          --migrate-config-infra <MIGRATE_CONFIG_INFRA>
-              Flag to migrate existing infrastructure agent configuration [default: true]
       -h, --help
               Print help
     ```

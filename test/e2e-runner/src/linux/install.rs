@@ -76,7 +76,6 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
   NEW_RELIC_AGENT_CONTROL_HOST_MONITORING_SOURCE={} \
   NR_CLI_FLEET_ID={} \
   NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED={} \
-  NR_AC_MIGRATE_INFRA_CONFIG={} \
   NEW_RELIC_AGENT_CONTROL=true \
   NEW_RELIC_AGENT_CONTROL_PROXY_URL={} \
   HTTPS_PROXY={} \
@@ -96,7 +95,6 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
         data.monitoring_source,
         data.fleet_id,
         data.fleet_enabled,
-        data.args.migrate_config_infra,
         data.proxy_url,
         data.proxy_url,
         recipes_dir_path,
