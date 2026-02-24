@@ -220,7 +220,7 @@ impl Client {
     }
 }
 
-/// Deterministically derives the Cosign signature reference from a target image digest.
+/// Deterministically derives the Cosign signature reference from a target reference.
 ///
 /// Cosign stores signatures as separate artifacts in the same repository. This function
 /// constructs the signature reference by taking the original image's registry and

@@ -85,21 +85,21 @@ impl Client {
     ///
     /// This function performs signature verification on the manifest corresponding to the provided `reference`.
     /// If the reference points to an index-manifest (multi-arch image), the signature of the index-manifest itself
-    /// is verified—not the platform-specific manifest underneath it.
+    /// is verified (not the platform-specific manifest underneath it).
     ///
     /// Validation skips transparency log verification as it supports verifying artifacts in a privately deployed
     /// infrastructure (same as `cosign verify --private-infrastructure`).
     ///
-    /// The expected signature format follows Cosign's "Simple Signing" specification:
-    /// - Signatures are stored as separate artifacts in the same registry
+    /// The expected signature format follows Cosign's specification, :
+    /// - Signatures are stored as separate artifacts in the same registry (the signature reference can be derived from
+    ///   the provided `reference` through, see [signature_verification::triangulate] for details).
     /// - Each signature is a JSON payload (Simple Signing format) containing a `critical` section with the
     ///   manifest digest of the signed artifact
     /// - The signature itself is base64-encoded in the layer's annotations under `dev.cosignproject.cosign/signature`
-    /// - Verification uses Ed25519 algorithm with the provided public keys
     ///
     /// Public keys are fetched from `public_key_url` and verification will be performed using each key in the
-    /// `public_key_url` result, considering that the verification succeed if the signature corresponds to one
-    /// of the public keys.
+    /// corresponding payload. Signature verification succeeds if one of the signatures in the corresponding manifest
+    /// (one signature layer) corresponds to one of the public keys. Such verification uses Ed25519 algorithm.
     ///
     /// If verification succeeds, the verified `reference`, **including digest**, is returned.
     ///
