@@ -113,7 +113,7 @@ version: {STARTING_NEWRELIC_INFRA_VERSION}
     // (version bump from the previous and config_origin = remote).
 
     // Remove local config
-    // fs::remove_file(windows::DEFAULT_AC_CONFIG_PATH).expect("should remove file.");
+    fs::remove_file(windows::DEFAULT_AC_CONFIG_PATH).expect("should remove local config file.");
 
     // Create new recipe data with fleet enabled
     let recipe_data = RecipeData {
