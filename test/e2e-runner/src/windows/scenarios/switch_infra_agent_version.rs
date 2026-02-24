@@ -156,7 +156,7 @@ version: {update_from_infra_agent_version}
         r#"SELECT * FROM SystemSample WHERE `test_id` = '{test_id}' AND `agentVersion` = '{update_to_infra_agent_version}' LIMIT 1"#
     );
     info!(nrql = nrql_query, "Checking results of NRQL");
-    let retries = 60;
+    let retries = 120; // This might take a while, so duplicating retries
     retry_panic(retries, Duration::from_secs(5), "nrql assertion", || {
         nrql::check_query_results(&recipe_data.args, &nrql_query, |r| !r.is_empty())
     });
