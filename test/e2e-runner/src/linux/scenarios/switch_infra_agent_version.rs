@@ -33,7 +33,7 @@ pub fn switch_infra_agent_version(args: Args) {
     let recipe_data = RecipeData {
         args,
         monitoring_source: "infra-agent".to_string(),
-        fleet_enabled: false.to_string(),
+        fleet_enabled: false,
         ..Default::default()
     };
 

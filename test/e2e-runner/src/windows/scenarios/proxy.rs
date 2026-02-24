@@ -51,7 +51,7 @@ pub fn test_proxy(args: Args) {
     let recipe_data = RecipeData {
         args,
         proxy_url: PROXY_URL.to_string(),
-        fleet_enabled: "true".to_string(),
+        fleet_enabled: true,
         fleet_id: FLEET_ID.to_string(),
         ..Default::default()
     };

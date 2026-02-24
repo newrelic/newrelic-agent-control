@@ -22,7 +22,7 @@ const ENV_VARS_FILE: &str =
 pub fn test_remote_config_is_applied(args: Args) {
     let recipe_data = RecipeData {
         args,
-        fleet_enabled: true.to_string(),
+        fleet_enabled: true,
         fleet_id: FLEET_ID.to_string(),
         ..Default::default()
     };

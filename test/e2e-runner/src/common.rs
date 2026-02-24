@@ -55,8 +55,8 @@ pub struct Args {
     pub nr_region: String,
 
     /// Flag to migrate existing infrastructure agent configuration. Currently used only in Linux.
-    #[arg(long, default_value = "true")]
-    pub migrate_config_infra: String,
+    #[arg(long, default_value_t = true)]
+    pub migrate_config_infra: bool,
 
     /// Version of the infrastructure agent to update from in the remote config on update scenarios.
     #[arg(long)]
@@ -75,7 +75,7 @@ pub struct Args {
 pub struct RecipeData {
     pub args: Args,
     pub fleet_id: String,
-    pub fleet_enabled: String,
+    pub fleet_enabled: bool,
     pub recipe_list: String,
     pub proxy_url: String,
     pub monitoring_source: String,
@@ -87,7 +87,7 @@ impl Default for RecipeData {
             args: Default::default(),
             fleet_id: Default::default(),
             proxy_url: Default::default(),
-            fleet_enabled: false.to_string(),
+            fleet_enabled: false,
             recipe_list: "agent-control".to_string(),
             #[cfg(target_family = "unix")]
             monitoring_source: "infra-agent".to_string(),

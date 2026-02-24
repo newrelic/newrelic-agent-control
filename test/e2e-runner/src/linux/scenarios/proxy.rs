@@ -41,7 +41,7 @@ pub fn test_agent_control_proxy(args: Args) {
         args,
         monitoring_source: "infra-agent".to_string(),
         proxy_url: PROXY_URL.to_string(),
-        fleet_enabled: "true".to_string(),
+        fleet_enabled: true,
         fleet_id: FLEET_ID.to_string(),
         ..Default::default()
     };

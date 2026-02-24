@@ -38,7 +38,7 @@ pub fn switch_infra_agent_version(args: Args) {
     let recipe_data = RecipeData {
         args,
         monitoring_source: "".to_string(), // Windows uses empty monitoring_source
-        fleet_enabled: false.to_string(),
+        fleet_enabled: false,
         ..Default::default()
     };
 
