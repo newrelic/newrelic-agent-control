@@ -8,7 +8,6 @@ use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_H
 use newrelic_agent_control::command::{Command, RunContext};
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::EventPublisher;
-use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::utils::is_elevated::is_elevated;
 use std::error::Error;
 use std::process::ExitCode;
@@ -66,8 +65,6 @@ fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
     {
         return Err(format!("Error saving main process id: {err}").into());
     }
-
-    install_rustls_default_crypto_provider();
 
     trace!("creating the signal handler");
     create_shutdown_signal_handler(run_context.application_event_publisher)?;

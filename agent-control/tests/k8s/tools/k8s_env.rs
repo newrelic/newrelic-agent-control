@@ -10,9 +10,8 @@ use kube::{
     Api, Client, ResourceExt,
     api::{DeleteParams, PostParams},
 };
-use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
+use std::env;
 use std::net::SocketAddr;
-use std::{env, sync::Once};
 use thiserror::Error;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinHandle;
@@ -39,8 +38,6 @@ enum PortForwardError {
 
 pub const KUBECONFIG_PATH: &str = "tests/k8s/.kubeconfig-dev";
 
-pub static INIT_RUSTLS: Once = Once::new();
-
 /// This struct represents a running k8s cluster and it provides utilities to handle multiple namespaces, and
 /// resources are cleaned-up when the object is dropped.
 /// The `Foo` CR is created automatically, therefore any test using this component can assume it exits.
@@ -57,10 +54,6 @@ impl K8sEnv {
     }
 
     pub async fn new_without_logs() -> Self {
-        INIT_RUSTLS.call_once(|| {
-            install_rustls_default_crypto_provider();
-        });
-
         // Forces the client to use the dev kubeconfig file.
         unsafe { env::set_var("KUBECONFIG", KUBECONFIG_PATH) };
 

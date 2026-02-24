@@ -9,7 +9,6 @@ use newrelic_agent_control::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
 use newrelic_agent_control::command::{Command, RunContext};
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::EventPublisher;
-use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use std::error::Error;
 use std::process::ExitCode;
 use tracing::{error, info, trace};
@@ -32,8 +31,6 @@ fn main() -> ExitCode {
 /// Error: ConfigRead(LoadConfigError(ConfigError(missing field \`agents\`)))
 /// ```
 fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
-    install_rustls_default_crypto_provider();
-
     trace!("creating the signal handler");
     create_shutdown_signal_handler(run_context.application_event_publisher)?;
 
