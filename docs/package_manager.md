@@ -205,13 +205,14 @@ sequenceDiagram
     Note over AC, JWKS: Step 1: Check artifact signature
     AC->>JWKS: Download public keys
     JWKS-->>AC: Public keys in JWKS format
+    AC->>OCI: Get artifact package digest
+    OCI-->>AC: Artifact package digest
     AC->>OCI: Download Signature Package
     OCI-->>AC: Base64 Signature & Payload
     AC->>AC: Verify base64 signature against the payload (holds for at least one public key)
-    AC->>AC: Extract artifact hash from payload
 
     Note over AC, OCI: Step 2: Download signed artifact
-    AC->>OCI: Download artifact by hash
+    AC->>OCI: Download artifact given the package digest
     OCI-->>AC: Artifact
     
     Note over AC: Step 3: Integrity Check
