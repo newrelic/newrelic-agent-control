@@ -215,3 +215,12 @@ secrets_providers:
         token: secret-token-2
         engine: kv2
 ```
+
+### agent_packages
+
+This field configures packages behaviour.
+
+```yaml
+agent_packages:
+  signature_verification_enabled: # Optional, enabled by default, sets whether packages signatures will be verified or not, when set to false a warning is logged
+```

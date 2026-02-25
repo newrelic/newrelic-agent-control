@@ -3,7 +3,7 @@
 Agent Control (AC) manages agent packages (and in the future agent types) distributed as OCI ([Open Container Initiative](https://opencontainers.org/)) artifacts.
 The package manager handles download, signature verification, extraction, installation and garbage collection of packages from OCI registries.
 
-## Package structure (in the OCI repository)
+## Package structure
 
 The packaged agent must comply with the [OCI image spec](https://github.com/opencontainers/image-spec). The entrypoint can either
 be a [manifest](https://github.com/opencontainers/image-spec/blob/main/manifest.md#oci-image-manifest-specification) JSON file or an [index](https://github.com/opencontainers/image-spec/blob/main/image-index.md#oci-image-index-specification) JSON file, but for AC we expect the entrypoint to be an `index`. That's the way OCI supports multi-arch.
@@ -251,7 +251,7 @@ Example:
 - Delete temporal package path → Fail
 - Retain packages error → Fail
 
-For signature verification, we only fail when BOTH signature verification is enabled AND a public key is configured, and the signature doesn't match. If signature verification is disabled OR no public key is configured, we skip verification and log a warning.
+For signature verification, we only fail when BOTH signature verification is enabled (check the [Agent Control Configuration agent_packages section](./CONFIG.md#agent_packages)) AND a public key is configured (check the example in [AgentType `packages` section](./INTEGRATING_AGENTS.md#packages)), and the signature doesn't match. If signature verification is disabled OR no public key is configured, we skip verification and log a warning.
 
 ## Local Development
 

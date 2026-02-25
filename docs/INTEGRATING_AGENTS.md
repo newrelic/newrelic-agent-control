@@ -330,11 +330,23 @@ files can be templated, so a directory contains an arbitrary number of files (a 
 Defines OCI packages containing the executables and data to be downloaded and installed for the sub-agent. 
 This is a map where keys are package identifiers and values contain package metadata and download configuration.
 
+The value yaml look like:
+
+```yaml
+  download:
+    oci:
+      registry: ${nr-var:oci.registry}
+      repository: ${nr-var:oci.repository}
+      version: ${nr-var:version}
+      public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrinfraagent/jwks.json
+```
 
 Note that a Package version. Can be:
   - A tag (`:v1.0.0`)
   - A digest (`@sha256:...`)
   - Both tag and digest (`:v1.0.0@sha256:...`), when both are specified the digest takes precedence.
+
+`public_key_url` is an optional field, when not configured signature verifications is skipped and logged with warn level.
 
 > [!WARNING]
 > The package in the OCI repository **MUST** follow a specific [structure](./package_manager.md#package-structure).
@@ -348,7 +360,6 @@ After installation, the package directory path is available via the reserved var
 In this example:
 - A package named `infra-agent` is downloaded from an OCI registry
 - The package installation directory is referenced in the executable path using `${nr-sub:packages.infra-agent.dir}`
-
 
 ```yaml
     packages:
