@@ -58,10 +58,6 @@ pub struct Args {
     #[arg(long, default_value_t = true)]
     pub migrate_config_infra: bool,
 
-    /// Version of the infrastructure agent to update from in the remote config on update scenarios.
-    #[arg(long)]
-    pub update_from_infra_agent_version: Option<String>,
-
     /// Version of the infrastructure agent OCI image to use in tests
     #[arg(long)]
     pub infra_agent_version: Option<String>,

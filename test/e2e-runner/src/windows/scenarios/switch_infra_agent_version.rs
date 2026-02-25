@@ -17,21 +17,17 @@ use tracing::info;
 const ENV_VARS_FILE: &str =
     r"C:\Program Files\New Relic\newrelic-agent-control\environment_variables.yaml";
 
-pub fn switch_infra_agent_version(args: Args) {
-    // We assume the below two are valid version strings, but we do not actually parse them
-    let update_from_infra_agent_version = args
-        .update_from_infra_agent_version
-        .clone()
-        .expect("--update-from-infra-agent-version is required for this scenario");
+const UPDATE_FROM_INFRA_AGENT_VERSION: &str = "1.71.4";
 
+pub fn switch_infra_agent_version(args: Args) {
     let update_to_infra_agent_version = args
         .infra_agent_version
         .clone()
         .expect("--infra-agent-version is required for this scenario");
 
     assert!(
-        update_from_infra_agent_version != update_to_infra_agent_version,
-        "--update-from-infra-agent-version and --infra-agent-version must be different versions for this test to be meaningful. Provided version: {update_from_infra_agent_version}"
+        UPDATE_FROM_INFRA_AGENT_VERSION != update_to_infra_agent_version,
+        "--infra-agent-version must be different from the built-in update-from version ({UPDATE_FROM_INFRA_AGENT_VERSION}) for this test to be meaningful."
     );
 
     // Setup recipe data with fleet configuration
@@ -83,7 +79,7 @@ config_agent:
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
   custom_attributes:
     test_id: '{{{{TEST_ID}}}}'
-version: {update_from_infra_agent_version}
+version: {UPDATE_FROM_INFRA_AGENT_VERSION}
 "#
         ),
     );
@@ -111,7 +107,7 @@ version: {update_from_infra_agent_version}
     // Validate infra agent is reporting with local config
     info!("Check infra agent is reporting");
     let nrql_query = format!(
-        r#"SELECT * FROM SystemSample WHERE `test_id` = '{test_id}' AND `agentVersion` = '{update_from_infra_agent_version}' LIMIT 1"#
+        r#"SELECT * FROM SystemSample WHERE `test_id` = '{test_id}' AND `agentVersion` = '{UPDATE_FROM_INFRA_AGENT_VERSION}' LIMIT 1"#
     );
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
@@ -126,7 +122,7 @@ version: {update_from_infra_agent_version}
     info!("Replace infra-agent version");
     config::modify_agents_config(
         windows::local_config_path("nr-infra"),
-        update_from_infra_agent_version.to_string().as_str(),
+        UPDATE_FROM_INFRA_AGENT_VERSION,
         update_to_infra_agent_version.to_string().as_str(),
     );
 
