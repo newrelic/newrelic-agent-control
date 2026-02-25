@@ -242,7 +242,7 @@ Example:
 ## Error Handling
 
 **Installation Failures**:
-- Sanitization error computing path sufix → Fail
+- Sanitization error computing path suffix → Fail
 - Installing archive errors → Delete partial installation directory then fail
   This includes the following errors
   - Create temporal download path error → Fail
