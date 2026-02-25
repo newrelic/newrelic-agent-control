@@ -14,6 +14,9 @@ const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgw
 
 const ENV_VARS_FILE: &str = "/etc/newrelic-agent-control/environment_variables.yaml";
 
+// We pin and old version so the remote config always makes an upgrade.
+const INFRA_AGENT_VERSION: &str = "1.72.1";
+
 pub fn test_remote_config_is_applied(args: Args) {
     let recipe_data = RecipeData {
         args,
@@ -41,16 +44,19 @@ pub fn test_remote_config_is_applied(args: Args) {
     info!("Setup infra-agent config");
     config::write_agent_local_config(
         &linux::local_config_path("nr-infra"),
-        r#"
+        format!(
+            r#"
 config_agent:
   status_server_enabled: true
   status_server_port: 18003
-  license_key: {{NEW_RELIC_LICENSE_KEY}}
+  license_key: {{{{NEW_RELIC_LICENSE_KEY}}}}
   custom_attributes:
     config_origin: local
-    test_id: {{TEST_ID}}
-"#
-        .to_string(),
+    test_id: {{{{TEST_ID}}}}
+version: {}
+"#,
+            INFRA_AGENT_VERSION
+        ),
     );
 
     linux::service::restart_service(linux::SERVICE_NAME);

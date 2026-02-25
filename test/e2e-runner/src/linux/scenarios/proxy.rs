@@ -36,6 +36,11 @@ pub fn test_agent_control_proxy(args: Args) {
     info!("Setting up mitmproxy container");
     setup_mitmproxy();
 
+    let infra_version = args
+        .infra_agent_version
+        .clone()
+        .expect("--infra-agent-version is required for this scenario");
+
     info!("Installing Agent Control with proxy configuration");
     let recipe_data = RecipeData {
         args,
@@ -77,7 +82,9 @@ config_agent:
     level: debug
   proxy: {PROXY_URL}
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
-"#
+version: {}
+"#,
+            infra_version
         ),
     );
 
