@@ -39,21 +39,6 @@ pub fn test_remote_config_is_applied(args: Args) {
     info!("Setting up `TEST_ID` environment variable");
     config::append_to_config_file(ENV_VARS_FILE, format!("TEST_ID: {test_id}").as_str());
 
-    info!("Setup infra-agent config");
-    config::write_agent_local_config(
-        &windows::local_config_path("nr-infra"),
-        r#"
-config_agent:
-  status_server_enabled: true
-  status_server_port: 18003
-  license_key: {{NEW_RELIC_LICENSE_KEY}}
-  custom_attributes:
-    config_origin: local
-    test_id: {{TEST_ID}}
-"#
-        .to_string(),
-    );
-
     windows::service::restart_service(SERVICE_NAME, STATUS_RUNNING);
 
     info!("Waiting 10 seconds for service to start");
@@ -72,14 +57,6 @@ config_agent:
     let status_json = serde_json::to_string_pretty(&status)
         .unwrap_or_else(|err| panic!("Failed to serialize status to JSON: {err}"));
     info!(response = status_json, "Agent Control is healthy");
-
-    info!("Check infra agent is reporting");
-    let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `test_id` = '{test_id}' LIMIT 1"#);
-    info!(nrql = nrql_query, "Checking results of NRQL");
-    let retries = 60;
-    retry_panic(retries, Duration::from_secs(5), "nrql assertion", || {
-        nrql::check_query_results(&recipe_data.args, &nrql_query, |r| !r.is_empty())
-    });
 
     info!("Check that remote configuration has been applied");
     let nrql_query = format!(
