@@ -529,20 +529,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## crc <https://crates.io/crates/crc>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## crc-catalog <https://crates.io/crates/crc-catalog>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## crc32fast <https://crates.io/crates/crc32fast>
 
 Distributed under the following license(s):
