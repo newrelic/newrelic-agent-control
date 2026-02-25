@@ -27,6 +27,7 @@ jobs:
       scenarios: '["apm", "collector", "ebpf", "dynamic", "custom-repo", "fleet-control", "proxy"]'
       # Network policies needs calico installed, the others do not
       minikube_start_args: '--cni=calico'
+      caller_workflow: push_pr_test_extended_paths
     secrets:
       NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
       NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
@@ -37,6 +38,8 @@ jobs:
   onhost-e2e:
     if: "!contains(github.event.pull_request.labels.*.name, 'onhost-extended-e2e')" # Avoid triggering twice if the label is set
     uses: ./.github/workflows/component_onhost_e2e.yaml
+    with:
+      caller_workflow: push_pr_test_extended_paths
     secrets:
       NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
       NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}

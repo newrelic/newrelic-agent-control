@@ -358,6 +358,7 @@ jobs:
     uses: ./.github/workflows/component_k8s_e2e.yml
     with:
       scenarios: '["infra"]'
+      caller_workflow: push_pr_checks_tests
     secrets:
       E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
       E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
