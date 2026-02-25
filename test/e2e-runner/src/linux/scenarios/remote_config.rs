@@ -18,7 +18,7 @@ pub fn test_remote_config_is_applied(args: Args) {
     let recipe_data = RecipeData {
         args,
         monitoring_source: "infra-agent".to_string(),
-        fleet_enabled: "true".to_string(),
+        fleet_enabled: true,
         fleet_id: FLEET_ID.to_string(),
         ..Default::default()
     };
@@ -29,7 +29,7 @@ pub fn test_remote_config_is_applied(args: Args) {
 
     let test_id = format!(
         "onhost-e2e-infra-agent_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
+        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
     info!("Setting up `TEST_ID` environment variable");

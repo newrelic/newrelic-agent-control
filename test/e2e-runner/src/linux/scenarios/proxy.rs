@@ -41,7 +41,7 @@ pub fn test_agent_control_proxy(args: Args) {
         args,
         monitoring_source: "infra-agent".to_string(),
         proxy_url: PROXY_URL.to_string(),
-        fleet_enabled: "true".to_string(),
+        fleet_enabled: true,
         fleet_id: FLEET_ID.to_string(),
         ..Default::default()
     };
@@ -52,7 +52,7 @@ pub fn test_agent_control_proxy(args: Args) {
 
     let test_id = format!(
         "onhost-e2e-proxy_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
+        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
     info!("Setup Agent Control config with proxy");

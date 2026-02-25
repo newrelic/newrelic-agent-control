@@ -28,7 +28,7 @@ pub fn test_infra_agent(args: Args) {
 
     let test_id = format!(
         "onhost-e2e-infra-agent_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
+        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
     let debug_log_config = ac_debug_logging_config(windows::DEFAULT_LOG_PATH);

@@ -42,6 +42,12 @@ pub fn run_windows_e2e() {
         WindowsScenarios::Nrdot(args) => {
             scenarios::installation_nrdot::test_nrdot(args);
         }
+        WindowsScenarios::RemoteConfig(args) => {
+            scenarios::remote_config::test_remote_config_is_applied(args);
+        }
+        WindowsScenarios::SwitchInfraAgentVersion(args) => {
+            scenarios::switch_infra_agent_version::switch_infra_agent_version(args);
+        }
         WindowsScenarios::WrongConfig(args) => {
             scenarios::service_wrong_config::test_service_restart_depending_on_config_correctness(
                 args,

@@ -1,14 +1,13 @@
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
 use crate::common::exec::LongRunningProcess;
-use crate::common::nrql::check_query_results_are_not_empty;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
-use crate::common::{Args, RecipeData};
+use crate::common::{Args, RecipeData, nrql};
+use crate::windows;
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
 use crate::windows::powershell::{download_file, exec_ps, extract};
 use crate::windows::service::{STATUS_RUNNING, check_service_status};
 use crate::windows::utils::as_user_dir;
-use crate::windows::{self};
 use std::process::Command;
 use std::time::Duration;
 use tracing::info;
@@ -51,7 +50,7 @@ pub fn test_proxy(args: Args) {
     let recipe_data = RecipeData {
         args,
         proxy_url: PROXY_URL.to_string(),
-        fleet_enabled: "true".to_string(),
+        fleet_enabled: true,
         fleet_id: FLEET_ID.to_string(),
         ..Default::default()
     };
@@ -61,7 +60,7 @@ pub fn test_proxy(args: Args) {
     install_agent_control_from_recipe(&recipe_data);
     let test_id = format!(
         "onhost-e2e-proxy_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
+        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
     let debug_log_config = ac_debug_logging_config(windows::DEFAULT_LOG_PATH);
@@ -106,7 +105,7 @@ version: {infra_agent_version}
     let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `host.id` = '{test_id}' LIMIT 1"#);
     info!(nrql = nrql_query, "Checking results of NRQL");
     retry_panic(60, Duration::from_secs(10), "nrql assertion", || {
-        check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
+        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     });
 
     info!("Verifying proxy was used as expected by checking mitmproxy logs");
