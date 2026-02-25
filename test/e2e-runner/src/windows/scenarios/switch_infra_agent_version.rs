@@ -33,9 +33,7 @@ pub fn switch_infra_agent_version(args: Args) {
     // Setup recipe data with fleet configuration
     let recipe_data = RecipeData {
         args,
-        monitoring_source: "".to_string(), // Windows uses empty monitoring_source
-        fleet_enabled: false,
-        ..Default::default()
+        ..RecipeData::default()
     };
 
     let _clean_up = CleanUp::new(tear_down_test);
