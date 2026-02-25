@@ -57,6 +57,28 @@ impl Region {
 ///
 /// * `Ok(())` - The NRQL query results on success
 /// * `Err` - Error if the query fails, returns errors, or has no results
+pub fn check_query_results_are_not_empty(
+    install_args: &Args,
+    nrql_query: &str,
+) -> TestResult<Vec<Value>> {
+    check_query_results(install_args, nrql_query, |r| !r.is_empty())
+}
+
+/// Executes a single NRQL query against the New Relic GraphQL API.
+///
+/// This function sends a GraphQL query to execute NRQL, check that
+/// results satisfy the provided predicate.
+///
+/// # Arguments
+///
+/// * `args` - Struct defining all required parameters: `region`, `api-key`, ...
+/// * `nrql_query` - The NRQL query to execute
+/// * `predicate` - The predicate to satisfy
+///
+/// # Returns
+///
+/// * `Ok(())` - The NRQL query results on success
+/// * `Err` - Error if the query fails, returns errors or does not satisefy the predicate.
 pub fn check_query_results(
     install_args: &Args,
     nrql_query: &str,

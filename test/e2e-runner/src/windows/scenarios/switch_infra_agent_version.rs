@@ -107,7 +107,7 @@ version: {UPDATE_FROM_INFRA_AGENT_VERSION}
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
     retry_panic(retries, Duration::from_secs(5), "nrql assertion", || {
-        nrql::check_query_results(&recipe_data.args, &nrql_query, |r| !r.is_empty())
+        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     });
 
     // Now change the version for the infra-agent installation, restart AC and check everything all
@@ -149,6 +149,6 @@ version: {UPDATE_FROM_INFRA_AGENT_VERSION}
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 120; // This might take a while, so duplicating retries
     retry_panic(retries, Duration::from_secs(5), "nrql assertion", || {
-        nrql::check_query_results(&recipe_data.args, &nrql_query, |r| !r.is_empty())
+        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     });
 }

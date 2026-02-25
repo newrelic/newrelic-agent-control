@@ -1,14 +1,13 @@
 use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
 use crate::common::exec::LongRunningProcess;
-use crate::common::nrql::check_query_results;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
-use crate::common::{Args, RecipeData};
+use crate::common::{Args, RecipeData, nrql};
+use crate::windows;
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
 use crate::windows::powershell::{download_file, exec_ps, extract};
 use crate::windows::service::{STATUS_RUNNING, check_service_status};
 use crate::windows::utils::as_user_dir;
-use crate::windows::{self};
 use std::process::Command;
 use std::time::Duration;
 use tracing::info;
@@ -106,7 +105,7 @@ version: {infra_agent_version}
     let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `host.id` = '{test_id}' LIMIT 1"#);
     info!(nrql = nrql_query, "Checking results of NRQL");
     retry_panic(60, Duration::from_secs(10), "nrql assertion", || {
-        check_query_results(&recipe_data.args, &nrql_query, |r| !r.is_empty())
+        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     });
 
     info!("Verifying proxy was used as expected by checking mitmproxy logs");
