@@ -191,7 +191,7 @@ where
         agent_id: &AgentID,
     ) -> Result<Vec<InstalledPackageData>, OCIPackageManagerError> {
         let installed_packages_dir =
-            get_generic_package_location_path(&self.remote_dir, agent_id, INSTALLED_PCK_LOCATION)?;
+            get_generic_package_location_path(&self.remote_dir, agent_id, INSTALLED_PCK_LOCATION);
 
         let mut installed_packages = vec![];
         let id_dirs = LocalFile
@@ -260,7 +260,7 @@ fn get_generic_package_path(
     package_id: &PackageID,
     package_reference: &Reference,
 ) -> Result<PathBuf, OCIPackageManagerError> {
-    let package_id_path = get_generic_package_location_path(base_path, agent_id, location)?;
+    let package_id_path = get_generic_package_location_path(base_path, agent_id, location);
     Ok(package_id_path
         .join(package_id)
         .join(compute_path_suffix(package_reference)?))
@@ -269,11 +269,11 @@ fn get_generic_package_location_path(
     base_path: &Path,
     agent_id: &AgentID,
     location: &str,
-) -> Result<PathBuf, OCIPackageManagerError> {
-    Ok(base_path
+) -> PathBuf {
+    base_path
         .join(PACKAGES_FOLDER_NAME)
         .join(agent_id)
-        .join(location))
+        .join(location)
 }
 
 /// Computes the download destination of a package [`Reference`] depending on the available fields.
@@ -503,8 +503,7 @@ mod tests {
 
         // Spurious file at installed packages level should not be removed
         let pkg_id_dir =
-            get_generic_package_location_path(root_dir.path(), &agent_id, INSTALLED_PCK_LOCATION)
-                .unwrap();
+            get_generic_package_location_path(root_dir.path(), &agent_id, INSTALLED_PCK_LOCATION);
         DirectoryManagerFs.create(&pkg_id_dir).unwrap();
         let pkg_id_level_spurious_file = pkg_id_dir.join("pkg_id_spurious_file");
         LocalFile
