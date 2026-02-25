@@ -14,13 +14,6 @@ on:
       E2E_LICENSE_KEY:
         required: true
 
-    inputs:
-      scenarios:
-        description: "JSON array of test scenarios to run"
-        required: false
-        type: string
-        default: '["remote-config", "ebpf-agent", "infra-agent", "nrdot-agent", "proxy"]'
-
 permissions:
   contents: read
 
@@ -47,7 +40,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: ${{ fromJSON(inputs.scenarios) }}
+        group:
+          - remote-config
+          - ebpf-agent
+          - infra-agent
+          - nrdot-agent
+          - proxy
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/install-rust-toolchain
@@ -79,14 +77,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [
-            infra-agent,
-            nrdot,
-            proxy,
-            wrong-config,
-            remote-config,
-            switch-infra-agent-version,
-          ]
+        group:
+          - infra-agent
+          - nrdot
+          - proxy
+          - wrong-config
+          - remote-config
+          - switch-infra-agent-version
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/install-rust-toolchain
