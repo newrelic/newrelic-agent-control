@@ -507,10 +507,14 @@ fn wait_restart(
         }
     });
 
+    let max_retries_str = match max_retries {
+        0 => "unlimited".to_string(),
+        n => n.to_string(),
+    };
     if !cancelled {
-        info!("Restarting supervisor ({step}/{max_retries})");
+        info!("Restarting supervisor ({step}/{max_retries_str})");
     } else {
-        info!("Restarting supervisor ({step}/{max_retries}) was cancelled");
+        info!("Restarting supervisor ({step}/{max_retries_str}) was cancelled");
     }
 
     cancelled
