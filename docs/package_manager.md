@@ -69,7 +69,7 @@ Then we have the `manifest` file, which includes the package data and metadata.
 
 > [!NOTE]
 > AC can handle artifacts regardless of the entrypoint (manifest or index).
-> However, AC suggests using the index approach. If the author of an agent decides to use a manifest as the entrypoint, they must understand that AC might behave in strange ways.
+> However, AC suggests using the index approach. If the author of an agent decides to use a manifest as the entrypoint, they must understand that AC might not behave as expected. The referred artifact will be used in any platform.
 
 There, AC expects to find some specific keys and values.
 
