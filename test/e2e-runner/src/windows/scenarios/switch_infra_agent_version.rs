@@ -71,9 +71,6 @@ agents:
         format!(
             r#"
 config_agent:
-  enable_process_metrics: true
-  status_server_enabled: true
-  status_server_port: 18003
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
   custom_attributes:
     test_id: '{{{{TEST_ID}}}}'
