@@ -241,10 +241,16 @@ Example:
 ## Error Handling
 
 **Installation Failures**:
-- Download errors → Retry if configured, then fail
-- Invalid artifact (not exactly 1 file) → Fail with `InvalidData`
-- Extraction errors → Delete partial installation directory, fail
-- Temp cleanup errors → Installation fails
+- Sanitization error computing path sufix → Fail
+- Installing archive errors → Delete partial installation directory then fail
+  This includes the following errors
+  - Create temporal download path error → Fail
+  - Download error (includes signature verification errors) → Retry several times, then fail
+  - Extract package → Fail
+- Delete temporal package path → Fail
+- Retain packages error → Fail
+
+For signature verification, we only fail when BOTH signature verification is enabled AND a public key is configured, and the signature doesn't match. If signature verification is disabled OR no public key is configured, we skip verification and log a warning.
 
 ## Local Development
 
