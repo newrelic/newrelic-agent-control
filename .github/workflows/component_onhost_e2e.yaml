@@ -68,6 +68,7 @@ jobs:
             --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
             --agent-control-version "0.900.${{ github.run_id }}" \
             --recipes-repo-branch "feat/removeAgents" \
+            --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" \
             --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}"
 
   on-host-windows-e2e:

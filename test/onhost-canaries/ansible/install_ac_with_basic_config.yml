@@ -25,6 +25,10 @@
     include_role:
       name: caos.ansible_roles.hostname
 
+  - name: Set infra version matching an existing one in the Github oci package repo
+    ansible.builtin.set_fact:
+      infra_version: "1.72.1"
+
   - name: Install Agent Control
     vars:
       repo_endpoint: "{{ repo_endpoint }}"
@@ -93,6 +97,7 @@
           status_server_enabled: true
           status_server_port: 18003
           license_key: '{{NEW_RELIC_LICENSE_KEY}}'
+        version: {% endraw -%} {{ infra_version }} {%- raw %}
         {% endraw %}
 
   - name: Env file
@@ -108,9 +113,9 @@
       service_name: "newrelic-agent-control"
       action: "restart"
 
-  - name: Wait for Infra Agent to start
+  - name: Wait for Infra Agent to start and download infra-agent
     pause:
-      seconds: 30
+      seconds: 60
 
   - name: Assert Agent Control and Infra Agent are running
     include_role:

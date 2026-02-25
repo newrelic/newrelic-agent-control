@@ -14,6 +14,11 @@ use std::time::Duration;
 use tracing::info;
 
 pub fn test_ebpf_agent(args: Args) {
+    let infra_version = args
+        .infra_agent_version
+        .clone()
+        .expect("--infra-agent-version is required for this scenario");
+
     let recipe_data = RecipeData {
         args,
         monitoring_source: "infra-agent".to_string(),
@@ -57,11 +62,13 @@ config_agent:
     // Infra agent config: it is used to generate traffic for eBPF metrics to appear
     write_agent_local_config(
         &linux::local_config_path("nr-infra"),
-        String::from(
+        format!(
             r#"
 config_agent:
-  license_key: '{{NEW_RELIC_LICENSE_KEY}}'
-    "#,
+  license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
+version: {}
+"#,
+            infra_version
         ),
     );
 

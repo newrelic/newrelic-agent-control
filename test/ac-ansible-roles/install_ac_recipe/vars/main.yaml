@@ -2,9 +2,6 @@
 # List of recipes to be installed
 recipe_list: "agent-control"
 
-# Source of monitoring configuration ("infra-agent", "otel")
-monitoring_source: "none"
-
 # Unique identifier for the fleet this agent belongs to
 fleet_id: ""
 
