@@ -224,7 +224,7 @@ sequenceDiagram
 
 ## Key Rotation
 
-What happens during a key rotation? It depends on the specific use case. AC tries to verify the signature with every public key published for that package, this approach avoids downtimes on key rotation. Note that a non-revoked key must exist on the list, otherwise signature verification will fail.
+What happens during a key rotation? It depends on the specific use case. AC tries to verify every signature in the signature-manifest layers with every public key published for that package, this approach avoids downtimes on key rotation. Note that a non-revoked key must exist on the list, otherwise signature verification will fail.
 
 ## Garbage collection
 
