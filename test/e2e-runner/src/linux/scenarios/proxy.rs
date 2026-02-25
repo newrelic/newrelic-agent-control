@@ -52,7 +52,7 @@ pub fn test_agent_control_proxy(args: Args) {
 
     let test_id = format!(
         "onhost-e2e-proxy_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
+        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
     info!("Setup Agent Control config with proxy");
