@@ -149,6 +149,8 @@ where
             id: AGENT_CONTROL_BIN_PACKAGE_ID.to_string(),
             oci_reference: reference,
             public_key_url: Some(self.pub_key_url.clone()),
+            preinstall_script_path: None,
+            postinstall_script_path: None,
         }
     }
 }
@@ -401,8 +403,10 @@ mod tests {
 
     #[traced_test]
     #[rstest]
-    #[cfg_attr(unix, case("sh", vec!["-c", "printf 'some stdout'; printf 'some stderr' >&2; exit 2"]))]
-    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", r#"[Console]::Write('some stdout'); [Console]::Error.Write('some stderr'); exit 2"#]))]
+    #[cfg_attr(unix, case("sh", vec!["-c", "printf 'some stdout'; printf 'some stderr' >&2; exit 2"]
+    ))]
+    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", r#"[Console]::Write('some stdout'); [Console]::Error.Write('some stderr'); exit 2"#]
+    ))]
     fn test_process_executor_unexpected_failure_contains_stdout_stderr_and_exit_status(
         #[case] bin: &'static str,
         #[case] args: Vec<&'static str>,
@@ -417,8 +421,10 @@ mod tests {
     }
 
     #[rstest]
-    #[cfg_attr(unix, case("sh", vec!["-c", r#"printf 'previous lines\n{"message":"pre-flight check failed"}'; exit 1"#]))]
-    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", r#"Write-Output 'previous lines'; Write-Output '{"message":"pre-flight check failed"}'; exit 1"#]))]
+    #[cfg_attr(unix, case("sh", vec!["-c", r#"printf 'previous lines\n{"message":"pre-flight check failed"}'; exit 1"#]
+    ))]
+    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", r#"Write-Output 'previous lines'; Write-Output '{"message":"pre-flight check failed"}'; exit 1"#]
+    ))]
     fn test_process_executor_verification_failed_on_json_stdout(
         #[case] bin: &'static str,
         #[case] args: Vec<&'static str>,
@@ -430,7 +436,10 @@ mod tests {
 
     #[rstest]
     #[cfg_attr(unix, case("sleep", vec!["3"]))]
-    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", "Start-Sleep -Seconds 3"]))]
+    #[cfg_attr(
+        windows,
+        case("powershell", vec!["-NoProfile", "-Command", "Start-Sleep -Seconds 3"])
+    )]
     fn test_process_executor_times_out(#[case] bin: &'static str, #[case] args: Vec<&'static str>) {
         let executor = ProcessVerifyExecutor::new(Duration::from_millis(200));
         assert!(matches!(

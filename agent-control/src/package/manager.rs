@@ -11,6 +11,14 @@ pub struct PackageData {
     pub id: String, // same type as the packages map on an agent type definition
     pub oci_reference: Reference,
     pub public_key_url: Option<Url>,
+    /// Optional preinstall script path relative to extracted package (e.g., "preinstall.sh")
+    /// Executed AFTER extraction to verify dependencies and system requirements.
+    /// If this script fails, installation is aborted and error is reported to OpAMP.
+    pub preinstall_script_path: Option<String>,
+    /// Optional postinstall script path relative to extracted package (e.g., "postinstall.sh")
+    /// Executed AFTER preinstall checks pass, to perform final setup (move binaries, create symlinks).
+    /// If this script fails, error is reported to OpAMP.
+    pub postinstall_script_path: Option<String>,
 }
 
 /// Information about an installed package

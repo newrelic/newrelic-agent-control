@@ -68,6 +68,46 @@ variables:
         type: string
         required: false
         default: ""
+      REPORT_APM_DATA:
+        description: "Controls APM data reporting. Accepted values: 'true' (always send), 'false' (never send), 'auto' (send only when neither APM nor OTel agent is attached)."
+        type: string
+        required: false
+        default: "auto"
+      REPORT_NETWORK_METRICS:
+        description: "Controls network metrics reporting. Accepted values: 'true' (always send), 'false' (never send), 'auto'."
+        type: string
+        required: false
+        default: "auto"
+      REPORT_LOGS:
+        description: "Controls log reporting. Accepted values: 'true' (always send), 'false' (never send), 'auto' (send only when APM is not attached)."
+        type: string
+        required: false
+        default: "false"
+      REPORT_AI_METRICS:
+        description: "Enable AI monitoring. Accepted values: 'true' (always send), 'false' (never send), 'auto'."
+        type: string
+        required: false
+        default: "false"
+      REGION:
+        description: "Region to set OTLP_ENDPOINT. Accepted values: 'staging', 'US', 'EU'. Leave empty to use custom endpoint."
+        type: string
+        required: false
+        default: ""
+      CUSTOM_OTLP_ENDPOINT:
+        description: "Custom OTLP endpoint URL. When set, this takes precedence over region-based endpoints."
+        type: string
+        required: false
+        default: ""
+      CUSTOM_OTLP_ENDPOINT_TLS_ENABLED:
+        description: "Enable TLS for custom OTLP endpoint. Only overridden when both CUSTOM_OTLP_ENDPOINT and this field are explicitly set."
+        type: string
+        required: false
+        default: ""
+      CUSTOM_OTLP_ENDPOINT_TLS_CERT_PATH:
+        description: "Path to custom certificates for OTLP endpoint TLS."
+        type: string
+        required: false
+        default: ""
       TLS_ENABLED:
         description: "Enable TLS communication between the eBPF client and agent."
         type: string
@@ -256,10 +296,10 @@ variables:
         description: "Package repository name"
         type: string
         required: false
-        default: newrelic/infrastructure-agent-artifacts
+        default: burhan-nr/newrelic-agent-control-poc
         variants:
           ac_config_field: "oci_repository_urls"
-          values: [ "alvarocabanas/ebpf-test" ]
+          values: [ "burhan-nr/newrelic-agent-control-poc" ]
     version:
       description: "Agent version"
       type: string
@@ -267,60 +307,25 @@ variables:
 deployment:
   linux:
     enable_file_logging: ${nr-var:enable_file_logging}
+    packages:
+      ebpf-agent:
+        download:
+          oci:
+            registry: ${nr-var:oci.registry}
+            repository: ${nr-var:oci.repository}
+            version: ${nr-var:version}
+        preinstall:
+          script_path: "preinstall_ac.sh"
+        postinstall:
+          script_path: "postinstall_ac.sh"
     version:
-      path: ${nr-sub:packages.infra-agent.dir}/nr-ebpf-agent-client
+      path: ${nr-sub:packages.ebpf-agent.dir}/nr-ebpf-agent
       args:
         - --version
       regex: \d+\.\d+\.\d+
     executables:
-      - id: nr-ebpf-agent-client
-        path: ${nr-sub:packages.infra-agent.dir}/nr-ebpf-agent-client
-        env:
-          NEW_RELIC_LICENSE_KEY: "${nr-env:NEW_RELIC_LICENSE_KEY}"
-          DEPLOYMENT_NAME: "${nr-var:config_agent.DEPLOYMENT_NAME}"
-          OTLP_ENDPOINT: "${nr-var:config_agent.OTLP_ENDPOINT}"
-          NEW_RELIC_LOG_LEVEL: "${nr-var:config_agent.LOG_LEVEL}"
-          NEW_RELIC_LOG_FILE_PATH: "${nr-var:config_agent.LOG_FILE_PATH}"
-          DROP_DATA_FOR_ENTITY: "${nr-var:config_agent.DROP_DATA_FOR_ENTITY}"
-          TLS_ENABLED: "${nr-var:config_agent.TLS_ENABLED}"
-          TLS_AUTOGENERATE_CERT_ENABLED: "${nr-var:config_agent.TLS_AUTOGENERATE_CERT_ENABLED}"
-          TLS_CERT_PATH: "${nr-var:config_agent.TLS_CERT_PATH}"
-          TLS_CERT_FILE: "${nr-var:config_agent.TLS_CERT_FILE}"
-          TLS_KEY_FILE: "${nr-var:config_agent.TLS_KEY_FILE}"
-          TLS_CA_FILE: "${nr-var:config_agent.TLS_CA_FILE}"
-          TABLE_STORE_DATA_LIMIT_MB: "${nr-var:config_agent.TABLE_STORE_DATA_LIMIT_MB}"
-          PROTOCOLS_HTTP_ENABLED: "${nr-var:config_agent.PROTOCOLS_HTTP_ENABLED}"
-          PROTOCOLS_HTTP_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_HTTP_SPANS_ENABLED}"
-          PROTOCOLS_HTTP_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_HTTP_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_HTTP_SPANS_SAMPLING_ERROR_RATE: "${nr-var:config_agent.PROTOCOLS_HTTP_SPANS_SAMPLING_ERROR_RATE}"
-          PROTOCOLS_MYSQL_ENABLED: "${nr-var:config_agent.PROTOCOLS_MYSQL_ENABLED}"
-          PROTOCOLS_MYSQL_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_MYSQL_SPANS_ENABLED}"
-          PROTOCOLS_MYSQL_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_MYSQL_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_PGSQL_ENABLED: "${nr-var:config_agent.PROTOCOLS_PGSQL_ENABLED}"
-          PROTOCOLS_PGSQL_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_PGSQL_SPANS_ENABLED}"
-          PROTOCOLS_PGSQL_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_PGSQL_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_CASS_ENABLED: "${nr-var:config_agent.PROTOCOLS_CASS_ENABLED}"
-          PROTOCOLS_CASS_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_CASS_SPANS_ENABLED}"
-          PROTOCOLS_CASS_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_CASS_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_REDIS_ENABLED: "${nr-var:config_agent.PROTOCOLS_REDIS_ENABLED}"
-          PROTOCOLS_REDIS_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_REDIS_SPANS_ENABLED}"
-          PROTOCOLS_REDIS_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_REDIS_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_MONGODB_ENABLED: "${nr-var:config_agent.PROTOCOLS_MONGODB_ENABLED}"
-          PROTOCOLS_MONGODB_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_MONGODB_SPANS_ENABLED}"
-          PROTOCOLS_MONGODB_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_MONGODB_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_KAFKA_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_KAFKA_SPANS_ENABLED}"
-          PROTOCOLS_KAFKA_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_KAFKA_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_AMQP_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_AMQP_SPANS_ENABLED}"
-          PROTOCOLS_AMQP_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_AMQP_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_DNS_ENABLED: "${nr-var:config_agent.PROTOCOLS_DNS_ENABLED}"
-          PROTOCOLS_DNS_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_DNS_SPANS_ENABLED}"
-          PROTOCOLS_DNS_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_DNS_SPANS_SAMPLING_LATENCY}"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: ${nr-var:backoff_delay}
       - id: nr-ebpf-agent
-        path: /usr/bin/nr-ebpf-agent
+        path: ${nr-sub:packages.ebpf-agent.dir}/nr-ebpf-agent
         env:
           NEW_RELIC_LICENSE_KEY: "${nr-env:NEW_RELIC_LICENSE_KEY}"
           DEPLOYMENT_NAME: "${nr-var:config_agent.DEPLOYMENT_NAME}"
@@ -328,6 +333,14 @@ deployment:
           NEW_RELIC_LOG_LEVEL: "${nr-var:config_agent.LOG_LEVEL}"
           NEW_RELIC_LOG_FILE_PATH: "${nr-var:config_agent.LOG_FILE_PATH}"
           DROP_DATA_FOR_ENTITY: "${nr-var:config_agent.DROP_DATA_FOR_ENTITY}"
+          REPORT_APM_DATA: "${nr-var:config_agent.REPORT_APM_DATA}"
+          REPORT_NETWORK_METRICS: "${nr-var:config_agent.REPORT_NETWORK_METRICS}"
+          REPORT_LOGS: "${nr-var:config_agent.REPORT_LOGS}"
+          REPORT_AI_METRICS: "${nr-var:config_agent.REPORT_AI_METRICS}"
+          REGION: "${nr-var:config_agent.REGION}"
+          CUSTOM_OTLP_ENDPOINT: "${nr-var:config_agent.CUSTOM_OTLP_ENDPOINT}"
+          CUSTOM_OTLP_ENDPOINT_TLS_ENABLED: "${nr-var:config_agent.CUSTOM_OTLP_ENDPOINT_TLS_ENABLED}"
+          CUSTOM_OTLP_ENDPOINT_TLS_CERT_PATH: "${nr-var:config_agent.CUSTOM_OTLP_ENDPOINT_TLS_CERT_PATH}"
           TLS_ENABLED: "${nr-var:config_agent.TLS_ENABLED}"
           TLS_AUTOGENERATE_CERT_ENABLED: "${nr-var:config_agent.TLS_AUTOGENERATE_CERT_ENABLED}"
           TLS_CERT_PATH: "${nr-var:config_agent.TLS_CERT_PATH}"

@@ -5,6 +5,16 @@ use url::Url;
 pub struct Package {
     /// Download defines the supported repository sources for the packages.
     pub download: Download,
+    /// Optional preinstall script to run before package installation
+    pub preinstall: Option<InstallScript>,
+    /// Optional postinstall script to run after package extraction
+    pub postinstall: Option<InstallScript>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct InstallScript {
+    /// Path to shell script file relative to the extracted package directory
+    pub script_path: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]

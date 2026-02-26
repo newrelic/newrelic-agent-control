@@ -31,6 +31,7 @@ serde_json = { workspace = true }
 semver = { workspace = true, features = ["serde"] }
 chrono = { workspace = true }
 base64 = { version = "0.22.1" }
+tempfile = { workspace = true }
 # New Relic dependencies (external repos)
 nr-auth = { git = "https://github.com/newrelic/newrelic-auth-rs.git", tag = "0.4.0" }
 opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.36" }

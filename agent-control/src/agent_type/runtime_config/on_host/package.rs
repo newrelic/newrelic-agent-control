@@ -14,6 +14,17 @@ pub mod rendered;
 pub(super) struct Package {
     /// Download defines the supported repository sources for the packages.
     pub download: Download,
+    /// Optional preinstall script to run before package installation
+    pub preinstall: Option<InstallScript>,
+    /// Optional postinstall script to run after package extraction
+    pub postinstall: Option<InstallScript>,
+}
+
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct InstallScript {
+    /// Path to shell script file relative to the extracted package directory
+    /// (e.g., "preinstall.sh" will be found in the extracted tar.gz)
+    pub script_path: TemplateableValue<String>,
 }
 
 pub type PackageID = String;
@@ -42,6 +53,23 @@ impl Templateable for Package {
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         Ok(Self::Output {
             download: self.download.template_with(variables)?,
+            preinstall: self
+                .preinstall
+                .map(|s| s.template_with(variables))
+                .transpose()?,
+            postinstall: self
+                .postinstall
+                .map(|s| s.template_with(variables))
+                .transpose()?,
+        })
+    }
+}
+
+impl Templateable for InstallScript {
+    type Output = rendered::InstallScript;
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        Ok(Self::Output {
+            script_path: self.script_path.template_with(variables)?,
         })
     }
 }

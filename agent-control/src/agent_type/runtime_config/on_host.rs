@@ -170,6 +170,8 @@ mod tests {
                     )),
                 },
             },
+            preinstall: None,
+            postinstall: None,
         };
 
         let expected_packages = HashMap::from([

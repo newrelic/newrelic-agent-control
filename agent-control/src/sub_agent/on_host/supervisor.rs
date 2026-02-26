@@ -409,6 +409,14 @@ fn install_packages<PM: PackageManager>(
                     id: id.clone(),
                     oci_reference: package.download.oci.reference.clone(),
                     public_key_url: package.download.oci.public_key_url.clone(),
+                    preinstall_script_path: package
+                        .preinstall
+                        .as_ref()
+                        .map(|s| s.script_path.clone()),
+                    postinstall_script_path: package
+                        .postinstall
+                        .as_ref()
+                        .map(|s| s.script_path.clone()),
                 },
             )
             .map_err(|err| InstallPackageError {
