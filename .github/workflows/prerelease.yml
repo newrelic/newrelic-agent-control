@@ -143,6 +143,8 @@ jobs:
 
   onhost-e2e:
     uses: ./.github/workflows/component_onhost_e2e.yaml
+    with:
+      caller_workflow: prerelease
     secrets:
       NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
       NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
@@ -156,6 +158,7 @@ jobs:
       scenarios: '["infra", "apm", "collector", "fleet-control", "ebpf", "dynamic", "custom-repo", "proxy"]'
       # Network policies needs calico installed, the others do not
       minikube_start_args: '--cni=calico'
+      caller_workflow: prerelease
     secrets:
       NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
       NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
