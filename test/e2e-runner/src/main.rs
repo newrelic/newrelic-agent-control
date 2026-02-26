@@ -26,9 +26,6 @@ enum LinuxScenarios {
     /// Local installation of Agent Control with eBPF agent. Uses the infra agent to generate traffic and checks that
     /// the eBPF agent reports data.
     EBPFAgent(Args),
-    /// Migration of an Infrastructure Agent installation. It spawns a mysql docker service, reports mysql metrics
-    /// through the infra-agent and checks that metrics keep reporting after migration.
-    Migration(Args),
     /// Local installation of Agent Control with NRDot. It checks that nr-dot eventually reports data.
     NrdotAgent(Args),
     /// Checks that remote configuration for a sub-agent has been applied.
@@ -44,6 +41,12 @@ enum WindowsScenarios {
     /// Simple installation of Agent Control on Windows with NRDOT Agent.
     Nrdot(Args),
     Proxy(Args),
+    /// Checks that remote configuration for a sub-agent has been applied on Windows.
+    RemoteConfig(Args),
+    /// Tests that remote configuration for infra-agent has been applied via fleet management. Includes new version download.
+    /// Starts with a local-only installation of AC, then updates the installation to include fleet configuration that should
+    /// trigger a sub-agent update.
+    SwitchInfraAgentVersion(Args),
     /// Simple installation of Agent Control on Windows with update to wrong and correct config
     /// to test service stop and start.
     WrongConfig(Args),

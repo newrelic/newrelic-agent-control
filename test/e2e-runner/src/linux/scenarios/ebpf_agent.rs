@@ -1,8 +1,8 @@
 use crate::common::Args;
 use crate::common::RecipeData;
+use crate::common::config::write_agent_local_config;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
-use crate::linux::{DEFAULT_NR_EBPF_PATH, DEFAULT_NR_INFRA_PATH};
 use crate::{
     common::{config, nrql},
     linux::{
@@ -14,6 +14,11 @@ use std::time::Duration;
 use tracing::info;
 
 pub fn test_ebpf_agent(args: Args) {
+    let infra_version = args
+        .infra_agent_version
+        .clone()
+        .expect("--infra-agent-version is required for this scenario");
+
     let recipe_data = RecipeData {
         args,
         monitoring_source: "infra-agent".to_string(),
@@ -27,7 +32,7 @@ pub fn test_ebpf_agent(args: Args) {
 
     let test_id = format!(
         "onhost-e2e-infra-agent_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
+        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
     info!("Setup Agent Control config with eBPF");
@@ -43,10 +48,10 @@ agents:
 {debug_log_config}
 "#
     );
-    config::update_config(linux::DEFAULT_CONFIG_PATH, config);
+    config::update_config(linux::DEFAULT_AC_CONFIG_PATH, config);
     // eBPF agent config
-    config::write_agent_local_config(
-        DEFAULT_NR_EBPF_PATH,
+    write_agent_local_config(
+        &linux::local_config_path("nr-ebpf"),
         format!(
             r#"
 config_agent:
@@ -55,15 +60,15 @@ config_agent:
         ),
     );
     // Infra agent config: it is used to generate traffic for eBPF metrics to appear
-    config::write_agent_local_config(
-        DEFAULT_NR_INFRA_PATH,
-        String::from(
+    write_agent_local_config(
+        &linux::local_config_path("nr-infra"),
+        format!(
             r#"
 config_agent:
-  status_server_enabled: true
-  status_server_port: 18003
-  license_key: '{{NEW_RELIC_LICENSE_KEY}}'
-    "#,
+  license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
+version: {}
+"#,
+            infra_version
         ),
     );
 

@@ -1,7 +1,6 @@
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{Args, RecipeData};
-use crate::linux::DEFAULT_NR_INFRA_PATH;
 use crate::linux::install::tear_down_test;
 use crate::{
     common::{config, nrql},
@@ -15,11 +14,14 @@ const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgw
 
 const ENV_VARS_FILE: &str = "/etc/newrelic-agent-control/environment_variables.yaml";
 
+// We pin and old version so the remote config always makes an upgrade.
+const INFRA_AGENT_VERSION: &str = "1.72.1";
+
 pub fn test_remote_config_is_applied(args: Args) {
     let recipe_data = RecipeData {
         args,
         monitoring_source: "infra-agent".to_string(),
-        fleet_enabled: "true".to_string(),
+        fleet_enabled: true,
         fleet_id: FLEET_ID.to_string(),
         ..Default::default()
     };
@@ -30,28 +32,31 @@ pub fn test_remote_config_is_applied(args: Args) {
 
     let test_id = format!(
         "onhost-e2e-infra-agent_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
+        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
     info!("Setting up `TEST_ID` environment variable");
     config::append_to_config_file(ENV_VARS_FILE, format!("TEST_ID: {test_id}").as_str());
 
     info!("Setup Agent Control config for debug logging");
-    config::update_config_for_debug_logging(linux::DEFAULT_CONFIG_PATH, linux::DEFAULT_LOG_PATH);
+    config::update_config_for_debug_logging(linux::DEFAULT_AC_CONFIG_PATH, linux::DEFAULT_LOG_PATH);
 
     info!("Setup infra-agent config");
     config::write_agent_local_config(
-        DEFAULT_NR_INFRA_PATH,
-        r#"
+        &linux::local_config_path("nr-infra"),
+        format!(
+            r#"
 config_agent:
   status_server_enabled: true
   status_server_port: 18003
-  license_key: {{NEW_RELIC_LICENSE_KEY}}
+  license_key: {{{{NEW_RELIC_LICENSE_KEY}}}}
   custom_attributes:
     config_origin: local
-    test_id: {{TEST_ID}}
-"#
-        .to_string(),
+    test_id: {{{{TEST_ID}}}}
+version: {}
+"#,
+            INFRA_AGENT_VERSION
+        ),
     );
 
     linux::service::restart_service(linux::SERVICE_NAME);

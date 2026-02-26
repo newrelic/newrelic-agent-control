@@ -81,11 +81,12 @@ The following shows the directory structure used by Agent Control, assuming an e
     │                └── config
     │                      └── newrelic-infra.yml
     └── log
-        ├── newrelic-agent-control
-        │   └── newrelic-agent-control.log.2025-01-15-23
-        └── nr-infra
-            ├── stdout.log.2025-01-15-23
-            └── stderr.log.2025-01-15-23
+        └── newrelic-agent-control
+            |── agent-control
+            |   └── newrelic-agent-control.log.2025-01-15-23
+            └── nr-infra
+                ├── stdout.log.2025-01-15-23
+                └── stderr.log.2025-01-15-23
 ```
 
 ### Windows
@@ -117,7 +118,9 @@ C:\ProgramData\New Relic\newrelic-agent-control
 │   └───nr-infra
 │           instance_id.yaml
 │           remote_config.yaml
-├───logs
+├───log
+│   |───agent-control
+│   |       newrelic-agent-control.log.2025-01-15-23
 │   └───nr-infra
 │           stderr.log.2026-01-19-22
 └───packages

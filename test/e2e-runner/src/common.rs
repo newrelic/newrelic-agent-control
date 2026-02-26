@@ -54,16 +54,20 @@ pub struct Args {
     #[arg(long, default_value = "US")]
     pub nr_region: String,
 
-    /// Flag to migrate existing infrastructure agent configuration. Currently used only in Linux.
-    #[arg(long, default_value = "true")]
-    pub migrate_config_infra: String,
+    /// Version of the infrastructure agent OCI image to use in tests
+    #[arg(long)]
+    pub infra_agent_version: Option<String>,
+
+    /// Version of the NRDot OCI image to use in tests
+    #[arg(long)]
+    pub nrdot_version: Option<String>,
 }
 
 /// Data to set up installation
 pub struct RecipeData {
     pub args: Args,
     pub fleet_id: String,
-    pub fleet_enabled: String,
+    pub fleet_enabled: bool,
     pub recipe_list: String,
     pub proxy_url: String,
     pub monitoring_source: String,
@@ -75,7 +79,7 @@ impl Default for RecipeData {
             args: Default::default(),
             fleet_id: Default::default(),
             proxy_url: Default::default(),
-            fleet_enabled: "false".to_string(),
+            fleet_enabled: false,
             recipe_list: "agent-control".to_string(),
             #[cfg(target_family = "unix")]
             monitoring_source: "infra-agent".to_string(),

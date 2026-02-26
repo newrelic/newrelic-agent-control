@@ -15,6 +15,7 @@ jobs:
     with:
       scenarios: '["apm", "collector", "fleet-control", "ebpf", "dynamic"]'
       use_latest_flux: true
+      caller_workflow: latest_flux_e2e
     secrets:
       NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
       NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}

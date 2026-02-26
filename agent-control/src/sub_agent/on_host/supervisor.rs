@@ -408,6 +408,7 @@ fn install_packages<PM: PackageManager>(
                 PackageData {
                     id: id.clone(),
                     oci_reference: package.download.oci.reference.clone(),
+                    public_key_url: package.download.oci.public_key_url.clone(),
                 },
             )
             .map_err(|err| InstallPackageError {
@@ -506,10 +507,14 @@ fn wait_restart(
         }
     });
 
+    let max_retries_str = match max_retries {
+        0 => "unlimited".to_string(),
+        n => n.to_string(),
+    };
     if !cancelled {
-        info!("Restarting supervisor ({step}/{max_retries})");
+        info!("Restarting supervisor ({step}/{max_retries_str})");
     } else {
-        info!("Restarting supervisor ({step}/{max_retries}) was cancelled");
+        info!("Restarting supervisor ({step}/{max_retries_str}) was cancelled");
     }
 
     cancelled

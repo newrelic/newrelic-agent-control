@@ -1,3 +1,4 @@
+use crate::common::config::write_agent_local_config;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{Args, RecipeData};
@@ -35,12 +36,17 @@ pub fn test_agent_control_proxy(args: Args) {
     info!("Setting up mitmproxy container");
     setup_mitmproxy();
 
+    let infra_version = args
+        .infra_agent_version
+        .clone()
+        .expect("--infra-agent-version is required for this scenario");
+
     info!("Installing Agent Control with proxy configuration");
     let recipe_data = RecipeData {
         args,
         monitoring_source: "infra-agent".to_string(),
         proxy_url: PROXY_URL.to_string(),
-        fleet_enabled: "true".to_string(),
+        fleet_enabled: true,
         fleet_id: FLEET_ID.to_string(),
         ..Default::default()
     };
@@ -51,12 +57,36 @@ pub fn test_agent_control_proxy(args: Args) {
 
     let test_id = format!(
         "onhost-e2e-proxy_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
+        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
     info!("Setup Agent Control config with proxy");
-    config::update_config_for_debug_logging(linux::DEFAULT_CONFIG_PATH, linux::DEFAULT_LOG_PATH);
-    config::update_config_for_host_id(linux::DEFAULT_CONFIG_PATH, &test_id);
+    config::update_config_for_debug_logging(linux::DEFAULT_AC_CONFIG_PATH, linux::DEFAULT_LOG_PATH);
+
+    let config = format!(
+        r#"
+host_id: {test_id}
+agents:
+  nr-infra:
+    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+"#
+    );
+    config::update_config(linux::DEFAULT_AC_CONFIG_PATH, config);
+
+    write_agent_local_config(
+        &linux::local_config_path("nr-infra"),
+        format!(
+            r#"
+config_agent:
+  log:
+    level: debug
+  proxy: {PROXY_URL}
+  license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
+version: {}
+"#,
+            infra_version
+        ),
+    );
 
     linux::service::restart_service(linux::SERVICE_NAME);
 

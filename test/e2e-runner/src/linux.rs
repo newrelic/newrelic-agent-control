@@ -7,14 +7,12 @@ pub mod scenarios;
 mod bash;
 mod service;
 
-const DEFAULT_CONFIG_PATH: &str =
+const DEFAULT_AC_CONFIG_PATH: &str =
     "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml";
 
-const DEFAULT_NR_EBPF_PATH: &str =
-    "/etc/newrelic-agent-control/local-data/nr-ebpf/local_config.yaml";
-
-const DEFAULT_NR_INFRA_PATH: &str =
-    "/etc/newrelic-agent-control/local-data/nr-infra/local_config.yaml";
+pub fn local_config_path(agent_id: &str) -> String {
+    format!(r"/etc/newrelic-agent-control/local-data/{agent_id}/local_config.yaml")
+}
 
 const DEFAULT_LOG_PATH: &str = "/var/log/newrelic-agent-control/newrelic-agent-control.log";
 
@@ -32,9 +30,6 @@ pub fn run_linux_e2e() {
         }
         LinuxScenarios::EBPFAgent(args) => {
             scenarios::ebpf_agent::test_ebpf_agent(args);
-        }
-        LinuxScenarios::Migration(args) => {
-            scenarios::migration::test_migration(args);
         }
         LinuxScenarios::NrdotAgent(args) => {
             scenarios::nrdot_agent::test_nrdot_agent(args);

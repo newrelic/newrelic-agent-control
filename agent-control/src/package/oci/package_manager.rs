@@ -92,7 +92,7 @@ where
     /// The package is first downloaded to `temp_package_path` and then extracted to `package_path`.
     fn install_archive(
         &self,
-        package_data: &PackageData,
+        package_data: PackageData,
         tmp_download_path: &Path,
         install_path: &Path,
     ) -> Result<InstalledPackageData, OCIPackageManagerError> {
@@ -102,7 +102,11 @@ where
 
         let downloaded_package = self
             .downloader
-            .download(&package_data.oci_reference, tmp_download_path)
+            .download(
+                &package_data.oci_reference,
+                &package_data.public_key_url,
+                tmp_download_path,
+            )
             .map_err(OCIPackageManagerError::Download)?;
 
         self.extract_package(&downloaded_package, install_path)
@@ -187,7 +191,7 @@ where
         agent_id: &AgentID,
     ) -> Result<Vec<InstalledPackageData>, OCIPackageManagerError> {
         let installed_packages_dir =
-            get_generic_package_location_path(&self.remote_dir, agent_id, INSTALLED_PCK_LOCATION)?;
+            get_generic_package_location_path(&self.remote_dir, agent_id, INSTALLED_PCK_LOCATION);
 
         let mut installed_packages = vec![];
         let id_dirs = LocalFile
@@ -256,7 +260,7 @@ fn get_generic_package_path(
     package_id: &PackageID,
     package_reference: &Reference,
 ) -> Result<PathBuf, OCIPackageManagerError> {
-    let package_id_path = get_generic_package_location_path(base_path, agent_id, location)?;
+    let package_id_path = get_generic_package_location_path(base_path, agent_id, location);
     Ok(package_id_path
         .join(package_id)
         .join(compute_path_suffix(package_reference)?))
@@ -265,11 +269,11 @@ fn get_generic_package_location_path(
     base_path: &Path,
     agent_id: &AgentID,
     location: &str,
-) -> Result<PathBuf, OCIPackageManagerError> {
-    Ok(base_path
+) -> PathBuf {
+    base_path
         .join(PACKAGES_FOLDER_NAME)
         .join(agent_id)
-        .join(location))
+        .join(location)
 }
 
 /// Computes the download destination of a package [`Reference`] depending on the available fields.
@@ -363,7 +367,7 @@ where
         // If we face an error during installation, we must ensure the temporary directory is deleted.
         // We hide the error of the folder if something else went wrong.
         let installed_package = self
-            .install_archive(&package_data, &temp_package_path, &package_path)
+            .install_archive(package_data, &temp_package_path, &package_path)
             .inspect_err(|_| _ = self.directory_manager.delete(&temp_package_path))?;
 
         self.directory_manager
@@ -395,7 +399,7 @@ mod tests {
     use fs::directory_manager::mock::MockDirectoryManager;
     use fs::file::writer::FileWriter;
     use mockall::predicate::eq;
-    use oci_spec::distribution::Reference;
+    use oci_client::Reference;
     use std::str::FromStr;
     use tempfile::tempdir;
 
@@ -403,6 +407,14 @@ mod tests {
 
     fn test_reference() -> Reference {
         Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap()
+    }
+
+    fn test_package_data() -> PackageData {
+        PackageData {
+            id: TEST_PACKAGE_ID.to_string(),
+            oci_reference: test_reference(),
+            public_key_url: None,
+        }
     }
 
     fn new_local_package(path: &Path) -> LocalAgentPackage {
@@ -414,6 +426,7 @@ mod tests {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: Reference::from_str(format!("newrelic/fake-agent:{}", version).as_str())
                 .unwrap(),
+            public_key_url: None,
         }
     }
 
@@ -436,7 +449,7 @@ mod tests {
         downloader
             .expect_download()
             .times(1)
-            .returning(move |_reference, download_dir| Ok(fake_compressed_package(download_dir)));
+            .returning(move |_, _, download_dir| Ok(fake_compressed_package(download_dir)));
 
         let pm = OCIPackageManager::new(
             downloader,
@@ -470,7 +483,7 @@ mod tests {
         downloader
             .expect_download()
             .times(1)
-            .returning(move |_reference, download_dir| Ok(fake_compressed_package(download_dir)));
+            .returning(move |_, _, download_dir| Ok(fake_compressed_package(download_dir)));
 
         let pm = OCIPackageManager::new(
             downloader,
@@ -490,8 +503,7 @@ mod tests {
 
         // Spurious file at installed packages level should not be removed
         let pkg_id_dir =
-            get_generic_package_location_path(root_dir.path(), &agent_id, INSTALLED_PCK_LOCATION)
-                .unwrap();
+            get_generic_package_location_path(root_dir.path(), &agent_id, INSTALLED_PCK_LOCATION);
         DirectoryManagerFs.create(&pkg_id_dir).unwrap();
         let pkg_id_level_spurious_file = pkg_id_dir.join("pkg_id_spurious_file");
         LocalFile
@@ -514,7 +526,7 @@ mod tests {
         downloader
             .expect_download()
             .times(3)
-            .returning(move |_reference, download_dir| Ok(fake_compressed_package(download_dir)));
+            .returning(move |_, _, download_dir| Ok(fake_compressed_package(download_dir)));
 
         let pm = OCIPackageManager::new(
             downloader,
@@ -545,7 +557,7 @@ mod tests {
         downloader
             .expect_download()
             .times(3)
-            .returning(move |_reference, download_dir| Ok(fake_compressed_package(download_dir)));
+            .returning(move |_, _, download_dir| Ok(fake_compressed_package(download_dir)));
 
         let pm = OCIPackageManager::new(
             downloader,
@@ -588,19 +600,16 @@ mod tests {
 
         downloader
             .expect_download()
-            .with(eq(test_reference()), eq(download_dir.clone()))
+            .with(eq(test_reference()), eq(None), eq(download_dir.clone()))
             .once()
-            .returning(move |_, _| Ok(fake_compressed_package(&download_dir)));
+            .returning(move |_, _, _| Ok(fake_compressed_package(&download_dir)));
 
         let pm = OCIPackageManager::new(
             downloader,
             DirectoryManagerFs,
             PathBuf::from(root_dir.path()),
         );
-        let package_data = PackageData {
-            id: TEST_PACKAGE_ID.to_string(),
-            oci_reference: test_reference(),
-        };
+        let package_data = test_package_data();
         let installed = pm.install(&agent_id, package_data).unwrap();
 
         TestDataHelper::test_data_uncompressed(installed.installation_path.as_path());
@@ -625,9 +634,9 @@ mod tests {
 
         downloader
             .expect_download()
-            .with(eq(test_reference()), eq(download_dir.clone()))
+            .with(eq(test_reference()), eq(None), eq(download_dir.clone()))
             .once()
-            .returning(move |_, _| {
+            .returning(move |_, _, _| {
                 // Mock downloader behavior creating a compressed file with known content, but WRONG FORMAT
                 DirectoryManagerFs.create(&download_dir).unwrap();
                 let downloaded_file = download_dir.join("layer_digest.tar.gz");
@@ -643,10 +652,7 @@ mod tests {
             PathBuf::from(root_dir.path()),
         );
 
-        let package_data = PackageData {
-            id: TEST_PACKAGE_ID.to_string(),
-            oci_reference: test_reference(),
-        };
+        let package_data = test_package_data();
         let err = pm.install(&agent_id, package_data).unwrap_err();
         assert!(matches!(err, OCIPackageManagerError::Extraction(_)));
     }
@@ -683,10 +689,8 @@ mod tests {
 
         let pm = OCIPackageManager::new(downloader, directory_manager, remote_dir);
 
-        let package_data = PackageData {
-            id: TEST_PACKAGE_ID.to_string(),
-            oci_reference: test_reference(),
-        };
+        let package_data = test_package_data();
+
         let result = pm.install(&agent_id, package_data);
 
         assert!(matches!(result, Err(OCIPackageManagerError::Install(_))));
@@ -724,20 +728,13 @@ mod tests {
 
         downloader
             .expect_download()
-            .with(eq(test_reference()), eq(download_dir))
+            .with(eq(test_reference()), eq(None), eq(download_dir))
             .once()
-            .returning(|_, _| {
-                Err(OCIDownloaderError::DownloadingArtifact(
-                    "download failed".into(),
-                ))
-            });
+            .returning(|_, _, _| Err(OCIDownloaderError("download failed".into())));
 
         let pm = OCIPackageManager::new(downloader, directory_manager, remote_dir);
 
-        let package_data = PackageData {
-            id: TEST_PACKAGE_ID.to_string(),
-            oci_reference: test_reference(),
-        };
+        let package_data = test_package_data();
         let result = pm.install(&agent_id, package_data);
 
         assert!(matches!(result, Err(OCIPackageManagerError::Download(_))));
@@ -778,9 +775,9 @@ mod tests {
 
         downloader
             .expect_download()
-            .with(eq(test_reference()), eq(download_dir.clone()))
+            .with(eq(test_reference()), eq(None), eq(download_dir.clone()))
             .once()
-            .returning(move |_, _| Ok(new_local_package(&downloaded_file)));
+            .returning(move |_, _, _| Ok(new_local_package(&downloaded_file)));
 
         directory_manager
             .expect_create()
@@ -799,6 +796,7 @@ mod tests {
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
+            public_key_url: None,
         };
         let result = pm.install(&agent_id, package_data);
 
@@ -846,9 +844,9 @@ mod tests {
         let download_dir_copy = download_dir.clone();
         downloader
             .expect_download()
-            .with(eq(test_reference()), eq(download_dir.clone()))
+            .with(eq(test_reference()), eq(None), eq(download_dir.clone()))
             .once()
-            .returning(move |_, _| Ok(fake_compressed_package(&download_dir_copy)));
+            .returning(move |_, _, _| Ok(fake_compressed_package(&download_dir_copy)));
 
         directory_manager
             .expect_delete()
@@ -861,6 +859,7 @@ mod tests {
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
+            public_key_url: None,
         };
         let result = pm.install(&agent_id, package_data);
 
@@ -945,6 +944,7 @@ mod tests {
         let package_data = PackageData {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
+            public_key_url: None,
         };
 
         let installed = pm.install(&agent_id, package_data).unwrap();

@@ -23,7 +23,7 @@ pub fn test_service_restart_depending_on_config_correctness(args: Args) {
     install_agent_control_from_recipe(&recipe_data);
 
     // Replace the valid empty map with an unclosed one to break YAML parsing
-    modify_agents_config(windows::DEFAULT_CONFIG_PATH, "agents: {}", "agents: {");
+    modify_agents_config(windows::DEFAULT_AC_CONFIG_PATH, "agents: {}", "agents: {");
 
     // Expect restart to fail
     windows::service::restart_service(SERVICE_NAME, STATUS_STOPPED);
@@ -35,7 +35,7 @@ pub fn test_service_restart_depending_on_config_correctness(args: Args) {
 
     // Adding a correct configuration
     // Replace the unclosed one to break YAML parsing back to a valid empty map
-    modify_agents_config(windows::DEFAULT_CONFIG_PATH, "agents: {", "agents: {}");
+    modify_agents_config(windows::DEFAULT_AC_CONFIG_PATH, "agents: {", "agents: {}");
 
     // Expect restart to succeed
     windows::service::restart_service(SERVICE_NAME, STATUS_RUNNING);

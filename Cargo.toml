@@ -41,13 +41,7 @@ konst = "0.4.3"
 semver = "1.0.27"
 chrono = "0.4.44"
 jsonwebtoken = { version = "10.3.0", features = [ "aws_lc_rs" ]}
-# reqwest's default-features enables default-tls and we are not including it since we are using rustls only.
-reqwest = { version = "0.12.28", default-features = false, features = [
-  "blocking",
-  "rustls-tls",
-  "rustls-tls-native-roots",
-  "socks",
-] }
+reqwest = { version = "0.13.2", features = [ "blocking", "socks" ] }
 rstest = "0.26.1"
 windows = "0.62.2"
 windows-sys = "0.61.2"

@@ -15,14 +15,21 @@ on:
         required: true
 
     inputs:
-      scenarios:
-        description: 'JSON array of test scenarios to run'
+      caller_workflow:
+        description: 'Name of the top-level workflow triggering this run, used for NR event reporting'
         required: false
         type: string
-        default: '["migration", "remote-config", "ebpf-agent", "infra-agent", "nrdot-agent", "proxy"]'
+        default: ''
 
 permissions:
   contents: read
+
+# NOTE: The below environment vars are bumped automatically by Renovate so we always use the latest
+# versions of the packages in our E2E tests. If you change the names or move these values outside
+# the GitHub workflows please update `renovate.json` accordingly to avoid breaking the automation!
+env:
+  HOST_E2E_INFRA_AGENT_VERSION: "1.72.1"
+  HOST_E2E_NRDOT_VERSION: "1.8.0"
 
 jobs:
   build-packages:
@@ -35,13 +42,21 @@ jobs:
 
   on-host-linux-e2e:
     name: OnHost Linux E2E tests
-    needs: [ build-packages ]
+    needs: [build-packages]
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        group: ${{ fromJSON(inputs.scenarios) }}
+        group:
+          - remote-config
+          - ebpf-agent
+          - infra-agent
+          - nrdot-agent
+          - proxy
     steps:
+      - name: Record job start time
+        run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/install-rust-toolchain
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
@@ -62,17 +77,40 @@ jobs:
             --system-identity-client-id "${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}" \
             --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
             --agent-control-version "0.900.${{ github.run_id }}" \
-            --recipes-repo-branch "main"
+            --recipes-repo-branch "feat/removeAgents" \
+            --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" \
+            --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}"
+
+      - name: Report test result to New Relic
+        if: always()
+        env:
+          NR_LICENSE_KEY: ${{ secrets.E2E_LICENSE_KEY }}
+          NR_ACCOUNT_ID: ${{ secrets.E2E_ACCOUNT_ID }}
+          E2E_SCENARIO: ${{ matrix.group }}
+          E2E_ENVIRONMENT: linux
+          E2E_STATUS: ${{ job.status }}
+          E2E_CALLER_WORKFLOW: ${{ inputs.caller_workflow }}
+        run: bash .github/workflows/scripts/report_e2e_result.sh
 
   on-host-windows-e2e:
     name: OnHost Windows E2E tests
-    needs: [ build-packages ]
+    needs: [build-packages]
     runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        group: [ infra-agent, nrdot, proxy, wrong-config ]
+        group:
+          - infra-agent
+          - nrdot
+          - proxy
+          - wrong-config
+          - remote-config
+          - switch-infra-agent-version
     steps:
+      - name: Record job start time
+        shell: bash
+        run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/install-rust-toolchain
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
@@ -94,4 +132,18 @@ jobs:
             --system-identity-client-id "${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}" `
             --agent-control-private-key "$env:TEMP\newrelic-agent-control-priv.key" `
             --agent-control-version "0.900.${{ github.run_id }}" `
-            --recipes-repo-branch "main"
+            --recipes-repo-branch "feat/removeAgents" `
+            --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" `
+            --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}"
+
+      - name: Report test result to New Relic
+        if: always()
+        shell: bash
+        env:
+          NR_LICENSE_KEY: ${{ secrets.E2E_LICENSE_KEY }}
+          NR_ACCOUNT_ID: ${{ secrets.E2E_ACCOUNT_ID }}
+          E2E_SCENARIO: ${{ matrix.group }}
+          E2E_ENVIRONMENT: windows
+          E2E_STATUS: ${{ job.status }}
+          E2E_CALLER_WORKFLOW: ${{ inputs.caller_workflow }}
+        run: bash .github/workflows/scripts/report_e2e_result.sh

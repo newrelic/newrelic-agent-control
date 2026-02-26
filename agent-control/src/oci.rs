@@ -1,0 +1,383 @@
+//! This module provides an [oci_client] wrapper.
+
+use std::{path::Path, sync::Arc};
+
+use crate::{http::config::ProxyConfig, signature::public_key_fetcher::PublicKeyFetcher};
+
+use oci_client::{
+    Reference,
+    client::{AsLayerDescriptor, ClientConfig},
+    manifest::OciImageManifest,
+    secrets::RegistryAuth,
+};
+use tokio::runtime::Runtime;
+use url::Url;
+
+mod error;
+mod proxy;
+mod signature_verification;
+
+pub use error::OciClientError;
+
+/// [oci_client::Client] wrapper with extended functionality.
+/// It also wraps all _async_ operations using the underlying runtime, all functions will
+/// block the current thread until completion.
+pub struct Client {
+    client: oci_client::Client,
+    auth: RegistryAuth,
+    runtime: Arc<Runtime>,
+    public_key_fetcher: PublicKeyFetcher,
+}
+
+impl Client {
+    pub fn try_new(
+        client_config: ClientConfig,
+        proxy_config: ProxyConfig,
+        runtime: Arc<Runtime>,
+    ) -> Result<Self, OciClientError> {
+        let client_config = proxy::setup_proxy(client_config, proxy_config.clone())?;
+        let public_key_fetcher = Self::try_build_public_key_fetcher(proxy_config)?;
+        Ok(Self {
+            client: oci_client::Client::new(client_config),
+            auth: RegistryAuth::Anonymous,
+            public_key_fetcher,
+            runtime,
+        })
+    }
+
+    /// Wraps [oci_client::Client::pull_image_manifest].
+    pub fn pull_image_manifest(
+        &self,
+        reference: &Reference,
+    ) -> Result<(OciImageManifest, String), OciClientError> {
+        self.runtime
+            .block_on(self.client.pull_image_manifest(reference, &self.auth))
+            .map_err(|err| OciClientError::PullManifest(err.into()))
+    }
+
+    /// Pulls  the specified blob through [oci_client::Client::pull_blob] and stores it in the specified file path.
+    pub fn pull_blob_to_file(
+        &self,
+        reference: &Reference,
+        layer: impl AsLayerDescriptor,
+        path: impl AsRef<Path>,
+    ) -> Result<(), OciClientError> {
+        self.runtime.block_on(async {
+            let mut file = tokio::fs::File::create(path).await.map_err(|err| {
+                OciClientError::PullBlob(format!("could not create file: {}", err).into())
+            })?;
+
+            self.client
+                .pull_blob(reference, layer, &mut file)
+                .await
+                .map_err(|err| OciClientError::PullBlob(err.to_string().into()))?;
+
+            // Ensure all data is flushed to disk before returning
+            file.sync_data().await.map_err(|err| {
+                OciClientError::PullBlob(format!("failure syncing data to disk: {err}").into())
+            })?;
+
+            Ok(())
+        })
+    }
+
+    /// Verifies the Cosign signature of an OCI artifact.
+    ///
+    /// This function performs signature verification on the manifest corresponding to the provided `reference`.
+    /// If the reference points to an index-manifest (multi-arch image), the signature of the index-manifest itself
+    /// is verified (not the platform-specific manifest underneath it).
+    ///
+    /// Validation skips transparency log verification as it supports verifying artifacts in a privately deployed
+    /// infrastructure (same as `cosign verify --private-infrastructure`).
+    ///
+    /// The expected signature format follows Cosign's specification, :
+    /// - Signatures are stored as separate artifacts in the same registry (the signature reference can be derived from
+    ///   the provided `reference` through, see [signature_verification::triangulate] for details).
+    /// - Each signature is a JSON payload (Simple Signing format) containing a `critical` section with the
+    ///   manifest digest of the signed artifact
+    /// - The signature itself is base64-encoded in the layer's annotations under `dev.cosignproject.cosign/signature`
+    ///
+    /// Public keys are fetched from `public_key_url` and verification will be performed using each key in the
+    /// corresponding payload. Signature verification succeeds if one of the signatures in the corresponding manifest
+    /// (one signature layer) corresponds to one of the public keys. Such verification uses Ed25519 algorithm.
+    ///
+    /// If verification succeeds, the verified `reference`, **including digest**, is returned.
+    ///
+    pub fn verify_signature(
+        &self,
+        reference: &Reference,
+        public_key_url: &Url,
+    ) -> Result<Reference, OciClientError> {
+        let public_keys = self
+            .public_key_fetcher
+            .fetch(public_key_url)
+            .map_err(|err| OciClientError::Verify(format!("could not fetch public keys: {err}")))?;
+        self.runtime
+            .block_on(self.verify_signature_with_public_keys(reference, &public_keys))
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use assert_matches::assert_matches;
+    use aws_lc_rs::digest::{SHA256, digest};
+    use base64::Engine;
+    use httpmock::{Method::GET, MockServer};
+    use oci_client::manifest::OciDescriptor;
+    use std::collections::BTreeMap;
+    use std::str::FromStr;
+    use tempfile::tempdir;
+
+    use crate::agent_control::run::runtime::tests::tokio_runtime;
+    use crate::signature::public_key::tests::TestKeyPair;
+    use crate::signature::public_key_fetcher::tests::JwksMockServer;
+    use rstest::rstest;
+
+    fn create_test_client() -> Client {
+        Client::try_new(
+            ClientConfig {
+                protocol: oci_client::client::ClientProtocol::Http,
+                ..Default::default()
+            },
+            ProxyConfig::default(),
+            tokio_runtime(),
+        )
+        .expect("Failed to create test Client")
+    }
+
+    #[rstest]
+    #[case::valid_signer_key(1, Some(0))]
+    #[case::wrong_key(1, None)]
+    #[case::mixed_keys_with_valid(2, Some(1))]
+    fn test_verify_signature(#[case] num_jwks_keys: usize, #[case] signer_position: Option<usize>) {
+        // Build the key pairs for the list
+        let jwks_key_pairs: Vec<TestKeyPair> = (0..num_jwks_keys).map(TestKeyPair::new).collect();
+        // The signer key corresponds to the key position in `signer_position` if any, otherwise
+        // it is public key that is not included in the list
+        let kp_signer = match signer_position {
+            Some(pos) => &jwks_key_pairs[pos],
+            None => &TestKeyPair::new(num_jwks_keys + 1),
+        };
+
+        let mock_server = FakeOciServer::new("my-app", "v1")
+            .with_layer(b"my binary", "application/vnd.oci.image.layer.v1.tar+gzip")
+            .with_signature(kp_signer)
+            .build();
+
+        let jwks_keys: Vec<serde_json::Value> = jwks_key_pairs
+            .iter()
+            .map(|kp| serde_json::to_value(kp.public_key_jwk()).unwrap())
+            .collect();
+        let jwks_server = JwksMockServer::new(jwks_keys);
+
+        let client = create_test_client();
+        let image_ref = mock_server.reference();
+        assert!(image_ref.digest().is_none()); // The reference to be verified doesn't have digest
+
+        let result = client.verify_signature(&image_ref, &jwks_server.url);
+
+        if signer_position.is_some() {
+            let verified_ref = result.expect("verification should succeed");
+            assert_eq!(
+                verified_ref.digest().unwrap(),
+                mock_server.manifest_digest(),
+                "The verified reference should inform the corresponding digest"
+            );
+        } else {
+            assert_matches!(result, Err(OciClientError::Verify(_)));
+        }
+    }
+
+    #[test]
+    fn test_verify_fails_if_signature_is_missing() {
+        let trusted_kp = TestKeyPair::new(0);
+
+        let mock_server = FakeOciServer::new("my-app", "v1")
+            .with_layer(b"binary", "application/vnd.oci.image.layer.v1.tar+gzip")
+            .build();
+
+        let jwks_keys = vec![serde_json::to_value(trusted_kp.public_key_jwk()).unwrap()];
+        let jwks_server = JwksMockServer::new(jwks_keys);
+
+        let client = create_test_client();
+        let image_ref = mock_server.reference();
+
+        let result = client.verify_signature(&image_ref, &jwks_server.url);
+
+        assert_matches!(result, Err(OciClientError::Verify(_)));
+    }
+
+    #[test]
+    fn test_client() {
+        let server = FakeOciServer::new("repo", "v1.2.3")
+            .with_layer(b"some content", "fake-media_type")
+            .build();
+
+        let client = create_test_client();
+        let reference = &server.reference();
+        let (image_manifest, _) = client.pull_image_manifest(reference).unwrap();
+        let layer = &image_manifest.layers[0];
+        assert_eq!(layer.media_type, "fake-media_type");
+
+        let tmp = tempdir().unwrap();
+        let filepath = tmp.path().join(&layer.digest);
+        client
+            .pull_blob_to_file(reference, layer, &filepath)
+            .expect("writing blob to file should not fail");
+        assert_eq!(std::fs::read(filepath).unwrap(), b"some content");
+    }
+
+    pub struct FakeOciServer {
+        server: Option<MockServer>,
+        repo: String,
+        tag: String,
+        layers: Vec<(String, Vec<u8>)>,
+        manifest: OciImageManifest,
+        signature: Option<(String, OciImageManifest)>,
+    }
+
+    impl FakeOciServer {
+        pub fn new(repo: &str, tag: &str) -> Self {
+            Self {
+                server: None,
+                repo: repo.to_string(),
+                tag: tag.to_string(),
+                signature: None,
+                layers: Vec::new(),
+                manifest: OciImageManifest::default(),
+            }
+        }
+
+        pub fn build(mut self) -> Self {
+            let server = MockServer::start();
+            self.setup_mocks_on(&server);
+            self.server = Some(server);
+            self
+        }
+
+        pub fn with_layer(mut self, content: &[u8], media_type: &str) -> Self {
+            let digest_hash = digest(&SHA256, content);
+            let digest_str = format!("sha256:{}", hex_bytes(digest_hash.as_ref()));
+            self.layers.push((digest_str.clone(), content.to_vec()));
+
+            let layer_descriptor = OciDescriptor {
+                media_type: media_type.to_string(),
+                digest: digest_str,
+                size: content.len() as i64,
+                ..Default::default()
+            };
+            self.manifest.layers.push(layer_descriptor);
+            self
+        }
+
+        pub fn with_signature(mut self, signer: &TestKeyPair) -> Self {
+            // Sign the manifest
+            let manifest_bytes = serde_json::to_vec(&self.manifest).unwrap();
+            let manifest_digest = digest(&SHA256, &manifest_bytes);
+            let image_manifest_digest_str =
+                format!("sha256:{}", hex_bytes(manifest_digest.as_ref()));
+            let payload = serde_json::json!({
+                "critical": {
+                    "identity": { "docker-reference": "" },
+                    "image": { "docker-manifest-digest": image_manifest_digest_str },
+                    "type": "cosign container image signature"
+                },
+                "optional": {}
+            });
+            let payload_bytes = serde_json::to_vec(&payload).unwrap();
+            let sig_b64 =
+                base64::engine::general_purpose::STANDARD.encode(signer.sign(&payload_bytes));
+            let sig_tag = format!("{}.sig", image_manifest_digest_str.replace(':', "-"));
+
+            // Setup the signature's manifest and the corresponding layer
+            let mut signature_manifest = OciImageManifest::default();
+
+            let digest_hash = digest(&SHA256, &payload_bytes);
+            let digest_str = format!("sha256:{}", hex_bytes(digest_hash.as_ref()));
+            self.layers
+                .push((digest_str.clone(), payload_bytes.clone()));
+
+            let mut annotations = BTreeMap::new();
+            annotations.insert("dev.cosignproject.cosign/signature".to_string(), sig_b64);
+
+            let layer_descriptor = OciDescriptor {
+                media_type: "application/vnd.dev.cosign.simplesigning.v1+json".to_string(),
+                digest: digest_str,
+                size: payload_bytes.len() as i64,
+                annotations: Some(annotations),
+                ..Default::default()
+            };
+
+            signature_manifest.layers.push(layer_descriptor);
+
+            self.signature = Some((sig_tag, signature_manifest));
+
+            self
+        }
+
+        pub fn setup_mocks_on(&self, server: &MockServer) {
+            let manifest_bytes = serde_json::to_vec(&self.manifest).unwrap();
+            let manifest_digest = self.manifest_digest();
+            // Mock manifest by tag
+            self.mock_manifest(server, &self.tag, manifest_bytes.clone());
+            // Mock manifest by digest
+            self.mock_manifest(server, &manifest_digest, manifest_bytes);
+            // Mock signature manifest
+            if let Some((sig_tag, sig_manifest)) = self.signature.as_ref() {
+                let manifest_bytes = serde_json::to_vec(sig_manifest).unwrap();
+                self.mock_manifest(server, sig_tag, manifest_bytes);
+            }
+            // Mock layers
+            for (digest, content) in &self.layers {
+                let content_clone = content.clone();
+                let digest_clone = digest.clone();
+                let repo_clone = self.repo.clone();
+                server.mock(move |when, then| {
+                    when.method(GET)
+                        .path(format!("/v2/{}/blobs/{}", repo_clone, digest_clone));
+                    then.status(200).body(content_clone);
+                });
+            }
+        }
+
+        pub fn mock_manifest(&self, server: &MockServer, path: &str, content: Vec<u8>) {
+            server.mock(|when, then| {
+                when.method(GET)
+                    .path(format!("/v2/{}/manifests/{}", self.repo, path));
+                then.status(200)
+                    .header("Content-Type", "application/vnd.oci.image.manifest.v1+json")
+                    .body(content);
+            });
+        }
+
+        pub fn with_artifact_type(mut self, artifact_type: &str) -> Self {
+            self.manifest.artifact_type = Some(artifact_type.to_string());
+            self
+        }
+
+        pub fn reference(&self) -> Reference {
+            self.reference_on_server(self.server.as_ref().expect("Call build() first"))
+        }
+
+        pub fn reference_on_server(&self, server: &MockServer) -> Reference {
+            let addr = server.address();
+            Reference::from_str(&format!("{}/{}:{}", addr, self.repo, self.tag)).unwrap()
+        }
+
+        /// Returns the `digest` for the MockServer's manifest.
+        /// Check the [OCI specs](https://github.com/opencontainers/image-spec/blob/6529f89e290d8169adbddf15e43493b9fdd37b62/descriptor.md#L69)
+        /// for details.
+        /// We don't need JSON canonicalization (which would probably be required in real server implementation) because
+        /// we are always getting the same JSON representation of the manifest in the mock-server.
+        pub fn manifest_digest(&self) -> String {
+            let manifest_bytes = serde_json::to_vec(&self.manifest).unwrap();
+            let manifest_digest = digest(&SHA256, &manifest_bytes);
+            format!("sha256:{}", hex_bytes(manifest_digest.as_ref()))
+        }
+    }
+
+    fn hex_bytes(bytes: &[u8]) -> String {
+        bytes.iter().map(|b| format!("{:02x}", b)).collect()
+    }
+}

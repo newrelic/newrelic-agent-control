@@ -3,9 +3,8 @@ use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
-use crate::opamp::remote_config::validators::signature::public_key::PublicKey;
-use crate::opamp::remote_config::validators::signature::public_key_fetcher::PublicKeyFetcher;
 use crate::opamp::remote_config::validators::signature::verifier::VerifierStore;
+use crate::signature::public_key_fetcher::PublicKeyFetcher;
 use crate::sub_agent::identity::AgentIdentity;
 use serde::Deserialize;
 use std::time::Duration;
@@ -47,7 +46,7 @@ fn default_signature_validator_config_enabled() -> bool {
 }
 
 pub struct SignatureValidator {
-    public_key_store: Option<VerifierStore<PublicKey, PublicKeyFetcher>>,
+    public_key_store: Option<VerifierStore>,
 }
 
 impl SignatureValidator {
@@ -79,10 +78,11 @@ impl SignatureValidator {
         let http_client = HttpClient::new(http_config)
             .map_err(|e| SignatureValidatorError::BuildingValidator(e.to_string()))?;
 
-        let public_key_fetcher = PublicKeyFetcher::new(http_client, public_key_server_url);
+        let public_key_fetcher = PublicKeyFetcher::new(http_client);
 
-        let pubkey_verifier_store = VerifierStore::try_new(public_key_fetcher)
-            .map_err(|err| SignatureValidatorError::BuildingValidator(err.to_string()))?;
+        let pubkey_verifier_store =
+            VerifierStore::try_new(public_key_fetcher, public_key_server_url)
+                .map_err(|err| SignatureValidatorError::BuildingValidator(err.to_string()))?;
 
         Ok(Self {
             public_key_store: Some(pubkey_verifier_store),
@@ -120,7 +120,6 @@ impl RemoteConfigValidator for SignatureValidator {
 
             public_key_store
                 .verify_signature(
-                    signature.signature_algorithm(),
                     signature.key_id(),
                     config_content.as_bytes(),
                     signature.signature(),
@@ -143,10 +142,10 @@ pub mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::opamp::remote_config::ConfigurationMap;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
-    use crate::opamp::remote_config::signature::{
-        ED25519, SignatureFields, Signatures, SigningAlgorithm,
-    };
-    use crate::opamp::remote_config::validators::signature::public_key_fetcher::tests::FakePubKeyServer;
+    use crate::opamp::remote_config::signature::{SignatureFields, Signatures};
+    use crate::opamp::remote_config::validators::signature::verifier::tests::config_signature_payload;
+    use crate::signature::public_key::SigningAlgorithm;
+    use crate::signature::public_key_fetcher::tests::FakePubKeyServer;
     use crate::sub_agent::identity::AgentIdentity;
     use assert_matches::assert_matches;
     use std::collections::HashMap;
@@ -182,7 +181,7 @@ pub mod tests {
         #[case] agent_identity: AgentIdentity,
         #[case] configs: HashMap<String, String>,
     ) {
-        let pub_key_server = FakePubKeyServer::new();
+        let pub_key_server = FakePubKeyServer::default();
 
         let signature_validator = SignatureValidator::new(
             SignatureValidatorConfig {
@@ -198,12 +197,13 @@ pub mod tests {
             signatures: HashMap::new(),
         };
         for (config_name, config_content) in &configs {
-            let encoded_signature = pub_key_server.sign(config_content.as_bytes());
+            let signature_payload = config_signature_payload(config_content.as_bytes());
+            let encoded_signature = pub_key_server.sign_with_latest(&signature_payload);
             signatures.signatures.insert(
                 config_name.clone(),
                 SignatureFields {
                     signature: encoded_signature,
-                    key_id: pub_key_server.key_id.clone(),
+                    key_id: pub_key_server.last_key_id.clone(),
                     signing_algorithm: SigningAlgorithm::ED25519,
                 },
             );
@@ -224,7 +224,7 @@ pub mod tests {
 
     #[test]
     pub fn test_partial_valid() {
-        let pub_key_server = FakePubKeyServer::new();
+        let pub_key_server = FakePubKeyServer::default();
 
         let signature_validator = SignatureValidator::new(
             SignatureValidatorConfig {
@@ -236,7 +236,7 @@ pub mod tests {
         .unwrap();
 
         let config = "value";
-        let encoded_signature = pub_key_server.sign(config.as_bytes());
+        let encoded_signature = pub_key_server.sign_with_latest(config.as_bytes());
 
         let remote_config = OpampRemoteConfig::new(
             AgentIdentity::default().id,
@@ -253,8 +253,8 @@ pub mod tests {
         .with_signature(Signatures::new_default(
             DEFAULT_CONFIG_KEY,
             encoded_signature.as_str(),
-            ED25519,
-            pub_key_server.key_id.as_str(),
+            SigningAlgorithm::ED25519.as_ref(),
+            pub_key_server.last_key_id.as_str(),
         ));
 
         assert_matches!(
@@ -308,7 +308,7 @@ pub mod tests {
         )
         .with_signature(Signatures::new_default(DEFAULT_CONFIG_KEY,
             "invalid signature",
-            ED25519,
+            SigningAlgorithm::ED25519.as_ref(),
             "fake_key_id",
         ))
     )]
@@ -325,7 +325,7 @@ pub mod tests {
         )
         .with_signature(Signatures::new_default(DEFAULT_CONFIG_KEY,
             "invalid signature",
-            ED25519,
+            SigningAlgorithm::ED25519.as_ref(),
             "fake_key_id",
         ))
     )]
@@ -342,7 +342,7 @@ pub mod tests {
         #[case] agent_identity: AgentIdentity,
         #[case] remote_config: OpampRemoteConfig,
     ) {
-        let pub_key_server = FakePubKeyServer::new();
+        let pub_key_server = FakePubKeyServer::default();
 
         let signature_validator = SignatureValidator::new(
             SignatureValidatorConfig {

@@ -18,6 +18,11 @@ on:
         required: false
         type: boolean
         default: false
+      caller_workflow:
+        description: 'Name of the top-level workflow triggering this run, used for NR event reporting'
+        required: false
+        type: string
+        default: ''
     secrets:
       NR_SYSTEM_IDENTITY_CLIENT_ID:
         required: false
@@ -45,8 +50,11 @@ jobs:
       matrix:
         group: ${{ fromJSON(inputs.scenarios) }}
     steps:
+      - name: Record job start time
+        run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      
+
       - name: Free up space
         run: bash .github/workflows/scripts/space_cleanup.sh
 
@@ -98,6 +106,17 @@ jobs:
           account_id: ${{ secrets.E2E_ACCOUNT_ID }}
           api_key: ${{ secrets.E2E_API_KEY }}
           license_key: ${{ secrets.E2E_LICENSE_KEY }}
+
+      - name: Report test result to New Relic
+        if: always()
+        env:
+          NR_LICENSE_KEY: ${{ secrets.E2E_LICENSE_KEY }}
+          NR_ACCOUNT_ID: ${{ secrets.E2E_ACCOUNT_ID }}
+          E2E_SCENARIO: ${{ matrix.group }}
+          E2E_ENVIRONMENT: k8s
+          E2E_STATUS: ${{ job.status }}
+          E2E_CALLER_WORKFLOW: ${{ inputs.caller_workflow }}
+        run: bash .github/workflows/scripts/report_e2e_result.sh
 
   k8s-e2e-tests-check: # The job is useful to notify the failure
     name: K8s e2e tests

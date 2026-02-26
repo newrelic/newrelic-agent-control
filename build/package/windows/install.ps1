@@ -15,8 +15,6 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$LicenseKey,
 
-    [Parameter(Mandatory=$false)]
-    [string]$AgentSet = "no-agents",
 
     # Fleet-enabled auth and org parameters (used only when -FleetEnabled is set)
     [Parameter(Mandatory=$false)]
@@ -137,7 +135,6 @@ $cliArgs = @(
     'generate-config',
     '--output-path', $localConfigPath,
     '--region', $Region,
-    '--agent-set', $AgentSet,
     '--env-vars-file-path', $acEnvFilePath,
     '--newrelic-license-key', $LicenseKey
 )

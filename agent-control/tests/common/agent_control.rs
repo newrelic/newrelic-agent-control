@@ -9,7 +9,6 @@ use newrelic_agent_control::agent_control::run::{
 };
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
-use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::on_host::file_store::FileStore;
 use newrelic_agent_control::values::ConfigRepo;
 use std::sync::Arc;
@@ -20,8 +19,6 @@ pub fn start_agent_control_with_custom_config(
     base_paths: BasePaths,
     ac_running_mode: Environment,
 ) -> StartedAgentControl {
-    install_rustls_default_crypto_provider();
-
     let (application_event_publisher, application_event_consumer) = pub_sub();
 
     let handle = std::thread::spawn(move || {
