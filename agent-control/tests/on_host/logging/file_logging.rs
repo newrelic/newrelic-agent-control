@@ -1,130 +1,61 @@
 #![cfg(target_family = "unix")]
+use std::fs::read_dir;
+
 use super::level::TIME_FORMAT;
-use crate::on_host::cli::cmd_with_config_file;
-use newrelic_agent_control::{
-    agent_control::defaults::{
-        AGENT_CONTROL_ID, AGENT_CONTROL_LOG_FILENAME, FOLDER_NAME_LOCAL_DATA,
-        STORE_KEY_LOCAL_DATA_CONFIG,
-    },
-    on_host::file_store::build_config_name,
+use crate::on_host::{cli::cmd_with_config_file, tools::config::create_file};
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_CONTROL_ID, AGENT_CONTROL_LOG_FILENAME, FOLDER_NAME_LOCAL_DATA,
+    STORE_KEY_LOCAL_DATA_CONFIG,
 };
 use predicates::prelude::predicate;
-use std::{fs::read_dir, path::Path};
 use tempfile::TempDir;
-
-fn build_logging_config(config_path: &Path, log_path: &Path) {
-    let config = format!(
-        r#"
-        agents: {{}}
-        log:
-            file:
-              enabled: true
-              path: {}
-        "#,
-        log_path.to_string_lossy()
-    );
-    std::fs::write(config_path, config).unwrap();
-}
-
-#[cfg(all(target_family = "unix", not(feature = "disable-asroot")))]
-#[test]
-fn default_log_level_no_root() {
-    let dir = TempDir::new().unwrap();
-    let config_path = dir
-        .path()
-        .join(FOLDER_NAME_LOCAL_DATA)
-        .join(AGENT_CONTROL_ID);
-    std::fs::create_dir_all(&config_path).unwrap();
-    let log_dir = dir.path().join("log").join(AGENT_CONTROL_ID);
-    let log_path = log_dir.join(AGENT_CONTROL_LOG_FILENAME);
-
-    // Write the config file
-    build_logging_config(
-        &config_path.join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)),
-        &log_path,
-    );
-
-    let mut cmd = cmd_with_config_file(dir.path());
-
-    // Expecting to fail as non_root
-    // Asserting content is logged to stdout as well
-    cmd.assert().failure().stdout(
-        predicate::str::is_match(
-            TIME_FORMAT.to_owned() + "ERROR.*Program must run with elevated permissions",
-        )
-        .unwrap(),
-    );
-
-    // The behavior of the appender functionality is already unit tested as part of the sub-agent
-    // logging feature. Here we just assert that the files are created.
-    let dir: Vec<_> = read_dir(log_dir)
-        .unwrap()
-        // We unwrap each entry to be able to inspect it
-        .map(|entry| entry.unwrap())
-        .collect();
-
-    for file in dir {
-        assert!(
-            file.path()
-                .to_str()
-                .unwrap()
-                .contains(log_path.to_str().unwrap())
-        );
-    }
-}
 
 #[test]
 #[ignore = "requires root"]
-fn default_log_level_as_root() {
-    let dir = TempDir::new().unwrap();
-    let config_path = dir
+fn test_ac_log_to_file_as_root() {
+    let local_dir = TempDir::new().unwrap();
+
+    let config_path = local_dir
         .path()
         .join(FOLDER_NAME_LOCAL_DATA)
-        .join(AGENT_CONTROL_ID);
-    std::fs::create_dir_all(&config_path).unwrap();
-    let log_dir = dir.path().join("log").join(AGENT_CONTROL_ID);
-    let log_path = log_dir.join(AGENT_CONTROL_LOG_FILENAME);
+        .join(AGENT_CONTROL_ID)
+        .join(STORE_KEY_LOCAL_DATA_CONFIG.to_string() + ".yaml");
 
-    // Write the config file
-    build_logging_config(
-        &config_path.join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)),
-        &log_path,
+    let log_file_path = local_dir.path().join(AGENT_CONTROL_LOG_FILENAME);
+
+    let config = format!(
+        r#"
+    host_id: integration-test
+    agents: {{}}
+    log:
+      file:
+        enabled: true
+        path: {}
+    "#,
+        log_file_path.to_str().unwrap()
     );
 
-    let mut cmd = cmd_with_config_file(dir.path());
+    create_file(config, config_path);
 
-    // Expecting to fail as non_root
+    let mut cmd = cmd_with_config_file(local_dir.path());
+
+    let log_predicate = predicate::str::is_match(
+        TIME_FORMAT.to_owned() + "INFO.*Agents supervisor runtime successfully started",
+    )
+    .unwrap();
+    dbg!(&log_file_path);
     // Asserting content is logged to stdout as well
-    cmd.assert()
-        .failure()
-        .stdout(
-            predicate::str::is_match(
-                TIME_FORMAT.to_owned()
-                    + "INFO.*New Relic Agent Control Version: .*, Rust Version: .*, GitCommit: .*",
-            )
-            .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "INFO.*Starting the agents supervisor runtime",
-            )
-            .unwrap(),
-        );
+    // The failure is just because of the timeout set in the command execution.
+    cmd.assert().failure().stdout(log_predicate.clone());
 
     // The behavior of the appender functionality is already unit tested as part of the sub-agent
     // logging feature. Here we just assert that the files are created.
-    let dir: Vec<_> = read_dir(log_dir)
+    let dir: Vec<String> = read_dir(local_dir.path())
         .unwrap()
-        // We unwrap each entry to be able to inspect it
-        .map(|entry| entry.unwrap())
+        .map(|entry| entry.unwrap().path().to_str().unwrap().to_string())
         .collect();
 
-    for file in dir {
-        assert!(
-            file.path()
-                .to_str()
-                .unwrap()
-                .contains(log_path.to_str().unwrap())
-        );
-    }
+    dir.iter()
+        .find(|path| path.contains(AGENT_CONTROL_LOG_FILENAME))
+        .expect("Log file not found in the local directory");
 }

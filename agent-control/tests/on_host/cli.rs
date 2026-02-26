@@ -34,7 +34,7 @@ pub fn create_temp_file(
 pub fn cmd_with_config_file(local_dir: &Path) -> Command {
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
     cmd.arg("--local-dir").arg(local_dir);
-    // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
+    // cmd_assert is not made for long running programs, so we kill it anyway after 10 second
     cmd.timeout(Duration::from_secs(10));
     cmd
 }

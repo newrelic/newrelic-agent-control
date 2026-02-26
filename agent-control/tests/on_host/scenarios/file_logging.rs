@@ -10,9 +10,11 @@ use crate::{
         instance_id::get_instance_id,
     },
 };
-use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use newrelic_agent_control::agent_control::{
+    agent_id::AgentID, defaults::STDOUT_LOG_FILE_NAME_SUFFIX,
+};
 use rstest::rstest;
 use tempfile::tempdir;
 
@@ -71,8 +73,8 @@ fn collect_stdout_logs(log_dir: &Path, agent_id: &str) -> io::Result<String> {
             .into_iter()
             .map(|entry| entry.path())
             .filter(|p| {
-                p.file_prefix()
-                    .is_some_and(|n| n.to_string_lossy().starts_with("stdout"))
+                p.file_name()
+                    .is_some_and(|n| n.to_string_lossy().contains(STDOUT_LOG_FILE_NAME_SUFFIX))
             })
             .map(fs::read_to_string)
             .collect::<Result<Vec<_>, _>>()?

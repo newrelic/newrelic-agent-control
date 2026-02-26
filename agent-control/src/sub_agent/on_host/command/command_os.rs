@@ -1,7 +1,7 @@
 use tracing::warn;
 
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::{STDERR_LOG_PREFIX, STDOUT_LOG_PREFIX};
+use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FILE_NAME_SUFFIX};
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use std::time::{Duration, Instant};
 use std::{
@@ -13,7 +13,7 @@ use super::{
     error::CommandError,
     logging::{
         self,
-        file_logger::{FileAppender, FileLogger, FileSystemLoggers},
+        file_logger::{FileSystemLoggers, file_logger},
         logger::Logger,
     },
 };
@@ -69,12 +69,15 @@ impl CommandOSNotStarted {
 
     pub fn start(mut self) -> Result<CommandOSStarted, CommandError> {
         let agent_id = self.agent_id;
-        let loggers = self.logs_to_file.then(|| {
-            FileSystemLoggers::new(
-                file_logger(&agent_id, self.logging_path.clone(), STDOUT_LOG_PREFIX),
-                file_logger(&agent_id, self.logging_path, STDERR_LOG_PREFIX),
-            )
-        });
+        let loggers = if self.logs_to_file {
+            let agent_log_path = self.logging_path.join(&agent_id);
+            Some(FileSystemLoggers::new(
+                file_logger(&agent_log_path, STDOUT_LOG_FILE_NAME_SUFFIX)?,
+                file_logger(&agent_log_path, STDERR_LOG_FILE_NAME_SUFFIX)?,
+            ))
+        } else {
+            None
+        };
         let child = self.cmd.spawn()?;
 
         #[cfg(target_family = "unix")]
@@ -200,9 +203,4 @@ impl CommandOSStarted {
         }
         Ok(())
     }
-}
-
-/// Creates a new file logger for this agent id and file prefix
-fn file_logger(agent_id: &AgentID, path: PathBuf, prefix: &str) -> FileLogger {
-    FileAppender::new(agent_id, path, prefix).into()
 }

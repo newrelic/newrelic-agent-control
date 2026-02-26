@@ -1,18 +1,31 @@
-use std::{
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::{io::Write, path::Path};
+use thiserror::Error;
 use tracing::{level_filters::LevelFilter, subscriber::DefaultGuard};
 use tracing_appender::{
     non_blocking::{NonBlocking, WorkerGuard},
-    rolling::RollingFileAppender,
+    rolling::{RollingFileAppender, Rotation},
 };
 use tracing_subscriber::{
     FmtSubscriber,
     fmt::format::{DefaultFields, Format, Full},
 };
 
-use crate::agent_control::agent_id::AgentID;
+#[derive(Debug, Error)]
+#[error("{0}")]
+pub struct FileLoggerError(String);
+
+/// Creates a new file logger writing to a file in the provided directory with the provided suffix.
+/// The file will be rotated daily and the file name will be in the format `<timestamp>.<suffix>`
+/// e.g. `2027-12-01.stdout.log`.
+pub fn file_logger(file_dir: &Path, file_name_suffix: &str) -> Result<FileLogger, FileLoggerError> {
+    let file_appender = RollingFileAppender::builder()
+        .rotation(Rotation::DAILY)
+        .filename_suffix(file_name_suffix.to_string())
+        .build(file_dir)
+        .map_err(|e| FileLoggerError(format!("building file appender: {}", e)))?;
+
+    Ok(FileLogger::new(file_appender))
+}
 
 pub(crate) struct FileSystemLoggers {
     out: FileLogger,
@@ -29,39 +42,6 @@ impl FileSystemLoggers {
     }
 }
 
-pub struct FileAppender<W = RollingFileAppender>(W)
-where
-    W: Write + Send + 'static;
-
-impl FileAppender<RollingFileAppender> {
-    pub fn new(agent_id: &AgentID, path: PathBuf, file_prefix: impl AsRef<Path>) -> Self {
-        let file_appender = tracing_appender::rolling::hourly(path.join(agent_id), file_prefix);
-        Self(file_appender)
-    }
-}
-
-impl<W> Write for FileAppender<W>
-where
-    W: Write + Send + 'static,
-{
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.0.flush()
-    }
-}
-
-impl<W> From<W> for FileAppender<W>
-where
-    W: Write + Send + 'static,
-{
-    fn from(writer: W) -> Self {
-        Self(writer)
-    }
-}
-
 pub struct FileLogger {
     file_subscriber: FmtSubscriber<DefaultFields, Format<Full, ()>, LevelFilter, NonBlocking>,
     _guard: WorkerGuard,
@@ -73,22 +53,7 @@ pub struct SubAgentLoggerGuard {
 }
 
 impl FileLogger {
-    /// Enables file logging for the current thread. This disables the global logger defined previously.
-    /// To restore the previous global logger, the returned guard must be dropped.
-    pub fn set_file_logging(self) -> SubAgentLoggerGuard {
-        let default_guard = tracing::subscriber::set_default(self.file_subscriber);
-        SubAgentLoggerGuard {
-            _default_guard: default_guard,
-            _worker_guard: self._guard,
-        }
-    }
-}
-
-impl<W> From<W> for FileLogger
-where
-    W: Write + Send + 'static,
-{
-    fn from(appender: W) -> Self {
+    pub fn new(appender: impl Write + Send + 'static) -> Self {
         let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
         let file_subscriber = tracing_subscriber::fmt()
             .with_ansi(false)
@@ -100,6 +65,16 @@ where
         Self {
             file_subscriber,
             _guard,
+        }
+    }
+
+    /// Enables file logging for the current thread. This disables the global logger defined previously.
+    /// To restore the previous global logger, the returned guard must be dropped.
+    pub fn set_file_logging(self) -> SubAgentLoggerGuard {
+        let default_guard = tracing::subscriber::set_default(self.file_subscriber);
+        SubAgentLoggerGuard {
+            _default_guard: default_guard,
+            _worker_guard: self._guard,
         }
     }
 }

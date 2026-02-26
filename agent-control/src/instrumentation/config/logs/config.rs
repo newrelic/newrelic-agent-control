@@ -27,6 +27,9 @@ pub enum LoggingConfigError {
 
     #[error("invalid logging file path: {0}")]
     InvalidFilePath(String),
+
+    #[error("configuring file logging: {0}")]
+    FileLoggingConfig(String),
 }
 
 /// Defines the logging configuration Agent control.

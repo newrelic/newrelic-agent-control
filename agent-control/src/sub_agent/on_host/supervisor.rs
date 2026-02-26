@@ -584,6 +584,7 @@ impl HealthHandler {
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::defaults::STDOUT_LOG_FILE_NAME_SUFFIX;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env, Executable};
     use crate::agent_type::runtime_config::on_host::rendered::OnHost;
@@ -1229,8 +1230,8 @@ pub mod tests {
             .filter(|p| {
                 // The `echo` commands should write to stdout, so we look for these files only.
                 // Filtering by prefix because the timestamp is appended to the file name.
-                p.file_prefix()
-                    .is_some_and(|n| n.to_string_lossy().starts_with("stdout"))
+                p.file_name()
+                    .is_some_and(|n| n.to_string_lossy().contains(STDOUT_LOG_FILE_NAME_SUFFIX))
             })
             .map(|p| fs::read_to_string(p).unwrap_or_default())
             // we just merge all contents
@@ -1359,8 +1360,8 @@ pub mod tests {
             .filter(|p| {
                 // The `echo` commands should write to stdout, so we look for these files only.
                 // Filtering by prefix because the timestamp is appended to the file name.
-                p.file_prefix()
-                    .is_some_and(|n| n.to_string_lossy().starts_with("stdout"))
+                p.file_name()
+                    .is_some_and(|n| n.to_string_lossy().contains(STDOUT_LOG_FILE_NAME_SUFFIX))
             })
             .map(|p| fs::read_to_string(p).unwrap_or_default())
             // we just merge all contents
@@ -1489,8 +1490,8 @@ pub mod tests {
             .filter(|p| {
                 // The `echo` commands should write to stdout, so we look for these files only.
                 // Filtering by prefix because the timestamp is appended to the file name.
-                p.file_prefix()
-                    .is_some_and(|n| n.to_string_lossy().starts_with("stdout"))
+                p.file_name()
+                    .is_some_and(|n| n.to_string_lossy().contains(STDOUT_LOG_FILE_NAME_SUFFIX))
             })
             .map(|p| fs::read_to_string(p).unwrap_or_default())
             // we just merge all contents to handle the corner case of multiple log files

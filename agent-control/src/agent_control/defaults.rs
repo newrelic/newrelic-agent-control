@@ -84,8 +84,8 @@ pub const INSTANCE_ID_FILENAME: &str = "instance_id.yaml";
 pub const AGENT_FILESYSTEM_FOLDER_NAME: &str = "filesystem";
 pub const PACKAGES_FOLDER_NAME: &str = "packages";
 pub const AGENT_CONTROL_LOG_FILENAME: &str = "newrelic-agent-control.log";
-pub const STDOUT_LOG_PREFIX: &str = "stdout.log";
-pub const STDERR_LOG_PREFIX: &str = "stderr.log";
+pub const STDOUT_LOG_FILE_NAME_SUFFIX: &str = "stdout.log";
+pub const STDERR_LOG_FILE_NAME_SUFFIX: &str = "stderr.log";
 pub const AGENT_CONTROL_CONFIG_ENV_VAR_PREFIX: &str = "NR_AC";
 
 pub fn default_capabilities() -> Capabilities {
