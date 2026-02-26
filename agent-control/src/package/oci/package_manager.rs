@@ -13,9 +13,10 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::io;
 use std::path::{Component, Path, PathBuf};
+use std::process::Command;
 use std::sync::Mutex;
 use thiserror::Error;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 pub type DefaultOCIPackageManager = OCIPackageManager<OCIArtifactDownloader, DirectoryManagerFs>;
 
@@ -46,6 +47,8 @@ pub enum OCIPackageManagerError {
     NotNormalSuffix(String),
     #[error("errors removing packages: {0}")]
     RetainPackageErrors(RetainPackageErrors),
+    #[error("error executing postdownload script: {0}")]
+    PostDownloadScriptError(String),
 }
 
 #[derive(Debug, Default)]
@@ -90,16 +93,25 @@ where
 
     /// Downloads and installs the OCI package specified in `package_data`.
     /// The package is first downloaded to `temp_package_path` and then extracted to `package_path`.
+    ///
+    /// Installation flow:
+    /// 1. Download tar.gz from OCI registry
+    /// 2. Extract to install_path/
+    /// 3. Execute postdownload.sh (if present) - verify dependencies, setup binaries, symlinks, permissions
+    ///    - If fails: abort installation and return error to OpAMP
+    /// 4. Installation complete
     fn install_archive(
         &self,
         package_data: PackageData,
         tmp_download_path: &Path,
         install_path: &Path,
     ) -> Result<InstalledPackageData, OCIPackageManagerError> {
+        // Step 1: Download package from OCI registry
         self.directory_manager
             .create(tmp_download_path)
             .map_err(OCIPackageManagerError::Install)?;
 
+        info!("Downloading package {} from OCI registry", package_data.id);
         let downloaded_package = self
             .downloader
             .download(
@@ -109,10 +121,42 @@ where
             )
             .map_err(OCIPackageManagerError::Download)?;
 
+        // Step 2: Extract tar.gz to install_path
+        info!(
+            "Extracting package {} to {}",
+            package_data.id,
+            install_path.display()
+        );
         self.extract_package(&downloaded_package, install_path)
-            .inspect_err(|e| warn!("OCI package installation failed: {}", e))?;
+            .inspect_err(|e| warn!("OCI package extraction failed: {}", e))?;
 
-        debug!("OCI package installed at {}", install_path.display());
+        // Step 3: Execute POSTDOWNLOAD script (verify dependencies, setup binaries, etc.)
+        // This runs after package extraction to perform all necessary setup
+        if let Some(ref postdownload) = package_data.postdownload {
+            info!(
+                "Running postdownload setup for package {} (script: {})",
+                package_data.id, postdownload.script_path
+            );
+
+            let script_content = read_script_from_package(install_path, &postdownload.script_path)
+                .inspect_err(|e| warn!("Failed to read postdownload script: {}", e))?;
+
+            execute_install_script(&script_content, postdownload, install_path).inspect_err(|e| {
+                error!(
+                    "Postdownload script failed for package {}: {}. Installation aborted.",
+                    package_data.id, e
+                )
+            })?;
+
+            info!("Postdownload setup completed for package {}", package_data.id);
+        }
+
+        // Step 4: Installation complete
+        info!(
+            "Package {} successfully installed at {}",
+            package_data.id,
+            install_path.display()
+        );
         Ok(InstalledPackageData {
             id: package_data.id.clone(),
             installation_path: install_path.to_path_buf(),
@@ -233,6 +277,146 @@ where
         }
         Ok(installed_packages)
     }
+}
+
+/// Read a script file from the extracted package directory
+fn read_script_from_package(
+    package_dir: &Path,
+    script_path: &str,
+) -> Result<String, OCIPackageManagerError> {
+    use std::fs;
+
+    let full_script_path = package_dir.join(script_path);
+
+    if !full_script_path.exists() {
+        return Err(OCIPackageManagerError::PostDownloadScriptError(format!(
+            "Script file '{}' not found in package at '{}'",
+            script_path,
+            package_dir.display()
+        )));
+    }
+
+    fs::read_to_string(&full_script_path).map_err(|e| {
+        OCIPackageManagerError::PostDownloadScriptError(format!(
+            "Failed to read script file '{}': {}",
+            full_script_path.display(),
+            e
+        ))
+    })
+}
+
+/// Execute a shell script with optional install_path argument
+/// The script is written to a temporary file and executed with bash
+/// Execute an install script with full configuration support (command, args, env)
+/// The script is executed as: command script_path install_path [args...]
+fn execute_install_script(
+    script_content: &str,
+    install_script: &crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadScript,
+    install_path: &Path,
+) -> Result<(), OCIPackageManagerError> {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    // Create a temporary file for the script
+    let mut temp_file = NamedTempFile::new().map_err(|e| {
+        OCIPackageManagerError::PostDownloadScriptError(format!(
+            "Failed to create temp script file: {}",
+            e
+        ))
+    })?;
+
+    // Write script content to temp file
+    temp_file
+        .write_all(script_content.as_bytes())
+        .map_err(|e| {
+            OCIPackageManagerError::PostDownloadScriptError(format!(
+                "Failed to write script to temp file: {}",
+                e
+            ))
+        })?;
+
+    // Make script executable (Unix only)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = temp_file
+            .as_file()
+            .metadata()
+            .map_err(|e| {
+                OCIPackageManagerError::PostDownloadScriptError(format!(
+                    "Failed to get script file metadata: {}",
+                    e
+                ))
+            })?
+            .permissions();
+        perms.set_mode(0o755);
+        temp_file.as_file().set_permissions(perms).map_err(|e| {
+            OCIPackageManagerError::PostDownloadScriptError(format!(
+                "Failed to set script executable: {}",
+                e
+            ))
+        })?;
+    }
+
+    // Get the path of the temp file before closing
+    let script_path = temp_file.path().to_path_buf();
+
+    // Build command: command script_path install_path [args...]
+    let mut command = Command::new(&install_script.command);
+    command.arg(&script_path);
+    command.arg(install_path.to_str().unwrap_or(""));
+
+    // Add additional arguments from config
+    for arg in &install_script.args {
+        command.arg(arg);
+    }
+
+    // Set environment variables
+    for (key, value) in &install_script.env {
+        command.env(key, value);
+    }
+
+    // Set working directory to install_path
+    command.current_dir(install_path);
+
+    debug!(
+        "Executing install script with command: {} {} {} {:?}",
+        install_script.command,
+        script_path.display(),
+        install_path.display(),
+        install_script.args
+    );
+
+    let output = command.output().map_err(|e| {
+        OCIPackageManagerError::PostDownloadScriptError(format!(
+            "Failed to execute script with command '{}': {}. \
+             Make sure the command exists on the target system.",
+            install_script.command, e
+        ))
+    })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(OCIPackageManagerError::PostDownloadScriptError(format!(
+            "Script execution failed with exit code {:?}\nStdout: {}\nStderr: {}",
+            output.status.code(),
+            stdout,
+            stderr
+        )));
+    }
+
+    // Log stdout/stderr for debugging
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !stdout.is_empty() {
+        info!("Script stdout: {}", stdout);
+    }
+    if !stderr.is_empty() {
+        warn!("Script stderr: {}", stderr);
+    }
+
+    Ok(())
 }
 
 pub fn get_package_path(
@@ -410,11 +594,25 @@ mod tests {
         Reference::from(ReferenceParser::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap())
     }
 
+    /// Helper to create a simple PostDownloadScript for tests
+    fn simple_install_script(
+        script_path: &str,
+    ) -> crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadScript {
+        use std::collections::HashMap;
+        crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadScript {
+            script_path: script_path.to_string(),
+            command: "/bin/bash".to_string(),
+            args: vec![],
+            env: HashMap::new(),
+        }
+    }
+
     fn test_package_data() -> PackageData {
         PackageData {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
             public_key_url: None,
+            postdownload: None,
         }
     }
 
@@ -430,6 +628,7 @@ mod tests {
                     .unwrap(),
             ),
             public_key_url: None,
+            postdownload: None,
         }
     }
 
@@ -437,6 +636,38 @@ mod tests {
         DirectoryManagerFs.create(download_dir).unwrap();
         let downloaded_file = download_dir.join("layer_digest.tar.gz");
         let tmp_dir_to_compress = tempdir().unwrap();
+        TestDataHelper::compress_tar_gz(tmp_dir_to_compress.path(), downloaded_file.as_path());
+
+        new_local_package(&downloaded_file)
+    }
+
+    /// Create a compressed package with postdownload script
+    #[cfg(unix)]
+    fn fake_compressed_package_with_scripts(
+        download_dir: &Path,
+        postdownload_script: Option<&str>,
+    ) -> LocalAgentPackage {
+        use std::fs::File;
+        use std::io::Write;
+
+        DirectoryManagerFs.create(download_dir).unwrap();
+        let downloaded_file = download_dir.join("layer_digest.tar.gz");
+        let tmp_dir_to_compress = tempdir().unwrap();
+
+        // Create postdownload script if provided
+        if let Some(script_content) = postdownload_script {
+            let script_path = tmp_dir_to_compress.path().join("postdownload.sh");
+            let mut file = File::create(&script_path).unwrap();
+            file.write_all(script_content.as_bytes()).unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mut perms = file.metadata().unwrap().permissions();
+                perms.set_mode(0o755);
+                std::fs::set_permissions(&script_path, perms).unwrap();
+            }
+        }
+
         TestDataHelper::compress_tar_gz(tmp_dir_to_compress.path(), downloaded_file.as_path());
 
         new_local_package(&downloaded_file)
@@ -800,6 +1031,7 @@ mod tests {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
             public_key_url: None,
+            postdownload: None,
         };
         let result = pm.install(&agent_id, package_data);
 
@@ -863,6 +1095,7 @@ mod tests {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
             public_key_url: None,
+            postdownload: None,
         };
         let result = pm.install(&agent_id, package_data);
 
@@ -948,6 +1181,7 @@ mod tests {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
             public_key_url: None,
+            postdownload: None,
         };
 
         let installed = pm.install(&agent_id, package_data).unwrap();
@@ -955,4 +1189,147 @@ mod tests {
         assert_eq!(installed.installation_path, install_dir);
         assert_eq!(installed.id, TEST_PACKAGE_ID);
     }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_install_with_successful_postdownload_script() {
+        let mut downloader = MockOCIDownloader::new();
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+        let temp_dir = tempdir().unwrap();
+
+        let postdownload_script = r#"#!/bin/bash
+set -e
+echo "Postdownload setup completed"
+exit 0
+"#;
+
+        let download_dir_copy = temp_dir.path().join("download");
+        DirectoryManagerFs.create(&download_dir_copy).unwrap();
+
+        downloader
+            .expect_download()
+            .once()
+            .returning(move |_, _, _| {
+                Ok(fake_compressed_package_with_scripts(
+                    &download_dir_copy,
+                    Some(postdownload_script),
+                ))
+            });
+
+        let pm = OCIPackageManager::new(
+            downloader,
+            DirectoryManagerFs,
+            temp_dir.path().to_path_buf(),
+        );
+
+        let package_data = PackageData {
+            id: TEST_PACKAGE_ID.to_string(),
+            oci_reference: test_reference(),
+            public_key_url: None,
+            postdownload: Some(simple_install_script("postdownload.sh")),
+        };
+
+        let result = pm.install(&agent_id, package_data);
+        assert!(
+            result.is_ok(),
+            "Installation should succeed with valid postdownload script"
+        );
+    }
+
+
+    #[test]
+    #[cfg(unix)]
+    fn test_install_fails_when_postdownload_script_fails() {
+        let mut downloader = MockOCIDownloader::new();
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+        let temp_dir = tempdir().unwrap();
+
+        let failing_postdownload_script = r#"#!/bin/bash
+echo "ERROR: Missing required dependency linux-headers"
+exit 1
+"#;
+
+        let download_dir_copy = temp_dir.path().join("download");
+        DirectoryManagerFs.create(&download_dir_copy).unwrap();
+
+        downloader
+            .expect_download()
+            .once()
+            .returning(move |_, _, _| {
+                Ok(fake_compressed_package_with_scripts(
+                    &download_dir_copy,
+                    Some(failing_postdownload_script),
+                ))
+            });
+
+        let pm = OCIPackageManager::new(
+            downloader,
+            DirectoryManagerFs,
+            temp_dir.path().to_path_buf(),
+        );
+
+        let package_data = PackageData {
+            id: TEST_PACKAGE_ID.to_string(),
+            oci_reference: test_reference(),
+            public_key_url: None,
+            postdownload: Some(simple_install_script("postdownload.sh")),
+        };
+
+        let result = pm.install(&agent_id, package_data);
+        assert!(
+            matches!(result, Err(OCIPackageManagerError::PostDownloadScriptError(_))),
+            "Installation should fail when postdownload script fails"
+        );
+    }
+
+
+    #[test]
+    #[cfg(unix)]
+    fn test_install_fails_when_postdownload_script_not_found() {
+        let mut downloader = MockOCIDownloader::new();
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+        let temp_dir = tempdir().unwrap();
+
+        let download_dir_copy = temp_dir.path().join("download");
+        DirectoryManagerFs.create(&download_dir_copy).unwrap();
+
+        // Create package WITHOUT postdownload.sh
+        downloader
+            .expect_download()
+            .once()
+            .returning(move |_, _, _| {
+                Ok(fake_compressed_package_with_scripts(
+                    &download_dir_copy,
+                    None, // No postdownload script in tar.gz
+                ))
+            });
+
+        let pm = OCIPackageManager::new(
+            downloader,
+            DirectoryManagerFs,
+            temp_dir.path().to_path_buf(),
+        );
+
+        let package_data = PackageData {
+            id: TEST_PACKAGE_ID.to_string(),
+            oci_reference: test_reference(),
+            public_key_url: None,
+            postdownload: Some(simple_install_script("postdownload.sh")), // But we expect it
+        };
+
+        let result = pm.install(&agent_id, package_data);
+        assert!(
+            matches!(result, Err(OCIPackageManagerError::PostDownloadScriptError(_))),
+            "Installation should fail when referenced script is missing from package"
+        );
+
+        if let Err(OCIPackageManagerError::PostDownloadScriptError(msg)) = result {
+            assert!(
+                msg.contains("not found in package"),
+                "Error message should indicate script not found: {}",
+                msg
+            );
+        }
+    }
+
 }

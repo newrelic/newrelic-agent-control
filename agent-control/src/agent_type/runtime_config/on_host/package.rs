@@ -5,6 +5,7 @@ use crate::agent_type::templates::Templateable;
 use crate::oci::reference_parser::ReferenceParser;
 use oci_client::Reference;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::str::FromStr;
 use url::Url;
 
@@ -14,6 +15,30 @@ pub mod rendered;
 pub(super) struct Package {
     /// Download defines the supported repository sources for the packages.
     pub download: Download,
+    /// Optional postdownload script to run after package extraction
+    /// This script should perform all necessary setup: verify dependencies,
+    /// move binaries, create symlinks, set permissions, etc.
+    pub postdownload: Option<PostDownloadScript>,
+}
+
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct PostDownloadScript {
+    /// Path to script file relative to the extracted package directory
+    /// (e.g., "postdownload.sh" will be found in the extracted tar.gz)
+    pub script_path: TemplateableValue<String>,
+
+    /// Command/binary to execute the script (e.g., "/bin/bash", "/bin/sh", "powershell", "python3")
+    /// This binary must exist on the target system - it's the user's responsibility.
+    /// The script will be executed as: command script_path install_path [args...]
+    pub command: TemplateableValue<String>,
+
+    /// Additional arguments to pass to the script (after script_path and install_path)
+    #[serde(default)]
+    pub args: Vec<TemplateableValue<String>>,
+
+    /// Environment variables to pass to the script process
+    #[serde(default)]
+    pub env: HashMap<String, TemplateableValue<String>>,
 }
 
 pub type PackageID = String;
@@ -40,6 +65,34 @@ impl Templateable for Package {
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         Ok(Self::Output {
             download: self.download.template_with(variables)?,
+            postdownload: self
+                .postdownload
+                .map(|s| s.template_with(variables))
+                .transpose()?,
+        })
+    }
+}
+
+impl Templateable for PostDownloadScript {
+    type Output = rendered::PostDownloadScript;
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        let args: Vec<String> = self
+            .args
+            .into_iter()
+            .map(|arg| arg.template_with(variables))
+            .collect::<Result<Vec<String>, AgentTypeError>>()?;
+
+        let env: HashMap<String, String> = self
+            .env
+            .into_iter()
+            .map(|(k, v)| Ok((k, v.template_with(variables)?)))
+            .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
+
+        Ok(Self::Output {
+            script_path: self.script_path.template_with(variables)?,
+            command: self.command.template_with(variables)?,
+            args,
+            env,
         })
     }
 }

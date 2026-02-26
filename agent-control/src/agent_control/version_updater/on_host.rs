@@ -147,6 +147,7 @@ where
             id: AGENT_CONTROL_BIN_PACKAGE_ID.to_string(),
             oci_reference: reference,
             public_key_url: Some(self.pub_key_url.clone()),
+            postdownload: None,
         }
     }
 }

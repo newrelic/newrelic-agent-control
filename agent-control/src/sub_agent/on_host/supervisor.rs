@@ -409,6 +409,7 @@ fn install_packages<PM: PackageManager>(
                     id: id.clone(),
                     oci_reference: package.download.oci.reference.clone(),
                     public_key_url: package.download.oci.public_key_url.clone(),
+                    postdownload: package.postdownload.clone(),
                 },
             )
             .map_err(|err| InstallPackageError {

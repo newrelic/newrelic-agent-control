@@ -1,5 +1,6 @@
 //! This module manages package operations such as installation, removal, and updates.
 use crate::agent_control::agent_id::AgentID;
+use crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadScript;
 use crate::package::oci::package_manager::OCIPackageManagerError;
 use oci_client::Reference;
 use std::path::PathBuf;
@@ -11,6 +12,16 @@ pub struct PackageData {
     pub id: String, // same type as the packages map on an agent type definition
     pub oci_reference: Reference,
     pub public_key_url: Option<Url>,
+    /// Optional postdownload script configuration
+    /// Executed AFTER package extraction to perform all necessary setup:
+    /// - Verify dependencies and system requirements
+    /// - Move binaries to correct locations
+    /// - Create symlinks
+    /// - Set permissions
+    /// - Any other setup needed for the agent to function
+    ///
+    /// If this script fails, installation is aborted and error is reported to OpAMP.
+    pub postdownload: Option<PostDownloadScript>,
 }
 
 /// Information about an installed package
