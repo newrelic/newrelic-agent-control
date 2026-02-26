@@ -118,6 +118,14 @@ jobs:
           E2E_CALLER_WORKFLOW: ${{ inputs.caller_workflow }}
         run: bash .github/workflows/scripts/report_e2e_result.sh
 
+      - name: Upload e2e result summary
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: e2e-result-k8s-${{ matrix.group }}
+          path: e2e-result-k8s-${{ matrix.group }}.txt
+          if-no-files-found: warn
+
   k8s-e2e-tests-check: # The job is useful to notify the failure
     name: K8s e2e tests
     if: always() # cannot be skipped even if required steps fail

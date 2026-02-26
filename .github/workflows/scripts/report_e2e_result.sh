@@ -51,3 +51,17 @@ curl -s -X POST \
   -H "Content-Type: application/json" \
   -H "Api-Key: ${NR_LICENSE_KEY}" \
   -d "$events"
+
+# Write a TSV summary line to be consumed by the Slack notification job.
+if (( DURATION >= 60 )); then
+  DURATION_FMT="$((DURATION / 60))m $((DURATION % 60))s"
+else
+  DURATION_FMT="${DURATION}s"
+fi
+case "$E2E_STATUS" in
+  success)   STATUS_DISPLAY="✅" ;;
+  failure)   STATUS_DISPLAY="❌" ;;
+  cancelled) STATUS_DISPLAY="⚠️" ;;
+  *)         STATUS_DISPLAY="$E2E_STATUS" ;;
+esac
+printf "%s\t%s\t%s\t%s\n" "$E2E_ENVIRONMENT" "$E2E_SCENARIO" "$DURATION_FMT" "$STATUS_DISPLAY" > "e2e-result-${E2E_ENVIRONMENT}-${E2E_SCENARIO}.txt"
