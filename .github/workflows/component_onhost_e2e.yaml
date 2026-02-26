@@ -29,7 +29,7 @@ permissions:
 # the GitHub workflows please update `renovate.json` accordingly to avoid breaking the automation!
 env:
   HOST_E2E_INFRA_AGENT_VERSION: "1.72.4"
-  HOST_E2E_NRDOT_VERSION: "1.8.0"
+  HOST_E2E_NRDOT_VERSION: "1.11.0"
 
 jobs:
   build-packages:
