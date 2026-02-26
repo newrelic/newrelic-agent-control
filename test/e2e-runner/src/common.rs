@@ -54,10 +54,6 @@ pub struct Args {
     #[arg(long, default_value = "US")]
     pub nr_region: String,
 
-    /// Flag to migrate existing infrastructure agent configuration. Currently used only in Linux.
-    #[arg(long, default_value_t = true)]
-    pub migrate_config_infra: bool,
-
     /// Version of the infrastructure agent OCI image to use in tests
     #[arg(long)]
     pub infra_agent_version: Option<String>,
