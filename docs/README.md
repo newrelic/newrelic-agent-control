@@ -112,3 +112,69 @@ For details related to developing for AC, like setting up the developer environm
 ### Integrating with Agent Control
 
 As mentioned above, if you are interested in making AC capable of managing your own agents, please go to [Integrating with Agent Control](./INTEGRATING_AGENTS.md). Take into account that, as of now, a separate effort must be done for FC. That ensures your agent can be properly represented in New Relic's web UI and remote configs can be exposed for AC to retrieve.
+
+## Network requirements
+
+This section lists all external endpoints that AC and the agents it manages connect to. Use this as a reference when configuring firewall allowlists.
+
+### Agent Control process
+
+These are the endpoints the AC process itself directly communicates with at runtime.
+
+#### Fleet Control (OpAMP) — always required
+
+| Endpoint | Port | Protocol | Purpose |
+|---|---|---|---|
+| `opamp.service.newrelic.com` | 443 | HTTPS | Fleet Control communication — US region |
+| `opamp.service.eu.newrelic.com` | 443 | HTTPS | Fleet Control communication — EU region |
+
+#### Authentication — always required
+
+| Endpoint | Port | Protocol | Purpose |
+|---|---|---|---|
+| `system-identity-oauth.service.newrelic.com` | 443 | HTTPS | OAuth2 token renewal (used by both US and EU regions) |
+
+#### OCI registry
+
+AC uses OCI registries as storage for different types of artifacts, including on-host agent packages, and other AC custom artifacts, having the default registry set to `docker.io`. By default, AC will pull these artifacts from the newrelic namespace on Docker Hub (`docker.io/newrelic`).
+
+#### Signature validation — always required
+
+AC fetches public keys (JWKS) from these endpoints to verify the signatures of New Relic-issued artifacts, including remote configurations and OCI agent packages.
+
+| Endpoint | Port | Protocol | Purpose |
+|---|---|---|---|
+| `publickeys.newrelic.com` | 443 | HTTPS | Public key fetch for signature verification — US region |
+| `publickeys.eu.newrelic.com` | 443 | HTTPS | Public key fetch for signature verification — EU region |
+
+#### Self-instrumentation — optional
+
+If AC's built-in OpenTelemetry self-instrumentation is enabled (see [`CONFIG.md`](./CONFIG.md)), AC sends its own telemetry to:
+
+| Endpoint | Port | Protocol | Purpose |
+|---|---|---|---|
+| `otlp.nr-data.net` | 4317 | HTTPS/gRPC | AC self-telemetry (OTLP) — US region |
+| `otlp.eu01.nr-data.net` | 4317 | HTTPS/gRPC | AC self-telemetry (OTLP) — EU region |
+
+#### Cloud metadata
+
+AC uses cloud provider instance metadata services to enrich its own telemetry with resource attributes.
+
+| Endpoint | Protocol | Cloud provider |
+|---|---|---|
+| `169.254.169.254` | HTTP | AWS EC2, Azure |
+| `metadata.google.internal` | HTTP | Google Cloud (GCP) |
+
+### Kubernetes-only endpoints
+
+The following endpoints are only required when running AC on Kubernetes, where it manages agents via Helm releases and OCI image pulls.
+
+#### Helm chart repository
+
+| Endpoint | Port | Protocol | Purpose |
+|---|---|---|---|
+| `helm-charts.newrelic.com` | 443 | HTTPS | Default New Relic Helm chart repository |
+
+### Managed agent endpoints
+
+For a complete and up-to-date list of endpoints that New Relic agents connect to, refer to the [New Relic networks documentation](https://docs.newrelic.com/docs/new-relic-solutions/get-started/networks/).
