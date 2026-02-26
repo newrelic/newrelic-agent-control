@@ -30,6 +30,15 @@
         "**/test/**/eks_cluster/variables.tf"
       ],
       "enabled": true
+    },
+    {
+      "matchDepNames": [
+        "newrelic/infrastructure-agent-artifacts",
+        "newrelic/nrdot-agent-artifacts"
+      ],
+      "addLabels": [
+        "onhost-extended-e2e"
+      ]
     }
   ],
   "customManagers": [
