@@ -17,6 +17,7 @@ set -euo pipefail
 
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - JOB_START_TIME))
+ACCOUNT="Agent Control Canaries (prod)"
 
 # GITHUB_HEAD_REF is set for pull requests; GITHUB_REF_NAME covers push/schedule/dispatch.
 BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-}}"
@@ -64,4 +65,4 @@ case "$E2E_STATUS" in
   cancelled) STATUS_DISPLAY="⚠️" ;;
   *)         STATUS_DISPLAY="$E2E_STATUS" ;;
 esac
-printf "%s\t%s\t%s\t%s\n" "$E2E_ENVIRONMENT" "$E2E_SCENARIO" "$DURATION_FMT" "$STATUS_DISPLAY" > "e2e-result-${E2E_ENVIRONMENT}-${E2E_SCENARIO}.txt"
+printf "%s\t%s\t%s\t%s\t%s\n" "$ACCOUNT" "$E2E_ENVIRONMENT" "$E2E_SCENARIO" "$DURATION_FMT" "$STATUS_DISPLAY" > "e2e-result-${E2E_ENVIRONMENT}-${E2E_SCENARIO}.txt"

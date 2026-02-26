@@ -14,7 +14,7 @@ set -euo pipefail
 # Prepend the header line to the sorted scenario results.
 # sort gives a stable alphabetical order across environments and scenarios.
 tsv=$(
-  printf "Environment\tScenario\tDuration\tStatus\n"
+  printf "NR Account\tPlatform\tScenario\tDuration\tStatus\n"
   sort e2e-results/*.txt
 )
 
@@ -44,7 +44,7 @@ payload=$(printf '%s' "$tsv" | jq -Rs \
     blocks: [
       {type: "header",  text: {type: "plain_text", text: "🧪 Agent Control Nightly E2E Results"}},
       {type: "table",   rows: ([$header_row] + $data_rows)},
-      {type: "context", elements: [{type: "mrkdwn", text: ("<" + $url + "|GitHub Workflow Run>")}]}
+      {type: "context", elements: [{type: "mrkdwn", text: (":github: <" + $url + "|Workflow Run>")}]}
     ]
   }
   '
