@@ -256,7 +256,7 @@ variables:
         description: "Package repository name"
         type: string
         required: false
-        default: newrelic/infrastructure-agent-artifacts
+        default: alvarocabanas/ebpf-test
         variants:
           ac_config_field: "oci_repository_urls"
           values: [ "alvarocabanas/ebpf-test" ]
@@ -267,60 +267,21 @@ variables:
 deployment:
   linux:
     enable_file_logging: ${nr-var:enable_file_logging}
+    packages:
+      ebpf-agent:
+        download:
+          oci:
+            registry: ${nr-var:oci.registry}
+            repository: ${nr-var:oci.repository}
+            version: ${nr-var:version}
     version:
-      path: ${nr-sub:packages.infra-agent.dir}/nr-ebpf-agent-client
+      path: ${nr-sub:packages.ebpf-agent.dir}/nr-ebpf-agent
       args:
         - --version
       regex: \d+\.\d+\.\d+
     executables:
-      - id: nr-ebpf-agent-client
-        path: ${nr-sub:packages.infra-agent.dir}/nr-ebpf-agent-client
-        env:
-          NEW_RELIC_LICENSE_KEY: "${nr-env:NEW_RELIC_LICENSE_KEY}"
-          DEPLOYMENT_NAME: "${nr-var:config_agent.DEPLOYMENT_NAME}"
-          OTLP_ENDPOINT: "${nr-var:config_agent.OTLP_ENDPOINT}"
-          NEW_RELIC_LOG_LEVEL: "${nr-var:config_agent.LOG_LEVEL}"
-          NEW_RELIC_LOG_FILE_PATH: "${nr-var:config_agent.LOG_FILE_PATH}"
-          DROP_DATA_FOR_ENTITY: "${nr-var:config_agent.DROP_DATA_FOR_ENTITY}"
-          TLS_ENABLED: "${nr-var:config_agent.TLS_ENABLED}"
-          TLS_AUTOGENERATE_CERT_ENABLED: "${nr-var:config_agent.TLS_AUTOGENERATE_CERT_ENABLED}"
-          TLS_CERT_PATH: "${nr-var:config_agent.TLS_CERT_PATH}"
-          TLS_CERT_FILE: "${nr-var:config_agent.TLS_CERT_FILE}"
-          TLS_KEY_FILE: "${nr-var:config_agent.TLS_KEY_FILE}"
-          TLS_CA_FILE: "${nr-var:config_agent.TLS_CA_FILE}"
-          TABLE_STORE_DATA_LIMIT_MB: "${nr-var:config_agent.TABLE_STORE_DATA_LIMIT_MB}"
-          PROTOCOLS_HTTP_ENABLED: "${nr-var:config_agent.PROTOCOLS_HTTP_ENABLED}"
-          PROTOCOLS_HTTP_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_HTTP_SPANS_ENABLED}"
-          PROTOCOLS_HTTP_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_HTTP_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_HTTP_SPANS_SAMPLING_ERROR_RATE: "${nr-var:config_agent.PROTOCOLS_HTTP_SPANS_SAMPLING_ERROR_RATE}"
-          PROTOCOLS_MYSQL_ENABLED: "${nr-var:config_agent.PROTOCOLS_MYSQL_ENABLED}"
-          PROTOCOLS_MYSQL_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_MYSQL_SPANS_ENABLED}"
-          PROTOCOLS_MYSQL_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_MYSQL_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_PGSQL_ENABLED: "${nr-var:config_agent.PROTOCOLS_PGSQL_ENABLED}"
-          PROTOCOLS_PGSQL_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_PGSQL_SPANS_ENABLED}"
-          PROTOCOLS_PGSQL_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_PGSQL_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_CASS_ENABLED: "${nr-var:config_agent.PROTOCOLS_CASS_ENABLED}"
-          PROTOCOLS_CASS_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_CASS_SPANS_ENABLED}"
-          PROTOCOLS_CASS_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_CASS_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_REDIS_ENABLED: "${nr-var:config_agent.PROTOCOLS_REDIS_ENABLED}"
-          PROTOCOLS_REDIS_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_REDIS_SPANS_ENABLED}"
-          PROTOCOLS_REDIS_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_REDIS_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_MONGODB_ENABLED: "${nr-var:config_agent.PROTOCOLS_MONGODB_ENABLED}"
-          PROTOCOLS_MONGODB_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_MONGODB_SPANS_ENABLED}"
-          PROTOCOLS_MONGODB_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_MONGODB_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_KAFKA_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_KAFKA_SPANS_ENABLED}"
-          PROTOCOLS_KAFKA_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_KAFKA_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_AMQP_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_AMQP_SPANS_ENABLED}"
-          PROTOCOLS_AMQP_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_AMQP_SPANS_SAMPLING_LATENCY}"
-          PROTOCOLS_DNS_ENABLED: "${nr-var:config_agent.PROTOCOLS_DNS_ENABLED}"
-          PROTOCOLS_DNS_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_DNS_SPANS_ENABLED}"
-          PROTOCOLS_DNS_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_DNS_SPANS_SAMPLING_LATENCY}"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: ${nr-var:backoff_delay}
       - id: nr-ebpf-agent
-        path: /usr/bin/nr-ebpf-agent
+        path: ${nr-sub:packages.ebpf-agent.dir}/nr-ebpf-agent
         env:
           NEW_RELIC_LICENSE_KEY: "${nr-env:NEW_RELIC_LICENSE_KEY}"
           DEPLOYMENT_NAME: "${nr-var:config_agent.DEPLOYMENT_NAME}"

@@ -5,6 +5,7 @@ use crate::agent_type::runtime_config::on_host::package::PackageID;
 use crate::package::manager::{InstalledPackageData, PackageData, PackageManager};
 use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::package::oci::downloader::OCIArtifactDownloader;
+use crate::package::oci::install_script::install_ebpf_agent;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file::LocalFile;
 use fs::file::reader::FileReader;
@@ -46,6 +47,8 @@ pub enum OCIPackageManagerError {
     NotNormalSuffix(String),
     #[error("errors removing packages: {0}")]
     RetainPackageErrors(RetainPackageErrors),
+    #[error("error installing script: {0}")]
+    InstallScriptError(String),
 }
 
 #[derive(Debug, Default)]
@@ -111,6 +114,10 @@ where
 
         self.extract_package(&downloaded_package, install_path)
             .inspect_err(|e| warn!("OCI package installation failed: {}", e))?;
+
+        if install_path.to_str().unwrap().contains("ebpf-agent") {
+            install_ebpf_agent(install_path).map_err(OCIPackageManagerError::InstallScriptError)?;
+        }
 
         debug!("OCI package installed at {}", install_path.display());
         Ok(InstalledPackageData {
