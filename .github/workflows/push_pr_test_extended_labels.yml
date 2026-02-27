@@ -42,24 +42,3 @@ jobs:
       E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
       E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
       E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
-
-  # TODO: remove, included for notification testing only
-  notify-e2e-slack:
-    name: Report e2e summary to Slack
-    runs-on: ubuntu-latest
-    if: ${{ always() && contains(github.event.pull_request.labels.*.name, 'onhost-extended-e2e') }}
-    needs: [onhost-e2e, k8s-e2e-tests-extended]
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          pattern: e2e-result-*
-          merge-multiple: true
-          path: e2e-results/
-
-      - name: Send e2e summary to Slack
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: bash .github/workflows/scripts/slack_e2e_summary.sh

@@ -60,9 +60,10 @@ else
   DURATION_FMT="${DURATION}s"
 fi
 case "$E2E_STATUS" in
-  success)   STATUS_DISPLAY="✅" ;;
-  failure)   STATUS_DISPLAY="❌" ;;
-  cancelled) STATUS_DISPLAY="⚠️" ;;
+  success)   STATUS_DISPLAY="✅ Success" ;;
+  failure)   STATUS_DISPLAY="❌ Failure" ;;
+  cancelled) STATUS_DISPLAY="⚠️ Cancelled" ;;
   *)         STATUS_DISPLAY="$E2E_STATUS" ;;
 esac
-printf "%s\t%s\t%s\t%s\t%s\n" "$ACCOUNT" "$E2E_ENVIRONMENT" "$E2E_SCENARIO" "$DURATION_FMT" "$STATUS_DISPLAY" > "e2e-result-${E2E_ENVIRONMENT}-${E2E_SCENARIO}.txt"
+# The file set the report-table ordering <status>-<environment>-<scenario>
+printf "%s\t%s\t%s\t%s\t%s\n" "$ACCOUNT" "$E2E_ENVIRONMENT" "$E2E_SCENARIO" "$DURATION_FMT" "$STATUS_DISPLAY" > "e2e-result-${E2E_STATUS}-${E2E_ENVIRONMENT}-${E2E_SCENARIO}.txt"

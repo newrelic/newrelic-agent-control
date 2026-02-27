@@ -12,11 +12,20 @@
 set -euo pipefail
 
 # Prepend the header line to the sorted scenario results.
-# sort gives a stable alphabetical order across environments and scenarios.
+# cat gives a stable alphabetical order using file name using file names.
 tsv=$(
   printf "NR Account\tPlatform\tScenario\tDuration\tStatus\n"
-  sort e2e-results/*.txt
+  cat e2e-results/*.txt
 )
+
+# Compute the title: show failure count if any, otherwise confirm all passed.
+total=$(tail -n +2 <<< "$tsv" | wc -l | xargs)
+failures=$(tail -n +2 <<< "$tsv" | grep -cF $'\t❌ Failure' || true)
+if (( failures > 0 )); then
+  title="❌ Agent Control Nightly E2E Results: ${failures}/${total} failed"
+else
+  title="✅ Agent Control Nightly E2E Results"
+fi
 
 # Build the Slack Block Kit payload from the TSV.
 #
@@ -30,7 +39,8 @@ tsv=$(
 #      whose "rows" field is a 2D array of rich_text cells, and a context block
 #      with the run URL.
 payload=$(printf '%s' "$tsv" | jq -Rs \
-  --arg url "$RUN_URL" \
+  --arg url   "$RUN_URL" \
+  --arg title "$title" \
   '
   [split("\n") | .[] | select(length > 0) | split("\t")] as $rows |
 
@@ -42,7 +52,7 @@ payload=$(printf '%s' "$tsv" | jq -Rs \
 
   {
     blocks: [
-      {type: "header",  text: {type: "plain_text", text: "🧪 Agent Control Nightly E2E Results"}},
+      {type: "header",  text: {type: "plain_text", text: $title}},
       {type: "table",   rows: ([$header_row] + $data_rows)},
       {type: "context", elements: [{type: "mrkdwn", text: (":github: <" + $url + "|Workflow Run>")}]}
     ]
