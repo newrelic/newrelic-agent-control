@@ -171,6 +171,26 @@ jobs:
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
       AC_CANARY_WINDOWS_PASSWORD: ${{ secrets.AC_CANARY_WINDOWS_PASSWORD }}
 
+  notify-e2e-slack:
+    name: Report e2e summary to Slack
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [onhost-e2e, k8s-e2e-tests]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: e2e-result-*
+          merge-multiple: true
+          path: e2e-results/
+
+      - name: Send e2e summary to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.AC_FLEET_COMMON_SLACK_WEBHOOK }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bash .github/workflows/scripts/slack_e2e_summary.sh
+
   notify-failure:
     if: ${{ always() && failure() }}
     needs:

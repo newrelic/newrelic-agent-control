@@ -17,6 +17,7 @@ set -euo pipefail
 
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - JOB_START_TIME))
+ACCOUNT="Agent Control Canaries (prod)"
 
 # GITHUB_HEAD_REF is set for pull requests; GITHUB_REF_NAME covers push/schedule/dispatch.
 BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-}}"
@@ -51,3 +52,18 @@ curl -s -X POST \
   -H "Content-Type: application/json" \
   -H "Api-Key: ${NR_LICENSE_KEY}" \
   -d "$events"
+
+# Write a TSV summary line to be consumed by the Slack notification job.
+if (( DURATION >= 60 )); then
+  DURATION_FMT="$((DURATION / 60))m $((DURATION % 60))s"
+else
+  DURATION_FMT="${DURATION}s"
+fi
+case "$E2E_STATUS" in
+  success)   STATUS_DISPLAY="✅ Success" ;;
+  failure)   STATUS_DISPLAY="❌ Failure" ;;
+  cancelled) STATUS_DISPLAY="⚠️ Cancelled" ;;
+  *)         STATUS_DISPLAY="$E2E_STATUS" ;;
+esac
+# The file set the report-table ordering <status>-<environment>-<scenario>
+printf "%s\t%s\t%s\t%s\t%s\n" "$ACCOUNT" "$E2E_ENVIRONMENT" "$E2E_SCENARIO" "$DURATION_FMT" "$STATUS_DISPLAY" > "e2e-result-${E2E_STATUS}-${E2E_ENVIRONMENT}-${E2E_SCENARIO}.txt"
