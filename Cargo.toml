@@ -26,7 +26,7 @@ tracing = "0.1.44"
 regex = "1.12.3"
 mockall = "0.14.0"
 clap = "4.5.60"
-nix = "0.31.1"
+nix = "0.31.2"
 tracing-subscriber = { version = "0.3.22", features = ["json"] }
 tracing-test = "0.2.6"
 assert_cmd = "2.1.2"
