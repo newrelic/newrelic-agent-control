@@ -60,8 +60,10 @@ fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
     }
 
     #[cfg(all(target_family = "unix", not(feature = "multiple-instances")))]
-    if let Err(err) = newrelic_agent_control::agent_control::pid_cache::PIDCache::default()
-        .store(std::process::id())
+    if let Err(err) = newrelic_agent_control::agent_control::pid_cache::PIDCache::from_data_dir(
+        &run_context.run_config.base_paths.remote_dir,
+    )
+    .store(std::process::id())
     {
         return Err(format!("Error saving main process id: {err}").into());
     }

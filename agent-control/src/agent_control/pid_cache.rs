@@ -1,13 +1,13 @@
+use crate::agent_control::defaults::PID_FILE_NAME;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file::LocalFile;
 use fs::file::reader::FileReader;
 use fs::file::writer::FileWriter;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 const PROC_PATH: &str = "/proc";
-const PID_FILE_PATH: &str = "/var/run/newrelic-agent-control/newrelic-agent-control.pid";
 
 #[derive(Error, Debug)]
 pub enum PIDCacheError {
@@ -24,10 +24,7 @@ pub enum PIDCacheError {
     RunningProcessAlreadyCached,
 }
 
-/// PIDCache stores the current running pid on the file_path set, by default:
-///
-/// "/var/run/newrelic-agent-control/newrelic-agent-control.pid"
-/// We use this PIDCache to ensure only one instance of the agent-control is running.
+/// PIDCache is responsible to ensure only one instance of the agent-control is running.
 pub struct PIDCache<F = LocalFile, D = DirectoryManagerFs>
 where
     F: FileWriter + FileReader,
@@ -39,27 +36,12 @@ where
     proc_path: PathBuf,
 }
 
-impl<F, D> PIDCache<F, D>
-where
-    D: DirectoryManager,
-    F: FileWriter + FileReader,
-{
-    pub fn new(file_rw: F, directory_manager: D, file_path: PathBuf, proc_path: PathBuf) -> Self {
-        PIDCache {
-            file_rw,
-            directory_manager,
-            file_path,
-            proc_path,
-        }
-    }
-}
-
-impl Default for PIDCache<LocalFile, DirectoryManagerFs> {
-    fn default() -> Self {
-        PIDCache {
+impl PIDCache {
+    pub fn from_data_dir(data_dir: &Path) -> Self {
+        Self {
             file_rw: LocalFile,
             directory_manager: DirectoryManagerFs,
-            file_path: PID_FILE_PATH.into(),
+            file_path: data_dir.join(PID_FILE_NAME),
             proc_path: PROC_PATH.into(),
         }
     }
@@ -115,6 +97,26 @@ pub mod tests {
     use fs::directory_manager::mock::MockDirectoryManager;
     use fs::mock::MockLocalFile;
     use std::path::PathBuf;
+
+    impl<F, D> PIDCache<F, D>
+    where
+        D: DirectoryManager,
+        F: FileWriter + FileReader,
+    {
+        pub fn new(
+            file_rw: F,
+            directory_manager: D,
+            file_path: PathBuf,
+            proc_path: PathBuf,
+        ) -> Self {
+            PIDCache {
+                file_rw,
+                directory_manager,
+                file_path,
+                proc_path,
+            }
+        }
+    }
 
     #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
     #[test]

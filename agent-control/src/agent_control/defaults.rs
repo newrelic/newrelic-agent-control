@@ -48,7 +48,6 @@ pub const OS_ATTRIBUTE_VALUE: &str = "linux";
 pub const OS_ATTRIBUTE_VALUE: &str = "windows";
 
 // Paths
-// TODO: should we rename AGENT_CONTROL_DATA_DIR to AGENT_CONTROL_REMOTE_DATA_DIR?
 cfg_if::cfg_if! {
     if #[cfg(target_os = "macos")] {
         pub const AGENT_CONTROL_LOCAL_DATA_DIR: &str = "/opt/homebrew/etc/newrelic-agent-control";
@@ -65,6 +64,9 @@ cfg_if::cfg_if! {
         pub const AGENT_CONTROL_LOG_DIR: &str = "/var/log/newrelic-agent-control";
     }
 }
+
+/// - **On-host**: Used as the filename for the PID file (e.g., `newrelic-agent-control.pid`).
+pub const PID_FILE_NAME: &str = "newrelic-agent-control.pid";
 
 /// - **On-host**: Used as the directory name (e.g., `.../fleet-data/` or `.../local-data/`).
 /// - **k8s**: Used as a ConfigMap prefix, followed by a hyphen (e.g., `local-data-agentid`).
