@@ -58,7 +58,7 @@ opentelemetry-semantic-conventions = { version = "0.31.0", features = [
 ] }
 http-serde = "2.1.1"
 config = { version = "0.15.19", features = ["yaml"] }
-aws-lc-rs = "1.16.0"
+aws-lc-rs = "1.16.1"
 bytes = "1.11.1"
 opentelemetry = { version = "0.31.0", features = ["trace"] }
 opentelemetry_sdk = { version = "0.31.0", features = ["trace"] }
