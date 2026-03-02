@@ -123,7 +123,6 @@
     vars:
       processes_running:
         - "^/usr/bin/newrelic-agent-control"
-        - "^/usr/bin/newrelic-infra"
 
 - name: installation-windows
   hosts: testing_hosts_windows
