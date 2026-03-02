@@ -54,7 +54,7 @@ payload=$(printf '%s' "$tsv" | jq -Rs \
     blocks: [
       {type: "header",  text: {type: "plain_text", text: $title}},
       {type: "table",   rows: ([$header_row] + $data_rows)},
-      {type: "context", elements: [{type: "mrkdwn", text: (":github: <" + $url + "|Workflow Run>")}]}
+      {type: "context", elements: [{type: "mrkdwn", text: (":github: <" + $url + "|Workflow Run> :nr-logo_green5: <https://onenr.io/0Zw09VM4eRv|Dashboard>")}]}
     ]
   }
   '
