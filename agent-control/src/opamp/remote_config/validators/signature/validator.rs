@@ -1,4 +1,4 @@
-use crate::http::client::HttpClient;
+use crate::http::client::BlockingHttpClient as HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
 use crate::opamp::remote_config::OpampRemoteConfig;

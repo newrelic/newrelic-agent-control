@@ -5,7 +5,7 @@ use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthChec
 use crate::checkers::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::event::channel::EventConsumer;
-use crate::http::client::HttpClient;
+use crate::http::client::BlockingHttpClient;
 use std::path::PathBuf;
 
 pub enum OnHostHealthChecker {
@@ -21,7 +21,7 @@ pub struct OnHostHealthCheckers {
 impl OnHostHealthCheckers {
     pub(crate) fn try_new(
         exec_health_consumer: EventConsumer<(String, HealthWithStartTime)>,
-        http_client: HttpClient,
+        http_client: BlockingHttpClient,
         health_check_type: Option<OnHostHealthCheck>,
         start_time: StartTime,
     ) -> Result<Self, HealthCheckerError> {

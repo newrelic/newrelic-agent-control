@@ -1,6 +1,6 @@
 use super::config::AuthConfig;
+use crate::http::client::BlockingHttpClient;
 use crate::http::client::HttpBuildError;
-use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
 use chrono::DateTime;
@@ -29,8 +29,10 @@ pub enum TokenRetrieverImplError {
 }
 
 // Just an alias to make the code more readable
-type TokenRetrieverHttp =
-    TokenRetrieverWithCache<HttpAuthenticator<HttpClient>, JwtSignerAuthBuilder<JwtSignerImpl>>;
+type TokenRetrieverHttp = TokenRetrieverWithCache<
+    HttpAuthenticator<BlockingHttpClient>,
+    JwtSignerAuthBuilder<JwtSignerImpl>,
+>;
 
 /// Enumerates all implementations for `TokenRetriever` for static dispatching reasons.
 #[allow(clippy::large_enum_variant)]
@@ -74,7 +76,7 @@ impl TokenRetrieverImpl {
             proxy_config,
         );
 
-        let client = HttpClient::new(http_config)?;
+        let client = BlockingHttpClient::new(http_config)?;
         let authenticator = HttpAuthenticator::new(client, ac.token_url.clone());
 
         Ok(Self::HttpTR(

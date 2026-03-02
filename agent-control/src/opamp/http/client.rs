@@ -1,5 +1,5 @@
 //! # Synchronous OpAMP HTTP Client
-use crate::http::client::{HttpClient, HttpResponseError};
+use crate::http::client::{BlockingHttpClient, HttpResponseError};
 use crate::opamp::http::client::OpAMPHttpClientError::AuthorizationHeadersError;
 use http::header::AUTHORIZATION;
 use http::{HeaderMap, HeaderValue, Response};
@@ -16,7 +16,7 @@ pub enum OpAMPHttpClientError {
 }
 
 pub struct HttpOpAMPClient<T: TokenRetriever> {
-    client: HttpClient,
+    client: BlockingHttpClient,
     url: Url,
     headers: HeaderMap,
     token_retriever: Arc<T>,
@@ -27,7 +27,7 @@ where
     T: TokenRetriever + Send + Sync + 'static,
 {
     pub(super) fn new(
-        client: HttpClient,
+        client: BlockingHttpClient,
         url: Url,
         headers: HeaderMap,
         token_retriever: Arc<T>,
@@ -149,7 +149,7 @@ pub mod tests {
             HeaderName::from_static("existing-key"),
             HeaderValue::from_static("existing_value"),
         )]);
-        let http_client = HttpClient::new(http_config).unwrap();
+        let http_client = BlockingHttpClient::new(http_config).unwrap();
 
         let mut token_retriever = MockTokenRetriever::default();
         let token = token_stub();
@@ -175,7 +175,7 @@ pub mod tests {
             HeaderName::from_static("existing-key"),
             HeaderValue::from_static("existing_value"),
         )]);
-        let http_client = HttpClient::new(http_config).unwrap();
+        let http_client = BlockingHttpClient::new(http_config).unwrap();
 
         let mut token_retriever = MockTokenRetriever::default();
         token_retriever
@@ -195,7 +195,7 @@ pub mod tests {
             HeaderName::from_static("existing-key"),
             HeaderValue::from_static("existing_value"),
         )]);
-        let http_client = HttpClient::new(http_config).unwrap();
+        let http_client = BlockingHttpClient::new(http_config).unwrap();
 
         let mut token_retriever = MockTokenRetriever::default();
         token_retriever

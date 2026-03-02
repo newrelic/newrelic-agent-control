@@ -3,7 +3,7 @@ use crate::checkers::health::health_checker::{
     HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
-use crate::http::client::{HttpClient as InnerClient, HttpResponseError};
+use crate::http::client::{BlockingHttpClient as InnerClient, HttpResponseError};
 use http::{HeaderName, HeaderValue, Request, Response, StatusCode};
 use std::collections::HashMap;
 use thiserror::Error;

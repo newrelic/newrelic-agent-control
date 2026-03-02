@@ -15,7 +15,7 @@ use newrelic_agent_control::agent_control::defaults::{
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
-use newrelic_agent_control::http::client::HttpClient;
+use newrelic_agent_control::http::client::BlockingHttpClient;
 use newrelic_agent_control::http::config::{HttpConfig, ProxyConfig};
 use newrelic_agent_control::on_host::file_store::build_config_name;
 use newrelic_agent_control::opamp::instance_id::on_host::identifiers::IdentifiersProvider;
@@ -46,7 +46,7 @@ fn test_aws_cloud_id() {
         then.status(200).body(fake_token);
     });
 
-    let http_client = HttpClient::new(HttpConfig::new(
+    let http_client = BlockingHttpClient::new(HttpConfig::new(
         DEFAULT_CLIENT_TIMEOUT,
         DEFAULT_CLIENT_TIMEOUT,
         ProxyConfig::default(),
@@ -91,7 +91,7 @@ fn test_azure_cloud_id() {
             .body(AZURE_VM_RESPONSE);
     });
 
-    let http_client = HttpClient::new(HttpConfig::new(
+    let http_client = BlockingHttpClient::new(HttpConfig::new(
         DEFAULT_CLIENT_TIMEOUT,
         DEFAULT_CLIENT_TIMEOUT,
         ProxyConfig::default(),
@@ -135,7 +135,7 @@ fn test_gcp_cloud_id() {
             .body(GCP_VM_RESPONSE);
     });
 
-    let http_client = HttpClient::new(HttpConfig::new(
+    let http_client = BlockingHttpClient::new(HttpConfig::new(
         DEFAULT_CLIENT_TIMEOUT,
         DEFAULT_CLIENT_TIMEOUT,
         ProxyConfig::default(),

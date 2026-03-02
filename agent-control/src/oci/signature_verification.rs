@@ -1,7 +1,7 @@
 use super::{Client, OciClientError};
 use crate::{
     http::{
-        client::HttpClient,
+        client::BlockingHttpClient as HttpClient,
         config::{HttpConfig, ProxyConfig},
     },
     signature::{public_key::PublicKey, public_key_fetcher::PublicKeyFetcher},

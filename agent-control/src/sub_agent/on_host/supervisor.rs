@@ -13,7 +13,7 @@ use crate::checkers::version::onhost::{OnHostAgentVersionChecker, check_version}
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
-use crate::http::client::HttpClient;
+use crate::http::client::BlockingHttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::package::manager::{PackageData, PackageManager};
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssemblerError};
@@ -217,7 +217,7 @@ where
         let start_time = StartTime::now();
         let client_timeout = Duration::from(self.health_config.clone().timeout);
         let http_config = HttpConfig::new(client_timeout, client_timeout, ProxyConfig::default());
-        let http_client = HttpClient::new(http_config).map_err(|err| {
+        let http_client = BlockingHttpClient::new(http_config).map_err(|err| {
             HealthCheckerError::Generic(format!("could not build the http client: {err}"))
         })?;
 

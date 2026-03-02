@@ -1,5 +1,5 @@
 use super::SecretsProvider;
-use crate::http::client::{HttpBuildError, HttpClient};
+use crate::http::client::{BlockingHttpClient, HttpBuildError};
 use crate::http::config::{HttpConfig, ProxyConfig};
 use duration_str::deserialize_duration;
 use http::header::InvalidHeaderValue;
@@ -185,7 +185,7 @@ pub struct VaultConfig {
 
 /// Represents a Vault client, including HTTP client and configured sources.
 pub struct Vault {
-    client: HttpClient,
+    client: BlockingHttpClient,
     sources: HashMap<String, VaultSource>,
 }
 
@@ -208,7 +208,7 @@ impl Vault {
             .collect::<Result<HashMap<String, VaultSource>, VaultError>>()?;
 
         Ok(Self {
-            client: HttpClient::new(http_config).map_err(VaultError::HttpClient)?,
+            client: BlockingHttpClient::new(http_config).map_err(VaultError::HttpClient)?,
             sources,
         })
     }

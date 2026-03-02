@@ -103,7 +103,7 @@ impl VerifierStore {
 #[cfg(test)]
 pub mod tests {
     use crate::{
-        http::{client::HttpClient, config::HttpConfig},
+        http::{client::BlockingHttpClient as HttpClient, config::HttpConfig},
         signature::{public_key::tests::TestKeyPair, public_key_fetcher::tests::FakePubKeyServer},
     };
 

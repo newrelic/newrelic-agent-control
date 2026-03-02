@@ -14,7 +14,7 @@ use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::checkers::health::noop::NoOpHealthChecker;
 use crate::event::channel::pub_sub;
-use crate::http::client::HttpClient;
+use crate::http::client::BlockingHttpClient as HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::oci;
 use crate::on_host::file_store::FileStore;
