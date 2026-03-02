@@ -1763,6 +1763,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## plain <https://crates.io/crates/plain>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## portable-atomic <https://crates.io/crates/portable-atomic>
 
 Distributed under the following license(s):
