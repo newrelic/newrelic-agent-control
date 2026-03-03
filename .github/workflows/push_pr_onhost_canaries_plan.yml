@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - test/onhost-canaries/terraform/**
+      - .github/workflows/component_onhost_canaries.yml
+      - .github/workflows/push_pr_onhost_canaries_plan.yml
 
 permissions:
   contents: read
