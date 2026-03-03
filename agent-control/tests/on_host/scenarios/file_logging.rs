@@ -74,7 +74,7 @@ fn collect_stdout_logs(log_dir: &Path, agent_id: &str) -> io::Result<String> {
             .map(|entry| entry.path())
             .filter(|p| {
                 p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().contains(STDOUT_LOG_FILE_NAME_SUFFIX))
+                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME_SUFFIX))
             })
             .map(fs::read_to_string)
             .collect::<Result<Vec<_>, _>>()?
