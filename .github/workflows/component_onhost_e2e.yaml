@@ -77,7 +77,7 @@ jobs:
             --system-identity-client-id "${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}" \
             --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
             --agent-control-version "0.900.${{ github.run_id }}" \
-            --recipes-repo-branch "feat/removeAgents" \
+            --recipes-repo-branch "main" \
             --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" \
             --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}"
 
@@ -140,7 +140,7 @@ jobs:
             --system-identity-client-id "${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}" `
             --agent-control-private-key "$env:TEMP\newrelic-agent-control-priv.key" `
             --agent-control-version "0.900.${{ github.run_id }}" `
-            --recipes-repo-branch "feat/removeAgents" `
+            --recipes-repo-branch "main" `
             --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" `
             --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}"
 
