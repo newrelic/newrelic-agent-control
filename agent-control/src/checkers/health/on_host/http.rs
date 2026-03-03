@@ -3,7 +3,7 @@ use crate::checkers::health::health_checker::{
     HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
-use crate::http::client::{HttpClient as InnerClient, HttpResponseError};
+use crate::http::client::{BlockingHttpClient, HttpResponseError};
 use http::{HeaderName, HeaderValue, Request, Response, StatusCode};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -34,7 +34,7 @@ pub trait HttpClient {
     ) -> Result<Response<Vec<u8>>, HttpClientError>;
 }
 
-impl HttpClient for InnerClient {
+impl HttpClient for BlockingHttpClient {
     fn get(
         &self,
         path: &str,
@@ -59,6 +59,7 @@ impl HttpClient for InnerClient {
         Ok(self.send(request)?)
     }
 }
+
 impl From<HttpResponseError> for HttpClientError {
     fn from(err: HttpResponseError) -> Self {
         match err {
@@ -71,7 +72,7 @@ impl From<HttpResponseError> for HttpClientError {
 }
 
 /// The `HttpHealthChecker` is in charge of calling its client and parsing the health status
-pub struct HttpHealthChecker<C = InnerClient>
+pub struct HttpHealthChecker<C = BlockingHttpClient>
 where
     C: HttpClient,
 {
@@ -82,9 +83,9 @@ where
     start_time: StartTime,
 }
 
-impl HttpHealthChecker<InnerClient> {
+impl HttpHealthChecker<BlockingHttpClient> {
     pub(crate) fn new(
-        client: InnerClient,
+        client: BlockingHttpClient,
         http_config: HttpHealth,
         start_time: StartTime,
     ) -> Result<Self, HealthCheckerError> {

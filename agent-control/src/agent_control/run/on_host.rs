@@ -14,7 +14,7 @@ use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::checkers::health::noop::NoOpHealthChecker;
 use crate::event::channel::pub_sub;
-use crate::http::client::HttpClient;
+use crate::http::client::BlockingHttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::oci;
 use crate::on_host::file_store::FileStore;
@@ -89,7 +89,7 @@ impl AgentControlRunner {
             .map(|c| c.fleet_id.to_string())
             .unwrap_or_default();
 
-        let http_client = HttpClient::new(HttpConfig::new(
+        let http_client = BlockingHttpClient::new(HttpConfig::new(
             DEFAULT_CLIENT_TIMEOUT,
             DEFAULT_CLIENT_TIMEOUT,
             // The default value of proxy configuration is an empty proxy config without any rule

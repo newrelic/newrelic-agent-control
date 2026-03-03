@@ -1,7 +1,7 @@
 use super::{ClientHandler, OciClientError};
 use crate::{
     http::{
-        client::HttpClient,
+        client::BlockingHttpClient,
         config::{HttpConfig, ProxyConfig},
     },
     signature::{public_key::PublicKey, public_key_fetcher::PublicKeyFetcher},
@@ -65,7 +65,7 @@ impl ClientHandler {
             DEFAULT_PUBLIC_KEY_FETCH_TIMEOUT,
             proxy_config,
         );
-        let http_client = HttpClient::new(http_config)
+        let http_client = BlockingHttpClient::new(http_config)
             .map_err(|err| OciClientError::Build(format!("failure building http-client: {err}")))?;
 
         Ok(PublicKeyFetcher::new(http_client))

@@ -1,4 +1,4 @@
-use crate::http::client::HttpClient;
+use crate::http::client::BlockingHttpClient;
 use crate::opamp::instance_id::definition::InstanceIdentifiers;
 
 use resource_detection::DetectError;
@@ -53,9 +53,9 @@ pub enum IdentifiersProviderError {
 pub struct IdentifiersProvider<
     D = SystemDetector,
     D2 = CloudIdDetector<
-        AWSDetector<HttpClient>,
-        AzureDetector<HttpClient>,
-        GCPDetector<HttpClient>,
+        AWSDetector<BlockingHttpClient>,
+        AzureDetector<BlockingHttpClient>,
+        GCPDetector<BlockingHttpClient>,
     >,
 > where
     D: Detector,
@@ -68,7 +68,7 @@ pub struct IdentifiersProvider<
 }
 
 impl IdentifiersProvider {
-    pub fn new(http_client: HttpClient) -> Self {
+    pub fn new(http_client: BlockingHttpClient) -> Self {
         Self {
             system_detector: SystemDetector::default(),
             cloud_id_detector: CloudIdDetector::new(

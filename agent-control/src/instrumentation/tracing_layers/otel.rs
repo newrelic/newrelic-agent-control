@@ -1,4 +1,4 @@
-use crate::http::client::{HttpBuildError, HttpClient};
+use crate::http::client::{BlockingHttpClient, HttpBuildError};
 use crate::http::config::HttpConfig;
 use crate::instrumentation::config::otel::OtelConfig;
 use crate::instrumentation::tracing::{LayerBox, TracingGuard};
@@ -53,7 +53,7 @@ impl OtelLayers {
             config.client_timeout.clone().into(),
             config.proxy.clone(),
         );
-        let http_client = HttpClient::new(http_config)?;
+        let http_client = BlockingHttpClient::new(http_config)?;
         let otel_layers = OtelLayers::try_new_with_client(config, http_client)?;
         Ok(otel_layers.layers())
     }

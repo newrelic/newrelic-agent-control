@@ -1,4 +1,4 @@
-use crate::http::client::HttpClient;
+use crate::http::client::BlockingHttpClient;
 use crate::signature::public_key::PublicKey;
 use http::Request;
 use serde::{Deserialize, Serialize};
@@ -12,11 +12,11 @@ pub struct PubKeyFetcherError(String);
 
 /// Fetches a public key from a JWKS remote server.
 pub struct PublicKeyFetcher {
-    http_client: HttpClient,
+    http_client: BlockingHttpClient,
 }
 
 impl PublicKeyFetcher {
-    pub fn new(http_client: HttpClient) -> Self {
+    pub fn new(http_client: BlockingHttpClient) -> Self {
         Self { http_client }
     }
     /// Fetches the latest public key from the JWKS endpoint. The "latest" is the
@@ -193,7 +193,7 @@ pub mod tests {
         let server = FakePubKeyServer::new(vec![key_pair_0, key_pair_1, key_pair_2]);
 
         let fetcher = PublicKeyFetcher {
-            http_client: HttpClient::new(HttpConfig::default()).unwrap(),
+            http_client: BlockingHttpClient::new(HttpConfig::default()).unwrap(),
         };
 
         let public_keys = fetcher.fetch_latest_key(&server.url).unwrap();
@@ -220,7 +220,7 @@ pub mod tests {
         let server = FakePubKeyServer::new(vec![key_pair_0, key_pair_1, key_pair_2]);
 
         let fetcher = PublicKeyFetcher {
-            http_client: HttpClient::new(HttpConfig::default()).unwrap(),
+            http_client: BlockingHttpClient::new(HttpConfig::default()).unwrap(),
         };
 
         let public_keys = fetcher.fetch(&server.url).unwrap();
@@ -240,7 +240,7 @@ pub mod tests {
 
     #[test]
     fn fetch_returns_error_when_no_valid_keys() {
-        let http_client = HttpClient::new(HttpConfig::default()).unwrap();
+        let http_client = BlockingHttpClient::new(HttpConfig::default()).unwrap();
 
         let mock_server = JwksMockServer::new(vec![
             json!({
@@ -282,7 +282,7 @@ pub mod tests {
         let valid_key_data = valid_key_pair.public_key_jwk();
         let expected_key_id = valid_key_pair.key_id();
 
-        let http_client = HttpClient::new(HttpConfig::default()).unwrap();
+        let http_client = BlockingHttpClient::new(HttpConfig::default()).unwrap();
 
         let mock_server = JwksMockServer::new(vec![
             // valid key
@@ -323,7 +323,7 @@ pub mod tests {
 
     #[test]
     fn fetch_returns_error_when_empty_keys_array() {
-        let http_client = HttpClient::new(HttpConfig::default()).unwrap();
+        let http_client = BlockingHttpClient::new(HttpConfig::default()).unwrap();
 
         let mock_server = JwksMockServer::new(vec![]);
 
@@ -346,7 +346,7 @@ pub mod tests {
     #[test]
     fn fetch_handles_http_error_codes() {
         let server = MockServer::start();
-        let http_client = HttpClient::new(HttpConfig::default()).unwrap();
+        let http_client = BlockingHttpClient::new(HttpConfig::default()).unwrap();
 
         let test_cases = [
             (400, "Bad Request", "Client Error Body"),

@@ -1,4 +1,4 @@
-use crate::http::client::HttpClient;
+use crate::http::client::BlockingHttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
 use crate::opamp::remote_config::OpampRemoteConfig;
@@ -75,7 +75,7 @@ impl SignatureValidator {
             DEFAULT_HTTPS_CLIENT_TIMEOUT,
             proxy_config,
         );
-        let http_client = HttpClient::new(http_config)
+        let http_client = BlockingHttpClient::new(http_config)
             .map_err(|e| SignatureValidatorError::BuildingValidator(e.to_string()))?;
 
         let public_key_fetcher = PublicKeyFetcher::new(http_client);

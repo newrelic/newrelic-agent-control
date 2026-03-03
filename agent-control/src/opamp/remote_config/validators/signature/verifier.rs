@@ -103,7 +103,7 @@ impl VerifierStore {
 #[cfg(test)]
 pub mod tests {
     use crate::{
-        http::{client::HttpClient, config::HttpConfig},
+        http::{client::BlockingHttpClient, config::HttpConfig},
         signature::{public_key::tests::TestKeyPair, public_key_fetcher::tests::FakePubKeyServer},
     };
 
@@ -132,7 +132,8 @@ pub mod tests {
         let signature = sign_like_fleet(&key_pair, MESSAGE);
 
         let server = FakePubKeyServer::new(vec![key_pair]);
-        let fetcher = PublicKeyFetcher::new(HttpClient::new(HttpConfig::default()).unwrap());
+        let fetcher =
+            PublicKeyFetcher::new(BlockingHttpClient::new(HttpConfig::default()).unwrap());
 
         let store = VerifierStore::try_new(fetcher, server.url.clone()).unwrap();
         store
@@ -159,7 +160,7 @@ pub mod tests {
                 }));
         });
 
-        let http_client = HttpClient::new(HttpConfig::default()).unwrap();
+        let http_client = BlockingHttpClient::new(HttpConfig::default()).unwrap();
         let fetcher = PublicKeyFetcher::new(http_client);
         let jwks_url = Url::parse(&format!("{}/jwks", mock_server.base_url())).unwrap();
 
@@ -192,7 +193,8 @@ pub mod tests {
         let key_id = key_pair_0.key_id();
 
         let server = FakePubKeyServer::new(vec![key_pair_0]);
-        let fetcher = PublicKeyFetcher::new(HttpClient::new(HttpConfig::default()).unwrap());
+        let fetcher =
+            PublicKeyFetcher::new(BlockingHttpClient::new(HttpConfig::default()).unwrap());
 
         let store = VerifierStore::try_new(fetcher, server.url).unwrap();
         let result = store.verify_signature(key_id.as_str(), MESSAGE, b"not-base-64");
@@ -205,7 +207,8 @@ pub mod tests {
         let key_id = key_pair_0.key_id();
 
         let server = FakePubKeyServer::new(vec![key_pair_0]);
-        let fetcher = PublicKeyFetcher::new(HttpClient::new(HttpConfig::default()).unwrap());
+        let fetcher =
+            PublicKeyFetcher::new(BlockingHttpClient::new(HttpConfig::default()).unwrap());
 
         let store = VerifierStore::try_new(fetcher, server.url.clone()).unwrap();
         let result = store.verify_signature(

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use super::client::HttpOpAMPClient;
 use crate::agent_control::config::OpAMPClientConfig;
-use crate::http::client::{HttpBuildError, HttpClient};
+use crate::http::client::{BlockingHttpClient, HttpBuildError};
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
 use nr_auth::TokenRetriever;
@@ -79,7 +79,7 @@ where
         );
         let url = self.opamp_config.endpoint.clone();
         let headers = self.headers();
-        let client = HttpClient::new(http_config)?;
+        let client = BlockingHttpClient::new(http_config)?;
         let token_retriever = self.token_retriever.clone();
 
         Ok(HttpOpAMPClient::new(client, url, headers, token_retriever))

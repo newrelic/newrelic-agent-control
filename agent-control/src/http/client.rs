@@ -11,8 +11,8 @@ use opamp_client::http::HttpClientError as OpampHttpClientError;
 use opentelemetry_http::HttpError;
 use reqwest::tls::TlsInfo;
 use reqwest::{
-    Certificate, Error as ReqwestError, Proxy,
-    blocking::{Client, Response as BlockingResponse},
+    Certificate, Client as AsyncClient, Error as ReqwestError, Proxy,
+    blocking::{Client as BlockingClient, Response as BlockingResponse},
 };
 use resource_detection::cloud::http_client::HttpClient as CloudClient;
 use resource_detection::cloud::http_client::HttpClientError as CloudClientError;
@@ -21,19 +21,23 @@ use std::{
     fs::File,
     io::Read,
     path::{Path, PathBuf},
+    sync::Arc,
 };
+use tokio::runtime::Runtime;
 use tracing::warn;
 
 const CERT_EXTENSION: &str = "pem";
+
 #[derive(Debug, Clone)]
-pub struct HttpClient {
-    client: Client,
+pub struct BlockingHttpClient {
+    client: BlockingClient,
 }
-impl HttpClient {
+
+impl BlockingHttpClient {
     /// Builds a reqwest blocking client according to the provided configuration.
     pub fn new(http_config: HttpConfig) -> Result<Self, HttpBuildError> {
         // Use rust-tls backend with rustls-platform-verifier, which uses the platform's native certificate store.
-        let mut builder = Client::builder()
+        let mut builder = BlockingClient::builder()
             .tls_backend_rustls()
             .timeout(http_config.timeout)
             .connect_timeout(http_config.conn_timeout);
@@ -84,6 +88,87 @@ impl HttpClient {
                 .to_vec();
             Err(HttpResponseError::UnsuccessfulResponse { status_code, body })
         }
+    }
+}
+
+/// Builds an async [reqwest::Client] with the same TLS and proxy configuration as [HttpClient::new].
+fn new_async_client(http_config: HttpConfig) -> Result<AsyncClient, HttpBuildError> {
+    // Use rust-tls backend with rustls-platform-verifier, which uses the platform's native certificate store.
+    let mut builder = AsyncClient::builder()
+        .tls_backend_rustls()
+        .timeout(http_config.timeout)
+        .connect_timeout(http_config.conn_timeout);
+
+    let proxy_config = http_config.proxy;
+    let proxy_url = proxy_config.url_as_string();
+    if !proxy_url.is_empty() {
+        let proxy = Proxy::all(proxy_url)
+            .map_err(|err| HttpBuildError::ClientBuilder(format!("invalid proxy url: {err}")))?;
+        builder = builder.proxy(proxy);
+        for cert in certs_from_paths(proxy_config.ca_bundle_file(), proxy_config.ca_bundle_dir())? {
+            builder = builder.add_root_certificate(cert);
+        }
+    }
+
+    builder
+        .build()
+        .map_err(|err| HttpBuildError::ClientBuilder(err.to_string()))
+}
+
+/// An async HTTP client that shares the provided [Runtime] for executing requests.
+///
+/// Unlike [HttpClient], this does not spawn a dedicated background thread — requests
+/// are driven by the shared runtime via [`Runtime::block_on`].
+#[derive(Debug, Clone)]
+pub struct AsyncHttpClient {
+    client: AsyncClient,
+    runtime: Arc<Runtime>,
+}
+
+impl AsyncHttpClient {
+    /// Builds an async HTTP client according to the provided configuration.
+    pub fn new(http_config: HttpConfig, runtime: Arc<Runtime>) -> Result<Self, HttpBuildError> {
+        let client = new_async_client(http_config)?;
+        Ok(Self { client, runtime })
+    }
+
+    pub fn send(
+        &self,
+        request: Request<Vec<u8>>,
+    ) -> Result<HttpResponse<Vec<u8>>, HttpResponseError> {
+        self.runtime.block_on(async {
+            let res = self
+                .client
+                .request(request.method().clone(), request.uri().to_string().as_str())
+                .headers(request.headers().clone())
+                .body(request.body().to_vec())
+                .send()
+                .await
+                .map_err(from_reqwest_error)?;
+
+            if res.status().is_success() {
+                let status = res.status();
+                let version = res.version();
+                let body = res
+                    .bytes()
+                    .await
+                    .map_err(|err| HttpResponseError::ReadingResponse(err.to_string()))?
+                    .to_vec();
+                http::Response::builder()
+                    .status(status)
+                    .version(version)
+                    .body(body)
+                    .map_err(|err| HttpResponseError::BuildingResponse(err.to_string()))
+            } else {
+                let status_code = res.status();
+                let body = res
+                    .bytes()
+                    .await
+                    .map_err(|err| HttpResponseError::ReadingResponse(err.to_string()))?
+                    .to_vec();
+                Err(HttpResponseError::UnsuccessfulResponse { status_code, body })
+            }
+        })
     }
 }
 
@@ -157,7 +242,7 @@ impl From<HttpResponseError> for OpampHttpClientError {
     }
 }
 
-impl CloudClient for HttpClient {
+impl CloudClient for BlockingHttpClient {
     fn send(&self, request: Request<Vec<u8>>) -> Result<HttpResponse<Vec<u8>>, CloudClientError> {
         Ok(self.send(request)?)
     }
@@ -177,7 +262,7 @@ impl From<HttpResponseError> for CloudClientError {
     }
 }
 
-impl OauthHttpClient for HttpClient {
+impl OauthHttpClient for BlockingHttpClient {
     fn send(&self, req: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, OauthHttpClientError> {
         let response = self.send(req)?;
 
@@ -211,7 +296,7 @@ impl From<HttpResponseError> for OauthHttpClientError {
 
 // Implements opentelemetry_http HttpClient so it can be injected to an opentelemetry_otlp exporter
 #[async_trait]
-impl opentelemetry_http::HttpClient for HttpClient {
+impl opentelemetry_http::HttpClient for BlockingHttpClient {
     async fn send_bytes(&self, request: Request<Bytes>) -> Result<Response<Bytes>, HttpError> {
         let (parts, body) = request.into_parts();
         let req_vec = Request::from_parts(parts, Vec::from(body));
@@ -343,6 +428,7 @@ pub(crate) mod tests {
     mock! {
         #[derive(Debug)]
         pub OtelHttpClient {}
+
         #[async_trait]
         impl opentelemetry_http::HttpClient for OtelHttpClient {
             async fn send_bytes(&self, request:  Request<opentelemetry_http::Bytes>) -> Result<Response<opentelemetry_http::Bytes>, opentelemetry_http::HttpError>;
@@ -387,7 +473,7 @@ pub(crate) mod tests {
             Duration::from_secs(3),
             ProxyConfig::from_url(proxy_server.base_url()),
         );
-        let agent = HttpClient::new(http_config)
+        let agent = BlockingHttpClient::new(http_config)
             .unwrap_or_else(|e| panic!("Unexpected error building the client {e}"));
         let resp = agent
             .client
@@ -527,7 +613,7 @@ pub(crate) mod tests {
             Duration::from_millis(50),
             Default::default(),
         );
-        let http_client = HttpClient::new(http_config).unwrap();
+        let http_client = BlockingHttpClient::new(http_config).unwrap();
 
         let request = Request::builder()
             .uri(mock_server.url("/").as_str())
@@ -565,7 +651,7 @@ pub(crate) mod tests {
                     Default::default(),
                 );
                 let url: Url = mock_server.url(path).parse().unwrap();
-                let http_client = HttpClient::new(http_config).unwrap();
+                let http_client = BlockingHttpClient::new(http_config).unwrap();
 
                 let request = Request::builder()
                     .uri(url.as_str())
