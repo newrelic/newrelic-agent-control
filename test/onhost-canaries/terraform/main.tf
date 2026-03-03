@@ -107,7 +107,7 @@ locals {
   // If env-provisioner changes the way it computes the hostnames, we need to change
   // it here too. However, terraform plan will properly list all the resources that
   // will be created and we can spot any problems with the hostnames.
-  hostnames = [for k, v in local.ec2_instances : "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}"]
+  hostnames = [for k, v in local.ec2_instances : "${var.ec2_prefix}-${replace(k, "/[:._]/", "-")}"]
   infra_staging = var.nr_region == "Staging" ? "true" : "false"
 }
 
