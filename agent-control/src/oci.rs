@@ -54,7 +54,7 @@ impl ClientHandler {
         runtime: Arc<Runtime>,
     ) -> Result<Self, OciClientError> {
         let config = OciClientConfig::try_new(config, proxy_config.clone())?;
-        let public_key_fetcher = Self::try_build_public_key_fetcher(proxy_config)?;
+        let public_key_fetcher = Self::try_build_public_key_fetcher(proxy_config, runtime.clone())?;
         Ok(Self {
             config,
             auth: RegistryAuth::Anonymous,

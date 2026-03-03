@@ -141,7 +141,11 @@ impl AgentControlRunner {
             .opamp
             .clone()
             .map(|fleet_config| {
-                SignatureValidator::new(fleet_config.signature_validation, config.proxy.clone())
+                SignatureValidator::new(
+                    fleet_config.signature_validation,
+                    config.proxy.clone(),
+                    runtime.clone(),
+                )
             })
             .transpose()?
             .unwrap_or(SignatureValidator::new_noop());

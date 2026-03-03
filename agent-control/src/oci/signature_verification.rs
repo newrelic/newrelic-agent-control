@@ -1,7 +1,7 @@
 use super::{ClientHandler, OciClientError};
 use crate::{
     http::{
-        client::BlockingHttpClient,
+        client::AsyncHttpClient,
         config::{HttpConfig, ProxyConfig},
     },
     signature::{public_key::PublicKey, public_key_fetcher::PublicKeyFetcher},
@@ -9,7 +9,8 @@ use crate::{
 use base64::Engine;
 use oci_client::{Reference, manifest::OciDescriptor};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use tokio::runtime::Runtime;
 use tracing::debug;
 
 const DEFAULT_PUBLIC_KEY_FETCH_TIMEOUT: Duration = Duration::from_secs(30);
@@ -59,13 +60,14 @@ impl ClientHandler {
     /// Helper to build the [PublicKeyFetcher] corresponding to the client.
     pub(super) fn try_build_public_key_fetcher(
         proxy_config: ProxyConfig,
+        runtime: Arc<Runtime>,
     ) -> Result<PublicKeyFetcher, OciClientError> {
         let http_config = HttpConfig::new(
             DEFAULT_PUBLIC_KEY_FETCH_TIMEOUT,
             DEFAULT_PUBLIC_KEY_FETCH_TIMEOUT,
             proxy_config,
         );
-        let http_client = BlockingHttpClient::new(http_config)
+        let http_client = AsyncHttpClient::new(http_config, runtime)
             .map_err(|err| OciClientError::Build(format!("failure building http-client: {err}")))?;
 
         Ok(PublicKeyFetcher::new(http_client))

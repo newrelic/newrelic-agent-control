@@ -1,4 +1,4 @@
-use crate::http::client::BlockingHttpClient;
+use crate::http::client::AsyncHttpClient;
 use crate::signature::public_key::PublicKey;
 use http::Request;
 use serde::{Deserialize, Serialize};
@@ -12,11 +12,11 @@ pub struct PubKeyFetcherError(String);
 
 /// Fetches a public key from a JWKS remote server.
 pub struct PublicKeyFetcher {
-    http_client: BlockingHttpClient,
+    http_client: AsyncHttpClient,
 }
 
 impl PublicKeyFetcher {
-    pub fn new(http_client: BlockingHttpClient) -> Self {
+    pub fn new(http_client: AsyncHttpClient) -> Self {
         Self { http_client }
     }
     /// Fetches the latest public key from the JWKS endpoint. The "latest" is the
@@ -105,6 +105,7 @@ pub struct KeyData {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::agent_control::run::runtime::tests::tokio_runtime;
     use crate::http::config::HttpConfig;
     use crate::signature::public_key::tests::TestKeyPair;
     use base64::Engine;
@@ -193,7 +194,7 @@ pub mod tests {
         let server = FakePubKeyServer::new(vec![key_pair_0, key_pair_1, key_pair_2]);
 
         let fetcher = PublicKeyFetcher {
-            http_client: BlockingHttpClient::new(HttpConfig::default()).unwrap(),
+            http_client: AsyncHttpClient::new(HttpConfig::default(), tokio_runtime()).unwrap(),
         };
 
         let public_keys = fetcher.fetch_latest_key(&server.url).unwrap();
@@ -220,7 +221,7 @@ pub mod tests {
         let server = FakePubKeyServer::new(vec![key_pair_0, key_pair_1, key_pair_2]);
 
         let fetcher = PublicKeyFetcher {
-            http_client: BlockingHttpClient::new(HttpConfig::default()).unwrap(),
+            http_client: AsyncHttpClient::new(HttpConfig::default(), tokio_runtime()).unwrap(),
         };
 
         let public_keys = fetcher.fetch(&server.url).unwrap();
@@ -240,7 +241,7 @@ pub mod tests {
 
     #[test]
     fn fetch_returns_error_when_no_valid_keys() {
-        let http_client = BlockingHttpClient::new(HttpConfig::default()).unwrap();
+        let http_client = AsyncHttpClient::new(HttpConfig::default(), tokio_runtime()).unwrap();
 
         let mock_server = JwksMockServer::new(vec![
             json!({
@@ -282,7 +283,7 @@ pub mod tests {
         let valid_key_data = valid_key_pair.public_key_jwk();
         let expected_key_id = valid_key_pair.key_id();
 
-        let http_client = BlockingHttpClient::new(HttpConfig::default()).unwrap();
+        let http_client = AsyncHttpClient::new(HttpConfig::default(), tokio_runtime()).unwrap();
 
         let mock_server = JwksMockServer::new(vec![
             // valid key
@@ -323,7 +324,7 @@ pub mod tests {
 
     #[test]
     fn fetch_returns_error_when_empty_keys_array() {
-        let http_client = BlockingHttpClient::new(HttpConfig::default()).unwrap();
+        let http_client = AsyncHttpClient::new(HttpConfig::default(), tokio_runtime()).unwrap();
 
         let mock_server = JwksMockServer::new(vec![]);
 
@@ -346,7 +347,7 @@ pub mod tests {
     #[test]
     fn fetch_handles_http_error_codes() {
         let server = MockServer::start();
-        let http_client = BlockingHttpClient::new(HttpConfig::default()).unwrap();
+        let http_client = AsyncHttpClient::new(HttpConfig::default(), tokio_runtime()).unwrap();
 
         let test_cases = [
             (400, "Bad Request", "Client Error Body"),

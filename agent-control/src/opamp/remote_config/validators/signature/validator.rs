@@ -1,4 +1,4 @@
-use crate::http::client::BlockingHttpClient;
+use crate::http::client::AsyncHttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
 use crate::opamp::remote_config::OpampRemoteConfig;
@@ -7,8 +7,10 @@ use crate::opamp::remote_config::validators::signature::verifier::VerifierStore;
 use crate::signature::public_key_fetcher::PublicKeyFetcher;
 use crate::sub_agent::identity::AgentIdentity;
 use serde::Deserialize;
+use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
+use tokio::runtime::Runtime;
 use tracing::info;
 use tracing::warn;
 use url::Url;
@@ -53,6 +55,7 @@ impl SignatureValidator {
     pub fn new(
         config: SignatureValidatorConfig,
         proxy_config: ProxyConfig,
+        runtime: Arc<Runtime>,
     ) -> Result<Self, SignatureValidatorError> {
         if !config.enabled {
             warn!("Remote config signature validation is disabled");
@@ -75,7 +78,7 @@ impl SignatureValidator {
             DEFAULT_HTTPS_CLIENT_TIMEOUT,
             proxy_config,
         );
-        let http_client = BlockingHttpClient::new(http_config)
+        let http_client = AsyncHttpClient::new(http_config, runtime)
             .map_err(|e| SignatureValidatorError::BuildingValidator(e.to_string()))?;
 
         let public_key_fetcher = PublicKeyFetcher::new(http_client);
@@ -140,6 +143,7 @@ impl RemoteConfigValidator for SignatureValidator {
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::run::runtime::tests::tokio_runtime;
     use crate::opamp::remote_config::ConfigurationMap;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::signature::{SignatureFields, Signatures};
@@ -189,6 +193,7 @@ pub mod tests {
                 ..Default::default()
             },
             ProxyConfig::default(),
+            tokio_runtime(),
         )
         .unwrap();
 
@@ -232,6 +237,7 @@ pub mod tests {
                 ..Default::default()
             },
             ProxyConfig::default(),
+            tokio_runtime(),
         )
         .unwrap();
 
@@ -350,6 +356,7 @@ pub mod tests {
                 ..Default::default()
             },
             ProxyConfig::default(),
+            tokio_runtime(),
         )
         .unwrap();
 
