@@ -65,11 +65,11 @@ agents: {}
     );
 }
 
-pub fn create_file(content: String, path: PathBuf) {
+pub fn create_file(content: impl Into<String>, path: PathBuf) {
     create_dir_all(path.parent().unwrap()).unwrap();
 
     LocalFile
-        .write(&path, content)
+        .write(&path, content.into())
         .expect("failed to create file");
 }
 
