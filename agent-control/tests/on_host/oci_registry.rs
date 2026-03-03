@@ -7,22 +7,10 @@ use newrelic_agent_control::http::config::ProxyConfig;
 use newrelic_agent_control::oci;
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::downloader::{OCIAgentDownloader, OCIArtifactDownloader};
-use oci_client::client::{ClientConfig, ClientProtocol};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tempfile::tempdir;
 
-fn create_client_with_proxy(proxy_config: ProxyConfig) -> oci::Client {
-    oci::Client::try_new(
-        ClientConfig {
-            protocol: ClientProtocol::Http,
-            ..Default::default()
-        },
-        proxy_config,
-        tokio_runtime(),
-    )
-    .unwrap()
-}
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
 fn test_download_artifact_from_local_registry_with_oci_registry() {
@@ -45,7 +33,7 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
     let temp_dir = tempdir().unwrap();
     let local_agent_data_dir = temp_dir.path();
 
-    let client = create_client_with_proxy(ProxyConfig::default());
+    let client = oci::ClientHandler::try_new(ProxyConfig::default(), tokio_runtime()).unwrap();
 
     let downloader = OCIArtifactDownloader::new(client, false);
 
@@ -106,7 +94,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
 
     let proxy_config = serde_yaml::from_str::<ProxyConfig>(&proxy_yaml).unwrap();
 
-    let client = create_client_with_proxy(proxy_config);
+    let client = oci::ClientHandler::try_new(proxy_config, tokio_runtime()).unwrap();
 
     let downloader =
         OCIArtifactDownloader::new(client, false).with_retries(4, Duration::from_millis(100));

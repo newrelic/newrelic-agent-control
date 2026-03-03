@@ -38,7 +38,6 @@ use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::values::ConfigRepo;
 use fs::directory_manager::DirectoryManagerFs;
-use oci_client::client::{ClientConfig, ClientProtocol};
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
@@ -167,18 +166,11 @@ impl AgentControlRunner {
             &self.base_paths.remote_dir,
         ));
 
-        // We are setting client http in debug_assertions mode for tests
-        let oci_client_config = ClientConfig {
-            #[cfg(debug_assertions)]
-            protocol: ClientProtocol::HttpsExcept(vec![OCI_TEST_REGISTRY_URL.to_string()]),
-            ..Default::default()
-        };
-
-        let oci_client = oci::Client::try_new(oci_client_config, self.proxy, self.runtime.clone())
+        let oci_client_handler = oci::ClientHandler::try_new(self.proxy, self.runtime.clone())
             .map_err(|err| RunError(format!("failed to create the OciClient: {err}")))?;
 
         let packages_downloader = OCIArtifactDownloader::new(
-            oci_client,
+            oci_client_handler,
             agent_control_config
                 .agent_packages
                 .signature_verification_enabled

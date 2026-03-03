@@ -2,8 +2,13 @@
 
 use std::{path::Path, sync::Arc};
 
+#[cfg(debug_assertions)]
+use crate::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use crate::{http::config::ProxyConfig, signature::public_key_fetcher::PublicKeyFetcher};
 
+use client_config::OciClientConfig;
+#[cfg(debug_assertions)]
+use oci_client::client::ClientProtocol;
 use oci_client::{
     Reference,
     client::{AsLayerDescriptor, ClientConfig},
@@ -13,8 +18,8 @@ use oci_client::{
 use tokio::runtime::Runtime;
 use url::Url;
 
+mod client_config;
 mod error;
-mod proxy;
 mod signature_verification;
 
 pub use error::OciClientError;
@@ -22,23 +27,36 @@ pub use error::OciClientError;
 /// [oci_client::Client] wrapper with extended functionality.
 /// It also wraps all _async_ operations using the underlying runtime, all functions will
 /// block the current thread until completion.
-pub struct Client {
-    client: oci_client::Client,
+pub struct ClientHandler {
+    config: OciClientConfig,
     auth: RegistryAuth,
     runtime: Arc<Runtime>,
     public_key_fetcher: PublicKeyFetcher,
 }
 
-impl Client {
+impl ClientHandler {
     pub fn try_new(
-        client_config: ClientConfig,
         proxy_config: ProxyConfig,
         runtime: Arc<Runtime>,
     ) -> Result<Self, OciClientError> {
-        let client_config = proxy::setup_proxy(client_config, proxy_config.clone())?;
+        // We are setting client http in debug_assertions mode for tests
+        let config = ClientConfig {
+            #[cfg(debug_assertions)]
+            protocol: ClientProtocol::HttpsExcept(vec![OCI_TEST_REGISTRY_URL.to_string()]),
+            ..Default::default()
+        };
+        Self::try_from_config(config, proxy_config, runtime)
+    }
+
+    fn try_from_config(
+        config: ClientConfig,
+        proxy_config: ProxyConfig,
+        runtime: Arc<Runtime>,
+    ) -> Result<Self, OciClientError> {
+        let config = OciClientConfig::try_new(config, proxy_config.clone())?;
         let public_key_fetcher = Self::try_build_public_key_fetcher(proxy_config)?;
         Ok(Self {
-            client: oci_client::Client::new(client_config),
+            config,
             auth: RegistryAuth::Anonymous,
             public_key_fetcher,
             runtime,
@@ -50,8 +68,9 @@ impl Client {
         &self,
         reference: &Reference,
     ) -> Result<(OciImageManifest, String), OciClientError> {
+        let client = oci_client::Client::from_source(&self.config);
         self.runtime
-            .block_on(self.client.pull_image_manifest(reference, &self.auth))
+            .block_on(client.pull_image_manifest(reference, &self.auth))
             .map_err(|err| OciClientError::PullManifest(err.into()))
     }
 
@@ -62,12 +81,13 @@ impl Client {
         layer: impl AsLayerDescriptor,
         path: impl AsRef<Path>,
     ) -> Result<(), OciClientError> {
+        let client = oci_client::Client::from_source(&self.config);
         self.runtime.block_on(async {
             let mut file = tokio::fs::File::create(path).await.map_err(|err| {
                 OciClientError::PullBlob(format!("could not create file: {}", err).into())
             })?;
 
-            self.client
+            client
                 .pull_blob(reference, layer, &mut file)
                 .await
                 .map_err(|err| OciClientError::PullBlob(err.to_string().into()))?;
@@ -134,8 +154,8 @@ pub mod tests {
     use crate::signature::public_key_fetcher::tests::JwksMockServer;
     use rstest::rstest;
 
-    fn create_test_client() -> Client {
-        Client::try_new(
+    pub fn create_test_oci_client_handler() -> ClientHandler {
+        ClientHandler::try_from_config(
             ClientConfig {
                 protocol: oci_client::client::ClientProtocol::Http,
                 ..Default::default()
@@ -171,7 +191,7 @@ pub mod tests {
             .collect();
         let jwks_server = JwksMockServer::new(jwks_keys);
 
-        let client = create_test_client();
+        let client = create_test_oci_client_handler();
         let image_ref = mock_server.reference();
         assert!(image_ref.digest().is_none()); // The reference to be verified doesn't have digest
 
@@ -200,7 +220,7 @@ pub mod tests {
         let jwks_keys = vec![serde_json::to_value(trusted_kp.public_key_jwk()).unwrap()];
         let jwks_server = JwksMockServer::new(jwks_keys);
 
-        let client = create_test_client();
+        let client = create_test_oci_client_handler();
         let image_ref = mock_server.reference();
 
         let result = client.verify_signature(&image_ref, &jwks_server.url);
@@ -214,7 +234,7 @@ pub mod tests {
             .with_layer(b"some content", "fake-media_type")
             .build();
 
-        let client = create_test_client();
+        let client = create_test_oci_client_handler();
         let reference = &server.reference();
         let (image_manifest, _) = client.pull_image_manifest(reference).unwrap();
         let layer = &image_manifest.layers[0];

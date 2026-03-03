@@ -1,4 +1,4 @@
-use crate::oci::Client;
+use crate::oci::ClientHandler;
 use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::utils::retry::retry;
 use oci_client::Reference;
@@ -26,7 +26,7 @@ pub trait OCIAgentDownloader: Send + Sync {
 // Make sure that we are not writing to disk to the same location from multiple threads.
 // This implementation avoids that since each download is expected to be done in a separate package directory.
 pub struct OCIArtifactDownloader {
-    client: Client,
+    client: ClientHandler,
     signature_verification_enabled: bool,
     max_retries: usize,
     retry_interval: Duration,
@@ -68,7 +68,7 @@ const DEFAULT_RETRIES: usize = 0;
 
 impl OCIArtifactDownloader {
     /// Returns an artifact downloader with default retries setup.
-    pub fn new(client: Client, signature_verification_enabled: bool) -> Self {
+    pub fn new(client: ClientHandler, signature_verification_enabled: bool) -> Self {
         OCIArtifactDownloader {
             client,
             signature_verification_enabled,
@@ -138,21 +138,18 @@ impl OCIArtifactDownloader {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_control::run::runtime::tests::tokio_runtime;
-    use crate::http::config::ProxyConfig;
-    use crate::oci::tests::FakeOciServer;
+    use super::*;
+
+    use crate::oci::tests::{FakeOciServer, create_test_oci_client_handler};
     use crate::package::oci::artifact_definitions::{
         LayerMediaType, ManifestArtifactType, PackageMediaType,
     };
     use crate::signature::public_key::tests::TestKeyPair;
     use crate::signature::public_key_fetcher::tests::JwksMockServer;
-
-    use super::*;
     use assert_matches::assert_matches;
     use httpmock::prelude::*;
     use mockall::mock;
     use oci_client::Reference;
-    use oci_client::client::{ClientConfig, ClientProtocol};
     use serde_json::json;
     use std::str::FromStr;
     use tempfile::tempdir;
@@ -421,15 +418,9 @@ pub mod tests {
     }
 
     fn create_downloader(signature_verification_enabled: bool) -> OCIArtifactDownloader {
-        let client = Client::try_new(
-            ClientConfig {
-                protocol: ClientProtocol::Http,
-                ..Default::default()
-            },
-            ProxyConfig::default(),
-            tokio_runtime(),
+        OCIArtifactDownloader::new(
+            create_test_oci_client_handler(),
+            signature_verification_enabled,
         )
-        .unwrap();
-        OCIArtifactDownloader::new(client, signature_verification_enabled)
     }
 }

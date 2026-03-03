@@ -1,4 +1,4 @@
-use super::{Client, OciClientError};
+use super::{ClientHandler, OciClientError};
 use crate::{
     http::{
         client::HttpClient,
@@ -55,7 +55,7 @@ struct Image {
     pub docker_manifest_digest: String,
 }
 
-impl Client {
+impl ClientHandler {
     /// Helper to build the [PublicKeyFetcher] corresponding to the client.
     pub(super) fn try_build_public_key_fetcher(
         proxy_config: ProxyConfig,
@@ -78,6 +78,8 @@ impl Client {
         reference: &Reference,
         public_keys: &[PublicKey],
     ) -> Result<Reference, OciClientError> {
+        let client = oci_client::Client::from_source(&self.config);
+
         // Resolve manifest digest
         let digest = match reference.digest() {
             Some(digest) => {
@@ -88,8 +90,7 @@ impl Client {
                 // We cannot use `pull_image_manifest` because, in multi-platform artifacts, we need to obtain the
                 // index manifest and `pull_image_manifest` would resolve such index and return the artifact's manifest
                 // instead.
-                let digest = self
-                    .client
+                let digest = client
                     .fetch_manifest_digest(reference, &self.auth)
                     .await
                     .map_err(|err| {
@@ -105,8 +106,7 @@ impl Client {
         debug!("Looking for signatures at: {}", signature_ref.whole());
 
         // Get the corresponding manifest
-        let (signature_manifest, _) = self
-            .client
+        let (signature_manifest, _) = client
             .pull_image_manifest(&signature_ref, &self.auth)
             .await
             .map_err(|err| {
@@ -116,7 +116,7 @@ impl Client {
         // Try to validate signature for each valid signature in the manifest's layers
         for layer in signature_manifest.layers {
             let Some(signature_data) = self
-                .try_get_signature_data_from_layer(layer, &signature_ref, &digest)
+                .try_get_signature_data_from_layer(&client, layer, &signature_ref, &digest)
                 .await?
             else {
                 continue;
@@ -161,6 +161,7 @@ impl Client {
     /// * `Ok(None)` if some conditions are not met (there is no error but no valid signature is found)
     async fn try_get_signature_data_from_layer(
         &self,
+        client: &oci_client::Client,
         layer: OciDescriptor,
         reference: &Reference,
         digest: &str,
@@ -181,7 +182,7 @@ impl Client {
         };
 
         let mut raw_data = Vec::new();
-        self.client
+        client
             .pull_blob(reference, &layer, &mut raw_data)
             .await
             .map_err(|err| {
@@ -276,6 +277,7 @@ mod tests {
         #[case] annotation_key: Option<&str>,
     ) {
         let client = create_test_client();
+        let oci_c = oci_client::Client::from_source(&client.config);
         let reference = Reference::from_str("localhost:1234/repo:tag").unwrap();
         let annotations = annotation_key.map(|k| {
             let mut m = BTreeMap::new();
@@ -289,6 +291,7 @@ mod tests {
         };
 
         let result = tokio_runtime().block_on(client.try_get_signature_data_from_layer(
+            &oci_c,
             layer,
             &reference,
             "sha256:abc",
@@ -312,9 +315,14 @@ mod tests {
         let reference =
             Reference::from_str(&format!("{}/{repo}:sha256-abc.sig", server.address())).unwrap();
 
-        let result = tokio_runtime().block_on(
-            create_test_client().try_get_signature_data_from_layer(layer, &reference, "sha256:abc"),
-        );
+        let client = create_test_client();
+        let oci_c = oci_client::Client::from_source(&client.config);
+        let result = tokio_runtime().block_on(client.try_get_signature_data_from_layer(
+            &oci_c,
+            layer,
+            &reference,
+            "sha256:abc",
+        ));
 
         assert_matches!(result, Err(OciClientError::Verify(_)));
     }
@@ -349,12 +357,14 @@ mod tests {
             Reference::from_str(&format!("{}/{repo}:sha256-expected.sig", server.address()))
                 .unwrap();
 
-        let result =
-            tokio_runtime().block_on(create_test_client().try_get_signature_data_from_layer(
-                layer,
-                &reference,
-                expected_digest,
-            ));
+        let client = create_test_client();
+        let oci_c = oci_client::Client::from_source(&client.config);
+        let result = tokio_runtime().block_on(client.try_get_signature_data_from_layer(
+            &oci_c,
+            layer,
+            &reference,
+            expected_digest,
+        ));
 
         assert_matches!(result, Ok(None));
     }
@@ -379,12 +389,14 @@ mod tests {
             Reference::from_str(&format!("{}/{repo}:sha256-expected.sig", server.address()))
                 .unwrap();
 
-        let sig_data_result =
-            tokio_runtime().block_on(create_test_client().try_get_signature_data_from_layer(
-                layer,
-                &reference,
-                expected_digest,
-            ));
+        let client = create_test_client();
+        let oci_c = oci_client::Client::from_source(&client.config);
+        let sig_data_result = tokio_runtime().block_on(client.try_get_signature_data_from_layer(
+            &oci_c,
+            layer,
+            &reference,
+            expected_digest,
+        ));
 
         assert_matches!(sig_data_result, Ok(Some(s)) => {
             assert_eq!(s.message, payload);
@@ -494,8 +506,8 @@ mod tests {
         assert_eq!(parsed.optional.unwrap().get("creator").unwrap(), "cosign");
     }
 
-    fn create_test_client() -> crate::oci::Client {
-        crate::oci::Client::try_new(
+    fn create_test_client() -> crate::oci::ClientHandler {
+        crate::oci::ClientHandler::try_from_config(
             ClientConfig {
                 protocol: ClientProtocol::Http,
                 ..Default::default()
