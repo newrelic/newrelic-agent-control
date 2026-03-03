@@ -1231,7 +1231,7 @@ pub mod tests {
                 // The `echo` commands should write to stdout, so we look for these files only.
                 // Filtering by prefix because the timestamp is appended to the file name.
                 p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().contains(STDOUT_LOG_FILE_NAME_SUFFIX))
+                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME_SUFFIX))
             })
             .map(|p| fs::read_to_string(p).unwrap_or_default())
             // we just merge all contents
@@ -1361,7 +1361,7 @@ pub mod tests {
                 // The `echo` commands should write to stdout, so we look for these files only.
                 // Filtering by prefix because the timestamp is appended to the file name.
                 p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().contains(STDOUT_LOG_FILE_NAME_SUFFIX))
+                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME_SUFFIX))
             })
             .map(|p| fs::read_to_string(p).unwrap_or_default())
             // we just merge all contents
@@ -1491,7 +1491,7 @@ pub mod tests {
                 // The `echo` commands should write to stdout, so we look for these files only.
                 // Filtering by prefix because the timestamp is appended to the file name.
                 p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().contains(STDOUT_LOG_FILE_NAME_SUFFIX))
+                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME_SUFFIX))
             })
             .map(|p| fs::read_to_string(p).unwrap_or_default())
             // we just merge all contents to handle the corner case of multiple log files
