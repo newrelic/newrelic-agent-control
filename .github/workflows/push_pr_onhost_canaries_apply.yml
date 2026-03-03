@@ -36,7 +36,9 @@ jobs:
     with:
       environment: ${{ matrix.environment }}
       fleet_id: ${{ matrix.fleet_id }}
+      windows_fleet_id: ${{ matrix.windows_fleet_id }}
       operation: apply
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+      AC_CANARY_WINDOWS_PASSWORD: ${{ secrets.AC_CANARY_WINDOWS_PASSWORD }}
