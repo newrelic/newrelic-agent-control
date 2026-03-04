@@ -61,7 +61,7 @@ variable "signature_validation_endpoint" {
 
 variable "windows_password" {
   description = "windows ami password"
-  type = string
+  type        = string
 }
 
 locals {
@@ -107,7 +107,7 @@ locals {
   // If env-provisioner changes the way it computes the hostnames, we need to change
   // it here too. However, terraform plan will properly list all the resources that
   // will be created and we can spot any problems with the hostnames.
-  hostnames = [for k, v in local.ec2_instances : "${var.ec2_prefix}-${replace(k, "/[:._]/", "-")}"]
+  hostnames     = [for k, v in local.ec2_instances : "${var.ec2_prefix}-${replace(k, "/[:._]/", "-")}"]
   infra_staging = var.nr_region == "Staging" ? "true" : "false"
 }
 
@@ -170,30 +170,12 @@ module "alerts" {
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
     {
-      name          = "CPU usage (percentage)"
-      metric        = "max(cpuPercent) OR 0"
-      sample        = "ProcessSample"
-      threshold     = 0
-      duration      = 3600
-      operator      = "below_or_equals"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
-    },
-    {
       name          = "Memory usage (bytes)"
       metric        = "max(memoryResidentSizeBytes) OR 0"
       sample        = "ProcessSample"
       threshold     = 42000000
       duration      = 600
       operator      = "above"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
-    },
-    {
-      name          = "Memory usage (bytes)"
-      metric        = "max(memoryResidentSizeBytes) OR 0"
-      sample        = "ProcessSample"
-      threshold     = 0
-      duration      = 600
-      operator      = "below_or_equals"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
     {
@@ -212,6 +194,15 @@ module "alerts" {
       threshold     = 20000
       duration      = 300
       operator      = "above"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    },
+    {
+      name          = "Agent Control metrics presence"
+      metric        = "count(*)"
+      sample        = "ProcessSample"
+      threshold     = 0
+      duration      = 3600
+      operator      = "below_or_equals"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
   ]
