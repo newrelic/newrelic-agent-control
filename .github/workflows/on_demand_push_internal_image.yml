@@ -80,7 +80,7 @@ jobs:
           docker buildx build \
             --push \
             --platform=$DOCKER_PLATFORMS \
-            -t ghcr.io/${{ github.repository_owner }}/newrelic-agent-control:dev-${{ inputs.image-tag }} \
+            -t ghcr.io/${{ github.repository_owner }}/newrelic-agent-control-dev:${{ inputs.image-tag }} \
             --file Dockerfiles/Dockerfile_agent_control \
             --attest type=provenance,mode=max \
             --attest type=sbom \
@@ -88,7 +88,7 @@ jobs:
           docker buildx build \
             --push \
             --platform=$DOCKER_PLATFORMS \
-            -t ghcr.io/${{ github.repository_owner }}/newrelic-agent-control-cli:dev-${{ inputs.image-tag }} \
+            -t ghcr.io/${{ github.repository_owner }}/newrelic-agent-control-cli-dev:${{ inputs.image-tag }} \
             --file Dockerfiles/Dockerfile_agent_control_cli \
             --attest type=provenance,mode=max \
             --attest type=sbom \
