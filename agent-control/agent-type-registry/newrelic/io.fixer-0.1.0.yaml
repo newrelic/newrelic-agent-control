@@ -1,11 +1,11 @@
 namespace: newrelic
-name: io.fluentbit
+name: io.fixer
 version: 0.1.0
 variables:
   k8s:
     chart_values:
       fixer:
-        description: "Newrelic newrelic-fixer chart values"
+        description: "Newrelic newrelic-logging chart values"
         type: yaml
         required: false
         default: { }
