@@ -61,7 +61,7 @@ deployment:
           chart:
             spec:
               chart: ./charts/fixer
-              version: ${nr-var:chart_version}
+              version: 0.1.0
               reconcileStrategy: ChartVersion
               sourceRef:
                 kind: GitRepository
