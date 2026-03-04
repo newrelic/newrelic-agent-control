@@ -14,7 +14,7 @@ pub fn local_config_path(agent_id: &str) -> String {
     format!(r"/etc/newrelic-agent-control/local-data/{agent_id}/local_config.yaml")
 }
 
-const DEFAULT_LOG_PATH: &str = "/var/log/newrelic-agent-control/newrelic-agent-control.log";
+const DEFAULT_LOG_PATH: &str = "/var/log/newrelic-agent-control/agent-control/";
 
 const SERVICE_NAME: &str = "newrelic-agent-control";
 

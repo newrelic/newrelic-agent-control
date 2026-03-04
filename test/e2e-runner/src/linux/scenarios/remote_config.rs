@@ -39,7 +39,7 @@ pub fn test_remote_config_is_applied(args: Args) {
     config::append_to_config_file(ENV_VARS_FILE, format!("TEST_ID: {test_id}").as_str());
 
     info!("Setup Agent Control config for debug logging");
-    config::update_config_for_debug_logging(linux::DEFAULT_AC_CONFIG_PATH, linux::DEFAULT_LOG_PATH);
+    config::update_config_for_debug_logging(linux::DEFAULT_AC_CONFIG_PATH);
 
     info!("Setup infra-agent config");
     config::write_agent_local_config(

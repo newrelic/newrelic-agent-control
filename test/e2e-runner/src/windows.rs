@@ -18,7 +18,7 @@ const DEFAULT_AC_CONFIG_PATH: &str =
     r"C:\Program Files\New Relic\newrelic-agent-control\local-data\agent-control\local_config.yaml";
 
 const DEFAULT_LOG_PATH: &str =
-    r"C:\ProgramData\New Relic\newrelic-agent-control\logs\newrelic-agent-control.log";
+    r"C:\ProgramData\New Relic\newrelic-agent-control\logs\agent-control\";
 
 pub fn local_config_path(agent_id: &str) -> String {
     format!(
