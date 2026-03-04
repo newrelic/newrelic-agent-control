@@ -177,6 +177,7 @@
         url: "{{ repo_endpoint }}/binaries/windows/amd64/newrelic-agent-control_{{ package_version }}_windows_amd64.zip"
         dest: "C:\\temp\\newrelic-agent-control_{{ package_version }}_windows_amd64.zip"
         force: yes
+      when: package_version | length > 0
 
     - name: Extract Agent Control zip
       ansible.windows.win_powershell:
@@ -189,6 +190,7 @@
           }
 
           Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+      when: package_version | length > 0
 
     - name: Import the L2 private key from env-var
       copy:

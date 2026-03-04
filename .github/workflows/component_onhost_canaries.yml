@@ -1,6 +1,25 @@
 name: 📞 Onhost canaries operation
 
 on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        required: true
+        type: string
+      operation:
+        required: true
+        type: string
+      fleet_id:
+        required: true
+        type: string
+      windows_fleet_id:
+        required: true
+        type: string
+      package_version:
+        required: false
+        type: string
+        default: ""
+
   workflow_call:
     secrets:
       AWS_ROLE_ARN:
