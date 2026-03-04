@@ -15,7 +15,39 @@ fn main() {
     // setup the env variable for the generated registry path
     println!("cargo:rustc-env=GENERATED_REGISTRY_FILE={GENERATED_REGISTRY_FILE}");
     // re-run only if the registry has changed
-    println!("cargo:rerun-if-changed={REGISTRY_PATH}")
+    println!("cargo:rerun-if-changed={REGISTRY_PATH}");
+    set_git_commit();
+}
+
+fn set_git_commit() {
+    // Re-run whenever the commit or index changes.
+    println!("cargo:rerun-if-changed=.git/HEAD");
+    println!("cargo:rerun-if-changed=.git/index");
+
+    let commit = std::process::Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let dirty = std::process::Command::new("git")
+        .args(["status", "--porcelain"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| !o.stdout.is_empty())
+        .unwrap_or(false);
+
+    let value = if dirty {
+        format!("{commit}-dirty")
+    } else {
+        commit
+    };
+
+    println!("cargo:rustc-env=GIT_COMMIT={value}");
 }
 
 fn generate_agent_type_registry() {
