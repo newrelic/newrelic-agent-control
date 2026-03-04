@@ -1,0 +1,96 @@
+name: ⏯️🚀 Custom Image Build
+
+# This workflow compiles the agent control binary in all supported architectures
+# build the multi-arch image and push it to the repo packages registry.  
+
+on:
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        description: 'Image tag'
+        type: string
+        required: true
+      branch:
+        description: 'Branch to checkout for the build'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-image:
+    runs-on: ubuntu-latest
+    name: Build/Push images
+    env:
+      DOCKER_PLATFORMS: "linux/amd64,linux/arm64"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.branch }}
+
+      - uses: ./.github/actions/install-rust-toolchain
+        with:
+          targets: >-
+            aarch64-unknown-linux-musl,
+            x86_64-unknown-linux-musl
+
+      - name: cargo generate-lockfile
+        if: hashFiles('Cargo.lock') == ''
+        run: cargo generate-lockfile
+
+      - uses: ./.github/actions/rust-cache
+        with:
+          identifier: 'release'
+          restore-strategy: 'nearest'
+          save-cache: false
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
+
+      - uses: taiki-e/install-action@d6e286fa45544157a02d45a43742857ebbc25d12 # v2.68.16
+        with:
+          tool: cargo-zigbuild@0.20.1
+
+      - name: Build Agent Control for K8s
+        env:
+          AGENT_CONTROL_VERSION: "dev-build"
+        run: |
+          make build-agent-control-k8s ARCH=arm64 PKG=newrelic_agent_control
+          make build-agent-control-k8s ARCH=amd64 PKG=newrelic_agent_control
+          
+          # We do not do it in parallel because most of the dependencies are shared
+          make build-agent-control-k8s-cli ARCH=arm64 PKG=newrelic_agent_control
+          make build-agent-control-k8s-cli ARCH=amd64 PKG=newrelic_agent_control
+
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push images
+        run: |
+          docker buildx build \
+            --push \
+            --platform=$DOCKER_PLATFORMS \
+            -t ghcr.io/${{ github.repository_owner }}/newrelic-agent-control:${{ inputs.image-tag }} \
+            --file Dockerfiles/Dockerfile_agent_control \
+            --attest type=provenance,mode=max \
+            --attest type=sbom \
+            .
+          docker buildx build \
+            --push \
+            --platform=$DOCKER_PLATFORMS \
+            -t ghcr.io/${{ github.repository_owner }}/newrelic-agent-control-cli:${{ inputs.image-tag }} \
+            --file Dockerfiles/Dockerfile_agent_control_cli \
+            --attest type=provenance,mode=max \
+            --attest type=sbom \
+            .
+
