@@ -1,5 +1,5 @@
 use super::SecretsProvider;
-use crate::http::client::{HttpBuildError, HttpClient};
+use crate::http::client::{HttpBuildError, HttpClient, HttpResponseError};
 use crate::http::config::{HttpConfig, ProxyConfig};
 use duration_str::deserialize_duration;
 use http::header::InvalidHeaderValue;
@@ -28,7 +28,9 @@ pub enum VaultError {
     #[error("could not parse mount and path for secret source: {0}")]
     ParseError(#[from] ParseError),
 
-    #[error("error deserializing the config: {0}")]
+    #[error(
+        "error deserializing the JSON config. Check your Vault endpoint URL (is /v1/ missing?): {0}"
+    )]
     SerdeError(#[from] Error),
 
     /// Represents an error building the HttpClient
@@ -49,6 +51,9 @@ pub enum VaultError {
 
     #[error("secret not found in the specified source")]
     NotFound,
+
+    #[error("source url can't be reached: {0}")]
+    ConnectionFailed(String),
 
     #[error("{0}")]
     GenericError(String),
@@ -246,10 +251,24 @@ impl SecretsProvider for Vault {
             HeaderValue::from_str(vault_source.token.as_str())?,
         );
 
-        let response = self
-            .client
-            .send(request)
-            .map_err(|e| VaultError::HttpTransportError(e.to_string()))?;
+        let response = match self.client.send(request) {
+            Ok(res) => res,
+            Err(e) => {
+                return match e {
+                    HttpResponseError::UnsuccessfulResponse {
+                        status_code,
+                        body: _,
+                    } => match status_code.as_u16() {
+                        404 => Err(VaultError::NotFound),
+                        _ => Err(VaultError::GenericError(format!(
+                            "the vault source responded with status: {}",
+                            status_code
+                        ))),
+                    },
+                    _ => Err(VaultError::ConnectionFailed(e.to_string())),
+                };
+            }
+        };
 
         let body = String::from_utf8(response.into_body())
             .map_err(|e| VaultError::DeserializeError(format!("invalid utf8 response: {e}")))?;
@@ -411,57 +430,112 @@ client_timeout: 3s
     }
 
     #[test]
-    fn test_get_secret_error_handling() {
+    fn test_vault_error_responses() {
         let target_server = MockServer::start();
 
         target_server.mock(|when, then| {
-            when.method(GET).path("/v1/kv/forbidden");
-            then.status(403).body("permission denied");
+            when.method(GET).path("/v1/kv1/forbidden");
+            then.status(403);
         });
-
         target_server.mock(|when, then| {
-            when.method(GET).path("/v1/kv/server-error");
-            then.status(500).body("internal server error");
-        });
-
-        target_server.mock(|when, then| {
-            when.method(GET).path("/v1/kv/bad-json");
+            when.method(GET).path("/v1/kv1/bad-json");
             then.status(200).body("this is not json");
+        });
+
+        // KV2 Errors
+        target_server.mock(|when, then| {
+            when.method(GET).path("/v1/secret/data/missing");
+            then.status(404);
+        });
+        target_server.mock(|when, then| {
+            // Vault returns when it is sealed or in standby mode without a leader
+            when.method(GET).path("/v1/secret/data/broken");
+            then.status(503);
         });
 
         let vault_config = format!(
             r#"
 sources:
-  errorsource:
+  source_kv1:
     url: {}/v1/
     token: root
     engine: kv1
+  source_kv2:
+    url: {}/v1
+    token: root
+    engine: kv2
 "#,
+            target_server.base_url(),
             target_server.base_url()
         );
-        let parsed_vault_config =
-            serde_yaml::from_str::<VaultConfig>(vault_config.as_str()).unwrap();
-        let vault_client = Vault::try_build(parsed_vault_config).unwrap();
+        let parsed_config = serde_yaml::from_str::<VaultConfig>(&vault_config).unwrap();
+        let vault = Vault::try_build(parsed_config).unwrap();
 
-        let result_403 = vault_client.get_secret("errorsource:kv:forbidden:any");
-        assert_matches!(result_403, Err(VaultError::HttpTransportError(_)));
-        assert!(
-            result_403
-                .unwrap_err()
-                .to_string()
-                .contains("403 Forbidden")
-        );
+        // 3. Define and run test cases
+        struct ErrorCase {
+            path: &'static str,
+            expected_match: fn(Result<String, VaultError>),
+        }
 
-        let result_500 = vault_client.get_secret("errorsource:kv:server-error:any");
-        assert_matches!(result_500, Err(VaultError::HttpTransportError(_)));
-        assert!(
-            result_500
-                .unwrap_err()
-                .to_string()
-                .contains("500 Internal Server Error")
-        );
+        let cases = vec![
+            ErrorCase {
+                path: "source_kv1:kv1:forbidden:any",
+                expected_match: |res| assert_matches!(res, Err(VaultError::GenericError(m)) if m.contains("403")),
+            },
+            ErrorCase {
+                path: "source_kv1:kv1:bad-json:any",
+                expected_match: |res| assert_matches!(res, Err(VaultError::SerdeError(_))),
+            },
+            ErrorCase {
+                path: "source_kv2:secret:missing:key",
+                expected_match: |res| assert_matches!(res, Err(VaultError::NotFound)),
+            },
+            ErrorCase {
+                path: "source_kv2:secret:broken:key",
+                expected_match: |res| assert_matches!(res, Err(VaultError::GenericError(m)) if m.contains("503")),
+            },
+        ];
 
-        let result_bad_json = vault_client.get_secret("errorsource:kv:bad-json:any");
-        assert_matches!(result_bad_json, Err(VaultError::SerdeError(_)));
+        for case in cases {
+            (case.expected_match)(vault.get_secret(case.path));
+        }
+    }
+
+    #[test]
+    fn test_connection_failed() {
+        let vault_config = VaultConfig {
+            sources: {
+                let mut map = HashMap::new();
+                map.insert(
+                    "bad_source".to_string(),
+                    VaultSourceConfig {
+                        url: Url::parse("http://127.0.0.1:1").unwrap(),
+                        token: "foo".to_string(),
+                        engine: SecretEngine::Kv1,
+                    },
+                );
+                map
+            },
+            ..Default::default()
+        };
+
+        let vault = Vault::try_build(vault_config).unwrap();
+        let result = vault.get_secret("bad_source:mnt:path:name");
+
+        assert_matches!(result, Err(VaultError::ConnectionFailed(_)));
+    }
+
+    #[test]
+    fn test_vault_source_trailing_slash_logic() {
+        let config = VaultSourceConfig {
+            url: Url::parse("http://localhost:8200/v1").unwrap(),
+            token: "tok".to_string(),
+            engine: SecretEngine::Kv1,
+        };
+
+        let source = VaultSource::new(config);
+        // VaultSource::new ensures the URL ends with a slash so join() works correctly
+        assert!(source.url.as_str().ends_with('/'));
+        assert_eq!(source.url.as_str(), "http://localhost:8200/v1/");
     }
 }
