@@ -92,7 +92,7 @@ $acExecPath = [IO.Path]::Combine($acProgramFilesDir, 'newrelic-agent-control.exe
 $installMarkerPath = [IO.Path]::Combine($acProgramFilesDir, '.nr-ac-install')
 
 $acDataDir = [IO.Path]::Combine($env:ProgramData, 'New Relic\newrelic-agent-control')
-$acLogsDir = [IO.Path]::Combine($acDataDir, 'logs')
+$acLogsDir = [IO.Path]::Combine($acDataDir, 'log')
 
 # If the service already exists and overwriting is allowed, the service is stopped and removed.
 $existingService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
