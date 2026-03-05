@@ -153,4 +153,5 @@ tokio-console = ["tokio/full", "tokio/tracing", "dep:console-subscriber"]
 multiple-instances = []
 # Disable the need to run AC as root. Useful for testing and development.
 disable-asroot = []
-dhat-heap = ["dep:dhat"] # to perform heap profiling
+dhat-heap = ["dep:dhat"]   # to perform heap profiling
+dhat-ad-hoc = ["dep:dhat"] # to perform ad hoc profiling

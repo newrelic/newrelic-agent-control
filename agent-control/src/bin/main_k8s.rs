@@ -20,6 +20,8 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 fn main() -> ExitCode {
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
+    #[cfg(feature = "dhat-ad-hoc")]
+    let _profiler = dhat::Profiler::new_ad_hoc();
 
     #[cfg(target_family = "unix")]
     return Command::run(AGENT_CONTROL_MODE_K8S, _main);

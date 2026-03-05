@@ -26,6 +26,8 @@ windows_service::define_windows_service!(ffi_service_main, service_main);
 fn main() -> ExitCode {
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
+    #[cfg(feature = "dhat-ad-hoc")]
+    let _profiler = dhat::Profiler::new_ad_hoc();
 
     #[cfg(target_family = "unix")]
     {
