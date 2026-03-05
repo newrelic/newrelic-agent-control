@@ -46,7 +46,4 @@ windows = "0.62.2"
 windows-sys = "0.61.2"
 
 [profile.release]
-# remove debug symbols from the release binary
-# After <https://github.com/rust-lang/cargo/pull/13257> this is the default
-# behavior for cargo, unless debuginfo is enabled for any compiled package
-strip = "debuginfo"
+debug = 1
