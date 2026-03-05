@@ -74,8 +74,8 @@ impl TryFrom<YAMLConfig> for SecretVariables {
 
 #[derive(thiserror::Error, Debug)]
 pub enum SecretVariablesError {
-    #[error("failed to load secret: {0}")]
-    SecretsLoadError(String),
+    #[error("failed to load secret {path}: {err_msg}")]
+    SecretsLoadError { path: String, err_msg: String },
 
     #[error("failed to parse yaml config")]
     YamlParseError,
@@ -98,9 +98,12 @@ impl SecretVariables {
             };
 
             for secret_path in secrets_paths {
-                let secret_value = provider
-                    .get_secret(secret_path)
-                    .map_err(|_| SecretVariablesError::SecretsLoadError(secret_path.to_string()))?;
+                let secret_value = provider.get_secret(secret_path).map_err(|e| {
+                    SecretVariablesError::SecretsLoadError {
+                        path: secret_path.to_string(),
+                        err_msg: e.to_string(),
+                    }
+                })?;
                 result.insert(
                     namespace.namespaced_name(secret_path),
                     Variable::new_final_string_variable(secret_value),
