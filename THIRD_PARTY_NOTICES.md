@@ -474,12 +474,6 @@ Distributed under the following license(s):
 
 * Zlib
 
-## const_panic <https://crates.io/crates/const_panic>
-
-Distributed under the following license(s):
-
-* Zlib
-
 ## constant_time_eq <https://crates.io/crates/constant_time_eq>
 
 Distributed under the following license(s):
@@ -1288,18 +1282,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * Apache-2.0
-
-## konst <https://crates.io/crates/konst>
-
-Distributed under the following license(s):
-
-* Zlib
-
-## konst_proc_macros <https://crates.io/crates/konst_proc_macros>
-
-Distributed under the following license(s):
-
-* Zlib
 
 ## kube <https://crates.io/crates/kube>
 
@@ -2606,12 +2588,6 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
-
-## typewit <https://crates.io/crates/typewit>
-
-Distributed under the following license(s):
-
-* Zlib
 
 ## ucd-trie <https://crates.io/crates/ucd-trie>
 

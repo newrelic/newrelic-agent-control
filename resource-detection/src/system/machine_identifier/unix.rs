@@ -6,13 +6,17 @@ use fs::file::reader::FileReader;
 
 use crate::system::detector::SystemDetectorError;
 
-const MACHINE_ID_PATH: &str =
-    konst::option::unwrap_or!(option_env!("TEST_MACHINE_ID_PATH"), "/etc/machine-id");
+const MACHINE_ID_PATH: &str = if let Some(v) = option_env!("TEST_MACHINE_ID_PATH") {
+    v
+} else {
+    "/etc/machine-id"
+};
 
-const DBUS_MACHINE_ID_PATH: &str = konst::option::unwrap_or!(
-    option_env!("TEST_DBUS_MACHINE_ID_PATH"),
+const DBUS_MACHINE_ID_PATH: &str = if let Some(v) = option_env!("TEST_DBUS_MACHINE_ID_PATH") {
+    v
+} else {
     "/var/lib/dbus/machine-id"
-);
+};
 
 pub struct MachineIdentityProvider<F = LocalFile> {
     machine_id_path: PathBuf,

@@ -16,7 +16,6 @@ tracing = { workspace = true }
 serde_json = { workspace = true }
 http = { workspace = true }
 fs = { path = "../fs" }
-konst = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-link = "0.2.1"
