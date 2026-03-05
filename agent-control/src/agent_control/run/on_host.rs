@@ -38,7 +38,9 @@ use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::values::ConfigRepo;
 use fs::directory_manager::DirectoryManagerFs;
-use oci_client::client::{ClientConfig, ClientProtocol};
+use oci_client::client::ClientConfig;
+#[cfg(debug_assertions)]
+use oci_client::client::ClientProtocol;
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
