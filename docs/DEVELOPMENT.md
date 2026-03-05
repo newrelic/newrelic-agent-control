@@ -282,6 +282,41 @@ By default, this will generate a report in `lcov` format on `coverage/lcov.info`
 COVERAGE_OUT_FORMAT=json COVERAGE_OUT_FILEPATH=jcov-info.json make coverage
 ```
 
+## Codeql
+
+Codeql is executed automatically in GitHub pipelines, in order to check the results locally you need to install the tool and download rust queries:
+
+```console
+❯ brew install codeql
+
+❯ codeql pack download codeql/rust-queries
+```
+
+Build the source-code database:
+
+```console
+❯ codeql database create codeql-db \
+  --language=rust \
+  --command="cargo build" \
+  --source-root=. \
+  --overwrite
+```
+
+Analyze:
+
+```console
+❯ codeql database analyze codeql-db \
+  codeql/rust-queries:codeql-suites/rust-security-extended.qls \
+  --format=sarif-latest \
+  --output=results.sarif
+```
+
+Check the results
+
+```console
+❯ cat results.sarif | jq '.runs[0].results[] | {ruleId, message: .message.text, location: .locations[0].physicalLocation}'
+```
+
 ## Additional information
 
 We maintain separate directories for other documented topics under this `docs` directory and in other Markdown files throughout the codebase. The latter will be centralized under the `docs` directory over time. Feel free to check these documents and ask doubts or propose changes!
