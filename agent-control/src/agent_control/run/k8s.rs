@@ -31,7 +31,7 @@ use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
 use crate::opamp::instance_id::storer::Storer;
-use crate::opamp::operations::build_opamp_with_channel;
+use crate::opamp::operations::{build_opamp_http_builder, build_opamp_with_channel};
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::secret_retriever::k8s::retrieve::K8sSecretRetriever;
@@ -74,7 +74,7 @@ impl AgentControlRunner {
         );
 
         let opamp_http_builder =
-            Self::build_opamp_http_builder(self.opamp, self.proxy.clone(), secret_retriever)?;
+            build_opamp_http_builder(self.opamp, self.proxy.clone(), secret_retriever)?;
 
         let config_repository = ConfigRepo::new(k8s_store.clone());
         let yaml_config_repository = Arc::new(if opamp_http_builder.is_some() {

@@ -23,7 +23,7 @@ use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
 use crate::opamp::instance_id::storer::Storer;
-use crate::opamp::operations::build_opamp_with_channel;
+use crate::opamp::operations::{build_opamp_http_builder, build_opamp_with_channel};
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::package::oci::downloader::OCIArtifactDownloader;
@@ -69,7 +69,7 @@ impl AgentControlRunner {
         );
 
         let opamp_http_builder =
-            Self::build_opamp_http_builder(self.opamp, self.proxy.clone(), secret_retriever)?;
+            build_opamp_http_builder(self.opamp, self.proxy.clone(), secret_retriever)?;
 
         debug!("Initializing yaml_config_repository");
         let config_repository = ConfigRepo::new(file_store.clone());

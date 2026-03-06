@@ -10,21 +10,18 @@ use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
 use crate::http::config::ProxyConfig;
-use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::client_builder::PollInterval;
-use crate::opamp::http::builder::{HttpClientBuilder, OpAMPHttpClientBuilder};
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
-use crate::secret_retriever::OpampSecretRetriever;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tracing::{debug, error};
+use tracing::debug;
 
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
-pub struct RunError(String);
+pub struct RunError(pub String);
 
 // k8s and on_host need to be public to allow integration tests to access the fn run_agent_control.
 
@@ -168,43 +165,6 @@ impl AgentControlRunner {
         match self.ac_running_mode {
             Environment::Linux | Environment::Windows => self.run_onhost(),
             Environment::K8s => self.run_k8s(),
-        }
-    }
-
-    pub fn build_opamp_http_builder<R>(
-        opamp_config: Option<OpAMPClientConfig>,
-        proxy: ProxyConfig,
-        retriever: R,
-    ) -> Result<Option<impl HttpClientBuilder>, RunError>
-    where
-        R: OpampSecretRetriever,
-    {
-        if let Some(opamp_config) = opamp_config {
-            debug!("OpAMP configuration found, creating an OpAMP client builder");
-
-            let private_key = retriever
-                .retrieve()
-                .map_err(|e| RunError(format!("error trying to get secret or private key {e}")))?;
-
-            let token_retriever = Arc::new(
-                TokenRetrieverImpl::try_build(
-                    opamp_config.clone().auth_config,
-                    private_key,
-                    proxy.clone(),
-                )
-                .inspect_err(|err| error!("Could not build OpAMP's token retriever: {err}"))
-                .map_err(|e| {
-                    RunError(format!(
-                        "error trying to build OpAMP's token retriever: {e}"
-                    ))
-                })?,
-            );
-
-            let http_builder = OpAMPHttpClientBuilder::new(opamp_config, proxy, token_retriever);
-
-            Ok(Some(http_builder))
-        } else {
-            Ok(None)
         }
     }
 }
