@@ -10,6 +10,7 @@ use crate::agent_control::{
     config_repository::{repository::AgentControlConfigLoader, store::AgentControlConfigStore},
     run::BasePaths,
 };
+use crate::cli::on_host::dry_run::opamp::check_connectivity;
 use crate::event::ApplicationEvent;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
 use crate::instrumentation::tracing::{TracingConfig, TracingGuardBox, try_init_tracing};
@@ -137,7 +138,29 @@ impl Command {
         match parsed.subcommand {
             Some(SubCommand::Version) => Command::print_version(running_mode),
             Some(SubCommand::Verify) => {
-                //todo
+                let result = Command::build_context(
+                    running_mode,
+                    &parsed.args,
+                    #[cfg(target_os = "windows")]
+                    false,
+                );
+                let Ok(context) = result else {
+                    println!(
+                        "Agent Control configuration verification failed: {}",
+                        result.err().unwrap()
+                    );
+                    return ExitCode::FAILURE;
+                };
+
+                if check_connectivity(context).is_err() {
+                    println!(
+                        "Agent Control connectivity verification failed. Please check the configuration and connectivity to dependencies."
+                    );
+                    return ExitCode::FAILURE;
+                }
+
+                println!("Agent Control configuration and connectivity verification succeeded.");
+
                 ExitCode::SUCCESS
             }
             None => {
