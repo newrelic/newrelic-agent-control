@@ -73,6 +73,7 @@ tar = "0.4.44"
 zip = "8.2.0"
 oci-client = { version = "0.16.1", features = ["rustls-tls"], default-features = false }
 rustls-pki-types = { version = "1.14.0", features = ["std"] }
+prost = "0.14.3"
 
 [target.'cfg(target_family = "unix")'.dependencies]
 nix = { workspace = true, features = ["signal", "user", "hostname"] }
@@ -104,7 +105,6 @@ jsonwebtoken = { workspace = true }
 fs = { path = "../fs", features = ["mocks"] }
 tokio = { version = "1.50.0", features = ["rt-multi-thread", "macros"] }
 fake = { version = "4.4.0", features = ["derive", "http"] }
-prost = "0.14.3"
 httpmock = { version = "0.8.3", features = ["proxy"] }
 serial_test = "3.4.0"
 futures = "0.3.32"

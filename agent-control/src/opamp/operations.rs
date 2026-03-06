@@ -3,10 +3,16 @@ use super::{
     client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
     instance_id::getter::InstanceIDGetter,
 };
+use crate::agent_control::config::OpAMPClientConfig;
 use crate::agent_control::defaults::{
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
     PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_custom_capabilities,
 };
+use crate::agent_control::run::RunError;
+use crate::http::config::ProxyConfig;
+use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
+use crate::opamp::http::builder::{HttpClientBuilder, OpAMPHttpClientBuilder};
+use crate::secret_retriever::OpampSecretRetriever;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::{
     agent_control::agent_id::AgentID,
@@ -21,7 +27,8 @@ use opamp_client::{
     operation::settings::{AgentDescription, DescriptionValueType, StartSettings},
 };
 use std::collections::HashMap;
-use tracing::info;
+use std::sync::Arc;
+use tracing::{debug, error, info};
 
 pub fn build_sub_agent_opamp<OB, IG>(
     opamp_builder: &OB,
@@ -126,4 +133,37 @@ pub fn stop_opamp_client<C: StartedClient>(
         client.stop()?;
     }
     Ok(())
+}
+
+pub fn build_opamp_http_builder<R>(
+    opamp_config: Option<OpAMPClientConfig>,
+    proxy: ProxyConfig,
+    retriever: R,
+) -> Result<Option<impl HttpClientBuilder>, RunError>
+where
+    R: OpampSecretRetriever,
+{
+    let Some(opamp_config) = opamp_config else {
+        return Ok(None);
+    };
+
+    debug!("OpAMP configuration found, creating an OpAMP client builder");
+
+    let private_key = retriever
+        .retrieve()
+        .map_err(|e| RunError(format!("error trying to get secret or private key {e}")))?;
+
+    let token_retriever = Arc::new(
+        TokenRetrieverImpl::try_build(opamp_config.clone().auth_config, private_key, proxy.clone())
+            .inspect_err(|err| error!("Could not build OpAMP's token retriever: {err}"))
+            .map_err(|e| {
+                RunError(format!(
+                    "error trying to build OpAMP's token retriever: {e}"
+                ))
+            })?,
+    );
+
+    let http_builder = OpAMPHttpClientBuilder::new(opamp_config, proxy, token_retriever);
+
+    Ok(Some(http_builder))
 }
