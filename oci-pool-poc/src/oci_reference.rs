@@ -1,216 +1,251 @@
 use std::{fmt, str::FromStr};
 
-use thiserror::Error;
+use oci_spec::distribution::{ParseError, Reference};
 
-/// NAME_TOTAL_LENGTH_MAX is the maximum total number of characters in a repository name.
 const NAME_TOTAL_LENGTH_MAX: usize = 255;
+const DOCKER_HUB_DOMAIN: &str = "docker.io";
+const DOCKER_HUB_DOMAIN_LEGACY: &str = "index.docker.io";
+const DOCKER_HUB_OFFICIAL_REPO_NAME: &str = "library";
+const DEFAULT_TAG: &str = "latest";
 
-/// Reasons that parsing a string as a Reference can fail.
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum ParseError {
-    /// Will be returned if digest is ill-formed
-    #[error("invalid checksum digest format")]
-    DigestInvalidFormat,
-    /// Will be returned if digest does not have a correct length
-    #[error("invalid checksum digest length")]
-    DigestInvalidLength,
-    /// Will be returned for an unknown digest algorithm
-    #[error("unsupported digest algorithm")]
-    DigestUnsupported,
-    /// Will be returned for an uppercase character in repository name
-    #[error("repository name must be lowercase")]
-    NameContainsUppercase,
-    /// Will be returned if a name is empty
-    #[error("repository name must have at least one component")]
-    NameEmpty,
-    /// Will be returned if a name is too long
-    #[error("repository name must not be more than {NAME_TOTAL_LENGTH_MAX} characters")]
-    NameTooLong,
-    /// Will be returned if a reference is ill-formed
-    #[error("invalid reference format")]
-    ReferenceInvalidFormat,
-    /// Will be returned if a tag is ill-formed
-    #[error("invalid tag format")]
-    TagInvalidFormat,
-}
+/// A regex-free OCI image reference that wraps [`Reference`].
+///
+/// Parsing replicates the behaviour of `Reference::try_from` but uses plain
+/// string operations instead of a compiled regex, avoiding the allocation and
+/// initialisation cost of the regex engine.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct OciReference(Reference);
 
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct Reference {
-    registry: String,
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    mirror_registry: Option<String>,
-    repository: String,
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    tag: Option<String>,
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    digest: Option<String>,
-}
+impl OciReference {
+    // ── constructor mirrors ────────────────────────────────────────────────
 
-impl Reference {
-    /// Create a new instance of [`Reference`] with a registry, repository, tag and digest.
-    ///
-    /// This is useful when you need to reference an image by both its semantic version (tag)
-    /// and its content-addressable digest for immutability.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use oci_spec::distribution::Reference;
-    ///
-    /// let reference = Reference::with_tag_and_digest(
-    ///     "docker.io".to_string(),
-    ///     "library/nginx".to_string(),
-    ///     "1.21".to_string(),
-    ///     "sha256:abc123...".to_string(),
-    /// );
-    /// ```
+    pub fn with_tag(registry: String, repository: String, tag: String) -> Self {
+        Self(Reference::with_tag(registry, repository, tag))
+    }
+
+    pub fn with_digest(registry: String, repository: String, digest: String) -> Self {
+        Self(Reference::with_digest(registry, repository, digest))
+    }
+
     pub fn with_tag_and_digest(
         registry: String,
         repository: String,
         tag: String,
         digest: String,
     ) -> Self {
-        Self {
-            registry,
-            mirror_registry: None,
-            repository,
-            tag: Some(tag),
-            digest: Some(digest),
-        }
-    }
-    /// Set a pull mirror registry for this reference.
-    ///
-    /// The mirror registry will be used to resolve the image, the original registry
-    /// is available via the [`Reference::namespace`] function.
-    ///
-    /// The original registry will be sent with the `ns` query parameter to the mirror registry.
-    /// The `ns` query parameter is currently not part of the stable OCI Distribution Spec yet,
-    /// but is being discussed to be added and is already used by some other implementations
-    /// (for example containerd). So be aware that this feature might not work with all registries.
-    ///
-    /// Since this is not part of the stable OCI Distribution Spec yet, this feature is exempt from
-    /// semver backwards compatibility guarantees and might change in the future.
-    #[doc(hidden)]
-    pub fn set_mirror_registry(&mut self, registry: String) {
-        self.mirror_registry = Some(registry);
+        Self(Reference::with_tag_and_digest(registry, repository, tag, digest))
     }
 
-    /// Resolve the registry address of a given `Reference`.
-    ///
-    /// Some registries, such as docker.io, uses a different address for the actual
-    /// registry. This function implements such redirection.
-    ///
-    /// If a mirror registry is set, it will be used instead of the original registry.
-    pub fn resolve_registry(&self) -> &str {
-        match (self.registry(), self.mirror_registry.as_deref()) {
-            (_, Some(mirror_registry)) => mirror_registry,
-            ("docker.io", None) => "index.docker.io",
-            (registry, None) => registry,
-        }
-    }
+    // ── accessor delegation ────────────────────────────────────────────────
 
-    /// Returns the name of the registry.
     pub fn registry(&self) -> &str {
-        &self.registry
+        self.0.registry()
     }
 
-    /// Returns the name of the repository.
     pub fn repository(&self) -> &str {
-        &self.repository
+        self.0.repository()
     }
 
-    /// Returns the object's tag, if present.
     pub fn tag(&self) -> Option<&str> {
-        self.tag.as_deref()
+        self.0.tag()
     }
 
-    /// Returns the object's digest, if present.
     pub fn digest(&self) -> Option<&str> {
-        self.digest.as_deref()
+        self.0.digest()
     }
 
-    /// Returns the original registry when pulled via a mirror.
-    ///
-    /// Since this is not part of the stable OCI Distribution Spec yet, this feature is exempt from
-    /// semver backwards compatibility guarantees and might change in the future.
-    #[doc(hidden)]
-    pub fn namespace(&self) -> Option<&str> {
-        if self.mirror_registry.is_some() {
-            Some(self.registry())
-        } else {
-            None
-        }
-    }
-
-    /// Returns the whole reference.
     pub fn whole(&self) -> String {
-        self.to_string()
+        self.0.whole()
+    }
+
+    pub fn resolve_registry(&self) -> &str {
+        self.0.resolve_registry()
+    }
+
+    pub fn set_mirror_registry(&mut self, registry: String) {
+        self.0.set_mirror_registry(registry);
+    }
+
+    pub fn namespace(&self) -> Option<&str> {
+        self.0.namespace()
     }
 }
 
-impl fmt::Display for Reference {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut not_empty = false;
-        if !self.registry().is_empty() {
-            write!(f, "{}", self.registry())?;
-            not_empty = true;
-        }
-        if !self.repository().is_empty() {
-            if not_empty {
-                write!(f, "/")?;
-            }
-            write!(f, "{}", self.repository())?;
-            not_empty = true;
-        }
-        if let Some(t) = self.tag() {
-            if not_empty {
-                write!(f, ":")?;
-            }
-            write!(f, "{t}")?;
-            not_empty = true;
-        }
-        if let Some(d) = self.digest() {
-            if not_empty {
-                write!(f, "@")?;
-            }
-            write!(f, "{d}")?;
-        }
-        Ok(())
+// ── Parsing ────────────────────────────────────────────────────────────────
+
+/// Split `name[:tag]` into `(name, Option<tag>)`.
+///
+/// A `:` is treated as a tag separator only when it appears after the last `/`
+/// (or when there is no `/`), so that `host:port/repo` is parsed correctly.
+fn split_name_tag(s: &str) -> (&str, Option<&str>) {
+    let last_slash = s.rfind('/');
+    let last_colon = s.rfind(':');
+    match (last_slash, last_colon) {
+        (_, None) => (s, None),
+        (None, Some(c)) => (&s[..c], Some(&s[c + 1..])),
+        (Some(sl), Some(c)) if c > sl => (&s[..c], Some(&s[c + 1..])),
+        _ => (s, None), // colon belongs to host:port — not a tag
     }
 }
 
-impl FromStr for Reference {
-    type Err = ParseError;
+/// Mirror of the `split_domain` function from `oci-spec`.
+///
+/// Splits a repository name into `(registry, repository)`, normalising
+/// Docker Hub short-names to `docker.io/library/<name>`.
+fn split_domain(name: &str) -> (String, String) {
+    let (mut domain, mut remainder) = match name.split_once('/') {
+        None => (DOCKER_HUB_DOMAIN.to_owned(), name.to_owned()),
+        Some((left, _right)) => {
+            if !(left.contains('.') || left.contains(':')) && left != "localhost" {
+                // No domain-like prefix — treat the whole string as a Docker Hub path.
+                (DOCKER_HUB_DOMAIN.to_owned(), name.to_owned())
+            } else {
+                let sep = left.len() + 1;
+                (left.to_owned(), name[sep..].to_owned())
+            }
+        }
+    };
+    if domain == DOCKER_HUB_DOMAIN_LEGACY {
+        domain = DOCKER_HUB_DOMAIN.to_owned();
+    }
+    if domain == DOCKER_HUB_DOMAIN && !remainder.contains('/') {
+        remainder = format!("{DOCKER_HUB_OFFICIAL_REPO_NAME}/{remainder}");
+    }
+    (domain, remainder)
+}
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Reference::try_from(s)
+/// Validate that every path component of the repository contains only
+/// `[a-z0-9._-]`.  Uppercase letters and other special characters are
+/// rejected so that the same errors as the regex-based parser are produced.
+fn validate_repository(repo: &str) -> Result<(), ParseError> {
+    for component in repo.split('/') {
+        if component.is_empty() {
+            return Err(ParseError::ReferenceInvalidFormat);
+        }
+        for c in component.chars() {
+            if c.is_ascii_uppercase() || (!c.is_ascii_alphanumeric() && c != '.' && c != '_' && c != '-') {
+                return Err(ParseError::ReferenceInvalidFormat);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Validate a digest string of the form `<algorithm>:<hex>`.
+fn validate_digest(digest: &str) -> Result<(), ParseError> {
+    match digest.split_once(':') {
+        None => Err(ParseError::DigestInvalidFormat),
+        Some(("sha256", hex)) => {
+            if hex.len() != 64 { Err(ParseError::DigestInvalidLength) } else { Ok(()) }
+        }
+        Some(("sha384", hex)) => {
+            if hex.len() != 96 { Err(ParseError::DigestInvalidLength) } else { Ok(()) }
+        }
+        Some(("sha512", hex)) => {
+            if hex.len() != 128 { Err(ParseError::DigestInvalidLength) } else { Ok(()) }
+        }
+        Some(_) => Err(ParseError::DigestUnsupported),
     }
 }
 
-impl TryFrom<&str> for Reference {
+// ── Conversions from/to strings ────────────────────────────────────────────
+
+impl TryFrom<&str> for OciReference {
     type Error = ParseError;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         if s.is_empty() {
             return Err(ParseError::NameEmpty);
         }
-        todo!()
+        // A bare ':' or '@' prefix has no name component.
+        if s.starts_with(':') || s.starts_with('@') {
+            return Err(ParseError::ReferenceInvalidFormat);
+        }
+
+        // 1. Peel off the digest (`@<algo>:<hex>`).
+        let (name_and_tag, digest) = match s.split_once('@') {
+            Some((n, d)) => (n, Some(d.to_owned())),
+            None => (s, None),
+        };
+
+        // 2. Peel off the tag.
+        let (name, tag) = split_name_tag(name_and_tag);
+        let mut tag = tag.map(str::to_owned);
+
+        // 3. Normalise registry / repository.
+        let (registry, repository) = split_domain(name);
+
+        // 4. Default tag.
+        if tag.is_none() && digest.is_none() {
+            tag = Some(DEFAULT_TAG.to_owned());
+        }
+
+        // 5. Length check (repository only, mirrors the oci-spec behaviour).
+        if repository.len() > NAME_TOTAL_LENGTH_MAX {
+            return Err(ParseError::NameTooLong);
+        }
+
+        // 6. Character validation.
+        validate_repository(&repository)?;
+        if let Some(ref d) = digest {
+            validate_digest(d)?;
+        }
+
+        let reference = match (tag, digest) {
+            (Some(t), Some(d)) => Reference::with_tag_and_digest(registry, repository, t, d),
+            (Some(t), None) => Reference::with_tag(registry, repository, t),
+            (None, Some(d)) => Reference::with_digest(registry, repository, d),
+            (None, None) => unreachable!("tag or digest is always set"),
+        };
+        Ok(OciReference(reference))
     }
 }
 
-impl TryFrom<String> for Reference {
+impl FromStr for OciReference {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        OciReference::try_from(s)
+    }
+}
+
+impl TryFrom<String> for OciReference {
     type Error = ParseError;
     fn try_from(string: String) -> Result<Self, Self::Error> {
-        TryFrom::try_from(string.as_str())
+        string.as_str().try_into()
     }
 }
 
-impl From<Reference> for String {
+impl fmt::Display for OciReference {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)?;
+        Ok(())
+    }
+}
+
+impl From<OciReference> for String {
+    fn from(reference: OciReference) -> Self {
+        reference.0.whole()
+    }
+}
+
+// ── Conversions to/from Reference ──────────────────────────────────────────
+
+impl From<Reference> for OciReference {
     fn from(reference: Reference) -> Self {
-        reference.whole()
+        OciReference(reference)
     }
 }
 
+impl From<OciReference> for Reference {
+    fn from(r: OciReference) -> Self {
+        r.0
+    }
+}
+
+/// Running all the tests from the current version of the `oci-spec` crate against
+/// `OciReference` to verify that it behaves the same as `oci-spec`'s regex-based
+/// `Reference` implementation.
 #[cfg(test)]
 mod test {
     use super::*;
@@ -249,7 +284,7 @@ mod test {
             whole: &str,
         ) {
             println!("input: {}", input);
-            let reference = Reference::try_from(input).expect("could not parse reference");
+            let reference = OciReference::try_from(input).expect("could not parse reference");
             println!("{} -> {:?}", input, reference);
             assert_eq!(registry, reference.registry());
             assert_eq!(repository, reference.repository());
@@ -275,7 +310,7 @@ mod test {
             case("aa/asdf$$^/aa", ParseError::ReferenceInvalidFormat)
         )]
         fn parse_bad_reference(input: &str, err: ParseError) {
-            assert_eq!(Reference::try_from(input).unwrap_err(), err)
+            assert_eq!(OciReference::try_from(input).unwrap_err(), err)
         }
 
         #[rstest(
@@ -305,7 +340,7 @@ mod test {
             )
         )]
         fn test_mirror_registry(input: &str, registry: &str, resolved_registry: &str, whole: &str) {
-            let mut reference = Reference::try_from(input).expect("could not parse reference");
+            let mut reference = OciReference::try_from(input).expect("could not parse reference");
             assert_eq!(resolved_registry, reference.resolve_registry());
             assert_eq!(registry, reference.registry());
             assert_eq!(None, reference.namespace());
@@ -339,7 +374,7 @@ mod test {
             tag: &str,
             digest: &str,
         ) {
-            let reference = Reference::with_tag_and_digest(
+            let reference = OciReference::with_tag_and_digest(
                 registry.to_string(),
                 repository.to_string(),
                 tag.to_string(),

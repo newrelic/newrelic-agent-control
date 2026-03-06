@@ -13,7 +13,7 @@ use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
 
-use crate::oci_reference::Reference;
+use crate::oci_reference::OciReference;
 
 mod oci_reference;
 
@@ -72,7 +72,7 @@ fn main() {
                 let tid = format!("{:?}", thread::current().id());
                 // Mimics: assemble_agent() → Oci::template_with() → Reference::from_str()
                 // This checks out a Pool<meta::Cache> slot keyed to this thread's ID.
-                let reference = Reference::from_str(oci_ref).expect("valid reference");
+                let reference = OciReference::from_str(oci_ref).expect("valid reference");
                 let _ = reference; // keep alive past the regex call
 
                 // Simulate download / supervisor startup work

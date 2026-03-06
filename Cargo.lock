@@ -3008,8 +3008,8 @@ dependencies = [
 name = "oci-pool-poc"
 version = "0.1.0"
 dependencies = [
+ "oci-spec",
  "rstest",
- "thiserror 2.0.18",
 ]
 
 [[package]]
