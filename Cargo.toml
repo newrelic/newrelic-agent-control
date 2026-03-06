@@ -7,6 +7,7 @@ members = [
   "fs",
   "wrapper_with_default",
   "test/e2e-runner",
+  "oci-pool-poc",
 ]
 
 [workspace.package]
