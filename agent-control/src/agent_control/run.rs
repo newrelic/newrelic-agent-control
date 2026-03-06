@@ -112,7 +112,7 @@ impl AgentControlRunner {
         config: AgentControlRunConfig,
         application_event_consumer: EventConsumer<ApplicationEvent>,
     ) -> Result<Self, Box<dyn Error>> {
-        debug!("initializing and starting the agent control");
+        debug!("Initializing and starting the agent control");
 
         let runtime = Arc::new(
             tokio::runtime::Builder::new_multi_thread()
