@@ -171,7 +171,9 @@ pub mod tests {
             let ace_result = GetAce(dacl, 0, &mut ace_ptr);
             assert_ne!(ace_result, 0, "Failed to get ACE");
 
-            let ace = &*(ace_ptr as *const ACCESS_ALLOWED_ACE);
+            let ace_ptr = std::ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE)
+                .expect("ACE pointer should not be null");
+            let ace = &*ace_ptr.as_ptr();
             let sid_in_ace = &ace.SidStart as *const u32 as *mut std::ffi::c_void;
             let sids_equal = EqualSid(sid_in_ace, admin_sid.as_mut_ptr() as *mut _);
             assert_ne!(sids_equal, 0, "ACE SID should match Administrators SID");
