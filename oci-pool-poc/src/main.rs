@@ -7,13 +7,18 @@
 //! When the thread exits the cache is returned to the pool but NOT freed. A new thread with a
 //! different ID may land in a different slot → new permanent ~5.87 MB allocation.
 
-use oci_spec::distribution::Reference;
 use std::str::FromStr;
+// use oci_spec::distribution::Reference;
+// use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
 
-const CYCLES: usize = 8;
-const SLEEP_MS: u64 = 300_000; // simulates download/process work
+use crate::oci_reference::Reference;
+
+mod oci_reference;
+
+const CYCLES: usize = 80;
+const SLEEP_MS: u64 = 300; // simulates download/process work
 
 fn rss_kb() -> u64 {
     #[cfg(target_os = "linux")]
