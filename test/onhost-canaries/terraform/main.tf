@@ -99,6 +99,71 @@ locals {
     }
   }
 
+  // Conditions shared across all platforms
+  common_alert_conditions = [
+    {
+      name          = "CPU usage (percentage)"
+      metric        = "max(cpuPercent) OR 0"
+      sample        = "ProcessSample"
+      threshold     = 0.06
+      duration      = 3600
+      operator      = "above"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    },
+    {
+      name          = "Read bytes rate"
+      metric        = "max(ioReadBytesPerSecond) OR 0"
+      sample        = "ProcessSample"
+      threshold     = 500000
+      duration      = 300
+      operator      = "above"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    },
+    {
+      name          = "Written bytes rate"
+      metric        = "max(ioWriteBytesPerSecond) OR 0"
+      sample        = "ProcessSample"
+      threshold     = 20000
+      duration      = 300
+      operator      = "above"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    },
+    {
+      name          = "Agent Control metrics presence"
+      metric        = "count(*)"
+      sample        = "ProcessSample"
+      threshold     = 0
+      duration      = 3600
+      operator      = "below_or_equals"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    },
+  ]
+
+  // Platform-specific memory conditions.
+  // Linux uses virtual size; Windows uses working set (physical memory committed to the process).
+  memory_alert_condition_by_platform = {
+    linux = {
+      name          = "Memory usage (bytes)"
+      metric        = "max(memoryResidentSizeBytes) OR 0"
+      sample        = "ProcessSample"
+      threshold     = 42000000
+      duration      = 600
+      operator      = "above"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    }
+    windows = {
+      name          = "Memory usage (bytes)"
+      # For the purpose of leak detection using memoryVirtualSizeBytes reflects better the AC memory intent of usage, 
+      # as memoryResidentSizeBytes gets heavily affected by the way windows manages memory.
+      metric        = "max(memoryVirtualSizeBytes) OR 0"
+      sample        = "ProcessSample"
+      threshold     = 35000000
+      duration      = 600
+      operator      = "above"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    }
+  }
+
   // To setup the alerts, we need to know the hostnames of the instances.
   // One option would be to wait for the ansible inventory to be created, but then
   // terraform won't be able to show all the resources that the apply operation
@@ -107,7 +172,16 @@ locals {
   // If env-provisioner changes the way it computes the hostnames, we need to change
   // it here too. However, terraform plan will properly list all the resources that
   // will be created and we can spot any problems with the hostnames.
-  hostnames     = [for k, v in local.ec2_instances : "${var.ec2_prefix}-${replace(k, "/[:._]/", "-")}"]
+  instance_alerts = {
+    for k, v in local.ec2_instances :
+    "${var.ec2_prefix}-${replace(k, "/[:._]/", "-")}" => {
+      conditions = concat(
+        local.common_alert_conditions,
+        [local.memory_alert_condition_by_platform[v.platform]]
+      )
+    }
+  }
+
   infra_staging = var.nr_region == "Staging" ? "true" : "false"
 }
 
@@ -149,7 +223,7 @@ variable "nr_region" {
 module "alerts" {
   source = "../../terraform/modules/nr_alerts"
 
-  for_each = toset(local.hostnames)
+  for_each = local.instance_alerts
 
   api_key           = var.api_key
   account_id        = var.account_id
@@ -158,52 +232,6 @@ module "alerts" {
   policies_prefix = "Agent Control canaries metric monitoring"
 
   region      = var.nr_region
-  instance_id = each.value
-  conditions = [
-    {
-      name          = "CPU usage (percentage)"
-      metric        = "max(cpuPercent) OR 0"
-      sample        = "ProcessSample"
-      threshold     = 0.06
-      duration      = 3600
-      operator      = "above"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
-    },
-    {
-      name          = "Memory usage (bytes)"
-      metric        = "max(memoryResidentSizeBytes) OR 0"
-      sample        = "ProcessSample"
-      threshold     = 42000000
-      duration      = 600
-      operator      = "above"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
-    },
-    {
-      name          = "Read bytes rate"
-      metric        = "max(ioReadBytesPerSecond) OR 0"
-      sample        = "ProcessSample"
-      threshold     = 500000
-      duration      = 300
-      operator      = "above"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
-    },
-    {
-      name          = "Written bytes rate"
-      metric        = "max(ioWriteBytesPerSecond) OR 0"
-      sample        = "ProcessSample"
-      threshold     = 20000
-      duration      = 300
-      operator      = "above"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
-    },
-    {
-      name          = "Agent Control metrics presence"
-      metric        = "count(*)"
-      sample        = "ProcessSample"
-      threshold     = 0
-      duration      = 3600
-      operator      = "below_or_equals"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
-    },
-  ]
+  instance_id = each.key
+  conditions  = each.value.conditions
 }
