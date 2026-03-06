@@ -143,31 +143,27 @@ pub fn build_opamp_http_builder<R>(
 where
     R: OpampSecretRetriever,
 {
-    if let Some(opamp_config) = opamp_config {
-        debug!("OpAMP configuration found, creating an OpAMP client builder");
+    let Some(opamp_config) = opamp_config else {
+        return Ok(None);
+    };
 
-        let private_key = retriever
-            .retrieve()
-            .map_err(|e| RunError(format!("error trying to get secret or private key {e}")))?;
+    debug!("OpAMP configuration found, creating an OpAMP client builder");
 
-        let token_retriever = Arc::new(
-            TokenRetrieverImpl::try_build(
-                opamp_config.clone().auth_config,
-                private_key,
-                proxy.clone(),
-            )
+    let private_key = retriever
+        .retrieve()
+        .map_err(|e| RunError(format!("error trying to get secret or private key {e}")))?;
+
+    let token_retriever = Arc::new(
+        TokenRetrieverImpl::try_build(opamp_config.clone().auth_config, private_key, proxy.clone())
             .inspect_err(|err| error!("Could not build OpAMP's token retriever: {err}"))
             .map_err(|e| {
                 RunError(format!(
                     "error trying to build OpAMP's token retriever: {e}"
                 ))
             })?,
-        );
+    );
 
-        let http_builder = OpAMPHttpClientBuilder::new(opamp_config, proxy, token_retriever);
+    let http_builder = OpAMPHttpClientBuilder::new(opamp_config, proxy, token_retriever);
 
-        Ok(Some(http_builder))
-    } else {
-        Ok(None)
-    }
+    Ok(Some(http_builder))
 }
