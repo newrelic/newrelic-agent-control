@@ -6,6 +6,7 @@ pub mod health_checker;
 pub mod identity;
 pub mod k8s;
 pub mod on_host;
+pub mod parent_agent_resolver;
 pub mod remote_config_parser;
 pub mod supervisor;
 
@@ -826,7 +827,7 @@ pub mod tests {
         MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>>,
         AgentRemoteConfigParser<MockRemoteConfigValidator>,
         InMemoryConfigRepository,
-        LocalEffectiveAgentsAssembler<EmbeddedRegistry>,
+        LocalEffectiveAgentsAssembler<EmbeddedRegistry, parent_agent_resolver::DefaultParentAgentResolver>,
     >;
 
     mock! {
@@ -1098,6 +1099,8 @@ deployment:
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),
+            Arc::new(parent_agent_resolver::DefaultParentAgentResolver),
+            Arc::new(std::sync::RwLock::new(HashMap::new())),
         ));
 
         SubAgent::new(
@@ -1226,6 +1229,8 @@ deployment:
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),
+            Arc::new(parent_agent_resolver::DefaultParentAgentResolver),
+            Arc::new(std::sync::RwLock::new(HashMap::new())),
         ));
 
         let sub_agent = SubAgent::new(
@@ -1872,6 +1877,8 @@ deployment:
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),
+            Arc::new(parent_agent_resolver::DefaultParentAgentResolver),
+            Arc::new(std::sync::RwLock::new(HashMap::new())),
         ));
 
         let supervisor = sub_agent.init_supervisor();

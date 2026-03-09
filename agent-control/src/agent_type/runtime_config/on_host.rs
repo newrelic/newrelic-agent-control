@@ -170,6 +170,7 @@ mod tests {
                     )),
                 },
             },
+            post_install: vec![],
         };
 
         let expected_packages = HashMap::from([

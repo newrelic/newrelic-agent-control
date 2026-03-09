@@ -40,6 +40,7 @@ use crate::secrets_provider::k8s_secret::K8sSecretProvider;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
+use crate::sub_agent::parent_agent_resolver::DefaultParentAgentResolver;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::thread_context::StartedThreadContext;
 use crate::values::ConfigRepo;
@@ -47,7 +48,7 @@ use crate::{k8s::configmap_store::ConfigMapStore, sub_agent::k8s::builder::K8sSu
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::get_hostname;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
 use tracing::{error, info, warn};
 
@@ -162,12 +163,17 @@ impl AgentControlRunner {
                 .map_err(|e| RunError(format!("failed to load secrets providers: {e}")))?;
         }
 
+        // Create shared agents map for parent agent resolution
+        let agents_map = Arc::new(RwLock::new(agent_control_config.dynamic.agents.clone()));
+
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             self.agent_type_registry.clone(),
             template_renderer,
             self.agent_type_var_constraints,
             secrets_providers,
             &self.base_paths.remote_dir,
+            Arc::new(DefaultParentAgentResolver),
+            agents_map.clone(),
         ));
 
         let supervisor_builder =
@@ -272,6 +278,7 @@ impl AgentControlRunner {
             k8s_ac_updater,
             health_checker_builder,
             agent_control_config,
+            agents_map,
         )
         .run()
         .map_err(|err| RunError(err.to_string()))

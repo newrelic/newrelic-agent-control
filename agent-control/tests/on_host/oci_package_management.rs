@@ -43,6 +43,7 @@ fn test_install_and_uninstall_with_oci_registry() {
         id: pkg_id.clone(),
         oci_reference: reference.clone(),
         public_key_url: None,
+        post_install_hooks: vec![],
     };
     let installed_package_result = package_manager.install(&agent_id, package_data);
 
@@ -105,6 +106,7 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
         id: pkg_id.to_string(),
         oci_reference: reference.clone(),
         public_key_url: None,
+        post_install_hooks: vec![],
     };
 
     let installed_1 = package_manager

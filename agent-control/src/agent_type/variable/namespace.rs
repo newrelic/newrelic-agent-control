@@ -9,6 +9,7 @@ pub type NamespacedVariableName = String;
 pub enum Namespace {
     Variable,
     SubAgent,
+    ParentAgent,
     AgentControl,
 
     // Below variables are "secret" variables.
@@ -27,6 +28,8 @@ impl Namespace {
     const VARIABLE: &'static str = "var";
     /// Encapsulates attributes related to the sub-agent
     const SUB_AGENT: &'static str = "sub";
+    /// Encapsulates attributes related to the parent agent
+    const PARENT_AGENT: &'static str = "parent";
     /// Encapsulates attributes related to the agent-control
     const AC: &'static str = "ac";
 
@@ -59,6 +62,7 @@ impl Display for Namespace {
         let ns = match self {
             Self::Variable => Self::VARIABLE,
             Self::SubAgent => Self::SUB_AGENT,
+            Self::ParentAgent => Self::PARENT_AGENT,
             Self::AgentControl => Self::AC,
             Self::EnvironmentVariable => Self::ENVIRONMENT_VARIABLE,
             Self::Vault => Self::VAULT_SECRET,
@@ -81,6 +85,10 @@ mod tests {
         assert_eq!(
             "nr-sub:test".to_string(),
             Namespace::SubAgent.namespaced_name("test")
+        );
+        assert_eq!(
+            "nr-parent:test".to_string(),
+            Namespace::ParentAgent.namespaced_name("test")
         );
         assert_eq!(
             "nr-env:test".to_string(),

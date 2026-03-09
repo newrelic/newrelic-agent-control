@@ -1,0 +1,116 @@
+namespace: newrelic
+name: com.newrelic.integration_redis
+version: 0.1.0
+parent_agent: newrelic/com.newrelic.infrastructure:0.1.0
+variables:
+  windows:
+    config_integration:
+      description: "Newrelic infra configuration"
+      type: yaml
+      required: false
+      default: ""
+    oci:
+      registry:
+        description: "Package registry url"
+        type: string
+        required: false
+        default: docker.io
+        variants:
+          ac_config_field: "oci_registry_urls"
+          values: [ "docker.io" ]
+      repository:
+        description: "Package repository name"
+        type: string
+        required: false
+        default: newrelic/nri-redis-artifacts
+        variants:
+          ac_config_field: "oci_repository_urls"
+          values: [ "newrelic/nri-redis-artifacts" ]
+    version:
+      description: "Agent version"
+      type: string
+      required: true
+  linux:
+    config_integration:
+      description: "Newrelic infra configuration"
+      type: yaml
+      required: false
+      default: ""
+    oci:
+      registry:
+        description: "Package registry url"
+        type: string
+        required: false
+        default: docker.io
+        variants:
+          ac_config_field: "oci_registry_urls"
+          values: [ "docker.io" ]
+      repository:
+        description: "Package repository name"
+        type: string
+        required: false
+        default: newrelic/nri-redis-artifacts
+        variants:
+          ac_config_field: "oci_repository_urls"
+          values: [ "newrelic/nri-redis-artifacts" ]
+    version:
+      description: "Agent version"
+      type: string
+      required: true
+deployment:
+  windows:
+    # Redis integration doesn't run as a separate process; it's called by the infrastructure agent
+    packages:
+      nri-redis:
+        download:
+          oci:
+            registry: ${nr-var:oci.registry}
+            repository: ${nr-var:oci.repository}
+            version: ${nr-var:version}
+            public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrinfraagent/jwks.json
+        post_install:
+          - type: copy
+            source: ${nr-sub:packages.nri-redis.dir}/nri-redis.exe
+            destination: ${nr-parent:filesystem_agent_dir}/integrations/nri-redis.exe
+            create_parent_dirs: true
+          - type: copy
+            source: ${nr-sub:filesystem_agent_dir}/config/integration_redis.yaml
+            destination: ${nr-parent:filesystem_agent_dir}/integrations.d/integration_redis.yaml
+            create_parent_dirs: true
+    version:
+      path: ${nr-sub:packages.nri-redis.dir}\\nri-redis.exe
+      args:
+        - --version
+      regex: \d+\.\d+\.\d+
+    filesystem:
+      config:
+        integration_redis.yaml: |
+          ${nr-var:config_integration}
+  linux:
+    # Redis integration doesn't run as a separate process; it's called by the infrastructure agent
+    packages:
+      nri-redis:
+        download:
+          oci:
+            registry: ${nr-var:oci.registry}
+            repository: ${nr-var:oci.repository}
+            version: ${nr-var:version}
+            public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrinfraagent/jwks.json
+        post_install:
+          - type: copy
+            source: ${nr-sub:packages.nri-redis.dir}/nri-redis
+            destination: ${nr-parent:filesystem_agent_dir}/integrations/nri-redis
+            create_parent_dirs: true
+          - type: copy
+            source: ${nr-sub:filesystem_agent_dir}/config/integration_redis.yaml
+            destination: ${nr-parent:filesystem_agent_dir}/integrations.d/integration_redis.yaml
+            create_parent_dirs: true
+    version:
+      path: ${nr-sub:packages.nri-redis.dir}/nri-redis
+      args:
+        - --version
+      regex: \d+\.\d+\.\d+
+    filesystem:
+      config:
+        integration_redis.yaml: |
+          ${nr-var:config_integration}

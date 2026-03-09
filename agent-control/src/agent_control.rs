@@ -76,6 +76,7 @@ where
     version_updater: VU,
     initial_config: AgentControlConfig,
     health_checker_builder: HCB,
+    agents_map: Arc<std::sync::RwLock<SubAgentsMap>>,
 }
 
 impl<S, O, SL, RV, DV, RC, VU, HC, HCB> AgentControl<S, O, SL, RV, DV, RC, VU, HC, HCB>
@@ -107,6 +108,7 @@ where
         version_updater: VU,
         health_checker_builder: HCB,
         initial_config: AgentControlConfig,
+        agents_map: Arc<std::sync::RwLock<SubAgentsMap>>,
     ) -> Self {
         Self {
             opamp_client,
@@ -124,6 +126,7 @@ where
             health_checker_builder,
             version_updater,
             initial_config,
+            agents_map,
         }
     }
 
@@ -547,6 +550,11 @@ where
         if !errors.is_empty() {
             Err(AgentControlError::BuildingSubagents(errors))
         } else {
+            // Update the shared agents_map with the new configuration
+            // This allows parent agent resolution to work with the latest config
+            if let Ok(mut map) = self.agents_map.write() {
+                *map = new_dynamic_config.agents.clone();
+            }
             Ok(())
         }
     }
@@ -834,6 +842,7 @@ agents:
                     version_updater,
                     NONE_MOCK_HEALTH_CHECKER_BUILDER,
                     ac_config,
+                    Arc::new(std::sync::RwLock::new(HashMap::new())),
                 )
             };
             let test_data = TestData {

@@ -35,6 +35,7 @@ use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
+use crate::sub_agent::parent_agent_resolver::DefaultParentAgentResolver;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::values::ConfigRepo;
 use fs::directory_manager::DirectoryManagerFs;
@@ -44,7 +45,7 @@ use oci_client::client::ClientProtocol;
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
 use tracing::{debug, info};
 
@@ -161,12 +162,17 @@ impl AgentControlRunner {
                 .map_err(|e| RunError(format!("failed to load secrets providers: {e}")))?;
         }
 
+        // Create shared agents map for parent agent resolution
+        let agents_map = Arc::new(RwLock::new(agent_control_config.dynamic.agents.clone()));
+
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             self.agent_type_registry.clone(),
             template_renderer,
             self.agent_type_var_constraints,
             secrets_providers,
             &self.base_paths.remote_dir,
+            Arc::new(DefaultParentAgentResolver),
+            agents_map.clone(),
         ));
 
         // We are setting client http in debug_assertions mode for tests
@@ -243,6 +249,7 @@ impl AgentControlRunner {
             NoOpUpdater,
             |t| Some(NoOpHealthChecker::new(t)),
             agent_control_config,
+            agents_map,
         )
         .run()
         .map_err(|err| RunError(err.to_string()))
