@@ -282,6 +282,33 @@ By default, this will generate a report in `lcov` format on `coverage/lcov.info`
 COVERAGE_OUT_FORMAT=json COVERAGE_OUT_FILEPATH=jcov-info.json make coverage
 ```
 
+## Profiling
+
+### Heap Profiling
+
+Heap profiling is supported via the [`dhat` crate](https://docs.rs/dhat/latest/dhat/) and is gated behind the `dhat-heap` feature flag. It can be used to detect memory leaks and analyze heap allocations.
+
+To build with heap profiling enabled, use the `release-debug` profile (which inherits from `release` but keeps debug symbols) together with the feature flag:
+
+```sh
+cargo build -p newrelic_agent_control --profile release-debug --features dhat-heap
+```
+
+Running the resulting binary will:
+
+- Print a short summary to `stderr` on exit.
+- Write a `dhat-heap.json` file to the current working directory (or `/` when running as a `systemd` service).
+
+Open `dhat-heap.json` in the [DHAT Viewer](https://nnethercote.github.io/dh_view/dh_view.html) to inspect the results.
+
+### Ad-hoc Profiling
+
+Ad-hoc profiling is also supported via `dhat` and is gated behind the `dhat-ad-hoc` feature flag. Unlike heap profiling, it requires manually annotating the code you want to profile — no annotations are added by default at the time of writing this. See the [`dhat` ad-hoc profiling documentation](https://docs.rs/dhat/latest/dhat/#setup-ad-hoc-profiling) for details on how to instrument your code.
+
+```sh
+cargo build -p newrelic_agent_control --profile release-debug --features dhat-ad-hoc
+```
+
 ## Codeql
 
 Codeql is executed automatically in GitHub pipelines, in order to check the results locally you need to install the tool and download rust queries:
