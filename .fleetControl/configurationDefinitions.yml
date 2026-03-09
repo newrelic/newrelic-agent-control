@@ -1,3 +1,4 @@
+# Documentation: https://newrelic.atlassian.net/wiki/spaces/INST/pages/4609638833/CDD+Metadata+to+be+stored
 configurationDefinitions:
   - platform: HOST
     description: agent control configuration
