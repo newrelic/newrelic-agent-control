@@ -1,0 +1,44 @@
+name: Post-Release Agent Metadata Upload
+
+on:
+  release:
+    types: [released]
+
+permissions:
+  contents: read
+
+jobs:
+  upload-metadata:
+    name: Upload Agent Metadata to New Relic
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Validate tag format
+        id: validate
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          if [[ $TAG =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "valid=true" >> $GITHUB_OUTPUT
+            VERSION="$TAG"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "✓ Valid release tag: $TAG (version: $VERSION)"
+          else
+            echo "valid=false" >> $GITHUB_OUTPUT
+            echo "⚠ Skipping metadata upload - tag '$TAG' does not match X.Y.Z format"
+          fi
+
+      - name: Upload agent metadata to New Relic
+        if: steps.validate.outputs.valid == 'true'
+        uses: newrelic/agent-metadata-action@v1.0.6
+        with:
+          agent-type: NRAgentControl
+          version: ${{ steps.validate.outputs.version }}
+          git-ref: ${{ github.event.release.tag_name }}
+          newrelic-client-id: ${{ secrets.NEWRELIC_CLIENT_ID }}
+          newrelic-private-key: ${{ secrets.NEWRELIC_PRIVATE_KEY }}
+          newrelic-license-key: ${{ secrets.APM_CONTROL_NR_LICENSE_KEY_STAGING }}
