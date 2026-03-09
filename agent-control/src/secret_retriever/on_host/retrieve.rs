@@ -1,6 +1,7 @@
+use std::path::PathBuf;
+
 use crate::agent_control::config::OpAMPClientConfig;
 use crate::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
-use crate::agent_control::run::BasePaths;
 use crate::opamp::auth::config::ProviderConfig;
 use crate::secret_retriever::OpampSecretRetriever;
 use crate::secrets_provider::SecretsProvider;
@@ -8,7 +9,7 @@ use crate::secrets_provider::SecretsProvider;
 /// Helper struct to determine the path and retrieve the secret using the File provider.
 pub struct OnHostSecretRetriever<P> {
     opamp_config: Option<OpAMPClientConfig>,
-    pub base_paths: BasePaths,
+    pub local_dir: PathBuf,
     pub provider: P,
 }
 
@@ -22,12 +23,12 @@ where
 {
     pub fn new(
         opamp_config: Option<OpAMPClientConfig>,
-        base_paths: BasePaths,
+        local_dir: impl Into<PathBuf>,
         provider: P,
     ) -> Self {
         Self {
             opamp_config,
-            base_paths,
+            local_dir: local_dir.into(),
             provider,
         }
     }
@@ -40,7 +41,7 @@ where
     type Error = OnHostRetrieverError;
 
     fn retrieve(&self) -> Result<String, Self::Error> {
-        let mut final_path = self.base_paths.local_dir.join(AUTH_PRIVATE_KEY_FILE_NAME);
+        let mut final_path = self.local_dir.join(AUTH_PRIVATE_KEY_FILE_NAME);
 
         if let Some(opamp_config) = &self.opamp_config
             && let Some(auth_config) = &opamp_config.auth_config
@@ -65,13 +66,7 @@ mod tests {
     use mockall::predicate::*;
     use std::path::PathBuf;
 
-    fn get_test_base_paths() -> BasePaths {
-        BasePaths {
-            local_dir: PathBuf::from("/default/local"),
-            remote_dir: PathBuf::from("/default/remote"),
-            log_dir: PathBuf::from("/default/logs"),
-        }
-    }
+    const TEST_LOCAL_DIR: &str = "/default/local";
 
     fn create_dummy_opamp_config(custom_path: Option<&str>) -> OpAMPClientConfig {
         use http::Uri;
@@ -101,9 +96,8 @@ mod tests {
 
     #[test]
     fn test_retrieve_uses_default_path_when_no_config() {
-        let base_paths = get_test_base_paths();
-        let expected_path = base_paths
-            .local_dir
+        let local_dir = PathBuf::from(TEST_LOCAL_DIR);
+        let expected_path = local_dir
             .join(AUTH_PRIVATE_KEY_FILE_NAME)
             .to_string_lossy()
             .to_string();
@@ -115,7 +109,7 @@ mod tests {
             .times(1)
             .returning(|_| Ok("SECRET_CONTENT".to_string()));
 
-        let retriever = OnHostSecretRetriever::new(None, base_paths, mock_provider);
+        let retriever = OnHostSecretRetriever::new(None, local_dir, mock_provider);
 
         let result = retriever.retrieve();
 
@@ -125,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_retrieve_uses_configured_path_when_provided() {
-        let base_paths = get_test_base_paths();
+        let local_dir = PathBuf::from(TEST_LOCAL_DIR);
         let custom_path = "/etc/custom/key.pem";
 
         let opamp_config = create_dummy_opamp_config(Some(custom_path));
@@ -137,7 +131,7 @@ mod tests {
             .times(1)
             .returning(|_| Ok("CUSTOM_SECRET".to_string()));
 
-        let retriever = OnHostSecretRetriever::new(Some(opamp_config), base_paths, mock_provider);
+        let retriever = OnHostSecretRetriever::new(Some(opamp_config), local_dir, mock_provider);
 
         let result = retriever.retrieve();
 
@@ -147,9 +141,8 @@ mod tests {
 
     #[test]
     fn test_retrieve_fallback_to_default_if_provider_is_not_local() {
-        let base_paths = get_test_base_paths();
-        let expected_default_path = base_paths
-            .local_dir
+        let local_dir = PathBuf::from(TEST_LOCAL_DIR);
+        let expected_default_path = local_dir
             .join(AUTH_PRIVATE_KEY_FILE_NAME)
             .to_string_lossy()
             .to_string();
@@ -163,7 +156,7 @@ mod tests {
             .times(1)
             .returning(|_| Ok("DEFAULT_SECRET".to_string()));
 
-        let retriever = OnHostSecretRetriever::new(Some(opamp_config), base_paths, mock_provider);
+        let retriever = OnHostSecretRetriever::new(Some(opamp_config), local_dir, mock_provider);
 
         let result = retriever.retrieve();
         assert_eq!(result.unwrap(), "DEFAULT_SECRET");
@@ -171,7 +164,7 @@ mod tests {
 
     #[test]
     fn test_retrieve_handles_provider_errors() {
-        let base_paths = get_test_base_paths();
+        let local_dir = PathBuf::from(TEST_LOCAL_DIR);
         let mut mock_provider = MockSecretsProvider::new();
 
         mock_provider.expect_get_secret().returning(|_| {
@@ -181,7 +174,7 @@ mod tests {
             ))
         });
 
-        let retriever = OnHostSecretRetriever::new(None, base_paths, mock_provider);
+        let retriever = OnHostSecretRetriever::new(None, local_dir, mock_provider);
 
         let result = retriever.retrieve();
 

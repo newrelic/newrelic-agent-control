@@ -1,4 +1,4 @@
-use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
+use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::exec::LongRunningProcess;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
@@ -63,8 +63,6 @@ pub fn test_proxy(args: Args) {
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
-    let debug_log_config = ac_debug_logging_config(windows::DEFAULT_LOG_PATH);
-
     // Install cli does not support adding infra-agent config yet on windows, so we need to update the config manually
     update_config(
         windows::DEFAULT_AC_CONFIG_PATH,
@@ -74,7 +72,7 @@ host_id: {test_id}
 agents:
   nr-infra:
     agent_type: newrelic/com.newrelic.infrastructure:0.1.0
-{debug_log_config}
+{DEBUG_LOGGING_CONFIG}
 "#
         ),
     );

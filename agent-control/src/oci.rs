@@ -15,6 +15,7 @@ use url::Url;
 
 mod error;
 mod proxy;
+pub mod reference_parser;
 mod signature_verification;
 
 pub use error::OciClientError;
@@ -130,6 +131,7 @@ pub mod tests {
     use tempfile::tempdir;
 
     use crate::agent_control::run::runtime::tests::tokio_runtime;
+    use crate::oci::reference_parser::ReferenceParser;
     use crate::signature::public_key::tests::TestKeyPair;
     use crate::signature::public_key_fetcher::tests::JwksMockServer;
     use rstest::rstest;
@@ -362,7 +364,9 @@ pub mod tests {
 
         pub fn reference_on_server(&self, server: &MockServer) -> Reference {
             let addr = server.address();
-            Reference::from_str(&format!("{}/{}:{}", addr, self.repo, self.tag)).unwrap()
+            Reference::from(
+                ReferenceParser::from_str(&format!("{}/{}:{}", addr, self.repo, self.tag)).unwrap(),
+            )
         }
 
         /// Returns the `digest` for the MockServer's manifest.

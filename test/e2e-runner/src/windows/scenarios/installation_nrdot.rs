@@ -1,5 +1,5 @@
 use crate::common::config::nrdot_config;
-use crate::common::config::{ac_debug_logging_config, update_config, write_agent_local_config};
+use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::{retry, retry_panic};
 use crate::common::{Args, RecipeData, nrql};
@@ -32,8 +32,6 @@ pub fn test_nrdot(args: Args) {
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
-    let debug_log_config = ac_debug_logging_config(windows::DEFAULT_LOG_PATH);
-
     update_config(
         windows::DEFAULT_AC_CONFIG_PATH,
         format!(
@@ -42,7 +40,7 @@ host_id: {test_id}
 agents:
   nrdot:
     agent_type: newrelic/com.newrelic.opentelemetry.collector:0.1.0
-{debug_log_config}
+{DEBUG_LOGGING_CONFIG}
 "#
         ),
     );

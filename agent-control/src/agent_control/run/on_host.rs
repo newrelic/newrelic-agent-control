@@ -59,14 +59,16 @@ pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Linux;
 
 impl AgentControlRunner {
     pub(super) fn run_onhost(self) -> Result<(), RunError> {
+        let local_dir = self.base_paths.local_dir;
+        let remote_dir = self.base_paths.remote_dir;
         let file_store = Arc::new(FileStore::new_local_fs(
-            self.base_paths.local_dir.clone(),
-            self.base_paths.remote_dir.clone(),
+            local_dir.clone(),
+            remote_dir.clone(),
         ));
 
         let secret_retriever = OnHostSecretRetriever::new(
             self.opamp.clone(),
-            self.base_paths.clone(),
+            local_dir.clone(),
             FileSecretProvider::new(),
         );
 
@@ -166,7 +168,7 @@ impl AgentControlRunner {
             template_renderer,
             self.agent_type_var_constraints,
             secrets_providers,
-            &self.base_paths.remote_dir,
+            &remote_dir,
         ));
 
         // We are setting client http in debug_assertions mode for tests
@@ -187,11 +189,8 @@ impl AgentControlRunner {
                 .into(),
         );
 
-        let package_manager = OCIPackageManager::new(
-            packages_downloader,
-            DirectoryManagerFs,
-            self.base_paths.remote_dir,
-        );
+        let package_manager =
+            OCIPackageManager::new(packages_downloader, DirectoryManagerFs, remote_dir.clone());
 
         let supervisor_builder = SupervisorBuilderOnHost {
             logging_path: self.base_paths.log_dir,

@@ -1,6 +1,7 @@
 use crate::common::oci::{hex_bytes, push_platform_config_descriptor};
 use crate::common::runtime::block_on;
 use aws_lc_rs::digest::{SHA256, digest};
+use newrelic_agent_control::oci::reference_parser::ReferenceParser;
 use newrelic_agent_control::package::oci::artifact_definitions::{
     LayerMediaType, ManifestArtifactType, PackageMediaType,
 };
@@ -30,7 +31,9 @@ pub fn push_agent_package(
 ) -> (String, Reference) {
     block_on(async {
         let tag = testing_unique_tag();
-        let index_reference = Reference::try_from(format!("{registry_url}/test:{tag}")).unwrap();
+        let index_reference = Reference::from(
+            ReferenceParser::try_from(format!("{registry_url}/test:{tag}")).unwrap(),
+        );
 
         let oci_client = Client::new(ClientConfig {
             protocol: ClientProtocol::Http,
@@ -115,7 +118,8 @@ async fn push_package_manifest(
     // The manifest is pushed under a tagged reference because the client's local digest
     // calculation does not always match the registry's canonical JSON. The tag is not used in
     // production scenarios.
-    let manifest_reference = Reference::try_from(format!("{index_reference}-manifest")).unwrap();
+    let manifest_reference =
+        Reference::from(ReferenceParser::try_from(format!("{index_reference}-manifest")).unwrap());
 
     let mut title_annotation: BTreeMap<String, String> = BTreeMap::new();
     title_annotation.insert(

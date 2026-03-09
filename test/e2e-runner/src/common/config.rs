@@ -61,25 +61,20 @@ fn merge_yaml_mappings(base: Value, new: Value) -> Value {
     merged
 }
 
-/// Return configuration for debug logging as a string
-pub fn ac_debug_logging_config(log_file_path: &str) -> String {
-    format!(
-        r#"
+/// Configuration for debug logging as a string
+pub const DEBUG_LOGGING_CONFIG: &str = r#"
 log:
   level: debug
   file:
     enabled: true
-    path: {log_file_path}
   format:
     target: false
     formatter: pretty
-"#
-    )
-}
+"#;
 
 /// Modifies the agent-control configuration file to enable debug logging and write logs to a file.
-pub fn update_config_for_debug_logging(config_path: &str, log_file_path: &str) {
-    update_config(config_path, ac_debug_logging_config(log_file_path))
+pub fn update_config_for_debug_logging(config_path: &str) {
+    update_config(config_path, DEBUG_LOGGING_CONFIG)
 }
 
 /// Writes a file [LOCAL_CONFIG_FILE_NAME] containing the provided `content` in the provided `config_dir`.

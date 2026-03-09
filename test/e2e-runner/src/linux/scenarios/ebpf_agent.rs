@@ -10,6 +10,7 @@ use crate::{
         install::{install_agent_control_from_recipe, tear_down_test},
     },
 };
+use config::DEBUG_LOGGING_CONFIG;
 use std::time::Duration;
 use tracing::info;
 
@@ -36,7 +37,6 @@ pub fn test_ebpf_agent(args: Args) {
     );
 
     info!("Setup Agent Control config with eBPF");
-    let debug_log_config = config::ac_debug_logging_config(linux::DEFAULT_LOG_PATH);
     let config = format!(
         r#"
 host_id: {test_id}
@@ -45,7 +45,7 @@ agents:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
   nr-ebpf:
     agent_type: "newrelic/com.newrelic.ebpf:0.1.0"
-{debug_log_config}
+{DEBUG_LOGGING_CONFIG}
 "#
     );
     config::update_config(linux::DEFAULT_AC_CONFIG_PATH, config);

@@ -140,6 +140,7 @@ impl OCIArtifactDownloader {
 pub mod tests {
     use crate::agent_control::run::runtime::tests::tokio_runtime;
     use crate::http::config::ProxyConfig;
+    use crate::oci::reference_parser::ReferenceParser;
     use crate::oci::tests::FakeOciServer;
     use crate::package::oci::artifact_definitions::{
         LayerMediaType, ManifestArtifactType, PackageMediaType,
@@ -299,8 +300,9 @@ pub mod tests {
             }));
         });
 
-        let reference =
-            Reference::from_str(&format!("{}/test-repo:v1.0.0", server.address())).unwrap();
+        let reference = Reference::from(
+            ReferenceParser::from_str(&format!("{}/test-repo:v1.0.0", server.address())).unwrap(),
+        );
         let downloader = create_downloader(false);
         let dest_dir = tempdir().unwrap();
         let err = downloader

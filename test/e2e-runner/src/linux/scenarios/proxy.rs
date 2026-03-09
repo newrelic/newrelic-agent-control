@@ -61,7 +61,7 @@ pub fn test_agent_control_proxy(args: Args) {
     );
 
     info!("Setup Agent Control config with proxy");
-    config::update_config_for_debug_logging(linux::DEFAULT_AC_CONFIG_PATH, linux::DEFAULT_LOG_PATH);
+    config::update_config_for_debug_logging(linux::DEFAULT_AC_CONFIG_PATH);
 
     let config = format!(
         r#"
