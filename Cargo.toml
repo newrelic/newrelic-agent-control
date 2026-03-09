@@ -39,14 +39,12 @@ mockall_double = "0.3.1"
 predicates = "3.1.4"
 semver = "1.0.27"
 chrono = "0.4.44"
-jsonwebtoken = { version = "10.3.0", features = [ "aws_lc_rs" ]}
-reqwest = { version = "0.13.2", features = [ "blocking", "socks" ] }
+jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
+reqwest = { version = "0.13.2", features = ["blocking", "socks"] }
 rstest = "0.26.1"
 windows = "0.62.2"
 windows-sys = "0.61.2"
 
-[profile.release]
-# remove debug symbols from the release binary
-# After <https://github.com/rust-lang/cargo/pull/13257> this is the default
-# behavior for cargo, unless debuginfo is enabled for any compiled package
-strip = "debuginfo"
+[profile.release-debug]
+inherits = "release"
+debug = 1

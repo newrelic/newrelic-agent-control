@@ -13,7 +13,16 @@ use std::error::Error;
 use std::process::ExitCode;
 use tracing::{error, info, trace};
 
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 fn main() -> ExitCode {
+    #[cfg(feature = "dhat-heap")]
+    let _profiler = dhat::Profiler::new_heap();
+    #[cfg(feature = "dhat-ad-hoc")]
+    let _profiler = dhat::Profiler::new_ad_hoc();
+
     #[cfg(target_family = "unix")]
     return Command::run(AGENT_CONTROL_MODE_K8S, _main);
     #[cfg(target_family = "windows")]
