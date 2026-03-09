@@ -10,9 +10,7 @@ use crate::agent_control::run::Environment;
 use crate::agent_control::run::set_debug_dirs;
 use crate::event::ApplicationEvent;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
-use crate::instrumentation::tracing::{
-    TracingConfig, TracingError, TracingGuardBox, try_init_tracing,
-};
+use crate::instrumentation::tracing::{TracingConfig, TracingGuardBox, try_init_tracing};
 use crate::on_host::file_store::FileStore;
 use crate::utils::env_var::load_env_yaml_file;
 use crate::values::ConfigRepo;
@@ -35,9 +33,6 @@ pub mod windows;
 /// All possible errors that can happen while running the initialization.
 #[derive(Debug, thiserror::Error)]
 pub enum InitError {
-    /// Could not initialize tracer
-    #[error("could not initialize tracer: {0}")]
-    TracerError(#[from] TracingError),
     /// K8s config is missing
     #[error("k8s config missing while running on k8s")]
     K8sConfig(),
@@ -161,14 +156,30 @@ impl Command {
             }
         }
 
-        let Ok((run_config, tracer)) = Self::build_run_config(ac_running_mode, base_paths)
+        let Ok((run_config, tracing_config)) = Self::build_run_config(ac_running_mode, base_paths)
             .inspect_err(|err| {
-                // Using print because the tracer might have failed to start
+                // Using print because the tracer has not been started yet
                 println!("Error on Agent Control initialization: {err}");
             })
         else {
             return ExitCode::FAILURE;
         };
+
+        let Ok(tracer) = try_init_tracing(tracing_config).inspect_err(|err| {
+            println!("Error on Agent Control tracing initialization: {err}");
+        }) else {
+            return ExitCode::FAILURE;
+        };
+
+        info!("{}", binary_metadata(run_config.ac_running_mode));
+        info!(
+            "Starting NewRelic Agent Control with config folder '{}'",
+            run_config
+                .base_paths
+                .local_dir
+                .to_string_lossy()
+                .to_string()
+        );
 
         let run_context = RunContext {
             run_config,
@@ -195,7 +206,7 @@ impl Command {
     fn build_run_config(
         ac_running_mode: Environment,
         base_paths: BasePaths,
-    ) -> Result<(AgentControlRunConfig, Vec<TracingGuardBox>), InitError> {
+    ) -> Result<(AgentControlRunConfig, TracingConfig), InitError> {
         let file_store = Arc::new(FileStore::new_local_fs(
             base_paths.local_dir.clone(),
             base_paths.remote_dir.clone(),
@@ -228,13 +239,6 @@ impl Command {
                     .self_instrumentation
                     .with_proxy_config(proxy.clone()),
             );
-        let tracer = try_init_tracing(tracing_config)?;
-
-        info!("{}", binary_metadata(ac_running_mode));
-        info!(
-            "Starting NewRelic Agent Control with config folder '{}'",
-            base_paths.local_dir.to_string_lossy().to_string()
-        );
 
         let opamp = agent_control_config.fleet_control;
         let http_server = agent_control_config.server;
@@ -254,6 +258,6 @@ impl Command {
             },
             agent_type_var_constraints,
         };
-        Ok((run_config, tracer))
+        Ok((run_config, tracing_config))
     }
 }
