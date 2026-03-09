@@ -11,3 +11,8 @@ configurationDefinitions:
     version: 1.0.0
     format: yml
     operatingSystem: LINUX
+  - platform: KUBERNETESCLUSTER
+    description: agent control configuration
+    type: agent-control-config
+    version: 1.0.0
+    format: yml
