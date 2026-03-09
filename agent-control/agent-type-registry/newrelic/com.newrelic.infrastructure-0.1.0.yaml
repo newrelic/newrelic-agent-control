@@ -195,6 +195,7 @@ deployment:
       config:
         newrelic-infra.yaml: |
           ${nr-var:config_agent}
+      integrations: { }
       integrations.d: ${nr-var:config_integrations}
       logging.d: ${nr-var:config_logging}
       # this is needed in order to create the logging integration directory expected by fluentBit
@@ -223,7 +224,7 @@ deployment:
           # To avoid disks exhaustion issues, a default log rotation policy is applied to this log file.
           NRIA_LOG_ROTATE_MAX_SIZE_MB: "50"
           NRIA_LOG_ROTATE_MAX_FILES: "5"
-          NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR: "${nr-sub:packages.infra-agent.dir}\\integrations"
+          NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR: "${nr-sub:filesystem_agent_dir}\\integrations"
           NRIA_SAFE_BIN_DIR: "${nr-sub:packages.infra-agent.dir}\\integrations"
           # Config folders where integrations and logging configs parsed from local/remote values are stored and looked for.
           NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}\\integrations.d"
@@ -265,6 +266,7 @@ deployment:
       config:
         newrelic-infra.yaml: |
           ${nr-var:config_agent}
+      integrations: { }
       integrations.d: ${nr-var:config_integrations}
       logging.d: ${nr-var:config_logging}
     executables:
@@ -286,7 +288,7 @@ deployment:
           # In the future this clean up process should be handled by the infra-agent itself or by AC file system clean up policies (same as the ones
           # that are going to remove integration configs whenever variables are removed)
           NRIA_AGENT_TEMP_DIR: "${nr-sub:filesystem_agent_dir}/newrelic-infra/tmp"
-          NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR: "${nr-sub:packages.infra-agent.dir}/integrations"
+          NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR: "${nr-sub:filesystem_agent_dir}/integrations"
           NRIA_SAFE_BIN_DIR: "${nr-sub:packages.infra-agent.dir}/integrations"
           # Config folders where integrations and logging configs parsed from local/remote values are stored and looked for.
           NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}/integrations.d"

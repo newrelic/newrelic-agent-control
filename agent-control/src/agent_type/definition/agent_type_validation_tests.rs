@@ -594,6 +594,48 @@ static AGENT_TYPE_EBPF: LazyLock<AgentTypeValuesTestCase> =
         ..Default::default()
     });
 
+static AGENT_TYPE_INTEGRATION_REDIS: LazyLock<AgentTypeValuesTestCase> =
+    LazyLock::new(|| AgentTypeValuesTestCase {
+        agent_type: "newrelic/com.newrelic.integration_redis:0.1.0",
+        values_k8s: None,
+        values_linux: AgentTypeValues {
+            cases: HashMap::from([
+                ("mandatory fields only", r#"version: "1.0.0""#),
+                (
+                    "check all value types are correct",
+                    r#"
+                version: "1.0.0"
+                config_integration:
+                    yaml: object
+                oci:
+                    registry: docker.io
+                    repository: newrelic/nri-redis-artifacts
+                "#,
+                ),
+            ]),
+            ..Default::default()
+        }
+        .into(),
+        values_windows: AgentTypeValues {
+            cases: HashMap::from([
+                ("mandatory fields only", r#"version: "1.0.0""#),
+                (
+                    "check all value types are correct",
+                    r#"
+                version: "1.0.0"
+                config_integration:
+                    yaml: object
+                oci:
+                    registry: docker.io
+                    repository: newrelic/nri-redis-artifacts
+                "#,
+                ),
+            ]),
+            ..Default::default()
+        }
+        .into(),
+    });
+
 fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesTestCase> {
     [
         &AGENT_TYPE_APM_DOTNET,
@@ -609,6 +651,7 @@ fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesT
         &AGENT_TYPE_OTEL_COLLECTOR_OLD,
         &AGENT_TYPE_PIPELINE_CONTROL_GATEWAY,
         &AGENT_TYPE_EBPF,
+        &AGENT_TYPE_INTEGRATION_REDIS,
     ]
     .into_iter()
     .map(Deref::deref)
@@ -708,6 +751,13 @@ fn iterate_test_cases(environment: &Environment) {
 
         values.cases.iter().for_each(|(scenario, yaml)| {
             let definition = registry.get(case.agent_type).unwrap();
+
+            // Skip agents with parent agents - they have special requirements
+            // that aren't covered by these validation tests
+            if definition.agent_type_id.parent_agent().is_some() {
+                return;
+            }
+
             let agent_type =
                 build_agent_type(definition, environment, &VariableConstraints::default()).unwrap();
             let attributes = testing_agent_attributes(&agent_id);
@@ -719,6 +769,7 @@ fn iterate_test_cases(environment: &Environment) {
                 attributes,
                 values.additional_env.clone(),
                 HashMap::new(), // Secrets are not used in this test
+                HashMap::new(), // Parent agent vars not needed for non-parent agents
             );
 
             assert!(

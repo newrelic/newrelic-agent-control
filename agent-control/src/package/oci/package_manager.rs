@@ -1,6 +1,9 @@
 use super::downloader::{OCIAgentDownloader, OCIDownloaderError};
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::PACKAGES_FOLDER_NAME;
+use crate::agent_type::runtime_config::on_host::package::rendered::{
+    PostInstallAction, PostInstallHook,
+};
 use crate::agent_type::runtime_config::on_host::package::PackageID;
 use crate::package::manager::{InstalledPackageData, PackageData, PackageManager};
 use crate::package::oci::artifact_definitions::LocalAgentPackage;
@@ -15,7 +18,7 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 use thiserror::Error;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 pub type DefaultOCIPackageManager = OCIPackageManager<OCIArtifactDownloader, DirectoryManagerFs>;
 
@@ -46,6 +49,8 @@ pub enum OCIPackageManagerError {
     NotNormalSuffix(String),
     #[error("errors removing packages: {0}")]
     RetainPackageErrors(RetainPackageErrors),
+    #[error("error executing post-install hook: {0}")]
+    PostInstallHook(String),
 }
 
 #[derive(Debug, Default)]
@@ -143,6 +148,109 @@ where
             "Package extraction succeeded. Written to {}",
             extract_dir.display()
         );
+        Ok(())
+    }
+
+    /// Executes post-install hooks for the given package.
+    /// Hooks are executed sequentially in the order they are defined.
+    fn execute_post_install_hooks(
+        &self,
+        hooks: &[PostInstallHook],
+    ) -> Result<(), OCIPackageManagerError> {
+        for (index, hook) in hooks.iter().enumerate() {
+            debug!("Executing post-install hook #{}", index + 1);
+            match &hook.action {
+                PostInstallAction::Copy {
+                    source,
+                    destination,
+                    create_parent_dirs,
+                } => {
+                    if *create_parent_dirs {
+                        if let Some(parent) = destination.parent() {
+                            self.directory_manager.create(parent).map_err(|e| {
+                                OCIPackageManagerError::PostInstallHook(format!(
+                                    "failed to create parent directories for {}: {}",
+                                    destination.display(),
+                                    e
+                                ))
+                            })?;
+                        }
+                    }
+
+                    std::fs::copy(source, destination).map_err(|e| {
+                        OCIPackageManagerError::PostInstallHook(format!(
+                            "failed to copy {} to {}: {}",
+                            source.display(),
+                            destination.display(),
+                            e
+                        ))
+                    })?;
+
+                    info!(
+                        "Post-install hook: copied {} to {}",
+                        source.display(),
+                        destination.display()
+                    );
+                }
+                PostInstallAction::Symlink {
+                    source,
+                    destination,
+                    create_parent_dirs,
+                } => {
+                    if *create_parent_dirs {
+                        if let Some(parent) = destination.parent() {
+                            self.directory_manager.create(parent).map_err(|e| {
+                                OCIPackageManagerError::PostInstallHook(format!(
+                                    "failed to create parent directories for {}: {}",
+                                    destination.display(),
+                                    e
+                                ))
+                            })?;
+                        }
+                    }
+
+                    #[cfg(unix)]
+                    std::os::unix::fs::symlink(source, destination).map_err(|e| {
+                        OCIPackageManagerError::PostInstallHook(format!(
+                            "failed to create symlink from {} to {}: {}",
+                            source.display(),
+                            destination.display(),
+                            e
+                        ))
+                    })?;
+
+                    #[cfg(windows)]
+                    {
+                        // On Windows, determine if source is a file or directory
+                        if source.is_file() {
+                            std::os::windows::fs::symlink_file(source, destination).map_err(|e| {
+                                OCIPackageManagerError::PostInstallHook(format!(
+                                    "failed to create file symlink from {} to {}: {}",
+                                    source.display(),
+                                    destination.display(),
+                                    e
+                                ))
+                            })?;
+                        } else {
+                            std::os::windows::fs::symlink_dir(source, destination).map_err(|e| {
+                                OCIPackageManagerError::PostInstallHook(format!(
+                                    "failed to create directory symlink from {} to {}: {}",
+                                    source.display(),
+                                    destination.display(),
+                                    e
+                                ))
+                            })?;
+                        }
+                    }
+
+                    info!(
+                        "Post-install hook: created symlink from {} to {}",
+                        source.display(),
+                        destination.display()
+                    );
+                }
+            }
+        }
         Ok(())
     }
 
@@ -367,8 +475,15 @@ where
         // If we face an error during installation, we must ensure the temporary directory is deleted.
         // We hide the error of the folder if something else went wrong.
         let installed_package = self
-            .install_archive(package_data, &temp_package_path, &package_path)
+            .install_archive(package_data.clone(), &temp_package_path, &package_path)
             .inspect_err(|_| _ = self.directory_manager.delete(&temp_package_path))?;
+
+        // Execute post-install hooks after successful extraction
+        if !package_data.post_install_hooks.is_empty() {
+            debug!("Executing {} post-install hooks", package_data.post_install_hooks.len());
+            self.execute_post_install_hooks(&package_data.post_install_hooks)
+                .inspect_err(|_| _ = self.directory_manager.delete(&temp_package_path))?;
+        }
 
         self.directory_manager
             .delete(&temp_package_path)
@@ -414,6 +529,7 @@ mod tests {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
             public_key_url: None,
+            post_install_hooks: vec![],
         }
     }
 
@@ -427,6 +543,7 @@ mod tests {
             oci_reference: Reference::from_str(format!("newrelic/fake-agent:{}", version).as_str())
                 .unwrap(),
             public_key_url: None,
+            post_install_hooks: vec![],
         }
     }
 
@@ -797,6 +914,7 @@ mod tests {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
             public_key_url: None,
+            post_install_hooks: vec![],
         };
         let result = pm.install(&agent_id, package_data);
 
@@ -860,6 +978,7 @@ mod tests {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
             public_key_url: None,
+            post_install_hooks: vec![],
         };
         let result = pm.install(&agent_id, package_data);
 
@@ -945,6 +1064,7 @@ mod tests {
             id: TEST_PACKAGE_ID.to_string(),
             oci_reference: test_reference(),
             public_key_url: None,
+            post_install_hooks: vec![],
         };
 
         let installed = pm.install(&agent_id, package_data).unwrap();

@@ -23,6 +23,9 @@ pub struct AgentTypeID {
     name: String,
     namespace: String,
     version: Version,
+    /// Optional parent agent reference for integrations that depend on another agent.
+    /// The parent agent's filesystem and attributes will be accessible via `${nr-parent:...}` variables.
+    parent_agent: Option<Box<AgentTypeID>>,
 }
 
 impl AgentTypeID {
@@ -34,6 +37,9 @@ impl AgentTypeID {
     }
     pub fn version(&self) -> &Version {
         &self.version
+    }
+    pub fn parent_agent(&self) -> Option<&AgentTypeID> {
+        self.parent_agent.as_deref()
     }
 
     fn has_valid_format(s: &str) -> bool {
@@ -109,6 +115,7 @@ impl TryFrom<&str> for AgentTypeID {
             name,
             namespace,
             version,
+            parent_agent: None,
         })
     }
 }
@@ -126,6 +133,18 @@ impl<'de> Deserialize<'de> for AgentTypeID {
             name: String,
             namespace: String,
             version: String,
+            #[serde(default)]
+            #[serde(deserialize_with = "deserialize_optional_parent_agent")]
+            parent_agent: Option<String>,
+        }
+
+        fn deserialize_optional_parent_agent<'de, D>(
+            deserializer: D,
+        ) -> Result<Option<String>, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Option::<String>::deserialize(deserializer)
         }
 
         let intermediate_spec = IntermediateAgentMetadata::deserialize(deserializer)?;
@@ -140,10 +159,19 @@ impl<'de> Deserialize<'de> for AgentTypeID {
         let version = Version::parse(intermediate_spec.version.as_str())
             .map_err(|_| Error::custom(AgentTypeIDError::InvalidVersion))?;
 
+        let parent_agent = if let Some(parent_fqn) = intermediate_spec.parent_agent {
+            let parent = AgentTypeID::try_from(parent_fqn.as_str())
+                .map_err(|e| Error::custom(format!("invalid parent agent: {}", e)))?;
+            Some(Box::new(parent))
+        } else {
+            None
+        };
+
         Ok(AgentTypeID {
             name: intermediate_spec.name,
             namespace: intermediate_spec.namespace,
             version,
+            parent_agent,
         })
     }
 }
@@ -318,6 +346,60 @@ version: 0.1.0-alpha.1
             AgentTypeID::try_from("/:").unwrap_err(),
             AgentTypeIDError::InvalidNamespace
         );
+    }
+
+    #[test]
+    fn test_parent_agent_metadata() {
+        let actual = serde_yaml::from_str::<AgentTypeID>(
+            r#"
+name: integration_redis
+namespace: newrelic
+version: 0.1.0
+parent_agent: newrelic/com.newrelic.infrastructure:0.1.0
+"#,
+        )
+        .unwrap();
+
+        assert_eq!("integration_redis", actual.name);
+        assert_eq!("newrelic", actual.namespace);
+        assert_eq!("0.1.0", actual.version.to_string());
+
+        let parent = actual.parent_agent().expect("parent agent should be present");
+        assert_eq!("com.newrelic.infrastructure", parent.name());
+        assert_eq!("newrelic", parent.namespace());
+        assert_eq!("0.1.0", parent.version().to_string());
+    }
+
+    #[test]
+    fn test_no_parent_agent_metadata() {
+        let actual = serde_yaml::from_str::<AgentTypeID>(
+            r#"
+name: nrdot
+namespace: newrelic
+version: 0.1.0
+"#,
+        )
+        .unwrap();
+
+        assert_eq!("nrdot", actual.name);
+        assert_eq!("newrelic", actual.namespace);
+        assert_eq!("0.1.0", actual.version.to_string());
+        assert!(actual.parent_agent().is_none());
+    }
+
+    #[test]
+    fn test_invalid_parent_agent_metadata() {
+        let result = serde_yaml::from_str::<AgentTypeID>(
+            r#"
+name: integration_redis
+namespace: newrelic
+version: 0.1.0
+parent_agent: invalid-fqn
+"#,
+        );
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("invalid parent agent"));
     }
 
     #[test]

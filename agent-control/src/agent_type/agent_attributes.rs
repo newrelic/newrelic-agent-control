@@ -23,6 +23,9 @@ impl AgentAttributes {
     pub const VARIABLE_FILESYSTEM_AGENT_DIR: &'static str = "filesystem_agent_dir";
     pub const VARIABLE_REMOTE_DIR: &'static str = "remote_dir";
 
+    pub const VARIABLE_PARENT_AGENT_ID: &'static str = "agent_id";
+    pub const VARIABLE_PARENT_FILESYSTEM_AGENT_DIR: &'static str = "filesystem_agent_dir";
+
     pub fn try_new(
         agent_id: AgentID,
         remote_dir: PathBuf,
@@ -58,5 +61,34 @@ impl AgentAttributes {
                 Variable::new_final_string_variable(self.remote_dir.to_string_lossy()),
             ),
         ])
+    }
+
+    /// returns the variables for accessing parent agent attributes via 'nr-parent' namespace.
+    /// This allows integrations to reference their parent agent's filesystem and properties.
+    pub fn parent_agent_variables(
+        parent_agent_id: &AgentID,
+        remote_dir: &PathBuf,
+    ) -> Result<HashMap<String, Variable>, AgentAttributesCreateError> {
+        if let AgentID::SubAgent(parent_id) = parent_agent_id {
+            let parent_filesystem_dir = remote_dir
+                .join(AGENT_FILESYSTEM_FOLDER_NAME)
+                .join(&parent_id);
+
+            Ok(HashMap::from([
+                (
+                    Namespace::ParentAgent.namespaced_name(Self::VARIABLE_PARENT_AGENT_ID),
+                    Variable::new_final_string_variable(parent_id),
+                ),
+                (
+                    Namespace::ParentAgent
+                        .namespaced_name(Self::VARIABLE_PARENT_FILESYSTEM_AGENT_DIR),
+                    Variable::new_final_string_variable(parent_filesystem_dir.to_string_lossy()),
+                ),
+            ]))
+        } else {
+            Err(AgentAttributesCreateError(
+                "Parent agent ID cannot be a reserved ID".into(),
+            ))
+        }
     }
 }

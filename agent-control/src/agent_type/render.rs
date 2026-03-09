@@ -26,6 +26,7 @@ impl TemplateRenderer {
         attributes: AgentAttributes,
         env_vars: HashMap<String, Variable>,
         secrets: HashMap<String, Variable>,
+        parent_agent_vars: HashMap<String, Variable>,
     ) -> Result<Runtime, AgentTypeError> {
         // Get empty variables and runtime_config from the agent-type
         let (variables, runtime_config) = (agent_type.variables, agent_type.runtime_config);
@@ -40,7 +41,7 @@ impl TemplateRenderer {
         Self::check_all_vars_are_populated(&filled_variables)?;
 
         // Setup namespaced variables
-        let ns_variables = self.build_namespaced_variables(filled_variables, env_vars, &attributes);
+        let ns_variables = self.build_namespaced_variables(filled_variables, env_vars, &attributes, parent_agent_vars);
         // Render runtime config
         let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
 
@@ -83,6 +84,7 @@ impl TemplateRenderer {
         variables: HashMap<String, Variable>,
         env_vars: HashMap<String, Variable>,
         attributes: &AgentAttributes,
+        parent_agent_vars: HashMap<String, Variable>,
     ) -> HashMap<NamespacedVariableName, Variable> {
         // Set the namespaced name to variables
         let vars_iter = variables
@@ -95,6 +97,7 @@ impl TemplateRenderer {
         vars_iter
             .chain(sub_agent_vars_iter)
             .chain(env_vars)
+            .chain(parent_agent_vars)
             .chain(self.ac_variables.clone())
             .collect::<HashMap<NamespacedVariableName, Variable>>()
     }
@@ -145,6 +148,7 @@ pub(crate) mod tests {
                 attributes,
                 HashMap::new(),
                 HashMap::new(),
+                HashMap::new(),
             )
             .unwrap();
 
@@ -181,6 +185,7 @@ pub(crate) mod tests {
             attributes,
             HashMap::new(),
             HashMap::new(),
+            HashMap::new(),
         );
         assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
             assert_eq!(vars, vec!["config_path".to_string()])
@@ -200,6 +205,7 @@ pub(crate) mod tests {
             agent_type,
             values,
             attributes,
+            HashMap::new(),
             HashMap::new(),
             HashMap::new(),
         );
@@ -222,6 +228,7 @@ pub(crate) mod tests {
                 agent_type,
                 values,
                 attributes,
+                HashMap::new(),
                 HashMap::new(),
                 HashMap::new(),
             )
@@ -272,6 +279,7 @@ pub(crate) mod tests {
                 agent_type,
                 values,
                 attributes,
+                HashMap::new(),
                 HashMap::new(),
                 HashMap::new(),
             )
@@ -357,6 +365,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
                 attributes,
                 HashMap::new(),
                 HashMap::new(),
+                HashMap::new(),
             )
             .unwrap();
 
@@ -411,7 +420,7 @@ substituted_2: my-value-2
 
         let renderer = TemplateRenderer::default();
         let runtime_config =
-            renderer.render(agent_type, values, attributes, env_vars, HashMap::new());
+            renderer.render(agent_type, values, attributes, env_vars, HashMap::new(), HashMap::new());
 
         let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
         let cr1 = k8s.objects.get("cr1").unwrap();
@@ -466,7 +475,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 
         let renderer = TemplateRenderer::default();
         let runtime_config =
-            renderer.render(agent_type, values, attributes, HashMap::new(), secrets);
+            renderer.render(agent_type, values, attributes, HashMap::new(), secrets, HashMap::new());
 
         let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
         let values = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
@@ -488,6 +497,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
             agent_type,
             values,
             attributes,
+            HashMap::new(),
             HashMap::new(),
             HashMap::new(),
         );
@@ -540,7 +550,7 @@ deployment:
 
         let renderer = TemplateRenderer::default();
         let runtime_config =
-            renderer.render(agent_type, values, attributes, env_vars, HashMap::new());
+            renderer.render(agent_type, values, attributes, env_vars, HashMap::new(), HashMap::new());
 
         assert_matches!(
             runtime_config.unwrap_err(),
@@ -589,6 +599,7 @@ deployment:
                 agent_type,
                 values,
                 attributes,
+                HashMap::new(),
                 HashMap::new(),
                 HashMap::new(),
             )

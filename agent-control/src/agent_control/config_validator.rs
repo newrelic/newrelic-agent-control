@@ -35,20 +35,36 @@ impl<R: AgentRegistry> DynamicConfigValidator for RegistryDynamicConfigValidator
         &self,
         dynamic_config: &AgentControlDynamicConfig,
     ) -> Result<(), DynamicConfigValidatorError> {
-        dynamic_config
-            .agents
-            .values()
-            .try_for_each(|sub_agent_cfg| {
-                let _ = self
-                    .agent_type_registry
-                    .get(sub_agent_cfg.agent_type.to_string().as_str())
-                    .map_err(|err| {
-                        DynamicConfigValidatorError(format!(
-                            "AgentType registry check failed: {err}"
-                        ))
-                    })?;
-                Ok(())
-            })
+        // Validate each agent's type exists in registry
+        for (agent_id, sub_agent_cfg) in &dynamic_config.agents {
+            let agent_type = self
+                .agent_type_registry
+                .get(sub_agent_cfg.agent_type.to_string().as_str())
+                .map_err(|err| {
+                    DynamicConfigValidatorError(format!(
+                        "AgentType registry check failed for agent '{}': {}",
+                        agent_id, err
+                    ))
+                })?;
+
+            // If agent declares a parent, validate parent agent exists in config
+            if let Some(parent_agent_type) = agent_type.agent_type_id.parent_agent() {
+                let parent_exists = dynamic_config
+                    .agents
+                    .values()
+                    .any(|cfg| &cfg.agent_type == parent_agent_type);
+
+                if !parent_exists {
+                    return Err(DynamicConfigValidatorError(format!(
+                        "Agent '{}' declares parent agent '{}' but no agent with that type exists in config",
+                        agent_id,
+                        parent_agent_type
+                    )));
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

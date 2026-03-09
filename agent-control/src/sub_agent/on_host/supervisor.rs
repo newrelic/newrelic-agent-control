@@ -98,6 +98,11 @@ where
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Self::Supervisor, Self::Error> {
+        // Write filesystem first so post-install hooks can reference files in it
+        self.filesystem
+            .write(&LocalFile, &DirectoryManagerFs)
+            .map_err(SupervisorError::FileSystem)?;
+
         install_packages(
             &self.package_manager,
             &self.agent_identity.id,
@@ -131,6 +136,12 @@ where
             thread_contexts,
             logging_path,
         } = self;
+
+        // Write filesystem before installing packages so post-install hooks can reference files in it
+        onhost_config
+            .filesystem
+            .write(&LocalFile, &DirectoryManagerFs)
+            .map_err(SupervisorError::FileSystem)?;
 
         let installation_result = install_packages(
             &package_manager,
@@ -272,6 +283,9 @@ where
     ) -> Result<StartedSupervisorOnHost<PM>, SupervisorError> {
         let (health_publisher, health_consumer) = pub_sub();
 
+        // Filesystem is now written before packages are installed (in start/apply methods)
+        // so post-install hooks can reference files from the agent's own filesystem.
+        // We still keep this write here for safety in case spin_up is called directly.
         self.filesystem
             .write(&LocalFile, &DirectoryManagerFs)
             .map_err(SupervisorError::FileSystem)?;
@@ -409,6 +423,7 @@ fn install_packages<PM: PackageManager>(
                     id: id.clone(),
                     oci_reference: package.download.oci.reference.clone(),
                     public_key_url: package.download.oci.public_key_url.clone(),
+                    post_install_hooks: package.post_install.clone(),
                 },
             )
             .map_err(|err| InstallPackageError {

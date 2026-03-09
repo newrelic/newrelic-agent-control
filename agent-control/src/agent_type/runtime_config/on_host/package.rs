@@ -1,6 +1,6 @@
+use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
-use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
 use crate::agent_type::templates::Templateable;
 use oci_client::Reference;
 use serde::Deserialize;
@@ -12,6 +12,10 @@ pub mod rendered;
 pub(super) struct Package {
     /// Download defines the supported repository sources for the packages.
     pub download: Download,
+    /// Optional post-install hooks that execute after package extraction.
+    /// Useful for copying binaries to parent agent directories or other setup tasks.
+    #[serde(default)]
+    pub post_install: Vec<PostInstallHook>,
 }
 
 pub type PackageID = String;
@@ -35,12 +39,82 @@ pub struct Oci {
     pub public_key_url: Option<TemplateableValue<String>>,
 }
 
+/// Post-install hook that executes after package extraction.
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub struct PostInstallHook {
+    /// Type of post-install action to perform.
+    #[serde(flatten)]
+    pub action: PostInstallAction,
+}
+
+/// Actions that can be performed after package installation.
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum PostInstallAction {
+    /// Copy a file or directory from source to destination.
+    Copy {
+        source: TemplateableValue<String>,
+        destination: TemplateableValue<String>,
+        #[serde(default)]
+        create_parent_dirs: bool,
+    },
+    /// Create a symbolic link from source to destination.
+    Symlink {
+        source: TemplateableValue<String>,
+        destination: TemplateableValue<String>,
+        #[serde(default)]
+        create_parent_dirs: bool,
+    },
+}
+
 impl Templateable for Package {
     type Output = rendered::Package;
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        let post_install = self
+            .post_install
+            .into_iter()
+            .map(|hook| hook.template_with(variables))
+            .collect::<Result<Vec<_>, _>>()?;
+
         Ok(Self::Output {
             download: self.download.template_with(variables)?,
+            post_install,
         })
+    }
+}
+
+impl Templateable for PostInstallHook {
+    type Output = rendered::PostInstallHook;
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        Ok(Self::Output {
+            action: self.action.template_with(variables)?,
+        })
+    }
+}
+
+impl Templateable for PostInstallAction {
+    type Output = rendered::PostInstallAction;
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        match self {
+            PostInstallAction::Copy {
+                source,
+                destination,
+                create_parent_dirs,
+            } => Ok(rendered::PostInstallAction::Copy {
+                source: source.template_with(variables)?.into(),
+                destination: destination.template_with(variables)?.into(),
+                create_parent_dirs,
+            }),
+            PostInstallAction::Symlink {
+                source,
+                destination,
+                create_parent_dirs,
+            } => Ok(rendered::PostInstallAction::Symlink {
+                source: source.template_with(variables)?.into(),
+                destination: destination.template_with(variables)?.into(),
+                create_parent_dirs,
+            }),
+        }
     }
 }
 
