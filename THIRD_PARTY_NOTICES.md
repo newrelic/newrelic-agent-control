@@ -1545,7 +1545,7 @@ Distributed under the following license(s):
 
 * Apache-2.0
 
-## oci-spec <https://crates.io/crates/oci-spec>
+## oci-spec <https://github.com/DavSanchez/oci-spec-rs?branch=refactor%2Fno-regexp-reference-from-str>
 
 Distributed under the following license(s):
 
