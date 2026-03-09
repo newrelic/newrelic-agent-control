@@ -243,8 +243,9 @@ fn helm_repository(
     maybe_cert_secret_ref: Option<String>,
     obj_meta_data: ObjectMeta,
 ) -> DynamicObject {
-    let secret_ref = maybe_secret_ref.map(|name| serde_json::json!({"name": name}));
-    let cert_secret_ref = maybe_cert_secret_ref.map(|name| serde_json::json!({"name": name}));
+    // These are Kubernetes Secret resource *names* (references), not secret values.
+    let secret_ref = maybe_secret_ref.map(|name| serde_json::json!({"name": name})); // codeql[rust/cleartext-logging]
+    let cert_secret_ref = maybe_cert_secret_ref.map(|name| serde_json::json!({"name": name})); // codeql[rust/cleartext-logging]
     DynamicObject {
         types: Some(helmrepository_type_meta()),
         metadata: obj_meta_data,

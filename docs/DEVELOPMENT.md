@@ -317,6 +317,9 @@ Check the results
 ❯ cat results.sarif | jq '.runs[0].results[] | {ruleId, message: .message.text, location: .locations[0].physicalLocation}'
 ```
 
+> [!IMPORTANT]
+> The `codeql` cli ignores dismissed alerts with `// codeql[issue-id]` comments, these are only honored by GitHub action.
+
 ## Additional information
 
 We maintain separate directories for other documented topics under this `docs` directory and in other Markdown files throughout the codebase. The latter will be centralized under the `docs` directory over time. Feel free to check these documents and ask doubts or propose changes!
