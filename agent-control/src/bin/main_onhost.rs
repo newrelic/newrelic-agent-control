@@ -13,6 +13,10 @@ use std::error::Error;
 use std::process::ExitCode;
 use tracing::{error, info, trace};
 
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 #[cfg(target_os = "windows")]
 use newrelic_agent_control::command::windows::WINDOWS_SERVICE_NAME;
 
@@ -20,6 +24,11 @@ use newrelic_agent_control::command::windows::WINDOWS_SERVICE_NAME;
 windows_service::define_windows_service!(ffi_service_main, service_main);
 
 fn main() -> ExitCode {
+    #[cfg(feature = "dhat-heap")]
+    let _profiler = dhat::Profiler::new_heap();
+    #[cfg(feature = "dhat-ad-hoc")]
+    let _profiler = dhat::Profiler::new_ad_hoc();
+
     #[cfg(target_family = "unix")]
     {
         Command::run(AGENT_CONTROL_MODE_ON_HOST, _main)

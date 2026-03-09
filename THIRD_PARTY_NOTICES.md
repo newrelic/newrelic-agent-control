@@ -82,6 +82,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## addr2line <https://crates.io/crates/addr2line>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
+
 ## adler2 <https://crates.io/crates/adler2>
 
 Distributed under the following license(s):
@@ -270,6 +277,13 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 
+* Apache-2.0
+
+## backtrace <https://crates.io/crates/backtrace>
+
+Distributed under the following license(s):
+
+* MIT
 * Apache-2.0
 
 ## base64 <https://crates.io/crates/base64>
@@ -663,6 +677,13 @@ Distributed under the following license(s):
 
 * MIT
 
+## dhat <https://crates.io/crates/dhat>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## difflib <https://crates.io/crates/difflib>
 
 Distributed under the following license(s):
@@ -934,6 +955,13 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
+
+## gimli <https://crates.io/crates/gimli>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
 
 ## glob <https://crates.io/crates/glob>
 
@@ -1448,6 +1476,12 @@ Distributed under the following license(s):
 * Zlib
 * Apache-2.0
 
+## mintex <https://crates.io/crates/mintex>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+
 ## mio <https://crates.io/crates/mio>
 
 Distributed under the following license(s):
@@ -1537,6 +1571,13 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 
+* MIT
+
+## object <https://crates.io/crates/object>
+
+Distributed under the following license(s):
+
+* Apache-2.0
 * MIT
 
 ## oci-client <https://crates.io/crates/oci-client>
@@ -1991,6 +2032,20 @@ Distributed under the following license(s):
 
 * MIT
 
+## rustc-demangle <https://crates.io/crates/rustc-demangle>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## rustc-hash <https://crates.io/crates/rustc-hash>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
+
 ## rustc_version <https://crates.io/crates/rustc_version>
 
 Distributed under the following license(s):
@@ -2357,6 +2412,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## thiserror-impl <https://crates.io/crates/thiserror-impl>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## thousands <https://crates.io/crates/thousands>
 
 Distributed under the following license(s):
 
