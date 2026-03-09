@@ -2,6 +2,7 @@ use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
 use crate::agent_type::templates::Templateable;
+use crate::oci::reference_parser::ReferenceParser;
 use oci_client::Reference;
 use serde::Deserialize;
 use std::str::FromStr;
@@ -77,11 +78,13 @@ impl Templateable for Oci {
         }
 
         let string_reference = format!("{}/{}{}", registry, repository, version);
-        let reference = Reference::from_str(string_reference.as_str()).map_err(|err| {
-            AgentTypeError::OCIReferenceParsingError(format!(
-                "parsing OCI reference {string_reference}: {err}"
-            ))
-        })?;
+        let reference = Reference::from(
+            ReferenceParser::from_str(string_reference.as_str()).map_err(|err| {
+                AgentTypeError::OCIReferenceParsingError(format!(
+                    "parsing OCI reference {string_reference}: {err}"
+                ))
+            })?,
+        );
 
         Ok(Self::Output {
             reference,

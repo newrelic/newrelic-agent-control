@@ -393,6 +393,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::oci::reference_parser::ReferenceParser;
     use crate::package::oci::artifact_definitions::PackageMediaType;
     use crate::package::oci::downloader::tests::MockOCIDownloader;
     use crate::utils::extract::tests::TestDataHelper;
@@ -406,7 +407,7 @@ mod tests {
     const TEST_PACKAGE_ID: &str = "test-package";
 
     fn test_reference() -> Reference {
-        Reference::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap()
+        Reference::from(ReferenceParser::from_str("docker.io/library/busybox:latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").unwrap())
     }
 
     fn test_package_data() -> PackageData {
@@ -424,8 +425,10 @@ mod tests {
     fn new_package_version(version: &str) -> PackageData {
         PackageData {
             id: TEST_PACKAGE_ID.to_string(),
-            oci_reference: Reference::from_str(format!("newrelic/fake-agent:{}", version).as_str())
-                .unwrap(),
+            oci_reference: Reference::from(
+                ReferenceParser::from_str(format!("newrelic/fake-agent:{}", version).as_str())
+                    .unwrap(),
+            ),
             public_key_url: None,
         }
     }
@@ -461,7 +464,7 @@ mod tests {
             root_dir.path(),
             &agent_id,
             &TEST_PACKAGE_ID.to_string(),
-            &Reference::from_str("newrelic/fake-agent:v0").unwrap(),
+            &Reference::from(ReferenceParser::from_str("newrelic/fake-agent:v0").unwrap()),
         )
         .unwrap();
         DirectoryManagerFs.create(&untracked_package_path).unwrap();
@@ -496,7 +499,7 @@ mod tests {
             root_dir.path(),
             &AgentID::try_from("other-agent-id").unwrap(),
             &TEST_PACKAGE_ID.to_string(),
-            &Reference::from_str("newrelic/fake-agent:v0").unwrap(),
+            &Reference::from(ReferenceParser::from_str("newrelic/fake-agent:v0").unwrap()),
         )
         .unwrap();
         DirectoryManagerFs.create(&other_agent_package).unwrap();
