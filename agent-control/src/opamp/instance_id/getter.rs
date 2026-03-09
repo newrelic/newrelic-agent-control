@@ -266,9 +266,9 @@ pub mod tests {
         // Crete InstanceID from string
         let id: InstanceID = serde_yaml::from_str(uuid_as_str).unwrap();
         // Convert instanceID to OpAMP instanceUid
-        let instance_uid = InstanceUid::from(id.clone());
+        let value = InstanceUid::from(id.clone());
         // Get the instanceID back from the corresponding bytes
-        let id_from_bytes: InstanceID = InstanceUid::try_from(Vec::<u8>::from(instance_uid))
+        let id_from_bytes: InstanceID = InstanceUid::try_from(Vec::<u8>::from(value))
             .unwrap()
             .into();
         assert_eq!(id, id_from_bytes);
