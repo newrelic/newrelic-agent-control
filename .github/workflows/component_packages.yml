@@ -1,8 +1,5 @@
 name: 📞 Build binaries and create packages
 
-permissions:
-  contents: read
-
 on:
   workflow_call:
     secrets:
