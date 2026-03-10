@@ -1,5 +1,9 @@
 name: 📞 Build binaries and create packages
 
+# Note: this reusable workflow doesn't define a `permissions` block explicitly because it needs to be called from
+# both read-only (such as e2e) and read-write (such as pre-releases) workflows. The corresponding CodeQL alert
+# can be dismissed.
+
 on:
   workflow_call:
     secrets:
