@@ -184,7 +184,6 @@ impl Command {
         // of publishing a stop signal to the application for a Graceful Shutdown.
         let (application_event_publisher, application_event_consumer) = pub_sub();
 
-        println!("creating the signal handler");
         create_shutdown_signal_handler(application_event_publisher.clone())
             .map_err(|e| format!("Failed to create shutdown signal handler: {e}"))?;
 
