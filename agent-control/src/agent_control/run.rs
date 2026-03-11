@@ -20,7 +20,7 @@ use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
@@ -165,10 +165,14 @@ impl AgentControlRunner {
     }
 
     pub fn run(self) -> Result<(), RunError> {
-        match self.ac_running_mode {
+        let run_result = match self.ac_running_mode {
             Environment::Linux | Environment::Windows => self.run_onhost(),
             Environment::K8s => self.run_k8s(),
-        }
+        };
+
+        run_result
+            .inspect_err(|e| error!("Agent Control Runner failed: {e}"))
+            .inspect(|_| info!("Exiting gracefully"))
     }
 
     pub fn build_opamp_http_builder<R>(

@@ -25,7 +25,7 @@ use clap::Parser;
 use std::error::Error;
 use std::process::ExitCode;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{error, info, trace};
 
 #[cfg(target_os = "windows")]
 pub mod windows;
@@ -76,8 +76,6 @@ pub struct RunContext {
     pub run_config: AgentControlRunConfig,
     /// This must be kept alive for the duration of the program to ensure logs and traces are flushed.
     pub tracer: Vec<TracingGuardBox>,
-    /// The publishing end of the internal application event bus.
-    pub application_event_publisher: EventPublisher<ApplicationEvent>,
     /// The consuming end of the internal application event bus.
     pub application_event_consumer: EventConsumer<ApplicationEvent>,
     /// A handler used to signal the application to stop when running as a Windows Service
@@ -184,10 +182,15 @@ impl Command {
         let run_context = RunContext {
             run_config,
             tracer,
-            application_event_publisher,
             application_event_consumer,
             #[cfg(target_os = "windows")]
             stop_handler,
+        };
+
+        trace!("creating the signal handler");
+        if let Err(e) = create_shutdown_signal_handler(application_event_publisher) {
+            error!("Failed to create shutdown signal handler: {e}");
+            return ExitCode::FAILURE;
         };
 
         match main_fn(run_context) {
@@ -260,4 +263,20 @@ impl Command {
         };
         Ok((run_config, tracing_config))
     }
+}
+
+/// Enables using the typical keypress (Ctrl-C) to stop the agent control process at any moment.
+///
+/// This means sending [ApplicationEvent::StopRequested] to the agent control event processor
+/// so it can release all resources.
+fn create_shutdown_signal_handler(
+    publisher: EventPublisher<ApplicationEvent>,
+) -> Result<(), ctrlc::Error> {
+    ctrlc::set_handler(move || {
+        info!("Received SIGINT (Ctrl-C). Stopping agent control");
+        let _ = publisher
+            .publish(ApplicationEvent::StopRequested)
+            .inspect_err(|e| error!("Could not send agent control stop request: {}", e));
+    })
+    .inspect_err(|e| error!("Could not set signal handler: {e}"))
 }
