@@ -1,0 +1,87 @@
+description: E2E Test with minimal RBAC permissions
+
+custom_test_key: appName
+
+scenarios:
+    # This test spawns AC along with the APM operator and five sample apps (Java, Python, Node.js, Ruby and .NET).
+    # Each app is instrumented with its corresponding APM agent via an Instrumentation CR created by AC.
+    # The test validates that each agent is healthy via the AC /status endpoint and that data is being reported to New Relic.
+    # Sample apps are basic web servers that respond to HTTP requests. Each Pod includes a lightweight sidecar that waits for
+    # readiness and continuously generates local traffic to help validate agent instrumentation.
+  - description: Deploy SA with APM operator and Java, Python and Node.js agents with minimal permissions
+    before:
+      - echo The cluster name of the test is ${SCENARIO_TAG}
+      - kubectl get secret sys-identity || kubectl create secret generic sys-identity --from-literal=CLIENT_ID="${NR_SYSTEM_IDENTITY_CLIENT_ID}" --from-literal=private_key="${NR_SYSTEM_IDENTITY_PRIVATE_KEY}"
+      - cd ../../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/apm-minimal-perms/ac-values-apm-minimal-perms.yml" CLUSTER=${SCENARIO_TAG} USE_LATEST_FLUX=${USE_LATEST_FLUX} tilt ci
+      # Before spawn the apps, wait for the operator and the Instrumentation CRs to be created.
+      - kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 deploy/operator-k8s-agents-operator -n newrelic-agents --timeout=600s
+      - kubectl wait --for=create instrumentation/python-agent instrumentation/java-agent instrumentation/node-agent instrumentation/ruby-agent instrumentation/dotnet-agent --timeout=60s -n newrelic-agents
+      # At this point the operator should be ready and AC should have created the Instrumentation resources.
+      - kubectl create -f ./pythonapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-python/ | kubectl create -f -
+      - kubectl create -f ./javaapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-java/ | kubectl create -f -
+      - kubectl create -f ./nodeapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-node/ | kubectl create -f -
+      - kubectl create -f ./rubyapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-ruby/ | kubectl create -f -
+        # the dotnet container for linux/arm64 is broken, it doesn't have the binary. Do not expect this to work in Mac MX minikube.
+      - kubectl create -f ./dotnetapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-dotnet/ | kubectl create -f -
+    after:
+      - kubectl logs --tail=-1 -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
+      - kubectl logs --tail=-1 -l app.kubernetes.io/instance=operator --all-containers --prefix=true -n newrelic-agents
+      - kubectl get all -o wide --all-namespaces --show-labels
+      - cd ../../../ && tilt down
+    tests:
+      nrqls:
+        # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.
+        # Due to that, the queries end with a comment. We want to override the automatic `testKey` with our own that includes the language.
+        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-java' -- comment disabling the appended testKey: "
+        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-python' -- comment disabling the appended testKey: "
+        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-node' -- comment disabling the appended testKey: "
+        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-ruby' -- comment disabling the appended testKey: "
+        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-dotnet' -- comment disabling the appended testKey: "
+      scripts:
+        # Check agent is healthy
+        - |
+          POD_NAME=$(kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep "agent-control")
+          if [ -z "$POD_NAME" ]; then
+              echo "No pod found with name starting with \"agent-control\""
+              exit 1
+          fi
+          echo "pod found $POD_NAME"
+          kubectl port-forward pods/${POD_NAME} 51200 > /dev/null 2>&1 &
+          PORT_FORWARD_PID=$!
+          sleep 5
+          response=$(curl -s "http://localhost:51200/status")
+          echo "response ${response}"
+          for agent in dotnet-agent java-agent node-agent python-agent ruby-agent; do
+              agent_status=$(echo "$response" | jq -r ".agents[\"${agent}\"].health_info.healthy")
+              if [ "$agent_status" != "true" ]; then
+                echo "${agent} is not healthy. Failing..."
+                exit 1
+              fi
+              echo "${agent} is healthy. Success."
+          done
+          kill $PORT_FORWARD_PID
+
+        # Check entity guid is being sent
+        - |
+          POD_NAME=$(kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep "agent-control")
+          if [ -z "$POD_NAME" ]; then
+              echo "No pod found with name starting with \"agent-control\""
+              exit 1
+          fi
+          echo "pod found $POD_NAME"
+          for agent in java-agent dotnet-agent; do
+            for i in $(seq 1 10); do
+              kubectl logs $POD_NAME | grep -E "AgentDescription.*KeyValue\ \{\ key\: \\\"supervisor\.key\"\,\ value\: Some\(\\\"${agent}\"\)\ \}" | grep -E "AgentDescription.*KeyValue\ \{\ key\: \\\"apm\.application\.id\"\,\ value\: Some\(\\\".*\"\)\ \}" > /dev/null
+              if [ $? -ne 0 ]; then
+                sleep 5
+              else
+                echo "${agent} is sending its entity guid. Success."
+                break
+              fi
+
+              if [ $i -eq 10 ]; then
+                echo "${agent} is not sending its entity guid. Failing..."
+                exit 1
+              fi
+            done
+          done

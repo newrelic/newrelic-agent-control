@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: placeholder
+data:
+  Gemfile: |
+    # frozen_string_literal: true
+    source 'https://rubygems.org'
+    gem 'sinatra'
+    gem 'rackup', '~> 2.2'
+    gem 'webrick'
+  main.rb: |
+    # frozen_string_literal: true
+    require 'sinatra'
+    get '/' do
+      "Hello, World!"
+    end
+  config.ru: |
+    require 'bundler'
+    Bundler.require
+    require './main.rb'
+    run Sinatra::Application
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: placeholder
+  labels:
+    app: rubyapp
+spec:
+  containers:
+    - name: placeholder
+      image: ruby:3.3-alpine
+      workingDir: /app
+      command:
+        - sh
+        - -c
+        - "bundle install ; bundle exec rackup --host 0.0.0.0 --port 9292"
+      ports:
+        - containerPort: 9292
+      volumeMounts:
+        - mountPath: /app/Gemfile
+          name: code
+          subPath: Gemfile
+        - mountPath: /app/config.ru
+          name: code
+          subPath: config.ru
+        - mountPath: /app/main.rb
+          name: code
+          subPath: main.rb
+    - name: trafficgen
+      image: alpine/curl:latest
+      command: ["/bin/sh","-c"]
+      args:
+        - |
+          until curl -sS 127.0.0.1:9292; do echo "Ruby app not ready yet"; sleep 5; done;
+          while true; do curl -sS 127.0.0.1:9292; sleep 1; done
+  volumes:
+    - name: code
+      configMap:
+        name: placeholder
