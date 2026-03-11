@@ -33,7 +33,7 @@ pub fn create_temp_file(
 
 pub fn cmd_with_config_file(local_dir: &Path) -> Command {
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
-    cmd.arg("--local-dir").arg(local_dir);
+    cmd.arg("run").arg("--local-dir").arg(local_dir);
     // cmd_assert is not made for long running programs, so we kill it anyway after 10 second
     cmd.timeout(Duration::from_secs(10));
     cmd
@@ -51,7 +51,7 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
         r"agents: {}",
     )?;
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
-    cmd.arg("--local-dir").arg(dir.path());
+    cmd.arg("run").arg("--local-dir").arg(dir.path());
     cmd.assert().failure().stdout(predicate::str::contains(
         "Program must run with elevated permissions",
     ));
@@ -79,7 +79,7 @@ logs:
     create_temp_file(dir.path(), AUTH_PRIVATE_KEY_FILE_NAME, "dummy-key-content")?;
 
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
-    cmd.arg("--local-dir").arg(dir.path());
+    cmd.arg("run").arg("--local-dir").arg(dir.path());
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
     cmd.timeout(Duration::from_secs(1));
     // But in any case we make sure that it actually attempted to create the supervisor group,
@@ -128,7 +128,7 @@ server:
     )?;
 
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
-    cmd.arg("--local-dir").arg(dir.path());
+    cmd.arg("run").arg("--local-dir").arg(dir.path());
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
     cmd.timeout(Duration::from_secs(1));
     // But in any case we make sure that it actually attempted to create the supervisor group,
@@ -210,6 +210,7 @@ server:
 
     let mut command = cargo_bin_cmd!("newrelic-agent-control");
     command
+        .arg("run")
         .arg("--local-dir")
         .arg(tmpdir_path)
         .arg("--logs-dir")
@@ -242,7 +243,7 @@ server:
 fn runs_with_no_config() -> Result<(), Box<dyn std::error::Error>> {
     let dir = tempfile::tempdir()?;
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
-    cmd.arg("--local-dir").arg(dir.path());
+    cmd.arg("run").arg("--local-dir").arg(dir.path());
 
     // We set the environment variable with the `__` separator which will create the nested
     // configs appropriately.

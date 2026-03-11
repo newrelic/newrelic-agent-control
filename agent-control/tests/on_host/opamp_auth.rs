@@ -245,7 +245,7 @@ fn cmd_agent_control(
     logs_dir: Option<&Path>,
 ) -> Command {
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
-    cmd.arg("--local-dir").arg(config_path);
+    cmd.arg("run").arg("--local-dir").arg(config_path);
     if let Some(remote_dir) = remote_dir {
         cmd.arg("--remote-dir").arg(remote_dir);
     }
