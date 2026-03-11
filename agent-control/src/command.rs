@@ -17,7 +17,7 @@ use crate::on_host::file_store::FileStore;
 use crate::utils::binary_metadata::binary_metadata;
 use crate::utils::env_var::load_env_yaml_file;
 use crate::values::ConfigRepo;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::error::Error;
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -40,10 +40,22 @@ pub enum InitError {
     InvalidConfig(String),
 }
 
-/// Available commands for Agent Control
+/// Command line arguments for Agent Control, as parsed by [`clap`].
 #[derive(Parser, Debug)]
 #[command(author, about, long_about = None)] // Read from `Cargo.toml`
-pub enum Command {
+pub struct Command {
+    /// The subcommand to execute. Defaults to `Run` if not specified for backward compatibility.
+    #[command(subcommand)]
+    pub subcommand: Option<SubCommand>,
+
+    /// Arguments for the Run command (flattened for backward compatibility)
+    #[command(flatten)]
+    pub args: Args,
+}
+
+/// Available subcommands for Agent Control
+#[derive(Subcommand, Debug)]
+pub enum SubCommand {
     /// Run the agent control (default command)
     Run(Args),
     /// Print version information
@@ -84,13 +96,6 @@ pub struct RunContext {
     pub stop_handler: Option<windows::WindowsServiceStopHandler>,
 }
 
-impl Default for Command {
-    // To assure backward compatibility, if no command is provided, we default to Run command.
-    fn default() -> Self {
-        Command::Run(Args::default())
-    }
-}
-
 impl Command {
     /// Runs the provided main function or shows the binary information according to commands
     pub fn execute<F>(
@@ -101,29 +106,32 @@ impl Command {
     where
         F: FnOnce(RunContext) -> Result<(), Box<dyn Error>>,
     {
-        // For backward compatibility, default to Run command if no subcommand is provided
-        let command = if std::env::args().len() == 1 {
-            // No arguments provided, default to Run
-            Command::default()
-        } else {
-            // Parse normally, which handles -h, --help,
-            Command::parse()
-        };
+        let parsed = Command::parse();
 
         // Handle commands that don't require full initialization
-        match &command {
-            Command::Version => Command::print_version(ac_running_mode),
-            Command::Verify => {
+        match parsed.subcommand {
+            Some(SubCommand::Version) => Command::print_version(ac_running_mode),
+            Some(SubCommand::Verify) => {
                 //todo
                 ExitCode::SUCCESS
             }
-            Command::Run(args) => Command::run(
+            Some(SubCommand::Run(args)) => Command::run(
                 ac_running_mode,
                 main_fn,
-                args,
+                &args,
                 #[cfg(target_os = "windows")]
                 as_windows_service,
             ),
+            None => {
+                // For backward compatibility, default to Run command using flattened args
+                Command::run(
+                    ac_running_mode,
+                    main_fn,
+                    &parsed.args,
+                    #[cfg(target_os = "windows")]
+                    as_windows_service,
+                )
+            }
         }
     }
 
