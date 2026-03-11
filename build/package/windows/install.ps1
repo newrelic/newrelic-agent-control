@@ -112,7 +112,7 @@ if ($existingService) {
     }
 }
 
-$versionData = (& ".\newrelic-agent-control.exe" --version) -replace ',.*$', ''
+$versionData = (& ".\newrelic-agent-control.exe" version) -replace ',.*$', ''
 Write-Host "Installing $versionData"
 
 Write-Host "Creating New Relic Agent Control directories..."

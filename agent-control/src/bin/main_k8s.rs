@@ -21,9 +21,9 @@ fn main() -> ExitCode {
     let _profiler = dhat::Profiler::new_ad_hoc();
 
     #[cfg(target_family = "unix")]
-    return Command::run(AGENT_CONTROL_MODE_K8S, _main);
+    return Command::execute(AGENT_CONTROL_MODE_K8S, _main);
     #[cfg(target_family = "windows")]
-    return Command::run(AGENT_CONTROL_MODE_K8S, _main, false);
+    Command::execute(AGENT_CONTROL_MODE_K8S, _main, false)
 }
 
 /// This is the actual main function.

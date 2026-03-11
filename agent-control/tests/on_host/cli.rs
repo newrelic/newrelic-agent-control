@@ -39,18 +39,6 @@ pub fn cmd_with_config_file(local_dir: &Path) -> Command {
     cmd
 }
 
-#[test]
-fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
-    let dir = TempDir::new()?;
-    let _file_path = create_temp_file(dir.path(), FOLDER_NAME_LOCAL_DATA, r"agents: {}")?;
-    let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
-    cmd.arg("--local-dir")
-        .arg(dir.path())
-        .arg("--print-debug-info");
-    cmd.assert().success();
-    Ok(())
-}
-
 #[cfg(all(target_family = "unix", not(feature = "disable-asroot")))]
 #[test]
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
