@@ -207,11 +207,13 @@ where
 
     let poll_interval = config.poll_interval;
 
-    let http_builder = OpAMPHttpClientBuilder::new(config, proxy_config, token_retriever);
+    let http_client_builder = OpAMPHttpClientBuilder::new(config, proxy_config, token_retriever);
+
+    let config_loader_builder = DefaultEffectiveConfigLoaderBuilder::new(config_repository);
 
     Ok(DefaultOpAMPClientBuilder::new(
-        http_builder,
-        DefaultEffectiveConfigLoaderBuilder::new(config_repository),
+        http_client_builder,
+        config_loader_builder,
         poll_interval,
     ))
 }
