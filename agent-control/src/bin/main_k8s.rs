@@ -7,11 +7,8 @@
 use newrelic_agent_control::agent_control::run::AgentControlRunner;
 use newrelic_agent_control::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
 use newrelic_agent_control::command::{Command, RunContext};
-use newrelic_agent_control::event::ApplicationEvent;
-use newrelic_agent_control::event::channel::EventPublisher;
 use std::error::Error;
 use std::process::ExitCode;
-use tracing::{error, info, trace};
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]
@@ -40,33 +37,11 @@ fn main() -> ExitCode {
 /// Error: ConfigRead(LoadConfigError(ConfigError(missing field \`agents\`)))
 /// ```
 fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
-    trace!("creating the signal handler");
-    create_shutdown_signal_handler(run_context.application_event_publisher)?;
-
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
     AgentControlRunner::new(
         run_context.run_config,
         run_context.application_event_consumer,
     )?
-    .run()?;
-
-    info!("exiting gracefully");
-
-    Ok(())
-}
-
-/// Enables using the typical keypress (Ctrl-C) to stop the agent control process at any moment.
-///
-/// This means sending [ApplicationEvent::StopRequested] to the agent control event processor
-/// so it can release all resources.
-pub fn create_shutdown_signal_handler(
-    publisher: EventPublisher<ApplicationEvent>,
-) -> Result<(), ctrlc::Error> {
-    ctrlc::set_handler(move || {
-        info!("Received SIGINT (Ctrl-C). Stopping agent control");
-        let _ = publisher
-            .publish(ApplicationEvent::StopRequested)
-            .inspect_err(|e| error!("Could not send agent control stop request: {}", e));
-    })
-    .inspect_err(|e| error!("Could not set signal handler: {e}"))
+    .run()
+    .map_err(|e| e.into())
 }
