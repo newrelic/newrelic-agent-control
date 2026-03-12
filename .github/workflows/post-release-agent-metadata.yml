@@ -1,0 +1,30 @@
+name: Post-Release Agent Metadata Upload
+
+on:
+  release:
+    types: [released]
+
+permissions:
+  contents: read
+
+jobs:
+  upload-metadata:
+    name: Upload Agent Metadata to New Relic
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Upload agent metadata to New Relic
+        uses: newrelic/agent-metadata-action@v1
+        with:
+          agent-type: NRAgentControl
+          version: ${{ github.event.release.tag_name }}
+          git-ref: ${{ github.event.release.tag_name }}
+          newrelic-client-id: ${{ secrets.AC_NEWRELIC_CLIENT_ID }}
+          newrelic-private-key: ${{ secrets.AC_NEWRELIC_PRIVATE_KEY }}
+          # shared newrelic key to instrument the go binary used in the action
+          newrelic-license-key: ${{ secrets.APM_CONTROL_NR_LICENSE_KEY }}
