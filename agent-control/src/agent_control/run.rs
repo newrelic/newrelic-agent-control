@@ -10,13 +10,7 @@ use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
 use crate::http::config::ProxyConfig;
-use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
-use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
-use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
-use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
-use crate::secret_retriever::OpampSecretRetriever;
-use crate::values::config_repository::ConfigRepository;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
@@ -33,12 +27,6 @@ pub struct RunError(String);
 pub mod k8s;
 pub mod on_host;
 pub mod runtime;
-
-/// OpAMPClientBuilder type alias for the builder used when building opamp clients.
-type OpampClientBuilder<Y> = DefaultOpAMPClientBuilder<
-    OpAMPHttpClientBuilder<TokenRetrieverImpl>,
-    DefaultEffectiveConfigLoaderBuilder<Y>,
->;
 
 /// Defines the supported deployments for agent types
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -174,46 +162,4 @@ impl AgentControlRunner {
             .inspect_err(|e| error!("Agent Control Runner failed: {e}"))
             .inspect(|_| info!("Exiting gracefully"))
     }
-}
-
-/// Helper to return the OpAMPClientBuilder for any implementation of [OpampSecretRetriever] and [ConfigRepository]
-pub fn opamp_client_builder<R, Y>(
-    config: OpAMPClientConfig,
-    proxy_config: ProxyConfig,
-    secret_retriever: R,
-    config_repository: Arc<Y>,
-) -> Result<OpampClientBuilder<Y>, RunError>
-where
-    R: OpampSecretRetriever,
-    Y: ConfigRepository,
-{
-    let private_key = secret_retriever
-        .retrieve()
-        .map_err(|e| RunError(format!("error trying to get secret or private key {e}")))?;
-
-    let token_retriever = Arc::new(
-        TokenRetrieverImpl::try_build(
-            config.clone().auth_config,
-            private_key,
-            proxy_config.clone(),
-        )
-        .inspect_err(|err| error!("Could not build OpAMP's token retriever: {err}"))
-        .map_err(|e| {
-            RunError(format!(
-                "error trying to build OpAMP's token retriever: {e}"
-            ))
-        })?,
-    );
-
-    let poll_interval = config.poll_interval;
-
-    let http_client_builder = OpAMPHttpClientBuilder::new(config, proxy_config, token_retriever);
-
-    let config_loader_builder = DefaultEffectiveConfigLoaderBuilder::new(config_repository);
-
-    Ok(DefaultOpAMPClientBuilder::new(
-        http_client_builder,
-        config_loader_builder,
-        poll_interval,
-    ))
 }

@@ -61,9 +61,9 @@ where
     C: HttpClientBuilder,
 {
     pub fn new(
+        poll_interval: PollInterval,
         http_client_builder: C,
         effective_config_loader_builder: B,
-        poll_interval: PollInterval,
     ) -> Self {
         Self {
             effective_config_loader_builder,

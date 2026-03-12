@@ -1,12 +1,12 @@
 //! # Synchronous OpAMP HTTP Client
 use crate::http::client::{HttpClient, HttpResponseError};
+use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::http::client::OpAMPHttpClientError::AuthorizationHeadersError;
 use http::header::AUTHORIZATION;
 use http::{HeaderMap, HeaderValue, Response};
 use nr_auth::TokenRetriever;
 use opamp_client::http::HttpClientError;
 use opamp_client::http::http_client::HttpClient as OpampHttpClient;
-use std::sync::Arc;
 use url::Url;
 
 #[derive(thiserror::Error, Debug)]
@@ -15,11 +15,13 @@ pub enum OpAMPHttpClientError {
     AuthorizationHeadersError(String),
 }
 
+pub type HttpOpAMPClientImpl = HttpOpAMPClient<TokenRetrieverImpl>;
+
 pub struct HttpOpAMPClient<T: TokenRetriever> {
     client: HttpClient,
     url: Url,
     headers: HeaderMap,
-    token_retriever: Arc<T>,
+    token_retriever: T,
 }
 
 impl<T> HttpOpAMPClient<T>
@@ -30,7 +32,7 @@ where
         client: HttpClient,
         url: Url,
         headers: HeaderMap,
-        token_retriever: Arc<T>,
+        token_retriever: T,
     ) -> Self {
         Self {
             client,
@@ -155,7 +157,7 @@ pub mod tests {
         let token = token_stub();
         token_retriever.should_retrieve(token.clone());
 
-        let client = HttpOpAMPClient::new(http_client, url, headers, Arc::new(token_retriever));
+        let client = HttpOpAMPClient::new(http_client, url, headers, token_retriever);
 
         let headers = client.headers().unwrap();
 
@@ -181,7 +183,7 @@ pub mod tests {
         token_retriever
             .should_return_error(TokenRetrieverError::TokenRetrieverError("error".into()));
 
-        let client = HttpOpAMPClient::new(http_client, url, headers, Arc::new(token_retriever));
+        let client = HttpOpAMPClient::new(http_client, url, headers, token_retriever);
 
         let headers_err = client.headers();
         assert_matches!(headers_err, Err(AuthorizationHeadersError(_)));
@@ -201,7 +203,7 @@ pub mod tests {
         token_retriever
             .should_return_error(TokenRetrieverError::TokenRetrieverError("error".into()));
 
-        let client = HttpOpAMPClient::new(http_client, url, headers, Arc::new(token_retriever));
+        let client = HttpOpAMPClient::new(http_client, url, headers, token_retriever);
 
         let err = client.post("test".into()).unwrap_err();
         assert_matches!(err, HttpClientError::TransportError(_));
