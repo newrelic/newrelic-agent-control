@@ -39,18 +39,6 @@ pub fn cmd_with_config_file(local_dir: &Path) -> Command {
     cmd
 }
 
-#[test]
-fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
-    let dir = TempDir::new()?;
-    let _file_path = create_temp_file(dir.path(), FOLDER_NAME_LOCAL_DATA, r"agents: {}")?;
-    let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
-    cmd.arg("--local-dir")
-        .arg(dir.path())
-        .arg("--print-debug-info");
-    cmd.assert().success();
-    Ok(())
-}
-
 #[cfg(all(target_family = "unix", not(feature = "disable-asroot")))]
 #[test]
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
@@ -62,8 +50,7 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
         build_config_name(STORE_KEY_LOCAL_DATA_CONFIG).as_str(),
         r"agents: {}",
     )?;
-    let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
-    cmd.arg("--local-dir").arg(dir.path());
+    let mut cmd = cmd_with_config_file(dir.path());
     cmd.assert().failure().stdout(predicate::str::contains(
         "Program must run with elevated permissions",
     ));
@@ -90,8 +77,7 @@ logs:
 
     create_temp_file(dir.path(), AUTH_PRIVATE_KEY_FILE_NAME, "dummy-key-content")?;
 
-    let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
-    cmd.arg("--local-dir").arg(dir.path());
+    let mut cmd = cmd_with_config_file(dir.path());
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
     cmd.timeout(Duration::from_secs(1));
     // But in any case we make sure that it actually attempted to create the supervisor group,
@@ -139,8 +125,7 @@ server:
 "#,
     )?;
 
-    let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
-    cmd.arg("--local-dir").arg(dir.path());
+    let mut cmd = cmd_with_config_file(dir.path());
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
     cmd.timeout(Duration::from_secs(1));
     // But in any case we make sure that it actually attempted to create the supervisor group,
@@ -251,10 +236,9 @@ server:
 }
 
 #[test]
-fn runs_with_no_config() -> Result<(), Box<dyn std::error::Error>> {
+fn runs_with_no_config() -> Result<(), Box<dyn Error>> {
     let dir = tempfile::tempdir()?;
-    let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
-    cmd.arg("--local-dir").arg(dir.path());
+    let mut cmd = cmd_with_config_file(dir.path());
 
     // We set the environment variable with the `__` separator which will create the nested
     // configs appropriately.

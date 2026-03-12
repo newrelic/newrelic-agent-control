@@ -22,7 +22,7 @@ fn main() -> ExitCode {
 
     #[cfg(target_family = "unix")]
     {
-        Command::run(AGENT_CONTROL_MODE_ON_HOST, _main)
+        Command::execute(AGENT_CONTROL_MODE_ON_HOST, _main)
     }
 
     #[cfg(target_os = "windows")]
@@ -31,7 +31,7 @@ fn main() -> ExitCode {
 
         /// Entry-point for Windows Service
         fn service_main(_arguments: Vec<std::ffi::OsString>) {
-            let _ = Command::run(AGENT_CONTROL_MODE_ON_HOST, _main, true);
+            let _ = Command::execute(AGENT_CONTROL_MODE_ON_HOST, _main, true);
         }
 
         windows_service::define_windows_service!(ffi_service_main, service_main);
@@ -40,7 +40,7 @@ fn main() -> ExitCode {
             .is_err()
         {
             // Not running as Windows Service, run normally
-            return Command::run(AGENT_CONTROL_MODE_ON_HOST, _main, false);
+            return Command::execute(AGENT_CONTROL_MODE_ON_HOST, _main, false);
         }
         ExitCode::SUCCESS
     }

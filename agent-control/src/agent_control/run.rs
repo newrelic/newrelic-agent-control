@@ -217,21 +217,3 @@ where
         poll_interval,
     ))
 }
-
-#[cfg(debug_assertions)]
-/// Set path override if local_dir, remote_dir, and logs_dir flags are set
-pub fn set_debug_dirs(base_paths: BasePaths, cli: &crate::command::Command) -> BasePaths {
-    let mut base_paths = base_paths;
-
-    if let Some(ref local_path) = cli.local_dir {
-        base_paths.local_dir = local_path.to_path_buf();
-    }
-    if let Some(ref remote_path) = cli.remote_dir {
-        base_paths.remote_dir = remote_path.to_path_buf();
-    }
-    if let Some(ref log_path) = cli.logs_dir {
-        base_paths.log_dir = log_path.to_path_buf();
-    }
-
-    base_paths
-}

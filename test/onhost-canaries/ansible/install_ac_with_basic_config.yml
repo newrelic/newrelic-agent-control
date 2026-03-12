@@ -220,7 +220,7 @@
         - install_result.exit_code != 133
 
     - name: Register agent control version
-      ansible.windows.win_command: '"C:\Program Files\New Relic\newrelic-agent-control\newrelic-agent-control.exe" --version'
+      ansible.windows.win_command: '"C:\Program Files\New Relic\newrelic-agent-control\newrelic-agent-control.exe" version'
       register: version
 
     - name: Debug agent control version

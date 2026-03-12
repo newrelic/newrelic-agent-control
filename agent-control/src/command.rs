@@ -6,26 +6,22 @@
 use crate::agent_control::config::K8sConfig;
 use crate::agent_control::defaults::ENVIRONMENT_VARIABLES_FILE_NAME;
 use crate::agent_control::run::Environment;
-#[cfg(debug_assertions)]
-use crate::agent_control::run::set_debug_dirs;
+use crate::agent_control::{
+    config_repository::{repository::AgentControlConfigLoader, store::AgentControlConfigStore},
+    run::{AgentControlRunConfig, BasePaths},
+};
 use crate::event::ApplicationEvent;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
 use crate::instrumentation::tracing::{TracingConfig, TracingGuardBox, try_init_tracing};
 use crate::on_host::file_store::FileStore;
+use crate::utils::binary_metadata::binary_metadata;
 use crate::utils::env_var::load_env_yaml_file;
 use crate::values::ConfigRepo;
-use crate::{
-    agent_control::{
-        config_repository::{repository::AgentControlConfigLoader, store::AgentControlConfigStore},
-        run::{AgentControlRunConfig, BasePaths},
-    },
-    utils::binary_metadata::binary_metadata,
-};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::error::Error;
 use std::process::ExitCode;
 use std::sync::Arc;
-use tracing::{error, info, trace};
+use tracing::{error, info};
 
 #[cfg(target_os = "windows")]
 pub mod windows;
@@ -46,28 +42,53 @@ pub enum InitError {
 
 /// Command line arguments for Agent Control, as parsed by [`clap`].
 #[derive(Parser, Debug)]
-#[command(author, about, long_about = None)] // Read from `Cargo.toml`
+#[command(
+    author,
+    about = "New Relic Agent Control\n\
+                  When run without a subcommand, starts the agent control as a long-running process \
+                  that monitors and manages agents.\n\
+                  Use 'verify' or 'version' subcommands for specific tasks.",
+    long_about = "New Relic Agent Control\n\
+                  When run without a subcommand, starts the agent control as a long-running process \
+                  that monitors and manages agents.\n\
+                  Use 'verify' or 'version' subcommands for specific tasks."
+)]
 pub struct Command {
-    #[arg(long)]
-    print_debug_info: bool,
+    /// The subcommand to execute. Defaults to `Run` if not specified for backward compatibility.
+    #[command(subcommand)]
+    pub subcommand: Option<SubCommand>,
 
-    #[arg(long)]
-    version: bool,
+    /// Arguments for the Run command (flattened for backward compatibility)
+    #[command(flatten)]
+    pub args: Args,
+}
 
+/// Available subcommands for Agent Control
+#[derive(Subcommand, Debug)]
+pub enum SubCommand {
+    /// Print version information
+    Version,
+    /// Verify the agent control configuration and ability to be run
+    Verify,
+}
+
+/// Args contains the list of available args for the agentControl run command
+#[derive(Debug, Default, clap::Parser)]
+pub struct Args {
     /// Overrides the default local configuration path `/etc/newrelic-agent-control/`.
     #[cfg(debug_assertions)]
     #[arg(long)]
-    pub local_dir: Option<std::path::PathBuf>,
+    local_dir: Option<std::path::PathBuf>,
 
     /// Overrides the default remote configuration path `/var/lib/newrelic-agent-control`.
     #[cfg(debug_assertions)]
     #[arg(long)]
-    pub remote_dir: Option<std::path::PathBuf>,
+    remote_dir: Option<std::path::PathBuf>,
 
     /// Overrides the default log path `/var/log/newrelic-agent-control`.
     #[cfg(debug_assertions)]
     #[arg(long)]
-    pub logs_dir: Option<std::path::PathBuf>,
+    logs_dir: Option<std::path::PathBuf>,
 }
 
 /// Context passed to the main loop, containing all initialized components.
@@ -84,18 +105,8 @@ pub struct RunContext {
 }
 
 impl Command {
-    /// Checks if the flag to show the version was set
-    fn print_version(&self) -> bool {
-        self.version
-    }
-
-    /// Checks if the flag to show debug information was set
-    fn print_debug_info(&self) -> bool {
-        self.print_debug_info
-    }
-
-    /// Runs the provided main function or shows the binary information according to flags
-    pub fn run<F>(
+    /// Runs the provided main function or shows the binary information according to commands
+    pub fn execute<F>(
         ac_running_mode: Environment,
         main_fn: F,
         #[cfg(target_os = "windows")] as_windows_service: bool,
@@ -103,106 +114,117 @@ impl Command {
     where
         F: FnOnce(RunContext) -> Result<(), Box<dyn Error>>,
     {
-        // Get command line args
-        let flags = Self::parse();
+        let parsed = Command::parse();
 
+        match parsed.subcommand {
+            Some(SubCommand::Version) => Command::print_version(ac_running_mode),
+            Some(SubCommand::Verify) => {
+                //todo
+                ExitCode::SUCCESS
+            }
+            None => {
+                // For backward compatibility, default to Run command using flattened args
+                Command::run(
+                    ac_running_mode,
+                    main_fn,
+                    &parsed.args,
+                    #[cfg(target_os = "windows")]
+                    as_windows_service,
+                )
+            }
+        }
+    }
+
+    /// Handles the version command
+    fn print_version(ac_running_mode: Environment) -> ExitCode {
+        println!("{}", binary_metadata(ac_running_mode));
+        ExitCode::SUCCESS
+    }
+
+    /// Handles the run command
+    fn run<F>(
+        ac_running_mode: Environment,
+        main_fn: F,
+        args: &Args,
+        #[cfg(target_os = "windows")] as_windows_service: bool,
+    ) -> ExitCode
+    where
+        F: FnOnce(RunContext) -> Result<(), Box<dyn Error>>,
+    {
+        match Command::build_run_context(
+            ac_running_mode,
+            args,
+            #[cfg(target_os = "windows")]
+            as_windows_service,
+        ) {
+            Err(err) => {
+                // We are leveraging println here instead of error! because if we fail to build the run context,
+                // it means we probably failed before initializing tracing, so we can't guarantee that the error will be logged.
+                println!("Failed building the run context {}", err);
+                ExitCode::FAILURE
+            }
+            Ok(run_context) => match main_fn(run_context) {
+                Ok(_) => {
+                    info!("The agent control main process exited successfully");
+                    ExitCode::SUCCESS
+                }
+                Err(err) => {
+                    error!("The agent control main process exited with an error: {err}");
+                    ExitCode::FAILURE
+                }
+            },
+        }
+    }
+
+    /// Builds the complete RunContext required to execute the Run command
+    fn build_run_context(
+        ac_running_mode: Environment,
+        args: &Args,
+        #[cfg(target_os = "windows")] as_windows_service: bool,
+    ) -> Result<RunContext, Box<dyn Error>> {
         let base_paths = BasePaths::default();
 
         // Initialize debug directories (if set)
         #[cfg(debug_assertions)]
-        let base_paths = set_debug_dirs(base_paths, &flags);
-
-        // Handle flags requiring different execution mode
-        if flags.print_version() {
-            println!("{}", binary_metadata(ac_running_mode));
-            return ExitCode::SUCCESS;
-        }
-        if flags.print_debug_info() {
-            println!("Printing debug info");
-            println!("Agent Control Mode: {ac_running_mode:?}");
-            println!("FLAGS: {flags:#?}");
-            return ExitCode::SUCCESS;
-        }
+        let base_paths = set_debug_dirs(base_paths, args);
 
         // We need to create the pub_sub here so the Windows Service Stop handler is capable
         // of publishing a stop signal to the application for a Graceful Shutdown.
         let (application_event_publisher, application_event_consumer) = pub_sub();
 
+        create_shutdown_signal_handler(application_event_publisher.clone())
+            .map_err(|e| format!("Failed to create shutdown signal handler: {e}"))?;
+
         #[cfg(target_family = "windows")]
-        let stop_handler = match as_windows_service
-            .then(|| {
-                crate::command::windows::setup_windows_service(application_event_publisher.clone())
-            })
+        let stop_handler = as_windows_service
+            .then(|| windows::setup_windows_service(application_event_publisher))
             .transpose()
-        {
-            Ok(handler) => handler,
-            Err(e) => {
-                println!("Failed to setup Windows service: {e}");
-                return ExitCode::FAILURE;
-            }
-        };
+            .map_err(|e| format!("Failed to setup Windows service: {e}"))?;
 
         let env_file_path = base_paths.local_dir.join(ENVIRONMENT_VARIABLES_FILE_NAME);
         if env_file_path.exists() {
-            info!(
-                "Loading environment variables from: {}",
-                env_file_path.display()
-            );
-            if let Err(err) = load_env_yaml_file(env_file_path.as_path()) {
-                println!("Failed to load environment variables: {err}");
-                return ExitCode::FAILURE;
-            }
+            load_env_yaml_file(env_file_path.as_path())
+                .map_err(|e| format!("Failed to load environment: {e}"))?;
         }
 
-        let Ok((run_config, tracing_config)) = Self::build_run_config(ac_running_mode, base_paths)
-            .inspect_err(|err| {
-                // Using print because the tracer has not been started yet
-                println!("Error on Agent Control initialization: {err}");
-            })
-        else {
-            return ExitCode::FAILURE;
-        };
+        let (run_config, tracing_config) = Self::build_run_config(ac_running_mode, base_paths)?;
 
-        let Ok(tracer) = try_init_tracing(tracing_config).inspect_err(|err| {
-            println!("Error on Agent Control tracing initialization: {err}");
-        }) else {
-            return ExitCode::FAILURE;
-        };
+        let tracer = try_init_tracing(tracing_config)
+            .map_err(|e| format!("Error on Agent Control tracing initialization: {e}"))?;
 
         info!("{}", binary_metadata(run_config.ac_running_mode));
         info!(
             "Starting NewRelic Agent Control with config folder '{}'",
-            run_config
-                .base_paths
-                .local_dir
-                .to_string_lossy()
-                .to_string()
+            run_config.base_paths.local_dir.to_string_lossy()
         );
 
-        let run_context = RunContext {
+        Ok(RunContext {
             run_config,
             tracer,
             application_event_consumer,
-            #[cfg(target_os = "windows")]
+            #[cfg(target_family = "windows")]
             stop_handler,
-        };
-
-        trace!("creating the signal handler");
-        if let Err(e) = create_shutdown_signal_handler(application_event_publisher) {
-            error!("Failed to create shutdown signal handler: {e}");
-            return ExitCode::FAILURE;
-        };
-
-        match main_fn(run_context) {
-            Ok(_) => {
-                info!("The agent control main process exited successfully");
-                ExitCode::SUCCESS
-            }
-            Err(err) => {
-                error!("The agent control main process exited with an error: {err}");
-                ExitCode::FAILURE
-            }
-        }
+        })
     }
 
     /// Builds the Agent Control configuration required to execute the application.
@@ -279,4 +301,22 @@ fn create_shutdown_signal_handler(
             .inspect_err(|e| error!("Could not send agent control stop request: {}", e));
     })
     .inspect_err(|e| error!("Could not set signal handler: {e}"))
+}
+
+#[cfg(debug_assertions)]
+/// Set path override if local_dir, remote_dir, and logs_dir flags are set
+fn set_debug_dirs(base_paths: BasePaths, args: &Args) -> BasePaths {
+    let mut base_paths = base_paths;
+
+    if let Some(ref local_path) = args.local_dir {
+        base_paths.local_dir = local_path.to_path_buf();
+    }
+    if let Some(ref remote_path) = args.remote_dir {
+        base_paths.remote_dir = remote_path.to_path_buf();
+    }
+    if let Some(ref log_path) = args.logs_dir {
+        base_paths.log_dir = log_path.to_path_buf();
+    }
+
+    base_paths
 }
