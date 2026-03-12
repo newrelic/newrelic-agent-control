@@ -1,12 +1,9 @@
 use crate::common::global_logger::init_logger;
 use crate::on_host::tools::config::create_file;
-use newrelic_agent_control::agent_control::config::K8sConfig;
 use newrelic_agent_control::agent_control::config_repository::repository::AgentControlConfigLoader;
 use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
 use newrelic_agent_control::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
-use newrelic_agent_control::agent_control::run::{
-    AgentControlRunConfig, AgentControlRunner, BasePaths, Environment,
-};
+use newrelic_agent_control::agent_control::run::{AgentControlRunner, BasePaths, Environment};
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
 use newrelic_agent_control::on_host::file_store::FileStore;
@@ -41,28 +38,16 @@ pub fn start_agent_control_with_custom_config(
 
         let agent_control_config = config_storer.load().unwrap();
 
-        let run_config = AgentControlRunConfig {
-            opamp: agent_control_config.fleet_control,
-            http_server: agent_control_config.server,
+        // Create the actual agent control runner with the rest of required configs and the application_event_consumer
+        AgentControlRunner::try_new(
+            agent_control_config,
             base_paths,
             ac_running_mode,
-            proxy: agent_control_config.proxy,
-            agent_type_var_constraints: Default::default(),
-
-            k8s_config: match ac_running_mode {
-                // This config is not used on the OnHost environment, a blank config is used.
-                Environment::K8s => agent_control_config
-                    .k8s
-                    .expect("K8s config must be present when running in K8s"),
-                _ => K8sConfig::default(),
-            },
-        };
-
-        // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-        AgentControlRunner::new(run_config, application_event_consumer)
-            .unwrap()
-            .run()
-            .unwrap();
+            application_event_consumer,
+        )
+        .unwrap()
+        .run()
+        .unwrap();
     });
 
     StartedAgentControl {

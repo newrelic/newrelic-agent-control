@@ -3,10 +3,11 @@ use super::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
     DYNAMIC_AGENT_TYPE_DIR,
 };
-use super::http_server::config::ServerConfig;
+use crate::agent_control::config::AgentControlConfig;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::agent_type::variable::constraints::VariableConstraints;
+use crate::command::InitError;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
 use crate::http::config::ProxyConfig;
@@ -16,7 +17,7 @@ use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
@@ -64,17 +65,6 @@ impl Default for BasePaths {
     }
 }
 
-/// Structures for running Agent Control provided by CLI inputs
-pub struct AgentControlRunConfig {
-    pub opamp: Option<OpAMPClientConfig>,
-    pub http_server: ServerConfig,
-    pub base_paths: BasePaths,
-    pub proxy: ProxyConfig,
-    pub k8s_config: K8sConfig,
-    pub agent_type_var_constraints: VariableConstraints,
-    pub ac_running_mode: Environment,
-}
-
 /// Structure with all the data required to run the agent control.
 ///
 /// Fields are public just for testing. The object is destroyed right after is deleted,
@@ -96,12 +86,12 @@ pub struct AgentControlRunner {
 }
 
 impl AgentControlRunner {
-    pub fn new(
-        config: AgentControlRunConfig,
+    pub fn try_new(
+        config: AgentControlConfig,
+        base_paths: BasePaths,
+        running_mode: Environment,
         application_event_consumer: EventConsumer<ApplicationEvent>,
     ) -> Result<Self, Box<dyn Error>> {
-        debug!("initializing and starting the agent control");
-
         let runtime = Arc::new(
             tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -110,24 +100,24 @@ impl AgentControlRunner {
 
         let mut agent_control_publisher = UnboundedBroadcast::default();
         let mut sub_agent_publisher = UnboundedBroadcast::default();
-        let http_server_runner = config.http_server.enabled.then(|| {
+        let http_server_runner = config.server.enabled.then(|| {
             let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
             let sub_agent_consumer = EventConsumer::from(sub_agent_publisher.subscribe());
             Runner::new(
-                config.http_server,
+                config.server,
                 runtime.clone(),
                 agent_control_consumer,
                 sub_agent_consumer,
-                config.opamp.clone(),
+                config.fleet_control.clone(),
             )
         });
 
         let agent_type_registry = Arc::new(EmbeddedRegistry::new(
-            config.base_paths.local_dir.join(DYNAMIC_AGENT_TYPE_DIR),
+            base_paths.local_dir.join(DYNAMIC_AGENT_TYPE_DIR),
         ));
 
         let signature_validator = config
-            .opamp
+            .fleet_control
             .clone()
             .map(|fleet_config| {
                 SignatureValidator::new(fleet_config.signature_validation, config.proxy.clone())
@@ -135,20 +125,26 @@ impl AgentControlRunner {
             .transpose()?
             .unwrap_or(SignatureValidator::new_noop());
 
+        // TODO: this could also be part of the configuration
+        let k8s_config = match running_mode {
+            Environment::K8s => config.k8s.ok_or(InitError::K8sConfig())?,
+            _ => Default::default(),
+        };
+
         Ok(AgentControlRunner {
             http_server_runner,
             runtime,
-            k8s_config: config.k8s_config,
+            k8s_config,
             agent_type_registry,
             application_event_consumer,
             agent_control_publisher,
             sub_agent_publisher,
-            base_paths: config.base_paths,
+            base_paths,
             signature_validator,
-            ac_running_mode: config.ac_running_mode,
+            ac_running_mode: running_mode,
             agent_type_var_constraints: config.agent_type_var_constraints,
             proxy: config.proxy,
-            opamp: config.opamp,
+            opamp: config.fleet_control,
         })
     }
 

@@ -38,8 +38,10 @@ fn main() -> ExitCode {
 /// ```
 fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-    AgentControlRunner::new(
-        run_context.run_config,
+    AgentControlRunner::try_new(
+        run_context.config,
+        run_context.base_paths,
+        run_context.ac_running_mode,
         run_context.application_event_consumer,
     )?
     .run()
