@@ -4,11 +4,9 @@ configurationDefinitions:
     description: agent control configuration
     type: agent-control-config
     version: 1.0.0
-    format: yml
     operatingSystem: WINDOWS
   - platform: HOST
     description: agent control configuration
     type: agent-control-config
     version: 1.0.0
-    format: yml
     operatingSystem: LINUX
