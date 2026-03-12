@@ -5,6 +5,7 @@ mod filesystem_ops;
 mod health_check;
 mod install_remote_package;
 mod invalid_remote_config;
+mod memory_benchmark;
 mod multiple_executables;
 mod multiple_remote_config;
 mod no_orphan_processes;

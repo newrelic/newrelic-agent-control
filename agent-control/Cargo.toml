@@ -120,6 +120,7 @@ futures = "0.3.32"
 rcgen = { version = "0.14.7", features = ["crypto"] }
 rstest = { workspace = true }
 tokio-stream = { version = "0.1.18", features = ["net"] }
+memory-stats = "1.2.0"
 
 [build-dependencies]
 glob = "0.3.3"
