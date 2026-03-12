@@ -42,7 +42,17 @@ pub enum InitError {
 
 /// Command line arguments for Agent Control, as parsed by [`clap`].
 #[derive(Parser, Debug)]
-#[command(author, about, long_about = None)] // Read from `Cargo.toml`
+#[command(
+    author,
+    about = "New Relic Agent Control\n\
+                  When run without a subcommand, starts the agent control as a long-running process \
+                  that monitors and manages agents.\n\
+                  Use 'verify' or 'version' subcommands for specific tasks.",
+    long_about = "New Relic Agent Control\n\
+                  When run without a subcommand, starts the agent control as a long-running process \
+                  that monitors and manages agents.\n\
+                  Use 'verify' or 'version' subcommands for specific tasks."
+)]
 pub struct Command {
     /// The subcommand to execute. Defaults to `Run` if not specified for backward compatibility.
     #[command(subcommand)]
@@ -56,8 +66,6 @@ pub struct Command {
 /// Available subcommands for Agent Control
 #[derive(Subcommand, Debug)]
 pub enum SubCommand {
-    /// Run the agent control (default command)
-    Run(Args),
     /// Print version information
     Version,
     /// Verify the agent control configuration and ability to be run
@@ -108,20 +116,12 @@ impl Command {
     {
         let parsed = Command::parse();
 
-        // Handle commands that don't require full initialization
         match parsed.subcommand {
             Some(SubCommand::Version) => Command::print_version(ac_running_mode),
             Some(SubCommand::Verify) => {
                 //todo
                 ExitCode::SUCCESS
             }
-            Some(SubCommand::Run(args)) => Command::run(
-                ac_running_mode,
-                main_fn,
-                &args,
-                #[cfg(target_os = "windows")]
-                as_windows_service,
-            ),
             None => {
                 // For backward compatibility, default to Run command using flattened args
                 Command::run(
@@ -203,10 +203,6 @@ impl Command {
 
         let env_file_path = base_paths.local_dir.join(ENVIRONMENT_VARIABLES_FILE_NAME);
         if env_file_path.exists() {
-            println!(
-                "Loading environment variables from: {}",
-                env_file_path.display()
-            );
             load_env_yaml_file(env_file_path.as_path())
                 .map_err(|e| format!("Failed to load environment: {e}"))?;
         }
