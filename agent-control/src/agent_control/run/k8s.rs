@@ -13,7 +13,7 @@ use crate::agent_control::defaults::{
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
-use crate::agent_control::run::{AgentControlRunner, Environment, RunError};
+use crate::agent_control::run::{AgentControlRunner, Environment, RunError, opamp_client_builder};
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
@@ -26,8 +26,6 @@ use crate::event::AgentControlInternalEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
-use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
 use crate::opamp::instance_id::storer::Storer;
@@ -73,11 +71,8 @@ impl AgentControlRunner {
             self.k8s_config.clone(),
         );
 
-        let opamp_http_builder =
-            Self::build_opamp_http_builder(self.opamp, self.proxy.clone(), secret_retriever)?;
-
         let config_repository = ConfigRepo::new(k8s_store.clone());
-        let yaml_config_repository = Arc::new(if opamp_http_builder.is_some() {
+        let yaml_config_repository = Arc::new(if self.opamp.is_some() {
             config_repository.with_remote()
         } else {
             config_repository
@@ -109,13 +104,17 @@ impl AgentControlRunner {
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
-        let opamp_client_builder = opamp_http_builder.map(|http_builder| {
-            DefaultOpAMPClientBuilder::new(
-                http_builder,
-                DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
-                self.opamp_poll_interval,
-            )
-        });
+        let opamp_client_builder = self
+            .opamp
+            .map(|config| {
+                opamp_client_builder(
+                    config,
+                    self.proxy.clone(),
+                    secret_retriever,
+                    yaml_config_repository.clone(),
+                )
+            })
+            .transpose()?;
 
         // Build and start AC OpAMP client
         let (maybe_client, maybe_opamp_consumer) = opamp_client_builder
