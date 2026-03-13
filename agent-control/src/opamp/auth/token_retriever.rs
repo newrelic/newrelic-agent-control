@@ -3,6 +3,7 @@ use crate::http::client::HttpBuildError;
 use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
+use crate::secret_retriever;
 use chrono::DateTime;
 use nr_auth::{
     TokenRetriever, TokenRetrieverError,
@@ -51,14 +52,23 @@ impl TokenRetriever for TokenRetrieverImpl {
 }
 
 impl TokenRetrieverImpl {
-    pub fn try_build(
+    pub fn try_build<R>(
         auth_config: Option<AuthConfig>,
-        private_key: String,
+        secret_retriever: &R,
         proxy_config: ProxyConfig,
-    ) -> Result<Self, TokenRetrieverImplError> {
+    ) -> Result<Self, TokenRetrieverImplError>
+    where
+        R: secret_retriever::OpampSecretRetriever,
+    {
         let Some(ac) = auth_config else {
             return Ok(Self::Noop(TokenRetrieverNoop));
         };
+
+        let private_key = secret_retriever.retrieve().map_err(|e| {
+            TokenRetrieverImplError::HTTPBuildingClientError(format!(
+                "error trying to get secret or private key {e}"
+            ))
+        })?;
 
         let sanitized_key = private_key.replace("\\n", "\n");
 

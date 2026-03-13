@@ -1,14 +1,15 @@
 use http::header::CONTENT_TYPE;
 use http::{HeaderMap, HeaderValue};
-use std::sync::Arc;
 use std::time::Duration;
+use tracing::error;
 
-use super::client::HttpOpAMPClient;
 use crate::agent_control::config::OpAMPClientConfig;
 use crate::http::client::{HttpBuildError, HttpClient};
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
-use nr_auth::TokenRetriever;
+use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
+use crate::opamp::http::client::HttpOpAMPClient;
+use crate::secret_retriever::OpampSecretRetriever;
 use opamp_client::http::http_client::HttpClient as OpampHttpClient;
 
 /// Default client timeout is 30 seconds
@@ -27,25 +28,25 @@ pub trait HttpClientBuilder {
 }
 
 #[derive(Debug, Clone)]
-pub struct OpAMPHttpClientBuilder<T> {
+pub struct OpAMPHttpClientBuilder<R> {
     opamp_config: OpAMPClientConfig,
     proxy_config: ProxyConfig,
-    token_retriever: Arc<T>,
+    secret_retriever: R,
 }
 
-impl<T> OpAMPHttpClientBuilder<T>
+impl<R> OpAMPHttpClientBuilder<R>
 where
-    T: TokenRetriever + Send + Sync + 'static,
+    R: OpampSecretRetriever,
 {
     pub fn new(
         opamp_config: OpAMPClientConfig,
         proxy_config: ProxyConfig,
-        token_retriever: Arc<T>,
+        secret_retriever: R,
     ) -> Self {
         Self {
             opamp_config,
             proxy_config,
-            token_retriever,
+            secret_retriever,
         }
     }
 
@@ -62,11 +63,11 @@ where
     }
 }
 
-impl<T> HttpClientBuilder for OpAMPHttpClientBuilder<T>
+impl<R> HttpClientBuilder for OpAMPHttpClientBuilder<R>
 where
-    T: TokenRetriever + Send + Sync + 'static,
+    R: OpampSecretRetriever,
 {
-    type Client = HttpOpAMPClient<T>;
+    type Client = HttpOpAMPClient<TokenRetrieverImpl>;
 
     /// Build the HTTP Client. It will contain a Token Retriever, so in all
     /// post requests a Token will be retrieved from Identity System Service
@@ -80,7 +81,17 @@ where
         let url = self.opamp_config.endpoint.clone();
         let headers = self.headers();
         let client = HttpClient::new(http_config)?;
-        let token_retriever = self.token_retriever.clone();
+        let token_retriever = TokenRetrieverImpl::try_build(
+            self.opamp_config.clone().auth_config,
+            &self.secret_retriever,
+            self.proxy_config.clone(),
+        )
+        .inspect_err(|err| error!("Could not build OpAMP's token retriever: {err}"))
+        .map_err(|e| {
+            HttpClientBuilderError::BuildingError(format!(
+                "error trying to build OpAMP's token retriever: {e}"
+            ))
+        })?;
 
         Ok(HttpOpAMPClient::new(client, url, headers, token_retriever))
     }
@@ -156,9 +167,9 @@ pub(crate) mod tests {
             .return_once(|| Ok(http_client));
 
         let builder = DefaultOpAMPClientBuilder::new(
+            PollInterval::default(),
             http_builder,
             effective_config_loader_builder,
-            PollInterval::default(),
         );
 
         let started_client = builder
@@ -187,9 +198,9 @@ pub(crate) mod tests {
         });
 
         let builder = DefaultOpAMPClientBuilder::new(
+            PollInterval::default(),
             http_builder,
             effective_config_loader_builder,
-            PollInterval::default(),
         );
         let actual_client = builder.build_and_start(tx, agent_id, start_settings);
 
