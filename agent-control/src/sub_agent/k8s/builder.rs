@@ -34,7 +34,7 @@ where
     Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
-    pub(crate) opamp_builder: Option<&'a O>,
+    pub(crate) opamp_builder: Option<O>,
     pub(crate) instance_id_getter: &'a I,
     pub(crate) k8s_config: K8sConfig,
     pub(crate) supervisor_builder: Arc<B>,
@@ -65,6 +65,7 @@ where
 
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
+            .clone()
             .map(|builder| {
                 build_sub_agent_opamp(
                     builder,
@@ -161,7 +162,6 @@ pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
 
-    use crate::agent_control::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
     use crate::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
@@ -171,7 +171,6 @@ pub mod tests {
     use crate::opamp::http::builder::HttpClientBuilderError;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
-    use crate::opamp::operations::start_settings;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::tests::MockSupervisorStarter;
@@ -181,8 +180,6 @@ pub mod tests {
         k8s::client::MockSyncK8sClient, opamp::client_builder::tests::MockOpAMPClientBuilder,
     };
     use assert_matches::assert_matches;
-    use mockall::predicate;
-    use opamp_client::operation::settings::DescriptionValueType;
     use std::collections::HashMap;
 
     const TEST_CLUSTER_NAME: &str = "cluster_name";
@@ -211,7 +208,7 @@ pub mod tests {
         let effective_agents_assembler = MockEffectiveAgentAssembler::new();
 
         let builder = K8sSubAgentBuilder {
-            opamp_builder: Some(&opamp_builder),
+            opamp_builder: Some(opamp_builder),
             instance_id_getter: &instance_id_getter,
             k8s_config,
             supervisor_builder: Arc::new(supervisor_assembler),
@@ -248,7 +245,7 @@ pub mod tests {
         let effective_agents_assembler = MockEffectiveAgentAssembler::new();
 
         let builder = K8sSubAgentBuilder {
-            opamp_builder: Some(&opamp_builder),
+            opamp_builder: Some(opamp_builder),
             instance_id_getter: &instance_id_getter,
             k8s_config,
             supervisor_builder: Arc::new(supervisor_assembler),
@@ -352,44 +349,18 @@ pub mod tests {
         // opamp builder mock
         let started_client = MockStartedOpAMPClient::new();
         let mut opamp_builder = MockOpAMPClientBuilder::new();
-        let start_settings = start_settings(
-            instance_id.clone(),
-            &agent_identity,
-            HashMap::from([(
-                OPAMP_SERVICE_VERSION.to_string(),
-                agent_identity.agent_type_id.version().to_string().into(),
-            )]),
-            HashMap::from([
-                (
-                    CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
-                    DescriptionValueType::String(TEST_CLUSTER_NAME.to_string()),
-                ),
-                (
-                    PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
-                    DescriptionValueType::Bytes(instance_id.clone().into()),
-                ),
-            ]),
-        );
         if opamp_builder_fails {
             opamp_builder
                 .expect_build_and_start()
-                .with(
-                    predicate::always(),
-                    predicate::eq(agent_identity.id.clone()),
-                    predicate::eq(start_settings),
-                )
+                .with()
                 .once()
-                .return_once(move |_, _, _| {
+                .return_once(move || {
                     Err(OpAMPClientBuilderError::HttpClientBuilderError(
                         HttpClientBuilderError::BuildingError("error".into()),
                     ))
                 });
         } else {
-            opamp_builder.should_build_and_start(
-                agent_identity.id.clone(),
-                start_settings,
-                started_client,
-            );
+            opamp_builder.should_build_and_start(started_client);
         }
 
         // instance id getter mock

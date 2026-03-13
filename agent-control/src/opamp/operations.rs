@@ -10,10 +10,7 @@ use crate::agent_control::defaults::{
 use crate::sub_agent::identity::AgentIdentity;
 use crate::{
     agent_control::agent_id::AgentID,
-    event::{
-        OpAMPEvent,
-        channel::{EventConsumer, pub_sub},
-    },
+    event::{OpAMPEvent, channel::EventConsumer},
     sub_agent::error::SubAgentError,
 };
 use opamp_client::{
@@ -24,7 +21,7 @@ use std::collections::HashMap;
 use tracing::info;
 
 pub fn build_sub_agent_opamp<OB, IG>(
-    opamp_builder: &OB,
+    opamp_builder: OB,
     instance_id_getter: &IG,
     agent_identity: &AgentIdentity,
     additional_identifying_attributes: HashMap<String, DescriptionValueType>,
@@ -42,40 +39,11 @@ where
         DescriptionValueType::Bytes(parent_instance_id.into()),
     );
 
-    build_opamp_with_channel(
-        opamp_builder,
-        instance_id_getter,
-        agent_identity,
-        additional_identifying_attributes,
-        non_identifying_attributes,
-    )
-}
-
-pub fn build_opamp_with_channel<OB, IG>(
-    opamp_builder: &OB,
-    instance_id_getter: &IG,
-    agent_identity: &AgentIdentity,
-    additional_identifying_attributes: HashMap<String, DescriptionValueType>,
-    non_identifying_attributes: HashMap<String, DescriptionValueType>,
-) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
-where
-    OB: OpAMPClientBuilder,
-    IG: InstanceIDGetter,
-{
-    let (opamp_publisher, opamp_consumer) = pub_sub();
-    let start_settings = start_settings(
-        instance_id_getter.get(&agent_identity.id)?,
-        agent_identity,
-        additional_identifying_attributes,
-        non_identifying_attributes,
-    );
-    let started_opamp_client = opamp_builder.build_and_start(
-        opamp_publisher,
-        agent_identity.id.clone(),
-        start_settings,
-    )?;
-
-    Ok((started_opamp_client, opamp_consumer))
+    opamp_builder
+        .with_agent_identity(agent_identity.clone())
+        .with_additional_identifying_attributes(additional_identifying_attributes)
+        .with_non_identifying_attributes(non_identifying_attributes)
+        .build_and_start()
 }
 
 /// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent and agent control.

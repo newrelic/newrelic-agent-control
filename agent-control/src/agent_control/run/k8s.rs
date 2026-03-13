@@ -26,13 +26,12 @@ use crate::event::AgentControlInternalEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
-use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
+use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderImpl};
+use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilderImpl;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
-use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
+use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
 use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
 use crate::opamp::instance_id::storer::Storer;
-use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::secret_retriever::k8s::retrieve::K8sSecretRetriever;
@@ -69,10 +68,10 @@ impl AgentControlRunner {
             self.k8s_config.namespace.clone(),
         ));
 
-        let secret_retriever = K8sSecretRetriever::new(
+        let secret_retriever = Arc::new(K8sSecretRetriever::new(
             K8sSecretProvider::new(k8s_client.clone()),
             self.k8s_config.clone(),
-        );
+        ));
 
         let config_repository = ConfigRepo::new(k8s_store.clone());
         let yaml_config_repository = Arc::new(if self.opamp.is_some() {
@@ -106,36 +105,38 @@ impl AgentControlRunner {
         let instance_id_storer = Storer::from(k8s_store.clone());
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
+        let instance_id = instance_id_getter
+            .get(&AgentIdentity::new_agent_control_identity().id)
+            .map_err(|err| RunError(format!("error getting agent instance id: {err}")))?;
 
-        let opamp_client_builder = self.opamp.map(|config| {
-            DefaultOpAMPClientBuilder::new(
-                config.poll_interval,
-                OpAMPHttpClientBuilder::new(config, self.proxy.clone(), secret_retriever),
-                DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
+        let opamp_client_builder = self.opamp.clone().map(|config| {
+            let poll_interval = config.poll_interval;
+            let http_builder =
+                OpAMPHttpClientBuilder::new(config, self.proxy.clone(), secret_retriever.clone());
+            let loader = EffectiveConfigLoaderBuilderImpl::new(yaml_config_repository.clone());
+            OpAMPClientBuilderImpl::new(
+                poll_interval,
+                Arc::new(http_builder),
+                Arc::new(loader),
+                instance_id.clone(),
             )
         });
 
         // Build and start AC OpAMP client
         let (maybe_client, maybe_opamp_consumer) = opamp_client_builder
-            .as_ref()
+            .clone()
             .map(|builder| {
                 info!("Starting Agent Control OpAMP client");
-                build_opamp_with_channel(
-                    builder,
-                    &instance_id_getter,
-                    &AgentIdentity::new_agent_control_identity(),
-                    additional_identifying_attributes,
-                    non_identifying_attributes,
-                )
+                builder
+                    .with_additional_identifying_attributes(additional_identifying_attributes)
+                    .with_non_identifying_attributes(non_identifying_attributes)
+                    .build_and_start()
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()
             .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))?
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
-
-        // Disable startup check for sub-agents OpAMP client builder
-        let opamp_client_builder = opamp_client_builder.map(|b| b.with_startup_check_disabled());
 
         let agent_control_variables = HashMap::from([
             (
@@ -180,7 +181,8 @@ impl AgentControlRunner {
         let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
 
         let sub_agent_builder = K8sSubAgentBuilder {
-            opamp_builder: opamp_client_builder.as_ref(),
+            opamp_builder: opamp_client_builder
+                .map(|builder| builder.with_startup_check_disabled()),
             instance_id_getter: &instance_id_getter,
             k8s_config: self.k8s_config.clone(),
             supervisor_builder: Arc::new(supervisor_builder),

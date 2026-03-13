@@ -34,7 +34,7 @@ where
     Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
-    pub(crate) opamp_builder: Option<&'a O>,
+    pub(crate) opamp_builder: Option<O>,
     pub(crate) instance_id_getter: &'a I,
     pub(crate) supervisor_builder: Arc<B>,
     pub(crate) remote_config_parser: Arc<R>,
@@ -68,6 +68,7 @@ where
 
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
+            .clone()
             .map(|builder| {
                 build_sub_agent_opamp(
                     builder,
@@ -166,10 +167,6 @@ where
 mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::defaults::{
-        OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
-        PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_custom_capabilities,
-    };
     use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilder;
@@ -181,47 +178,31 @@ mod tests {
     use crate::sub_agent::supervisor::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::tests::{MockSupervisor, MockSupervisorBuilder};
     use crate::values::config_repository::tests::MockConfigRepository;
-    use opamp_client::operation::settings::{
-        AgentDescription, DescriptionValueType, StartSettings,
-    };
-    use std::collections::HashMap;
     use std::time::Duration;
 
     #[test]
     fn test_build_with_opamp() {
-        let hostname = get_hostname().unwrap();
         let agent_control_instance_id = InstanceID::create();
-        let sub_agent_instance_id = InstanceID::create();
         let agent_identity = AgentIdentity::from((
             AgentID::try_from("infra-agent").unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
-        let start_settings_infra = infra_agent_default_start_settings(
-            &hostname,
-            agent_control_instance_id.clone(),
-            sub_agent_instance_id.clone(),
-            &agent_identity,
-        );
-
         // Build an OpAMP Client and let it run so the publisher is not dropped
         let mut opamp_builder = MockOpAMPClientBuilder::new();
         opamp_builder.should_build_and_start_and_run(
-            agent_identity.id.clone(),
-            start_settings_infra,
             MockStartedOpAMPClient::new(),
             Duration::from_millis(10),
         );
 
         let mut instance_id_getter = MockInstanceIDGetter::new();
-        instance_id_getter.should_get(&agent_identity.id, sub_agent_instance_id.clone());
         instance_id_getter.should_get(&AgentID::AgentControl, agent_control_instance_id.clone());
 
         let supervisor_builder =
             MockSupervisorBuilder::<MockSupervisorStarter<MockSupervisor>>::new();
 
         let on_host_builder = OnHostSubAgentBuilder {
-            opamp_builder: Some(&opamp_builder),
+            opamp_builder: Some(opamp_builder),
             instance_id_getter: &instance_id_getter,
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(MockRemoteConfigParser::new()),
@@ -232,51 +213,5 @@ mod tests {
         };
 
         assert!(on_host_builder.build(&agent_identity).is_ok());
-    }
-
-    // HELPERS
-    fn infra_agent_default_start_settings(
-        hostname: &str,
-        agent_control_instance_id: InstanceID,
-        sub_agent_instance_id: InstanceID,
-        agent_identity: &AgentIdentity,
-    ) -> StartSettings {
-        let identifying_attributes = HashMap::<String, DescriptionValueType>::from([
-            (
-                OPAMP_SERVICE_NAME.to_string(),
-                agent_identity.agent_type_id.name().into(),
-            ),
-            (
-                OPAMP_SERVICE_NAMESPACE.to_string(),
-                agent_identity.agent_type_id.namespace().into(),
-            ),
-            (
-                OPAMP_SUPERVISOR_KEY.to_string(),
-                agent_identity.id.to_string().into(),
-            ),
-            (
-                OPAMP_SERVICE_VERSION.to_string(),
-                agent_identity.agent_type_id.version().to_string().into(),
-            ),
-        ]);
-        StartSettings {
-            instance_uid: sub_agent_instance_id.into(),
-            capabilities: default_capabilities(),
-            custom_capabilities: Some(default_custom_capabilities()),
-            agent_description: AgentDescription {
-                identifying_attributes,
-                non_identifying_attributes: HashMap::from([
-                    (
-                        HOST_NAME_ATTRIBUTE_KEY.to_string(),
-                        DescriptionValueType::String(hostname.to_string()),
-                    ),
-                    (
-                        PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
-                        DescriptionValueType::Bytes(agent_control_instance_id.into()),
-                    ),
-                    (OS_ATTRIBUTE_KEY.to_string(), OS_ATTRIBUTE_VALUE.into()),
-                ]),
-            },
-        }
     }
 }

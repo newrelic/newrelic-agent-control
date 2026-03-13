@@ -1,5 +1,6 @@
 use http::header::CONTENT_TYPE;
 use http::{HeaderMap, HeaderValue};
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::error;
 
@@ -31,7 +32,7 @@ pub trait HttpClientBuilder {
 pub struct OpAMPHttpClientBuilder<R> {
     opamp_config: OpAMPClientConfig,
     proxy_config: ProxyConfig,
-    secret_retriever: R,
+    secret_retriever: Arc<R>,
 }
 
 impl<R> OpAMPHttpClientBuilder<R>
@@ -41,7 +42,7 @@ where
     pub fn new(
         opamp_config: OpAMPClientConfig,
         proxy_config: ProxyConfig,
-        secret_retriever: R,
+        secret_retriever: Arc<R>,
     ) -> Self {
         Self {
             opamp_config,
@@ -83,7 +84,7 @@ where
         let client = HttpClient::new(http_config)?;
         let token_retriever = TokenRetrieverImpl::try_build(
             self.opamp_config.clone().auth_config,
-            &self.secret_retriever,
+            self.secret_retriever.clone(),
             self.proxy_config.clone(),
         )
         .inspect_err(|err| error!("Could not build OpAMP's token retriever: {err}"))
@@ -108,20 +109,17 @@ pub(crate) mod tests {
     use assert_matches::assert_matches;
     use http::Response;
     use mockall::mock;
-    use opamp_client::operation::settings::StartSettings;
     use opamp_client::{StartedClient, http::HttpClientError};
 
     use crate::opamp::client_builder::{OpAMPClientBuilderError, PollInterval};
-    use crate::{
-        agent_control::agent_id::AgentID,
-        event::channel::pub_sub,
-        opamp::{
-            client_builder::{DefaultOpAMPClientBuilder, OpAMPClientBuilder},
-            effective_config::loader::tests::{
-                MockEffectiveConfigLoader, MockEffectiveConfigLoaderBuilder,
-            },
+    use crate::opamp::instance_id::InstanceID;
+    use crate::opamp::{
+        client_builder::{OpAMPClientBuilder, OpAMPClientBuilderImpl},
+        effective_config::loader::tests::{
+            MockEffectiveConfigLoader, MockEffectiveConfigLoaderBuilder,
         },
     };
+    use crate::sub_agent::identity::AgentIdentity;
 
     use super::*;
 
@@ -146,9 +144,6 @@ pub(crate) mod tests {
     fn test_default_http_client_builder() {
         let mut http_client = MockHttpClient::default();
         let mut http_builder = MockHttpClientBuilder::new();
-        let (tx, _rx) = pub_sub();
-        let agent_id = AgentID::AgentControl;
-        let start_settings = StartSettings::default();
 
         let mut effective_config_loader_builder = MockEffectiveConfigLoaderBuilder::new();
         effective_config_loader_builder
@@ -166,15 +161,15 @@ pub(crate) mod tests {
             .once()
             .return_once(|| Ok(http_client));
 
-        let builder = DefaultOpAMPClientBuilder::new(
+        let builder = OpAMPClientBuilderImpl::new(
             PollInterval::default(),
-            http_builder,
-            effective_config_loader_builder,
-        );
+            Arc::new(http_builder),
+            Arc::new(effective_config_loader_builder),
+            InstanceID::create(),
+        )
+        .with_agent_identity(AgentIdentity::new_agent_control_identity());
 
-        let started_client = builder
-            .build_and_start(tx, agent_id, start_settings)
-            .unwrap();
+        let (started_client, _consumer) = builder.build_and_start().unwrap();
 
         // gracefully shutdown the all threads to avoid mocks panicking go unnoticed
         started_client.stop().unwrap();
@@ -183,10 +178,6 @@ pub(crate) mod tests {
     #[test]
     fn test_default_http_client_builder_error() {
         let mut http_builder = MockHttpClientBuilder::new();
-        let (tx, _rx) = pub_sub();
-        let agent_id = AgentID::AgentControl;
-        let start_settings = StartSettings::default();
-
         let mut effective_config_loader_builder = MockEffectiveConfigLoaderBuilder::new();
         effective_config_loader_builder.expect_build().never();
 
@@ -197,12 +188,14 @@ pub(crate) mod tests {
             )))
         });
 
-        let builder = DefaultOpAMPClientBuilder::new(
+        let builder = OpAMPClientBuilderImpl::new(
             PollInterval::default(),
-            http_builder,
-            effective_config_loader_builder,
-        );
-        let actual_client = builder.build_and_start(tx, agent_id, start_settings);
+            Arc::new(http_builder),
+            Arc::new(effective_config_loader_builder),
+            InstanceID::create(),
+        )
+        .with_agent_identity(AgentIdentity::new_agent_control_identity());
+        let actual_client = builder.build_and_start();
 
         assert!(actual_client.is_err());
 

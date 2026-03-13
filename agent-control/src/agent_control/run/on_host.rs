@@ -18,13 +18,12 @@ use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::oci;
 use crate::on_host::file_store::FileStore;
-use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
-use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
+use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderImpl};
+use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilderImpl;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
-use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
+use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
 use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
 use crate::opamp::instance_id::storer::Storer;
-use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::package::oci::downloader::OCIArtifactDownloader;
@@ -67,11 +66,11 @@ impl AgentControlRunner {
             remote_dir.clone(),
         ));
 
-        let secret_retriever = OnHostSecretRetriever::new(
+        let secret_retriever = Arc::new(OnHostSecretRetriever::new(
             self.opamp.clone(),
             local_dir.clone(),
             FileSecretProvider::new(),
-        );
+        ));
 
         debug!("Initializing yaml_config_repository");
         let config_repository = ConfigRepo::new(file_store.clone());
@@ -119,38 +118,40 @@ impl AgentControlRunner {
         let instance_id_storer = Storer::from(file_store);
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
+        let instance_id = instance_id_getter
+            .get(&AgentIdentity::new_agent_control_identity().id)
+            .map_err(|err| RunError(format!("error getting agent instance id: {err}")))?;
 
-        let opamp_client_builder = self.opamp.map(|config| {
-            DefaultOpAMPClientBuilder::new(
-                config.poll_interval,
-                OpAMPHttpClientBuilder::new(config, self.proxy.clone(), secret_retriever),
-                DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
+        let opamp_client_builder = self.opamp.clone().map(|config| {
+            let poll_interval = config.poll_interval;
+            let http_builder =
+                OpAMPHttpClientBuilder::new(config, self.proxy.clone(), secret_retriever.clone());
+            let loader = EffectiveConfigLoaderBuilderImpl::new(yaml_config_repository.clone());
+            OpAMPClientBuilderImpl::new(
+                poll_interval,
+                Arc::new(http_builder),
+                Arc::new(loader),
+                instance_id.clone(),
             )
         });
 
         // Build and start AC OpAMP client
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
-            .as_ref()
+            .clone()
             .map(|builder| {
-                build_opamp_with_channel(
-                    builder,
-                    &instance_id_getter,
-                    &AgentIdentity::new_agent_control_identity(),
-                    HashMap::from([(
+                builder
+                    .with_additional_identifying_attributes(HashMap::from([(
                         OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
                         DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
-                    )]),
-                    non_identifying_attributes,
-                )
+                    )]))
+                    .with_non_identifying_attributes(non_identifying_attributes)
+                    .build_and_start()
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()
             .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))?
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
-
-        // Disable startup check for sub-agents OpAMP client builder
-        let opamp_client_builder = opamp_client_builder.map(|b| b.with_startup_check_disabled());
 
         let template_renderer = TemplateRenderer::default()
             .with_agent_control_variables(agent_control_variables.clone().into_iter());
@@ -204,7 +205,9 @@ impl AgentControlRunner {
         let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
 
         let sub_agent_builder = OnHostSubAgentBuilder {
-            opamp_builder: opamp_client_builder.as_ref(),
+            opamp_builder: opamp_client_builder
+                .clone()
+                .map(|builder| builder.with_startup_check_disabled()),
             instance_id_getter: &instance_id_getter,
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(remote_config_parser),
