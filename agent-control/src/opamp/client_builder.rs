@@ -2,15 +2,19 @@ use super::callbacks::AgentCallbacks;
 use super::effective_config::loader::EffectiveConfigLoaderBuilder;
 use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
 use super::instance_id::getter::GetterError;
-use crate::agent_control::agent_id::AgentID;
 use crate::event::OpAMPEvent;
-use crate::event::channel::EventPublisher;
+use crate::event::channel::{EventConsumer, pub_sub};
+use crate::opamp::instance_id::InstanceID;
+use crate::opamp::operations::start_settings;
+use crate::sub_agent::identity::AgentIdentity;
 use duration_str::deserialize_duration;
 use opamp_client::http::client::OpAMPHttpClient;
 use opamp_client::http::{NotStartedHttpClient, StartedHttpClient};
-use opamp_client::operation::settings::StartSettings;
+use opamp_client::operation::settings::DescriptionValueType;
 use opamp_client::{NotStartedClient, NotStartedClientError, StartedClient};
 use serde::Deserialize;
+use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 use tracing::info;
@@ -34,54 +38,134 @@ pub enum OpAMPClientBuilderError {
     HttpClientBuilderError(#[from] HttpClientBuilderError),
 }
 
-pub trait OpAMPClientBuilder {
+pub trait OpAMPClientBuilder: Clone {
     type Client: StartedClient + 'static;
+
+    fn with_agent_identity(self, agent_identity: AgentIdentity) -> Self;
+
+    fn with_additional_identifying_attributes(
+        self,
+        additional_identifying_attributes: HashMap<String, DescriptionValueType>,
+    ) -> Self;
+
+    fn with_non_identifying_attributes(
+        self,
+        non_identifying_attributes: HashMap<String, DescriptionValueType>,
+    ) -> Self;
+
     fn build_and_start(
         &self,
-        opamp_publisher: EventPublisher<OpAMPEvent>,
-        agent_id: AgentID,
-        start_settings: StartSettings,
-    ) -> Result<Self::Client, OpAMPClientBuilderError>;
+    ) -> Result<(Self::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>;
 }
 
-pub struct DefaultOpAMPClientBuilder<C, B>
+pub struct OpAMPClientBuilderImpl<C, B>
 where
     B: EffectiveConfigLoaderBuilder,
     C: HttpClientBuilder,
 {
-    effective_config_loader_builder: B,
-    http_client_builder: C,
+    effective_config_loader_builder: Arc<B>,
+    http_client_builder: Arc<C>,
     poll_interval: PollInterval,
     disable_startup_check: bool,
+    instance_id: InstanceID,
+
+    agent_identity: AgentIdentity,
+    additional_identifying_attributes: HashMap<String, DescriptionValueType>,
+    non_identifying_attributes: HashMap<String, DescriptionValueType>,
 }
 
-impl<C, B> DefaultOpAMPClientBuilder<C, B>
+impl<C, B> Clone for OpAMPClientBuilderImpl<C, B>
+where
+    B: EffectiveConfigLoaderBuilder,
+    C: HttpClientBuilder,
+{
+    fn clone(&self) -> Self {
+        Self {
+            effective_config_loader_builder: self.effective_config_loader_builder.clone(),
+            http_client_builder: self.http_client_builder.clone(),
+            poll_interval: self.poll_interval,
+            disable_startup_check: self.disable_startup_check,
+            instance_id: self.instance_id.clone(),
+            agent_identity: self.agent_identity.clone(),
+            additional_identifying_attributes: self.additional_identifying_attributes.clone(),
+            non_identifying_attributes: self.non_identifying_attributes.clone(),
+        }
+    }
+}
+
+type NotStartedOpAMPClient<B, C> = NotStartedHttpClient<
+    OpAMPHttpClient<
+        AgentCallbacks<<B as EffectiveConfigLoaderBuilder>::Loader>,
+        <C as HttpClientBuilder>::Client,
+    >,
+>;
+
+impl<C, B> OpAMPClientBuilderImpl<C, B>
 where
     B: EffectiveConfigLoaderBuilder,
     C: HttpClientBuilder,
 {
     pub fn new(
         poll_interval: PollInterval,
-        http_client_builder: C,
-        effective_config_loader_builder: B,
+        http_client_builder: Arc<C>,
+        effective_config_loader_builder: Arc<B>,
+        instance_id: InstanceID,
     ) -> Self {
         Self {
             effective_config_loader_builder,
             http_client_builder,
             poll_interval,
             disable_startup_check: false,
+            instance_id,
+            agent_identity: AgentIdentity::new_agent_control_identity(),
+            additional_identifying_attributes: HashMap::new(),
+            non_identifying_attributes: HashMap::new(),
         }
     }
 
-    pub fn with_startup_check_disabled(self) -> Self {
-        Self {
-            disable_startup_check: true,
-            ..self
+    pub fn with_startup_check_disabled(mut self) -> Self {
+        self.disable_startup_check = true;
+        self
+    }
+
+    pub fn with_agent_identity(mut self, agent_identity: AgentIdentity) -> Self {
+        self.agent_identity = agent_identity;
+        self
+    }
+
+    pub fn build(
+        &self,
+    ) -> Result<(NotStartedOpAMPClient<B, C>, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
+    {
+        let (publisher, consumer) = pub_sub::<OpAMPEvent>();
+        let start_settings = start_settings(
+            self.instance_id.clone(),
+            &self.agent_identity,
+            self.additional_identifying_attributes.clone(),
+            self.non_identifying_attributes.clone(),
+        );
+
+        let http_client = self.http_client_builder.build()?;
+        let effective_config_loader = self
+            .effective_config_loader_builder
+            .build(self.agent_identity.id.clone());
+
+        let callbacks = AgentCallbacks::new(
+            self.agent_identity.id.clone(),
+            publisher,
+            effective_config_loader,
+        );
+        let not_started_client = NotStartedHttpClient::new(http_client, callbacks, start_settings)?;
+        let mut not_started_client = not_started_client.with_interval(self.poll_interval.into());
+        if self.disable_startup_check {
+            not_started_client = not_started_client.with_startup_check_disabled();
         }
+
+        Ok((not_started_client, consumer))
     }
 }
 
-impl<C, B> OpAMPClientBuilder for DefaultOpAMPClientBuilder<C, B>
+impl<C, B> OpAMPClientBuilder for OpAMPClientBuilderImpl<C, B>
 where
     B: EffectiveConfigLoaderBuilder,
     C: HttpClientBuilder,
@@ -92,29 +176,48 @@ where
             <C as HttpClientBuilder>::Client,
         >,
     >;
+
+    fn with_agent_identity(mut self, agent_identity: AgentIdentity) -> Self {
+        self.agent_identity = agent_identity;
+        self
+    }
+
+    fn with_additional_identifying_attributes(
+        mut self,
+        additional_identifying_attributes: HashMap<String, DescriptionValueType>,
+    ) -> Self {
+        self.additional_identifying_attributes = additional_identifying_attributes;
+        self
+    }
+
+    fn with_non_identifying_attributes(
+        mut self,
+        non_identifying_attributes: HashMap<String, DescriptionValueType>,
+    ) -> Self {
+        self.non_identifying_attributes = non_identifying_attributes;
+        self
+    }
+
     fn build_and_start(
         &self,
-        opamp_publisher: EventPublisher<OpAMPEvent>,
-        agent_id: AgentID,
-        start_settings: StartSettings,
-    ) -> Result<Self::Client, OpAMPClientBuilderError> {
-        let http_client = self.http_client_builder.build()?;
-        let effective_config_loader = self.effective_config_loader_builder.build(agent_id.clone());
-        let callbacks = AgentCallbacks::new(agent_id, opamp_publisher, effective_config_loader);
-        let not_started_client = NotStartedHttpClient::new(http_client, callbacks, start_settings)?;
-        let mut not_started_client = not_started_client.with_interval(self.poll_interval.into());
-        if self.disable_startup_check {
+    ) -> Result<(Self::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError> {
+        let disable_startup_check = self.disable_startup_check;
+        let poll_interval = self.poll_interval;
+
+        let (not_started_client, consumer) = self.build()?;
+        let mut not_started_client = not_started_client.with_interval(poll_interval.into());
+        if disable_startup_check {
             not_started_client = not_started_client.with_startup_check_disabled();
         }
+
         info!("OpAMP client started");
-        Ok(not_started_client.start()?)
+        Ok((not_started_client.start()?, consumer))
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use mockall::{Sequence, mock, predicate};
-    use opamp_client::operation::settings::StartSettings;
     use opamp_client::{
         Client, ClientResult, NotStartedClient, NotStartedClientResult, StartedClient,
         StartedClientResult,
@@ -226,25 +329,33 @@ pub(crate) mod tests {
 
         impl OpAMPClientBuilder for OpAMPClientBuilder{
             type Client = MockStartedOpAMPClient;
-            fn build_and_start(&self, opamp_publisher: EventPublisher<OpAMPEvent>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder>::Client, OpAMPClientBuilderError>;
+
+            fn with_agent_identity(self, agent_identity: AgentIdentity) -> Self;
+
+            fn with_additional_identifying_attributes(
+                self,
+                additional_identifying_attributes: HashMap<String, DescriptionValueType>,
+            ) -> Self;
+
+            fn with_non_identifying_attributes(
+                self,
+                non_identifying_attributes: HashMap<String, DescriptionValueType>,
+            ) -> Self;
+
+            fn build_and_start(&self) -> Result<(<Self as OpAMPClientBuilder>::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>;
+        }
+
+        impl Clone for OpAMPClientBuilder {
+            fn clone(&self) -> Self;
         }
     }
 
     impl MockOpAMPClientBuilder {
-        pub fn should_build_and_start(
-            &mut self,
-            agent_id: AgentID,
-            start_settings: StartSettings,
-            client: MockStartedOpAMPClient,
-        ) {
+        pub fn should_build_and_start(&mut self, client: MockStartedOpAMPClient) {
+            let (_publisher, consumer) = pub_sub::<OpAMPEvent>();
             self.expect_build_and_start()
-                .with(
-                    predicate::always(),
-                    predicate::eq(agent_id),
-                    predicate::eq(start_settings),
-                )
                 .once()
-                .return_once(move |_, _, _| Ok(client));
+                .return_once(move || Ok((client, consumer)));
         }
 
         // This is a Mock OpAMP Client Builder, which builds the Callbacks and the OpAMP Client
@@ -258,24 +369,20 @@ pub(crate) mod tests {
 
         pub fn should_build_and_start_and_run(
             &mut self,
-            agent_id: AgentID,
-            start_settings: StartSettings,
             client: MockStartedOpAMPClient,
             run_for: Duration,
         ) {
             use std::thread;
+            let (_publisher, consumer) = pub_sub::<OpAMPEvent>();
             self.expect_build_and_start()
-                .withf(move |publisher, _sub_agent_id, _start_settings| {
-                    let publisher = publisher.clone();
+                .withf(move || {
                     thread::spawn(move || {
                         thread::sleep(run_for);
-                        drop(publisher)
                     });
-                    //
-                    agent_id == _sub_agent_id.clone() && start_settings == *_start_settings
+                    true
                 })
                 .once()
-                .return_once(move |_, _, _| Ok(client));
+                .return_once(move || Ok((client, consumer)));
         }
     }
 }

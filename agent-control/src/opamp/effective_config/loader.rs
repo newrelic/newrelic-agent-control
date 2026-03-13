@@ -26,14 +26,14 @@ pub trait EffectiveConfigLoaderBuilder {
 }
 
 /// Builder for effective configuration loaders.
-pub struct DefaultEffectiveConfigLoaderBuilder<Y>
+pub struct EffectiveConfigLoaderBuilderImpl<Y>
 where
     Y: ConfigRepository,
 {
     yaml_config_repository: Arc<Y>,
 }
 
-impl<Y> DefaultEffectiveConfigLoaderBuilder<Y>
+impl<Y> EffectiveConfigLoaderBuilderImpl<Y>
 where
     Y: ConfigRepository,
 {
@@ -44,7 +44,7 @@ where
     }
 }
 
-impl<Y> EffectiveConfigLoaderBuilder for DefaultEffectiveConfigLoaderBuilder<Y>
+impl<Y> EffectiveConfigLoaderBuilder for EffectiveConfigLoaderBuilderImpl<Y>
 where
     Y: ConfigRepository,
 {
@@ -112,7 +112,7 @@ pub mod tests {
     #[test]
     fn builder() {
         let builder =
-            DefaultEffectiveConfigLoaderBuilder::new(Arc::new(MockConfigRepository::default()));
+            EffectiveConfigLoaderBuilderImpl::new(Arc::new(MockConfigRepository::default()));
 
         match builder.build(AgentID::AgentControl) {
             EffectiveConfigLoaderImpl::AgentControl(_) => {}
