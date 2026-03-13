@@ -8,7 +8,7 @@ use crate::http::client::{HttpBuildError, HttpClient};
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
-use crate::opamp::http::client::HttpOpAMPClientImpl;
+use crate::opamp::http::client::HttpOpAMPClient;
 use crate::secret_retriever::OpampSecretRetriever;
 use opamp_client::http::http_client::HttpClient as OpampHttpClient;
 
@@ -67,7 +67,7 @@ impl<R> HttpClientBuilder for OpAMPHttpClientBuilder<R>
 where
     R: OpampSecretRetriever,
 {
-    type Client = HttpOpAMPClientImpl;
+    type Client = HttpOpAMPClient<TokenRetrieverImpl>;
 
     /// Build the HTTP Client. It will contain a Token Retriever, so in all
     /// post requests a Token will be retrieved from Identity System Service
@@ -93,12 +93,7 @@ where
             ))
         })?;
 
-        Ok(HttpOpAMPClientImpl::new(
-            client,
-            url,
-            headers,
-            token_retriever,
-        ))
+        Ok(HttpOpAMPClient::new(client, url, headers, token_retriever))
     }
 }
 

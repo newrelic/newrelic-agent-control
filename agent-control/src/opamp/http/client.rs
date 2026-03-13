@@ -1,6 +1,5 @@
 //! # Synchronous OpAMP HTTP Client
 use crate::http::client::{HttpClient, HttpResponseError};
-use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::http::client::OpAMPHttpClientError::AuthorizationHeadersError;
 use http::header::AUTHORIZATION;
 use http::{HeaderMap, HeaderValue, Response};
@@ -14,8 +13,6 @@ pub enum OpAMPHttpClientError {
     #[error("could not build auth headers: {0}")]
     AuthorizationHeadersError(String),
 }
-
-pub type HttpOpAMPClientImpl = HttpOpAMPClient<TokenRetrieverImpl>;
 
 pub struct HttpOpAMPClient<T: TokenRetriever> {
     client: HttpClient,
