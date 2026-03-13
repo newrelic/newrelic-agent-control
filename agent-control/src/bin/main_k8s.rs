@@ -44,6 +44,7 @@ fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
         run_context.ac_running_mode,
         run_context.application_event_consumer,
     )?
+    .k8s()?
     .run()
     .map_err(|e| e.into())
 }

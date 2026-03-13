@@ -29,9 +29,6 @@ pub mod windows;
 /// All possible errors that can happen while running the initialization.
 #[derive(Debug, thiserror::Error)]
 pub enum InitError {
-    /// K8s config is missing
-    #[error("k8s config missing while running on k8s")]
-    K8sConfig(),
     /// The config could not be read
     #[error("could not read Agent Control config from {0}: {1}")]
     LoaderError(String, String),
@@ -211,9 +208,8 @@ impl Command {
                 .map_err(|e| format!("Failed to load environment: {e}"))?;
         }
 
-        // TODO: we should not clone here
         let config_folder_name = base_paths.local_dir.display().to_string();
-        let (config, tracing_config) = Self::load_ac_config(base_paths.clone())?;
+        let (config, tracing_config) = Self::load_ac_config(&base_paths)?;
 
         let tracer = try_init_tracing(tracing_config)
             .map_err(|e| format!("Error on Agent Control tracing initialization: {e}"))?;
@@ -234,7 +230,7 @@ impl Command {
 
     /// Builds the Agent Control configuration required to execute the application.
     fn load_ac_config(
-        base_paths: BasePaths,
+        base_paths: &BasePaths,
     ) -> Result<(AgentControlConfig, TracingConfig), InitError> {
         let file_store = Arc::new(FileStore::new_local_fs(
             base_paths.local_dir.clone(),
@@ -247,7 +243,6 @@ impl Command {
         // The real configStores are created in the run fn, the onhost reads file, the k8s one reads configMaps.
         let agent_control_config_repository = ConfigRepo::new(file_store);
 
-        // TODO: add a more idiomatic way of setting the runtime-aware proxy
         let mut agent_control_config =
             AgentControlConfigStore::new(Arc::new(agent_control_config_repository))
                 .load()
@@ -258,13 +253,11 @@ impl Command {
                     )
                 })?;
 
-        let proxy = agent_control_config
+        agent_control_config.proxy = agent_control_config
             .proxy
             .clone()
             .try_with_url_from_env()
             .map_err(|err| InitError::InvalidConfig(err.to_string()))?;
-
-        agent_control_config.proxy = proxy.clone();
 
         let tracing_config = TracingConfig::from_logging_path(base_paths.log_dir.clone())
             .with_logging_config(agent_control_config.log.clone())
@@ -272,7 +265,7 @@ impl Command {
                 agent_control_config
                     .self_instrumentation
                     .clone()
-                    .with_proxy_config(proxy),
+                    .with_proxy_config(agent_control_config.proxy.clone()),
             );
 
         Ok((agent_control_config, tracing_config))

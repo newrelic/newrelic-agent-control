@@ -39,14 +39,17 @@ pub fn start_agent_control_with_custom_config(
         let agent_control_config = config_storer.load().unwrap();
 
         // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-        AgentControlRunner::try_new(
+        let runner = AgentControlRunner::try_new(
             agent_control_config,
             base_paths,
             ac_running_mode,
             application_event_consumer,
         )
-        .unwrap()
-        .run()
+        .unwrap();
+        match ac_running_mode {
+            Environment::Linux | Environment::Windows => runner.on_host().run(),
+            Environment::K8s => runner.k8s().unwrap().run(),
+        }
         .unwrap();
     });
 

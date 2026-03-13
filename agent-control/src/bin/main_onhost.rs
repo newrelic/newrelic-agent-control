@@ -79,7 +79,7 @@ fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
         run_context.ac_running_mode,
         run_context.application_event_consumer,
     )
-    .and_then(|runner| runner.run().map_err(|e| e.into()));
+    .and_then(|runner| runner.on_host().run().map_err(|e| e.into()));
 
     #[cfg(target_family = "windows")]
     if let Some(handler) = run_context.stop_handler {
