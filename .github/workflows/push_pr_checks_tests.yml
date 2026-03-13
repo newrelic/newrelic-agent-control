@@ -345,7 +345,7 @@ jobs:
   k8s-e2e-tests:
     uses: ./.github/workflows/component_k8s_e2e.yml
     with:
-      scenarios: '["infra"]'
+      scenarios: '["infra", "infra-minimal-perms"]'
       caller_workflow: push_pr_checks_tests
     secrets:
       E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}

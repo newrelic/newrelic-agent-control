@@ -126,7 +126,7 @@ jobs:
   k8s-e2e-tests:
     uses: ./.github/workflows/component_k8s_e2e.yml
     with:
-      scenarios: '["apm", "collector", "fleet-control", "ebpf", "dynamic", "custom-repo", "proxy"]'
+      scenarios: '["apm", "apm-minimal-perms", "collector", "fleet-control", "ebpf", "dynamic", "custom-repo", "proxy"]'
       # Network policies needs calico installed,the others do not
       minikube_start_args: '--cni=calico'
       caller_workflow: nightly
