@@ -12,6 +12,7 @@ use nr_auth::{
     token::{AccessToken, Token, TokenType},
     token_retriever::{TokenRetrieverWithCache, credential::JwtSignerAuthBuilder},
 };
+use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 
@@ -54,7 +55,7 @@ impl TokenRetriever for TokenRetrieverImpl {
 impl TokenRetrieverImpl {
     pub fn try_build<R>(
         auth_config: Option<AuthConfig>,
-        secret_retriever: &R,
+        secret_retriever: Arc<R>,
         proxy_config: ProxyConfig,
     ) -> Result<Self, TokenRetrieverImplError>
     where
