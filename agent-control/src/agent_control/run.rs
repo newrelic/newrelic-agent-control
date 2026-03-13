@@ -3,16 +3,21 @@ use super::defaults::{
     DYNAMIC_AGENT_TYPE_DIR,
 };
 use crate::agent_control::config::AgentControlConfig;
+use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
+use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
+use crate::data_store::DataStore;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
+use crate::values::ConfigRepo;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
+use tracing::{debug, info};
 
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
@@ -134,5 +139,32 @@ impl AgentControlRunner {
             signature_validator,
             running_mode,
         })
+    }
+}
+
+/// Helper to handle configuration for all running modes.
+pub struct ConfigHandler<D: DataStore + Send + Sync + 'static> {
+    repository: Arc<ConfigRepo<D>>,
+    store: Arc<AgentControlConfigStore<ConfigRepo<D>>>,
+}
+
+impl<D: DataStore + Send + Sync + 'static> ConfigHandler<D> {
+    pub fn new(data_store: Arc<D>, with_remote: bool) -> Self {
+        debug!("Initializing yaml_config_repository");
+        let mut repository = ConfigRepo::new(data_store);
+        if with_remote {
+            repository = repository.with_remote();
+        }
+        let repository = Arc::new(repository);
+        let store = Arc::new(AgentControlConfigStore::new(repository.clone()));
+
+        Self { repository, store }
+    }
+
+    pub fn load_config(&self) -> Result<AgentControlConfig, RunError> {
+        info!("Loading Agent Control configuration");
+        self.store
+            .load()
+            .map_err(|err| RunError(format!("failed to load Agent Control config: {err}")))
     }
 }

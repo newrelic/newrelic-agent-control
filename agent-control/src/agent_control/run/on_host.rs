@@ -1,6 +1,4 @@
 use crate::agent_control::AgentControl;
-use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
-use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
@@ -8,7 +6,7 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
-use crate::agent_control::run::{AgentControlRunner, Environment, RunError};
+use crate::agent_control::run::{AgentControlRunner, ConfigHandler, Environment, RunError};
 use crate::agent_control::version_updater::updater::NoOpUpdater;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
@@ -37,7 +35,6 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
-use crate::values::ConfigRepo;
 use fs::directory_manager::DirectoryManagerFs;
 use oci_client::client::ClientConfig;
 #[cfg(debug_assertions)]
@@ -47,7 +44,7 @@ use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tracing::{debug, info};
+use tracing::info;
 
 pub const HOST_ID_VARIABLE_NAME: &str = "host_id";
 #[cfg(debug_assertions)]
@@ -87,18 +84,12 @@ impl AgentControlOnHostRunner {
             FileSecretProvider::new(),
         );
 
-        debug!("Initializing yaml_config_repository");
-        let config_repository = ConfigRepo::new(file_store.clone());
-        let yaml_config_repository = Arc::new(if maybe_opamp.is_some() {
-            config_repository.with_remote()
-        } else {
-            config_repository
-        });
-
-        let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
-        let agent_control_config = config_storer
-            .load()
-            .map_err(|err| RunError(format!("failed to load Agent Control config: {err}")))?;
+        let config_handler = ConfigHandler::new(file_store.clone(), maybe_opamp.is_some());
+        let agent_control_config = config_handler.load_config()?;
+        let ConfigHandler {
+            repository: yaml_config_repository,
+            store: config_storer,
+        } = config_handler;
 
         let fleet_id = agent_control_config
             .fleet_control

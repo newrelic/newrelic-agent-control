@@ -1,7 +1,5 @@
 use crate::agent_control::AgentControl;
 use crate::agent_control::config::{K8sConfig, helmrelease_v2_type_meta};
-use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
-use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::config_validator::k8s::K8sReleaseNamesConfigValidator;
 use crate::agent_control::defaults::{
@@ -13,7 +11,7 @@ use crate::agent_control::defaults::{
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
-use crate::agent_control::run::{AgentControlRunner, Environment, RunError};
+use crate::agent_control::run::{AgentControlRunner, ConfigHandler, Environment, RunError};
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
@@ -43,7 +41,6 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::thread_context::StartedThreadContext;
-use crate::values::ConfigRepo;
 use crate::{k8s::configmap_store::ConfigMapStore, sub_agent::k8s::builder::K8sSubAgentBuilder};
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::get_hostname;
@@ -94,19 +91,12 @@ impl AgentControlK8sRunner {
             self.k8s_config.clone(),
         );
 
-        let config_repository = ConfigRepo::new(k8s_store.clone());
-        let yaml_config_repository = Arc::new(if maybe_opamp.is_some() {
-            config_repository.with_remote()
-        } else {
-            config_repository
-        });
-
-        let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
-
-        info!("Loading Agent Control configuration");
-        let agent_control_config = config_storer.load().map_err(|err| {
-            RunError(format!("failed to load Agent Control configuration: {err}"))
-        })?;
+        let config_handler = ConfigHandler::new(k8s_store.clone(), maybe_opamp.is_some());
+        let agent_control_config = config_handler.load_config()?;
+        let ConfigHandler {
+            repository: yaml_config_repository,
+            store: config_storer,
+        } = config_handler;
 
         let fleet_id = agent_control_config
             .fleet_control
