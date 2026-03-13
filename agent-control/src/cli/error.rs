@@ -14,8 +14,11 @@ pub enum CliError {
     #[error("{0}")]
     Command(String),
 
-    #[error("File system error: {0}")]
+    #[error("file system error: {0}")]
     FileSystemError(String),
+
+    #[error("opamp connectivity check failed: {0}")]
+    OpAmpConnectivityCheckFailed(String),
 }
 
 impl From<CliError> for ExitCode {
@@ -32,6 +35,7 @@ impl From<CliError> for ExitCode {
             CliError::Tracing(_) => Self::from(70),
             CliError::Command(_) => Self::from(1),
             CliError::FileSystemError(_) => Self::from(1),
+            CliError::OpAmpConnectivityCheckFailed(_) => Self::from(1),
         }
     }
 }

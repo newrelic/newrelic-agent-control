@@ -1,6 +1,8 @@
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, error::ErrorKind};
+use newrelic_agent_control::cli::error::CliError;
+use newrelic_agent_control::cli::on_host::dry_run::opamp::check_connectivity;
 use newrelic_agent_control::cli::on_host::migrate_folders;
 use newrelic_agent_control::cli::{logs, on_host::config_gen};
 use tracing::{Level, error};
@@ -24,6 +26,8 @@ enum Commands {
     GenerateConfig(config_gen::Args),
     /// Migrates legacy on-host directories (>v1.4.0) to the new layout. Intended to be run by post-installation package scripts only.
     FilesBackwardsCompatibilityMigrationFromV120,
+    /// Check OpAMP connectivity without affecting the running agent
+    CheckOpampConnectivity,
 }
 
 fn main() -> ExitCode {
@@ -45,6 +49,8 @@ fn main() -> ExitCode {
             config_gen::generate(args)
         }
         Commands::FilesBackwardsCompatibilityMigrationFromV120 => migrate_folders::migrate(),
+        Commands::CheckOpampConnectivity => check_connectivity()
+            .map_err(|err| CliError::OpAmpConnectivityCheckFailed(err.to_string())),
     };
 
     if let Err(err) = result {

@@ -89,15 +89,16 @@ impl AgentControlRunner {
             .map(|c| c.fleet_id.to_string())
             .unwrap_or_default();
 
-        let http_client = HttpClient::new(HttpConfig::new(
+        // The proxy is not required for the identifiers.
+        // Cloud providers and internal endpoints should be reachable without the proxy.
+        let identifiers_http_client = HttpClient::new(HttpConfig::new(
             DEFAULT_CLIENT_TIMEOUT,
             DEFAULT_CLIENT_TIMEOUT,
-            // The default value of proxy configuration is an empty proxy config without any rule
             ProxyConfig::default(),
         ))
         .map_err(|err| RunError(format!("failed to create http client: {err}")))?;
 
-        let identifiers_provider = IdentifiersProvider::new(http_client)
+        let identifiers_provider = IdentifiersProvider::new(identifiers_http_client)
             .with_host_id(agent_control_config.host_id.to_string())
             .with_fleet_id(fleet_id);
 
