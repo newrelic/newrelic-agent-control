@@ -43,15 +43,7 @@ pub enum VerifyError {
 
 /// Output written by the verify command to stdout. (WIP)
 ///
-/// ## Command contract
-///
-/// The verify command (`<binary> --verify`) is expected to behave as follows:
-///
-/// - **stdout**: always contains a JSON-encoded `CommandOutput` with a human-readable
-///   `message`, regardless of whether verification succeeded or failed. This
-///   message is suitable for logging or surfacing to operators.
-/// - **exit code**: `0` signals that verification passed; any non-zero exit code
-///   signals that verification failed. The message in stdout describes the reason.
+
 ///
 /// TODO: Replace with the actual types defined in the CLI commands task once available.
 #[derive(Debug, Deserialize)]
@@ -70,6 +62,16 @@ pub trait VerifyExecutor {
 pub struct VerifyTimeout(Duration);
 
 /// Real implementation of [`VerifyExecutor`] that spawns an OS subprocess.
+///
+/// ## Command contract
+///
+/// The verify command (`<binary> verify`) is expected to behave as follows:
+///
+/// - **stdout**: always contains a JSON-encoded `CommandOutput` with a human-readable
+///   `message`, regardless of whether verification succeeded or failed. This
+///   message is suitable for logging or surfacing to operators.
+/// - **exit code**: `0` signals that verification passed; any non-zero exit code
+///   signals that verification failed. The message in stdout describes the reason.
 #[derive(Debug, Default)]
 pub struct ProcessVerifyExecutor {
     timeout: VerifyTimeout,
@@ -138,7 +140,7 @@ impl VerifyExecutor for ProcessVerifyExecutor {
         match serde_json::from_str::<CommandOutput>(&stdout_buf) {
             Ok(output) => Err(VerifyError::VerificationFailed(output.message)),
             Err(err) => {
-                error!(%err, stdout = %stdout_buf, stderr = %stderr_buf, "verification subprocess unexpectedly failed");
+                error!(%err, stdout = %stdout_buf, stderr = %stderr_buf, "Verification subprocess failed and output couldn't be parsed");
                 Err(VerifyError::UnexpectedFailure {
                     exit_status,
                     stdout: stdout_buf,
