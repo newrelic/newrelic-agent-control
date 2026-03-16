@@ -111,8 +111,10 @@ pub(crate) mod tests {
     use mockall::mock;
     use opamp_client::{StartedClient, http::HttpClientError};
 
+    use crate::agent_control::agent_id::AgentID;
     use crate::opamp::client_builder::{OpAMPClientBuilderError, PollInterval};
     use crate::opamp::instance_id::InstanceID;
+    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
     use crate::opamp::{
         client_builder::{OpAMPClientBuilder, OpAMPClientBuilderImpl},
         effective_config::loader::tests::{
@@ -161,11 +163,14 @@ pub(crate) mod tests {
             .once()
             .return_once(|| Ok(http_client));
 
+        let mut instance_id_getter = MockInstanceIDGetter::default();
+        instance_id_getter.should_get(&AgentID::AgentControl, InstanceID::create());
+
         let builder = OpAMPClientBuilderImpl::new(
             PollInterval::default(),
             Arc::new(http_builder),
             Arc::new(effective_config_loader_builder),
-            InstanceID::create(),
+            Arc::new(instance_id_getter),
         )
         .with_agent_identity(AgentIdentity::new_agent_control_identity());
 
@@ -188,11 +193,14 @@ pub(crate) mod tests {
             )))
         });
 
+        let mut instance_id_getter = MockInstanceIDGetter::default();
+        instance_id_getter.should_get(&AgentID::AgentControl, InstanceID::create());
+
         let builder = OpAMPClientBuilderImpl::new(
             PollInterval::default(),
             Arc::new(http_builder),
             Arc::new(effective_config_loader_builder),
-            InstanceID::create(),
+            Arc::new(instance_id_getter),
         )
         .with_agent_identity(AgentIdentity::new_agent_control_identity());
         let actual_client = builder.build_and_start();

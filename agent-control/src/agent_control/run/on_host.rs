@@ -21,7 +21,7 @@ use crate::on_host::file_store::FileStore;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderImpl};
 use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilderImpl;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
-use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
+use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
 use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
@@ -32,7 +32,6 @@ use crate::secret_retriever::on_host::retrieve::OnHostSecretRetriever;
 use crate::secrets_provider::SecretsProviders;
 use crate::secrets_provider::file::FileSecretProvider;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
-use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
@@ -116,11 +115,10 @@ impl AgentControlRunner {
         )]);
 
         let instance_id_storer = Storer::from(file_store);
-        let instance_id_getter =
-            InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
-        let instance_id = instance_id_getter
-            .get(&AgentIdentity::new_agent_control_identity().id)
-            .map_err(|err| RunError(format!("error getting agent instance id: {err}")))?;
+        let instance_id_getter = Arc::new(InstanceIDWithIdentifiersGetter::new(
+            instance_id_storer,
+            identifiers,
+        ));
 
         let opamp_client_builder = self.opamp.clone().map(|config| {
             let poll_interval = config.poll_interval;
@@ -131,7 +129,7 @@ impl AgentControlRunner {
                 poll_interval,
                 Arc::new(http_builder),
                 Arc::new(loader),
-                instance_id.clone(),
+                instance_id_getter.clone(),
             )
         });
 
@@ -208,7 +206,7 @@ impl AgentControlRunner {
             opamp_builder: opamp_client_builder
                 .clone()
                 .map(|builder| builder.with_startup_check_disabled()),
-            instance_id_getter: &instance_id_getter,
+            instance_id_getter,
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(remote_config_parser),
             yaml_config_repository,

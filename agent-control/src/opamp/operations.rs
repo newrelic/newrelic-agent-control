@@ -18,18 +18,19 @@ use opamp_client::{
     operation::settings::{AgentDescription, DescriptionValueType, StartSettings},
 };
 use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::info;
 
 pub fn build_sub_agent_opamp<OB, IG>(
     opamp_builder: OB,
-    instance_id_getter: &IG,
+    instance_id_getter: Arc<IG>,
     agent_identity: &AgentIdentity,
     additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     mut non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
 where
     OB: OpAMPClientBuilder,
-    IG: InstanceIDGetter,
+    IG: InstanceIDGetter + Send + Sync + 'static,
 {
     let agent_control_id = AgentID::AgentControl;
     let parent_instance_id = instance_id_getter.get(&agent_control_id)?;

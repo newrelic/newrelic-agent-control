@@ -29,7 +29,7 @@ use crate::k8s::client::SyncK8sClient;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderImpl};
 use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilderImpl;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
-use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
+use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
 use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
@@ -38,7 +38,6 @@ use crate::secret_retriever::k8s::retrieve::K8sSecretRetriever;
 use crate::secrets_provider::SecretsProviders;
 use crate::secrets_provider::k8s_secret::K8sSecretProvider;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
-use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::thread_context::StartedThreadContext;
@@ -103,11 +102,10 @@ impl AgentControlRunner {
             agent_control_additional_opamp_identifying_attributes(&self.k8s_config);
 
         let instance_id_storer = Storer::from(k8s_store.clone());
-        let instance_id_getter =
-            InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
-        let instance_id = instance_id_getter
-            .get(&AgentIdentity::new_agent_control_identity().id)
-            .map_err(|err| RunError(format!("error getting agent instance id: {err}")))?;
+        let instance_id_getter = Arc::new(InstanceIDWithIdentifiersGetter::new(
+            instance_id_storer,
+            identifiers,
+        ));
 
         let opamp_client_builder = self.opamp.clone().map(|config| {
             let poll_interval = config.poll_interval;
@@ -118,7 +116,7 @@ impl AgentControlRunner {
                 poll_interval,
                 Arc::new(http_builder),
                 Arc::new(loader),
-                instance_id.clone(),
+                instance_id_getter.clone(),
             )
         });
 
@@ -183,7 +181,7 @@ impl AgentControlRunner {
         let sub_agent_builder = K8sSubAgentBuilder {
             opamp_builder: opamp_client_builder
                 .map(|builder| builder.with_startup_check_disabled()),
-            instance_id_getter: &instance_id_getter,
+            instance_id_getter,
             k8s_config: self.k8s_config.clone(),
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(remote_config_parser),
