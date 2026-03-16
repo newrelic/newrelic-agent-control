@@ -12,8 +12,6 @@ use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::checkers::health::noop::NoOpHealthChecker;
 use crate::event::channel::pub_sub;
-use crate::http::client::HttpClient;
-use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::oci;
 use crate::on_host::file_store::FileStore;
 use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
@@ -40,7 +38,6 @@ use oci_client::client::ClientConfig;
 #[cfg(debug_assertions)]
 use oci_client::client::ClientProtocol;
 use opamp_client::operation::settings::DescriptionValueType;
-use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -97,15 +94,8 @@ impl AgentControlOnHostRunner {
             .map(|c| c.fleet_id.to_string())
             .unwrap_or_default();
 
-        let http_client = HttpClient::new(HttpConfig::new(
-            DEFAULT_CLIENT_TIMEOUT,
-            DEFAULT_CLIENT_TIMEOUT,
-            // The default value of proxy configuration is an empty proxy config without any rule
-            ProxyConfig::default(),
-        ))
-        .map_err(|err| RunError(format!("failed to create http client: {err}")))?;
-
-        let identifiers_provider = IdentifiersProvider::new(http_client)
+        let identifiers_provider = IdentifiersProvider::try_default()
+            .map_err(|err| RunError(format!("failed to build the identifiers provider: {err}")))?
             .with_host_id(agent_control_config.host_id.to_string())
             .with_fleet_id(fleet_id);
 

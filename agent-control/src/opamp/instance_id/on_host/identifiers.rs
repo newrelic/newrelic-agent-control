@@ -1,4 +1,5 @@
-use crate::http::client::HttpClient;
+use crate::http::client::{HttpBuildError, HttpClient};
+use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::opamp::instance_id::definition::InstanceIdentifiers;
 
 use resource_detection::DetectError;
@@ -9,7 +10,7 @@ use resource_detection::cloud::aws::detector::{
 use resource_detection::cloud::azure::detector::{AZURE_IPV4_METADATA_ENDPOINT, AzureDetector};
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
 use resource_detection::cloud::gcp::detector::{GCP_IPV4_METADATA_ENDPOINT, GCPDetector};
-use resource_detection::cloud::http_client::HttpClientError;
+use resource_detection::cloud::http_client::{DEFAULT_CLIENT_TIMEOUT, HttpClientError};
 use resource_detection::system::{HOSTNAME_KEY, MACHINE_ID_KEY};
 use resource_detection::{Detector, system::detector::SystemDetector};
 use serde::{Deserialize, Serialize};
@@ -48,6 +49,8 @@ pub enum IdentifiersProviderError {
     DetectError(#[from] DetectError),
     #[error("building cloud detector: {0}")]
     BuildError(#[from] HttpClientError),
+    #[error("building http client: {0}")]
+    HttpClientBuild(HttpBuildError),
 }
 
 pub struct IdentifiersProvider<
@@ -83,6 +86,18 @@ impl IdentifiersProvider {
             host_id: String::default(),
             fleet_id: String::default(),
         }
+    }
+
+    /// Builds [IdentifiersProvider] using a default [HttpClient].
+    pub fn try_default() -> Result<Self, IdentifiersProviderError> {
+        let http_client = HttpClient::new(HttpConfig::new(
+            DEFAULT_CLIENT_TIMEOUT,
+            DEFAULT_CLIENT_TIMEOUT,
+            // The default value of proxy configuration is an empty proxy config without any rule
+            ProxyConfig::default(),
+        ))
+        .map_err(IdentifiersProviderError::HttpClientBuild)?;
+        Ok(Self::new(http_client))
     }
 }
 
