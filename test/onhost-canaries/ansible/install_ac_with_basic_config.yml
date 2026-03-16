@@ -37,7 +37,7 @@
       name: newrelic-agent-control
 
   - name: Register agent control version
-    command: "/usr/bin/newrelic-agent-control --version"
+    command: "/usr/bin/newrelic-agent-control version"
     register: version
 
   - name: Debug agent control version
