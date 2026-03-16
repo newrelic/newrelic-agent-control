@@ -41,9 +41,7 @@ pub enum VerifyError {
     },
 }
 
-/// Output written by the verify command to stdout. (WIP)
-///
-
+/// Output written by the verify command to stdout.
 ///
 /// TODO: Replace with the actual types defined in the CLI commands task once available.
 #[derive(Debug, Deserialize)]
@@ -234,18 +232,26 @@ mod tests {
     }
 
     #[rstest]
-    #[cfg_attr(unix, case("false", vec![]))]
-    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", "exit 1"]))]
-    fn test_process_executor_unexpected_failure_on_nonzero_without_json(
+    #[cfg_attr(unix, case("sh", vec!["-c", "printf 'some stdout'; printf 'some stderr' >&2; exit 2"]))]
+    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", r#"Write-Output 'some stdout'; [Console]::Error.WriteLine('some stderr'); exit 2"#]))]
+    fn test_process_executor_unexpected_failure_contains_stdout_stderr_and_exit_status(
         #[case] bin: &'static str,
         #[case] args: Vec<&'static str>,
     ) {
-        // non-zero exit with empty stdout → no CommandOutput to parse → UnexpectedFailure
         let executor = ProcessVerifyExecutor::default();
-        assert!(matches!(
-            executor.execute(Path::new(bin), &args).unwrap_err(),
-            VerifyError::UnexpectedFailure { .. }
-        ));
+        let err = executor.execute(Path::new(bin), &args).unwrap_err();
+        match err {
+            VerifyError::UnexpectedFailure {
+                exit_status,
+                stdout,
+                stderr,
+            } => {
+                assert!(stdout.starts_with("some stdout"));
+                assert!(stderr.starts_with("some stderr"));
+                assert_eq!(exit_status.code(), Some(2));
+            }
+            other => panic!("expected UnexpectedFailure, got {other:?}"),
+        }
     }
 
     #[rstest]
