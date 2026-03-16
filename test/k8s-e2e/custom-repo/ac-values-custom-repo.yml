@@ -1,3 +1,5 @@
+rbac:
+  useMinimalPermissions: true
 toolkitImage:
   tag: failIfNotReplaced
 agentControlDeployment:

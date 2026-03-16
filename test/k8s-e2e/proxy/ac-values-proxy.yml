@@ -1,3 +1,5 @@
+rbac:
+  useMinimalPermissions: true
 # Flux proxy configuration.
 installation:
   extraEnv:
