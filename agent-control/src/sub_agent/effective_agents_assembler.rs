@@ -264,7 +264,7 @@ pub(crate) mod tests {
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
-    use mockall::{mock, predicate};
+    use mockall::mock;
 
     mock! {
         pub EffectiveAgentAssembler {}
@@ -277,26 +277,6 @@ pub(crate) mod tests {
                 environment: &Environment,
             ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
 
-        }
-    }
-
-    impl MockEffectiveAgentAssembler {
-        pub fn should_assemble_agent(
-            &mut self,
-            agent_identity: &AgentIdentity,
-            yaml_config: &YAMLConfig,
-            environment: &Environment,
-            effective_agent: EffectiveAgent,
-            times: usize,
-        ) {
-            self.expect_assemble_agent()
-                .times(times)
-                .with(
-                    predicate::eq(agent_identity.clone()),
-                    predicate::eq(yaml_config.clone()),
-                    predicate::eq(*environment),
-                )
-                .returning(move |_, _, _| Ok(effective_agent.clone()));
         }
     }
 
