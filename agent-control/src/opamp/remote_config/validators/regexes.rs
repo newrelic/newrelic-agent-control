@@ -9,7 +9,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum RegexValidatorError {
-    #[error("invalid config: restricted values detected via regex: {0}")]
+    #[error("invalid config: restricted values detected in the config by the regex: {0}")]
     InvalidConfig(String),
 
     #[error("error compiling regex: {0}")]
@@ -25,7 +25,7 @@ pub(super) struct AgentTypeFQNName(String);
 /// because we leave that kind of error handling to the store_remote_config_hash_and_values
 /// on the event_processor.
 pub struct RegexValidator {
-    rules: HashMap<AgentTypeFQNName, Vec<Regex>>,
+    rules: HashMap<AgentTypeFQNName, HashMap<String, Regex>>,
 }
 
 impl RemoteConfigValidator for RegexValidator {
@@ -51,13 +51,22 @@ impl RegexValidator {
         Ok(Self {
             rules: HashMap::from([(
                 AgentTypeFQNName(AGENT_TYPE_NAME_INFRA_AGENT.to_string()),
-                vec![
-                    Regex::new(REGEX_COMMAND_FIELD)?,
-                    Regex::new(REGEX_EXEC_FIELD)?,
-                    Regex::new(REGEX_BINARY_PATH_FIELD)?,
-                    Regex::new(REGEX_NRI_FLEX)?,
-                    Regex::new(REGEX_PROXY_ENV_VAR)?,
-                ],
+                HashMap::from([
+                    (
+                        "command_field".to_string(),
+                        Regex::new(REGEX_COMMAND_FIELD)?,
+                    ),
+                    ("exec_field".to_string(), Regex::new(REGEX_EXEC_FIELD)?),
+                    (
+                        "binary_path_field".to_string(),
+                        Regex::new(REGEX_BINARY_PATH_FIELD)?,
+                    ),
+                    ("nri_flex".to_string(), Regex::new(REGEX_NRI_FLEX)?),
+                    (
+                        "proxy_env_var".to_string(),
+                        Regex::new(REGEX_PROXY_ENV_VAR)?,
+                    ),
+                ]),
             )]),
         })
     }
@@ -72,9 +81,9 @@ impl RegexValidator {
             return Ok(());
         }
 
-        for regex in self.rules[&agent_type_name].iter() {
+        for (rule_name, regex) in self.rules[&agent_type_name].iter() {
             if regex.is_match(raw_config) {
-                return Err(RegexValidatorError::InvalidConfig(regex.to_string()));
+                return Err(RegexValidatorError::InvalidConfig(format!("{rule_name}")));
             }
         }
 
@@ -222,7 +231,7 @@ pub(super) mod tests {
         let validation_result = validator.validate(&agent_identity, &remote_config);
         assert_eq!(
             validation_result.unwrap_err().to_string(),
-            "invalid config: restricted values detected via regex: (e|\\\\x65)(x|\\\\x78)(e|\\\\x65)(c|\\\\x63)\\s*:"
+            "invalid config: restricted values detected in the config by the regex: it sexec_field"
         );
     }
 
