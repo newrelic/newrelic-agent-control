@@ -193,7 +193,6 @@ mod tests {
     };
     use std::collections::HashMap;
     use std::time::Duration;
-    use tracing_test::traced_test;
 
     // TODO: tests below are testing not only the builder but also the sub-agent start/stop behavior.
     // We should re-consider their scope.
@@ -314,130 +313,6 @@ mod tests {
             .run()
             .stop()
             .unwrap();
-    }
-
-    //TODO This test doesn't make any sense here (probably it doesn't make sense to exist at all)
-    #[traced_test]
-    #[test]
-    fn test_subagent_should_report_failed_config() {
-        // Mocks
-        let mut opamp_builder = MockOpAMPClientBuilder::new();
-        let mut instance_id_getter = MockInstanceIDGetter::new();
-
-        // Structures
-        let hostname = get_hostname().unwrap();
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from("infra-agent").unwrap(),
-            AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
-        ));
-        let sub_agent_instance_id = InstanceID::create();
-        let agent_control_instance_id = InstanceID::create();
-
-        let start_settings_infra = infra_agent_default_start_settings(
-            &hostname,
-            agent_control_instance_id.clone(),
-            sub_agent_instance_id.clone(),
-            &agent_identity,
-        );
-
-        let remote_config_values = RemoteConfig {
-            config: YAMLConfig::default(),
-            hash: Hash::from("a-hash"),
-            state: ConfigState::Applying,
-        };
-
-        let agent_control_id = AgentID::AgentControl;
-        // Expectations
-        // Infra Agent OpAMP no final stop nor health, just after stopping on reload
-        instance_id_getter.should_get(&agent_identity.id, sub_agent_instance_id.clone());
-        instance_id_getter.should_get(&agent_control_id, agent_control_instance_id.clone());
-
-        let mut started_client = MockStartedOpAMPClient::new();
-        started_client.should_update_effective_config(1);
-
-        // Report config status as applied
-        let status = RemoteConfigStatus {
-            status: opamp_client::opamp::proto::RemoteConfigStatuses::Applied as i32,
-            last_remote_config_hash: remote_config_values.hash.to_string().into_bytes(),
-            error_message: "".to_string(),
-        };
-        started_client.should_set_remote_config_status(status);
-        started_client.should_stop(1);
-
-        // TODO: We should discuss if this is a valid approach once we refactor the unit tests
-        // Build an OpAMP Client and let it run so the publisher is not dropped
-        opamp_builder.should_build_and_start_and_run(
-            agent_identity.id.clone(),
-            start_settings_infra,
-            started_client,
-            Duration::from_millis(10),
-        );
-
-        let mut config_repository = MockConfigRepository::new();
-        config_repository
-            .expect_load_remote()
-            .with(
-                predicate::eq(agent_identity.id.clone()),
-                predicate::always(),
-            )
-            .once()
-            .return_once(move |_, _| Ok(Some(Config::RemoteConfig(remote_config_values.clone()))));
-
-        config_repository
-            .expect_update_state()
-            .with(
-                predicate::eq(agent_identity.id.clone()),
-                predicate::eq(ConfigState::Applied),
-            )
-            .times(1)
-            .returning(|_, _| Ok(()));
-
-        let mut started_supervisor = MockSupervisor::new();
-        started_supervisor.should_stop();
-
-        let mut stopped_supervisor = MockSupervisorStarter::new();
-        stopped_supervisor.should_start(started_supervisor);
-
-        let mut effective_agents_assembler = MockEffectiveAgentAssembler::new();
-        let effective_agent = EffectiveAgent::new(
-            agent_identity.clone(),
-            Runtime {
-                deployment: Deployment::default(),
-            },
-        );
-        effective_agents_assembler.should_assemble_agent(
-            &agent_identity,
-            &YAMLConfig::default(),
-            &AGENT_CONTROL_MODE_ON_HOST,
-            effective_agent.clone(),
-            1,
-        );
-
-        let mut supervisor_builder = MockSupervisorBuilder::new();
-        supervisor_builder
-            .expect_build_supervisor()
-            .with(predicate::eq(effective_agent))
-            .return_once(|_| Ok(stopped_supervisor));
-
-        let remote_config_parser = MockRemoteConfigParser::new();
-
-        // Sub Agent Builder
-        let on_host_builder = OnHostSubAgentBuilder {
-            opamp_builder: Some(&opamp_builder),
-            instance_id_getter: &instance_id_getter,
-            supervisor_builder: Arc::new(supervisor_builder),
-            remote_config_parser: Arc::new(remote_config_parser),
-            yaml_config_repository: Arc::new(config_repository),
-            effective_agents_assembler: Arc::new(effective_agents_assembler),
-            sub_agent_publisher: UnboundedBroadcast::default(),
-            ac_running_mode: AGENT_CONTROL_MODE_ON_HOST,
-        };
-
-        let sub_agent = on_host_builder
-            .build(&agent_identity)
-            .expect("Subagent build should be OK");
-        let started_sub_agent = sub_agent.run(); // Running the sub-agent should report the failed configuration.
-        started_sub_agent.stop().unwrap();
     }
 
     // HELPERS
