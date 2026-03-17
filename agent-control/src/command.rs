@@ -215,8 +215,16 @@ impl Command {
         }
 
         let config_folder_name = base_paths.local_dir.display().to_string();
-        let (bootstrap_config, tracing_config) = Self::build_bootstrap_config(&base_paths)?;
+        let bootstrap_config = Self::build_bootstrap_config(&base_paths)?;
 
+        let tracing_config = TracingConfig::from_logging_path(base_paths.log_dir.clone())
+            .with_logging_config(bootstrap_config.log.clone())
+            .with_instrumentation_config(
+                bootstrap_config
+                    .self_instrumentation
+                    .clone()
+                    .with_proxy_config(bootstrap_config.proxy.clone()),
+            );
         let tracer = try_init_tracing(tracing_config)
             .map_err(|e| format!("Error on Agent Control tracing initialization: {e}"))?;
 
@@ -238,10 +246,8 @@ impl Command {
 
     /// Builds the Agent Control configuration required to execute the application.
     /// Besides loading the configuration, it resolves specific environment variables that need to be resolved
-    /// at runtime and builds the specific [TracingConfig] in order to build the tracer in early stages of execution.
-    fn build_bootstrap_config(
-        base_paths: &BasePaths,
-    ) -> Result<(AgentControlConfig, TracingConfig), InitError> {
+    /// at runtime.
+    fn build_bootstrap_config(base_paths: &BasePaths) -> Result<AgentControlConfig, InitError> {
         let file_store = Arc::new(FileStore::new_local_fs(
             base_paths.local_dir.clone(),
             base_paths.remote_dir.clone(),
@@ -269,16 +275,7 @@ impl Command {
             .try_with_url_from_env()
             .map_err(|err| InitError::InvalidConfig(err.to_string()))?;
 
-        let tracing_config = TracingConfig::from_logging_path(base_paths.log_dir.clone())
-            .with_logging_config(agent_control_config.log.clone())
-            .with_instrumentation_config(
-                agent_control_config
-                    .self_instrumentation
-                    .clone()
-                    .with_proxy_config(agent_control_config.proxy.clone()),
-            );
-
-        Ok((agent_control_config, tracing_config))
+        Ok(agent_control_config)
     }
 }
 
