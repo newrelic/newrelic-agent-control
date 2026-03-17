@@ -48,7 +48,7 @@ pub fn start_agent_control_with_custom_config(
         .unwrap();
         match ac_running_mode {
             Environment::Linux | Environment::Windows => runner.on_host().run(),
-            Environment::K8s => runner.k8s().unwrap().run(),
+            Environment::K8s => runner.k8s().run(),
         }
         .unwrap();
     });
