@@ -284,6 +284,210 @@ some_mapstringyaml:
     });
 }
 
+/// Filesystem entries should persist across agent control restarts.
+/// This test verifies that directories like newrelic-infra/newrelic-integrations/logging
+/// are not deleted when agent control restarts, ensuring persistent storage across restarts.
+#[test]
+fn filesystem_persists_across_restarts() {
+    let opamp_server = FakeServer::start_new();
+
+    let tempdir = tempdir().expect("failed to create temp dir");
+    let local_dir = tempdir.path().join("local");
+    let remote_dir = tempdir.path().join("remote");
+
+    let agent_id = "test-agent";
+    let config_content = "license_key: test_key\nlog_level: info\n";
+    let integrations_content = "integration: test\n";
+    let logging_content = "fluent_bit: true\n";
+
+    // Create agent type definition with filesystem structure similar to newrelic-infra
+    create_file(
+        r#"
+namespace: test
+name: infra-agent
+version: 0.0.0
+variables:
+  common:
+    config_agent:
+      description: "Agent configuration"
+      type: yaml
+      required: true
+    config_integrations:
+      description: "Integrations configuration"
+      type: yaml
+      required: true
+    config_logging:
+      description: "Logging configuration"
+      type: yaml
+      required: true
+deployment:
+  linux:
+    filesystem:
+      config:
+        newrelic-infra.yaml: |-
+          ${nr-var:config_agent}
+      integrations.d:
+        integration.yaml: |-
+          ${nr-var:config_integrations}
+      logging.d:
+        logging.yaml: |-
+          ${nr-var:config_logging}
+      # This directory needs to persist across restarts for the infra agent
+      newrelic-infra/newrelic-integrations/logging: {}
+  windows:
+    filesystem:
+      config:
+        newrelic-infra.yaml: |-
+          ${nr-var:config_agent}
+      integrations.d:
+        integration.yaml: |-
+          ${nr-var:config_integrations}
+      logging.d:
+        logging.yaml: |-
+          ${nr-var:config_logging}
+      # This directory needs to persist across restarts for the infra agent
+      newrelic-infra/newrelic-integrations/logging: {}
+"#
+        .to_string(),
+        local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
+    );
+
+    let agents = format!(
+        r#"
+  {agent_id}:
+    agent_type: "test/infra-agent:0.0.0"
+"#
+    );
+
+    create_agent_control_config(
+        opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
+        agents.to_string(),
+        local_dir.to_path_buf(),
+    );
+
+    create_local_config(
+        agent_id.to_string(),
+        r#"
+config_agent:
+  license_key: test_key
+  log_level: info
+config_integrations:
+  integration: test
+config_logging:
+  fluent_bit: true
+"#
+        .to_string(),
+        local_dir.to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        local_dir: local_dir.to_path_buf(),
+        remote_dir: remote_dir.to_path_buf(),
+        log_dir: local_dir.to_path_buf(),
+    };
+
+    // Define expected file paths (used throughout the test)
+    let config_file_path = base_paths
+        .remote_dir
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(agent_id)
+        .join("config")
+        .join("newrelic-infra.yaml");
+
+    let integrations_file_path = base_paths
+        .remote_dir
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(agent_id)
+        .join("integrations.d")
+        .join("integration.yaml");
+
+    let logging_file_path = base_paths
+        .remote_dir
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(agent_id)
+        .join("logging.d")
+        .join("logging.yaml");
+
+    let persistent_dir_path = base_paths
+        .remote_dir
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(agent_id)
+        .join("newrelic-infra")
+        .join("newrelic-integrations")
+        .join("logging");
+
+    let test_file_path = persistent_dir_path.join("test.yaml");
+
+    // First agent control run - creates the filesystem structure
+    {
+        let _agent_control =
+            start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+        // Wait for files to be created
+        retry(30, Duration::from_secs(1), || {
+            read_file_and_expect_content(&config_file_path, config_content)?;
+            read_file_and_expect_content(&integrations_file_path, integrations_content)?;
+            read_file_and_expect_content(&logging_file_path, logging_content)?;
+
+            // Verify the persistent directory exists
+            if !persistent_dir_path.exists() {
+                return Err(format!(
+                    "Persistent directory does not exist: {}",
+                    persistent_dir_path.display()
+                )
+                .into());
+            }
+
+            Ok(())
+        });
+        // Agent control is dropped here, simulating a shutdown
+    }
+
+    // Verify files still exist on disk after shutdown, before restart
+    read_file_and_expect_content(&config_file_path, config_content)
+        .expect("Config file content should match after shutdown");
+    read_file_and_expect_content(&integrations_file_path, integrations_content)
+        .expect("Integrations file content should match after shutdown");
+    read_file_and_expect_content(&logging_file_path, logging_content)
+        .expect("Logging file content should match after shutdown");
+
+    assert!(
+        persistent_dir_path.exists(),
+        "Persistent directory should still exist after shutdown: {}",
+        persistent_dir_path.display()
+    );
+
+    // Simulate a file created by the infra agent in the persistent directory
+    create_file("test\n".to_string(), test_file_path.clone());
+
+    // Second agent control run - simulates restart
+    {
+        let _agent_control =
+            start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+        // Verify all files and directories still exist after restart
+        retry(30, Duration::from_secs(1), || {
+            read_file_and_expect_content(&config_file_path, config_content)?;
+            read_file_and_expect_content(&integrations_file_path, integrations_content)?;
+            read_file_and_expect_content(&logging_file_path, logging_content)?;
+
+            if !persistent_dir_path.exists() {
+                return Err(format!(
+                    "Persistent directory was deleted after restart: {}",
+                    persistent_dir_path.display()
+                )
+                .into());
+            }
+
+            // Verify the test file created in the persistent directory still exists
+            read_file_and_expect_content(&test_file_path, "test\n")?;
+
+            Ok(())
+        });
+    }
+}
+
 fn read_file_and_expect_content(
     path: impl AsRef<Path>,
     expected_content: impl AsRef<str>,
