@@ -11,7 +11,7 @@ use crate::values::config_repository::ConfigRepository;
 use crate::values::yaml_config::YAMLConfig;
 
 use super::error::LoaderError;
-use super::loader::EffectiveConfigLoader;
+use super::loader::LoadEffectiveConfig;
 
 /// Loader for effective configuration of a agent-control.
 #[derive(Debug)]
@@ -80,7 +80,7 @@ impl TryFrom<YAMLConfig> for AgentControlEffectiveConfig {
     }
 }
 
-impl<Y> EffectiveConfigLoader for AgentControlEffectiveConfigLoader<Y>
+impl<Y> LoadEffectiveConfig for AgentControlEffectiveConfigLoader<Y>
 where
     Y: ConfigRepository,
 {
@@ -133,7 +133,7 @@ mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::default_capabilities;
     use crate::opamp::effective_config::agent_control::AgentControlEffectiveConfigLoader;
-    use crate::opamp::effective_config::loader::EffectiveConfigLoader;
+    use crate::opamp::effective_config::loader::LoadEffectiveConfig;
     use crate::opamp::remote_config::ConfigurationMap;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::values::config::{Config, RemoteConfig};

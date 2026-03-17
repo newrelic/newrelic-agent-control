@@ -14,26 +14,26 @@ use std::sync::Arc;
 /// - Doesn’t contain configs that have been set by environment variables.
 /// - If a config has an environment variable placeholder, it should be reported as it is.
 ///   It should never contain the resolved value.
-pub trait EffectiveConfigLoader: Send + Sync + 'static {
+pub trait LoadEffectiveConfig: Send + Sync + 'static {
     /// Load the effective configuration.
     fn load(&self) -> Result<ConfigurationMap, LoaderError>;
 }
 
-pub trait EffectiveConfigLoaderBuilder {
-    type Loader: EffectiveConfigLoader;
+pub trait BuildEffectiveConfigLoader {
+    type Loader: LoadEffectiveConfig;
 
     fn build(&self, agent_id: AgentID) -> Self::Loader;
 }
 
 /// Builder for effective configuration loaders.
-pub struct DefaultEffectiveConfigLoaderBuilder<Y>
+pub struct EffectiveConfigLoaderBuilder<Y>
 where
     Y: ConfigRepository,
 {
     yaml_config_repository: Arc<Y>,
 }
 
-impl<Y> DefaultEffectiveConfigLoaderBuilder<Y>
+impl<Y> EffectiveConfigLoaderBuilder<Y>
 where
     Y: ConfigRepository,
 {
@@ -44,19 +44,19 @@ where
     }
 }
 
-impl<Y> EffectiveConfigLoaderBuilder for DefaultEffectiveConfigLoaderBuilder<Y>
+impl<Y> BuildEffectiveConfigLoader for EffectiveConfigLoaderBuilder<Y>
 where
     Y: ConfigRepository,
 {
-    type Loader = EffectiveConfigLoaderImpl<Y>;
+    type Loader = EffectiveConfigLoader<Y>;
 
     fn build(&self, agent_id: AgentID) -> Self::Loader {
         if agent_id == AgentID::AgentControl {
-            return EffectiveConfigLoaderImpl::AgentControl(
-                AgentControlEffectiveConfigLoader::new(self.yaml_config_repository.clone()),
-            );
+            return EffectiveConfigLoader::AgentControl(AgentControlEffectiveConfigLoader::new(
+                self.yaml_config_repository.clone(),
+            ));
         }
-        EffectiveConfigLoaderImpl::SubAgent(SubAgentEffectiveConfigLoader::new(
+        EffectiveConfigLoader::SubAgent(SubAgentEffectiveConfigLoader::new(
             agent_id,
             self.yaml_config_repository.clone(),
         ))
@@ -64,7 +64,7 @@ where
 }
 
 /// Enumerates all implementations for `EffectiveConfigLoader` for static dispatching reasons.
-pub enum EffectiveConfigLoaderImpl<Y>
+pub enum EffectiveConfigLoader<Y>
 where
     Y: ConfigRepository,
 {
@@ -72,7 +72,7 @@ where
     SubAgent(SubAgentEffectiveConfigLoader<Y>),
 }
 
-impl<Y> EffectiveConfigLoader for EffectiveConfigLoaderImpl<Y>
+impl<Y> LoadEffectiveConfig for EffectiveConfigLoader<Y>
 where
     Y: ConfigRepository,
 {
@@ -95,7 +95,7 @@ pub mod tests {
     mock!(
         pub EffectiveConfigLoader {}
 
-        impl EffectiveConfigLoader for EffectiveConfigLoader {
+        impl LoadEffectiveConfig for EffectiveConfigLoader {
             fn load(&self) -> Result<ConfigurationMap, LoaderError>;
         }
     );
@@ -103,7 +103,7 @@ pub mod tests {
     mock! {
         pub EffectiveConfigLoaderBuilder {}
 
-        impl EffectiveConfigLoaderBuilder for EffectiveConfigLoaderBuilder {
+        impl BuildEffectiveConfigLoader for EffectiveConfigLoaderBuilder {
             type Loader = MockEffectiveConfigLoader;
 
             fn build(&self,agent_id: AgentID) -> MockEffectiveConfigLoader;
@@ -111,16 +111,15 @@ pub mod tests {
     }
     #[test]
     fn builder() {
-        let builder =
-            DefaultEffectiveConfigLoaderBuilder::new(Arc::new(MockConfigRepository::default()));
+        let builder = EffectiveConfigLoaderBuilder::new(Arc::new(MockConfigRepository::default()));
 
         match builder.build(AgentID::AgentControl) {
-            EffectiveConfigLoaderImpl::AgentControl(_) => {}
+            EffectiveConfigLoader::AgentControl(_) => {}
             _ => panic!("Expected AgentControl loader"),
         }
 
         match builder.build(AgentID::try_from("test").unwrap()) {
-            EffectiveConfigLoaderImpl::SubAgent(_) => {}
+            EffectiveConfigLoader::SubAgent(_) => {}
             _ => panic!("Expected SubAgent loader"),
         }
     }

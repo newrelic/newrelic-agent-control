@@ -1,5 +1,5 @@
 use super::callbacks::AgentCallbacks;
-use super::effective_config::loader::EffectiveConfigLoaderBuilder;
+use super::effective_config::loader::BuildEffectiveConfigLoader;
 use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
 use super::instance_id::getter::GetterError;
 use crate::agent_control::agent_id::AgentID;
@@ -46,7 +46,7 @@ pub trait BuildOpAMPClient {
 
 pub struct OpAMPClientBuilder<C, B>
 where
-    B: EffectiveConfigLoaderBuilder,
+    B: BuildEffectiveConfigLoader,
     C: HttpClientBuilder,
 {
     effective_config_loader_builder: B,
@@ -57,7 +57,7 @@ where
 
 impl<C, B> OpAMPClientBuilder<C, B>
 where
-    B: EffectiveConfigLoaderBuilder,
+    B: BuildEffectiveConfigLoader,
     C: HttpClientBuilder,
 {
     pub fn new(
@@ -83,15 +83,11 @@ where
 
 impl<C, B> BuildOpAMPClient for OpAMPClientBuilder<C, B>
 where
-    B: EffectiveConfigLoaderBuilder,
+    B: BuildEffectiveConfigLoader,
     C: HttpClientBuilder,
 {
-    type Client = StartedHttpClient<
-        OpAMPHttpClient<
-            AgentCallbacks<<B as EffectiveConfigLoaderBuilder>::Loader>,
-            <C as HttpClientBuilder>::Client,
-        >,
-    >;
+    type Client = StartedHttpClient<OpAMPHttpClient<AgentCallbacks<<B>::Loader>, <C>::Client>>;
+
     fn build_and_start(
         &self,
         opamp_publisher: EventPublisher<OpAMPEvent>,

@@ -28,7 +28,7 @@ use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::client_builder::OpAMPClientBuilder;
-use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
+use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilder;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
@@ -112,7 +112,7 @@ impl AgentControlRunner {
                     self.bootstrap_config.proxy.clone(),
                     secret_retriever,
                 ),
-                DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
+                EffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
             )
         });
 
