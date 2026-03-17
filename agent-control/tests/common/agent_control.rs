@@ -3,9 +3,8 @@ use crate::on_host::tools::config::create_file;
 use newrelic_agent_control::agent_control::config_repository::repository::AgentControlConfigLoader;
 use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
 use newrelic_agent_control::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
-use newrelic_agent_control::agent_control::run::{
-    AgentControlRunner, BasePaths, Environment, RunnerContext,
-};
+use newrelic_agent_control::agent_control::run::{AgentControlRunner, BasePaths, Environment};
+use newrelic_agent_control::command::RunnerContext;
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
 use newrelic_agent_control::on_host::file_store::FileStore;

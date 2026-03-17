@@ -4,9 +4,9 @@
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
 
+use newrelic_agent_control::agent_control::run::AgentControlRunner;
 use newrelic_agent_control::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
-use newrelic_agent_control::agent_control::run::{AgentControlRunner, RunnerContext};
-use newrelic_agent_control::command::{Command, RunContext};
+use newrelic_agent_control::command::{Command, Context};
 use std::error::Error;
 use std::process::ExitCode;
 
@@ -36,15 +36,9 @@ fn main() -> ExitCode {
 /// could not read Agent Control config from /invalid/path: error loading the agent control config: \`error retrieving config: \`missing field \`agents\`\`\`
 /// Error: ConfigRead(LoadConfigError(ConfigError(missing field \`agents\`)))
 /// ```
-fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
+fn _main(context: Context) -> Result<(), Box<dyn Error>> {
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-    let runner_context = RunnerContext {
-        bootstrap_config: run_context.config,
-        base_paths: run_context.base_paths,
-        running_mode: run_context.ac_running_mode,
-        application_event_consumer: run_context.application_event_consumer,
-    };
-    AgentControlRunner::try_new(runner_context)?
+    AgentControlRunner::try_new(context.runner_context)?
         .k8s()
         .run()
         .map_err(|e| e.into())

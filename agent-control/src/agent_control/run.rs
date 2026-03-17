@@ -7,6 +7,7 @@ use crate::agent_control::config_repository::repository::AgentControlConfigLoade
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
+use crate::command::RunnerContext;
 use crate::data_store::DataStore;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
@@ -63,13 +64,6 @@ impl Default for BasePaths {
             log_dir: PathBuf::from(AGENT_CONTROL_LOG_DIR),
         }
     }
-}
-
-pub struct RunnerContext {
-    pub bootstrap_config: AgentControlConfig,
-    pub base_paths: BasePaths,
-    pub running_mode: Environment,
-    pub application_event_consumer: EventConsumer<ApplicationEvent>,
 }
 
 /// Structure with all the data required to run the agent control.

@@ -89,20 +89,26 @@ pub struct Args {
 }
 
 /// Context passed to the main loop, containing all initialized components.
-pub struct RunContext {
-    /// Agent Control configuration
-    pub config: AgentControlConfig,
-    /// Agent Control base paths
-    pub base_paths: BasePaths,
-    /// Running mode
-    pub ac_running_mode: Environment,
+pub struct Context {
+    /// Context used to build and start [crate::agent_control::AgentControl]
+    pub runner_context: RunnerContext,
     /// This must be kept alive for the duration of the program to ensure logs and traces are flushed.
     pub tracer: Vec<TracingGuardBox>,
-    /// The consuming end of the internal application event bus.
-    pub application_event_consumer: EventConsumer<ApplicationEvent>,
     /// A handler used to signal the application to stop when running as a Windows Service
     #[cfg(target_family = "windows")]
     pub stop_handler: Option<windows::WindowsServiceStopHandler>,
+}
+
+/// Runtime information used to build and start agent control
+pub struct RunnerContext {
+    /// Agent Control configuration
+    pub bootstrap_config: AgentControlConfig,
+    /// Agent Control base paths
+    pub base_paths: BasePaths,
+    /// Running mode
+    pub running_mode: Environment,
+    /// The consuming end of the internal application event bus.
+    pub application_event_consumer: EventConsumer<ApplicationEvent>,
 }
 
 impl Command {
@@ -113,7 +119,7 @@ impl Command {
         #[cfg(target_os = "windows")] as_windows_service: bool,
     ) -> ExitCode
     where
-        F: FnOnce(RunContext) -> Result<(), Box<dyn Error>>,
+        F: FnOnce(Context) -> Result<(), Box<dyn Error>>,
     {
         let parsed = Command::parse();
 
@@ -150,9 +156,9 @@ impl Command {
         #[cfg(target_os = "windows")] as_windows_service: bool,
     ) -> ExitCode
     where
-        F: FnOnce(RunContext) -> Result<(), Box<dyn Error>>,
+        F: FnOnce(Context) -> Result<(), Box<dyn Error>>,
     {
-        match Command::build_run_context(
+        match Command::build_context(
             ac_running_mode,
             args,
             #[cfg(target_os = "windows")]
@@ -177,12 +183,12 @@ impl Command {
         }
     }
 
-    /// Builds the complete RunContext required to execute the Run command
-    fn build_run_context(
-        ac_running_mode: Environment,
+    /// Builds the complete context required to execute the application
+    fn build_context(
+        running_mode: Environment,
         args: &Args,
         #[cfg(target_os = "windows")] as_windows_service: bool,
-    ) -> Result<RunContext, Box<dyn Error>> {
+    ) -> Result<Context, Box<dyn Error>> {
         let base_paths = BasePaths::default();
 
         // Initialize debug directories (if set)
@@ -209,27 +215,31 @@ impl Command {
         }
 
         let config_folder_name = base_paths.local_dir.display().to_string();
-        let (config, tracing_config) = Self::load_ac_config(&base_paths)?;
+        let (bootstrap_config, tracing_config) = Self::build_bootstrap_config(&base_paths)?;
 
         let tracer = try_init_tracing(tracing_config)
             .map_err(|e| format!("Error on Agent Control tracing initialization: {e}"))?;
 
-        info!("{}", binary_metadata(ac_running_mode));
+        info!("{}", binary_metadata(running_mode));
         info!("Starting NewRelic Agent Control with config folder '{config_folder_name}'",);
 
-        Ok(RunContext {
-            config,
-            base_paths,
-            ac_running_mode,
+        Ok(Context {
+            runner_context: RunnerContext {
+                bootstrap_config,
+                base_paths,
+                running_mode,
+                application_event_consumer,
+            },
             tracer,
-            application_event_consumer,
             #[cfg(target_family = "windows")]
             stop_handler,
         })
     }
 
     /// Builds the Agent Control configuration required to execute the application.
-    fn load_ac_config(
+    /// Besides loading the configuration, it resolves specific environment variables that need to be resolved
+    /// at runtime and builds the specific [TracingConfig] in order to build the tracer in early stages of execution.
+    fn build_bootstrap_config(
         base_paths: &BasePaths,
     ) -> Result<(AgentControlConfig, TracingConfig), InitError> {
         let file_store = Arc::new(FileStore::new_local_fs(
