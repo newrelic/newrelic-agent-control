@@ -75,9 +75,10 @@ pub struct RunnerContext {
 /// Structure with all the data required to run the agent control.
 pub struct AgentControlRunner {
     /// Config loaded at startup from local files. Used to bootstrap
-    /// the runner before the environment-specific store is available.
+    /// the runner before the platform-specific (on-host/k8s) store is available.
     /// Environment-specific `run()` methods re-load config from their
-    /// respective stores (file / ConfigMap) to get the authoritative config.
+    /// respective stores (file for on-host / ConfigMap for k8s) to get the corresponding config
+    /// including remote configuration when needed.
     bootstrap_config: AgentControlConfig,
 
     agent_type_registry: Arc<EmbeddedRegistry>,
