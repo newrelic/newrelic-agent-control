@@ -3,7 +3,6 @@ use super::defaults::{
     DYNAMIC_AGENT_TYPE_DIR,
 };
 use crate::agent_control::config::AgentControlConfig;
-use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
@@ -18,7 +17,7 @@ use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tracing::{debug, info};
+use tracing::debug;
 
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
@@ -140,29 +139,22 @@ impl AgentControlRunner {
     }
 }
 
-/// Helper to handle configuration for all running modes.
-pub struct ConfigHandler<D: DataStore + Send + Sync + 'static> {
-    repository: Arc<ConfigRepo<D>>,
-    store: Arc<AgentControlConfigStore<ConfigRepo<D>>>,
-}
+type RepositoryAndStore<D> = (
+    Arc<ConfigRepo<D>>,
+    Arc<AgentControlConfigStore<ConfigRepo<D>>>,
+);
 
-impl<D: DataStore + Send + Sync + 'static> ConfigHandler<D> {
-    pub fn new(data_store: Arc<D>, with_remote: bool) -> Self {
-        debug!("Initializing yaml_config_repository");
-        let mut repository = ConfigRepo::new(data_store);
-        if with_remote {
-            repository = repository.with_remote();
-        }
-        let repository = Arc::new(repository);
-        let store = Arc::new(AgentControlConfigStore::new(repository.clone()));
-
-        Self { repository, store }
+/// Helper to handle configuration repository and store for all running modes.
+fn setup_config_repository_and_store<D: DataStore + Send + Sync + 'static>(
+    data_store: Arc<D>,
+    with_remote: bool,
+) -> RepositoryAndStore<D> {
+    debug!("Initializing yaml_config_repository");
+    let mut repository = ConfigRepo::new(data_store);
+    if with_remote {
+        repository = repository.with_remote();
     }
-
-    pub fn load_config(&self) -> Result<AgentControlConfig, RunError> {
-        info!("Loading Agent Control configuration");
-        self.store
-            .load()
-            .map_err(|err| RunError(format!("failed to load Agent Control config: {err}")))
-    }
+    let repository = Arc::new(repository);
+    let store = Arc::new(AgentControlConfigStore::new(repository.clone()));
+    (repository, store)
 }

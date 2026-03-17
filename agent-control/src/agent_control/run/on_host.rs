@@ -1,4 +1,5 @@
 use crate::agent_control::AgentControl;
+use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
@@ -6,7 +7,9 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
-use crate::agent_control::run::{AgentControlRunner, ConfigHandler, Environment, RunError};
+use crate::agent_control::run::{
+    AgentControlRunner, Environment, RunError, setup_config_repository_and_store,
+};
 use crate::agent_control::version_updater::updater::NoOpUpdater;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
@@ -69,12 +72,11 @@ impl AgentControlRunner {
             FileSecretProvider::new(),
         );
 
-        let config_handler = ConfigHandler::new(file_store.clone(), maybe_opamp.is_some());
-        let agent_control_config = config_handler.load_config()?;
-        let ConfigHandler {
-            repository: yaml_config_repository,
-            store: config_storer,
-        } = config_handler;
+        let (yaml_config_repository, config_storer) =
+            setup_config_repository_and_store(file_store.clone(), maybe_opamp.is_some());
+        let agent_control_config = config_storer
+            .load()
+            .map_err(|err| RunError(format!("failed to load Agent Control config: {err}")))?;
 
         let fleet_id = agent_control_config
             .fleet_control

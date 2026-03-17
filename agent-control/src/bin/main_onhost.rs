@@ -64,7 +64,7 @@ fn _main(context: Context) -> Result<(), Box<dyn Error>> {
 
     #[cfg(all(target_family = "unix", not(feature = "multiple-instances")))]
     if let Err(err) = newrelic_agent_control::agent_control::pid_cache::PIDCache::from_data_dir(
-        &context.runner_context.base_paths.remote_dir,
+        &context.ac_runner_context.base_paths.remote_dir,
     )
     .store(std::process::id())
     {
@@ -73,7 +73,7 @@ fn _main(context: Context) -> Result<(), Box<dyn Error>> {
 
     // Create the actual agent control runner with the rest of required configs
     // and the application_event_consumer and capture the result to report the error in windows
-    let run_result = AgentControlRunner::try_new(context.runner_context)
+    let run_result = AgentControlRunner::try_new(context.ac_runner_context)
         .and_then(|runner| runner.run_onhost().map_err(|e| e.into()));
 
     #[cfg(target_family = "windows")]

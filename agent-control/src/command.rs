@@ -91,7 +91,7 @@ pub struct Args {
 /// Context passed to the main loop, containing all initialized components.
 pub struct Context {
     /// Context used to build and start [crate::agent_control::AgentControl]
-    pub runner_context: RunnerContext,
+    pub ac_runner_context: RunnerContext,
     /// This must be kept alive for the duration of the program to ensure logs and traces are flushed.
     pub tracer: Vec<TracingGuardBox>,
     /// A handler used to signal the application to stop when running as a Windows Service
@@ -232,7 +232,7 @@ impl Command {
         info!("Starting NewRelic Agent Control with config folder '{config_folder_name}'",);
 
         Ok(Context {
-            runner_context: RunnerContext {
+            ac_runner_context: RunnerContext {
                 bootstrap_config,
                 base_paths,
                 running_mode,

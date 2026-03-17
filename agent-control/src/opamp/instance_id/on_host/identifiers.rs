@@ -93,7 +93,8 @@ impl IdentifiersProvider {
         let http_client = HttpClient::new(HttpConfig::new(
             DEFAULT_CLIENT_TIMEOUT,
             DEFAULT_CLIENT_TIMEOUT,
-            // The default value of proxy configuration is an empty proxy config without any rule
+            // The proxy is not required for the identifiers.
+            // Cloud providers and internal endpoints should be reachable without the proxy.
             ProxyConfig::default(),
         ))
         .map_err(IdentifiersProviderError::HttpClientBuild)?;
