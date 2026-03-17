@@ -231,7 +231,7 @@ pub(super) mod tests {
         let validation_result = validator.validate(&agent_identity, &remote_config);
         assert_eq!(
             validation_result.unwrap_err().to_string(),
-            "invalid config: restricted values detected in the config by the regex: it sexec_field"
+            "invalid config: restricted values detected in the config by the regex: exec_field"
         );
     }
 
