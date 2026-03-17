@@ -83,7 +83,7 @@ impl RegexValidator {
 
         for (rule_name, regex) in self.rules[&agent_type_name].iter() {
             if regex.is_match(raw_config) {
-                return Err(RegexValidatorError::InvalidConfig(format!("{rule_name}")));
+                return Err(RegexValidatorError::InvalidConfig(rule_name.to_string()));
             }
         }
 
