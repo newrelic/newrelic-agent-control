@@ -19,6 +19,7 @@ use crate::utils::env_var::load_env_yaml_file;
 use crate::values::ConfigRepo;
 use clap::{Parser, Subcommand};
 use std::error::Error;
+use std::fmt::{Display, Formatter};
 use std::process::ExitCode;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -70,6 +71,15 @@ pub enum SubCommand {
     Version,
     /// Verify the agent control configuration and ability to be run
     Verify,
+}
+
+impl Display for SubCommand {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SubCommand::Version => write!(f, "version"),
+            SubCommand::Verify => write!(f, "verify"),
+        }
+    }
 }
 
 /// Args contains the list of available args for the agentControl run command
