@@ -103,7 +103,7 @@ pub struct Context {
 pub struct RunnerContext {
     /// Agent Control bootstrap configuration (built with runtime information but with no remote)
     pub bootstrap_config: AgentControlConfig,
-    /// Agent Control directories where configuration and logs sre stores
+    /// Agent Control directories where configuration and logs are stored
     pub base_paths: BasePaths,
     /// Running mode for the supported implementations as defined in [Environment].
     pub running_mode: Environment,
