@@ -215,7 +215,7 @@ while ($TRIES -lt $MAX_RETRIES) {
     $STATUS = $statusJson.agent_control.healthy
 
     if ($STATUS -eq $true) {
-        Write-Host "Agent status check ok."
+        Write-Host "Agent status check OK."
 
         # Create marker file to signal successful installation
         New-Item -Path $installMarkerPath -ItemType File -Force | Out-Null
