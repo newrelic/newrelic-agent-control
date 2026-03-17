@@ -42,7 +42,7 @@ wrapper_with_default = { path = "../wrapper_with_default" }
 resource-detection = { path = "../resource-detection" }
 
 # K8S subagent dependencies
-kube = { version = "3.0.1", default-features = false, features = [
+kube = { version = "3.1.0", default-features = false, features = [
   "config",
   "runtime",
   "derive",
