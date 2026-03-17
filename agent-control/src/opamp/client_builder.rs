@@ -34,7 +34,7 @@ pub enum OpAMPClientBuilderError {
     HttpClientBuilderError(#[from] HttpClientBuilderError),
 }
 
-pub trait OpAMPClientBuilder {
+pub trait BuildOpAMPClient {
     type Client: StartedClient + 'static;
     fn build_and_start(
         &self,
@@ -44,7 +44,7 @@ pub trait OpAMPClientBuilder {
     ) -> Result<Self::Client, OpAMPClientBuilderError>;
 }
 
-pub struct DefaultOpAMPClientBuilder<C, B>
+pub struct OpAMPClientBuilder<C, B>
 where
     B: EffectiveConfigLoaderBuilder,
     C: HttpClientBuilder,
@@ -55,7 +55,7 @@ where
     disable_startup_check: bool,
 }
 
-impl<C, B> DefaultOpAMPClientBuilder<C, B>
+impl<C, B> OpAMPClientBuilder<C, B>
 where
     B: EffectiveConfigLoaderBuilder,
     C: HttpClientBuilder,
@@ -81,7 +81,7 @@ where
     }
 }
 
-impl<C, B> OpAMPClientBuilder for DefaultOpAMPClientBuilder<C, B>
+impl<C, B> BuildOpAMPClient for OpAMPClientBuilder<C, B>
 where
     B: EffectiveConfigLoaderBuilder,
     C: HttpClientBuilder,
@@ -224,9 +224,9 @@ pub(crate) mod tests {
     mock! {
         pub OpAMPClientBuilder {}
 
-        impl OpAMPClientBuilder for OpAMPClientBuilder{
+        impl BuildOpAMPClient for OpAMPClientBuilder{
             type Client = MockStartedOpAMPClient;
-            fn build_and_start(&self, opamp_publisher: EventPublisher<OpAMPEvent>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder>::Client, OpAMPClientBuilderError>;
+            fn build_and_start(&self, opamp_publisher: EventPublisher<OpAMPEvent>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as BuildOpAMPClient>::Client, OpAMPClientBuilderError>;
         }
     }
 

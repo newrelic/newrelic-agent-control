@@ -27,7 +27,7 @@ use crate::event::AgentControlInternalEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
+use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
@@ -105,7 +105,7 @@ impl AgentControlRunner {
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
         let opamp_client_builder = maybe_opamp.map(|config| {
-            DefaultOpAMPClientBuilder::new(
+            OpAMPClientBuilder::new(
                 config.poll_interval,
                 OpAMPHttpClientBuilder::new(
                     config,

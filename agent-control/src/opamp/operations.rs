@@ -1,6 +1,6 @@
 use super::instance_id::InstanceID;
 use super::{
-    client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
+    client_builder::{BuildOpAMPClient, OpAMPClientBuilderError},
     instance_id::getter::InstanceIDGetter,
 };
 use crate::agent_control::defaults::{
@@ -31,7 +31,7 @@ pub fn build_sub_agent_opamp<OB, IG>(
     mut non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
 where
-    OB: OpAMPClientBuilder,
+    OB: BuildOpAMPClient,
     IG: InstanceIDGetter,
 {
     let agent_control_id = AgentID::AgentControl;
@@ -59,7 +59,7 @@ pub fn build_opamp_with_channel<OB, IG>(
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
 where
-    OB: OpAMPClientBuilder,
+    OB: BuildOpAMPClient,
     IG: InstanceIDGetter,
 {
     let (opamp_publisher, opamp_consumer) = pub_sub();
