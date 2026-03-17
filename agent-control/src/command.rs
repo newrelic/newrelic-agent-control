@@ -75,10 +75,11 @@ pub enum SubCommand {
 
 impl Display for SubCommand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SubCommand::Version => write!(f, "version"),
-            SubCommand::Verify => write!(f, "verify"),
-        }
+        let arg = match self {
+            SubCommand::Version => format!("{:?}", self).to_lowercase(),
+            SubCommand::Verify => format!("{:?}", self).to_lowercase(),
+        };
+        write!(f, "{}", arg)
     }
 }
 
@@ -329,4 +330,15 @@ fn set_debug_dirs(base_paths: BasePaths, args: &Args) -> BasePaths {
     }
 
     base_paths
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_subcommand_display() {
+        assert_eq!(SubCommand::Version.to_string(), "version");
+        assert_eq!(SubCommand::Verify.to_string(), "verify");
+    }
 }
