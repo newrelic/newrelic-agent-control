@@ -1,11 +1,11 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use thiserror::Error;
-use tracing::error;
+use tracing::{debug, error};
 use wrapper_with_default::WrapperWithDefault;
 
 use crate::agent_control::config::AgentControlDynamicConfig;
@@ -81,10 +81,35 @@ impl ProcessVerifyExecutor {
             timeout: timeout.into(),
         }
     }
+
+    fn wait_for_exit(
+        &self,
+        child: &mut Child,
+        timeout: Duration,
+    ) -> Result<ExitStatus, VerifyError> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            match child.try_wait().map_err(|err| {
+                VerifyError::SubProcessError(format!("waiting for verify process: {err}"))
+            })? {
+                Some(status) => return Ok(status),
+                None => {
+                    if Instant::now() >= deadline {
+                        child.kill().map_err(|err| {
+                            VerifyError::SubProcessError(format!("killing verify process: {err}"))
+                        })?;
+                        return Err(VerifyError::Timeout(timeout));
+                    }
+                    std::thread::sleep(POLL_INTERVAL);
+                }
+            }
+        }
+    }
 }
 
 impl VerifyExecutor for ProcessVerifyExecutor {
     fn execute(&self, binary_path: &Path, args: &[&str]) -> Result<(), VerifyError> {
+        debug!(binary = %binary_path.display(), ?args, "Spawning verify subprocess");
         // The child inherits the parent environment by default; no explicit
         // .envs() call needed.
         let mut child = Command::new(binary_path)
@@ -96,35 +121,21 @@ impl VerifyExecutor for ProcessVerifyExecutor {
                 VerifyError::SubProcessError(format!("spawning verify process: {err}"))
             })?;
 
-        // Poll until the process exits or the deadline is reached.
-        let timeout: Duration = self.timeout.into();
-        let deadline = Instant::now() + timeout;
-        let exit_status = loop {
-            match child.try_wait().map_err(|err| {
-                VerifyError::SubProcessError(format!("waiting for verify process: {err}"))
-            })? {
-                Some(status) => break status,
-                None => {
-                    if Instant::now() >= deadline {
-                        child.kill().map_err(|err| {
-                            VerifyError::SubProcessError(format!("killing verify process: {err}"))
-                        })?;
-                        return Err(VerifyError::Timeout(timeout));
-                    }
-                    std::thread::sleep(POLL_INTERVAL);
-                }
-            }
-        };
+        debug!("Verify subprocess started");
 
-        let mut stdout_buf = String::new();
-        if let Some(mut stdout) = child.stdout.take() {
-            let _ = stdout.read_to_string(&mut stdout_buf);
-        }
+        let exit_status = self.wait_for_exit(&mut child, self.timeout.into())?;
+
+        debug!(%exit_status, "Verify subprocess exited");
 
         // The exit code is the authoritative signal for success/failure.
         // On success we do not need to inspect stdout.
         if exit_status.success() {
             return Ok(());
+        }
+
+        let mut stdout_buf = String::new();
+        if let Some(mut stdout) = child.stdout.take() {
+            let _ = stdout.read_to_string(&mut stdout_buf);
         }
 
         let mut stderr_buf = String::new();
