@@ -32,6 +32,7 @@ use crate::secret_retriever::on_host::retrieve::OnHostSecretRetriever;
 use crate::secrets_provider::SecretsProviders;
 use crate::secrets_provider::file::FileSecretProvider;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
+use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
@@ -65,11 +66,11 @@ impl AgentControlRunner {
             remote_dir.clone(),
         ));
 
-        let secret_retriever = Arc::new(OnHostSecretRetriever::new(
+        let secret_retriever = OnHostSecretRetriever::new(
             self.opamp.clone(),
             local_dir.clone(),
             FileSecretProvider::new(),
-        ));
+        );
 
         debug!("Initializing yaml_config_repository");
         let config_repository = ConfigRepo::new(file_store.clone());
@@ -120,30 +121,31 @@ impl AgentControlRunner {
             identifiers,
         ));
 
-        let opamp_client_builder = self.opamp.clone().map(|config| {
+        let opamp_builder = self.opamp.clone().map(|config| {
             let poll_interval = config.poll_interval;
             let http_builder =
-                OpAMPHttpClientBuilder::new(config, self.proxy.clone(), secret_retriever.clone());
+                OpAMPHttpClientBuilder::new(config, self.proxy.clone(), secret_retriever);
             let loader = EffectiveConfigLoaderBuilderImpl::new(yaml_config_repository.clone());
             OpAMPClientBuilderImpl::new(
                 poll_interval,
-                Arc::new(http_builder),
-                Arc::new(loader),
+                http_builder,
+                loader,
                 instance_id_getter.clone(),
             )
         });
 
         // Build and start AC OpAMP client
-        let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
-            .clone()
+        let (maybe_client, maybe_sa_opamp_consumer) = opamp_builder
+            .as_ref()
             .map(|builder| {
-                builder
-                    .with_additional_identifying_attributes(HashMap::from([(
+                builder.build_and_start(
+                    AgentIdentity::new_agent_control_identity(),
+                    HashMap::from([(
                         OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
                         DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
-                    )]))
-                    .with_non_identifying_attributes(non_identifying_attributes)
-                    .build_and_start()
+                    )]),
+                    non_identifying_attributes,
+                )
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()
@@ -202,11 +204,11 @@ impl AgentControlRunner {
         ];
         let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
 
+        let opamp_builder = opamp_builder.map(|builder| builder.with_startup_check_disabled());
+
         let sub_agent_builder = OnHostSubAgentBuilder {
-            opamp_builder: opamp_client_builder
-                .clone()
-                .map(|builder| builder.with_startup_check_disabled()),
-            instance_id_getter,
+            opamp_builder: opamp_builder.as_ref(),
+            instance_id_getter: instance_id_getter.as_ref(),
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(remote_config_parser),
             yaml_config_repository,

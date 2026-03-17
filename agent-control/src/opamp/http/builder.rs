@@ -1,6 +1,5 @@
 use http::header::CONTENT_TYPE;
 use http::{HeaderMap, HeaderValue};
-use std::sync::Arc;
 use std::time::Duration;
 use tracing::error;
 
@@ -32,7 +31,7 @@ pub trait HttpClientBuilder {
 pub struct OpAMPHttpClientBuilder<R> {
     opamp_config: OpAMPClientConfig,
     proxy_config: ProxyConfig,
-    secret_retriever: Arc<R>,
+    secret_retriever: R,
 }
 
 impl<R> OpAMPHttpClientBuilder<R>
@@ -42,7 +41,7 @@ where
     pub fn new(
         opamp_config: OpAMPClientConfig,
         proxy_config: ProxyConfig,
-        secret_retriever: Arc<R>,
+        secret_retriever: R,
     ) -> Self {
         Self {
             opamp_config,
@@ -84,7 +83,7 @@ where
         let client = HttpClient::new(http_config)?;
         let token_retriever = TokenRetrieverImpl::try_build(
             self.opamp_config.clone().auth_config,
-            self.secret_retriever.clone(),
+            &self.secret_retriever,
             self.proxy_config.clone(),
         )
         .inspect_err(|err| error!("Could not build OpAMP's token retriever: {err}"))
@@ -106,6 +105,9 @@ impl From<HttpBuildError> for HttpClientBuilderError {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
     use assert_matches::assert_matches;
     use http::Response;
     use mockall::mock;
@@ -168,13 +170,18 @@ pub(crate) mod tests {
 
         let builder = OpAMPClientBuilderImpl::new(
             PollInterval::default(),
-            Arc::new(http_builder),
-            Arc::new(effective_config_loader_builder),
+            http_builder,
+            effective_config_loader_builder,
             Arc::new(instance_id_getter),
-        )
-        .with_agent_identity(AgentIdentity::new_agent_control_identity());
+        );
 
-        let (started_client, _consumer) = builder.build_and_start().unwrap();
+        let (started_client, _consumer) = builder
+            .build_and_start(
+                AgentIdentity::new_agent_control_identity(),
+                HashMap::new(),
+                HashMap::new(),
+            )
+            .unwrap();
 
         // gracefully shutdown the all threads to avoid mocks panicking go unnoticed
         started_client.stop().unwrap();
@@ -198,12 +205,15 @@ pub(crate) mod tests {
 
         let builder = OpAMPClientBuilderImpl::new(
             PollInterval::default(),
-            Arc::new(http_builder),
-            Arc::new(effective_config_loader_builder),
+            http_builder,
+            effective_config_loader_builder,
             Arc::new(instance_id_getter),
-        )
-        .with_agent_identity(AgentIdentity::new_agent_control_identity());
-        let actual_client = builder.build_and_start();
+        );
+        let actual_client = builder.build_and_start(
+            AgentIdentity::new_agent_control_identity(),
+            HashMap::new(),
+            HashMap::new(),
+        );
 
         assert!(actual_client.is_err());
 

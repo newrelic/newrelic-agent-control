@@ -25,7 +25,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-pub struct K8sSubAgentBuilder<O, I, B, R, Y, A>
+pub struct K8sSubAgentBuilder<'a, O, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
@@ -34,8 +34,8 @@ where
     Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
-    pub(crate) opamp_builder: Option<O>,
-    pub(crate) instance_id_getter: Arc<I>,
+    pub(crate) opamp_builder: Option<&'a O>,
+    pub(crate) instance_id_getter: &'a I,
     pub(crate) k8s_config: K8sConfig,
     pub(crate) supervisor_builder: Arc<B>,
     pub(crate) remote_config_parser: Arc<R>,
@@ -45,10 +45,10 @@ where
     pub(crate) ac_running_mode: Environment,
 }
 
-impl<O, I, B, R, Y, A> SubAgentBuilder for K8sSubAgentBuilder<O, I, B, R, Y, A>
+impl<O, I, B, R, Y, A> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder + Send + Sync + 'static,
-    I: InstanceIDGetter + Send + Sync + 'static,
+    I: InstanceIDGetter,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
@@ -65,11 +65,10 @@ where
 
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
-            .clone()
             .map(|builder| {
                 build_sub_agent_opamp(
                     builder,
-                    self.instance_id_getter.clone(),
+                    self.instance_id_getter,
                     agent_identity,
                     HashMap::from([(
                         OPAMP_SERVICE_VERSION.to_string(),
@@ -207,8 +206,8 @@ pub mod tests {
         let effective_agents_assembler = MockEffectiveAgentAssembler::new();
 
         let builder = K8sSubAgentBuilder {
-            opamp_builder: Some(opamp_builder),
-            instance_id_getter: Arc::new(instance_id_getter),
+            opamp_builder: Some(&opamp_builder),
+            instance_id_getter: &instance_id_getter,
             k8s_config,
             supervisor_builder: Arc::new(supervisor_assembler),
             remote_config_parser: Arc::new(remote_config_parser),
@@ -243,8 +242,8 @@ pub mod tests {
         let effective_agents_assembler = MockEffectiveAgentAssembler::new();
 
         let builder = K8sSubAgentBuilder {
-            opamp_builder: Some(opamp_builder),
-            instance_id_getter: Arc::new(instance_id_getter),
+            opamp_builder: Some(&opamp_builder),
+            instance_id_getter: &instance_id_getter,
             k8s_config,
             supervisor_builder: Arc::new(supervisor_assembler),
             remote_config_parser: Arc::new(remote_config_parser),
@@ -346,36 +345,18 @@ pub mod tests {
         // opamp builder mock
         let started_client = MockStartedOpAMPClient::new();
 
-        let mut mock_build_and_start = MockOpAMPClientBuilder::new();
+        let mut opamp_builder = MockOpAMPClientBuilder::new();
         if opamp_builder_fails {
-            mock_build_and_start
+            opamp_builder
                 .expect_build_and_start()
-                .return_once(move || {
+                .return_once(move |_, _, _| {
                     Err(OpAMPClientBuilderError::HttpClientBuilderError(
                         HttpClientBuilderError::BuildingError("error".into()),
                     ))
                 });
         } else {
-            mock_build_and_start.should_build_and_start(started_client);
+            opamp_builder.should_build_and_start(started_client);
         }
-
-        let mut mock_identifying_attributes = MockOpAMPClientBuilder::new();
-        mock_identifying_attributes
-            .expect_with_non_identifying_attributes()
-            .return_once(|_| mock_build_and_start);
-
-        let mut mock_agent_id = MockOpAMPClientBuilder::new();
-        mock_agent_id
-            .expect_with_additional_identifying_attributes()
-            .return_once(|_| mock_identifying_attributes);
-
-        let mut mock_clone = MockOpAMPClientBuilder::new();
-        mock_clone
-            .expect_with_agent_identity()
-            .return_once(|_| mock_agent_id);
-
-        let mut opamp_builder = MockOpAMPClientBuilder::new();
-        opamp_builder.expect_clone().return_once(move || mock_clone);
 
         // instance id getter mock
         let mut instance_id_getter = MockInstanceIDGetter::new();

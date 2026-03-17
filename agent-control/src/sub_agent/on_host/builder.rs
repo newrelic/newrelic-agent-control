@@ -25,7 +25,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-pub struct OnHostSubAgentBuilder<O, I, B, R, Y, A>
+pub struct OnHostSubAgentBuilder<'a, O, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
@@ -34,8 +34,8 @@ where
     Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
-    pub(crate) opamp_builder: Option<O>,
-    pub(crate) instance_id_getter: Arc<I>,
+    pub(crate) opamp_builder: Option<&'a O>,
+    pub(crate) instance_id_getter: &'a I,
     pub(crate) supervisor_builder: Arc<B>,
     pub(crate) remote_config_parser: Arc<R>,
     pub(crate) yaml_config_repository: Arc<Y>,
@@ -44,10 +44,10 @@ where
     pub(crate) ac_running_mode: Environment,
 }
 
-impl<O, I, B, R, Y, A> SubAgentBuilder for OnHostSubAgentBuilder<O, I, B, R, Y, A>
+impl<O, I, B, R, Y, A> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder + Send + Sync + 'static,
-    I: InstanceIDGetter + Send + Sync + 'static,
+    I: InstanceIDGetter,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
@@ -68,11 +68,10 @@ where
 
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
-            .clone()
             .map(|builder| {
                 build_sub_agent_opamp(
                     builder,
-                    self.instance_id_getter.clone(),
+                    self.instance_id_getter,
                     agent_identity,
                     HashMap::from([(
                         OPAMP_SERVICE_VERSION.to_string(),
@@ -202,8 +201,8 @@ mod tests {
             MockSupervisorBuilder::<MockSupervisorStarter<MockSupervisor>>::new();
 
         let on_host_builder = OnHostSubAgentBuilder {
-            opamp_builder: Some(opamp_builder),
-            instance_id_getter: Arc::new(instance_id_getter),
+            opamp_builder: Some(&opamp_builder),
+            instance_id_getter: &instance_id_getter,
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(MockRemoteConfigParser::new()),
             yaml_config_repository: Arc::new(MockConfigRepository::new()),

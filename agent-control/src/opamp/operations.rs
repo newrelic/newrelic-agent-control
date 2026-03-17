@@ -18,19 +18,18 @@ use opamp_client::{
     operation::settings::{AgentDescription, DescriptionValueType, StartSettings},
 };
 use std::collections::HashMap;
-use std::sync::Arc;
 use tracing::info;
 
 pub fn build_sub_agent_opamp<OB, IG>(
-    opamp_builder: OB,
-    instance_id_getter: Arc<IG>,
+    opamp_builder: &OB,
+    instance_id_getter: &IG,
     agent_identity: &AgentIdentity,
     additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     mut non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
 where
     OB: OpAMPClientBuilder,
-    IG: InstanceIDGetter + Send + Sync + 'static,
+    IG: InstanceIDGetter,
 {
     let agent_control_id = AgentID::AgentControl;
     let parent_instance_id = instance_id_getter.get(&agent_control_id)?;
@@ -40,11 +39,11 @@ where
         DescriptionValueType::Bytes(parent_instance_id.into()),
     );
 
-    opamp_builder
-        .with_agent_identity(agent_identity.clone())
-        .with_additional_identifying_attributes(additional_identifying_attributes)
-        .with_non_identifying_attributes(non_identifying_attributes)
-        .build_and_start()
+    opamp_builder.build_and_start(
+        agent_identity.clone(),
+        additional_identifying_attributes,
+        non_identifying_attributes,
+    )
 }
 
 /// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent and agent control.
