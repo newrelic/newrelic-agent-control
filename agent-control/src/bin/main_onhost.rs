@@ -3,8 +3,8 @@
 //! It implements the basic functionality of parsing the command line arguments and either
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
-use newrelic_agent_control::agent_control::run::AgentControlRunner;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use newrelic_agent_control::agent_control::run::{AgentControlRunner, RunnerContext};
 use newrelic_agent_control::command::{Command, RunContext};
 use newrelic_agent_control::utils::is_elevated::is_elevated;
 use std::error::Error;
@@ -73,13 +73,14 @@ fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
 
     // Create the actual agent control runner with the rest of required configs
     // and the application_event_consumer and capture the result to report the error in windows
-    let run_result = AgentControlRunner::try_new(
-        run_context.config,
-        run_context.base_paths,
-        run_context.ac_running_mode,
-        run_context.application_event_consumer,
-    )
-    .and_then(|runner| runner.on_host().run().map_err(|e| e.into()));
+    let runner_context = RunnerContext {
+        bootstrap_config: run_context.config,
+        base_paths: run_context.base_paths,
+        running_mode: run_context.ac_running_mode,
+        application_event_consumer: run_context.application_event_consumer,
+    };
+    let run_result = AgentControlRunner::try_new(runner_context)
+        .and_then(|runner| runner.on_host().run().map_err(|e| e.into()));
 
     #[cfg(target_family = "windows")]
     if let Some(handler) = run_context.stop_handler {

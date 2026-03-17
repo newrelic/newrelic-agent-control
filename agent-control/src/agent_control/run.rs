@@ -65,6 +65,13 @@ impl Default for BasePaths {
     }
 }
 
+pub struct RunnerContext {
+    pub bootstrap_config: AgentControlConfig,
+    pub base_paths: BasePaths,
+    pub running_mode: Environment,
+    pub application_event_consumer: EventConsumer<ApplicationEvent>,
+}
+
 /// Structure with all the data required to run the agent control.
 pub struct AgentControlRunner {
     /// Config loaded at startup from local files. Used to bootstrap
@@ -85,12 +92,7 @@ pub struct AgentControlRunner {
 }
 
 impl AgentControlRunner {
-    pub fn try_new(
-        bootstrap_config: AgentControlConfig,
-        base_paths: BasePaths,
-        running_mode: Environment,
-        application_event_consumer: EventConsumer<ApplicationEvent>,
-    ) -> Result<Self, Box<dyn Error>> {
+    pub fn try_new(context: RunnerContext) -> Result<Self, Box<dyn Error>> {
         let runtime = Arc::new(
             tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -99,45 +101,46 @@ impl AgentControlRunner {
 
         let mut agent_control_publisher = UnboundedBroadcast::default();
         let mut sub_agent_publisher = UnboundedBroadcast::default();
-        let http_server_runner = bootstrap_config.server.enabled.then(|| {
+        let http_server_runner = context.bootstrap_config.server.enabled.then(|| {
             let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
             let sub_agent_consumer = EventConsumer::from(sub_agent_publisher.subscribe());
             Runner::new(
-                bootstrap_config.server.clone(),
+                context.bootstrap_config.server.clone(),
                 runtime.clone(),
                 agent_control_consumer,
                 sub_agent_consumer,
-                bootstrap_config.fleet_control.clone(),
+                context.bootstrap_config.fleet_control.clone(),
             )
         });
 
         let agent_type_registry = Arc::new(EmbeddedRegistry::new(
-            base_paths.local_dir.join(DYNAMIC_AGENT_TYPE_DIR),
+            context.base_paths.local_dir.join(DYNAMIC_AGENT_TYPE_DIR),
         ));
 
-        let signature_validator = bootstrap_config
+        let signature_validator = context
+            .bootstrap_config
             .fleet_control
             .clone()
             .map(|fleet_config| {
                 SignatureValidator::new(
                     fleet_config.signature_validation,
-                    bootstrap_config.proxy.clone(),
+                    context.bootstrap_config.proxy.clone(),
                 )
             })
             .transpose()?
             .unwrap_or(SignatureValidator::new_noop());
 
         Ok(AgentControlRunner {
-            bootstrap_config,
+            bootstrap_config: context.bootstrap_config,
             http_server_runner,
             runtime,
             agent_type_registry,
-            application_event_consumer,
+            application_event_consumer: context.application_event_consumer,
             agent_control_publisher,
             sub_agent_publisher,
-            base_paths,
+            base_paths: context.base_paths,
             signature_validator,
-            running_mode,
+            running_mode: context.running_mode,
         })
     }
 }

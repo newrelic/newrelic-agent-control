@@ -3,7 +3,9 @@ use crate::on_host::tools::config::create_file;
 use newrelic_agent_control::agent_control::config_repository::repository::AgentControlConfigLoader;
 use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
 use newrelic_agent_control::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
-use newrelic_agent_control::agent_control::run::{AgentControlRunner, BasePaths, Environment};
+use newrelic_agent_control::agent_control::run::{
+    AgentControlRunner, BasePaths, Environment, RunnerContext,
+};
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
 use newrelic_agent_control::on_host::file_store::FileStore;
@@ -39,13 +41,13 @@ pub fn start_agent_control_with_custom_config(
         let agent_control_config = config_storer.load().unwrap();
 
         // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-        let runner = AgentControlRunner::try_new(
-            agent_control_config,
+        let runner_context = RunnerContext {
+            bootstrap_config: agent_control_config,
             base_paths,
-            ac_running_mode,
+            running_mode: ac_running_mode,
             application_event_consumer,
-        )
-        .unwrap();
+        };
+        let runner = AgentControlRunner::try_new(runner_context).unwrap();
         match ac_running_mode {
             Environment::Linux | Environment::Windows => runner.on_host().run(),
             Environment::K8s => runner.k8s().run(),

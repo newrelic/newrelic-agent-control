@@ -4,8 +4,8 @@
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
 
-use newrelic_agent_control::agent_control::run::AgentControlRunner;
 use newrelic_agent_control::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
+use newrelic_agent_control::agent_control::run::{AgentControlRunner, RunnerContext};
 use newrelic_agent_control::command::{Command, RunContext};
 use std::error::Error;
 use std::process::ExitCode;
@@ -38,13 +38,14 @@ fn main() -> ExitCode {
 /// ```
 fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-    AgentControlRunner::try_new(
-        run_context.config,
-        run_context.base_paths,
-        run_context.ac_running_mode,
-        run_context.application_event_consumer,
-    )?
-    .k8s()
-    .run()
-    .map_err(|e| e.into())
+    let runner_context = RunnerContext {
+        bootstrap_config: run_context.config,
+        base_paths: run_context.base_paths,
+        running_mode: run_context.ac_running_mode,
+        application_event_consumer: run_context.application_event_consumer,
+    };
+    AgentControlRunner::try_new(runner_context)?
+        .k8s()
+        .run()
+        .map_err(|e| e.into())
 }
