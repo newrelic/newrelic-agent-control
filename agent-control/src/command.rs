@@ -101,11 +101,11 @@ pub struct Context {
 
 /// Runtime information used to build and start agent control
 pub struct RunnerContext {
-    /// Agent Control configuration
+    /// Agent Control bootstrap configuration (built with runtime information but with no remote)
     pub bootstrap_config: AgentControlConfig,
-    /// Agent Control base paths
+    /// Agent Control directories where configuration and logs sre stores
     pub base_paths: BasePaths,
-    /// Running mode
+    /// Running mode for the supported implementations as defined in [Environment].
     pub running_mode: Environment,
     /// The consuming end of the internal application event bus.
     pub application_event_consumer: EventConsumer<ApplicationEvent>,
@@ -114,7 +114,7 @@ pub struct RunnerContext {
 impl Command {
     /// Runs the provided main function or shows the binary information according to commands
     pub fn execute<F>(
-        ac_running_mode: Environment,
+        running_mode: Environment,
         main_fn: F,
         #[cfg(target_os = "windows")] as_windows_service: bool,
     ) -> ExitCode
@@ -124,7 +124,7 @@ impl Command {
         let parsed = Command::parse();
 
         match parsed.subcommand {
-            Some(SubCommand::Version) => Command::print_version(ac_running_mode),
+            Some(SubCommand::Version) => Command::print_version(running_mode),
             Some(SubCommand::Verify) => {
                 //todo
                 ExitCode::SUCCESS
@@ -132,7 +132,7 @@ impl Command {
             None => {
                 // For backward compatibility, default to Run command using flattened args
                 Command::run(
-                    ac_running_mode,
+                    running_mode,
                     main_fn,
                     &parsed.args,
                     #[cfg(target_os = "windows")]
@@ -143,14 +143,14 @@ impl Command {
     }
 
     /// Handles the version command
-    fn print_version(ac_running_mode: Environment) -> ExitCode {
-        println!("{}", binary_metadata(ac_running_mode));
+    fn print_version(running_mode: Environment) -> ExitCode {
+        println!("{}", binary_metadata(running_mode));
         ExitCode::SUCCESS
     }
 
     /// Handles the run command
     fn run<F>(
-        ac_running_mode: Environment,
+        running_mode: Environment,
         main_fn: F,
         args: &Args,
         #[cfg(target_os = "windows")] as_windows_service: bool,
@@ -159,7 +159,7 @@ impl Command {
         F: FnOnce(Context) -> Result<(), Box<dyn Error>>,
     {
         match Command::build_context(
-            ac_running_mode,
+            running_mode,
             args,
             #[cfg(target_os = "windows")]
             as_windows_service,

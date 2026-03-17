@@ -48,8 +48,8 @@ pub fn start_agent_control_with_custom_config(
         };
         let runner = AgentControlRunner::try_new(runner_context).unwrap();
         match ac_running_mode {
-            Environment::Linux | Environment::Windows => runner.on_host().run(),
-            Environment::K8s => runner.k8s().run(),
+            Environment::Linux | Environment::Windows => runner.run_onhost(),
+            Environment::K8s => runner.run_k8s(),
         }
         .unwrap();
     });

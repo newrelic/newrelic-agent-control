@@ -55,27 +55,15 @@ pub const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
 pub const AGENT_CONTROL_MODE_K8S: Environment = Environment::K8s;
 
 impl AgentControlRunner {
-    /// Returns the specific runner for k8s.
-    pub fn k8s(self) -> AgentControlK8sRunner {
-        AgentControlK8sRunner { common: self }
-    }
-}
-
-/// Builds and runs [AgentControl] for k8s.
-pub struct AgentControlK8sRunner {
-    common: AgentControlRunner,
-}
-
-impl AgentControlK8sRunner {
-    pub fn run(self) -> Result<(), RunError> {
-        let k8s_config = self.common.bootstrap_config.k8s.clone().ok_or(RunError(
+    pub fn run_k8s(self) -> Result<(), RunError> {
+        let k8s_config = self.bootstrap_config.k8s.clone().ok_or(RunError(
             "k8s config missing while running on k8s".to_string(),
         ))?;
 
         info!("Starting the k8s client");
-        let maybe_opamp = self.common.bootstrap_config.fleet_control;
+        let maybe_opamp = self.bootstrap_config.fleet_control;
         let k8s_client = Arc::new(
-            SyncK8sClient::try_new(self.common.runtime)
+            SyncK8sClient::try_new(self.runtime)
                 .map_err(|err| RunError(format!("failed to start the k8s client: {err}")))?,
         );
         let k8s_store = Arc::new(ConfigMapStore::new(
@@ -119,7 +107,7 @@ impl AgentControlK8sRunner {
                 config.poll_interval,
                 OpAMPHttpClientBuilder::new(
                     config,
-                    self.common.bootstrap_config.proxy.clone(),
+                    self.bootstrap_config.proxy.clone(),
                     secret_retriever,
                 ),
                 DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
@@ -172,16 +160,16 @@ impl AgentControlK8sRunner {
         }
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
-            self.common.agent_type_registry.clone(),
+            self.agent_type_registry.clone(),
             template_renderer,
-            self.common.bootstrap_config.agent_type_var_constraints,
+            self.bootstrap_config.agent_type_var_constraints,
             secrets_providers,
-            &self.common.base_paths.remote_dir,
+            &self.base_paths.remote_dir,
         ));
 
         let supervisor_builder = SupervisorBuilderK8s::new(k8s_client.clone(), k8s_config.clone());
 
-        let signature_validator = Arc::new(self.common.signature_validator);
+        let signature_validator = Arc::new(self.signature_validator);
         let remote_config_validators = vec![
             SupportedRemoteConfigValidator::Signature(signature_validator.clone()),
             SupportedRemoteConfigValidator::Regex(RegexValidator::default()),
@@ -197,8 +185,8 @@ impl AgentControlK8sRunner {
             remote_config_parser: Arc::new(remote_config_parser),
             config_repository: yaml_config_repository.clone(),
             effective_agents_assembler: agents_assembler,
-            sub_agent_publisher: self.common.sub_agent_publisher,
-            ac_running_mode: self.common.running_mode,
+            sub_agent_publisher: self.sub_agent_publisher,
+            ac_running_mode: self.running_mode,
         };
 
         let garbage_collector = K8sGarbageCollector {
@@ -218,7 +206,7 @@ impl AgentControlK8sRunner {
             .map_err(|err| RunError(format!("failure on K8s garbage collector: {err}")))?;
 
         let registry_config_validator =
-            RegistryDynamicConfigValidator::new(self.common.agent_type_registry);
+            RegistryDynamicConfigValidator::new(self.agent_type_registry);
 
         let dynamic_config_validator = K8sReleaseNamesConfigValidator::new(
             registry_config_validator,
@@ -228,7 +216,6 @@ impl AgentControlK8sRunner {
 
         // The http server stops on Drop. We need to keep it while the agent control is running.
         let _http_server = self
-            .common
             .http_server_runner
             .map(Runner::start)
             .transpose()
@@ -270,8 +257,8 @@ impl AgentControlK8sRunner {
             sub_agent_builder,
             SystemTime::now(),
             config_storer,
-            self.common.agent_control_publisher,
-            self.common.application_event_consumer,
+            self.agent_control_publisher,
+            self.application_event_consumer,
             maybe_opamp_consumer,
             agent_control_internal_publisher,
             agent_control_internal_consumer,

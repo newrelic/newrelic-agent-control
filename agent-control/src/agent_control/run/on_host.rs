@@ -53,27 +53,15 @@ pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Windows;
 pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Linux;
 
 impl AgentControlRunner {
-    /// Returns the specific runner for on-host. Unlike [Self::k8s], this is not
-    /// fallible as there is no specific configuration validation involved.
-    pub fn on_host(self) -> AgentControlOnHostRunner {
-        AgentControlOnHostRunner { common: self }
-    }
-}
-
-pub struct AgentControlOnHostRunner {
-    common: AgentControlRunner,
-}
-
-impl AgentControlOnHostRunner {
-    pub fn run(self) -> Result<(), RunError> {
-        let local_dir = self.common.base_paths.local_dir;
-        let remote_dir = self.common.base_paths.remote_dir;
+    pub fn run_onhost(self) -> Result<(), RunError> {
+        let local_dir = self.base_paths.local_dir;
+        let remote_dir = self.base_paths.remote_dir;
         let file_store = Arc::new(FileStore::new_local_fs(
             local_dir.clone(),
             remote_dir.clone(),
         ));
 
-        let maybe_opamp = self.common.bootstrap_config.fleet_control;
+        let maybe_opamp = self.bootstrap_config.fleet_control;
 
         let secret_retriever = OnHostSecretRetriever::new(
             maybe_opamp.clone(),
@@ -120,7 +108,7 @@ impl AgentControlOnHostRunner {
                 config.poll_interval,
                 OpAMPHttpClientBuilder::new(
                     config,
-                    self.common.bootstrap_config.proxy.clone(),
+                    self.bootstrap_config.proxy.clone(),
                     secret_retriever,
                 ),
                 DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
@@ -162,9 +150,9 @@ impl AgentControlOnHostRunner {
         }
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
-            self.common.agent_type_registry.clone(),
+            self.agent_type_registry.clone(),
             template_renderer,
-            self.common.bootstrap_config.agent_type_var_constraints,
+            self.bootstrap_config.agent_type_var_constraints,
             secrets_providers,
             &remote_dir,
         ));
@@ -178,8 +166,8 @@ impl AgentControlOnHostRunner {
 
         let oci_client = oci::Client::try_new(
             oci_client_config,
-            self.common.bootstrap_config.proxy,
-            self.common.runtime.clone(),
+            self.bootstrap_config.proxy,
+            self.runtime.clone(),
         )
         .map_err(|err| RunError(format!("failed to create the OciClient: {err}")))?;
 
@@ -195,11 +183,11 @@ impl AgentControlOnHostRunner {
             OCIPackageManager::new(packages_downloader, DirectoryManagerFs, remote_dir.clone());
 
         let supervisor_builder = SupervisorBuilderOnHost {
-            logging_path: self.common.base_paths.log_dir,
+            logging_path: self.base_paths.log_dir,
             package_manager: Arc::new(package_manager),
         };
 
-        let signature_validator = Arc::new(self.common.signature_validator);
+        let signature_validator = Arc::new(self.signature_validator);
         let remote_config_validators = vec![
             SupportedRemoteConfigValidator::Signature(signature_validator.clone()),
             SupportedRemoteConfigValidator::Regex(RegexValidator::default()),
@@ -213,16 +201,15 @@ impl AgentControlOnHostRunner {
             remote_config_parser: Arc::new(remote_config_parser),
             yaml_config_repository,
             effective_agents_assembler: agents_assembler,
-            sub_agent_publisher: self.common.sub_agent_publisher,
-            ac_running_mode: self.common.running_mode,
+            sub_agent_publisher: self.sub_agent_publisher,
+            ac_running_mode: self.running_mode,
         };
 
         let dynamic_config_validator =
-            RegistryDynamicConfigValidator::new(self.common.agent_type_registry);
+            RegistryDynamicConfigValidator::new(self.agent_type_registry);
 
         // The http server stops on Drop. We need to keep it while the agent control is running.
         let _http_server = self
-            .common
             .http_server_runner
             .map(Runner::start)
             .transpose()
@@ -234,8 +221,8 @@ impl AgentControlOnHostRunner {
             sub_agent_builder,
             SystemTime::now(),
             config_storer,
-            self.common.agent_control_publisher,
-            self.common.application_event_consumer,
+            self.agent_control_publisher,
+            self.application_event_consumer,
             maybe_sa_opamp_consumer,
             agent_control_internal_publisher,
             agent_control_internal_consumer,
