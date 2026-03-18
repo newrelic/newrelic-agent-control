@@ -176,8 +176,8 @@ impl AgentControlRunner {
             opamp_client_builder.map(|builder| builder.with_startup_check_disabled());
 
         let sub_agent_builder = K8sSubAgentBuilder {
-            opamp_builder: opamp_builder.as_ref(),
-            instance_id_getter: &instance_id_getter,
+            opamp_builder,
+            instance_id_getter,
             k8s_config: k8s_config.clone(),
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(remote_config_parser),

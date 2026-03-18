@@ -25,7 +25,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-pub struct K8sSubAgentBuilder<'a, O, I, B, R, Y, A>
+pub struct K8sSubAgentBuilder<O, I, B, R, Y, A>
 where
     O: BuildOpAMPClient,
     I: InstanceIDGetter,
@@ -34,8 +34,8 @@ where
     Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
-    pub(crate) opamp_builder: Option<&'a O>,
-    pub(crate) instance_id_getter: &'a I,
+    pub(crate) opamp_builder: Option<O>,
+    pub(crate) instance_id_getter: I,
     pub(crate) k8s_config: K8sConfig,
     pub(crate) supervisor_builder: Arc<B>,
     pub(crate) remote_config_parser: Arc<R>,
@@ -45,7 +45,7 @@ where
     pub(crate) ac_running_mode: Environment,
 }
 
-impl<O, I, B, R, Y, A> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, B, R, Y, A>
+impl<O, I, B, R, Y, A> SubAgentBuilder for K8sSubAgentBuilder<O, I, B, R, Y, A>
 where
     O: BuildOpAMPClient + Send + Sync + 'static,
     I: InstanceIDGetter,
@@ -65,10 +65,11 @@ where
 
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
+            .as_ref()
             .map(|builder| {
                 build_sub_agent_opamp(
                     builder,
-                    self.instance_id_getter,
+                    &self.instance_id_getter,
                     agent_identity,
                     HashMap::from([(
                         OPAMP_SERVICE_VERSION.to_string(),
@@ -210,8 +211,8 @@ pub mod tests {
         let effective_agents_assembler = MockEffectiveAgentAssembler::new();
 
         let builder = K8sSubAgentBuilder {
-            opamp_builder: Some(&opamp_builder),
-            instance_id_getter: &instance_id_getter,
+            opamp_builder: Some(opamp_builder),
+            instance_id_getter,
             k8s_config,
             supervisor_builder: Arc::new(supervisor_assembler),
             remote_config_parser: Arc::new(remote_config_parser),
@@ -247,8 +248,8 @@ pub mod tests {
         let effective_agents_assembler = MockEffectiveAgentAssembler::new();
 
         let builder = K8sSubAgentBuilder {
-            opamp_builder: Some(&opamp_builder),
-            instance_id_getter: &instance_id_getter,
+            opamp_builder: Some(opamp_builder),
+            instance_id_getter,
             k8s_config,
             supervisor_builder: Arc::new(supervisor_assembler),
             remote_config_parser: Arc::new(remote_config_parser),
