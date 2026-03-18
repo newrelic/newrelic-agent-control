@@ -1,7 +1,6 @@
 use crate::agent_control::AgentControl;
 use crate::agent_control::config::{K8sConfig, helmrelease_v2_type_meta};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
-use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::config_validator::k8s::K8sReleaseNamesConfigValidator;
 use crate::agent_control::defaults::{
@@ -13,7 +12,9 @@ use crate::agent_control::defaults::{
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
-use crate::agent_control::run::{AgentControlRunner, Environment, RunError};
+use crate::agent_control::run::{
+    AgentControlRunner, Environment, RunError, setup_config_repository_and_store,
+};
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
@@ -43,7 +44,6 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::thread_context::StartedThreadContext;
-use crate::values::ConfigRepo;
 use crate::{k8s::configmap_store::ConfigMapStore, sub_agent::k8s::builder::K8sSubAgentBuilder};
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::get_hostname;
@@ -58,35 +58,32 @@ pub const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
 pub const AGENT_CONTROL_MODE_K8S: Environment = Environment::K8s;
 
 impl AgentControlRunner {
-    pub(super) fn run_k8s(self) -> Result<(), RunError> {
+    pub fn run_k8s(self) -> Result<(), RunError> {
+        let k8s_config = self.bootstrap_config.k8s.clone().ok_or(RunError(
+            "k8s config missing while running on k8s".to_string(),
+        ))?;
+
         info!("Starting the k8s client");
+        let maybe_opamp = self.bootstrap_config.fleet_control;
         let k8s_client = Arc::new(
             SyncK8sClient::try_new(self.runtime)
                 .map_err(|err| RunError(format!("failed to start the k8s client: {err}")))?,
         );
         let k8s_store = Arc::new(ConfigMapStore::new(
             k8s_client.clone(),
-            self.k8s_config.namespace.clone(),
+            k8s_config.namespace.clone(),
         ));
 
         let secret_retriever = K8sSecretRetriever::new(
             K8sSecretProvider::new(k8s_client.clone()),
-            self.k8s_config.clone(),
+            k8s_config.clone(),
         );
 
-        let config_repository = ConfigRepo::new(k8s_store.clone());
-        let yaml_config_repository = Arc::new(if self.opamp.is_some() {
-            config_repository.with_remote()
-        } else {
-            config_repository
-        });
-
-        let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
-
-        info!("Loading Agent Control configuration");
-        let agent_control_config = config_storer.load().map_err(|err| {
-            RunError(format!("failed to load Agent Control configuration: {err}"))
-        })?;
+        let (yaml_config_repository, config_storer) =
+            setup_config_repository_and_store(k8s_store.clone(), maybe_opamp.is_some());
+        let agent_control_config = config_storer
+            .load()
+            .map_err(|err| RunError(format!("failed to load Agent Control config: {err}")))?;
 
         let fleet_id = agent_control_config
             .fleet_control
@@ -94,23 +91,27 @@ impl AgentControlRunner {
             .map(|c| c.fleet_id.to_string())
             .unwrap_or_default();
 
-        let identifiers = get_identifiers(self.k8s_config.cluster_name.clone(), fleet_id);
+        let identifiers = get_identifiers(k8s_config.cluster_name.clone(), fleet_id);
         info!("Instance Identifiers: {}", identifiers);
 
         let non_identifying_attributes =
-            agent_control_opamp_non_identifying_attributes(&identifiers, &self.k8s_config);
+            agent_control_opamp_non_identifying_attributes(&identifiers, &k8s_config);
 
         let additional_identifying_attributes =
-            agent_control_additional_opamp_identifying_attributes(&self.k8s_config);
+            agent_control_additional_opamp_identifying_attributes(&k8s_config);
 
         let instance_id_storer = Storer::from(k8s_store.clone());
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
-        let opamp_client_builder = self.opamp.map(|config| {
+        let opamp_client_builder = maybe_opamp.map(|config| {
             DefaultOpAMPClientBuilder::new(
                 config.poll_interval,
-                OpAMPHttpClientBuilder::new(config, self.proxy.clone(), secret_retriever),
+                OpAMPHttpClientBuilder::new(
+                    config,
+                    self.bootstrap_config.proxy.clone(),
+                    secret_retriever,
+                ),
                 DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
             )
         });
@@ -140,11 +141,11 @@ impl AgentControlRunner {
         let agent_control_variables = HashMap::from([
             (
                 NAMESPACE_VARIABLE_NAME.to_string(),
-                Variable::new_final_string_variable(self.k8s_config.namespace.clone()),
+                Variable::new_final_string_variable(k8s_config.namespace.clone()),
             ),
             (
                 NAMESPACE_AGENTS_VARIABLE_NAME.to_string(),
-                Variable::new_final_string_variable(self.k8s_config.namespace_agents.clone()),
+                Variable::new_final_string_variable(k8s_config.namespace_agents.clone()),
             ),
         ]);
 
@@ -163,13 +164,12 @@ impl AgentControlRunner {
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             self.agent_type_registry.clone(),
             template_renderer,
-            self.agent_type_var_constraints,
+            self.bootstrap_config.agent_type_var_constraints,
             secrets_providers,
             &self.base_paths.remote_dir,
         ));
 
-        let supervisor_builder =
-            SupervisorBuilderK8s::new(k8s_client.clone(), self.k8s_config.clone());
+        let supervisor_builder = SupervisorBuilderK8s::new(k8s_client.clone(), k8s_config.clone());
 
         let signature_validator = Arc::new(self.signature_validator);
         let remote_config_validators = vec![
@@ -182,20 +182,20 @@ impl AgentControlRunner {
         let sub_agent_builder = K8sSubAgentBuilder {
             opamp_builder: opamp_client_builder.as_ref(),
             instance_id_getter: &instance_id_getter,
-            k8s_config: self.k8s_config.clone(),
+            k8s_config: k8s_config.clone(),
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(remote_config_parser),
             config_repository: yaml_config_repository.clone(),
             effective_agents_assembler: agents_assembler,
             sub_agent_publisher: self.sub_agent_publisher,
-            ac_running_mode: self.ac_running_mode,
+            ac_running_mode: self.running_mode,
         };
 
         let garbage_collector = K8sGarbageCollector {
             k8s_client: k8s_client.clone(),
-            namespace: self.k8s_config.namespace.clone(),
-            namespace_agents: self.k8s_config.namespace_agents.clone(),
-            cr_type_meta: self.k8s_config.cr_type_meta,
+            namespace: k8s_config.namespace.clone(),
+            namespace_agents: k8s_config.namespace_agents.clone(),
+            cr_type_meta: k8s_config.cr_type_meta,
         };
 
         info!("Initiating cleanup of outdated resources from previous Agent Control executions");
@@ -212,8 +212,8 @@ impl AgentControlRunner {
 
         let dynamic_config_validator = K8sReleaseNamesConfigValidator::new(
             registry_config_validator,
-            self.k8s_config.ac_release_name.to_string(),
-            self.k8s_config.cd_release_name.to_string(),
+            k8s_config.ac_release_name.to_string(),
+            k8s_config.cd_release_name.to_string(),
         );
 
         // The http server stops on Drop. We need to keep it while the agent control is running.
@@ -224,32 +224,32 @@ impl AgentControlRunner {
             .map_err(|err| RunError(format!("failed to start HTTP server: {err}")))?;
 
         let cd_remote_updates_enabled =
-            self.k8s_config.cd_remote_update && !self.k8s_config.cd_release_name.is_empty();
-        let ac_release_name_exists = !self.k8s_config.ac_release_name.is_empty();
+            k8s_config.cd_remote_update && !k8s_config.cd_release_name.is_empty();
+        let ac_release_name_exists = !k8s_config.ac_release_name.is_empty();
 
         let health_checker_builder = agent_control_health_checker_builder(
             k8s_client.clone(),
-            self.k8s_config.namespace.to_string(),
-            ac_release_name_exists.then(|| self.k8s_config.ac_release_name.clone()),
-            cd_remote_updates_enabled.then(|| self.k8s_config.cd_release_name.clone()),
+            k8s_config.namespace.to_string(),
+            ac_release_name_exists.then(|| k8s_config.ac_release_name.clone()),
+            cd_remote_updates_enabled.then(|| k8s_config.cd_release_name.clone()),
         );
 
         let k8s_ac_updater = K8sACUpdater::new(
-            self.k8s_config.ac_remote_update,
-            self.k8s_config.cd_remote_update,
+            k8s_config.ac_remote_update,
+            k8s_config.cd_remote_update,
             k8s_client.clone(),
-            self.k8s_config.namespace.clone(),
-            self.k8s_config.current_chart_version.clone(),
-            self.k8s_config.ac_release_name,
-            self.k8s_config.cd_release_name.clone(),
+            k8s_config.namespace.clone(),
+            k8s_config.current_chart_version.clone(),
+            k8s_config.ac_release_name,
+            k8s_config.cd_release_name.clone(),
         );
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
 
         let _cd_version_checker = cd_remote_updates_enabled.then(|| {
             start_cd_version_checker(
                 k8s_client,
-                self.k8s_config.namespace.clone(),
-                self.k8s_config.cd_release_name.clone(),
+                k8s_config.namespace.clone(),
+                k8s_config.cd_release_name.clone(),
                 agent_control_internal_publisher.clone(),
             )
         });

@@ -5,7 +5,7 @@
 #![warn(missing_docs)]
 use newrelic_agent_control::agent_control::run::AgentControlRunner;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
-use newrelic_agent_control::command::{Command, RunContext};
+use newrelic_agent_control::command::{Command, Context};
 use newrelic_agent_control::utils::is_elevated::is_elevated;
 use std::error::Error;
 use std::process::ExitCode;
@@ -56,7 +56,7 @@ fn main() -> ExitCode {
 /// could not read Agent Control config from /invalid/path: error loading the agent control config: \`error retrieving config: \`missing field \`agents\`\`\`
 /// Error: ConfigRead(LoadConfigError(ConfigError(missing field \`agents\`)))
 /// ```
-fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
+fn _main(context: Context) -> Result<(), Box<dyn Error>> {
     #[cfg(not(feature = "disable-asroot"))]
     if !is_elevated()? {
         return Err("Program must run with elevated permissions".into());
@@ -64,7 +64,7 @@ fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
 
     #[cfg(all(target_family = "unix", not(feature = "multiple-instances")))]
     if let Err(err) = newrelic_agent_control::agent_control::pid_cache::PIDCache::from_data_dir(
-        &run_context.run_config.base_paths.remote_dir,
+        &context.ac_runner_context.base_paths.remote_dir,
     )
     .store(std::process::id())
     {
@@ -73,14 +73,11 @@ fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
 
     // Create the actual agent control runner with the rest of required configs
     // and the application_event_consumer and capture the result to report the error in windows
-    let run_result = AgentControlRunner::new(
-        run_context.run_config,
-        run_context.application_event_consumer,
-    )
-    .and_then(|runner| runner.run().map_err(|e| e.into()));
+    let run_result = AgentControlRunner::try_new(context.ac_runner_context)
+        .and_then(|runner| runner.run_onhost().map_err(|e| e.into()));
 
     #[cfg(target_family = "windows")]
-    if let Some(handler) = run_context.stop_handler {
+    if let Some(handler) = context.stop_handler {
         // Teardown notifies Windows that we're stopping intentionally, avoiding a 1061 state.
         // 1061 occurs in Windows when a service is busy, unresponsive, or experiencing a conflict,
         // preventing it from starting, stopping, or restarting.
