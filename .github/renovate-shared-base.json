@@ -14,7 +14,6 @@
   "enabledManagers": [
     "cargo",
     "custom.regex",
-    "gomod",
     "github-actions"
   ],
   "rangeStrategy": "bump",
@@ -62,24 +61,6 @@
         "k8s",
         "schemars"
       ]
-    },
-    {
-      "matchManagers": [
-        "gomod"
-      ],
-      "matchUpdateTypes": [
-        "minor"
-      ],
-      "groupName": "go minor and patch updates"
-    },
-    {
-      "matchManagers": [
-        "gomod"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "groupName": "go major updates"
     }
   ]
 }
