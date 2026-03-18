@@ -24,6 +24,7 @@ use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
 use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
 use crate::opamp::instance_id::storer::Storer;
+use crate::opamp::operations::start_settings;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::package::oci::downloader::OCIArtifactDownloader;
@@ -92,8 +93,6 @@ impl AgentControlRunner {
         let identifiers = identifiers_provider
             .provide()
             .map_err(|err| RunError(format!("failure obtaining identifiers: {err}")))?;
-        let non_identifying_attributes =
-            agent_control_opamp_non_identifying_attributes(&identifiers);
         info!("Instance Identifiers: {:?}", identifiers);
 
         let agent_control_variables = HashMap::from([(
@@ -103,7 +102,7 @@ impl AgentControlRunner {
 
         let instance_id_storer = Storer::from(file_store);
         let instance_id_getter =
-            InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
+            InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers.clone());
 
         let opamp_client_builder = maybe_opamp.map(|config| {
             OpAMPClientBuilder::new(
@@ -123,16 +122,16 @@ impl AgentControlRunner {
             .map(|builder| {
                 info!("Starting Agent Control OpAMP client");
                 let agent_identity = AgentIdentity::new_agent_control_identity();
-                let instance_id = instance_id_getter.get(&agent_identity.id)?;
-                builder.build_and_start(
-                    agent_identity,
-                    instance_id,
+                let start_settings = start_settings(
+                    instance_id_getter.get(&agent_identity.id)?,
+                    &agent_identity,
                     HashMap::from([(
                         OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
                         DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
                     )]),
-                    non_identifying_attributes,
-                )
+                    agent_control_opamp_non_identifying_attributes(&identifiers),
+                );
+                builder.build_and_start(agent_identity, start_settings)
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()

@@ -39,12 +39,14 @@ where
         DescriptionValueType::Bytes(parent_instance_id.into()),
     );
 
-    opamp_builder.build_and_start(
-        agent_identity.clone(),
+    let start_settings = start_settings(
         instance_id_getter.get(&agent_identity.id)?,
+        agent_identity,
         additional_identifying_attributes,
         non_identifying_attributes,
-    )
+    );
+
+    opamp_builder.build_and_start(agent_identity.clone(), start_settings)
 }
 
 /// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent and agent control.

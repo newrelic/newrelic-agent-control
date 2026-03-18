@@ -34,6 +34,7 @@ use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
 use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
 use crate::opamp::instance_id::storer::Storer;
+use crate::opamp::operations::start_settings;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::secret_retriever::k8s::retrieve::K8sSecretRetriever;
@@ -94,15 +95,9 @@ impl AgentControlRunner {
         let identifiers = get_identifiers(k8s_config.cluster_name.clone(), fleet_id);
         info!("Instance Identifiers: {}", identifiers);
 
-        let non_identifying_attributes =
-            agent_control_opamp_non_identifying_attributes(&identifiers, &k8s_config);
-
-        let additional_identifying_attributes =
-            agent_control_additional_opamp_identifying_attributes(&k8s_config);
-
         let instance_id_storer = Storer::from(k8s_store.clone());
         let instance_id_getter =
-            InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
+            InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers.clone());
 
         let opamp_client_builder = maybe_opamp.map(|config| {
             OpAMPClientBuilder::new(
@@ -122,13 +117,13 @@ impl AgentControlRunner {
             .map(|builder| -> Result<_, _> {
                 info!("Starting Agent Control OpAMP client");
                 let agent_identity = AgentIdentity::new_agent_control_identity();
-                let instance_id = instance_id_getter.get(&agent_identity.id)?;
-                builder.build_and_start(
-                    agent_identity,
-                    instance_id,
-                    additional_identifying_attributes,
-                    non_identifying_attributes,
-                )
+                let start_settings = start_settings(
+                    instance_id_getter.get(&agent_identity.id)?,
+                    &agent_identity,
+                    agent_control_additional_opamp_identifying_attributes(&k8s_config),
+                    agent_control_opamp_non_identifying_attributes(&identifiers, &k8s_config),
+                );
+                builder.build_and_start(agent_identity, start_settings)
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()

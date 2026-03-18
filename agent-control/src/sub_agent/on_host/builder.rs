@@ -166,6 +166,10 @@ where
 mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::defaults::{
+        OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
+        PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_custom_capabilities,
+    };
     use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilder;
@@ -177,10 +181,15 @@ mod tests {
     use crate::sub_agent::supervisor::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::tests::{MockSupervisor, MockSupervisorBuilder};
     use crate::values::config_repository::tests::MockConfigRepository;
+    use opamp_client::operation::settings::{
+        AgentDescription, DescriptionValueType, StartSettings,
+    };
+    use std::collections::HashMap;
     use std::time::Duration;
 
     #[test]
     fn test_build_with_opamp() {
+        let hostname = get_hostname().unwrap();
         let agent_control_instance_id = InstanceID::create();
         let sub_agent_instance_id = InstanceID::create();
         let agent_identity = AgentIdentity::from((
@@ -188,9 +197,18 @@ mod tests {
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
+        let start_settings_infra = infra_agent_default_start_settings(
+            &hostname,
+            agent_control_instance_id.clone(),
+            sub_agent_instance_id.clone(),
+            &agent_identity,
+        );
+
         // Build an OpAMP Client and let it run so the publisher is not dropped
         let mut opamp_builder = MockOpAMPClientBuilder::new();
         opamp_builder.should_build_and_start_and_run(
+            agent_identity.clone(),
+            start_settings_infra,
             MockStartedOpAMPClient::new(),
             Duration::from_millis(10),
         );
@@ -214,5 +232,51 @@ mod tests {
         };
 
         assert!(on_host_builder.build(&agent_identity).is_ok());
+    }
+
+    // HELPERS
+    fn infra_agent_default_start_settings(
+        hostname: &str,
+        agent_control_instance_id: InstanceID,
+        sub_agent_instance_id: InstanceID,
+        agent_identity: &AgentIdentity,
+    ) -> StartSettings {
+        let identifying_attributes = HashMap::<String, DescriptionValueType>::from([
+            (
+                OPAMP_SERVICE_NAME.to_string(),
+                agent_identity.agent_type_id.name().into(),
+            ),
+            (
+                OPAMP_SERVICE_NAMESPACE.to_string(),
+                agent_identity.agent_type_id.namespace().into(),
+            ),
+            (
+                OPAMP_SUPERVISOR_KEY.to_string(),
+                agent_identity.id.to_string().into(),
+            ),
+            (
+                OPAMP_SERVICE_VERSION.to_string(),
+                agent_identity.agent_type_id.version().to_string().into(),
+            ),
+        ]);
+        StartSettings {
+            instance_uid: sub_agent_instance_id.into(),
+            capabilities: default_capabilities(),
+            custom_capabilities: Some(default_custom_capabilities()),
+            agent_description: AgentDescription {
+                identifying_attributes,
+                non_identifying_attributes: HashMap::from([
+                    (
+                        HOST_NAME_ATTRIBUTE_KEY.to_string(),
+                        DescriptionValueType::String(hostname.to_string()),
+                    ),
+                    (
+                        PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
+                        DescriptionValueType::Bytes(agent_control_instance_id.into()),
+                    ),
+                    (OS_ATTRIBUTE_KEY.to_string(), OS_ATTRIBUTE_VALUE.into()),
+                ]),
+            },
+        }
     }
 }

@@ -105,15 +105,13 @@ impl From<HttpBuildError> for HttpClientBuilderError {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::collections::HashMap;
-
     use assert_matches::assert_matches;
     use http::Response;
     use mockall::mock;
+    use opamp_client::operation::settings::StartSettings;
     use opamp_client::{StartedClient, http::HttpClientError};
 
     use crate::opamp::client_builder::{OpAMPClientBuilderError, PollInterval};
-    use crate::opamp::instance_id::InstanceID;
     use crate::opamp::{
         client_builder::{BuildOpAMPClient, OpAMPClientBuilder},
         effective_config::loader::tests::{
@@ -171,9 +169,7 @@ pub(crate) mod tests {
         let (started_client, _consumer) = builder
             .build_and_start(
                 AgentIdentity::new_agent_control_identity(),
-                InstanceID::create(),
-                HashMap::new(),
-                HashMap::new(),
+                StartSettings::default(),
             )
             .unwrap();
 
@@ -201,9 +197,7 @@ pub(crate) mod tests {
         );
         let actual_client = builder.build_and_start(
             AgentIdentity::new_agent_control_identity(),
-            InstanceID::create(),
-            HashMap::new(),
-            HashMap::new(),
+            StartSettings::default(),
         );
 
         assert!(actual_client.is_err());
