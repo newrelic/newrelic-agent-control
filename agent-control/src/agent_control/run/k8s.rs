@@ -178,10 +178,7 @@ impl AgentControlRunner {
         let sub_agent_builder = K8sSubAgentBuilder {
             opamp_builder: opamp_builder.as_ref(),
             instance_id_getter: &instance_id_getter,
-            k8s_config: self
-                .bootstrap_config
-                .k8s
-                .expect("K8s config must exist in k8s environment"),
+            k8s_config: k8s_config.clone(),
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(remote_config_parser),
             config_repository: yaml_config_repository.clone(),
