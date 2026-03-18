@@ -191,7 +191,8 @@ pub mod tests {
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
-        let (opamp_builder, instance_id_getter) = k8s_agent_get_common_mocks(false);
+        let (opamp_builder, instance_id_getter) =
+            k8s_agent_get_common_mocks(agent_identity.clone(), false);
 
         let k8s_config = K8sConfig {
             cluster_name: TEST_CLUSTER_NAME.to_string(),
@@ -227,7 +228,8 @@ pub mod tests {
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
-        let (opamp_builder, instance_id_getter) = k8s_agent_get_common_mocks(true);
+        let (opamp_builder, instance_id_getter) =
+            k8s_agent_get_common_mocks(agent_identity.clone(), true);
 
         let k8s_config = K8sConfig {
             cluster_name: TEST_CLUSTER_NAME.to_string(),
@@ -337,6 +339,7 @@ pub mod tests {
     }
 
     pub fn k8s_agent_get_common_mocks(
+        agent_identity: AgentIdentity,
         opamp_builder_fails: bool,
     ) -> (MockOpAMPClientBuilder, MockInstanceIDGetter) {
         let instance_id: InstanceID =
@@ -349,7 +352,7 @@ pub mod tests {
         if opamp_builder_fails {
             opamp_builder
                 .expect_build_and_start()
-                .return_once(move |_, _, _| {
+                .return_once(move |_, _, _, _| {
                     Err(OpAMPClientBuilderError::HttpClientBuilderError(
                         HttpClientBuilderError::BuildingError("error".into()),
                     ))
@@ -360,7 +363,8 @@ pub mod tests {
 
         // instance id getter mock
         let mut instance_id_getter = MockInstanceIDGetter::new();
-        instance_id_getter.should_get(&AgentID::AgentControl, instance_id.clone());
+        instance_id_getter.should_get(&agent_identity.id, instance_id.clone());
+        instance_id_getter.should_get(&AgentID::AgentControl, instance_id);
 
         (opamp_builder, instance_id_getter)
     }

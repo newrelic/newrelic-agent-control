@@ -41,6 +41,7 @@ where
 
     opamp_builder.build_and_start(
         agent_identity.clone(),
+        instance_id_getter.get(&agent_identity.id)?,
         additional_identifying_attributes,
         non_identifying_attributes,
     )

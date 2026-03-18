@@ -29,7 +29,7 @@ use crate::k8s::client::SyncK8sClient;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderImpl};
 use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilderImpl;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
-use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
+use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
 use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
 use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
@@ -109,25 +109,23 @@ impl AgentControlRunner {
         ));
 
         let opamp_builder = self.opamp.clone().map(|config| {
-            let poll_interval = config.poll_interval;
-            let http_builder =
-                OpAMPHttpClientBuilder::new(config, self.proxy.clone(), secret_retriever);
-            let loader = EffectiveConfigLoaderBuilderImpl::new(yaml_config_repository.clone());
             OpAMPClientBuilderImpl::new(
-                poll_interval,
-                http_builder,
-                loader,
-                instance_id_getter.clone(),
+                config.poll_interval,
+                OpAMPHttpClientBuilder::new(config, self.proxy.clone(), secret_retriever),
+                EffectiveConfigLoaderBuilderImpl::new(yaml_config_repository.clone()),
             )
         });
 
         // Build and start AC OpAMP client
         let (maybe_client, maybe_opamp_consumer) = opamp_builder
             .as_ref()
-            .map(|builder| {
+            .map(|builder| -> Result<_, _> {
                 info!("Starting Agent Control OpAMP client");
+                let agent_identity = AgentIdentity::new_agent_control_identity();
+                let instance_id = instance_id_getter.get(&agent_identity.id)?;
                 builder.build_and_start(
-                    AgentIdentity::new_agent_control_identity(),
+                    agent_identity,
+                    instance_id,
                     additional_identifying_attributes,
                     non_identifying_attributes,
                 )

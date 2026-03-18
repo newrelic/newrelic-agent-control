@@ -182,6 +182,7 @@ mod tests {
     #[test]
     fn test_build_with_opamp() {
         let agent_control_instance_id = InstanceID::create();
+        let sub_agent_instance_id = InstanceID::create();
         let agent_identity = AgentIdentity::from((
             AgentID::try_from("infra-agent").unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
@@ -195,6 +196,7 @@ mod tests {
         );
 
         let mut instance_id_getter = MockInstanceIDGetter::new();
+        instance_id_getter.should_get(&agent_identity.id, sub_agent_instance_id.clone());
         instance_id_getter.should_get(&AgentID::AgentControl, agent_control_instance_id.clone());
 
         let supervisor_builder =
