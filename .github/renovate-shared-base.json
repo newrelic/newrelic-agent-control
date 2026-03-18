@@ -36,14 +36,36 @@
     }
   ],
   "packageRules": [
-    // Auto-merge minor/patch updates for stable dependencies
     {
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    // Auto-merge minor updates only for stable dependencies
+    {
+      "matchUpdateTypes": ["minor"],
       "matchCurrentVersion": ">=1.0.0",
       "automerge": true
+    },
+    // Auto-merge minor updates for cargo are more permissive, we will merge them
+    // unless they are in the deny list in the next rule
+    {
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["minor"],
+      "automerge": true
+    },
+    {
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["minor"],
+      "matchPackageNames": [
+        "/^opentelemetry/",
+        "/^tracing/",
+        "reqwest",
+        "prost",
+        "nix",
+        "oci-client",
+        "crossbeam"
+      ],
+      "automerge": false
     },
     {
       "groupName": "github actions",
