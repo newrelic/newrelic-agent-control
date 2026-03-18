@@ -9,7 +9,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum RegexValidatorError {
-    #[error("invalid config: restricted values detected in the config by the regex rule: {0}")]
+    #[error(
+        "invalid config: restricted values detected in the config by the regex rule: {0} is not allowed"
+    )]
     InvalidConfig(String),
 
     #[error("error compiling regex: {0}")]
@@ -25,7 +27,7 @@ pub(super) struct AgentTypeFQNName(String);
 /// because we leave that kind of error handling to the store_remote_config_hash_and_values
 /// on the event_processor.
 pub struct RegexValidator {
-    rules: HashMap<AgentTypeFQNName, HashMap<String, Regex>>,
+    rules: HashMap<AgentTypeFQNName, Vec<(String, Regex)>>,
 }
 
 impl RemoteConfigValidator for RegexValidator {
@@ -51,22 +53,28 @@ impl RegexValidator {
         Ok(Self {
             rules: HashMap::from([(
                 AgentTypeFQNName(AGENT_TYPE_NAME_INFRA_AGENT.to_string()),
-                HashMap::from([
+                vec![
                     (
-                        "command_field".to_string(),
+                        "arbitrary command execution via 'command' field".to_string(),
                         Regex::new(REGEX_COMMAND_FIELD)?,
                     ),
-                    ("exec_field".to_string(), Regex::new(REGEX_EXEC_FIELD)?),
                     (
-                        "binary_path_field".to_string(),
+                        "arbitrary command execution via 'exec' field".to_string(),
+                        Regex::new(REGEX_EXEC_FIELD)?,
+                    ),
+                    (
+                        "arbitrary command execution via 'binary_path' field".to_string(),
                         Regex::new(REGEX_BINARY_PATH_FIELD)?,
                     ),
-                    ("nri_flex".to_string(), Regex::new(REGEX_NRI_FLEX)?),
                     (
-                        "proxy_env_var".to_string(),
+                        "nri-flex integration usage".to_string(),
+                        Regex::new(REGEX_NRI_FLEX)?,
+                    ),
+                    (
+                        "setting environment variables '${nr-env:HTTP_PROXY}' or '{{PROXY_HOST}}' in proxy configuration".to_string(),
                         Regex::new(REGEX_PROXY_ENV_VAR)?,
                     ),
-                ]),
+                ],
             )]),
         })
     }
@@ -231,7 +239,7 @@ pub(super) mod tests {
         let validation_result = validator.validate(&agent_identity, &remote_config);
         assert_eq!(
             validation_result.unwrap_err().to_string(),
-            "invalid config: restricted values detected in the config by the regex rule: exec_field"
+            "invalid config: restricted values detected in the config by the regex rule: arbitrary command execution via 'exec' field is not allowed"
         );
     }
 
