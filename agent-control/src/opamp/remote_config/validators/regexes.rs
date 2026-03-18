@@ -9,9 +9,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum RegexValidatorError {
-    #[error(
-        "invalid config: restricted values detected in the config by the regex rule: {0} is not allowed"
-    )]
+    #[error("invalid config: restricted values detected in the config: {0} is not allowed")]
     InvalidConfig(String),
 
     #[error("error compiling regex: {0}")]
@@ -67,7 +65,7 @@ impl RegexValidator {
                         Regex::new(REGEX_BINARY_PATH_FIELD)?,
                     ),
                     (
-                        "nri-flex integration usage".to_string(),
+                        "'nri-flex' integration usage".to_string(),
                         Regex::new(REGEX_NRI_FLEX)?,
                     ),
                     (
@@ -239,7 +237,7 @@ pub(super) mod tests {
         let validation_result = validator.validate(&agent_identity, &remote_config);
         assert_eq!(
             validation_result.unwrap_err().to_string(),
-            "invalid config: restricted values detected in the config by the regex rule: arbitrary command execution via 'exec' field is not allowed"
+            "invalid config: restricted values detected in the config: arbitrary command execution via 'exec' field is not allowed"
         );
     }
 
