@@ -104,7 +104,7 @@ impl AgentControlRunner {
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
-        let opamp_builder = maybe_opamp.map(|config| {
+        let opamp_client_builder = maybe_opamp.map(|config| {
             OpAMPClientBuilder::new(
                 config.poll_interval,
                 OpAMPHttpClientBuilder::new(
@@ -117,7 +117,7 @@ impl AgentControlRunner {
         });
 
         // Build and start AC OpAMP client
-        let (maybe_client, maybe_opamp_consumer) = opamp_builder
+        let (maybe_client, maybe_opamp_consumer) = opamp_client_builder
             .as_ref()
             .map(|builder| -> Result<_, _> {
                 info!("Starting Agent Control OpAMP client");
@@ -177,7 +177,8 @@ impl AgentControlRunner {
 
         let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
 
-        let opamp_builder = opamp_builder.map(|builder| builder.with_startup_check_disabled());
+        let opamp_builder =
+            opamp_client_builder.map(|builder| builder.with_startup_check_disabled());
 
         let sub_agent_builder = K8sSubAgentBuilder {
             opamp_builder: opamp_builder.as_ref(),
