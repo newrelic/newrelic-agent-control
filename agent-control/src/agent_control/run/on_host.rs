@@ -17,8 +17,8 @@ use crate::checkers::health::noop::NoOpHealthChecker;
 use crate::event::channel::pub_sub;
 use crate::oci;
 use crate::on_host::file_store::FileStore;
-use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
-use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
+use crate::opamp::client_builder::OpAMPClientBuilder;
+use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilder;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
@@ -106,14 +106,14 @@ impl AgentControlRunner {
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
         let opamp_client_builder = maybe_opamp.map(|config| {
-            DefaultOpAMPClientBuilder::new(
+            OpAMPClientBuilder::new(
                 config.poll_interval,
                 OpAMPHttpClientBuilder::new(
                     config,
                     self.bootstrap_config.proxy.clone(),
                     secret_retriever,
                 ),
-                DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
+                EffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
             )
         });
 

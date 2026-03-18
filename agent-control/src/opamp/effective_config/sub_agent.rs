@@ -1,5 +1,5 @@
 use super::error::LoaderError;
-use super::loader::EffectiveConfigLoader;
+use super::loader::LoadEffectiveConfig;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::default_capabilities;
 use crate::opamp::remote_config::ConfigurationMap;
@@ -29,7 +29,7 @@ where
     }
 }
 
-impl<Y> EffectiveConfigLoader for SubAgentEffectiveConfigLoader<Y>
+impl<Y> LoadEffectiveConfig for SubAgentEffectiveConfigLoader<Y>
 where
     Y: ConfigRepository,
 {
@@ -65,7 +65,7 @@ where
 mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::default_capabilities;
-    use crate::opamp::effective_config::loader::EffectiveConfigLoader;
+    use crate::opamp::effective_config::loader::LoadEffectiveConfig;
     use crate::opamp::effective_config::sub_agent::SubAgentEffectiveConfigLoader;
     use crate::opamp::remote_config::ConfigurationMap;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};

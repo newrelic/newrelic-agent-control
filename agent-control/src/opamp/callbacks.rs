@@ -1,4 +1,4 @@
-use super::effective_config::{error::EffectiveConfigError, loader::EffectiveConfigLoader};
+use super::effective_config::{error::EffectiveConfigError, loader::LoadEffectiveConfig};
 use crate::agent_control::agent_id::AgentID;
 use crate::opamp::remote_config::{
     ConfigurationMap, OpampRemoteConfig, OpampRemoteConfigError,
@@ -45,7 +45,7 @@ pub enum AgentCallbacksError {
 /// This component implements the OpAMP client callbacks process the messages and publish events on `crate::event::OpAMPEvent`.
 pub struct AgentCallbacks<C>
 where
-    C: EffectiveConfigLoader,
+    C: LoadEffectiveConfig,
 {
     agent_id: AgentID,
     publisher: EventPublisher<OpAMPEvent>,
@@ -54,7 +54,7 @@ where
 
 impl<C> AgentCallbacks<C>
 where
-    C: EffectiveConfigLoader,
+    C: LoadEffectiveConfig,
 {
     pub fn new(
         agent_id: AgentID,
@@ -171,7 +171,7 @@ where
 
 impl<C> Callbacks for AgentCallbacks<C>
 where
-    C: EffectiveConfigLoader,
+    C: LoadEffectiveConfig,
 {
     type Error = AgentCallbacksError;
 

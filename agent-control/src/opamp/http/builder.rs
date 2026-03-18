@@ -116,7 +116,7 @@ pub(crate) mod tests {
         agent_control::agent_id::AgentID,
         event::channel::pub_sub,
         opamp::{
-            client_builder::{DefaultOpAMPClientBuilder, OpAMPClientBuilder},
+            client_builder::{BuildOpAMPClient, OpAMPClientBuilder},
             effective_config::loader::tests::{
                 MockEffectiveConfigLoader, MockEffectiveConfigLoaderBuilder,
             },
@@ -166,7 +166,7 @@ pub(crate) mod tests {
             .once()
             .return_once(|| Ok(http_client));
 
-        let builder = DefaultOpAMPClientBuilder::new(
+        let builder = OpAMPClientBuilder::new(
             PollInterval::default(),
             http_builder,
             effective_config_loader_builder,
@@ -197,7 +197,7 @@ pub(crate) mod tests {
             )))
         });
 
-        let builder = DefaultOpAMPClientBuilder::new(
+        let builder = OpAMPClientBuilder::new(
             PollInterval::default(),
             http_builder,
             effective_config_loader_builder,
