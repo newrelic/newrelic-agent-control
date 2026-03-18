@@ -101,10 +101,8 @@ impl AgentControlRunner {
             agent_control_additional_opamp_identifying_attributes(&k8s_config);
 
         let instance_id_storer = Storer::from(k8s_store.clone());
-        let instance_id_getter = Arc::new(InstanceIDWithIdentifiersGetter::new(
-            instance_id_storer,
-            identifiers,
-        ));
+        let instance_id_getter =
+            InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
         let opamp_builder = maybe_opamp.map(|config| {
             OpAMPClientBuilder::new(
@@ -183,7 +181,7 @@ impl AgentControlRunner {
 
         let sub_agent_builder = K8sSubAgentBuilder {
             opamp_builder: opamp_builder.as_ref(),
-            instance_id_getter: instance_id_getter.as_ref(),
+            instance_id_getter: &instance_id_getter,
             k8s_config: self
                 .bootstrap_config
                 .k8s

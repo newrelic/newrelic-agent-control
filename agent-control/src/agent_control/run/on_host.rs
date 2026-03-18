@@ -102,10 +102,8 @@ impl AgentControlRunner {
         )]);
 
         let instance_id_storer = Storer::from(file_store);
-        let instance_id_getter = Arc::new(InstanceIDWithIdentifiersGetter::new(
-            instance_id_storer,
-            identifiers,
-        ));
+        let instance_id_getter =
+            InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
         let opamp_builder = maybe_opamp.map(|config| {
             OpAMPClientBuilder::new(
@@ -201,7 +199,7 @@ impl AgentControlRunner {
 
         let sub_agent_builder = OnHostSubAgentBuilder {
             opamp_builder: opamp_builder.as_ref(),
-            instance_id_getter: instance_id_getter.as_ref(),
+            instance_id_getter: &instance_id_getter,
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(remote_config_parser),
             yaml_config_repository,
