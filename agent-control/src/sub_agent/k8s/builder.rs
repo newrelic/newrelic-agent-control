@@ -16,7 +16,7 @@ use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::values::config_repository::ConfigRepository;
 use crate::{
-    opamp::client_builder::OpAMPClientBuilder,
+    opamp::client_builder::BuildOpAMPClient,
     sub_agent::k8s::supervisor::NotStartedSupervisorK8s,
     sub_agent::{SubAgentBuilder, error::SubAgentBuilderError},
 };
@@ -27,7 +27,7 @@ use tracing::{debug, instrument};
 
 pub struct K8sSubAgentBuilder<'a, O, I, B, R, Y, A>
 where
-    O: OpAMPClientBuilder,
+    O: BuildOpAMPClient,
     I: InstanceIDGetter,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
@@ -47,7 +47,7 @@ where
 
 impl<O, I, B, R, Y, A> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, B, R, Y, A>
 where
-    O: OpAMPClientBuilder + Send + Sync + 'static,
+    O: BuildOpAMPClient + Send + Sync + 'static,
     I: InstanceIDGetter,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,

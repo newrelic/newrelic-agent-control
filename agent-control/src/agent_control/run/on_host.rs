@@ -1,6 +1,5 @@
 use crate::agent_control::AgentControl;
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
-use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
@@ -8,18 +7,19 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
-use crate::agent_control::run::{AgentControlRunner, Environment, RunError};
+use crate::agent_control::run::{
+    AgentControlRunner, Environment, RunError, setup_config_repository_and_store,
+};
 use crate::agent_control::version_updater::updater::NoOpUpdater;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::checkers::health::noop::NoOpHealthChecker;
 use crate::event::channel::pub_sub;
-use crate::http::client::HttpClient;
-use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::oci;
 use crate::on_host::file_store::FileStore;
-use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderImpl};
-use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilderImpl;
+use crate::opamp::client_builder::BuildOpAMPClient;
+use crate::opamp::client_builder::OpAMPClientBuilder;
+use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilder;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
 use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
@@ -36,17 +36,15 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
-use crate::values::ConfigRepo;
 use fs::directory_manager::DirectoryManagerFs;
 use oci_client::client::ClientConfig;
 #[cfg(debug_assertions)]
 use oci_client::client::ClientProtocol;
 use opamp_client::operation::settings::DescriptionValueType;
-use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tracing::{debug, info};
+use tracing::info;
 
 pub const HOST_ID_VARIABLE_NAME: &str = "host_id";
 #[cfg(debug_assertions)]
@@ -58,7 +56,7 @@ pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Windows;
 pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Linux;
 
 impl AgentControlRunner {
-    pub(super) fn run_onhost(self) -> Result<(), RunError> {
+    pub fn run_onhost(self) -> Result<(), RunError> {
         let local_dir = self.base_paths.local_dir;
         let remote_dir = self.base_paths.remote_dir;
         let file_store = Arc::new(FileStore::new_local_fs(
@@ -66,21 +64,16 @@ impl AgentControlRunner {
             remote_dir.clone(),
         ));
 
+        let maybe_opamp = self.bootstrap_config.fleet_control;
+
         let secret_retriever = OnHostSecretRetriever::new(
-            self.opamp.clone(),
+            maybe_opamp.clone(),
             local_dir.clone(),
             FileSecretProvider::new(),
         );
 
-        debug!("Initializing yaml_config_repository");
-        let config_repository = ConfigRepo::new(file_store.clone());
-        let yaml_config_repository = Arc::new(if self.opamp.is_some() {
-            config_repository.with_remote()
-        } else {
-            config_repository
-        });
-
-        let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
+        let (yaml_config_repository, config_storer) =
+            setup_config_repository_and_store(file_store.clone(), maybe_opamp.is_some());
         let agent_control_config = config_storer
             .load()
             .map_err(|err| RunError(format!("failed to load Agent Control config: {err}")))?;
@@ -91,15 +84,8 @@ impl AgentControlRunner {
             .map(|c| c.fleet_id.to_string())
             .unwrap_or_default();
 
-        let http_client = HttpClient::new(HttpConfig::new(
-            DEFAULT_CLIENT_TIMEOUT,
-            DEFAULT_CLIENT_TIMEOUT,
-            // The default value of proxy configuration is an empty proxy config without any rule
-            ProxyConfig::default(),
-        ))
-        .map_err(|err| RunError(format!("failed to create http client: {err}")))?;
-
-        let identifiers_provider = IdentifiersProvider::new(http_client)
+        let identifiers_provider = IdentifiersProvider::try_default()
+            .map_err(|err| RunError(format!("failed to build the identifiers provider: {err}")))?
             .with_host_id(agent_control_config.host_id.to_string())
             .with_fleet_id(fleet_id);
 
@@ -121,11 +107,15 @@ impl AgentControlRunner {
             identifiers,
         ));
 
-        let opamp_builder = self.opamp.clone().map(|config| {
-            OpAMPClientBuilderImpl::new(
+        let opamp_builder = maybe_opamp.map(|config| {
+            OpAMPClientBuilder::new(
                 config.poll_interval,
-                OpAMPHttpClientBuilder::new(config, self.proxy.clone(), secret_retriever),
-                EffectiveConfigLoaderBuilderImpl::new(yaml_config_repository.clone()),
+                OpAMPHttpClientBuilder::new(
+                    config,
+                    self.bootstrap_config.proxy.clone(),
+                    secret_retriever,
+                ),
+                EffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
             )
         });
 
@@ -165,7 +155,7 @@ impl AgentControlRunner {
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             self.agent_type_registry.clone(),
             template_renderer,
-            self.agent_type_var_constraints,
+            self.bootstrap_config.agent_type_var_constraints,
             secrets_providers,
             &remote_dir,
         ));
@@ -177,8 +167,12 @@ impl AgentControlRunner {
             ..Default::default()
         };
 
-        let oci_client = oci::Client::try_new(oci_client_config, self.proxy, self.runtime.clone())
-            .map_err(|err| RunError(format!("failed to create the OciClient: {err}")))?;
+        let oci_client = oci::Client::try_new(
+            oci_client_config,
+            self.bootstrap_config.proxy,
+            self.runtime.clone(),
+        )
+        .map_err(|err| RunError(format!("failed to create the OciClient: {err}")))?;
 
         let packages_downloader = OCIArtifactDownloader::new(
             oci_client,
@@ -213,7 +207,7 @@ impl AgentControlRunner {
             yaml_config_repository,
             effective_agents_assembler: agents_assembler,
             sub_agent_publisher: self.sub_agent_publisher,
-            ac_running_mode: self.ac_running_mode,
+            ac_running_mode: self.running_mode,
         };
 
         let dynamic_config_validator =

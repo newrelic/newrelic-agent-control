@@ -5,7 +5,7 @@ use crate::agent_control::run::Environment;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
-use crate::opamp::client_builder::OpAMPClientBuilder;
+use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::package::manager::PackageManager;
@@ -27,7 +27,7 @@ use tracing::{debug, instrument};
 
 pub struct OnHostSubAgentBuilder<'a, O, I, B, R, Y, A>
 where
-    O: OpAMPClientBuilder,
+    O: BuildOpAMPClient,
     I: InstanceIDGetter,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
@@ -46,7 +46,7 @@ where
 
 impl<O, I, B, R, Y, A> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, B, R, Y, A>
 where
-    O: OpAMPClientBuilder + Send + Sync + 'static,
+    O: BuildOpAMPClient + Send + Sync + 'static,
     I: InstanceIDGetter,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,

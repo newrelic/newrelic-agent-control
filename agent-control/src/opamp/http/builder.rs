@@ -115,7 +115,7 @@ pub(crate) mod tests {
     use crate::opamp::client_builder::{OpAMPClientBuilderError, PollInterval};
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::{
-        client_builder::{OpAMPClientBuilder, OpAMPClientBuilderImpl},
+        client_builder::{BuildOpAMPClient, OpAMPClientBuilder},
         effective_config::loader::tests::{
             MockEffectiveConfigLoader, MockEffectiveConfigLoaderBuilder,
         },
@@ -162,7 +162,7 @@ pub(crate) mod tests {
             .once()
             .return_once(|| Ok(http_client));
 
-        let builder = OpAMPClientBuilderImpl::new(
+        let builder = OpAMPClientBuilder::new(
             PollInterval::default(),
             http_builder,
             effective_config_loader_builder,
@@ -194,7 +194,7 @@ pub(crate) mod tests {
             )))
         });
 
-        let builder = OpAMPClientBuilderImpl::new(
+        let builder = OpAMPClientBuilder::new(
             PollInterval::default(),
             http_builder,
             effective_config_loader_builder,

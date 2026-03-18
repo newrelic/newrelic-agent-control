@@ -6,7 +6,7 @@
 
 use newrelic_agent_control::agent_control::run::AgentControlRunner;
 use newrelic_agent_control::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
-use newrelic_agent_control::command::{Command, RunContext};
+use newrelic_agent_control::command::{Command, Context};
 use std::error::Error;
 use std::process::ExitCode;
 
@@ -36,12 +36,9 @@ fn main() -> ExitCode {
 /// could not read Agent Control config from /invalid/path: error loading the agent control config: \`error retrieving config: \`missing field \`agents\`\`\`
 /// Error: ConfigRead(LoadConfigError(ConfigError(missing field \`agents\`)))
 /// ```
-fn _main(run_context: RunContext) -> Result<(), Box<dyn Error>> {
+fn _main(context: Context) -> Result<(), Box<dyn Error>> {
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-    AgentControlRunner::new(
-        run_context.run_config,
-        run_context.application_event_consumer,
-    )?
-    .run()
-    .map_err(|e| e.into())
+    AgentControlRunner::try_new(context.ac_runner_context)?
+        .run_k8s()
+        .map_err(|e| e.into())
 }

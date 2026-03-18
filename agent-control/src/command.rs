@@ -3,12 +3,12 @@
 //! Parses the command line arguments and decides how the application runs as defined in [Command].
 #![warn(missing_docs)]
 
-use crate::agent_control::config::K8sConfig;
+use crate::agent_control::config::AgentControlConfig;
 use crate::agent_control::defaults::ENVIRONMENT_VARIABLES_FILE_NAME;
 use crate::agent_control::run::Environment;
 use crate::agent_control::{
     config_repository::{repository::AgentControlConfigLoader, store::AgentControlConfigStore},
-    run::{AgentControlRunConfig, BasePaths},
+    run::BasePaths,
 };
 use crate::event::ApplicationEvent;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
@@ -30,9 +30,6 @@ pub mod windows;
 /// All possible errors that can happen while running the initialization.
 #[derive(Debug, thiserror::Error)]
 pub enum InitError {
-    /// K8s config is missing
-    #[error("k8s config missing while running on k8s")]
-    K8sConfig(),
     /// The config could not be read
     #[error("could not read Agent Control config from {0}: {1}")]
     LoaderError(String, String),
@@ -103,32 +100,42 @@ pub struct Args {
 }
 
 /// Context passed to the main loop, containing all initialized components.
-pub struct RunContext {
-    /// Configuration for the runner
-    pub run_config: AgentControlRunConfig,
+pub struct Context {
+    /// Context used to build and start [crate::agent_control::AgentControl]
+    pub ac_runner_context: RunnerContext,
     /// This must be kept alive for the duration of the program to ensure logs and traces are flushed.
     pub tracer: Vec<TracingGuardBox>,
-    /// The consuming end of the internal application event bus.
-    pub application_event_consumer: EventConsumer<ApplicationEvent>,
     /// A handler used to signal the application to stop when running as a Windows Service
     #[cfg(target_family = "windows")]
     pub stop_handler: Option<windows::WindowsServiceStopHandler>,
 }
 
+/// Runtime information used to build and start agent control
+pub struct RunnerContext {
+    /// Agent Control bootstrap configuration (built with runtime information but with no remote)
+    pub bootstrap_config: AgentControlConfig,
+    /// Agent Control directories where configuration and logs are stored
+    pub base_paths: BasePaths,
+    /// Running mode for the supported implementations as defined in [Environment].
+    pub running_mode: Environment,
+    /// The consuming end of the internal application event bus.
+    pub application_event_consumer: EventConsumer<ApplicationEvent>,
+}
+
 impl Command {
     /// Runs the provided main function or shows the binary information according to commands
     pub fn execute<F>(
-        ac_running_mode: Environment,
+        running_mode: Environment,
         main_fn: F,
         #[cfg(target_os = "windows")] as_windows_service: bool,
     ) -> ExitCode
     where
-        F: FnOnce(RunContext) -> Result<(), Box<dyn Error>>,
+        F: FnOnce(Context) -> Result<(), Box<dyn Error>>,
     {
         let parsed = Command::parse();
 
         match parsed.subcommand {
-            Some(SubCommand::Version) => Command::print_version(ac_running_mode),
+            Some(SubCommand::Version) => Command::print_version(running_mode),
             Some(SubCommand::Verify) => {
                 //todo
                 ExitCode::SUCCESS
@@ -136,7 +143,7 @@ impl Command {
             None => {
                 // For backward compatibility, default to Run command using flattened args
                 Command::run(
-                    ac_running_mode,
+                    running_mode,
                     main_fn,
                     &parsed.args,
                     #[cfg(target_os = "windows")]
@@ -147,23 +154,23 @@ impl Command {
     }
 
     /// Handles the version command
-    fn print_version(ac_running_mode: Environment) -> ExitCode {
-        println!("{}", binary_metadata(ac_running_mode));
+    fn print_version(running_mode: Environment) -> ExitCode {
+        println!("{}", binary_metadata(running_mode));
         ExitCode::SUCCESS
     }
 
     /// Handles the run command
     fn run<F>(
-        ac_running_mode: Environment,
+        running_mode: Environment,
         main_fn: F,
         args: &Args,
         #[cfg(target_os = "windows")] as_windows_service: bool,
     ) -> ExitCode
     where
-        F: FnOnce(RunContext) -> Result<(), Box<dyn Error>>,
+        F: FnOnce(Context) -> Result<(), Box<dyn Error>>,
     {
-        match Command::build_run_context(
-            ac_running_mode,
+        match Command::build_context(
+            running_mode,
             args,
             #[cfg(target_os = "windows")]
             as_windows_service,
@@ -187,12 +194,12 @@ impl Command {
         }
     }
 
-    /// Builds the complete RunContext required to execute the Run command
-    fn build_run_context(
-        ac_running_mode: Environment,
+    /// Builds the complete context required to execute the application
+    fn build_context(
+        running_mode: Environment,
         args: &Args,
         #[cfg(target_os = "windows")] as_windows_service: bool,
-    ) -> Result<RunContext, Box<dyn Error>> {
+    ) -> Result<Context, Box<dyn Error>> {
         let base_paths = BasePaths::default();
 
         // Initialize debug directories (if set)
@@ -218,31 +225,40 @@ impl Command {
                 .map_err(|e| format!("Failed to load environment: {e}"))?;
         }
 
-        let (run_config, tracing_config) = Self::build_run_config(ac_running_mode, base_paths)?;
+        let config_folder_name = base_paths.local_dir.display().to_string();
+        let bootstrap_config = Self::build_bootstrap_config(&base_paths)?;
 
+        let tracing_config = TracingConfig::from_logging_path(base_paths.log_dir.clone())
+            .with_logging_config(bootstrap_config.log.clone())
+            .with_instrumentation_config(
+                bootstrap_config
+                    .self_instrumentation
+                    .clone()
+                    .with_proxy_config(bootstrap_config.proxy.clone()),
+            );
         let tracer = try_init_tracing(tracing_config)
             .map_err(|e| format!("Error on Agent Control tracing initialization: {e}"))?;
 
-        info!("{}", binary_metadata(run_config.ac_running_mode));
-        info!(
-            "Starting NewRelic Agent Control with config folder '{}'",
-            run_config.base_paths.local_dir.to_string_lossy()
-        );
+        info!("{}", binary_metadata(running_mode));
+        info!("Starting NewRelic Agent Control with config folder '{config_folder_name}'",);
 
-        Ok(RunContext {
-            run_config,
+        Ok(Context {
+            ac_runner_context: RunnerContext {
+                bootstrap_config,
+                base_paths,
+                running_mode,
+                application_event_consumer,
+            },
             tracer,
-            application_event_consumer,
             #[cfg(target_family = "windows")]
             stop_handler,
         })
     }
 
     /// Builds the Agent Control configuration required to execute the application.
-    fn build_run_config(
-        ac_running_mode: Environment,
-        base_paths: BasePaths,
-    ) -> Result<(AgentControlRunConfig, TracingConfig), InitError> {
+    /// Besides loading the configuration, it resolves specific environment variables that need to be resolved
+    /// at runtime.
+    fn build_bootstrap_config(base_paths: &BasePaths) -> Result<AgentControlConfig, InitError> {
         let file_store = Arc::new(FileStore::new_local_fs(
             base_paths.local_dir.clone(),
             base_paths.remote_dir.clone(),
@@ -253,7 +269,8 @@ impl Command {
         // In the K8s such config is used create the k8s client to create the storer that reads configs from configMaps.
         // The real configStores are created in the run fn, the onhost reads file, the k8s one reads configMaps.
         let agent_control_config_repository = ConfigRepo::new(file_store);
-        let agent_control_config =
+
+        let mut agent_control_config =
             AgentControlConfigStore::new(Arc::new(agent_control_config_repository))
                 .load()
                 .map_err(|err| {
@@ -263,38 +280,13 @@ impl Command {
                     )
                 })?;
 
-        let proxy = agent_control_config
+        agent_control_config.proxy = agent_control_config
             .proxy
+            .clone()
             .try_with_url_from_env()
             .map_err(|err| InitError::InvalidConfig(err.to_string()))?;
 
-        let tracing_config = TracingConfig::from_logging_path(base_paths.log_dir.clone())
-            .with_logging_config(agent_control_config.log)
-            .with_instrumentation_config(
-                agent_control_config
-                    .self_instrumentation
-                    .with_proxy_config(proxy.clone()),
-            );
-
-        let opamp = agent_control_config.fleet_control;
-        let http_server = agent_control_config.server;
-        let agent_type_var_constraints = agent_control_config.agent_type_var_constraints;
-
-        let run_config = AgentControlRunConfig {
-            ac_running_mode,
-            opamp,
-            http_server,
-            base_paths,
-            proxy,
-            k8s_config: match ac_running_mode {
-                // This config is not used on the OnHost environment, a blank config is used.
-                // K8sConfig has not "default" since cluster_name is a required.
-                Environment::K8s => agent_control_config.k8s.ok_or(InitError::K8sConfig())?,
-                _ => K8sConfig::default(),
-            },
-            agent_type_var_constraints,
-        };
-        Ok((run_config, tracing_config))
+        Ok(agent_control_config)
     }
 }
 

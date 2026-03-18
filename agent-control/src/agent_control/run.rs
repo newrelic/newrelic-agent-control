@@ -1,22 +1,23 @@
-use super::config::{K8sConfig, OpAMPClientConfig};
 use super::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
     DYNAMIC_AGENT_TYPE_DIR,
 };
-use super::http_server::config::ServerConfig;
+use crate::agent_control::config::AgentControlConfig;
+use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
-use crate::agent_type::variable::constraints::VariableConstraints;
+use crate::command::RunnerContext;
+use crate::data_store::DataStore;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
-use crate::http::config::ProxyConfig;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
+use crate::values::ConfigRepo;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tracing::{debug, error, info};
+use tracing::debug;
 
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
@@ -64,44 +65,28 @@ impl Default for BasePaths {
     }
 }
 
-/// Structures for running Agent Control provided by CLI inputs
-pub struct AgentControlRunConfig {
-    pub opamp: Option<OpAMPClientConfig>,
-    pub http_server: ServerConfig,
-    pub base_paths: BasePaths,
-    pub proxy: ProxyConfig,
-    pub k8s_config: K8sConfig,
-    pub agent_type_var_constraints: VariableConstraints,
-    pub ac_running_mode: Environment,
-}
-
 /// Structure with all the data required to run the agent control.
-///
-/// Fields are public just for testing. The object is destroyed right after is deleted,
-/// Therefore, we should be worried of any tampering after its creation.
 pub struct AgentControlRunner {
+    /// Config loaded at startup from local files. Used to bootstrap
+    /// the runner before the platform-specific (on-host/k8s) store is available.
+    /// Environment-specific `run()` methods re-load config from their
+    /// respective stores (file for on-host / ConfigMap for k8s) to get the corresponding config
+    /// including remote configuration when needed.
+    bootstrap_config: AgentControlConfig,
+
     agent_type_registry: Arc<EmbeddedRegistry>,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
     sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     signature_validator: SignatureValidator,
     base_paths: BasePaths,
-    k8s_config: K8sConfig,
     runtime: Arc<Runtime>,
-    ac_running_mode: Environment,
+    running_mode: Environment,
     http_server_runner: Option<Runner>,
-    agent_type_var_constraints: VariableConstraints,
-    proxy: ProxyConfig,
-    opamp: Option<OpAMPClientConfig>,
 }
 
 impl AgentControlRunner {
-    pub fn new(
-        config: AgentControlRunConfig,
-        application_event_consumer: EventConsumer<ApplicationEvent>,
-    ) -> Result<Self, Box<dyn Error>> {
-        debug!("initializing and starting the agent control");
-
+    pub fn try_new(context: RunnerContext) -> Result<Self, Box<dyn Error>> {
         let runtime = Arc::new(
             tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -110,56 +95,66 @@ impl AgentControlRunner {
 
         let mut agent_control_publisher = UnboundedBroadcast::default();
         let mut sub_agent_publisher = UnboundedBroadcast::default();
-        let http_server_runner = config.http_server.enabled.then(|| {
+        let http_server_runner = context.bootstrap_config.server.enabled.then(|| {
             let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
             let sub_agent_consumer = EventConsumer::from(sub_agent_publisher.subscribe());
             Runner::new(
-                config.http_server,
+                context.bootstrap_config.server.clone(),
                 runtime.clone(),
                 agent_control_consumer,
                 sub_agent_consumer,
-                config.opamp.clone(),
+                context.bootstrap_config.fleet_control.clone(),
             )
         });
 
         let agent_type_registry = Arc::new(EmbeddedRegistry::new(
-            config.base_paths.local_dir.join(DYNAMIC_AGENT_TYPE_DIR),
+            context.base_paths.local_dir.join(DYNAMIC_AGENT_TYPE_DIR),
         ));
 
-        let signature_validator = config
-            .opamp
+        let signature_validator = context
+            .bootstrap_config
+            .fleet_control
             .clone()
             .map(|fleet_config| {
-                SignatureValidator::new(fleet_config.signature_validation, config.proxy.clone())
+                SignatureValidator::new(
+                    fleet_config.signature_validation,
+                    context.bootstrap_config.proxy.clone(),
+                )
             })
             .transpose()?
             .unwrap_or(SignatureValidator::new_noop());
 
         Ok(AgentControlRunner {
+            bootstrap_config: context.bootstrap_config,
             http_server_runner,
             runtime,
-            k8s_config: config.k8s_config,
             agent_type_registry,
-            application_event_consumer,
+            application_event_consumer: context.application_event_consumer,
             agent_control_publisher,
             sub_agent_publisher,
-            base_paths: config.base_paths,
+            base_paths: context.base_paths,
             signature_validator,
-            ac_running_mode: config.ac_running_mode,
-            agent_type_var_constraints: config.agent_type_var_constraints,
-            proxy: config.proxy,
-            opamp: config.opamp,
+            running_mode: context.running_mode,
         })
     }
+}
 
-    pub fn run(self) -> Result<(), RunError> {
-        let run_result = match self.ac_running_mode {
-            Environment::Linux | Environment::Windows => self.run_onhost(),
-            Environment::K8s => self.run_k8s(),
-        };
+type RepositoryAndStore<D> = (
+    Arc<ConfigRepo<D>>,
+    Arc<AgentControlConfigStore<ConfigRepo<D>>>,
+);
 
-        run_result
-            .inspect_err(|e| error!("Agent Control Runner failed: {e}"))
-            .inspect(|_| info!("Exiting gracefully"))
+/// Helper to handle configuration repository and store for all running modes.
+fn setup_config_repository_and_store<D: DataStore + Send + Sync + 'static>(
+    data_store: Arc<D>,
+    with_remote: bool,
+) -> RepositoryAndStore<D> {
+    debug!("Initializing yaml_config_repository");
+    let mut repository = ConfigRepo::new(data_store);
+    if with_remote {
+        repository = repository.with_remote();
     }
+    let repository = Arc::new(repository);
+    let store = Arc::new(AgentControlConfigStore::new(repository.clone()));
+    (repository, store)
 }

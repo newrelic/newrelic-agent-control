@@ -1,5 +1,5 @@
 use super::callbacks::AgentCallbacks;
-use super::effective_config::loader::EffectiveConfigLoaderBuilder;
+use super::effective_config::loader::BuildEffectiveConfigLoader;
 use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
 use super::instance_id::getter::GetterError;
 use crate::event::OpAMPEvent;
@@ -37,7 +37,7 @@ pub enum OpAMPClientBuilderError {
     HttpClientBuilderError(#[from] HttpClientBuilderError),
 }
 
-pub trait OpAMPClientBuilder {
+pub trait BuildOpAMPClient {
     type Client: StartedClient + 'static;
 
     fn build_and_start(
@@ -49,9 +49,16 @@ pub trait OpAMPClientBuilder {
     ) -> Result<(Self::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>;
 }
 
-pub struct OpAMPClientBuilderImpl<C, B>
+type NotStartedOpAMPClient<B, C> = NotStartedHttpClient<
+    OpAMPHttpClient<
+        AgentCallbacks<<B as BuildEffectiveConfigLoader>::Loader>,
+        <C as HttpClientBuilder>::Client,
+    >,
+>;
+
+pub struct OpAMPClientBuilder<C, B>
 where
-    B: EffectiveConfigLoaderBuilder,
+    B: BuildEffectiveConfigLoader,
     C: HttpClientBuilder,
 {
     effective_config_loader_builder: B,
@@ -60,16 +67,9 @@ where
     disable_startup_check: bool,
 }
 
-type NotStartedOpAMPClient<B, C> = NotStartedHttpClient<
-    OpAMPHttpClient<
-        AgentCallbacks<<B as EffectiveConfigLoaderBuilder>::Loader>,
-        <C as HttpClientBuilder>::Client,
-    >,
->;
-
-impl<C, B> OpAMPClientBuilderImpl<C, B>
+impl<C, B> OpAMPClientBuilder<C, B>
 where
-    B: EffectiveConfigLoaderBuilder,
+    B: BuildEffectiveConfigLoader,
     C: HttpClientBuilder,
 {
     pub fn new(
@@ -124,17 +124,12 @@ where
     }
 }
 
-impl<C, B> OpAMPClientBuilder for OpAMPClientBuilderImpl<C, B>
+impl<C, B> BuildOpAMPClient for OpAMPClientBuilder<C, B>
 where
-    B: EffectiveConfigLoaderBuilder,
+    B: BuildEffectiveConfigLoader,
     C: HttpClientBuilder,
 {
-    type Client = StartedHttpClient<
-        OpAMPHttpClient<
-            AgentCallbacks<<B as EffectiveConfigLoaderBuilder>::Loader>,
-            <C as HttpClientBuilder>::Client,
-        >,
-    >;
+    type Client = StartedHttpClient<OpAMPHttpClient<AgentCallbacks<<B>::Loader>, <C>::Client>>;
 
     fn build_and_start(
         &self,
@@ -267,7 +262,7 @@ pub(crate) mod tests {
     mock! {
         pub OpAMPClientBuilder {}
 
-        impl OpAMPClientBuilder for OpAMPClientBuilder{
+        impl BuildOpAMPClient for OpAMPClientBuilder{
             type Client = MockStartedOpAMPClient;
 
             fn build_and_start(
@@ -276,7 +271,7 @@ pub(crate) mod tests {
                 instance_id: InstanceID,
                 additional_identifying_attributes: HashMap<String, DescriptionValueType>,
                 non_identifying_attributes: HashMap<String, DescriptionValueType>)
-            -> Result<(<Self as OpAMPClientBuilder>::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>;
+            -> Result<(<Self as BuildOpAMPClient>::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>;
         }
     }
 
