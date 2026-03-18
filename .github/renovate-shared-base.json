@@ -36,6 +36,15 @@
     }
   ],
   "packageRules": [
+    // Auto-merge minor/patch updates for stable dependencies
+    {
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "matchCurrentVersion": ">=1.0.0",
+      "automerge": true
+    },
     {
       "groupName": "github actions",
       "matchManagers": [
