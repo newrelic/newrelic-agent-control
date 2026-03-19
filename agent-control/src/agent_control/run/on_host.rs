@@ -2,13 +2,14 @@ use crate::agent_control::AgentControl;
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
+    FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY,
+    OS_ATTRIBUTE_VALUE,
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
 use crate::agent_control::run::{
-    AgentControlRunner, Environment, RunError, setup_config_repository_and_store,
+    AgentControlRunner, Environment, RunError, agent_control_opamp_version_attribute,
+    maybe_start_agent_control_opamp_client, setup_config_repository_and_store,
 };
 use crate::agent_control::version_updater::updater::NoOpUpdater;
 use crate::agent_type::render::TemplateRenderer;
@@ -17,14 +18,12 @@ use crate::checkers::health::noop::NoOpHealthChecker;
 use crate::event::channel::pub_sub;
 use crate::oci;
 use crate::on_host::file_store::FileStore;
-use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilder;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
-use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
+use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
 use crate::opamp::instance_id::storer::Storer;
-use crate::opamp::operations::start_settings;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::package::oci::downloader::OCIArtifactDownloader;
@@ -33,7 +32,6 @@ use crate::secret_retriever::on_host::retrieve::OnHostSecretRetriever;
 use crate::secrets_provider::SecretsProviders;
 use crate::secrets_provider::file::FileSecretProvider;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
-use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
@@ -104,7 +102,7 @@ impl AgentControlRunner {
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers.clone());
 
-        let opamp_client_builder = maybe_opamp.map(|config| {
+        let maybe_opamp_client_builder = maybe_opamp.map(|config| {
             OpAMPClientBuilder::new(
                 config.poll_interval,
                 OpAMPHttpClientBuilder::new(
@@ -117,27 +115,13 @@ impl AgentControlRunner {
         });
 
         // Build and start AC OpAMP client
-        let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
-            .as_ref()
-            .map(|builder| {
-                info!("Starting Agent Control OpAMP client");
-                let agent_identity = AgentIdentity::new_agent_control_identity();
-                let start_settings = start_settings(
-                    instance_id_getter.get(&agent_identity.id)?,
-                    &agent_identity,
-                    HashMap::from([(
-                        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-                        DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
-                    )]),
-                    agent_control_opamp_non_identifying_attributes(&identifiers),
-                );
-                builder.build_and_start(agent_identity, start_settings)
-            })
-            // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-            .transpose()
-            .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))?
-            .map(|(client, consumer)| (Some(client), Some(consumer)))
-            .unwrap_or_default();
+        let (maybe_client, maybe_sa_opamp_consumer) = maybe_start_agent_control_opamp_client(
+            maybe_opamp_client_builder.as_ref(),
+            &instance_id_getter,
+            agent_control_opamp_version_attribute(),
+            agent_control_opamp_non_identifying_attributes(&identifiers),
+        )?
+        .unzip();
 
         let template_renderer = TemplateRenderer::default()
             .with_agent_control_variables(agent_control_variables.clone().into_iter());
@@ -194,11 +178,11 @@ impl AgentControlRunner {
         ];
         let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
 
-        let opamp_builder =
-            opamp_client_builder.map(|builder| builder.with_startup_check_disabled());
+        let maybe_opamp_builder =
+            maybe_opamp_client_builder.map(|builder| builder.with_startup_check_disabled());
 
         let sub_agent_builder = OnHostSubAgentBuilder {
-            opamp_builder,
+            opamp_builder: maybe_opamp_builder,
             instance_id_getter,
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(remote_config_parser),
