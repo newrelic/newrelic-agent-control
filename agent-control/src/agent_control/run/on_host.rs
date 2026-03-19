@@ -283,7 +283,7 @@ pub fn start_ac_opamp_client(
         instance_id,
         &agent_identity,
         ac_identifying_attributes(),
-        ac_non_identifying_attributes(&identifiers),
+        ac_non_identifying_attributes(identifiers),
     );
 
     builder

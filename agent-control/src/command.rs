@@ -10,7 +10,8 @@ use crate::agent_control::{
     config_repository::{repository::AgentControlConfigLoader, store::AgentControlConfigStore},
     run::BasePaths,
 };
-use crate::cli::on_host::dry_run::opamp::check_connectivity;
+use crate::command::on_host_checks::config::check_config;
+use crate::command::on_host_checks::opamp::check_connectivity;
 use crate::event::ApplicationEvent;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
 use crate::instrumentation::tracing::{TracingConfig, TracingGuardBox, try_init_tracing};
@@ -24,6 +25,8 @@ use std::fmt::{Display, Formatter};
 use std::process::ExitCode;
 use std::sync::Arc;
 use tracing::{error, info};
+
+mod on_host_checks;
 
 #[cfg(target_os = "windows")]
 pub mod windows;
@@ -138,28 +141,10 @@ impl Command {
         match parsed.subcommand {
             Some(SubCommand::Version) => Command::print_version(running_mode),
             Some(SubCommand::Verify) => {
-                let result = Command::build_context(
-                    running_mode,
-                    &parsed.args,
-                    #[cfg(target_os = "windows")]
-                    false,
-                );
-                let Ok(context) = result else {
-                    println!(
-                        "Agent Control configuration verification failed: {}",
-                        result.err().unwrap()
-                    );
-                    return ExitCode::FAILURE;
-                };
-
-                if check_connectivity(context).is_err() {
-                    println!(
-                        "Agent Control connectivity verification failed. Please check the configuration and connectivity to dependencies."
-                    );
+                if let Err(err) = Command::verify(running_mode, &parsed.args) {
+                    println!("{err}");
                     return ExitCode::FAILURE;
                 }
-
-                println!("Agent Control configuration and connectivity verification succeeded.");
 
                 ExitCode::SUCCESS
             }
@@ -310,6 +295,20 @@ impl Command {
             .map_err(|err| InitError::InvalidConfig(err.to_string()))?;
 
         Ok(agent_control_config)
+    }
+
+    fn verify(running_mode: Environment, args: &Args) -> Result<(), Box<dyn std::error::Error>> {
+        let verified_config = check_config(running_mode, args)
+            .map_err(|err| format!("Configuration check failed: {err}"))?;
+
+        if verified_config.maybe_opamp.is_some() {
+            check_connectivity(verified_config)
+                .map_err(|err| format!("OpAMP connectivity check failed: {err}"))?;
+        } else {
+            info!("OpAMP configuration not found. Skipping OpAMP connectivity check.");
+        }
+
+        Ok(())
     }
 }
 
