@@ -18,10 +18,12 @@ use kube::{
     api::{Api, DeleteParams, TypeMeta},
 };
 use kube::{CustomResourceExt, ResourceExt};
+use newrelic_agent_control::k8s::Error;
 use newrelic_agent_control::k8s::Error::MissingAPIResource;
-use newrelic_agent_control::k8s::client::SyncK8sClient;
+use newrelic_agent_control::k8s::client::{
+    AsyncK8sClient, K8sNamespace, K8sObjectName, SyncK8sClient,
+};
 use newrelic_agent_control::k8s::utils::get_type_meta;
-use newrelic_agent_control::k8s::{Error, client::AsyncK8sClient};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -124,11 +126,21 @@ fn k8s_manage_dynamic_resource_multiple_namespaces() {
     check_number_of_dynamic_objects(&k8s_client, &tm, 1, &test_ns_1);
     check_number_of_dynamic_objects(&k8s_client, &tm, 1, &test_ns_2);
 
-    block_on(k8s_client.delete_dynamic_object(&tm, name_1, &test_ns_2)).unwrap();
+    block_on(k8s_client.delete_dynamic_object(
+        &tm,
+        K8sObjectName::new(name_1),
+        K8sNamespace::new(&test_ns_2),
+    ))
+    .unwrap();
     // No object should be deleted in the first namespace
     check_number_of_dynamic_objects(&k8s_client, &tm, 1, &test_ns_1);
 
-    block_on(k8s_client.delete_dynamic_object(&tm, name_1, &test_ns_1)).unwrap();
+    block_on(k8s_client.delete_dynamic_object(
+        &tm,
+        K8sObjectName::new(name_1),
+        K8sNamespace::new(&test_ns_1),
+    ))
+    .unwrap();
     check_number_of_dynamic_objects(&k8s_client, &tm, 0, &test_ns_1);
 }
 
@@ -181,7 +193,11 @@ async fn k8s_get_dynamic_resource() {
 
     assert!(
         k8s_client
-            .get_dynamic_object(&foo_type_meta(), cr_name, &test_ns)
+            .get_dynamic_object(
+                &foo_type_meta(),
+                K8sObjectName::new(cr_name),
+                K8sNamespace::new(&test_ns)
+            )
             .await
             .unwrap()
             .is_none(),
@@ -191,7 +207,11 @@ async fn k8s_get_dynamic_resource() {
     create_foo_cr(test.client.to_owned(), &test_ns, cr_name, None, None).await;
 
     let cr = k8s_client
-        .get_dynamic_object(&foo_type_meta(), cr_name, &test_ns)
+        .get_dynamic_object(
+            &foo_type_meta(),
+            K8sObjectName::new(cr_name),
+            K8sNamespace::new(&test_ns),
+        )
         .await
         .unwrap()
         .expect("The object should be found after creation");
@@ -208,7 +228,11 @@ async fn k8s_get_dynamic_resource() {
 
     assert!(
         k8s_client
-            .get_dynamic_object(&foo_type_meta(), cr_name, &test_ns)
+            .get_dynamic_object(
+                &foo_type_meta(),
+                K8sObjectName::new(cr_name),
+                K8sNamespace::new(&test_ns)
+            )
             .await
             .unwrap()
             .is_none(),
@@ -228,7 +252,11 @@ async fn k8s_dynamic_resource_has_changed() {
 
     assert!(
         k8s_client
-            .get_dynamic_object(&foo_type_meta(), cr_name, &test_ns)
+            .get_dynamic_object(
+                &foo_type_meta(),
+                K8sObjectName::new(cr_name),
+                K8sNamespace::new(&test_ns)
+            )
             .await
             .unwrap()
             .is_none(),
@@ -245,7 +273,11 @@ async fn k8s_dynamic_resource_has_changed() {
     .await;
 
     let cr = k8s_client
-        .get_dynamic_object(&foo_type_meta(), cr_name, &test_ns)
+        .get_dynamic_object(
+            &foo_type_meta(),
+            K8sObjectName::new(cr_name),
+            K8sNamespace::new(&test_ns),
+        )
         .await
         .unwrap()
         .expect("The object should be found after creation");
@@ -335,7 +367,11 @@ async fn k8s_dynamic_resource_has_changed_secret() {
 
     // Get the secret from the cluster (the content of `string_data` is encoded into `data`)
     let stored_secret = k8s_client
-        .get_dynamic_object(&secret_type_meta, secret_name, &test_ns)
+        .get_dynamic_object(
+            &secret_type_meta,
+            K8sObjectName::new(secret_name),
+            K8sNamespace::new(&test_ns),
+        )
         .await
         .unwrap()
         .expect("The secret should exist");
@@ -391,7 +427,11 @@ async fn k8s_delete_dynamic_resource() {
     let k8s_client = AsyncK8sClient::try_new().await.unwrap();
 
     k8s_client
-        .delete_dynamic_object(&foo_type_meta(), cr_name, &test_ns)
+        .delete_dynamic_object(
+            &foo_type_meta(),
+            K8sObjectName::new(cr_name),
+            K8sNamespace::new(&test_ns),
+        )
         .await
         .expect("Delete should not fail");
 
@@ -492,8 +532,8 @@ async fn k8s_patch_dynamic_resource() {
         k8s_client
             .patch_dynamic_object(
                 &foo_type_meta(),
-                cr_name,
-                &test_ns,
+                K8sObjectName::new(cr_name),
+                K8sNamespace::new(&test_ns),
                 serde_json::json!({
                     "spec": {
                         "data": "patched"
@@ -525,8 +565,8 @@ async fn k8s_patch_dynamic_resource() {
     let _ = k8s_client
         .patch_dynamic_object(
             &foo_type_meta(),
-            cr_name,
-            &test_ns,
+            K8sObjectName::new(cr_name),
+            K8sNamespace::new(&test_ns),
             serde_json::json!({
                 "spec": {
                     "data": "patched"
@@ -564,7 +604,11 @@ async fn k8s_dynamic_resource_missing_kind() {
 
     assert_matches!(
         k8s_client
-            .get_dynamic_object(&type_meta, cr_name, &test_ns)
+            .get_dynamic_object(
+                &type_meta,
+                K8sObjectName::new(cr_name),
+                K8sNamespace::new(&test_ns)
+            )
             .await
             .unwrap_err(),
         Error::MissingAPIResource(_)
@@ -585,7 +629,11 @@ async fn k8s_dynamic_resource_missing_kind() {
     );
     assert_matches!(
         k8s_client
-            .delete_dynamic_object(&type_meta, cr_name, &test_ns)
+            .delete_dynamic_object(
+                &type_meta,
+                K8sObjectName::new(cr_name),
+                K8sNamespace::new(&test_ns)
+            )
             .await
             .unwrap_err(),
         Error::MissingAPIResource(_)
@@ -659,8 +707,8 @@ fn k8s_remove_crd_after_dynamic_resource_initialized() {
     assert_matches!(
         k8s_client.get_dynamic_object(
             &dynamic_object.types.clone().unwrap(),
-            &dynamic_object.name_unchecked(),
-            &test_ns,
+            K8sObjectName::new(&dynamic_object.name_unchecked()),
+            K8sNamespace::new(&test_ns),
         ),
         Err(MissingAPIResource(_)),
         "CR was removed client should not find it"
@@ -704,8 +752,8 @@ fn k8s_remove_crd_after_dynamic_resource_initialized() {
         k8s_client
             .get_dynamic_object(
                 &dynamic_object.types.clone().unwrap(),
-                &dynamic_object.name_unchecked(),
-                &test_ns,
+                K8sObjectName::new(&dynamic_object.name_unchecked()),
+                K8sNamespace::new(&test_ns),
             )
             .unwrap()
             .is_none()
@@ -715,8 +763,8 @@ fn k8s_remove_crd_after_dynamic_resource_initialized() {
         k8s_client
             .get_dynamic_object(
                 &new_dyn_object.types.clone().unwrap(),
-                &new_dyn_object.name_unchecked(),
-                &test_ns,
+                K8sObjectName::new(&new_dyn_object.name_unchecked()),
+                K8sNamespace::new(&test_ns),
             )
             .unwrap()
             .is_some()

@@ -19,6 +19,7 @@ use crate::cli::k8s::uninstall::Deleter;
 use crate::cli::k8s::utils::{retrieve_api_resources, try_new_k8s_client};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sNamespace, K8sObjectName};
 use crate::utils::retry::retry;
 
 const SUSPEND_CHECK_MAX_RETRIES: usize = 30;
@@ -84,7 +85,12 @@ fn suspend_helmrelease(
 
     let patch = json!({"spec": {"suspend": true}});
     k8s_client
-        .patch_dynamic_object(helmrelease_type_meta, name, namespace, patch)
+        .patch_dynamic_object(
+            helmrelease_type_meta,
+            K8sObjectName::new(name),
+            K8sNamespace::new(namespace),
+            patch,
+        )
         .map_err(|err| {
             K8sCliError::Generic(format!("could not suspend HelmRelease {name}: {err}"))
         })?;
@@ -115,7 +121,7 @@ fn get_helmrelease(
     namespace: &str,
 ) -> Result<Arc<DynamicObject>, K8sCliError> {
     k8s_client
-        .get_dynamic_object(tm, name, namespace)
+        .get_dynamic_object(tm, K8sObjectName::new(name), K8sNamespace::new(namespace))
         .map_err(|err| K8sCliError::GetResource(err.to_string()))?
         .ok_or_else(|| K8sCliError::GetResource(format!("could not find HelmRerelease {name}")))
 }
@@ -175,7 +181,7 @@ mod tests {
         api::{DynamicObject, ObjectMeta},
         core::Status,
     };
-    use mockall::{Sequence, predicate};
+    use mockall::Sequence;
     use serde_json::json;
 
     use super::*;
@@ -215,12 +221,12 @@ mod tests {
 
         mock_k8s_client
             .expect_patch_dynamic_object()
-            .with(
-                predicate::eq(helmrelease_v2_type_meta()),
-                predicate::eq(TEST_RELEASE_NAME),
-                predicate::eq(namespace),
-                predicate::eq(json!({"spec": {"suspend": true}})),
-            )
+            .withf(move |tm_arg, name_arg, ns_arg, patch_arg| {
+                *tm_arg == helmrelease_v2_type_meta()
+                    && name_arg.as_str() == TEST_RELEASE_NAME
+                    && ns_arg.as_str() == namespace
+                    && *patch_arg == json!({"spec": {"suspend": true}})
+            })
             .returning(move |_, _, _, _| {
                 Ok(testing_helmrelease(
                     namespace,
@@ -295,11 +301,11 @@ mod tests {
         let mut mock_k8s_client = MockSyncK8sClient::new();
         mock_k8s_client
             .expect_delete_dynamic_object()
-            .with(
-                predicate::eq(helmchart_type_meta()),
-                predicate::eq("helm-chart-name"),
-                predicate::eq("helm-chart-namespace"),
-            )
+            .withf(|tm_arg, name_arg, ns_arg| {
+                *tm_arg == helmchart_type_meta()
+                    && name_arg.as_str() == "helm-chart-name"
+                    && ns_arg.as_str() == "helm-chart-namespace"
+            })
             .once()
             .returning(|_, _, _| Ok(Either::Right(Status::success())));
 

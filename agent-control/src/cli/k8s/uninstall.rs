@@ -10,6 +10,7 @@ use tracing::info;
 use super::errors::K8sCliError;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sNamespace, K8sObjectName};
 use crate::utils::retry::retry;
 
 pub mod agent_control;
@@ -44,7 +45,7 @@ impl<'a> Deleter<'a> {
         retry(self.max_attempts, self.interval, || {
             let res = self
                 .k8s_client
-                .delete_dynamic_object(tm, name, namespace)
+                .delete_dynamic_object(tm, K8sObjectName::new(name), K8sNamespace::new(namespace))
                 .map_err(|err| {
                     K8sCliError::DeleteResource(format!(
                         "could not delete resource '{}' of type '{}': {}",

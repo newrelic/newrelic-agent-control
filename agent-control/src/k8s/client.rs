@@ -24,6 +24,54 @@ use std::{collections::BTreeMap, sync::Arc};
 use tokio::runtime::Runtime;
 use tracing::debug;
 
+/// A Kubernetes object name.
+// Do not implement From<&str> or From<String> — implicit .into() coercions would allow
+// silently passing a namespace where a name is expected, and vice versa.
+#[derive(Debug, Clone, Copy)]
+pub struct K8sObjectName<'a>(&'a str);
+
+impl<'a> K8sObjectName<'a> {
+    pub fn new(name: &'a str) -> Self {
+        Self(name)
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0
+    }
+}
+
+impl<'a, 'b> PartialEq<K8sObjectName<'a>> for K8sObjectName<'b> {
+    fn eq(&self, other: &K8sObjectName<'a>) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<'a> Eq for K8sObjectName<'a> {}
+
+/// A Kubernetes namespace name.
+// Do not implement From<&str> or From<String> — implicit .into() coercions would allow
+// silently passing a name where a namespace is expected, and vice versa.
+#[derive(Debug, Clone, Copy)]
+pub struct K8sNamespace<'a>(&'a str);
+
+impl<'a> K8sNamespace<'a> {
+    pub fn new(namespace: &'a str) -> Self {
+        Self(namespace)
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0
+    }
+}
+
+impl<'a, 'b> PartialEq<K8sNamespace<'a>> for K8sNamespace<'b> {
+    fn eq(&self, other: &K8sNamespace<'a>) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<'a> Eq for K8sNamespace<'a> {}
+
 /// Provides a _sync_ implementation of [AsyncK8sClient].
 ///
 /// It offers a sync version of each async method implemented in the [AsyncK8sClient]. To do so,
@@ -75,11 +123,11 @@ impl SyncK8sClient {
             .block_on(self.async_client.apply_dynamic_object_if_changed(obj))
     }
 
-    pub fn patch_dynamic_object(
+    pub fn patch_dynamic_object<'a>(
         &self,
         tm: &TypeMeta,
-        name: &str,
-        namespace: &str,
+        name: K8sObjectName<'a>,
+        namespace: K8sNamespace<'a>,
         patch: serde_json::Value,
     ) -> Result<DynamicObject, K8sError> {
         self.runtime.block_on(
@@ -88,21 +136,21 @@ impl SyncK8sClient {
         )
     }
 
-    pub fn get_dynamic_object(
+    pub fn get_dynamic_object<'a>(
         &self,
         tm: &TypeMeta,
-        name: &str,
-        namespace: &str,
+        name: K8sObjectName<'a>,
+        namespace: K8sNamespace<'a>,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
         self.runtime
             .block_on(self.async_client.get_dynamic_object(tm, name, namespace))
     }
 
-    pub fn delete_dynamic_object(
+    pub fn delete_dynamic_object<'a>(
         &self,
         tm: &TypeMeta,
-        name: &str,
-        namespace: &str,
+        name: K8sObjectName<'a>,
+        namespace: K8sNamespace<'a>,
     ) -> Result<Either<DynamicObject, Status>, K8sError> {
         self.runtime
             .block_on(self.async_client.delete_dynamic_object(tm, name, namespace))
@@ -447,46 +495,46 @@ impl AsyncK8sClient {
     pub async fn patch_dynamic_object(
         &self,
         tm: &TypeMeta,
-        name: &str,
-        namespace: &str,
+        name: K8sObjectName<'_>,
+        namespace: K8sNamespace<'_>,
         patch: serde_json::Value,
     ) -> Result<DynamicObject, K8sError> {
-        let tmn = &TypeMetaNamespaced::new(tm, namespace);
+        let tmn = &TypeMetaNamespaced::new(tm, namespace.as_str());
 
         self.dynamic_object_managers
             .get_or_create(tmn)
             .await?
-            .patch(name, namespace, patch)
+            .patch(name.as_str(), namespace.as_str(), patch)
             .await
     }
 
     pub async fn get_dynamic_object(
         &self,
         tm: &TypeMeta,
-        name: &str,
-        namespace: &str,
+        name: K8sObjectName<'_>,
+        namespace: K8sNamespace<'_>,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
-        let tmn = &TypeMetaNamespaced::new(tm, namespace);
+        let tmn = &TypeMetaNamespaced::new(tm, namespace.as_str());
 
         Ok(self
             .dynamic_object_managers
             .get_or_create(tmn)
             .await?
-            .get(name))
+            .get(name.as_str()))
     }
 
     pub async fn delete_dynamic_object(
         &self,
         tm: &TypeMeta,
-        name: &str,
-        namespace: &str,
+        name: K8sObjectName<'_>,
+        namespace: K8sNamespace<'_>,
     ) -> Result<Either<DynamicObject, Status>, K8sError> {
-        let tmn = &TypeMetaNamespaced::new(tm, namespace);
+        let tmn = &TypeMetaNamespaced::new(tm, namespace.as_str());
 
         self.dynamic_object_managers
             .get_or_create(tmn)
             .await?
-            .delete(name, namespace)
+            .delete(name.as_str(), namespace.as_str())
             .await
     }
 

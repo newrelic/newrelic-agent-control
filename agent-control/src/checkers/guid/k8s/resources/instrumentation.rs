@@ -1,6 +1,7 @@
 use crate::checkers::guid::{EntityGuid, GuidCheckError, GuidChecker};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sNamespace, K8sObjectName};
 use kube::api::TypeMeta;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -66,7 +67,11 @@ impl GuidChecker for K8sGuidInstrumentation {
     fn check_guid(&self) -> Result<EntityGuid, GuidCheckError> {
         let obj_opt = self
             .k8s_client
-            .get_dynamic_object(&self.type_meta, &self.name, &self.namespace)
+            .get_dynamic_object(
+                &self.type_meta,
+                K8sObjectName::new(&self.name),
+                K8sNamespace::new(&self.namespace),
+            )
             .map_err(|e| GuidCheckError(format!("K8s error: {e}")))?;
 
         let obj = obj_opt.ok_or_else(|| {
@@ -102,9 +107,10 @@ mod tests {
     use crate::k8s::client::SyncK8sClient;
 
     use crate::agent_control::defaults::APM_APPLICATION_ID;
+
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::api::DynamicObject;
-    use mockall::predicate::*;
+
     use serde_json::json;
     use std::sync::Arc;
 
@@ -125,7 +131,9 @@ mod tests {
         if let Some(err_msg) = k8s_error {
             client
                 .expect_get_dynamic_object()
-                .with(eq(tm), eq(name), eq(namespace))
+                .withf(move |tm_arg, name_arg, ns_arg| {
+                    *tm_arg == tm && name_arg.as_str() == name && ns_arg.as_str() == namespace
+                })
                 .returning(move |_, _, _| {
                     Err(crate::k8s::error::K8sError::Generic(err_msg.clone()))
                 });
@@ -142,12 +150,16 @@ mod tests {
 
             client
                 .expect_get_dynamic_object()
-                .with(eq(tm), eq(name), eq(namespace))
+                .withf(move |tm_arg, name_arg, ns_arg| {
+                    *tm_arg == tm && name_arg.as_str() == name && ns_arg.as_str() == namespace
+                })
                 .returning(move |_, _, _| Ok(Some(Arc::new(obj.clone()))));
         } else {
             client
                 .expect_get_dynamic_object()
-                .with(eq(tm), eq(name), eq(namespace))
+                .withf(move |tm_arg, name_arg, ns_arg| {
+                    *tm_arg == tm && name_arg.as_str() == name && ns_arg.as_str() == namespace
+                })
                 .returning(|_, _, _| Ok(None));
         }
 

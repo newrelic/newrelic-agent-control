@@ -3,6 +3,7 @@ use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 use crate::checkers::version::{AgentVersion, VersionCheckError, VersionChecker};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sNamespace, K8sObjectName};
 use kube::api::{DynamicObject, TypeMeta};
 use std::sync::Arc;
 
@@ -32,8 +33,8 @@ impl NewrelicInstrumentationVersionChecker {
         self.k8s_client
             .get_dynamic_object(
                 &self.type_meta,
-                self.agent_id.as_str(),
-                self.namespace.as_str(),
+                K8sObjectName::new(self.agent_id.as_str()),
+                K8sNamespace::new(self.namespace.as_str()),
             )
             .map_err(|err| {
                 VersionCheckError(format!(

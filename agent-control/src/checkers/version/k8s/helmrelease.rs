@@ -2,6 +2,7 @@ use crate::checkers::version::AgentVersion;
 use crate::checkers::version::{VersionCheckError, VersionChecker};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sNamespace, K8sObjectName};
 use chrono::NaiveDateTime;
 use kube::api::TypeMeta;
 use serde_json::{Map, Value};
@@ -63,7 +64,11 @@ impl VersionChecker for HelmReleaseVersionChecker {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
             .k8s_client
-            .get_dynamic_object(&self.type_meta, self.name.as_str(), self.namespace.as_str())
+            .get_dynamic_object(
+                &self.type_meta,
+                K8sObjectName::new(&self.name),
+                K8sNamespace::new(&self.namespace),
+            )
             .map_err(|e| {
                 VersionCheckError(format!(
                     "Error fetching HelmRelease '{}': {}",
@@ -281,8 +286,8 @@ pub mod tests {
         mock.expect_get_dynamic_object()
             .withf(|type_meta, name, namespace| {
                 type_meta == &helmrelease_v2_type_meta()
-                    && name == "default-test"
-                    && namespace == "fake-namespace"
+                    && name.as_str() == "default-test"
+                    && namespace.as_str() == "fake-namespace"
             })
             .times(1)
             .returning(move |_, _, _| Ok(Some(Arc::new(get_dynamic_object(json_data.clone())))));

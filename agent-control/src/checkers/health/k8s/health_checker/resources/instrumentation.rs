@@ -4,6 +4,7 @@ use crate::checkers::health::health_checker::{
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sNamespace, K8sObjectName};
 use kube::api::TypeMeta;
 use serde::Deserialize;
 use std::fmt::Display;
@@ -180,7 +181,11 @@ impl HealthChecker for K8sHealthNRInstrumentation {
         // Attempt to get the Instrumentation from Kubernetes
         let instrumentation = self
             .k8s_client
-            .get_dynamic_object(&self.type_meta, &self.name, &self.namespace)
+            .get_dynamic_object(
+                &self.type_meta,
+                K8sObjectName::new(&self.name),
+                K8sNamespace::new(&self.namespace),
+            )
             .map_err(|e| {
                 HealthCheckerError::Generic(format!(
                     "instrumentation CR could not be fetched'{}': {}",

@@ -4,6 +4,7 @@ use crate::checkers::health::health_checker::{
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sNamespace, K8sObjectName};
 use k8s_openapi::serde_json::{Map, Value};
 use kube::api::TypeMeta;
 use std::sync::Arc;
@@ -150,7 +151,11 @@ impl HealthChecker for K8sHealthHelmRelease {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
             .k8s_client
-            .get_dynamic_object(&self.type_meta, &self.name, &self.namespace)
+            .get_dynamic_object(
+                &self.type_meta,
+                K8sObjectName::new(&self.name),
+                K8sNamespace::new(&self.namespace),
+            )
             .map_err(|e| {
                 HealthCheckerError::Generic(format!(
                     "Error fetching HelmRelease '{}': {}",
@@ -318,7 +323,9 @@ pub mod tests {
         status_conditions: serde_json::Value,
     ) {
         mock.expect_get_dynamic_object()
-            .withf(|_, name, namespace| name == "example-release" && namespace == TEST_NAMESPACE)
+            .withf(|_, name, namespace| {
+                name.as_str() == "example-release" && namespace.as_str() == TEST_NAMESPACE
+            })
             .times(1)
             .returning(move |_, _, _| {
                 Ok(Some(Arc::new(DynamicObject {

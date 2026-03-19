@@ -2,6 +2,7 @@ use crate::agent_control::config::{AgentControlDynamicConfig, helmrelease_v2_typ
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sNamespace, K8sObjectName};
 use crate::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, REMOTE_VAL};
 use std::collections::BTreeMap;
 use std::fmt;
@@ -114,7 +115,11 @@ impl K8sACUpdater {
     ) -> Result<BTreeMap<String, String>, UpdaterError> {
         Ok(self
             .k8s_client
-            .get_dynamic_object(&helmrelease_v2_type_meta(), release_name, &self.namespace)
+            .get_dynamic_object(
+                &helmrelease_v2_type_meta(),
+                K8sObjectName::new(release_name),
+                K8sNamespace::new(&self.namespace),
+            )
             .map_err(|err| {
                 UpdaterError::UpdateFailed(format!(
                     "error fetching {release_name} helmRelease: {err}",
@@ -156,8 +161,8 @@ impl K8sACUpdater {
         self.k8s_client
             .patch_dynamic_object(
                 &helmrelease_v2_type_meta(),
-                release_name,
-                &self.namespace,
+                K8sObjectName::new(release_name),
+                K8sNamespace::new(&self.namespace),
                 patch_to_apply,
             )
             .map_err(|err| {
@@ -173,8 +178,8 @@ impl K8sACUpdater {
             .k8s_client
             .get_dynamic_object(
                 &helmrelease_v2_type_meta(),
-                &self.cd_release_name,
-                &self.namespace,
+                K8sObjectName::new(&self.cd_release_name),
+                K8sNamespace::new(&self.namespace),
             )
             .map_err(|k8s_err| {
                 UpdaterError::UpdateFailed(format!(
@@ -265,11 +270,11 @@ mod tests {
         // Expect AC labels to be fetched
         mock_client
             .expect_get_dynamic_object()
-            .with(
-                eq(helmrelease_v2_type_meta()),
-                eq(TEST_AC_RELEASE_NAME),
-                eq(TEST_NAMESPACE),
-            )
+            .withf(|tm, name, namespace| {
+                *tm == helmrelease_v2_type_meta()
+                    && name.as_str() == TEST_AC_RELEASE_NAME
+                    && namespace.as_str() == TEST_NAMESPACE
+            })
             .times(1)
             .returning(|_, _, _| {
                 Ok(Some(Arc::new(mock_helm_release(
@@ -283,7 +288,7 @@ mod tests {
         mock_client
             .expect_patch_dynamic_object()
             .withf(|_, name, _, patch| {
-                name == TEST_AC_RELEASE_NAME
+                name.as_str() == TEST_AC_RELEASE_NAME
                     && patch
                         .pointer("/spec/chart/spec/version")
                         .unwrap()
@@ -322,11 +327,11 @@ mod tests {
         // Expect CD version and labels to be fetched
         mock_client
             .expect_get_dynamic_object()
-            .with(
-                eq(helmrelease_v2_type_meta()),
-                eq(TEST_CD_RELEASE_NAME),
-                eq(TEST_NAMESPACE),
-            )
+            .withf(|tm, name, namespace| {
+                *tm == helmrelease_v2_type_meta()
+                    && name.as_str() == TEST_CD_RELEASE_NAME
+                    && namespace.as_str() == TEST_NAMESPACE
+            })
             .times(2)
             .returning(|_, _, _| {
                 Ok(Some(Arc::new(mock_helm_release(
@@ -340,7 +345,7 @@ mod tests {
         mock_client
             .expect_patch_dynamic_object()
             .withf(|_, name, _, patch| {
-                name == TEST_CD_RELEASE_NAME
+                name.as_str() == TEST_CD_RELEASE_NAME
                     && patch
                         .pointer("/spec/chart/spec/version")
                         .unwrap()
@@ -379,13 +384,13 @@ mod tests {
         mock_client
             .expect_get_dynamic_object()
             .returning(|_, name, _| {
-                if name == TEST_AC_RELEASE_NAME {
+                if name.as_str() == TEST_AC_RELEASE_NAME {
                     Ok(Some(Arc::new(mock_helm_release(
                         TEST_AC_RELEASE_NAME,
                         CURRENT_AC_VERSION,
                         BTreeMap::new(),
                     ))))
-                } else if name == TEST_CD_RELEASE_NAME {
+                } else if name.as_str() == TEST_CD_RELEASE_NAME {
                     Ok(Some(Arc::new(mock_helm_release(
                         TEST_CD_RELEASE_NAME,
                         CURRENT_CD_VERSION,
@@ -406,7 +411,7 @@ mod tests {
                     .unwrap()
                     .as_str()
                     .unwrap();
-                Ok(mock_helm_release(name, version, BTreeMap::new()))
+                Ok(mock_helm_release(name.as_str(), version, BTreeMap::new()))
             });
 
         let updater = K8sACUpdater::new(
@@ -468,11 +473,11 @@ mod tests {
         // Expect the call to get the CD version, but not to patch
         mock_client
             .expect_get_dynamic_object()
-            .with(
-                eq(helmrelease_v2_type_meta()),
-                eq(TEST_CD_RELEASE_NAME),
-                eq(TEST_NAMESPACE),
-            )
+            .withf(|tm, name, namespace| {
+                *tm == helmrelease_v2_type_meta()
+                    && name.as_str() == TEST_CD_RELEASE_NAME
+                    && namespace.as_str() == TEST_NAMESPACE
+            })
             .returning(|_, _, _| {
                 Ok(Some(Arc::new(mock_helm_release(
                     TEST_CD_RELEASE_NAME,
