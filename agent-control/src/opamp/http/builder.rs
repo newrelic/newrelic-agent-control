@@ -112,16 +112,13 @@ pub(crate) mod tests {
     use opamp_client::{StartedClient, http::HttpClientError};
 
     use crate::opamp::client_builder::{OpAMPClientBuilderError, PollInterval};
-    use crate::{
-        agent_control::agent_id::AgentID,
-        event::channel::pub_sub,
-        opamp::{
-            client_builder::{BuildOpAMPClient, OpAMPClientBuilder},
-            effective_config::loader::tests::{
-                MockEffectiveConfigLoader, MockEffectiveConfigLoaderBuilder,
-            },
+    use crate::opamp::{
+        client_builder::{BuildOpAMPClient, OpAMPClientBuilder},
+        effective_config::loader::tests::{
+            MockEffectiveConfigLoader, MockEffectiveConfigLoaderBuilder,
         },
     };
+    use crate::sub_agent::identity::AgentIdentity;
 
     use super::*;
 
@@ -146,9 +143,6 @@ pub(crate) mod tests {
     fn test_default_http_client_builder() {
         let mut http_client = MockHttpClient::default();
         let mut http_builder = MockHttpClientBuilder::new();
-        let (tx, _rx) = pub_sub();
-        let agent_id = AgentID::AgentControl;
-        let start_settings = StartSettings::default();
 
         let mut effective_config_loader_builder = MockEffectiveConfigLoaderBuilder::new();
         effective_config_loader_builder
@@ -172,8 +166,11 @@ pub(crate) mod tests {
             effective_config_loader_builder,
         );
 
-        let started_client = builder
-            .build_and_start(tx, agent_id, start_settings)
+        let (started_client, _consumer) = builder
+            .build_and_start(
+                AgentIdentity::new_agent_control_identity(),
+                StartSettings::default(),
+            )
             .unwrap();
 
         // gracefully shutdown the all threads to avoid mocks panicking go unnoticed
@@ -183,10 +180,6 @@ pub(crate) mod tests {
     #[test]
     fn test_default_http_client_builder_error() {
         let mut http_builder = MockHttpClientBuilder::new();
-        let (tx, _rx) = pub_sub();
-        let agent_id = AgentID::AgentControl;
-        let start_settings = StartSettings::default();
-
         let mut effective_config_loader_builder = MockEffectiveConfigLoaderBuilder::new();
         effective_config_loader_builder.expect_build().never();
 
@@ -202,7 +195,10 @@ pub(crate) mod tests {
             http_builder,
             effective_config_loader_builder,
         );
-        let actual_client = builder.build_and_start(tx, agent_id, start_settings);
+        let actual_client = builder.build_and_start(
+            AgentIdentity::new_agent_control_identity(),
+            StartSettings::default(),
+        );
 
         assert!(actual_client.is_err());
 

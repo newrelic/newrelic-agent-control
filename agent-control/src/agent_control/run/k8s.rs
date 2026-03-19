@@ -27,13 +27,14 @@ use crate::event::AgentControlInternalEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilder;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
-use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
+use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
 use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
 use crate::opamp::instance_id::storer::Storer;
-use crate::opamp::operations::build_opamp_with_channel;
+use crate::opamp::operations::start_settings;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::secret_retriever::k8s::retrieve::K8sSecretRetriever;
@@ -94,15 +95,9 @@ impl AgentControlRunner {
         let identifiers = get_identifiers(k8s_config.cluster_name.clone(), fleet_id);
         info!("Instance Identifiers: {}", identifiers);
 
-        let non_identifying_attributes =
-            agent_control_opamp_non_identifying_attributes(&identifiers, &k8s_config);
-
-        let additional_identifying_attributes =
-            agent_control_additional_opamp_identifying_attributes(&k8s_config);
-
         let instance_id_storer = Storer::from(k8s_store.clone());
         let instance_id_getter =
-            InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
+            InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers.clone());
 
         let opamp_client_builder = maybe_opamp.map(|config| {
             OpAMPClientBuilder::new(
@@ -119,24 +114,22 @@ impl AgentControlRunner {
         // Build and start AC OpAMP client
         let (maybe_client, maybe_opamp_consumer) = opamp_client_builder
             .as_ref()
-            .map(|builder| {
+            .map(|builder| -> Result<_, _> {
                 info!("Starting Agent Control OpAMP client");
-                build_opamp_with_channel(
-                    builder,
-                    &instance_id_getter,
-                    &AgentIdentity::new_agent_control_identity(),
-                    additional_identifying_attributes,
-                    non_identifying_attributes,
-                )
+                let agent_identity = AgentIdentity::new_agent_control_identity();
+                let start_settings = start_settings(
+                    instance_id_getter.get(&agent_identity.id)?,
+                    &agent_identity,
+                    agent_control_additional_opamp_identifying_attributes(&k8s_config),
+                    agent_control_opamp_non_identifying_attributes(&identifiers, &k8s_config),
+                );
+                builder.build_and_start(agent_identity, start_settings)
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()
             .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))?
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
-
-        // Disable startup check for sub-agents OpAMP client builder
-        let opamp_client_builder = opamp_client_builder.map(|b| b.with_startup_check_disabled());
 
         let agent_control_variables = HashMap::from([
             (
@@ -179,8 +172,11 @@ impl AgentControlRunner {
 
         let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
 
+        let opamp_builder =
+            opamp_client_builder.map(|builder| builder.with_startup_check_disabled());
+
         let sub_agent_builder = K8sSubAgentBuilder {
-            opamp_builder: opamp_client_builder.as_ref(),
+            opamp_builder: opamp_builder.as_ref(),
             instance_id_getter: &instance_id_getter,
             k8s_config: k8s_config.clone(),
             supervisor_builder: Arc::new(supervisor_builder),

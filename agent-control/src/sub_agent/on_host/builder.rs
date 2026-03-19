@@ -207,7 +207,7 @@ mod tests {
         // Build an OpAMP Client and let it run so the publisher is not dropped
         let mut opamp_builder = MockOpAMPClientBuilder::new();
         opamp_builder.should_build_and_start_and_run(
-            agent_identity.id.clone(),
+            agent_identity.clone(),
             start_settings_infra,
             MockStartedOpAMPClient::new(),
             Duration::from_millis(10),

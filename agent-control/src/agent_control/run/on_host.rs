@@ -17,13 +17,14 @@ use crate::checkers::health::noop::NoOpHealthChecker;
 use crate::event::channel::pub_sub;
 use crate::oci;
 use crate::on_host::file_store::FileStore;
+use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilder;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
-use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
+use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
 use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
 use crate::opamp::instance_id::storer::Storer;
-use crate::opamp::operations::build_opamp_with_channel;
+use crate::opamp::operations::start_settings;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::package::oci::downloader::OCIArtifactDownloader;
@@ -92,8 +93,6 @@ impl AgentControlRunner {
         let identifiers = identifiers_provider
             .provide()
             .map_err(|err| RunError(format!("failure obtaining identifiers: {err}")))?;
-        let non_identifying_attributes =
-            agent_control_opamp_non_identifying_attributes(&identifiers);
         info!("Instance Identifiers: {:?}", identifiers);
 
         let agent_control_variables = HashMap::from([(
@@ -103,7 +102,7 @@ impl AgentControlRunner {
 
         let instance_id_storer = Storer::from(file_store);
         let instance_id_getter =
-            InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
+            InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers.clone());
 
         let opamp_client_builder = maybe_opamp.map(|config| {
             OpAMPClientBuilder::new(
@@ -121,25 +120,24 @@ impl AgentControlRunner {
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
             .as_ref()
             .map(|builder| {
-                build_opamp_with_channel(
-                    builder,
-                    &instance_id_getter,
-                    &AgentIdentity::new_agent_control_identity(),
+                info!("Starting Agent Control OpAMP client");
+                let agent_identity = AgentIdentity::new_agent_control_identity();
+                let start_settings = start_settings(
+                    instance_id_getter.get(&agent_identity.id)?,
+                    &agent_identity,
                     HashMap::from([(
                         OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
                         DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
                     )]),
-                    non_identifying_attributes,
-                )
+                    agent_control_opamp_non_identifying_attributes(&identifiers),
+                );
+                builder.build_and_start(agent_identity, start_settings)
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()
             .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))?
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
-
-        // Disable startup check for sub-agents OpAMP client builder
-        let opamp_client_builder = opamp_client_builder.map(|b| b.with_startup_check_disabled());
 
         let template_renderer = TemplateRenderer::default()
             .with_agent_control_variables(agent_control_variables.clone().into_iter());
@@ -196,8 +194,11 @@ impl AgentControlRunner {
         ];
         let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
 
+        let opamp_builder =
+            opamp_client_builder.map(|builder| builder.with_startup_check_disabled());
+
         let sub_agent_builder = OnHostSubAgentBuilder {
-            opamp_builder: opamp_client_builder.as_ref(),
+            opamp_builder: opamp_builder.as_ref(),
             instance_id_getter: &instance_id_getter,
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(remote_config_parser),

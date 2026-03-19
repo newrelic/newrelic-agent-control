@@ -182,7 +182,6 @@ pub mod tests {
     };
     use assert_matches::assert_matches;
     use mockall::predicate;
-    use opamp_client::operation::settings::DescriptionValueType;
     use std::collections::HashMap;
 
     const TEST_CLUSTER_NAME: &str = "cluster_name";
@@ -351,6 +350,7 @@ pub mod tests {
 
         // opamp builder mock
         let started_client = MockStartedOpAMPClient::new();
+
         let mut opamp_builder = MockOpAMPClientBuilder::new();
         let start_settings = start_settings(
             instance_id.clone(),
@@ -374,19 +374,17 @@ pub mod tests {
             opamp_builder
                 .expect_build_and_start()
                 .with(
-                    predicate::always(),
-                    predicate::eq(agent_identity.id.clone()),
+                    predicate::eq(agent_identity.clone()),
                     predicate::eq(start_settings),
                 )
-                .once()
-                .return_once(move |_, _, _| {
+                .return_once(move |_, _| {
                     Err(OpAMPClientBuilderError::HttpClientBuilderError(
                         HttpClientBuilderError::BuildingError("error".into()),
                     ))
                 });
         } else {
             opamp_builder.should_build_and_start(
-                agent_identity.id.clone(),
+                agent_identity.clone(),
                 start_settings,
                 started_client,
             );
