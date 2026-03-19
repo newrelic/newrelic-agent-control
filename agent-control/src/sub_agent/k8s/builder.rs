@@ -1,5 +1,5 @@
 use crate::agent_control::config::K8sConfig;
-use crate::agent_control::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
+use crate::agent_control::defaults::CLUSTER_NAME_ATTRIBUTE_KEY;
 use crate::agent_control::run::Environment;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
@@ -7,7 +7,9 @@ use crate::event::channel::pub_sub;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
-use crate::opamp::operations::build_sub_agent_opamp;
+use crate::opamp::operations::{
+    agent_control_service_version_attribute, maybe_build_sub_agent_opamp,
+};
 use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::identity::AgentIdentity;
@@ -63,29 +65,18 @@ where
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
 
-        let (maybe_opamp_client, sub_agent_opamp_consumer) = self
-            .opamp_builder
-            .as_ref()
-            .map(|builder| {
-                build_sub_agent_opamp(
-                    builder,
-                    &self.instance_id_getter,
-                    agent_identity,
-                    HashMap::from([(
-                        OPAMP_SERVICE_VERSION.to_string(),
-                        agent_identity.agent_type_id.version().to_string().into(),
-                    )]),
-                    HashMap::from([(
-                        CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
-                        DescriptionValueType::String(self.k8s_config.cluster_name.to_string()),
-                    )]),
-                )
-                .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))
-            })
-            // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-            .transpose()?
-            .map(|(client, consumer)| (Some(client), Some(consumer)))
-            .unwrap_or_default();
+        let (maybe_opamp_client, sub_agent_opamp_consumer) = maybe_build_sub_agent_opamp(
+            self.opamp_builder.as_ref(),
+            &self.instance_id_getter,
+            agent_identity,
+            agent_control_service_version_attribute(agent_identity.agent_type_id.version()),
+            HashMap::from([(
+                CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
+                DescriptionValueType::String(self.k8s_config.cluster_name.to_string()),
+            )]),
+        )
+        .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?
+        .unzip();
 
         Ok(SubAgent::new(
             agent_identity.clone(),
@@ -162,7 +153,7 @@ pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
 
-    use crate::agent_control::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
+    use crate::agent_control::defaults::{OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY};
     use crate::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};

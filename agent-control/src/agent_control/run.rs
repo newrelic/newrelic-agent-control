@@ -9,15 +9,8 @@ use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::command::RunnerContext;
 use crate::data_store::DataStore;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
-use crate::event::{
-    AgentControlEvent, ApplicationEvent, OpAMPEvent, SubAgentEvent, channel::EventConsumer,
-};
-use crate::opamp::client_builder::BuildOpAMPClient;
-use crate::opamp::http::builder::HttpClientBuilder;
-use crate::opamp::instance_id::getter::InstanceIDGetter;
-use crate::opamp::operations::start_settings;
+use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
-use crate::sub_agent::identity::AgentIdentity;
 use crate::values::ConfigRepo;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
@@ -26,7 +19,7 @@ use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tracing::{debug, info};
+use tracing::debug;
 
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
@@ -175,37 +168,3 @@ pub fn agent_control_opamp_version_attribute() -> HashMap<String, DescriptionVal
     )])
 }
 
-/// Builds and Starts the Agent Control OpAMP client if the builder it not None.
-pub fn maybe_start_agent_control_opamp_client<B, ID>(
-    builder: Option<&B>,
-    instance_id_getter: &ID,
-    identifying_attributes: HashMap<String, DescriptionValueType>,
-    non_identifying_attributes: HashMap<String, DescriptionValueType>,
-) -> Result<Option<(B::Client, EventConsumer<OpAMPEvent>)>, RunError>
-where
-    B: BuildOpAMPClient,
-    ID: InstanceIDGetter,
-{
-    let Some(builder) = builder else {
-        debug!("Agent Control has OpAMP disabled, skipping OpAMP client initialization");
-        return Ok(None);
-    };
-
-    info!("Building and Starting Agent Control OpAMP client");
-    let agent_identity = AgentIdentity::new_agent_control_identity();
-    let instance_id = instance_id_getter
-        .get(&agent_identity.id)
-        .map_err(|err| RunError(format!("error getting instance ID: {err}")))?;
-
-    let start_settings = start_settings(
-        instance_id,
-        &agent_identity,
-        identifying_attributes,
-        non_identifying_attributes,
-    );
-
-    builder
-        .build_and_start(agent_identity, start_settings)
-        .map(Some)
-        .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))
-}

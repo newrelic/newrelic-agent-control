@@ -12,8 +12,7 @@ use crate::agent_control::health_checker::k8s::agent_control_health_checker_buil
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
 use crate::agent_control::run::{
-    AgentControlRunner, Environment, RunError, maybe_start_agent_control_opamp_client,
-    setup_config_repository_and_store,
+    AgentControlRunner, Environment, RunError, setup_config_repository_and_store,
 };
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::TemplateRenderer;
@@ -33,6 +32,7 @@ use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
 use crate::opamp::instance_id::storer::Storer;
+use crate::opamp::operations::maybe_build_agent_control_opamp;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::secret_retriever::k8s::retrieve::K8sSecretRetriever;
@@ -108,13 +108,13 @@ impl AgentControlRunner {
             )
         });
 
-        // Build and start AC OpAMP client
-        let (maybe_client, maybe_opamp_consumer) = maybe_start_agent_control_opamp_client(
+        let (maybe_client, maybe_opamp_consumer) = maybe_build_agent_control_opamp(
             maybe_opamp_client_builder.as_ref(),
             &instance_id_getter,
             agent_control_additional_opamp_identifying_attributes(&k8s_config),
             agent_control_opamp_non_identifying_attributes(&identifiers, &k8s_config),
-        )?
+        )
+        .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))?
         .unzip();
 
         let agent_control_variables = HashMap::from([

@@ -4,7 +4,7 @@ use super::{
     instance_id::getter::InstanceIDGetter,
 };
 use crate::agent_control::defaults::{
-    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
+    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY,
     PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_custom_capabilities,
 };
 use crate::sub_agent::identity::AgentIdentity;
@@ -17,26 +17,66 @@ use opamp_client::{
     StartedClient,
     operation::settings::{AgentDescription, DescriptionValueType, StartSettings},
 };
+use semver::Version;
 use std::collections::HashMap;
 use tracing::info;
 
-pub fn build_sub_agent_opamp<OB, IG>(
-    opamp_builder: &OB,
+/// Builds and starts an OpAMP client for Agent Control if the builder is not None.
+pub fn maybe_build_agent_control_opamp<OB, IG>(
+    opamp_builder: Option<&OB>,
     instance_id_getter: &IG,
-    agent_identity: &AgentIdentity,
-    additional_identifying_attributes: HashMap<String, DescriptionValueType>,
-    mut non_identifying_attributes: HashMap<String, DescriptionValueType>,
-) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
+    identifying_attributes: HashMap<String, DescriptionValueType>,
+    non_identifying_attributes: HashMap<String, DescriptionValueType>,
+) -> Result<Option<(OB::Client, EventConsumer<OpAMPEvent>)>, OpAMPClientBuilderError>
 where
     OB: BuildOpAMPClient,
     IG: InstanceIDGetter,
 {
-    let agent_control_id = AgentID::AgentControl;
-    let parent_instance_id = instance_id_getter.get(&agent_control_id)?;
+    let Some(opamp_builder) = opamp_builder else {
+        return Ok(None);
+    };
 
+    info!("Building and starting OpAMP client for the agent control",);
+    let agent_identity = AgentIdentity::new_agent_control_identity();
+
+    let start_settings = start_settings(
+        instance_id_getter.get(&agent_identity.id)?,
+        &agent_identity,
+        identifying_attributes,
+        non_identifying_attributes,
+    );
+
+    opamp_builder
+        .build_and_start(agent_identity, start_settings)
+        .map(Some)
+}
+
+/// Builds and starts an OpAMP client for a sub-agent if the builder is not None.
+/// Automatically adds the parent agent ID to non-identifying attributes.
+pub fn maybe_build_sub_agent_opamp<OB, IG>(
+    opamp_builder: Option<&OB>,
+    instance_id_getter: &IG,
+    agent_identity: &AgentIdentity,
+    additional_identifying_attributes: HashMap<String, DescriptionValueType>,
+    mut non_identifying_attributes: HashMap<String, DescriptionValueType>,
+) -> Result<Option<(OB::Client, EventConsumer<OpAMPEvent>)>, OpAMPClientBuilderError>
+where
+    OB: BuildOpAMPClient,
+    IG: InstanceIDGetter,
+{
+    let Some(opamp_builder) = opamp_builder else {
+        return Ok(None);
+    };
+
+    // Add parent agent ID to non-identifying attributes
     non_identifying_attributes.insert(
         PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
-        DescriptionValueType::Bytes(parent_instance_id.into()),
+        DescriptionValueType::Bytes(instance_id_getter.get(&AgentID::AgentControl)?.into()),
+    );
+
+    info!(
+        "Building and starting OpAMP client for {}",
+        agent_identity.id
     );
 
     let start_settings = start_settings(
@@ -46,7 +86,18 @@ where
         non_identifying_attributes,
     );
 
-    opamp_builder.build_and_start(agent_identity.clone(), start_settings)
+    opamp_builder
+        .build_and_start(agent_identity.clone(), start_settings)
+        .map(Some)
+}
+
+pub fn agent_control_service_version_attribute(
+    version: &Version,
+) -> HashMap<String, DescriptionValueType> {
+    HashMap::from([(
+        OPAMP_SERVICE_VERSION.to_string(),
+        DescriptionValueType::String(version.to_string()),
+    )])
 }
 
 /// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent and agent control.

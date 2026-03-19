@@ -1,5 +1,5 @@
 use crate::agent_control::defaults::{
-    HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
+    HOST_NAME_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
 use crate::agent_control::run::Environment;
 use crate::event::SubAgentEvent;
@@ -7,7 +7,9 @@ use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
 use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
-use crate::opamp::operations::build_sub_agent_opamp;
+use crate::opamp::operations::{
+    agent_control_service_version_attribute, maybe_build_sub_agent_opamp,
+};
 use crate::package::manager::PackageManager;
 use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
@@ -62,36 +64,15 @@ where
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
 
-        let hostname = get_hostname()
-            .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?
-            .into();
-
-        let (maybe_opamp_client, sub_agent_opamp_consumer) = self
-            .opamp_builder
-            .as_ref()
-            .map(|builder| {
-                build_sub_agent_opamp(
-                    builder,
-                    &self.instance_id_getter,
-                    agent_identity,
-                    HashMap::from([(
-                        OPAMP_SERVICE_VERSION.to_string(),
-                        agent_identity.agent_type_id.version().to_string().into(),
-                    )]),
-                    HashMap::from([
-                        (HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname),
-                        (
-                            OS_ATTRIBUTE_KEY.to_string(),
-                            DescriptionValueType::String(OS_ATTRIBUTE_VALUE.to_string()),
-                        ),
-                    ]),
-                )
-                .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))
-            })
-            // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-            .transpose()?
-            .map(|(client, consumer)| (Some(client), Some(consumer)))
-            .unwrap_or_default();
+        let (maybe_opamp_client, sub_agent_opamp_consumer) = maybe_build_sub_agent_opamp(
+            self.opamp_builder.as_ref(),
+            &self.instance_id_getter,
+            agent_identity,
+            agent_control_service_version_attribute(agent_identity.agent_type_id.version()),
+            get_onhost_extra_non_identifying_attributes()?,
+        )
+        .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?
+        .unzip();
 
         Ok(SubAgent::new(
             agent_identity.clone(),
@@ -106,6 +87,21 @@ where
             self.ac_running_mode,
         ))
     }
+}
+
+fn get_onhost_extra_non_identifying_attributes()
+-> Result<HashMap<String, DescriptionValueType>, SubAgentBuilderError> {
+    let hostname = get_hostname()
+        .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?
+        .into();
+
+    Ok(HashMap::from([
+        (HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname),
+        (
+            OS_ATTRIBUTE_KEY.to_string(),
+            DescriptionValueType::String(OS_ATTRIBUTE_VALUE.to_string()),
+        ),
+    ]))
 }
 
 pub struct SupervisorBuilderOnHost<PM>
@@ -168,7 +164,7 @@ mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::{
-        OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
+        OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY,
         PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_custom_capabilities,
     };
     use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
