@@ -167,4 +167,3 @@ pub fn agent_control_opamp_version_attribute() -> HashMap<String, DescriptionVal
         DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
     )])
 }
-
