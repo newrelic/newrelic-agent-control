@@ -21,13 +21,16 @@ use semver::Version;
 use std::collections::HashMap;
 use tracing::info;
 
+/// Type alias for an OpAMP client and its event consumer.
+pub type OpAMPClientAndConsumer<C> = (C, EventConsumer<OpAMPEvent>);
+
 /// Builds and starts an OpAMP client for Agent Control if the builder is not None.
 pub fn maybe_build_agent_control_opamp<OB, IG>(
     opamp_builder: Option<&OB>,
     instance_id_getter: &IG,
     identifying_attributes: HashMap<String, DescriptionValueType>,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
-) -> Result<Option<(OB::Client, EventConsumer<OpAMPEvent>)>, OpAMPClientBuilderError>
+) -> Result<Option<OpAMPClientAndConsumer<OB::Client>>, OpAMPClientBuilderError>
 where
     OB: BuildOpAMPClient,
     IG: InstanceIDGetter,
@@ -59,7 +62,7 @@ pub fn maybe_build_sub_agent_opamp<OB, IG>(
     agent_identity: &AgentIdentity,
     additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     mut non_identifying_attributes: HashMap<String, DescriptionValueType>,
-) -> Result<Option<(OB::Client, EventConsumer<OpAMPEvent>)>, OpAMPClientBuilderError>
+) -> Result<Option<OpAMPClientAndConsumer<OB::Client>>, OpAMPClientBuilderError>
 where
     OB: BuildOpAMPClient,
     IG: InstanceIDGetter,
