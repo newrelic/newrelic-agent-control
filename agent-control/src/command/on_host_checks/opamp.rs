@@ -23,15 +23,24 @@ pub fn check_connectivity(
         verified_config.yaml_config_repository.clone(),
     );
 
-    // We are starting and immediately stopping the client just to check connectivity.
-    // The client performs a connectivity check as part of its startup process.
-    // However, we don't need the client to stay alive after the initial check, so we can stop it right away.
+    // TL;DR
+    // We leverage code from the normal mode of execution of Agent Control (AC), which makes it
+    // simpler and keeps the environments similar at the cost of doing some unnecessary work.
     //
-    // This approach avoids having to implement a separate connectivity check logic, and it leverages the existing functionality of the OpAMP client.
-    // It comes at a cost. A thread might be spawned between the start and stop, which we don't need. Besides, messages will be processed with
-    // `process_message` (as part of the initial check), which is not needed.
     //
-    // Long short story, the implementation leverages existing functionality at the cost of doing some unnecessary work.
+    // The config is built exactly the same in dry-run mode as when we run AC normally.
+    // This means the config, identifiers, instance ID, and other relevant information
+    // are identical to what we'd have when starting AC in production.
+    //
+    // Advantages:
+    // - Code reuse
+    // - Environment parity with normal execution mode
+    //
+    // Disadvantages:
+    // - We must stop the OpAMP client immediately after starting it to prevent spawning a background thread
+    // - Even when calling `stop`, the thread might still get spawned
+    // - The check sends an `AgentToServer` message and processes a `ServerToAgent` via
+    //   `process_message`, doing more work than strictly necessary for connectivity verification
     let (client, _consumer) =
         start_ac_opamp_client(&opamp_client_builder, &instance_id_getter, &identifiers)?;
     client.stop()?;
