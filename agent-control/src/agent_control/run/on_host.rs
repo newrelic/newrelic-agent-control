@@ -67,6 +67,20 @@ pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Windows;
 #[cfg(target_family = "unix")]
 pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Linux;
 
+type OnHostOpAMPClientBuilder = OpAMPClientBuilder<
+    OpAMPHttpClientBuilder<OnHostSecretRetriever<FileSecretProvider>>,
+    EffectiveConfigLoaderBuilder<ConfigRepo<FileStore<LocalFile, DirectoryManagerFs>>>,
+>;
+type OnHostOpAMPClient = StartedHttpClient<
+    OpAMPHttpClient<
+        AgentCallbacks<EffectiveConfigLoader<ConfigRepo<FileStore<LocalFile, DirectoryManagerFs>>>>,
+        HttpOpAMPClient<TokenRetrieverImpl>,
+    >,
+>;
+type OnHostOpAMPConsumer = EventConsumer<OpAMPEvent>;
+type OnHostInstanceIdGetter =
+    InstanceIDWithIdentifiersGetter<Storer<FileStore<LocalFile, DirectoryManagerFs>, Identifiers>>;
+
 impl AgentControlRunner {
     pub fn run_onhost(self) -> Result<(), RunError> {
         let local_dir = self.base_paths.local_dir;
@@ -232,11 +246,6 @@ pub fn ac_identifiers(config: &AgentControlConfig) -> Result<Identifiers, RunErr
     Ok(identifiers)
 }
 
-type OnHostOpAMPClientBuilder = OpAMPClientBuilder<
-    OpAMPHttpClientBuilder<OnHostSecretRetriever<FileSecretProvider>>,
-    EffectiveConfigLoaderBuilder<ConfigRepo<FileStore<LocalFile, DirectoryManagerFs>>>,
->;
-
 pub fn opamp_client_builder(
     local_dir: PathBuf,
     opamp_config: OpAMPClientConfig,
@@ -255,16 +264,6 @@ pub fn opamp_client_builder(
 
     OpAMPClientBuilder::new(poll_interval, http_builder, loader)
 }
-
-type OnHostOpAMPClient = StartedHttpClient<
-    OpAMPHttpClient<
-        AgentCallbacks<EffectiveConfigLoader<ConfigRepo<FileStore<LocalFile, DirectoryManagerFs>>>>,
-        HttpOpAMPClient<TokenRetrieverImpl>,
-    >,
->;
-type OnHostOpAMPConsumer = EventConsumer<OpAMPEvent>;
-type OnHostInstanceIdGetter =
-    InstanceIDWithIdentifiersGetter<Storer<FileStore<LocalFile, DirectoryManagerFs>, Identifiers>>;
 
 pub fn start_ac_opamp_client(
     builder: &OnHostOpAMPClientBuilder,
