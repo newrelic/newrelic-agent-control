@@ -144,7 +144,7 @@ type RepositoryAndStore<D> = (
 );
 
 /// Helper to handle configuration repository and store for all running modes.
-fn setup_config_repository_and_store<D: DataStore + Send + Sync + 'static>(
+pub fn setup_config_repository_and_store<D: DataStore + Send + Sync + 'static>(
     data_store: Arc<D>,
     with_remote: bool,
 ) -> RepositoryAndStore<D> {

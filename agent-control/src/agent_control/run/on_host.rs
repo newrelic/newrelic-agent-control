@@ -1,4 +1,5 @@
 use crate::agent_control::AgentControl;
+use crate::agent_control::config::{AgentControlConfig, OpAMPClientConfig};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
@@ -14,13 +15,18 @@ use crate::agent_control::version_updater::updater::NoOpUpdater;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::checkers::health::noop::NoOpHealthChecker;
-use crate::event::channel::pub_sub;
+use crate::event::OpAMPEvent;
+use crate::event::channel::{EventConsumer, pub_sub};
+use crate::http::config::ProxyConfig;
 use crate::oci;
 use crate::on_host::file_store::FileStore;
+use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
+use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::client_builder::OpAMPClientBuilder;
-use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilder;
+use crate::opamp::effective_config::loader::{EffectiveConfigLoader, EffectiveConfigLoaderBuilder};
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
+use crate::opamp::http::client::HttpOpAMPClient;
 use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
 use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
 use crate::opamp::instance_id::storer::Storer;
@@ -37,12 +43,17 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
+use crate::values::ConfigRepo;
 use fs::directory_manager::DirectoryManagerFs;
+use fs::file::LocalFile;
 use oci_client::client::ClientConfig;
 #[cfg(debug_assertions)]
 use oci_client::client::ClientProtocol;
+use opamp_client::http::StartedHttpClient;
+use opamp_client::http::client::OpAMPHttpClient;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::info;
@@ -56,6 +67,20 @@ pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Windows;
 #[cfg(target_family = "unix")]
 pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Linux;
 
+type OnHostOpAMPClientBuilder = OpAMPClientBuilder<
+    OpAMPHttpClientBuilder<OnHostSecretRetriever<FileSecretProvider>>,
+    EffectiveConfigLoaderBuilder<ConfigRepo<FileStore<LocalFile, DirectoryManagerFs>>>,
+>;
+type OnHostOpAMPClient = StartedHttpClient<
+    OpAMPHttpClient<
+        AgentCallbacks<EffectiveConfigLoader<ConfigRepo<FileStore<LocalFile, DirectoryManagerFs>>>>,
+        HttpOpAMPClient<TokenRetrieverImpl>,
+    >,
+>;
+type OnHostOpAMPConsumer = EventConsumer<OpAMPEvent>;
+type OnHostInstanceIdGetter =
+    InstanceIDWithIdentifiersGetter<Storer<FileStore<LocalFile, DirectoryManagerFs>, Identifiers>>;
+
 impl AgentControlRunner {
     pub fn run_onhost(self) -> Result<(), RunError> {
         let local_dir = self.base_paths.local_dir;
@@ -67,33 +92,13 @@ impl AgentControlRunner {
 
         let maybe_opamp = self.bootstrap_config.fleet_control;
 
-        let secret_retriever = OnHostSecretRetriever::new(
-            maybe_opamp.clone(),
-            local_dir.clone(),
-            FileSecretProvider::new(),
-        );
-
         let (yaml_config_repository, config_storer) =
             setup_config_repository_and_store(file_store.clone(), maybe_opamp.is_some());
         let agent_control_config = config_storer
             .load()
             .map_err(|err| RunError(format!("failed to load Agent Control config: {err}")))?;
 
-        let fleet_id = agent_control_config
-            .fleet_control
-            .as_ref()
-            .map(|c| c.fleet_id.to_string())
-            .unwrap_or_default();
-
-        let identifiers_provider = IdentifiersProvider::try_default()
-            .map_err(|err| RunError(format!("failed to build the identifiers provider: {err}")))?
-            .with_host_id(agent_control_config.host_id.to_string())
-            .with_fleet_id(fleet_id);
-
-        let identifiers = identifiers_provider
-            .provide()
-            .map_err(|err| RunError(format!("failure obtaining identifiers: {err}")))?;
-        info!("Instance Identifiers: {:?}", identifiers);
+        let identifiers = ac_identifiers(&agent_control_config)?;
 
         let agent_control_variables = HashMap::from([(
             HOST_ID_VARIABLE_NAME.to_string(),
@@ -104,38 +109,22 @@ impl AgentControlRunner {
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers.clone());
 
+        let proxy = self.bootstrap_config.proxy;
         let opamp_client_builder = maybe_opamp.map(|config| {
-            OpAMPClientBuilder::new(
-                config.poll_interval,
-                OpAMPHttpClientBuilder::new(
-                    config,
-                    self.bootstrap_config.proxy.clone(),
-                    secret_retriever,
-                ),
-                EffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
+            opamp_client_builder(
+                local_dir.clone(),
+                config,
+                proxy.clone(),
+                yaml_config_repository.clone(),
             )
         });
 
         // Build and start AC OpAMP client
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
             .as_ref()
-            .map(|builder| {
-                info!("Starting Agent Control OpAMP client");
-                let agent_identity = AgentIdentity::new_agent_control_identity();
-                let start_settings = start_settings(
-                    instance_id_getter.get(&agent_identity.id)?,
-                    &agent_identity,
-                    HashMap::from([(
-                        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-                        DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
-                    )]),
-                    agent_control_opamp_non_identifying_attributes(&identifiers),
-                );
-                builder.build_and_start(agent_identity, start_settings)
-            })
+            .map(|builder| start_ac_opamp_client(builder, &instance_id_getter, &identifiers))
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-            .transpose()
-            .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))?
+            .transpose()?
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
@@ -164,12 +153,8 @@ impl AgentControlRunner {
             ..Default::default()
         };
 
-        let oci_client = oci::Client::try_new(
-            oci_client_config,
-            self.bootstrap_config.proxy,
-            self.runtime.clone(),
-        )
-        .map_err(|err| RunError(format!("failed to create the OciClient: {err}")))?;
+        let oci_client = oci::Client::try_new(oci_client_config, proxy, self.runtime.clone())
+            .map_err(|err| RunError(format!("failed to create the OciClient: {err}")))?;
 
         let packages_downloader = OCIArtifactDownloader::new(
             oci_client,
@@ -241,7 +226,78 @@ impl AgentControlRunner {
     }
 }
 
-pub fn agent_control_opamp_non_identifying_attributes(
+pub fn ac_identifiers(config: &AgentControlConfig) -> Result<Identifiers, RunError> {
+    let fleet_id = config
+        .fleet_control
+        .as_ref()
+        .map(|c| c.fleet_id.to_string())
+        .unwrap_or_default();
+
+    let identifiers_provider = IdentifiersProvider::try_default()
+        .map_err(|err| RunError(format!("failed to build the identifiers provider: {err}")))?
+        .with_host_id(config.host_id.to_string())
+        .with_fleet_id(fleet_id);
+
+    let identifiers = identifiers_provider
+        .provide()
+        .map_err(|err| RunError(format!("failure obtaining identifiers: {err}")))?;
+    info!("Instance Identifiers: {:?}", identifiers);
+
+    Ok(identifiers)
+}
+
+pub fn opamp_client_builder(
+    local_dir: PathBuf,
+    opamp_config: OpAMPClientConfig,
+    proxy_config: ProxyConfig,
+    yaml_config_repository: Arc<ConfigRepo<FileStore<LocalFile, DirectoryManagerFs>>>,
+) -> OnHostOpAMPClientBuilder {
+    let secret_retriever = OnHostSecretRetriever::new(
+        Some(opamp_config.clone()),
+        local_dir.clone(),
+        FileSecretProvider::new(),
+    );
+
+    let poll_interval = opamp_config.poll_interval;
+    let http_builder = OpAMPHttpClientBuilder::new(opamp_config, proxy_config, secret_retriever);
+    let loader = EffectiveConfigLoaderBuilder::new(yaml_config_repository.clone());
+
+    OpAMPClientBuilder::new(poll_interval, http_builder, loader)
+}
+
+pub fn start_ac_opamp_client(
+    builder: &OnHostOpAMPClientBuilder,
+    instance_id_getter: &OnHostInstanceIdGetter,
+    identifiers: &Identifiers,
+) -> Result<(OnHostOpAMPClient, OnHostOpAMPConsumer), RunError> {
+    info!("Starting Agent Control OpAMP client");
+
+    let agent_identity = AgentIdentity::new_agent_control_identity();
+    let instance_id = instance_id_getter
+        .get(&agent_identity.id)
+        .map_err(|err| RunError(format!("error getting instance id: {err}")))?;
+
+    let agent_identity = AgentIdentity::new_agent_control_identity();
+    let start_settings = start_settings(
+        instance_id,
+        &agent_identity,
+        ac_identifying_attributes(),
+        ac_non_identifying_attributes(identifiers),
+    );
+
+    builder
+        .build_and_start(agent_identity, start_settings)
+        .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))
+}
+
+fn ac_identifying_attributes() -> HashMap<String, DescriptionValueType> {
+    HashMap::from([(
+        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+        DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
+    )])
+}
+
+fn ac_non_identifying_attributes(
     identifiers: &Identifiers,
 ) -> HashMap<String, DescriptionValueType> {
     HashMap::from([

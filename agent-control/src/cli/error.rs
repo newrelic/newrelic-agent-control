@@ -14,7 +14,7 @@ pub enum CliError {
     #[error("{0}")]
     Command(String),
 
-    #[error("File system error: {0}")]
+    #[error("file system error: {0}")]
     FileSystemError(String),
 }
 
