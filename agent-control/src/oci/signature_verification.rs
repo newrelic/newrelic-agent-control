@@ -248,7 +248,7 @@ mod tests {
     use crate::http::config::ProxyConfig;
     use crate::oci::reference_parser::ReferenceParser;
     use crate::signature::public_key::tests::TestKeyPair;
-    use crate::{agent_control::run::runtime::tests::tokio_runtime, oci::tests::FakeOciServer};
+    use crate::{oci::tests::FakeOciServer, utils::test_runtime::tokio_runtime};
     use assert_matches::assert_matches;
     use aws_lc_rs::digest::{SHA256, digest};
     use base64::Engine;

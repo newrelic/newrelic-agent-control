@@ -130,10 +130,10 @@ pub mod tests {
     use std::str::FromStr;
     use tempfile::tempdir;
 
-    use crate::agent_control::run::runtime::tests::tokio_runtime;
     use crate::oci::reference_parser::ReferenceParser;
     use crate::signature::public_key::tests::TestKeyPair;
     use crate::signature::public_key_fetcher::tests::JwksMockServer;
+    use crate::utils::test_runtime::tokio_runtime;
     use rstest::rstest;
 
     fn create_test_client() -> Client {
