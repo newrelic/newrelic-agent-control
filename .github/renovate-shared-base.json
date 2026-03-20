@@ -14,7 +14,6 @@
   "enabledManagers": [
     "cargo",
     "custom.regex",
-    "gomod",
     "github-actions"
   ],
   "rangeStrategy": "bump",
@@ -37,6 +36,37 @@
     }
   ],
   "packageRules": [
+    {
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    // Auto-merge minor updates only for stable dependencies
+    {
+      "matchUpdateTypes": ["minor"],
+      "matchCurrentVersion": ">=1.0.0",
+      "automerge": true
+    },
+    // Auto-merge minor updates for cargo are more permissive, we will merge them
+    // unless they are in the deny list in the next rule
+    {
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["minor"],
+      "automerge": true
+    },
+    {
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["minor"],
+      "matchPackageNames": [
+        "/^opentelemetry/",
+        "/^tracing/",
+        "reqwest",
+        "prost",
+        "nix",
+        "oci-client",
+        "crossbeam"
+      ],
+      "automerge": false
+    },
     {
       "groupName": "github actions",
       "matchManagers": [
@@ -62,24 +92,6 @@
         "k8s",
         "schemars"
       ]
-    },
-    {
-      "matchManagers": [
-        "gomod"
-      ],
-      "matchUpdateTypes": [
-        "minor"
-      ],
-      "groupName": "go minor and patch updates"
-    },
-    {
-      "matchManagers": [
-        "gomod"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "groupName": "go major updates"
     }
   ]
 }
