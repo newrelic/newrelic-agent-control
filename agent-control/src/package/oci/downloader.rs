@@ -138,7 +138,6 @@ impl OCIArtifactDownloader {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_control::run::runtime::tests::tokio_runtime;
     use crate::http::config::ProxyConfig;
     use crate::oci::reference_parser::ReferenceParser;
     use crate::oci::tests::FakeOciServer;
@@ -147,6 +146,7 @@ pub mod tests {
     };
     use crate::signature::public_key::tests::TestKeyPair;
     use crate::signature::public_key_fetcher::tests::JwksMockServer;
+    use crate::utils::test_runtime::tokio_runtime;
 
     use super::*;
     use assert_matches::assert_matches;

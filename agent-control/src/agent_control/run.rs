@@ -27,7 +27,6 @@ pub struct RunError(String);
 
 pub mod k8s;
 pub mod on_host;
-pub mod runtime;
 
 /// Defines the supported deployments for agent types
 #[derive(Debug, PartialEq, Copy, Clone)]

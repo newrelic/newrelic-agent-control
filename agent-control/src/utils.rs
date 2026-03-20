@@ -6,3 +6,6 @@ pub mod retry;
 pub mod thread_context;
 pub mod threads;
 pub mod time;
+
+#[cfg(test)]
+pub mod test_runtime;

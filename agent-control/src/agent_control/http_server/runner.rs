@@ -154,10 +154,10 @@ mod tests {
     use assert_matches::assert_matches;
 
     use crate::agent_control::http_server::config::ServerConfig;
-    use crate::agent_control::run::runtime::tests::tokio_runtime;
     use crate::event::AgentControlEvent;
     use crate::event::channel::pub_sub;
     use crate::utils::retry::retry;
+    use crate::utils::test_runtime::tokio_runtime;
 
     use super::*;
 
