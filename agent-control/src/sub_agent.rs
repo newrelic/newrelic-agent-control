@@ -9,8 +9,8 @@ pub mod on_host;
 pub mod remote_config_parser;
 pub mod supervisor;
 
+use crate::agent_control::builder::Environment;
 use crate::agent_control::defaults::default_capabilities;
-use crate::agent_control::run::Environment;
 use crate::agent_control::uptime_report::{UptimeReportConfig, UptimeReporter};
 use crate::checkers::health::events::HealthEventPublisher;
 use crate::checkers::health::health_checker::{Health, Unhealthy};
@@ -797,7 +797,7 @@ pub mod tests {
         MockSupervisor, MockSupervisorBuilder, MockSupervisorStarter, TestingSupervisorError,
     };
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+    use crate::agent_control::builder::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::embedded_registry::EmbeddedRegistry;
     use crate::agent_type::render::TemplateRenderer;

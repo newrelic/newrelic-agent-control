@@ -1,6 +1,6 @@
+use crate::agent_control::builder::Environment;
 use crate::agent_control::config::K8sConfig;
 use crate::agent_control::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
-use crate::agent_control::run::Environment;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
@@ -162,8 +162,8 @@ pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
 
+    use crate::agent_control::builder::k8s::AGENT_CONTROL_MODE_K8S;
     use crate::agent_control::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
-    use crate::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};

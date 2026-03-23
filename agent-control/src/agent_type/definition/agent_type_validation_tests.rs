@@ -8,11 +8,11 @@
 
 use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
 
-use crate::agent_control::run::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_VARIABLE_NAME};
-use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
+use crate::agent_control::builder::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_VARIABLE_NAME};
+use crate::agent_control::builder::on_host::HOST_ID_VARIABLE_NAME;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::{
-    agent_control::{agent_id::AgentID, run::Environment},
+    agent_control::{agent_id::AgentID, builder::Environment},
     agent_type::{
         agent_type_registry::AgentRegistry,
         embedded_registry::EmbeddedRegistry,

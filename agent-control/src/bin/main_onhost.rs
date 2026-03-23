@@ -3,8 +3,9 @@
 //! It implements the basic functionality of parsing the command line arguments and either
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
-use newrelic_agent_control::agent_control::run::AgentControlRunner;
-use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use newrelic_agent_control::agent_control::Runnable;
+use newrelic_agent_control::agent_control::builder::AgentControlBuilder;
+use newrelic_agent_control::agent_control::builder::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::command::{Command, Context};
 use newrelic_agent_control::utils::is_elevated::is_elevated;
 use std::error::Error;
@@ -73,8 +74,9 @@ fn _main(context: Context) -> Result<(), Box<dyn Error>> {
 
     // Create the actual agent control runner with the rest of required configs
     // and the application_event_consumer and capture the result to report the error in windows
-    let run_result = AgentControlRunner::try_new(context.ac_runner_context)
-        .and_then(|runner| runner.run_onhost().map_err(|e| e.into()));
+    let run_result = AgentControlBuilder::try_new(context.ac_runner_context)
+        .and_then(|builder| builder.build_onhost().map_err(|e| e.into()))
+        .and_then(|ac| ac.run().map_err(|e| e.into()));
 
     #[cfg(target_family = "windows")]
     if let Some(handler) = context.stop_handler {

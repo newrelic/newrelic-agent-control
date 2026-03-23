@@ -110,7 +110,7 @@ pub(crate) mod tests {
     use crate::{
         agent_control::{
             agent_id::AgentID,
-            run::{Environment, on_host::AGENT_CONTROL_MODE_ON_HOST},
+            builder::{Environment, on_host::AGENT_CONTROL_MODE_ON_HOST},
         },
         agent_type::{
             definition::AgentType,

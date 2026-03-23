@@ -5,11 +5,11 @@ use std::sync::Arc;
 use fs::file::LocalFile;
 use fs::file::writer::FileWriter;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
+use newrelic_agent_control::agent_control::builder::BasePaths;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
     STORE_KEY_OPAMP_DATA_CONFIG, default_capabilities,
 };
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::on_host::file_store::{FileStore, build_config_name};
 use newrelic_agent_control::values::ConfigRepo;
 use newrelic_agent_control::values::config_repository::ConfigRepository;

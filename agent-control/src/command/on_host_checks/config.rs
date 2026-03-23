@@ -5,9 +5,9 @@ use tracing::info;
 
 use crate::{
     agent_control::{
+        builder::{Environment, setup_config_repository_and_store},
         config::{AgentControlConfig, OpAMPClientConfig},
         config_repository::repository::AgentControlConfigLoader,
-        run::{Environment, setup_config_repository_and_store},
     },
     command::{Args, Command},
     http::config::ProxyConfig,

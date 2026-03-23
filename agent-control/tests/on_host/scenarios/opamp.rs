@@ -11,12 +11,12 @@ use crate::on_host::tools::config::{create_remote_config, load_remote_config_con
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
+use newrelic_agent_control::agent_control::builder::BasePaths;
+use newrelic_agent_control::agent_control::builder::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, AGENT_FILESYSTEM_FOLDER_NAME, FOLDER_NAME_FLEET_DATA,
     STORE_KEY_OPAMP_DATA_CONFIG,
 };
-use newrelic_agent_control::agent_control::run::BasePaths;
-use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_type::variable::namespace::Namespace;
 use newrelic_agent_control::on_host::file_store::build_config_name;
 use newrelic_agent_control::values::config::RemoteConfig;

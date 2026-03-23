@@ -2,7 +2,9 @@ use opamp_client::StartedClient;
 use tracing::info;
 
 use crate::{
-    agent_control::run::on_host::{ac_identifiers, opamp_client_builder, start_ac_opamp_client},
+    agent_control::builder::on_host::{
+        ac_identifiers, opamp_client_builder, start_ac_opamp_client,
+    },
     command::on_host_checks::config::VerifiedConfig,
     opamp::instance_id::{getter::InstanceIDWithIdentifiersGetter, storer::Storer},
 };

@@ -2,7 +2,7 @@ use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::oci_artifact::push_agent_package;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use httpmock::{MockServer, When};
-use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
+use newrelic_agent_control::agent_control::builder::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::http::config::ProxyConfig;
 use newrelic_agent_control::oci;
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;

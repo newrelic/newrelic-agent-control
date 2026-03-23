@@ -10,8 +10,8 @@ use crate::on_host::tools::instance_id::get_instance_id;
 use httpmock::Method::GET;
 use httpmock::MockServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::run::BasePaths;
-use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use newrelic_agent_control::agent_control::builder::BasePaths;
+use newrelic_agent_control::agent_control::builder::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use std::time::Duration;
 use tempfile::tempdir;
 

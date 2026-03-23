@@ -226,8 +226,8 @@ mod agent_type_validation_tests;
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_control::run::Environment;
-    use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+    use crate::agent_control::builder::Environment;
+    use crate::agent_control::builder::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::runtime_config::Deployment;
     use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::{

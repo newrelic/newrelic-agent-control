@@ -1,4 +1,4 @@
-use crate::agent_control::run::Environment;
+use crate::agent_control::builder::Environment;
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
@@ -258,7 +258,7 @@ pub fn build_agent_type(
 pub(crate) mod tests {
 
     use super::*;
-    use crate::agent_control::{agent_id::AgentID, run::on_host::AGENT_CONTROL_MODE_ON_HOST};
+    use crate::agent_control::{agent_id::AgentID, builder::on_host::AGENT_CONTROL_MODE_ON_HOST};
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistry;
     use crate::agent_type::definition::AgentTypeDefinition;

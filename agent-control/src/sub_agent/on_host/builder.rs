@@ -1,7 +1,7 @@
+use crate::agent_control::builder::Environment;
 use crate::agent_control::defaults::{
     HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
-use crate::agent_control::run::Environment;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
@@ -167,11 +167,11 @@ where
 mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::builder::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_control::defaults::{
         OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
         PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_custom_capabilities,
     };
-    use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilder;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;

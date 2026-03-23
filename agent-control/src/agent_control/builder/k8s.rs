@@ -1,4 +1,6 @@
-use crate::agent_control::AgentControl;
+use crate::agent_control::builder::{
+    AgentControlBuilder, Environment, RunError, setup_config_repository_and_store,
+};
 use crate::agent_control::config::{K8sConfig, helmrelease_v2_type_meta};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
@@ -12,10 +14,8 @@ use crate::agent_control::defaults::{
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
-use crate::agent_control::run::{
-    AgentControlRunner, Environment, RunError, setup_config_repository_and_store,
-};
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
+use crate::agent_control::{AgentControl, Runnable};
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::agent_type::version_config::{
@@ -58,8 +58,8 @@ pub const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
 
 pub const AGENT_CONTROL_MODE_K8S: Environment = Environment::K8s;
 
-impl AgentControlRunner {
-    pub fn run_k8s(self) -> Result<(), RunError> {
+impl AgentControlBuilder {
+    pub fn build_k8s(self) -> Result<impl Runnable, RunError> {
         let k8s_config = self.bootstrap_config.k8s.clone().ok_or(RunError(
             "k8s config missing while running on k8s".to_string(),
         ))?;
@@ -250,7 +250,7 @@ impl AgentControlRunner {
             )
         });
 
-        AgentControl::new(
+        Ok(AgentControl::new(
             maybe_client,
             sub_agent_builder,
             SystemTime::now(),
@@ -266,9 +266,7 @@ impl AgentControlRunner {
             k8s_ac_updater,
             health_checker_builder,
             agent_control_config,
-        )
-        .run()
-        .map_err(|err| RunError(err.to_string()))
+        ))
     }
 }
 

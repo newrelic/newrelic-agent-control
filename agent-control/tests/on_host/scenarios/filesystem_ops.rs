@@ -10,9 +10,9 @@ use crate::{
         custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME,
     },
 };
-use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use newrelic_agent_control::agent_control::builder::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::{
-    defaults::AGENT_FILESYSTEM_FOLDER_NAME, run::BasePaths,
+    builder::BasePaths, defaults::AGENT_FILESYSTEM_FOLDER_NAME,
 };
 use tempfile::tempdir;
 

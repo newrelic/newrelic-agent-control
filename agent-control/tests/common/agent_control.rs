@@ -1,9 +1,10 @@
 use crate::common::global_logger::init_logger;
 use crate::on_host::tools::config::create_file;
+use newrelic_agent_control::agent_control::Runnable;
+use newrelic_agent_control::agent_control::builder::{AgentControlBuilder, BasePaths, Environment};
 use newrelic_agent_control::agent_control::config_repository::repository::AgentControlConfigLoader;
 use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
 use newrelic_agent_control::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
-use newrelic_agent_control::agent_control::run::{AgentControlRunner, BasePaths, Environment};
 use newrelic_agent_control::command::RunnerContext;
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
@@ -46,10 +47,10 @@ pub fn start_agent_control_with_custom_config(
             running_mode: ac_running_mode,
             application_event_consumer,
         };
-        let runner = AgentControlRunner::try_new(runner_context).unwrap();
+        let runner = AgentControlBuilder::try_new(runner_context).unwrap();
         match ac_running_mode {
-            Environment::Linux | Environment::Windows => runner.run_onhost(),
-            Environment::K8s => runner.run_k8s(),
+            Environment::Linux | Environment::Windows => runner.build_onhost().unwrap().run(),
+            Environment::K8s => runner.build_k8s().unwrap().run(),
         }
         .unwrap();
     });

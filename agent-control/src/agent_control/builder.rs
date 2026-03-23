@@ -64,11 +64,11 @@ impl Default for BasePaths {
     }
 }
 
-/// Structure with all the data required to run the agent control.
-pub struct AgentControlRunner {
+/// Structure with all the data required to build the Agent Control
+pub struct AgentControlBuilder {
     /// Config loaded at startup from local files. Used to bootstrap
     /// the runner before the platform-specific (on-host/k8s) store is available.
-    /// Environment-specific `run()` methods re-load config from their
+    /// Environment-specific methods re-load config from their
     /// respective stores (file for on-host / ConfigMap for k8s) to get the corresponding config
     /// including remote configuration when needed.
     bootstrap_config: AgentControlConfig,
@@ -84,7 +84,7 @@ pub struct AgentControlRunner {
     http_server_runner: Option<Runner>,
 }
 
-impl AgentControlRunner {
+impl AgentControlBuilder {
     pub fn try_new(context: RunnerContext) -> Result<Self, Box<dyn Error>> {
         let runtime = Arc::new(
             tokio::runtime::Builder::new_multi_thread()
@@ -123,7 +123,7 @@ impl AgentControlRunner {
             .transpose()?
             .unwrap_or(SignatureValidator::new_noop());
 
-        Ok(AgentControlRunner {
+        Ok(AgentControlBuilder {
             bootstrap_config: context.bootstrap_config,
             http_server_runner,
             runtime,

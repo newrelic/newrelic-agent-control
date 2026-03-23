@@ -7,9 +7,9 @@ use crate::on_host::tools::config::{create_agent_control_config, create_local_co
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
+use newrelic_agent_control::agent_control::builder::BasePaths;
+use newrelic_agent_control::agent_control::builder::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::defaults::STORE_KEY_OPAMP_DATA_CONFIG;
-use newrelic_agent_control::agent_control::run::BasePaths;
-use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::on_host::file_store::build_config_name;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;

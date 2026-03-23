@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use fs::file::LocalFile;
 use fs::file::writer::FileWriter;
-use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use newrelic_agent_control::agent_control::builder::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
 use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
 pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";

@@ -10,8 +10,8 @@ use crate::{
         instance_id::get_instance_id,
     },
 };
-use newrelic_agent_control::agent_control::run::BasePaths;
-use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use newrelic_agent_control::agent_control::builder::BasePaths;
+use newrelic_agent_control::agent_control::builder::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::{
     agent_id::AgentID, defaults::STDOUT_LOG_FILE_NAME_SUFFIX,
 };

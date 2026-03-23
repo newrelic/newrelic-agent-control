@@ -10,13 +10,13 @@ use crate::on_host::tools::config::{create_agent_control_config, create_local_co
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
+use newrelic_agent_control::agent_control::builder::BasePaths;
+use newrelic_agent_control::agent_control::builder::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_NAMESPACE, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY,
     OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
-use newrelic_agent_control::agent_control::run::BasePaths;
-use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
 use resource_detection::system::hostname::get_hostname;

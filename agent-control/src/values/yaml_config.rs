@@ -139,7 +139,7 @@ pub fn has_remote_management(capabilities: &Capabilities) -> bool {
 mod tests {
     use super::*;
     use crate::{
-        agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST,
+        agent_control::builder::on_host::AGENT_CONTROL_MODE_ON_HOST,
         agent_type::{
             definition::AgentType,
             variable::{Variable, tree::Tree},

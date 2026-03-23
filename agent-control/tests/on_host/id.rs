@@ -10,11 +10,11 @@ use crate::on_host::tools::custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME;
 use httpmock::Method::GET;
 use httpmock::Method::PUT;
 use httpmock::MockServer;
+use newrelic_agent_control::agent_control::builder::BasePaths;
+use newrelic_agent_control::agent_control::builder::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
 };
-use newrelic_agent_control::agent_control::run::BasePaths;
-use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::http::client::HttpClient;
 use newrelic_agent_control::http::config::{HttpConfig, ProxyConfig};
 use newrelic_agent_control::on_host::file_store::build_config_name;

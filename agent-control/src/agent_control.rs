@@ -1,4 +1,5 @@
 pub mod agent_id;
+pub mod builder;
 pub mod config;
 pub mod config_repository;
 pub mod config_validator;
@@ -8,7 +9,6 @@ mod health_checker;
 pub mod http_server;
 pub mod pid_cache;
 pub mod resource_cleaner;
-pub mod run;
 pub mod uptime_report;
 pub mod version_updater;
 
@@ -45,6 +45,11 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn};
 use uptime_report::UptimeReporter;
 use version_updater::updater::VersionUpdater;
 
+/// Trait for an [AgentControl] instance that is ready to be executed.
+pub trait Runnable {
+    fn run(self) -> Result<(), AgentControlError>;
+}
+
 /// Type alias for a [crate::sub_agent::StartedSubAgent] corresponding to a [SubAgentBuilder].
 type BuilderStartedSubAgent<S> =
     <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent;
@@ -78,7 +83,7 @@ where
     health_checker_builder: HCB,
 }
 
-impl<S, O, SL, RV, DV, RC, VU, HC, HCB> AgentControl<S, O, SL, RV, DV, RC, VU, HC, HCB>
+impl<S, O, SL, RV, DV, RC, VU, HC, HCB> Runnable for AgentControl<S, O, SL, RV, DV, RC, VU, HC, HCB>
 where
     O: StartedClient,
     S: SubAgentBuilder,
@@ -90,44 +95,7 @@ where
     HC: HealthChecker + Send + 'static,
     HCB: Fn(SystemTime) -> Option<HC>,
 {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        opamp_client: Option<O>,
-        sub_agent_builder: S,
-        start_time: SystemTime,
-        sa_dynamic_config_store: Arc<SL>,
-        agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
-        application_event_consumer: EventConsumer<ApplicationEvent>,
-        agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
-        agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
-        agent_control_internal_consumer: EventConsumer<AgentControlInternalEvent>,
-        remote_config_validator: RV,
-        dynamic_config_validator: DV,
-        resource_cleaner: RC,
-        version_updater: VU,
-        health_checker_builder: HCB,
-        initial_config: AgentControlConfig,
-    ) -> Self {
-        Self {
-            opamp_client,
-            sub_agent_builder,
-            start_time,
-            sa_dynamic_config_store,
-            agent_control_publisher,
-            application_event_consumer,
-            agent_control_opamp_consumer,
-            agent_control_internal_consumer,
-            agent_control_internal_publisher,
-            remote_config_validator,
-            dynamic_config_validator,
-            resource_cleaner,
-            health_checker_builder,
-            version_updater,
-            initial_config,
-        }
-    }
-
-    pub fn run(self) -> Result<(), AgentControlError> {
+    fn run(self) -> Result<(), AgentControlError> {
         let ac_startup_span = info_span!("start_agent_control", id = AGENT_CONTROL_ID);
         let _ac_startup_span_guard = ac_startup_span.enter();
         info!("Starting the agents supervisor runtime");
@@ -198,6 +166,56 @@ where
 
         info!("AgentControl finished");
         Ok(())
+    }
+}
+
+impl<S, O, SL, RV, DV, RC, VU, HC, HCB> AgentControl<S, O, SL, RV, DV, RC, VU, HC, HCB>
+where
+    O: StartedClient,
+    S: SubAgentBuilder,
+    SL: AgentControlDynamicConfigRepository,
+    RV: RemoteConfigValidator,
+    DV: DynamicConfigValidator,
+    RC: ResourceCleaner,
+    VU: VersionUpdater,
+    HC: HealthChecker + Send + 'static,
+    HCB: Fn(SystemTime) -> Option<HC>,
+{
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        opamp_client: Option<O>,
+        sub_agent_builder: S,
+        start_time: SystemTime,
+        sa_dynamic_config_store: Arc<SL>,
+        agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
+        application_event_consumer: EventConsumer<ApplicationEvent>,
+        agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
+        agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
+        agent_control_internal_consumer: EventConsumer<AgentControlInternalEvent>,
+        remote_config_validator: RV,
+        dynamic_config_validator: DV,
+        resource_cleaner: RC,
+        version_updater: VU,
+        health_checker_builder: HCB,
+        initial_config: AgentControlConfig,
+    ) -> Self {
+        Self {
+            opamp_client,
+            sub_agent_builder,
+            start_time,
+            sa_dynamic_config_store,
+            agent_control_publisher,
+            application_event_consumer,
+            agent_control_opamp_consumer,
+            agent_control_internal_consumer,
+            agent_control_internal_publisher,
+            remote_config_validator,
+            dynamic_config_validator,
+            resource_cleaner,
+            health_checker_builder,
+            version_updater,
+            initial_config,
+        }
     }
 
     // Recreates a Sub Agent by its agent_id meaning:
@@ -570,6 +588,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::AgentControl;
+    use super::Runnable;
     use super::agent_id::AgentID;
     use super::config::{AgentControlConfig, AgentControlDynamicConfig};
     use super::config_repository::repository::AgentControlDynamicConfigRepository;

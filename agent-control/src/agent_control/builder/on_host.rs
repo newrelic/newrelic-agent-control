@@ -1,4 +1,6 @@
-use crate::agent_control::AgentControl;
+use crate::agent_control::builder::{
+    AgentControlBuilder, Environment, RunError, setup_config_repository_and_store,
+};
 use crate::agent_control::config::{AgentControlConfig, OpAMPClientConfig};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
@@ -8,10 +10,8 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
-use crate::agent_control::run::{
-    AgentControlRunner, Environment, RunError, setup_config_repository_and_store,
-};
 use crate::agent_control::version_updater::updater::NoOpUpdater;
+use crate::agent_control::{AgentControl, Runnable};
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::checkers::health::noop::NoOpHealthChecker;
@@ -81,8 +81,8 @@ type OnHostOpAMPConsumer = EventConsumer<OpAMPEvent>;
 type OnHostInstanceIdGetter =
     InstanceIDWithIdentifiersGetter<Storer<FileStore<LocalFile, DirectoryManagerFs>, Identifiers>>;
 
-impl AgentControlRunner {
-    pub fn run_onhost(self) -> Result<(), RunError> {
+impl AgentControlBuilder {
+    pub fn build_onhost(self) -> Result<impl Runnable, RunError> {
         let local_dir = self.base_paths.local_dir;
         let remote_dir = self.base_paths.remote_dir;
         let file_store = Arc::new(FileStore::new_local_fs(
@@ -204,7 +204,7 @@ impl AgentControlRunner {
             .map_err(|err| RunError(format!("failed to start HTTP server: {err}")))?;
 
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
-        AgentControl::new(
+        Ok(AgentControl::new(
             maybe_client,
             sub_agent_builder,
             SystemTime::now(),
@@ -220,9 +220,7 @@ impl AgentControlRunner {
             NoOpUpdater,
             |t| Some(NoOpHealthChecker::new(t)),
             agent_control_config,
-        )
-        .run()
-        .map_err(|err| RunError(err.to_string()))
+        ))
     }
 }
 

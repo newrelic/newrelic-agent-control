@@ -3,12 +3,12 @@
 //! Parses the command line arguments and decides how the application runs as defined in [Command].
 #![warn(missing_docs)]
 
+use crate::agent_control::builder::Environment;
 use crate::agent_control::config::AgentControlConfig;
 use crate::agent_control::defaults::ENVIRONMENT_VARIABLES_FILE_NAME;
-use crate::agent_control::run::Environment;
 use crate::agent_control::{
+    builder::BasePaths,
     config_repository::{repository::AgentControlConfigLoader, store::AgentControlConfigStore},
-    run::BasePaths,
 };
 use crate::command::on_host_checks::config::check_config;
 use crate::command::on_host_checks::opamp::check_connectivity;

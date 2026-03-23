@@ -10,14 +10,16 @@ use kube::{
     Client,
     api::{Api, DeleteParams, PostParams},
 };
-use newrelic_agent_control::agent_control::{agent_id::AgentID, run::Environment};
+use newrelic_agent_control::agent_control::{agent_id::AgentID, builder::Environment};
+use newrelic_agent_control::{
+    agent_control::builder::BasePaths, k8s::configmap_store::ConfigMapStore,
+};
 use newrelic_agent_control::{
     agent_control::defaults::{
         AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
     },
     on_host::file_store::build_config_name,
 };
-use newrelic_agent_control::{agent_control::run::BasePaths, k8s::configmap_store::ConfigMapStore};
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::Path;

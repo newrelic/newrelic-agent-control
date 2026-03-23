@@ -12,7 +12,7 @@ use crate::{
 };
 use newrelic_agent_control::agent_control::{
     agent_id::AgentID,
-    run::{BasePaths, on_host::AGENT_CONTROL_MODE_ON_HOST},
+    builder::{BasePaths, on_host::AGENT_CONTROL_MODE_ON_HOST},
 };
 use tempfile::tempdir;
 
