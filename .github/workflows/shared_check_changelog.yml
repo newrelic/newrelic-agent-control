@@ -45,7 +45,7 @@ jobs:
 
       - name: Check if CHANGELOG is valid
         id: validate-changelog
-        uses: newrelic/release-toolkit/validate-markdown@v1
+        uses: newrelic/release-toolkit/validate-markdown@e28834c3115d501cd42e8458f058591d34bf045f # v1
 
       - name: Print expected CHANGELOG format
         if: failure() && steps.validate-changelog.conclusion == 'failure'
