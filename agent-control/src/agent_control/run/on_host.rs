@@ -122,7 +122,9 @@ impl AgentControlRunner {
         // Build and start AC OpAMP client
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
             .as_ref()
-            .map(|builder| start_ac_opamp_client(builder, &instance_id_getter, &identifiers))
+            .map(|builder| {
+                start_ac_opamp_client(builder, &instance_id_getter, &identifiers, HashMap::new())
+            })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()?
             .map(|(client, consumer)| (Some(client), Some(consumer)))
@@ -269,6 +271,7 @@ pub fn start_ac_opamp_client(
     builder: &OnHostOpAMPClientBuilder,
     instance_id_getter: &OnHostInstanceIdGetter,
     identifiers: &Identifiers,
+    extra_non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> Result<(OnHostOpAMPClient, OnHostOpAMPConsumer), RunError> {
     info!("Starting Agent Control OpAMP client");
 
@@ -278,11 +281,13 @@ pub fn start_ac_opamp_client(
         .map_err(|err| RunError(format!("error getting instance id: {err}")))?;
 
     let agent_identity = AgentIdentity::new_agent_control_identity();
+    let mut non_identifying_attributes = ac_non_identifying_attributes(identifiers);
+    non_identifying_attributes.extend(extra_non_identifying_attributes);
     let start_settings = start_settings(
         instance_id,
         &agent_identity,
         ac_identifying_attributes(),
-        ac_non_identifying_attributes(identifiers),
+        non_identifying_attributes,
     );
 
     builder
