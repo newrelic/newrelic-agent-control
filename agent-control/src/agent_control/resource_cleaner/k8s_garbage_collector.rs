@@ -4,6 +4,7 @@ use crate::agent_control::config::SubAgentsMap;
 use crate::agent_control::defaults::AGENT_CONTROL_ID;
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::k8s::annotations;
+use crate::k8s::client::K8sObjectKey;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::error::K8sError;
@@ -104,8 +105,13 @@ impl K8sGarbageCollector {
                                 let namespace = get_namespace(&d)?;
 
                                 debug!("deleting dynamic_resource: `{}/{}`", tm.kind, name);
-                                self.k8s_client
-                                    .delete_dynamic_object(tm, &name, &namespace)?;
+                                self.k8s_client.delete_dynamic_object(
+                                    tm,
+                                    K8sObjectKey {
+                                        name: &name,
+                                        namespace: &namespace,
+                                    },
+                                )?;
                             }
                             Ok(())
                         })

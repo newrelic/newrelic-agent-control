@@ -24,6 +24,13 @@ use std::{collections::BTreeMap, sync::Arc};
 use tokio::runtime::Runtime;
 use tracing::debug;
 
+/// A key to identify a Kubernetes object, consisting of its name and namespace.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct K8sObjectKey<'a> {
+    pub name: &'a str,
+    pub namespace: &'a str,
+}
+
 /// Provides a _sync_ implementation of [AsyncK8sClient].
 ///
 /// It offers a sync version of each async method implemented in the [AsyncK8sClient]. To do so,
@@ -75,37 +82,32 @@ impl SyncK8sClient {
             .block_on(self.async_client.apply_dynamic_object_if_changed(obj))
     }
 
-    pub fn patch_dynamic_object(
+    pub fn patch_dynamic_object<'a>(
         &self,
         tm: &TypeMeta,
-        name: &str,
-        namespace: &str,
+        key: K8sObjectKey<'a>,
         patch: serde_json::Value,
     ) -> Result<DynamicObject, K8sError> {
-        self.runtime.block_on(
-            self.async_client
-                .patch_dynamic_object(tm, name, namespace, patch),
-        )
+        self.runtime
+            .block_on(self.async_client.patch_dynamic_object(tm, key, patch))
     }
 
-    pub fn get_dynamic_object(
+    pub fn get_dynamic_object<'a>(
         &self,
         tm: &TypeMeta,
-        name: &str,
-        namespace: &str,
+        key: K8sObjectKey<'a>,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
         self.runtime
-            .block_on(self.async_client.get_dynamic_object(tm, name, namespace))
+            .block_on(self.async_client.get_dynamic_object(tm, key))
     }
 
-    pub fn delete_dynamic_object(
+    pub fn delete_dynamic_object<'a>(
         &self,
         tm: &TypeMeta,
-        name: &str,
-        namespace: &str,
+        key: K8sObjectKey<'a>,
     ) -> Result<Either<DynamicObject, Status>, K8sError> {
         self.runtime
-            .block_on(self.async_client.delete_dynamic_object(tm, name, namespace))
+            .block_on(self.async_client.delete_dynamic_object(tm, key))
     }
 
     pub fn delete_dynamic_object_collection(
@@ -447,46 +449,43 @@ impl AsyncK8sClient {
     pub async fn patch_dynamic_object(
         &self,
         tm: &TypeMeta,
-        name: &str,
-        namespace: &str,
+        key: K8sObjectKey<'_>,
         patch: serde_json::Value,
     ) -> Result<DynamicObject, K8sError> {
-        let tmn = &TypeMetaNamespaced::new(tm, namespace);
+        let tmn = &TypeMetaNamespaced::new(tm, key.namespace);
 
         self.dynamic_object_managers
             .get_or_create(tmn)
             .await?
-            .patch(name, namespace, patch)
+            .patch(key.name, key.namespace, patch)
             .await
     }
 
     pub async fn get_dynamic_object(
         &self,
         tm: &TypeMeta,
-        name: &str,
-        namespace: &str,
+        key: K8sObjectKey<'_>,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
-        let tmn = &TypeMetaNamespaced::new(tm, namespace);
+        let tmn = &TypeMetaNamespaced::new(tm, key.namespace);
 
         Ok(self
             .dynamic_object_managers
             .get_or_create(tmn)
             .await?
-            .get(name))
+            .get(key.name))
     }
 
     pub async fn delete_dynamic_object(
         &self,
         tm: &TypeMeta,
-        name: &str,
-        namespace: &str,
+        key: K8sObjectKey<'_>,
     ) -> Result<Either<DynamicObject, Status>, K8sError> {
-        let tmn = &TypeMetaNamespaced::new(tm, namespace);
+        let tmn = &TypeMetaNamespaced::new(tm, key.namespace);
 
         self.dynamic_object_managers
             .get_or_create(tmn)
             .await?
-            .delete(name, namespace)
+            .delete(key.name, key.namespace)
             .await
     }
 

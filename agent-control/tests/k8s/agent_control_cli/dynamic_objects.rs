@@ -6,7 +6,7 @@ use newrelic_agent_control::agent_control::config::{
     helmrelease_v2_type_meta, helmrepository_type_meta,
 };
 use newrelic_agent_control::cli::k8s::install::agent_control::REPOSITORY_NAME;
-use newrelic_agent_control::k8s::client::SyncK8sClient;
+use newrelic_agent_control::k8s::client::{K8sObjectKey, SyncK8sClient};
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL};
 use newrelic_agent_control::sub_agent::identity::AgentIdentity;
 use std::collections::BTreeMap;
@@ -39,7 +39,13 @@ fn k8s_cli_install_agent_control_creates_resources() {
 
     // Assert repository data
     let repository = k8s_client
-        .get_dynamic_object(&helmrepository_type_meta(), REPOSITORY_NAME, &namespace)
+        .get_dynamic_object(
+            &helmrepository_type_meta(),
+            K8sObjectKey {
+                name: REPOSITORY_NAME,
+                namespace: &namespace,
+            },
+        )
         .unwrap()
         .unwrap();
 
@@ -64,7 +70,13 @@ fn k8s_cli_install_agent_control_creates_resources() {
 
     // Assert release data
     let release = k8s_client
-        .get_dynamic_object(&helmrelease_v2_type_meta(), release_name, &namespace)
+        .get_dynamic_object(
+            &helmrelease_v2_type_meta(),
+            K8sObjectKey {
+                name: release_name,
+                namespace: &namespace,
+            },
+        )
         .unwrap()
         .unwrap();
 
@@ -171,7 +183,13 @@ fn k8s_cli_install_agent_control_creates_resources_with_specific_repository_url(
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
     let repository = k8s_client
-        .get_dynamic_object(&helmrepository_type_meta(), REPOSITORY_NAME, &namespace)
+        .get_dynamic_object(
+            &helmrepository_type_meta(),
+            K8sObjectKey {
+                name: REPOSITORY_NAME,
+                namespace: &namespace,
+            },
+        )
         .unwrap()
         .unwrap();
     assert_eq!(repository.data["spec"]["url"], repository_url);

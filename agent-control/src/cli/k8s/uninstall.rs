@@ -8,6 +8,7 @@ use kube::{
 use tracing::info;
 
 use super::errors::K8sCliError;
+use crate::k8s::client::K8sObjectKey;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::utils::retry::retry;
@@ -44,7 +45,7 @@ impl<'a> Deleter<'a> {
         retry(self.max_attempts, self.interval, || {
             let res = self
                 .k8s_client
-                .delete_dynamic_object(tm, name, namespace)
+                .delete_dynamic_object(tm, K8sObjectKey { name, namespace })
                 .map_err(|err| {
                     K8sCliError::DeleteResource(format!(
                         "could not delete resource '{}' of type '{}': {}",

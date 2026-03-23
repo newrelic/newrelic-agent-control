@@ -130,9 +130,10 @@ mod tests {
     use crate::k8s::client::SyncK8sClient;
 
     use crate::agent_control::defaults::APM_APPLICATION_ID;
+
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::api::DynamicObject;
-    use mockall::predicate::*;
+
     use serde_json::json;
     use std::sync::Arc;
 
@@ -152,8 +153,10 @@ mod tests {
 
         client
             .expect_get_dynamic_object()
-            .with(eq(tm), eq("test-inst"), eq("default"))
-            .returning(move |_, _, _| Ok(Some(Arc::new(obj.clone()))));
+            .withf(move |tm_arg, key_arg| {
+                *tm_arg == tm && key_arg.name == "test-inst" && key_arg.namespace == "default"
+            })
+            .returning(move |_, _| Ok(Some(Arc::new(obj.clone()))));
 
         client
     }
