@@ -16,6 +16,10 @@ pub(super) struct Package {
     /// Useful for copying binaries to parent agent directories or other setup tasks.
     #[serde(default)]
     pub post_install: Vec<PostInstallHook>,
+    /// Install paths where files should be copied after download.
+    /// Source files are automatically resolved from package or filesystem directories.
+    #[serde(default)]
+    pub install: Vec<InstallPath>,
 }
 
 pub type PackageID = String;
@@ -37,6 +41,24 @@ pub struct Oci {
     pub version: TemplateableValue<String>,
     /// Public key url is expected to be a jwks.
     pub public_key_url: Option<TemplateableValue<String>>,
+}
+
+/// Install path configuration. Supports simple, explicit source, or direct content writing.
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[serde(untagged)]
+pub enum InstallPath {
+    /// Simple string format - just the destination path. Source is automatically resolved.
+    Simple(TemplateableValue<String>),
+    /// Content format - write content directly to destination file.
+    Content {
+        destination: TemplateableValue<String>,
+        content: TemplateableValue<String>,
+    },
+    /// Explicit format - specify both source and destination when auto-resolution isn't suitable.
+    Explicit {
+        source: TemplateableValue<String>,
+        destination: TemplateableValue<String>,
+    },
 }
 
 /// Post-install hook that executes after package extraction.
@@ -76,10 +98,36 @@ impl Templateable for Package {
             .map(|hook| hook.template_with(variables))
             .collect::<Result<Vec<_>, _>>()?;
 
+        let install = self
+            .install
+            .into_iter()
+            .map(|path| path.template_with(variables))
+            .collect::<Result<Vec<_>, _>>()?;
+
         Ok(Self::Output {
             download: self.download.template_with(variables)?,
             post_install,
+            install,
         })
+    }
+}
+
+impl Templateable for InstallPath {
+    type Output = rendered::InstallPath;
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        match self {
+            InstallPath::Simple(destination) => Ok(rendered::InstallPath::Simple(
+                destination.template_with(variables)?.into(),
+            )),
+            InstallPath::Content { destination, content } => Ok(rendered::InstallPath::Content {
+                destination: destination.template_with(variables)?.into(),
+                content: content.template_with(variables)?,
+            }),
+            InstallPath::Explicit { source, destination } => Ok(rendered::InstallPath::Explicit {
+                source: source.template_with(variables)?.into(),
+                destination: destination.template_with(variables)?.into(),
+            }),
+        }
     }
 }
 

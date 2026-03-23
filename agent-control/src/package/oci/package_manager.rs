@@ -2,7 +2,7 @@ use super::downloader::{OCIAgentDownloader, OCIDownloaderError};
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::PACKAGES_FOLDER_NAME;
 use crate::agent_type::runtime_config::on_host::package::rendered::{
-    PostInstallAction, PostInstallHook,
+    InstallPath, PostInstallAction, PostInstallHook,
 };
 use crate::agent_type::runtime_config::on_host::package::PackageID;
 use crate::package::manager::{InstalledPackageData, PackageData, PackageManager};
@@ -51,6 +51,8 @@ pub enum OCIPackageManagerError {
     RetainPackageErrors(RetainPackageErrors),
     #[error("error executing post-install hook: {0}")]
     PostInstallHook(String),
+    #[error("error executing install path: {0}")]
+    InstallPath(String),
 }
 
 #[derive(Debug, Default)]
@@ -148,6 +150,124 @@ where
             "Package extraction succeeded. Written to {}",
             extract_dir.display()
         );
+        Ok(())
+    }
+
+    /// Executes install paths with automatic source resolution.
+    /// - Simple paths: source is automatically resolved from the package directory.
+    /// - Content paths: content is written directly to the destination file.
+    /// - Explicit paths: provided source and destination are used directly.
+    fn execute_install_paths(
+        &self,
+        paths: &[InstallPath],
+        package_dir: &Path,
+    ) -> Result<(), OCIPackageManagerError> {
+        for (index, path) in paths.iter().enumerate() {
+            debug!("Executing install path #{}", index + 1);
+
+            match path {
+                InstallPath::Simple(dest) => {
+                    // Auto-resolve source from package directory
+                    let filename = dest.file_name().ok_or_else(|| {
+                        OCIPackageManagerError::InstallPath(format!(
+                            "Invalid destination path (no filename): {}",
+                            dest.display()
+                        ))
+                    })?;
+
+                    let auto_source = package_dir.join(filename);
+
+                    if !auto_source.exists() {
+                        return Err(OCIPackageManagerError::InstallPath(format!(
+                            "Auto-resolved source file not found: {}",
+                            auto_source.display()
+                        )));
+                    }
+
+                    // Create parent directories for destination
+                    if let Some(parent) = dest.parent() {
+                        self.directory_manager.create(parent).map_err(|e| {
+                            OCIPackageManagerError::InstallPath(format!(
+                                "Failed to create parent directories for {}: {}",
+                                dest.display(),
+                                e
+                            ))
+                        })?;
+                    }
+
+                    // Copy file from source to destination
+                    std::fs::copy(&auto_source, dest).map_err(|e| {
+                        OCIPackageManagerError::InstallPath(format!(
+                            "Failed to copy {} to {}: {}",
+                            auto_source.display(),
+                            dest.display(),
+                            e
+                        ))
+                    })?;
+
+                    info!(
+                        "Install path: copied {} to {}",
+                        auto_source.display(),
+                        dest.display()
+                    );
+                }
+                InstallPath::Content { destination, content } => {
+                    // Create parent directories for destination
+                    if let Some(parent) = destination.parent() {
+                        self.directory_manager.create(parent).map_err(|e| {
+                            OCIPackageManagerError::InstallPath(format!(
+                                "Failed to create parent directories for {}: {}",
+                                destination.display(),
+                                e
+                            ))
+                        })?;
+                    }
+
+                    // Write content directly to destination file
+                    std::fs::write(destination, content).map_err(|e| {
+                        OCIPackageManagerError::InstallPath(format!(
+                            "Failed to write content to {}: {}",
+                            destination.display(),
+                            e
+                        ))
+                    })?;
+
+                    info!(
+                        "Install path: wrote content ({} bytes) to {}",
+                        content.len(),
+                        destination.display()
+                    );
+                }
+                InstallPath::Explicit { source, destination } => {
+                    // Create parent directories for destination
+                    if let Some(parent) = destination.parent() {
+                        self.directory_manager.create(parent).map_err(|e| {
+                            OCIPackageManagerError::InstallPath(format!(
+                                "Failed to create parent directories for {}: {}",
+                                destination.display(),
+                                e
+                            ))
+                        })?;
+                    }
+
+                    // Copy file from source to destination
+                    std::fs::copy(source, destination).map_err(|e| {
+                        OCIPackageManagerError::InstallPath(format!(
+                            "Failed to copy {} to {}: {}",
+                            source.display(),
+                            destination.display(),
+                            e
+                        ))
+                    })?;
+
+                    info!(
+                        "Install path: copied {} to {}",
+                        source.display(),
+                        destination.display()
+                    );
+                }
+            }
+        }
         Ok(())
     }
 
@@ -485,6 +605,13 @@ where
                 .inspect_err(|_| _ = self.directory_manager.delete(&temp_package_path))?;
         }
 
+        // Execute install paths with auto-resolution
+        if !package_data.install_paths.is_empty() {
+            debug!("Executing {} install paths", package_data.install_paths.len());
+            self.execute_install_paths(&package_data.install_paths, &installed_package.installation_path)
+                .inspect_err(|_| _ = self.directory_manager.delete(&temp_package_path))?;
+        }
+
         self.directory_manager
             .delete(&temp_package_path)
             .map_err(OCIPackageManagerError::Install)?;
@@ -530,6 +657,7 @@ mod tests {
             oci_reference: test_reference(),
             public_key_url: None,
             post_install_hooks: vec![],
+            install_paths: vec![],
         }
     }
 
@@ -544,6 +672,7 @@ mod tests {
                 .unwrap(),
             public_key_url: None,
             post_install_hooks: vec![],
+            install_paths: vec![],
         }
     }
 
@@ -915,6 +1044,7 @@ mod tests {
             oci_reference: test_reference(),
             public_key_url: None,
             post_install_hooks: vec![],
+            install_paths: vec![],
         };
         let result = pm.install(&agent_id, package_data);
 
@@ -979,6 +1109,7 @@ mod tests {
             oci_reference: test_reference(),
             public_key_url: None,
             post_install_hooks: vec![],
+            install_paths: vec![],
         };
         let result = pm.install(&agent_id, package_data);
 
@@ -1065,6 +1196,7 @@ mod tests {
             oci_reference: test_reference(),
             public_key_url: None,
             post_install_hooks: vec![],
+            install_paths: vec![],
         };
 
         let installed = pm.install(&agent_id, package_data).unwrap();

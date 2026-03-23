@@ -1,6 +1,6 @@
 //! This module manages package operations such as installation, removal, and updates.
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_type::runtime_config::on_host::package::rendered::PostInstallHook;
+use crate::agent_type::runtime_config::on_host::package::rendered::{InstallPath, PostInstallHook};
 use crate::package::oci::package_manager::OCIPackageManagerError;
 use oci_client::Reference;
 use std::path::PathBuf;
@@ -14,6 +14,8 @@ pub struct PackageData {
     pub public_key_url: Option<Url>,
     /// Post-install hooks to execute after package extraction
     pub post_install_hooks: Vec<PostInstallHook>,
+    /// Install paths with automatic source resolution
+    pub install_paths: Vec<InstallPath>,
 }
 
 /// Information about an installed package

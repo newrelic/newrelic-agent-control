@@ -424,6 +424,7 @@ fn install_packages<PM: PackageManager>(
                     oci_reference: package.download.oci.reference.clone(),
                     public_key_url: package.download.oci.public_key_url.clone(),
                     post_install_hooks: package.post_install.clone(),
+                    install_paths: package.install.clone(),
                 },
             )
             .map_err(|err| InstallPackageError {

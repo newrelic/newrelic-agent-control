@@ -235,6 +235,7 @@ where
         // This ensures each parent agent gets its own set of hooks with correctly resolved paths.
         if !parent_agent_ids.is_empty() {
             runtime_config = self.expand_post_install_hooks_for_parents(runtime_config, &parent_agent_ids)?;
+            runtime_config = self.expand_install_paths_for_parents(runtime_config, &parent_agent_ids)?;
         }
 
         Ok(EffectiveAgent::new(agent_identity.clone(), runtime_config))
@@ -338,6 +339,105 @@ where
                 }
 
                 package.post_install = expanded_hooks;
+            }
+        }
+
+        Ok(runtime_config)
+    }
+
+    /// Expands install paths to create one path per parent agent instance.
+    /// Each parent agent gets its own set of paths with parent-specific paths properly resolved.
+    fn expand_install_paths_for_parents(
+        &self,
+        mut runtime_config: rendered::Runtime,
+        parent_agent_ids: &[crate::agent_control::agent_id::AgentID],
+    ) -> Result<rendered::Runtime, EffectiveAgentsAssemblerError> {
+        use crate::agent_type::runtime_config::on_host::package::rendered::InstallPath;
+        use crate::agent_control::defaults::AGENT_FILESYSTEM_FOLDER_NAME;
+
+        // Expand install paths for Linux deployment
+        if let Some(ref mut linux) = runtime_config.deployment.linux {
+            for (_package_id, package) in &mut linux.packages {
+                let original_paths = std::mem::take(&mut package.install);
+                let mut expanded_paths = Vec::new();
+
+                for path in original_paths {
+                    // For each parent agent, create a copy of the path with parent-specific destination
+                    for parent_id in parent_agent_ids {
+                        let parent_fs_dir = self.remote_dir
+                            .join(AGENT_FILESYSTEM_FOLDER_NAME)
+                            .join(&parent_id.to_string());
+
+                        let expanded_path = match &path {
+                            InstallPath::Simple(destination) => {
+                                let new_dest = self.replace_parent_path_in_hook(destination, &parent_fs_dir);
+                                InstallPath::Simple(new_dest)
+                            }
+                            InstallPath::Content { destination, content } => {
+                                let new_dest = self.replace_parent_path_in_hook(destination, &parent_fs_dir);
+                                InstallPath::Content {
+                                    destination: new_dest,
+                                    content: content.clone(),
+                                }
+                            }
+                            InstallPath::Explicit { source, destination } => {
+                                let new_dest = self.replace_parent_path_in_hook(destination, &parent_fs_dir);
+                                // Source paths containing filesystem_agent_dir also need expansion
+                                let new_source = self.replace_parent_path_in_hook(source, &parent_fs_dir);
+                                InstallPath::Explicit {
+                                    source: new_source,
+                                    destination: new_dest,
+                                }
+                            }
+                        };
+
+                        expanded_paths.push(expanded_path);
+                    }
+                }
+
+                package.install = expanded_paths;
+            }
+        }
+
+        // Expand install paths for Windows deployment
+        if let Some(ref mut windows) = runtime_config.deployment.windows {
+            for (_package_id, package) in &mut windows.packages {
+                let original_paths = std::mem::take(&mut package.install);
+                let mut expanded_paths = Vec::new();
+
+                for path in original_paths {
+                    for parent_id in parent_agent_ids {
+                        let parent_fs_dir = self.remote_dir
+                            .join(AGENT_FILESYSTEM_FOLDER_NAME)
+                            .join(&parent_id.to_string());
+
+                        let expanded_path = match &path {
+                            InstallPath::Simple(destination) => {
+                                let new_dest = self.replace_parent_path_in_hook(destination, &parent_fs_dir);
+                                InstallPath::Simple(new_dest)
+                            }
+                            InstallPath::Content { destination, content } => {
+                                let new_dest = self.replace_parent_path_in_hook(destination, &parent_fs_dir);
+                                InstallPath::Content {
+                                    destination: new_dest,
+                                    content: content.clone(),
+                                }
+                            }
+                            InstallPath::Explicit { source, destination } => {
+                                let new_dest = self.replace_parent_path_in_hook(destination, &parent_fs_dir);
+                                let new_source = self.replace_parent_path_in_hook(source, &parent_fs_dir);
+                                InstallPath::Explicit {
+                                    source: new_source,
+                                    destination: new_dest,
+                                }
+                            }
+                        };
+
+                        expanded_paths.push(expanded_path);
+                    }
+                }
+
+                package.install = expanded_paths;
             }
         }
 
