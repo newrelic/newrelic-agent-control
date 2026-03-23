@@ -10,3 +10,4 @@ mod oci_registry;
 mod opamp_auth;
 mod scenarios;
 pub mod tools;
+mod verify_executor;

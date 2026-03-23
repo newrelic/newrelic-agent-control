@@ -12,9 +12,8 @@ use crate::agent_control::config::AgentControlDynamicConfig;
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
 use crate::command::SubCommand;
 
-// TODO adjust according to cli command expected behavior.
-const DEFAULT_VERIFY_TIMEOUT: Duration = Duration::from_secs(30);
-const POLL_INTERVAL: Duration = Duration::from_millis(500);
+const DEFAULT_VERIFY_TIMEOUT: Duration = Duration::from_secs(20);
+const POLL_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Errors that can occur while running the verification subprocess.
 #[derive(Debug, Error)]
@@ -42,8 +41,6 @@ pub enum VerifyError {
 }
 
 /// Output written by the verify command to stdout.
-///
-/// TODO: Replace with the actual types defined in the CLI commands task once available.
 #[derive(Debug, Deserialize)]
 pub struct CommandOutput {
     pub message: String,
@@ -144,9 +141,16 @@ impl VerifyExecutor for ProcessVerifyExecutor {
         }
 
         // On failure the command is expected to have written a structured
-        // CommandOutput to stdout. If parsing fails the binary likely crashed
-        // (e.g., a panic) rather than performing a controlled verification failure.
-        match serde_json::from_str::<CommandOutput>(&stdout_buf) {
+        // CommandOutput to stdout. The output may contain multiple lines (e.g., log lines)
+        // so we try to parse the last non-empty line as JSON first.
+        // If parsing fails the binary likely crashed (e.g., a panic) rather than
+        // performing a controlled verification failure.
+        let output_to_parse = stdout_buf
+            .lines()
+            .rfind(|line| !line.trim().is_empty())
+            .unwrap_or(&stdout_buf);
+
+        match serde_json::from_str::<CommandOutput>(output_to_parse) {
             Ok(output) => Err(VerifyError::VerificationFailed(output.message)),
             Err(err) => {
                 error!(%err, stdout = %stdout_buf, stderr = %stderr_buf, "Verification subprocess failed and output couldn't be parsed");
@@ -281,8 +285,8 @@ mod tests {
     }
 
     #[rstest]
-    #[cfg_attr(unix, case("sleep", vec!["1"]))]
-    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", "Start-Sleep -Seconds 1"]))]
+    #[cfg_attr(unix, case("sleep", vec!["3"]))]
+    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", "Start-Sleep -Seconds 3"]))]
     fn test_process_executor_times_out(#[case] bin: &'static str, #[case] args: Vec<&'static str>) {
         let executor = ProcessVerifyExecutor::new(Duration::from_millis(200));
         assert!(matches!(

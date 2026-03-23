@@ -142,7 +142,10 @@ impl Command {
             Some(SubCommand::Version) => Command::print_version(running_mode),
             Some(SubCommand::Verify) => {
                 if let Err(err) = Command::verify(running_mode, &parsed.args) {
-                    println!("{err}");
+                    let output = serde_json::json!({
+                        "message": err.to_string()
+                    });
+                    println!("{}", output);
                     return ExitCode::FAILURE;
                 }
 
