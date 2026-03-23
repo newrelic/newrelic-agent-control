@@ -19,7 +19,7 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
 
       - name: Upload agent metadata to New Relic
-        uses: newrelic/agent-metadata-action@71561e9ee1c1d18252d102d5dc29c9d0523e6def # v1
+        uses: newrelic/agent-metadata-action@ec85fe665aea3d94097af1fd46455a043df84502 # v1
         with:
           agent-type: NRAgentControl
           version: ${{ github.event.release.tag_name }}
