@@ -270,8 +270,8 @@ mod tests {
     }
 
     #[rstest]
-    #[cfg_attr(unix, case("sh", vec!["-c", r#"printf '{"message":"pre-flight check failed"}'; exit 1"#]))]
-    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", r#"Write-Output '{"message":"pre-flight check failed"}'; exit 1"#]))]
+    #[cfg_attr(unix, case("sh", vec!["-c", r#"printf 'previous lines\n{"message":"pre-flight check failed"}'; exit 1"#]))]
+    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", r#"Write-Output 'previous lines'; Write-Output '{"message":"pre-flight check failed"}'; exit 1"#]))]
     fn test_process_executor_verification_failed_on_json_stdout(
         #[case] bin: &'static str,
         #[case] args: Vec<&'static str>,
