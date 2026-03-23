@@ -6,7 +6,7 @@ use crate::{event::ApplicationEvent, utils::retry::retry};
 use std::error::Error;
 use std::sync::OnceLock;
 use std::time::Duration;
-use tracing::error;
+use tracing::{debug, error};
 use windows_service::{
     service::{
         ServiceAccess, ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState,
@@ -46,6 +46,10 @@ impl WindowsServiceStopHandler {
         run_result: &Result<(), Box<dyn Error>>,
     ) -> Result<(), Box<dyn Error>> {
         if let Some(handle) = self.handle.take() {
+            debug!(
+                service = WINDOWS_SERVICE_NAME,
+                "Tearing down Windows Service"
+            );
             let exit_code = match run_result {
                 Err(err) => {
                     error!("Service stopping due to error: {err}");
@@ -80,11 +84,24 @@ fn set_service_as_stopped(
     handle: ServiceStatusHandle,
     exit_code: ServiceExitCode,
 ) -> windows_service::Result<()> {
+    debug!(
+        service = WINDOWS_SERVICE_NAME,
+        "Checking if the service is Running for Windows SCM"
+    );
     let _ = retry(SCM_CHECK_MAX_ATTEMPTS, SCM_CHECK_INTERVALS, || {
         scm_service_ready_to_stop(WINDOWS_SERVICE_NAME)
-    }).inspect_err(|err| {
-        error!("Could not assure that '{WINDOWS_SERVICE_NAME}' service was in the expected state after {SCM_CHECK_MAX_ATTEMPTS} attempts: {err}");
+    })
+    .inspect_err(|err| {
+        error!(
+            service = WINDOWS_SERVICE_NAME,
+            max_attempts = SCM_CHECK_MAX_ATTEMPTS,
+            "Maximum attempts reached to check that the service state was the expected: {err}"
+        );
     });
+    debug!(
+        service = WINDOWS_SERVICE_NAME,
+        "Setting Windows Service as stopped"
+    );
     let service_status = ServiceStatus {
         exit_code,
         ..ServiceStatus::from(WindowsServiceStatus::Stopped)
