@@ -7,7 +7,6 @@
   "labels": [
     "dependencies"
   ],
-  "automerge": false,
   "lockFileMaintenance": {
     "enabled": true
   },
@@ -35,24 +34,40 @@
       "packageNameTemplate": "rust-lang/rust"
     }
   ],
+  // Auto-merge is disable except for rules defined in packageRules.
+  "automerge": false,
+  "automergeType": "branch",
   "packageRules": [
+    // Auto-merge rules are allows different groups of dependencies to be merged automatically.
+    // Double check before changing them if the reason is redundancy or if you want to add a new rule.
+    // Take into account that there are multiple managers (e.g. cargo, github-actions, etc).
     {
-      "matchUpdateTypes": ["patch"],
+      "matchUpdateTypes": [
+        "patch",
+        "lockFileMaintenance",
+        "digest",
+        "pin",
+        "pinDigest"
+      ],
       "automerge": true
     },
-    // Auto-merge minor updates only for stable dependencies
+    {
+      "matchDepTypes": ["devDependencies"],
+      "automerge": true
+    },
+    // minor updates of stable dependencies for all managers.
     {
       "matchUpdateTypes": ["minor"],
       "matchCurrentVersion": ">=1.0.0",
       "automerge": true
     },
-    // Auto-merge minor updates for cargo are more permissive, we will merge them
-    // unless they are in the deny list in the next rule
+    // Cargo minor updates
     {
       "matchManagers": ["cargo"],
       "matchUpdateTypes": ["minor"],
       "automerge": true
     },
+    // Cargo minor updates exceptions.
     {
       "matchManagers": ["cargo"],
       "matchUpdateTypes": ["minor"],

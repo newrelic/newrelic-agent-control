@@ -1,7 +1,7 @@
 name: 🐤 Plan k8s canaries infrastructure changes
 
 on:
-  pull_request:
+  push:
     paths:
       - test/k8s-canaries/terraform/**
 
