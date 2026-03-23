@@ -83,7 +83,7 @@ fn set_service_as_stopped(
     let _ = retry(SCM_CHECK_MAX_ATTEMPTS, SCM_CHECK_INTERVALS, || {
         scm_service_ready_to_stop(WINDOWS_SERVICE_NAME)
     }).inspect_err(|err| {
-        error!("Could not assure that '{WINDOWS_SERVICE_NAME}' was in the expected state after {SCM_CHECK_MAX_ATTEMPTS} attempts: {err}");
+        error!("Could not assure that '{WINDOWS_SERVICE_NAME}' service was in the expected state after {SCM_CHECK_MAX_ATTEMPTS} attempts: {err}");
     });
     let service_status = ServiceStatus {
         exit_code,
