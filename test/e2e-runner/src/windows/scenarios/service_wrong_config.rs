@@ -25,9 +25,9 @@ pub fn test_service_restart_depending_on_config_correctness(args: Args) {
     // Replace the valid empty map with an unclosed one to break YAML parsing
     modify_agents_config(windows::DEFAULT_AC_CONFIG_PATH, "agents: {}", "agents: {");
 
-    // Expect restart to fail
+    // The service should fail to start as the config is not right
     windows::service::restart_service(SERVICE_NAME, STATUS_STOPPED);
-    info!("Waiting 10 seconds for service to start");
+    info!("Waiting 10 seconds to check that the service is still not running");
     thread::sleep(Duration::from_secs(10));
 
     windows::service::check_service_status(SERVICE_NAME, STATUS_STOPPED)
