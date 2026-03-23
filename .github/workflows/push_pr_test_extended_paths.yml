@@ -1,6 +1,15 @@
 name: test-extended-paths
 
 on:
+  push:
+    branches:
+      - renovate/**
+    paths:
+      - "Tiltfile"
+      - "test/k8s-e2e/**"
+      - "test/e2e-runner/**"
+      - "agent-control/agent-type-registry/**"
+      - "build/**"
   pull_request:
     types: [ opened, synchronize, labeled ] # Also check labels
     paths:

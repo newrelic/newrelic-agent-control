@@ -2,9 +2,6 @@ name: build-packages and image
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
     paths:
       - ".github/**"
       - "build/**"
