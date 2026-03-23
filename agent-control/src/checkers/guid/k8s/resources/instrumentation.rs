@@ -1,7 +1,7 @@
 use crate::checkers::guid::{EntityGuid, GuidCheckError, GuidChecker};
+use crate::k8s::client::K8sObjectKey;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::k8s::client::{K8sNamespace, K8sObjectName};
 use kube::api::TypeMeta;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -69,8 +69,10 @@ impl GuidChecker for K8sGuidInstrumentation {
             .k8s_client
             .get_dynamic_object(
                 &self.type_meta,
-                K8sObjectName::new(&self.name),
-                K8sNamespace::new(&self.namespace),
+                K8sObjectKey {
+                    name: &self.name,
+                    namespace: &self.namespace,
+                },
             )
             .map_err(|e| GuidCheckError(format!("K8s error: {e}")))?;
 
@@ -131,12 +133,10 @@ mod tests {
         if let Some(err_msg) = k8s_error {
             client
                 .expect_get_dynamic_object()
-                .withf(move |tm_arg, name_arg, ns_arg| {
-                    *tm_arg == tm && name_arg.as_str() == name && ns_arg.as_str() == namespace
+                .withf(move |tm_arg, key_arg| {
+                    *tm_arg == tm && key_arg.name == name && key_arg.namespace == namespace
                 })
-                .returning(move |_, _, _| {
-                    Err(crate::k8s::error::K8sError::Generic(err_msg.clone()))
-                });
+                .returning(move |_, _| Err(crate::k8s::error::K8sError::Generic(err_msg.clone())));
         } else if let Some(json_val) = status_payload {
             let obj = DynamicObject {
                 types: Some(tm.clone()),
@@ -150,17 +150,17 @@ mod tests {
 
             client
                 .expect_get_dynamic_object()
-                .withf(move |tm_arg, name_arg, ns_arg| {
-                    *tm_arg == tm && name_arg.as_str() == name && ns_arg.as_str() == namespace
+                .withf(move |tm_arg, key_arg| {
+                    *tm_arg == tm && key_arg.name == name && key_arg.namespace == namespace
                 })
-                .returning(move |_, _, _| Ok(Some(Arc::new(obj.clone()))));
+                .returning(move |_, _| Ok(Some(Arc::new(obj.clone()))));
         } else {
             client
                 .expect_get_dynamic_object()
-                .withf(move |tm_arg, name_arg, ns_arg| {
-                    *tm_arg == tm && name_arg.as_str() == name && ns_arg.as_str() == namespace
+                .withf(move |tm_arg, key_arg| {
+                    *tm_arg == tm && key_arg.name == name && key_arg.namespace == namespace
                 })
-                .returning(|_, _, _| Ok(None));
+                .returning(|_, _| Ok(None));
         }
 
         client

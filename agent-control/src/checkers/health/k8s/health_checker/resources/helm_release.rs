@@ -2,9 +2,9 @@ use crate::checkers::health::health_checker::{
     HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::k8s::client::K8sObjectKey;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::k8s::client::{K8sNamespace, K8sObjectName};
 use k8s_openapi::serde_json::{Map, Value};
 use kube::api::TypeMeta;
 use std::sync::Arc;
@@ -153,8 +153,10 @@ impl HealthChecker for K8sHealthHelmRelease {
             .k8s_client
             .get_dynamic_object(
                 &self.type_meta,
-                K8sObjectName::new(&self.name),
-                K8sNamespace::new(&self.namespace),
+                K8sObjectKey {
+                    name: &self.name,
+                    namespace: &self.namespace,
+                },
             )
             .map_err(|e| {
                 HealthCheckerError::Generic(format!(
@@ -284,7 +286,7 @@ pub mod tests {
                 )),
                 |mock: &mut MockSyncK8sClient| {
                     mock.expect_get_dynamic_object()
-                        .returning(|_, _,_| Err(Error::GetDynamic("Error".to_string())));
+                        .returning(|_, _| Err(Error::GetDynamic("Error".to_string())));
                 },
             ),
         ];
@@ -323,11 +325,9 @@ pub mod tests {
         status_conditions: serde_json::Value,
     ) {
         mock.expect_get_dynamic_object()
-            .withf(|_, name, namespace| {
-                name.as_str() == "example-release" && namespace.as_str() == TEST_NAMESPACE
-            })
+            .withf(|_, key| key.name == "example-release" && key.namespace == TEST_NAMESPACE)
             .times(1)
-            .returning(move |_, _, _| {
+            .returning(move |_, _| {
                 Ok(Some(Arc::new(DynamicObject {
                     types: Some(helmrelease_v2_type_meta()),
                     metadata: ObjectMeta::default(),

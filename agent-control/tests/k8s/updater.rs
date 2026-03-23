@@ -9,7 +9,7 @@ use newrelic_agent_control::agent_control::config::{
 };
 use newrelic_agent_control::agent_control::version_updater::k8s::K8sACUpdater;
 use newrelic_agent_control::agent_control::version_updater::updater::VersionUpdater;
-use newrelic_agent_control::k8s::client::{K8sNamespace, K8sObjectName, SyncK8sClient};
+use newrelic_agent_control::k8s::client::{K8sObjectKey, SyncK8sClient};
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -101,8 +101,10 @@ fn verify_helm_release_state(
     let obj = k8s_client
         .get_dynamic_object(
             &helmrelease_v2_type_meta(),
-            K8sObjectName::new(release_name),
-            K8sNamespace::new(namespace),
+            K8sObjectKey {
+                name: release_name,
+                namespace,
+            },
         )?
         .ok_or_else(|| format!("HelmRelease '{release_name}' not found"))?;
 

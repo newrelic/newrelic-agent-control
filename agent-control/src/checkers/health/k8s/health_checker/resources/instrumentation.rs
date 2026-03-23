@@ -2,9 +2,9 @@ use crate::checkers::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::k8s::client::K8sObjectKey;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::k8s::client::{K8sNamespace, K8sObjectName};
 use kube::api::TypeMeta;
 use serde::Deserialize;
 use std::fmt::Display;
@@ -183,8 +183,10 @@ impl HealthChecker for K8sHealthNRInstrumentation {
             .k8s_client
             .get_dynamic_object(
                 &self.type_meta,
-                K8sObjectName::new(&self.name),
-                K8sNamespace::new(&self.namespace),
+                K8sObjectKey {
+                    name: &self.name,
+                    namespace: &self.namespace,
+                },
             )
             .map_err(|e| {
                 HealthCheckerError::Generic(format!(

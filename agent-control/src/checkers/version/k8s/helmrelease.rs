@@ -1,8 +1,8 @@
 use crate::checkers::version::AgentVersion;
 use crate::checkers::version::{VersionCheckError, VersionChecker};
+use crate::k8s::client::K8sObjectKey;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::k8s::client::{K8sNamespace, K8sObjectName};
 use chrono::NaiveDateTime;
 use kube::api::TypeMeta;
 use serde_json::{Map, Value};
@@ -66,8 +66,10 @@ impl VersionChecker for HelmReleaseVersionChecker {
             .k8s_client
             .get_dynamic_object(
                 &self.type_meta,
-                K8sObjectName::new(&self.name),
-                K8sNamespace::new(&self.namespace),
+                K8sObjectKey {
+                    name: &self.name,
+                    namespace: &self.namespace,
+                },
             )
             .map_err(|e| {
                 VersionCheckError(format!(
@@ -284,12 +286,12 @@ pub mod tests {
 
     fn setup_default_mock(mock: &mut MockSyncK8sClient, json_data: String) {
         mock.expect_get_dynamic_object()
-            .withf(|type_meta, name, namespace| {
+            .withf(|type_meta, key| {
                 type_meta == &helmrelease_v2_type_meta()
-                    && name.as_str() == "default-test"
-                    && namespace.as_str() == "fake-namespace"
+                    && key.name == "default-test"
+                    && key.namespace == "fake-namespace"
             })
             .times(1)
-            .returning(move |_, _, _| Ok(Some(Arc::new(get_dynamic_object(json_data.clone())))));
+            .returning(move |_, _| Ok(Some(Arc::new(get_dynamic_object(json_data.clone())))));
     }
 }

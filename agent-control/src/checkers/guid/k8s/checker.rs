@@ -153,10 +153,10 @@ mod tests {
 
         client
             .expect_get_dynamic_object()
-            .withf(move |tm_arg, name_arg, ns_arg| {
-                *tm_arg == tm && name_arg.as_str() == "test-inst" && ns_arg.as_str() == "default"
+            .withf(move |tm_arg, key_arg| {
+                *tm_arg == tm && key_arg.name == "test-inst" && key_arg.namespace == "default"
             })
-            .returning(move |_, _, _| Ok(Some(Arc::new(obj.clone()))));
+            .returning(move |_, _| Ok(Some(Arc::new(obj.clone()))));
 
         client
     }

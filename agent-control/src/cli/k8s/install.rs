@@ -18,7 +18,7 @@ use crate::{
     agent_control::config::{helmrelease_v2_type_meta, helmrepository_type_meta},
     k8s::{
         Error as K8sError,
-        client::{K8sNamespace, K8sObjectName},
+        client::K8sObjectKey,
         labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL},
         utils::{get_name, get_type_meta},
     },
@@ -124,8 +124,10 @@ pub fn apply_resources(
     let maybe_helm_release = k8s_client
         .get_dynamic_object(
             &helmrelease_v2_type_meta(),
-            K8sObjectName::new(release_name),
-            K8sNamespace::new(namespace),
+            K8sObjectKey {
+                name: release_name,
+                namespace,
+            },
         )
         .map_err(|err| match err {
             // Specifying an invalid version of `agent-control-cd` throws an error showing that something is wrong with the api.

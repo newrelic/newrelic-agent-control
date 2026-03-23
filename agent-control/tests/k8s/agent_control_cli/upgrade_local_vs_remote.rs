@@ -14,7 +14,7 @@ use crate::k8s::tools::logs::print_pod_logs;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use newrelic_agent_control::checkers::version::VersionCheckError;
-use newrelic_agent_control::k8s::client::{K8sNamespace, K8sObjectName, SyncK8sClient};
+use newrelic_agent_control::k8s::client::{K8sObjectKey, SyncK8sClient};
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};
 use std::error::Error;
 use std::sync::Arc;
@@ -152,8 +152,10 @@ chart_version: "{CHART_VERSION_LATEST_RELEASE}"
         let obj = k8s_client
             .get_dynamic_object(
                 &helmrelease_v2_type_meta(),
-                K8sObjectName::new(release_name),
-                K8sNamespace::new(&ac_namespace),
+                K8sObjectKey {
+                    name: release_name,
+                    namespace: &ac_namespace,
+                },
             )?
             .ok_or(VersionCheckError(format!(
                 "helmRelease object not found: {release_name}",
@@ -186,8 +188,10 @@ pub fn check_version_and_source(
     let obj = k8s_client
         .get_dynamic_object(
             &helmrelease_v2_type_meta(),
-            K8sObjectName::new(release_name),
-            K8sNamespace::new(namespace),
+            K8sObjectKey {
+                name: release_name,
+                namespace,
+            },
         )?
         .ok_or(VersionCheckError(format!(
             "helmRelease object not found: {release_name}",
