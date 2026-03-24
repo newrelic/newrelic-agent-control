@@ -12,6 +12,9 @@ use crate::agent_control::config::AgentControlDynamicConfig;
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
 use crate::command::SubCommand;
 
+// Configuration and OpAMP connectivy checks take up 8 seconds in total.
+// Setting the default timeout to 20 seconds gives room for the checks to complete while
+// avoiding excessively long waits in case of hangs or crashes.
 const DEFAULT_VERIFY_TIMEOUT: Duration = Duration::from_secs(20);
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
 
