@@ -6,6 +6,7 @@
 use crate::agent_control::config::AgentControlConfig;
 use crate::agent_control::defaults::ENVIRONMENT_VARIABLES_FILE_NAME;
 use crate::agent_control::run::Environment;
+use crate::agent_control::version_updater::on_host::CommandResult;
 use crate::agent_control::{
     config_repository::{repository::AgentControlConfigLoader, store::AgentControlConfigStore},
     run::BasePaths,
@@ -141,15 +142,16 @@ impl Command {
         match parsed.subcommand {
             Some(SubCommand::Version) => Command::print_version(running_mode),
             Some(SubCommand::Verify) => {
-                if let Err(err) = Command::verify(running_mode, &parsed.args) {
-                    let output = serde_json::json!({
-                        "message": err.to_string()
-                    });
-                    println!("{}", output);
-                    return ExitCode::FAILURE;
-                }
+                let (exit_code, message) = match Command::verify(running_mode, &parsed.args) {
+                    Ok(_) => (ExitCode::SUCCESS, "Verification succeeded".to_string()),
+                    Err(err) => (ExitCode::FAILURE, err.to_string()),
+                };
 
-                ExitCode::SUCCESS
+                let output = serde_json::to_string(&CommandResult { message })
+                    .unwrap_or_else(|e| format!("Failed to serialize command result: {e}"));
+                println!("{}", output);
+
+                exit_code
             }
             None => {
                 // For backward compatibility, default to Run command using flattened args

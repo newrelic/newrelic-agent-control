@@ -53,7 +53,7 @@ fn test_verify_executor_read_config_error() {
     let result = ProcessVerifyExecutor::default()
         .execute(binary_path(), &["--local-dir", folder_name, "verify"]);
 
-    assert_matches!(result, Err(VerifyError::VerificationFailed(msg)) if msg.contains(&format!("could not read Agent Control config from {}", folder_name)));
+    assert_matches!(result, Err(VerifyError::VerificationFailed { message, .. }) if message.contains(&format!("could not read Agent Control config from {}", folder_name)));
 }
 
 #[test]
@@ -85,6 +85,6 @@ fn test_verify_executor_opamp_connectivity_failure() {
 
     assert_matches!(
         result,
-        Err(VerifyError::VerificationFailed(msg)) if msg.contains("OpAMP connectivity check failed")
+        Err(VerifyError::VerificationFailed { message, .. }) if message.contains("OpAMP connectivity check failed")
     );
 }

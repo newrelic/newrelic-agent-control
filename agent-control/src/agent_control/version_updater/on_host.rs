@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{debug, error};
 use wrapper_with_default::WrapperWithDefault;
@@ -27,22 +27,27 @@ pub enum VerifyError {
     /// Returned when the command exits with a non-zero status code, indicating
     /// that verification did not pass. The message is the human-readable
     /// explanation written by the command to stdout.
-    #[error("{0}")]
-    VerificationFailed(String),
+    #[error("{message}")]
+    VerificationFailed {
+        exit_status: ExitStatus,
+        message: String,
+        stdout: String,
+        stderr: String,
+    },
 
     /// Returned when the command exits with a non-zero status code and its
-    /// stdout cannot be parsed as [`CommandOutput`].
+    /// stdout cannot be parsed as [`CommandResult`].
     #[error("unexpected failure (exit status {exit_status}) stdout={stdout} stderr={stderr}")]
     UnexpectedFailure {
-        exit_status: std::process::ExitStatus,
+        exit_status: ExitStatus,
         stdout: String,
         stderr: String,
     },
 }
 
 /// Output written by the verify command to stdout.
-#[derive(Debug, Deserialize)]
-pub struct CommandOutput {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CommandResult {
     pub message: String,
 }
 
@@ -62,7 +67,7 @@ pub struct VerifyTimeout(Duration);
 ///
 /// The verify command (`<binary> verify`) is expected to behave as follows:
 ///
-/// - **stdout**: always contains a JSON-encoded `CommandOutput` with a human-readable
+/// - **stdout**: always contains a JSON-encoded `CommandResult` with a human-readable
 ///   `message`, regardless of whether verification succeeded or failed. This
 ///   message is suitable for logging or surfacing to operators.
 /// - **exit code**: `0` signals that verification passed; any non-zero exit code
@@ -141,17 +146,20 @@ impl VerifyExecutor for ProcessVerifyExecutor {
         }
 
         // On failure the command is expected to have written a structured
-        // CommandOutput to stdout. The output may contain multiple lines (e.g., log lines)
-        // so we try to parse the last non-empty line as JSON first.
-        // If parsing fails the binary likely crashed (e.g., a panic) rather than
-        // performing a controlled verification failure.
+        // CommandOutput to stdout. If parsing fails the binary likely crashed
+        // (e.g., a panic) rather than performing a controlled verification failure.
         let output_to_parse = stdout_buf
             .lines()
             .rfind(|line| !line.trim().is_empty())
             .unwrap_or(&stdout_buf);
 
-        match serde_json::from_str::<CommandOutput>(output_to_parse) {
-            Ok(output) => Err(VerifyError::VerificationFailed(output.message)),
+        match serde_json::from_str::<CommandResult>(output_to_parse) {
+            Ok(output) => Err(VerifyError::VerificationFailed {
+                message: output.message,
+                exit_status,
+                stdout: stdout_buf,
+                stderr: stderr_buf,
+            }),
             Err(err) => {
                 error!(%err, stdout = %stdout_buf, stderr = %stderr_buf, "Verification subprocess failed and output couldn't be parsed");
                 Err(VerifyError::UnexpectedFailure {
@@ -279,7 +287,17 @@ mod tests {
         let executor = ProcessVerifyExecutor::default();
         let err = executor.execute(Path::new(bin), &args).unwrap_err();
         match err {
-            VerifyError::VerificationFailed(msg) => assert_eq!(msg, "pre-flight check failed"),
+            VerifyError::VerificationFailed {
+                message,
+                exit_status,
+                stdout,
+                stderr: _,
+            } => {
+                assert_eq!(message, "pre-flight check failed");
+                assert_eq!(exit_status.code(), Some(1));
+                assert!(stdout.contains("previous lines"));
+                assert!(stdout.contains(r#"{"message":"pre-flight check failed"}"#));
+            }
             other => panic!("expected VerificationFailed, got {other:?}"),
         }
     }
