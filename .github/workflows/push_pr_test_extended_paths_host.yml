@@ -1,0 +1,40 @@
+name: test-extended-paths-host
+
+on:
+  push:
+    branches:
+      - renovate/**
+    paths:
+      - "test/e2e-runner/**"
+      - "agent-control/agent-type-registry/**"
+      - "build/**"
+      - ".github/workflows/component_onhost_e2e.yaml"
+  pull_request:
+    types: [ opened, synchronize, labeled ] # Also check labels
+    paths:
+      - "test/e2e-runner/**"
+      - "agent-control/agent-type-registry/**"
+      - "build/**"
+      - ".github/workflows/component_onhost_e2e.yaml"
+  merge_group:
+
+permissions:
+  contents: read
+
+# See https://docs.github.com/en/actions/using-jobs/using-concurrency
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  onhost-e2e:
+    if: "!contains(github.event.pull_request.labels.*.name, 'onhost-extended-e2e')" # Avoid triggering twice if the label is set
+    uses: ./.github/workflows/component_onhost_e2e.yaml
+    with:
+      caller_workflow: push_pr_test_extended_paths_host
+    secrets:
+      NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
+      NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
+      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
+      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
