@@ -1261,6 +1261,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## jni-sys-macros <https://crates.io/crates/jni-sys-macros>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## jobserver <https://crates.io/crates/jobserver>
 
 Distributed under the following license(s):
