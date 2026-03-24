@@ -23,7 +23,7 @@ pub static WINDOWS_SERVICE_HANDLE: OnceLock<ServiceStatusHandle> = OnceLock::new
 /// Defines the name for the Windows Service.
 pub const WINDOWS_SERVICE_NAME: &str = "newrelic-agent-control";
 
-const SCM_CHECK_MAX_ATTEMPTS: usize = 10;
+const SCM_CHECK_MAX_ATTEMPTS: usize = 30;
 const SCM_CHECK_INTERVALS: Duration = Duration::from_millis(200);
 
 /// Manages the Windows Service lifecycle, ensuring the service status is updated on exit.
