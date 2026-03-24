@@ -74,13 +74,13 @@ impl IdentityArgs {
             && self.auth_parent_client_secret.is_empty()
         {
             return Err(String::from(
-                "either 'auth_client_id', 'auth_parent_token' or 'auth_parent_secret' should be set when enabling fleet",
+                "either 'auth_client_id', 'auth_parent_token' or 'auth_parent_secret' should be set to register System Identity",
             ));
         }
         // 'auth_private_key_path' is required
         let Some(auth_private_key_path) = self.auth_private_key_path.as_ref() else {
             return Err(String::from(
-                "'auth_private_key_path' needs to be set when enabling fleet",
+                "'auth_private_key_path' needs to be set to register System Identity",
             ));
         };
         // Requirements for existing identity
