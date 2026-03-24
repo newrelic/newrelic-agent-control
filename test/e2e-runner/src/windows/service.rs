@@ -39,18 +39,13 @@ fn get_service_status(service_name: &str) -> String {
 pub fn restart_service(service_name: &str, expected_service_status: &str) {
     info!(service = service_name, "Restarting service");
 
-    let restart_cmd_flags = {
-        let mut flags = "-Force".to_string();
-        // When AC is expected to fail the 'Restart-Command' command might fail as well if it doesn't
-        // notice the transition to Running, this failure is OK as long as the final status service matches
-        // the expected.
-        if expected_service_status != STATUS_RUNNING {
-            flags += " -ErrorAction SilentlyContinue"
-        }
-        flags
-    };
-    let cmd = format!("Restart-Service -Name '{service_name}' {restart_cmd_flags}");
-    exec_ps(&cmd).unwrap_or_else(|err| panic!("could not restart '{service_name}' service: {err}"));
+    let cmd = format!("Restart-Service -Name '{service_name}' -Force");
+    let result = exec_ps(&cmd);
+    // When AC is expected to fail, Restart-Service may exit with a non-zero code because the
+    // service won't stay running. That's fine because the real assertion is the status check below.
+    if expected_service_status == STATUS_RUNNING {
+        result.unwrap_or_else(|err| panic!("could not restart '{service_name}' service: {err}"));
+    }
 
     // Wait a moment for the service to fully restart
     info!("Waiting for service to restart...");
