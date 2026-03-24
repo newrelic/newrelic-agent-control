@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use newrelic_agent_control::cli::error::CliError;
+use newrelic_agent_control::cli::common::{error::CliError, logs};
 use newrelic_agent_control::cli::k8s::install::agent_control::InstallAgentControl;
 use newrelic_agent_control::cli::k8s::install::flux::InstallFlux;
 use newrelic_agent_control::cli::k8s::install::{InstallData, apply_resources};
@@ -7,7 +7,6 @@ use newrelic_agent_control::cli::k8s::uninstall::agent_control::{
     AgentControlUninstallData, uninstall_agent_control,
 };
 use newrelic_agent_control::cli::k8s::uninstall::flux::{FluxUninstallData, remove_flux_crs};
-use newrelic_agent_control::cli::logs;
 use std::process::ExitCode;
 use tracing::{Level, error};
 

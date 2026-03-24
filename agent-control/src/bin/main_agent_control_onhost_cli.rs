@@ -2,7 +2,7 @@ use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, error::ErrorKind};
 use newrelic_agent_control::cli::on_host::migrate_folders;
-use newrelic_agent_control::cli::{logs, on_host::config_gen};
+use newrelic_agent_control::cli::{common::logs, on_host::config_gen};
 use tracing::{Level, error};
 
 #[derive(Debug, clap::Parser)]

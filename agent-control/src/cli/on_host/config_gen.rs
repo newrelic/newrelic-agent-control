@@ -1,20 +1,20 @@
 //! Implementation of the generate-config command for the on-host cli.
 use crate::cli::{
-    error::CliError,
-    on_host::config_gen::{
-        config::{AuthConfig, Config, FleetControl, LogConfig, Server, SignatureValidation},
-        identity::{Identity, provide_identity},
+    common::{
+        error::CliError,
+        identity::{Identity, IdentityArgs, provide_identity},
+        proxy_config::ProxyConfig,
         region::{Region, region_parser},
     },
-    on_host::proxy_config::ProxyConfig,
+    on_host::config_gen::config::{
+        AuthConfig, Config, FleetControl, LogConfig, Server, SignatureValidation,
+    },
 };
 use fs::file::{LocalFile, writer::FileWriter};
 use std::{collections::HashMap, path::PathBuf};
 use tracing::info;
 
 pub mod config;
-pub mod identity;
-pub mod region;
 
 pub const NR_LICENSE_ENV_VAR: &str = "NEW_RELIC_LICENSE_KEY";
 const OTLP_ENDPOINT_ENV_VAR: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
@@ -38,32 +38,9 @@ pub struct Args {
     #[arg(long, default_value_t)]
     fleet_id: String,
 
-    /// Organization identifier
-    #[arg(long, default_value_t)]
-    organization_id: String,
-
-    /// Client ID corresponding to the parent system identity (requires `auth_client_secret`).
-    #[arg(long, default_value_t)]
-    auth_parent_client_id: String,
-
-    /// Client Secret corresponding to the parent system identity (requires `auth_client_id`).
-    #[arg(long, default_value_t)]
-    auth_parent_client_secret: String,
-
-    /// Auth token corresponding to the parent system identity.
-    #[arg(long, default_value_t)]
-    auth_parent_token: String,
-
-    /// When ('auth_token' or 'auth_client_id' + 'auth_client_secret') are set, this path is used
-    /// to store the identity key. Otherwise, the path is expected to contain the already provided
-    /// private key was already provided.
-    #[arg(long)]
-    auth_private_key_path: Option<PathBuf>,
-
-    /// Client identifier corresponding to an already provisioned identity. No identity creation is performed,
-    /// therefore setting this up also requires an existing private key pointed in `auth_private_key_path`.
-    #[arg(long, default_value_t)]
-    auth_client_id: String,
+    /// Identity configuration
+    #[command(flatten)]
+    identity: IdentityArgs,
 
     /// Proxy configuration
     #[command(flatten)]
@@ -86,43 +63,7 @@ impl Args {
             if self.fleet_id.is_empty() {
                 return Err(String::from("'fleet_id' should be set when enabling fleet"));
             }
-            // Any method to provide the identity should be selected
-            if self.auth_client_id.is_empty()
-                && self.auth_parent_token.is_empty()
-                && self.auth_parent_client_secret.is_empty()
-            {
-                return Err(String::from(
-                    "either 'auth_client_id', 'auth_parent_token' or 'auth_parent_secret' should be set when enabling fleet",
-                ));
-            }
-            // 'auth_private_key_path' is required
-            let Some(auth_private_key_path) = self.auth_private_key_path.as_ref() else {
-                return Err(String::from(
-                    "'auth_private_key_path' needs to be set when enabling fleet",
-                ));
-            };
-            // Requirements for existing identity
-            if !self.auth_client_id.is_empty() && !auth_private_key_path.exists() {
-                return Err(String::from(
-                    "when 'auth_client_id' is provided the 'auth_private_key_path' must also be provided and exist",
-                ));
-            }
-            // Requirements for token-based identity generation
-            if !self.auth_parent_token.is_empty()
-                && (self.organization_id.is_empty() || self.auth_parent_client_id.is_empty())
-            {
-                return Err(String::from(
-                    "token based system identity generation requires 'auth_parent_token', 'auth_parent_client_id' and 'organization_id'",
-                ));
-            }
-            // Requirements for client + secret identity generation
-            if !self.auth_parent_client_secret.is_empty()
-                && (self.organization_id.is_empty() || self.auth_parent_client_id.is_empty())
-            {
-                return Err(String::from(
-                    "client-secret based system identity generation requires 'auth_parent_client_secret', 'auth_parent_client_id' and 'organization_id'",
-                ));
-            }
+            self.identity.validate()?;
         }
         if let Some(proxy_config) = self.proxy_config.clone()
             && let Err(err) = crate::http::config::ProxyConfig::try_from(proxy_config)
@@ -213,7 +154,7 @@ fn generate_config_and_system_identity<F>(
     provide_identity_fn: F,
 ) -> Result<String, CliError>
 where
-    F: Fn(&Args) -> Result<Identity, CliError>,
+    F: Fn(&IdentityArgs, Region, Option<ProxyConfig>) -> Result<Identity, CliError>,
 {
     let fleet_control = if args.fleet_disabled {
         None
@@ -221,7 +162,7 @@ where
         let Identity {
             client_id,
             private_key_path,
-        } = provide_identity_fn(args)?;
+        } = provide_identity_fn(&args.identity, args.region, args.proxy_config.clone())?;
 
         Some(FleetControl {
             endpoint: args.region.opamp_endpoint().to_string(),
@@ -279,12 +220,7 @@ mod tests {
                 fleet_disabled: false,
                 region: Region::US,
                 fleet_id: Default::default(),
-                organization_id: Default::default(),
-                auth_parent_client_id: Default::default(),
-                auth_parent_client_secret: Default::default(),
-                auth_parent_token: Default::default(),
-                auth_private_key_path: None,
-                auth_client_id: Default::default(),
+                identity: Default::default(),
                 proxy_config: None,
                 newrelic_license_key: Default::default(),
                 env_vars_file_path: Default::default(),
@@ -415,7 +351,11 @@ mod tests {
         }
     }
 
-    fn identity_provider_mock(_: &Args) -> Result<Identity, CliError> {
+    fn identity_provider_mock(
+        _: &IdentityArgs,
+        _: Region,
+        _: Option<ProxyConfig>,
+    ) -> Result<Identity, CliError> {
         Ok(Identity {
             client_id: "test-client-id".to_string(),
             private_key_path: PathBuf::from("/path/to/private/key"),
@@ -432,12 +372,14 @@ mod tests {
             fleet_disabled: fleet_enabled,
             region,
             fleet_id: "test-fleet-id".to_string(),
-            organization_id: "test-org-id".to_string(),
-            auth_parent_client_id: "parent-client-id".to_string(),
-            auth_parent_client_secret: "parent-client-secret".to_string(),
-            auth_parent_token: "parent-token".to_string(),
-            auth_private_key_path: Some(PathBuf::from("/path/to/key")),
-            auth_client_id: "client-id".to_string(),
+            identity: IdentityArgs {
+                organization_id: "test-org-id".to_string(),
+                auth_parent_client_id: "parent-client-id".to_string(),
+                auth_parent_client_secret: "parent-client-secret".to_string(),
+                auth_parent_token: "parent-token".to_string(),
+                auth_private_key_path: Some(PathBuf::from("/path/to/key")),
+                auth_client_id: "client-id".to_string(),
+            },
             proxy_config,
             newrelic_license_key: "test-license-key".to_string(),
             env_vars_file_path: None,

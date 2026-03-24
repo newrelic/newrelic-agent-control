@@ -1,4 +1,3 @@
-pub mod error;
+pub mod common;
 pub mod k8s;
-pub mod logs;
 pub mod on_host;
