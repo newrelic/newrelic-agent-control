@@ -148,7 +148,7 @@ impl Command {
                 };
 
                 let output = serde_json::to_string(&CommandResult { message })
-                    .unwrap_or_else(|e| format!("Failed to serialize command result: {e}"));
+                    .unwrap_or_else(|e| format!("failed to serialize command result: {e}"));
                 println!("{}", output);
 
                 exit_code
