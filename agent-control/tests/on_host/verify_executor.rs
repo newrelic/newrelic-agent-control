@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use assert_matches::assert_matches;
 use newrelic_agent_control::agent_control::version_updater::on_host::{
     ProcessVerifyExecutor, VerifyError, VerifyExecutor,
 };
@@ -52,10 +53,7 @@ fn test_verify_executor_read_config_error() {
     let result = ProcessVerifyExecutor::default()
         .execute(binary_path(), &["--local-dir", folder_name, "verify"]);
 
-    assert!(matches!(
-        result.err().unwrap(),
-        VerifyError::VerificationFailed(msg) if msg.contains(&format!("could not read Agent Control config from {}", folder_name))
-    ));
+    assert_matches!(result, Err(VerifyError::VerificationFailed(msg)) if msg.contains(&format!("could not read Agent Control config from {}", folder_name)));
 }
 
 #[test]
@@ -85,8 +83,8 @@ fn test_verify_executor_opamp_connectivity_failure() {
         ],
     );
 
-    assert!(matches!(
-        result.err().unwrap(),
-        VerifyError::VerificationFailed(msg) if msg.contains("OpAMP connectivity check failed")
-    ));
+    assert_matches!(
+        result,
+        Err(VerifyError::VerificationFailed(msg)) if msg.contains("OpAMP connectivity check failed")
+    );
 }
