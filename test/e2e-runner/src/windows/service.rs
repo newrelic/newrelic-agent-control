@@ -36,19 +36,29 @@ fn get_service_status(service_name: &str) -> String {
 }
 
 /// Restarts a Windows service using PowerShell.
-pub fn restart_service(service_name: &str, service_status: &str) {
+pub fn restart_service(service_name: &str, expected_service_status: &str) {
     info!(service = service_name, "Restarting service");
-    let cmd = format!("Restart-Service -Name '{}' -Force", service_name);
-    exec_ps(&cmd).unwrap_or_else(|err| panic!("could not restart '{service_name}' service: {err}"));
+
+    let cmd = format!("Restart-Service -Name '{service_name}' -Force");
+    let result = exec_ps(&cmd);
+    // When AC is expected to fail, Restart-Service may exit with a non-zero code because the
+    // service won't stay running. That's fine because the real assertion is the status check below.
+    if expected_service_status == STATUS_RUNNING {
+        result.unwrap_or_else(|err| panic!("could not restart '{service_name}' service: {err}"));
+    }
 
     // Wait a moment for the service to fully restart
     info!("Waiting for service to restart...");
     thread::sleep(Duration::from_secs(5));
 
-    check_service_status(service_name, service_status)
+    check_service_status(service_name, expected_service_status)
         .expect("service must be on the status provided");
 
-    info!(service = service_name, "Service status is the expected");
+    info!(
+        service = service_name,
+        status = expected_service_status,
+        "Service status matches the expectation"
+    );
 }
 
 /// Stops a Windows service using PowerShell.
