@@ -29,7 +29,6 @@ pub enum VerifyError {
     /// explanation written by the command to stdout.
     #[error("{message}")]
     VerificationFailed {
-        exit_status: ExitStatus,
         message: String,
         stdout: String,
         stderr: String,
@@ -156,7 +155,6 @@ impl VerifyExecutor for ProcessVerifyExecutor {
         match serde_json::from_str::<CommandResult>(output_to_parse) {
             Ok(output) => Err(VerifyError::VerificationFailed {
                 message: output.message,
-                exit_status,
                 stdout: stdout_buf,
                 stderr: stderr_buf,
             }),
@@ -289,12 +287,10 @@ mod tests {
         match err {
             VerifyError::VerificationFailed {
                 message,
-                exit_status,
                 stdout,
                 stderr: _,
             } => {
                 assert_eq!(message, "pre-flight check failed");
-                assert_eq!(exit_status.code(), Some(1));
                 assert!(stdout.contains("previous lines"));
                 assert!(stdout.contains(r#"{"message":"pre-flight check failed"}"#));
             }
