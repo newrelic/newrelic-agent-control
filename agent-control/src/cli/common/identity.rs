@@ -36,7 +36,7 @@ pub struct Identity {
 
 /// Arguments required to provide or generate a system identity.
 #[derive(Debug, Default, clap::Args)]
-pub struct IdentityArgs {
+pub struct SystemIdentityArgs {
     /// Path where the private key is stored or will be written.
     #[arg(long)]
     pub auth_private_key_path: Option<PathBuf>,
@@ -65,81 +65,179 @@ pub struct IdentityArgs {
     pub organization_id: String,
 }
 
-impl IdentityArgs {
-    /// Performs additional args validation (not covered by clap's arguments)
-    pub fn validate(&self) -> Result<(), String> {
-        // Any method to provide the identity should be selected
-        if self.auth_client_id.is_empty()
-            && self.auth_parent_token.is_empty()
-            && self.auth_parent_client_secret.is_empty()
-        {
-            return Err(String::from(
-                "either 'auth_client_id', 'auth_parent_token' or 'auth_parent_secret' should be set to register System Identity",
-            ));
-        }
+pub enum ProvisioningMethod {
+    ExistingIdentity {
+        auth_client_id: String,
+    },
+    ParentToken {
+        token: String,
+        parent_client_id: String,
+        organization_id: String,
+    },
+    ParentSecret {
+        secret: String,
+        parent_client_id: String,
+        organization_id: String,
+    },
+}
+
+pub struct SystemIdentityData {
+    pub method: ProvisioningMethod,
+    pub private_key_path: PathBuf,
+}
+
+impl SystemIdentityArgs {
+    /// Performs additional args validation (not covered by clap's arguments) and returns [SystemIdentityData] if
+    /// validation was Ok.
+    pub fn validate(self) -> Result<SystemIdentityData, String> {
         // 'auth_private_key_path' is required
-        let Some(auth_private_key_path) = self.auth_private_key_path.as_ref() else {
+        let Some(auth_private_key_path) = self.auth_private_key_path else {
             return Err(String::from(
                 "'auth_private_key_path' needs to be set to register System Identity",
             ));
         };
-        // Requirements for existing identity
-        if !self.auth_client_id.is_empty() && !auth_private_key_path.exists() {
-            return Err(String::from(
-                "when 'auth_client_id' is provided the 'auth_private_key_path' must also be provided and exist",
-            ));
-        }
-        // Requirements for token-based identity generation
-        if !self.auth_parent_token.is_empty()
-            && (self.organization_id.is_empty() || self.auth_parent_client_id.is_empty())
-        {
-            return Err(String::from(
-                "token based system identity generation requires 'auth_parent_token', 'auth_parent_client_id' and 'organization_id'",
-            ));
-        }
-        // Requirements for client + secret identity generation
-        if !self.auth_parent_client_secret.is_empty()
-            && (self.organization_id.is_empty() || self.auth_parent_client_id.is_empty())
-        {
-            return Err(String::from(
-                "client-secret based system identity generation requires 'auth_parent_client_secret', 'auth_parent_client_id' and 'organization_id'",
-            ));
-        }
 
-        Ok(())
+        let method = if !self.auth_client_id.is_empty() {
+            if !auth_private_key_path.exists() {
+                Err(String::from(
+                    "when 'auth_client_id' is provided the 'auth_private_key_path' must also be provided and exist",
+                ))
+            } else {
+                Ok(ProvisioningMethod::ExistingIdentity {
+                    auth_client_id: self.auth_client_id,
+                })
+            }
+        } else if !self.auth_parent_token.is_empty() {
+            if self.organization_id.is_empty() || self.auth_parent_client_id.is_empty() {
+                Err(String::from(
+                    "token based system identity generation requires 'auth_parent_token', 'auth_parent_client_id' and 'organization_id'",
+                ))
+            } else {
+                Ok(ProvisioningMethod::ParentToken {
+                    token: self.auth_parent_token,
+                    parent_client_id: self.auth_parent_client_id,
+                    organization_id: self.organization_id,
+                })
+            }
+        } else if !self.auth_parent_client_secret.is_empty() {
+            if self.organization_id.is_empty() || self.auth_parent_client_id.is_empty() {
+                Err(String::from(
+                    "token based system identity generation requires 'auth_parent_token', 'auth_parent_client_id' and 'organization_id'",
+                ))
+            } else {
+                Ok(ProvisioningMethod::ParentSecret {
+                    secret: self.auth_parent_client_secret,
+                    parent_client_id: self.auth_parent_client_id,
+                    organization_id: self.organization_id,
+                })
+            }
+        } else {
+            Err(String::from(
+                "either 'auth_client_id', 'auth_parent_token' or 'auth_parent_secret' should be set to register System Identity",
+            ))
+        }?;
+
+        Ok(SystemIdentityData {
+            method,
+            private_key_path: auth_private_key_path,
+        })
+
+        //// Requirements for existing identity
+        //if !self.auth_client_id.is_empty() && !auth_private_key_path.exists() {
+        //    return Err(String::from(
+        //        "when 'auth_client_id' is provided the 'auth_private_key_path' must also be provided and exist",
+        //    ));
+        //}
+        //// Requirements for token-based identity generation
+        //if !self.auth_parent_token.is_empty()
+        //    && (self.organization_id.is_empty() || self.auth_parent_client_id.is_empty())
+        //{
+        //    return Err(String::from(
+        //        "token based system identity generation requires 'auth_parent_token', 'auth_parent_client_id' and 'organization_id'",
+        //    ));
+        //}
+        //// Requirements for client + secret identity generation
+        //if !self.auth_parent_client_secret.is_empty()
+        //    && (self.organization_id.is_empty() || self.auth_parent_client_id.is_empty())
+        //{
+        //    return Err(String::from(
+        //        "client-secret based system identity generation requires 'auth_parent_client_secret', 'auth_parent_client_id' and 'organization_id'",
+        //    ));
+        //}
+        //Ok(())
     }
 }
 
 /// Provides a key-based identity considering the supplied args.
 pub fn provide_identity(
-    identity_args: &IdentityArgs,
+    identity_input: &SystemIdentityData,
     region: Region,
     proxy_config: Option<ProxyConfig>,
 ) -> Result<Identity, CliError> {
     let environment = NewRelicEnvironment::from(region);
-    build_identity(identity_args, environment, proxy_config)
+    build_identity(identity_input, environment, proxy_config)
 }
 
 /// Helper to allow injecting testing urls when building the identity.
 fn build_identity(
-    identity_args: &IdentityArgs,
+    identity_input: &SystemIdentityData,
     environment: NewRelicEnvironment,
     proxy_config: Option<ProxyConfig>,
 ) -> Result<Identity, CliError> {
-    let auth_private_key_path = identity_args.auth_private_key_path.clone().ok_or_else(|| {
-        CliError::Command("'auth-private-key-path' is required when fleet is enabled".to_string())
-    })?;
+    let SystemIdentityData {
+        private_key_path,
+        method,
+    } = identity_input;
 
-    // Already provided identity
-    if !identity_args.auth_client_id.is_empty() {
-        info!("Using provided System Identity");
-        return Ok(Identity {
-            client_id: identity_args.auth_client_id.to_string(),
-            private_key_path: auth_private_key_path,
-        });
+    match method {
+        ProvisioningMethod::ExistingIdentity { auth_client_id } => {
+            info!("Using provided System Identity");
+            Ok(Identity {
+                client_id: auth_client_id.to_string(),
+                private_key_path: private_key_path.clone(),
+            })
+        }
+        ProvisioningMethod::ParentToken {
+            token,
+            parent_client_id,
+            organization_id,
+        } => {
+            let token = Token::new(token.to_string(), TokenType::Bearer, Default::default());
+            let http_client = http_client(proxy_config)?;
+            build_identity_from_token(
+                token,
+                private_key_path.clone(),
+                organization_id.clone(),
+                parent_client_id.clone(),
+                environment,
+                http_client,
+            )
+        }
+        ProvisioningMethod::ParentSecret {
+            secret,
+            parent_client_id,
+            organization_id,
+        } => {
+            let http_client = http_client(proxy_config)?;
+            let token = get_auth_token(
+                parent_client_id.clone(),
+                secret.clone(),
+                &environment,
+                http_client.clone(),
+            )?;
+            build_identity_from_token(
+                token,
+                private_key_path.clone(),
+                organization_id.clone(),
+                parent_client_id.clone(),
+                environment,
+                http_client,
+            )
+        }
     }
+}
 
-    info!("Generating System Identity");
+fn http_client(proxy_config: Option<ProxyConfig>) -> Result<HttpClient, CliError> {
     let nr_auth_proxy_config = proxy_config
         .map(build_nr_auth_proxy_config)
         .transpose()?
@@ -152,39 +250,47 @@ fn build_identity(
         ))
     })?;
 
-    let token = if identity_args.auth_parent_token.is_empty() {
-        info!("Retrieving token using the provided client-id + secret");
-        // Generate the parent token if it wasn't provided
-        let authenticator =
-            HttpAuthenticator::new(http_client.clone(), environment.token_renewal_endpoint());
+    Ok(http_client)
+}
 
-        let token_retriever = TokenRetrieverWithCache::new_with_secret(
-            identity_args.auth_parent_client_id.clone(),
-            authenticator,
-            identity_args.auth_parent_client_secret.clone().into(),
-        )
-        .with_retries(DEFAULT_RETRIES);
+fn get_auth_token(
+    parent_client_id: String,
+    secret: String,
+    environment: &NewRelicEnvironment,
+    http_client: HttpClient,
+) -> Result<Token, CliError> {
+    info!("Retrieving token using the provided client-id + secret");
+    let authenticator =
+        HttpAuthenticator::new(http_client.clone(), environment.token_renewal_endpoint());
 
-        token_retriever.retrieve().map_err(|err| {
-            CliError::Command(format!(
-                "could not retrieve the token to create the system identity: {err}"
-            ))
-        })?
-    } else {
-        info!("Using the provided token for authentication");
-        Token::new(
-            identity_args.auth_parent_token.clone(),
-            TokenType::Bearer,
-            Default::default(),
-        )
-    };
+    let token_retriever = TokenRetrieverWithCache::new_with_secret(
+        parent_client_id.clone(),
+        authenticator,
+        secret.into(),
+    )
+    .with_retries(DEFAULT_RETRIES);
 
-    let output_platform = OutputPlatform::LocalPrivateKeyPath(auth_private_key_path.clone());
+    token_retriever.retrieve().map_err(|err| {
+        CliError::Command(format!(
+            "could not retrieve the token to create the system identity: {err}"
+        ))
+    })
+}
+
+fn build_identity_from_token(
+    token: Token,
+    private_key_path: PathBuf,
+    organization_id: String,
+    parent_client_id: String,
+    environment: NewRelicEnvironment,
+    http_client: HttpClient,
+) -> Result<Identity, CliError> {
+    let output_platform = OutputPlatform::LocalPrivateKeyPath(private_key_path.clone());
 
     let system_identity_creation_metadata = SystemIdentityCreationMetadata {
         system_identity_input: SystemIdentityInput {
-            organization_id: identity_args.organization_id.clone(),
-            client_id: identity_args.auth_parent_client_id.clone(),
+            organization_id: organization_id.clone(),
+            client_id: parent_client_id.clone(),
         },
         name: None,
         environment,
@@ -194,7 +300,7 @@ fn build_identity(
 
     let key_creator = LocalCreator::from(KeyPairGeneratorLocalConfig {
         key_type: KeyType::Rsa4096,
-        file_path: auth_private_key_path.clone(),
+        file_path: private_key_path.clone(),
     });
 
     let system_identity_generator = L2SystemIdentityGenerator {
@@ -207,13 +313,13 @@ fn build_identity(
         .map_err(|err| CliError::Command(format!("error generating the system identity: {err}")))?;
 
     info!(
-        private_key_path = %auth_private_key_path.to_string_lossy(),
+        private_key_path = %private_key_path.to_string_lossy(),
         "System Identity successfully generated"
     );
 
     Ok(Identity {
         client_id: result.client_id,
-        private_key_path: auth_private_key_path,
+        private_key_path,
     })
 }
 
@@ -259,7 +365,7 @@ pub mod tests {
                 .parse()
                 .expect("url should be valid"),
         };
-        let identity_args = IdentityArgs {
+        let identity_args = SystemIdentityArgs {
             auth_private_key_path: Some(auth_private_key_path.clone()),
             auth_client_id: "provided_client_id".to_string(),
             ..Default::default()
@@ -278,7 +384,7 @@ pub mod tests {
 
         let server = MockServer::start();
 
-        let identity_args = IdentityArgs {
+        let identity_args = SystemIdentityArgs {
             auth_parent_client_id: "parent-client-id".to_string(),
             auth_parent_token: "TOKEN".to_string(),
             auth_private_key_path: Some(auth_private_key_path.clone()),
@@ -325,7 +431,7 @@ pub mod tests {
 
         let server = MockServer::start();
 
-        let identity_args = IdentityArgs {
+        let identity_args = SystemIdentityArgs {
             auth_parent_client_id: "parent-client-id".to_string(),
             auth_parent_client_secret: "client-secret-value".to_string(),
             auth_private_key_path: Some(auth_private_key_path.clone()),

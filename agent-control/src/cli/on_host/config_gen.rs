@@ -2,7 +2,7 @@
 use crate::cli::{
     common::{
         error::CliError,
-        identity::{Identity, IdentityArgs, provide_identity},
+        identity::{Identity, SystemIdentityArgs, SystemIdentityData, provide_identity},
         proxy_config::ProxyConfig,
         region::{Region, region_parser},
     },
@@ -40,7 +40,7 @@ pub struct Args {
 
     /// Identity configuration
     #[command(flatten)]
-    identity: IdentityArgs,
+    identity: SystemIdentityArgs,
 
     /// Proxy configuration
     #[command(flatten)]
@@ -55,22 +55,51 @@ pub struct Args {
     env_vars_file_path: Option<PathBuf>,
 }
 
+pub enum FleetInputs {
+    FleetDisabled,
+    FleetEnabled {
+        fleet_id: String,
+        identity: SystemIdentityData,
+    },
+}
+
+pub struct Inputs {
+    output_path: PathBuf,
+    region: Region,
+    proxy_config: Option<ProxyConfig>,
+    newrelic_license_key: String,
+    env_vars_file_path: Option<PathBuf>,
+    fleet: FleetInputs,
+}
+
 impl Args {
     /// Performs additional args validation (not covered by clap's arguments)
-    pub fn validate(&self) -> Result<(), String> {
-        if !self.fleet_disabled {
+    pub fn validate(self) -> Result<Inputs, String> {
+        let fleet_inputs = if self.fleet_disabled {
+            FleetInputs::FleetDisabled
+        } else {
             // Fleet-id is required
             if self.fleet_id.is_empty() {
                 return Err(String::from("'fleet_id' should be set when enabling fleet"));
             }
-            self.identity.validate()?;
-        }
+            FleetInputs::FleetEnabled {
+                fleet_id: self.fleet_id,
+                identity: self.identity.validate()?,
+            }
+        };
         if let Some(proxy_config) = self.proxy_config.clone()
             && let Err(err) = crate::http::config::ProxyConfig::try_from(proxy_config)
         {
             return Err(format!("invalid proxy configuration: {err}"));
         }
-        Ok(())
+        Ok(Inputs {
+            output_path: self.output_path,
+            region: self.region,
+            proxy_config: self.proxy_config,
+            newrelic_license_key: self.newrelic_license_key,
+            env_vars_file_path: self.env_vars_file_path,
+            fleet: fleet_inputs,
+        })
     }
 }
 
@@ -78,39 +107,39 @@ impl Args {
 /// 1. The Agent Control configuration file according to the provided args.
 /// 2. The system identity required for Fleet Control, if applicable.
 /// 3. The environment variables file required for the agents, if applicable.
-pub fn generate(args: Args) -> Result<(), CliError> {
-    write_config_and_generate_system_identity(&args)?;
-    write_env_var_config(&args)?;
+pub fn generate(inputs: Inputs) -> Result<(), CliError> {
+    write_config_and_generate_system_identity(&inputs)?;
+    write_env_var_config(&inputs)?;
     Ok(())
 }
 
 /// Generates the Agent Control configuration, the system identity and any requisite according to the provided inputs.
-fn write_config_and_generate_system_identity(args: &Args) -> Result<(), CliError> {
+fn write_config_and_generate_system_identity(inputs: &Inputs) -> Result<(), CliError> {
     info!("Generating Agent Control configuration");
 
-    let yaml = generate_config_and_system_identity(args, provide_identity)?;
+    let yaml = generate_config_and_system_identity(inputs, provide_identity)?;
 
-    LocalFile.write(&args.output_path, yaml).map_err(|err| {
+    LocalFile.write(&inputs.output_path, yaml).map_err(|err| {
         CliError::Command(format!(
             "error writing the configuration file to '{}': {}",
-            args.output_path.to_string_lossy(),
+            inputs.output_path.to_string_lossy(),
             err
         ))
     })?;
-    info!(config_path=%args.output_path.display(), "Agent Control configuration generated successfully");
+    info!(config_path=%inputs.output_path.display(), "Agent Control configuration generated successfully");
     Ok(())
 }
 
 /// Generates and writes the environment variables configuration file if requested.
-fn write_env_var_config(args: &Args) -> Result<(), CliError> {
-    let Some(path) = &args.env_vars_file_path else {
+fn write_env_var_config(inputs: &Inputs) -> Result<(), CliError> {
+    let Some(path) = &inputs.env_vars_file_path else {
         info!("No environment variables file path provided, skipping generation");
         return Ok(());
     };
 
     info!("Generating environment variables configuration");
 
-    let yaml = generate_env_var_config(args)?;
+    let yaml = generate_env_var_config(inputs)?;
 
     LocalFile.write(path, yaml).map_err(|err| {
         CliError::Command(format!(
@@ -126,7 +155,7 @@ fn write_env_var_config(args: &Args) -> Result<(), CliError> {
 }
 
 /// Generates the environment variables configuration according to the provided args.    
-fn generate_env_var_config(args: &Args) -> Result<String, CliError> {
+fn generate_env_var_config(args: &Inputs) -> Result<String, CliError> {
     info!("Inserting OTEL endpoint env var");
     let mut env_vars = HashMap::from([(
         OTLP_ENDPOINT_ENV_VAR.to_string(),
@@ -150,39 +179,39 @@ fn generate_env_var_config(args: &Args) -> Result<String, CliError> {
 
 /// Generates the configuration according to args using the provided function to generate the identity.
 fn generate_config_and_system_identity<F>(
-    args: &Args,
+    inputs: &Inputs,
     provide_identity_fn: F,
 ) -> Result<String, CliError>
 where
-    F: Fn(&IdentityArgs, Region, Option<ProxyConfig>) -> Result<Identity, CliError>,
+    F: Fn(&SystemIdentityData, Region, Option<ProxyConfig>) -> Result<Identity, CliError>,
 {
-    let fleet_control = if args.fleet_disabled {
-        None
-    } else {
-        let Identity {
-            client_id,
-            private_key_path,
-        } = provide_identity_fn(&args.identity, args.region, args.proxy_config.clone())?;
-
-        Some(FleetControl {
-            endpoint: args.region.opamp_endpoint().to_string(),
-            signature_validation: SignatureValidation {
-                public_key_server_url: args.region.public_key_endpoint().to_string(),
-            },
-            fleet_id: args.fleet_id.to_string(),
-            auth_config: AuthConfig {
-                token_url: args.region.token_renewal_endpoint().to_string(),
+    let fleet_control = match &inputs.fleet {
+        FleetInputs::FleetDisabled => None,
+        FleetInputs::FleetEnabled { fleet_id, identity } => {
+            let Identity {
                 client_id,
-                provider: "local".to_string(),
-                private_key_path: private_key_path.to_string_lossy().to_string(),
-            },
-        })
-    };
+                private_key_path,
+            } = provide_identity_fn(identity, inputs.region, inputs.proxy_config.clone())?;
 
+            Some(FleetControl {
+                endpoint: inputs.region.opamp_endpoint().to_string(),
+                signature_validation: SignatureValidation {
+                    public_key_server_url: inputs.region.public_key_endpoint().to_string(),
+                },
+                fleet_id: fleet_id.to_string(),
+                auth_config: AuthConfig {
+                    token_url: inputs.region.token_renewal_endpoint().to_string(),
+                    client_id,
+                    provider: "local".to_string(),
+                    private_key_path: private_key_path.to_string_lossy().to_string(),
+                },
+            })
+        }
+    };
     let config = Config {
         fleet_control,
         server: Server { enabled: true },
-        proxy: args.proxy_config.clone(),
+        proxy: inputs.proxy_config.clone(),
         agents: HashMap::new(),
         log: default_log_config(),
     };
@@ -213,9 +242,9 @@ mod tests {
     use rstest::rstest;
     use std::env::current_dir;
 
-    impl Default for Args {
+    impl Default for Inputs {
         fn default() -> Self {
-            Args {
+            Inputs {
                 output_path: Default::default(),
                 fleet_disabled: false,
                 region: Region::US,
@@ -242,11 +271,11 @@ mod tests {
         || format!("--output-path /some/path --region us --fleet-id some-id --auth-private-key-path {} --auth-parent-client-secret SECRET --auth-parent-client-id id --organization-id org-id", pwd())
     )]
     fn test_args_validation(#[case] args: fn() -> String) {
-        let cmd = Args::command().no_binary_name(true);
+        let cmd = Inputs::command().no_binary_name(true);
         let matches = cmd
             .try_get_matches_from(args().split_ascii_whitespace())
             .expect("arguments should be valid");
-        let args = Args::from_arg_matches(&matches).expect("should create the struct back");
+        let args = Inputs::from_arg_matches(&matches).expect("should create the struct back");
         assert_matches!(args.validate(), Ok(_));
     }
 
@@ -276,11 +305,11 @@ mod tests {
         || String::from("--fleet-disabled --output-path /some/path --region us --proxy-url https::/invalid")
     )]
     fn test_args_validation_errors(#[case] args: fn() -> String) {
-        let cmd = Args::command().no_binary_name(true);
+        let cmd = Inputs::command().no_binary_name(true);
         let matches = cmd
             .try_get_matches_from(args().split_ascii_whitespace())
             .expect("arguments should be valid");
-        let args = Args::from_arg_matches(&matches).expect("should create the struct back");
+        let args = Inputs::from_arg_matches(&matches).expect("should create the struct back");
 
         assert_matches!(args.validate(), Err(_));
     }
@@ -319,7 +348,7 @@ mod tests {
     #[case(Region::EU, "")]
     #[case(Region::STAGING, "another-license")]
     fn test_generate_env_var_config(#[case] region: Region, #[case] license: &str) {
-        let args = Args {
+        let args = Inputs {
             region,
             newrelic_license_key: license.to_string(),
             ..Default::default()
@@ -352,7 +381,7 @@ mod tests {
     }
 
     fn identity_provider_mock(
-        _: &IdentityArgs,
+        _: &SystemIdentityArgs,
         _: Region,
         _: Option<ProxyConfig>,
     ) -> Result<Identity, CliError> {
@@ -366,13 +395,13 @@ mod tests {
         fleet_enabled: bool,
         region: Region,
         proxy_config: Option<ProxyConfig>,
-    ) -> Args {
-        Args {
+    ) -> Inputs {
+        Inputs {
             output_path: PathBuf::from("/tmp/config.yaml"),
             fleet_disabled: fleet_enabled,
             region,
             fleet_id: "test-fleet-id".to_string(),
-            identity: IdentityArgs {
+            identity: SystemIdentityArgs {
                 organization_id: "test-org-id".to_string(),
                 auth_parent_client_id: "parent-client-id".to_string(),
                 auth_parent_client_secret: "parent-client-secret".to_string(),

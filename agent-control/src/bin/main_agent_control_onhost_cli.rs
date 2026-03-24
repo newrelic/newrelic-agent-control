@@ -36,14 +36,14 @@ fn main() -> ExitCode {
     }
 
     let result = match cli.command {
-        Commands::GenerateConfig(args) => {
-            if let Err(err) = args.validate() {
+        Commands::GenerateConfig(args) => match args.validate() {
+            Ok(inputs) => config_gen::generate(inputs),
+            Err(err) => {
                 let mut cmd = Cli::command();
                 cmd.error(ErrorKind::ArgumentConflict, err.to_string())
                     .exit()
             }
-            config_gen::generate(args)
-        }
+        },
         Commands::FilesBackwardsCompatibilityMigrationFromV120 => migrate_folders::migrate(),
     };
 
