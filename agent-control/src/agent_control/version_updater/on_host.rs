@@ -245,7 +245,7 @@ mod tests {
     #[traced_test]
     #[rstest]
     #[cfg_attr(unix, case("sh", vec!["-c", "printf 'some stdout'; printf 'some stderr' >&2; exit 2"]))]
-    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", r#"Write-Output 'some stdout'; [Console]::Error.WriteLine('some stderr'); exit 2"#]))]
+    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", r#"Write-Output -NoNewline 'some stdout'; [Console]::Error.WriteLine('some stderr'); exit 2"#]))]
     fn test_process_executor_unexpected_failure_contains_stdout_stderr_and_exit_status(
         #[case] bin: &'static str,
         #[case] args: Vec<&'static str>,
@@ -255,11 +255,8 @@ mod tests {
         assert_matches!(err, VerifyError::UnexpectedFailure);
 
         assert!(logs_contain(
-            "Verification subprocess failed and output couldn't be parsed"
+            "Verification subprocess failed and output couldn't be parsed stdout=some stdout stderr=some stderr exit_code=2"
         ));
-        assert!(logs_contain("stdout=some stdout"));
-        assert!(logs_contain("stderr=some stderr"));
-        assert!(logs_contain("exit_code=2"));
     }
 
     #[rstest]
