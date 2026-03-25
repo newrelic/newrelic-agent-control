@@ -87,7 +87,7 @@ pub enum ProvisioningMethod {
 
 /// Valid data to create a SystemIdentity, represent [SystemIdentityArgs] after validation.
 #[derive(Debug)]
-pub struct SytemIdentitySpec {
+pub struct SystemIdentitySpec {
     pub method: ProvisioningMethod,
     pub private_key_path: PathBuf,
 }
@@ -95,7 +95,7 @@ pub struct SytemIdentitySpec {
 impl SystemIdentityArgs {
     /// Performs additional args validation (not covered by clap's arguments) and returns [SystemIdentityData] if
     /// validation was Ok.
-    pub fn validate(self) -> Result<SytemIdentitySpec, String> {
+    pub fn validate(self) -> Result<SystemIdentitySpec, String> {
         let private_key_path = self
             .auth_private_key_path
             .as_ref()
@@ -106,7 +106,7 @@ impl SystemIdentityArgs {
 
         let method = self.resolve_provisioning_method(&private_key_path)?;
 
-        Ok(SytemIdentitySpec {
+        Ok(SystemIdentitySpec {
             method,
             private_key_path,
         })
@@ -161,7 +161,7 @@ impl SystemIdentityArgs {
 
 /// Provides a key-based identity considering the supplied args.
 pub fn provide_identity(
-    identity_input: &SytemIdentitySpec,
+    identity_input: &SystemIdentitySpec,
     region: Region,
     proxy_config: Option<ProxyConfig>,
 ) -> Result<Identity, CliError> {
@@ -171,11 +171,11 @@ pub fn provide_identity(
 
 /// Helper to allow injecting testing urls when building the identity.
 fn build_identity(
-    identity_input: &SytemIdentitySpec,
+    identity_input: &SystemIdentitySpec,
     environment: NewRelicEnvironment,
     proxy_config: Option<ProxyConfig>,
 ) -> Result<Identity, CliError> {
-    let SytemIdentitySpec {
+    let SystemIdentitySpec {
         private_key_path,
         method,
     } = identity_input;

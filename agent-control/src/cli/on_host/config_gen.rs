@@ -4,7 +4,7 @@ use crate::cli::{
         error::CliError,
         proxy_config::ProxyConfig,
         region::{Region, region_parser},
-        system_identity::{Identity, SystemIdentityArgs, SytemIdentitySpec, provide_identity},
+        system_identity::{Identity, SystemIdentityArgs, SystemIdentitySpec, provide_identity},
     },
     on_host::config_gen::config::{
         AuthConfig, Config, FleetControl, LogConfig, Server, SignatureValidation,
@@ -61,7 +61,7 @@ pub enum FleetParams {
     FleetDisabled,
     FleetEnabled {
         fleet_id: String,
-        identity: SytemIdentitySpec,
+        identity: SystemIdentitySpec,
     },
 }
 
@@ -187,7 +187,7 @@ fn generate_config_and_system_identity<F>(
     provide_identity_fn: F,
 ) -> Result<String, CliError>
 where
-    F: Fn(&SytemIdentitySpec, Region, Option<ProxyConfig>) -> Result<Identity, CliError>,
+    F: Fn(&SystemIdentitySpec, Region, Option<ProxyConfig>) -> Result<Identity, CliError>,
 {
     let fleet_control = match &inputs.fleet {
         FleetParams::FleetDisabled => None,
@@ -384,7 +384,7 @@ mod tests {
     }
 
     fn identity_provider_mock(
-        _: &SytemIdentitySpec,
+        _: &SystemIdentitySpec,
         _: Region,
         _: Option<ProxyConfig>,
     ) -> Result<Identity, CliError> {
@@ -404,7 +404,7 @@ mod tests {
         } else {
             FleetParams::FleetEnabled {
                 fleet_id: "test-fleet-id".to_string(),
-                identity: SytemIdentitySpec {
+                identity: SystemIdentitySpec {
                     method: ProvisioningMethod::ParentSecret {
                         secret: "parent-client-secret".to_string(),
                         parent_client_id: "parent-client-id".to_string(),
