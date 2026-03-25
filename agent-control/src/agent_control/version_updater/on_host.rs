@@ -21,21 +21,21 @@ const POLL_INTERVAL: Duration = Duration::from_secs(2);
 /// Errors that can occur while running the verification subprocess.
 #[derive(Debug, Error)]
 pub enum VerifyError {
-    #[error("{0}")]
+    #[error("dry-run check of new version failed due to subprocess error: {0}")]
     SubProcessError(String),
 
-    #[error("timed out after {0:?}")]
+    #[error("dry-run check of new version timed out after {0:?}")]
     Timeout(Duration),
 
     /// Returned when the command exits with a non-zero status code, indicating
     /// that verification did not pass. The message is the human-readable
     /// explanation written by the command to stdout.
-    #[error("{0}")]
+    #[error("dry-run check of new version failed with: {0}")]
     VerificationFailed(String),
 
     /// Returned when the command exits with a non-zero status code and its
     /// stdout cannot be parsed as [`CommandResult`].
-    #[error("unexpected failure")]
+    #[error("dry-run check of new version failed unexpectedly")]
     UnexpectedFailure,
 }
 
