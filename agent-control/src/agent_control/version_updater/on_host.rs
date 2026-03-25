@@ -30,21 +30,13 @@ pub enum VerifyError {
     /// Returned when the command exits with a non-zero status code, indicating
     /// that verification did not pass. The message is the human-readable
     /// explanation written by the command to stdout.
-    #[error("{message}")]
-    VerificationFailed {
-        message: String,
-        stdout: String,
-        stderr: String,
-    },
+    #[error("{0}")]
+    VerificationFailed(String),
 
     /// Returned when the command exits with a non-zero status code and its
     /// stdout cannot be parsed as [`CommandResult`].
-    #[error("unexpected failure (exit status {exit_status}) stdout={stdout} stderr={stderr}")]
-    UnexpectedFailure {
-        exit_status: ExitStatus,
-        stdout: String,
-        stderr: String,
-    },
+    #[error("unexpected failure")]
+    UnexpectedFailure,
 }
 
 /// Output written by the verify command to stdout.
@@ -153,21 +145,13 @@ impl VerifyExecutor for ProcessVerifyExecutor {
         let output_to_parse = stdout_buf
             .lines()
             .filter_map(|line| serde_json::from_str::<CommandResult>(line).ok())
-            .last();
+            .next_back();
 
         match output_to_parse {
-            Some(output) => Err(VerifyError::VerificationFailed {
-                message: output.message,
-                stdout: stdout_buf,
-                stderr: stderr_buf,
-            }),
+            Some(output) => Err(VerifyError::VerificationFailed(output.message)),
             None => {
                 error!(stdout = %stdout_buf, stderr = %stderr_buf, "Verification subprocess failed and output couldn't be parsed");
-                Err(VerifyError::UnexpectedFailure {
-                    exit_status,
-                    stdout: stdout_buf,
-                    stderr: stderr_buf,
-                })
+                Err(VerifyError::UnexpectedFailure)
             }
         }
     }
@@ -199,8 +183,10 @@ impl<E: VerifyExecutor> VersionUpdater for OnHostUpdater<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assert_matches::assert_matches;
     use mockall::mock;
     use rstest::rstest;
+    use tracing_test::traced_test;
     use std::time::Duration;
 
     mock! {
@@ -255,6 +241,7 @@ mod tests {
         assert!(executor.execute(Path::new(bin), &args).is_ok());
     }
 
+    #[traced_test]
     #[rstest]
     #[cfg_attr(unix, case("sh", vec!["-c", "printf 'some stdout'; printf 'some stderr' >&2; exit 2"]))]
     #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", r#"Write-Output 'some stdout'; [Console]::Error.WriteLine('some stderr'); exit 2"#]))]
@@ -264,18 +251,9 @@ mod tests {
     ) {
         let executor = ProcessVerifyExecutor::default();
         let err = executor.execute(Path::new(bin), &args).unwrap_err();
-        match err {
-            VerifyError::UnexpectedFailure {
-                exit_status,
-                stdout,
-                stderr,
-            } => {
-                assert!(stdout.starts_with("some stdout"));
-                assert!(stderr.starts_with("some stderr"));
-                assert_eq!(exit_status.code(), Some(2));
-            }
-            other => panic!("expected UnexpectedFailure, got {other:?}"),
-        }
+        assert_matches!(err, VerifyError::UnexpectedFailure);
+
+        assert!(logs_contain("Verification subprocess failed and output couldn't be parsed stdout=some stdout stderr=some stderr"));
     }
 
     #[rstest]
@@ -287,18 +265,7 @@ mod tests {
     ) {
         let executor = ProcessVerifyExecutor::default();
         let err = executor.execute(Path::new(bin), &args).unwrap_err();
-        match err {
-            VerifyError::VerificationFailed {
-                message,
-                stdout,
-                stderr: _,
-            } => {
-                assert_eq!(message, "pre-flight check failed");
-                assert!(stdout.contains("previous lines"));
-                assert!(stdout.contains(r#"{"message":"pre-flight check failed"}"#));
-            }
-            other => panic!("expected VerificationFailed, got {other:?}"),
-        }
+        assert_matches!(err, VerifyError::VerificationFailed(msg) if msg == "pre-flight check failed");
     }
 
     #[rstest]
