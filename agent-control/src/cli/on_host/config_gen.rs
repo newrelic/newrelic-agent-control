@@ -111,39 +111,39 @@ impl Args {
 /// 1. The Agent Control configuration file according to the provided args.
 /// 2. The system identity required for Fleet Control, if applicable.
 /// 3. The environment variables file required for the agents, if applicable.
-pub fn generate(inputs: Params) -> Result<(), CliError> {
-    write_config_and_generate_system_identity(&inputs)?;
-    write_env_var_config(&inputs)?;
+pub fn generate(params: Params) -> Result<(), CliError> {
+    write_config_and_generate_system_identity(&params)?;
+    write_env_var_config(&params)?;
     Ok(())
 }
 
 /// Generates the Agent Control configuration, the system identity and any requisite according to the provided inputs.
-fn write_config_and_generate_system_identity(inputs: &Params) -> Result<(), CliError> {
+fn write_config_and_generate_system_identity(params: &Params) -> Result<(), CliError> {
     info!("Generating Agent Control configuration");
 
-    let yaml = generate_config_and_system_identity(inputs, provide_identity)?;
+    let yaml = generate_config_and_system_identity(params, provide_identity)?;
 
-    LocalFile.write(&inputs.output_path, yaml).map_err(|err| {
+    LocalFile.write(&params.output_path, yaml).map_err(|err| {
         CliError::Command(format!(
             "error writing the configuration file to '{}': {}",
-            inputs.output_path.to_string_lossy(),
+            params.output_path.to_string_lossy(),
             err
         ))
     })?;
-    info!(config_path=%inputs.output_path.display(), "Agent Control configuration generated successfully");
+    info!(config_path=%params.output_path.display(), "Agent Control configuration generated successfully");
     Ok(())
 }
 
 /// Generates and writes the environment variables configuration file if requested.
-fn write_env_var_config(inputs: &Params) -> Result<(), CliError> {
-    let Some(path) = &inputs.env_vars_file_path else {
+fn write_env_var_config(params: &Params) -> Result<(), CliError> {
+    let Some(path) = &params.env_vars_file_path else {
         info!("No environment variables file path provided, skipping generation");
         return Ok(());
     };
 
     info!("Generating environment variables configuration");
 
-    let yaml = generate_env_var_config(inputs)?;
+    let yaml = generate_env_var_config(params)?;
 
     LocalFile.write(path, yaml).map_err(|err| {
         CliError::Command(format!(
@@ -159,18 +159,18 @@ fn write_env_var_config(inputs: &Params) -> Result<(), CliError> {
 }
 
 /// Generates the environment variables configuration according to the provided args.    
-fn generate_env_var_config(inputs: &Params) -> Result<String, CliError> {
+fn generate_env_var_config(params: &Params) -> Result<String, CliError> {
     info!("Inserting OTEL endpoint env var");
     let mut env_vars = HashMap::from([(
         OTLP_ENDPOINT_ENV_VAR.to_string(),
-        inputs.region.otel_endpoint().to_string(),
+        params.region.otel_endpoint().to_string(),
     )]);
 
-    if !inputs.newrelic_license_key.is_empty() {
+    if !params.newrelic_license_key.is_empty() {
         info!("Inserting New Relic license key env var");
         env_vars.insert(
             NR_LICENSE_ENV_VAR.to_string(),
-            inputs.newrelic_license_key.clone(),
+            params.newrelic_license_key.clone(),
         );
     }
 
@@ -183,28 +183,28 @@ fn generate_env_var_config(inputs: &Params) -> Result<String, CliError> {
 
 /// Generates the configuration according to args using the provided function to generate the identity.
 fn generate_config_and_system_identity<F>(
-    inputs: &Params,
+    params: &Params,
     provide_identity_fn: F,
 ) -> Result<String, CliError>
 where
     F: Fn(&SystemIdentitySpec, Region, Option<ProxyConfig>) -> Result<Identity, CliError>,
 {
-    let fleet_control = match &inputs.fleet {
+    let fleet_control = match &params.fleet {
         FleetParams::FleetDisabled => None,
         FleetParams::FleetEnabled { fleet_id, identity } => {
             let Identity {
                 client_id,
                 private_key_path,
-            } = provide_identity_fn(identity, inputs.region, inputs.proxy_config.clone())?;
+            } = provide_identity_fn(identity, params.region, params.proxy_config.clone())?;
 
             Some(FleetControl {
-                endpoint: inputs.region.opamp_endpoint().to_string(),
+                endpoint: params.region.opamp_endpoint().to_string(),
                 signature_validation: SignatureValidation {
-                    public_key_server_url: inputs.region.public_key_endpoint().to_string(),
+                    public_key_server_url: params.region.public_key_endpoint().to_string(),
                 },
                 fleet_id: fleet_id.to_string(),
                 auth_config: AuthConfig {
-                    token_url: inputs.region.token_renewal_endpoint().to_string(),
+                    token_url: params.region.token_renewal_endpoint().to_string(),
                     client_id,
                     provider: "local".to_string(),
                     private_key_path: private_key_path.to_string_lossy().to_string(),
@@ -215,7 +215,7 @@ where
     let config = Config {
         fleet_control,
         server: Server { enabled: true },
-        proxy: inputs.proxy_config.clone(),
+        proxy: params.proxy_config.clone(),
         agents: HashMap::new(),
         log: default_log_config(),
     };
