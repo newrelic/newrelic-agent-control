@@ -152,17 +152,17 @@ impl VerifyExecutor for ProcessVerifyExecutor {
         // (e.g., a panic) rather than performing a controlled verification failure.
         let output_to_parse = stdout_buf
             .lines()
-            .rfind(|line| !line.trim().is_empty())
-            .unwrap_or(&stdout_buf);
+            .filter_map(|line| serde_json::from_str::<CommandResult>(line).ok())
+            .last();
 
-        match serde_json::from_str::<CommandResult>(output_to_parse) {
-            Ok(output) => Err(VerifyError::VerificationFailed {
+        match output_to_parse {
+            Some(output) => Err(VerifyError::VerificationFailed {
                 message: output.message,
                 stdout: stdout_buf,
                 stderr: stderr_buf,
             }),
-            Err(err) => {
-                error!(%err, stdout = %stdout_buf, stderr = %stderr_buf, "Verification subprocess failed and output couldn't be parsed");
+            None => {
+                error!(stdout = %stdout_buf, stderr = %stderr_buf, "Verification subprocess failed and output couldn't be parsed");
                 Err(VerifyError::UnexpectedFailure {
                     exit_status,
                     stdout: stdout_buf,
