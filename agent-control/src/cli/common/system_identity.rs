@@ -336,12 +336,80 @@ fn build_nr_auth_proxy_config(
 
 #[cfg(test)]
 pub mod tests {
+    use assert_matches::assert_matches;
     use http::header::AUTHORIZATION;
     use httpmock::{Method::POST, MockServer};
+    use rstest::rstest;
     use std::fs;
     use tempfile::TempDir;
 
     use super::*;
+
+    #[rstest]
+    #[case::existing_identity(|| SystemIdentityArgs {
+        auth_private_key_path: Some(std::env::current_dir().unwrap()),
+        auth_client_id: "some-client-id".to_string(),
+        ..Default::default()
+    })]
+    #[case::parent_token(|| SystemIdentityArgs {
+        auth_private_key_path: Some(PathBuf::from("/some/path")),
+        auth_parent_token: "TOKEN".to_string(),
+        auth_parent_client_id: "parent-id".to_string(),
+        organization_id: "org-id".to_string(),
+        ..Default::default()
+    })]
+    #[case::parent_secret(|| SystemIdentityArgs {
+        auth_private_key_path: Some(PathBuf::from("/some/path")),
+        auth_parent_client_secret: "SECRET".to_string(),
+        auth_parent_client_id: "parent-id".to_string(),
+        organization_id: "org-id".to_string(),
+        ..Default::default()
+    })]
+    fn test_validate(#[case] make_args: fn() -> SystemIdentityArgs) {
+        assert_matches!(make_args().validate(), Ok(_));
+    }
+
+    #[rstest]
+    #[case::missing_private_key_path(|| SystemIdentityArgs {
+        auth_client_id: "some-client-id".to_string(),
+        ..Default::default()
+    })]
+    #[case::nonexistent_key_with_client_id(|| SystemIdentityArgs {
+        auth_private_key_path: Some(PathBuf::from("/does/not/exist")),
+        auth_client_id: "some-client-id".to_string(),
+        ..Default::default()
+    })]
+    #[case::token_missing_org_id(|| SystemIdentityArgs {
+        auth_private_key_path: Some(PathBuf::from("/some/path")),
+        auth_parent_token: "TOKEN".to_string(),
+        auth_parent_client_id: "parent-id".to_string(),
+        ..Default::default()
+    })]
+    #[case::token_missing_parent_client_id(|| SystemIdentityArgs {
+        auth_private_key_path: Some(PathBuf::from("/some/path")),
+        auth_parent_token: "TOKEN".to_string(),
+        organization_id: "org-id".to_string(),
+        ..Default::default()
+    })]
+    #[case::secret_missing_org_id(|| SystemIdentityArgs {
+        auth_private_key_path: Some(PathBuf::from("/some/path")),
+        auth_parent_client_secret: "SECRET".to_string(),
+        auth_parent_client_id: "parent-id".to_string(),
+        ..Default::default()
+    })]
+    #[case::secret_missing_parent_client_id(|| SystemIdentityArgs {
+        auth_private_key_path: Some(PathBuf::from("/some/path")),
+        auth_parent_client_secret: "SECRET".to_string(),
+        organization_id: "org-id".to_string(),
+        ..Default::default()
+    })]
+    #[case::no_method_provided(|| SystemIdentityArgs {
+        auth_private_key_path: Some(PathBuf::from("/some/path")),
+        ..Default::default()
+    })]
+    fn test_validate_errors(#[case] make_args: fn() -> SystemIdentityArgs) {
+        assert_matches!(make_args().validate(), Err(_));
+    }
 
     #[test]
     fn test_build_identity_already_provided() {
