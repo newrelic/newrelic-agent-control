@@ -2,9 +2,9 @@
 use crate::cli::{
     common::{
         error::CliError,
-        identity::{Identity, SystemIdentityArgs, SystemIdentityData, provide_identity},
         proxy_config::ProxyConfig,
         region::{Region, region_parser},
+        system_identity::{Identity, SystemIdentityArgs, SystemIdentityData, provide_identity},
     },
     on_host::config_gen::config::{
         AuthConfig, Config, FleetControl, LogConfig, Server, SignatureValidation,
@@ -239,7 +239,7 @@ fn default_log_config() -> Option<LogConfig> {
 mod tests {
     use super::*;
     use crate::agent_control::config::AgentControlConfig;
-    use crate::cli::common::identity::ProvisioningMethod;
+    use crate::cli::common::system_identity::ProvisioningMethod;
     use assert_matches::assert_matches;
     use clap::{CommandFactory, FromArgMatches};
     use rstest::rstest;
