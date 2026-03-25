@@ -55,6 +55,7 @@ pub struct Args {
     env_vars_file_path: Option<PathBuf>,
 }
 
+#[derive(Debug)]
 pub enum FleetInputs {
     FleetDisabled,
     FleetEnabled {
@@ -63,6 +64,7 @@ pub enum FleetInputs {
     },
 }
 
+#[derive(Debug)]
 pub struct Inputs {
     output_path: PathBuf,
     region: Region,
@@ -237,6 +239,7 @@ fn default_log_config() -> Option<LogConfig> {
 mod tests {
     use super::*;
     use crate::agent_control::config::AgentControlConfig;
+    use crate::cli::common::identity::ProvisioningMethod;
     use assert_matches::assert_matches;
     use clap::{CommandFactory, FromArgMatches};
     use rstest::rstest;
@@ -246,13 +249,11 @@ mod tests {
         fn default() -> Self {
             Inputs {
                 output_path: Default::default(),
-                fleet_disabled: false,
                 region: Region::US,
-                fleet_id: Default::default(),
-                identity: Default::default(),
                 proxy_config: None,
                 newrelic_license_key: Default::default(),
                 env_vars_file_path: Default::default(),
+                fleet: FleetInputs::FleetDisabled,
             }
         }
     }
@@ -271,11 +272,11 @@ mod tests {
         || format!("--output-path /some/path --region us --fleet-id some-id --auth-private-key-path {} --auth-parent-client-secret SECRET --auth-parent-client-id id --organization-id org-id", pwd())
     )]
     fn test_args_validation(#[case] args: fn() -> String) {
-        let cmd = Inputs::command().no_binary_name(true);
+        let cmd = Args::command().no_binary_name(true);
         let matches = cmd
             .try_get_matches_from(args().split_ascii_whitespace())
             .expect("arguments should be valid");
-        let args = Inputs::from_arg_matches(&matches).expect("should create the struct back");
+        let args = Args::from_arg_matches(&matches).expect("should create the struct back");
         assert_matches!(args.validate(), Ok(_));
     }
 
@@ -305,11 +306,11 @@ mod tests {
         || String::from("--fleet-disabled --output-path /some/path --region us --proxy-url https::/invalid")
     )]
     fn test_args_validation_errors(#[case] args: fn() -> String) {
-        let cmd = Inputs::command().no_binary_name(true);
+        let cmd = Args::command().no_binary_name(true);
         let matches = cmd
             .try_get_matches_from(args().split_ascii_whitespace())
             .expect("arguments should be valid");
-        let args = Inputs::from_arg_matches(&matches).expect("should create the struct back");
+        let args = Args::from_arg_matches(&matches).expect("should create the struct back");
 
         assert_matches!(args.validate(), Err(_));
     }
@@ -381,7 +382,7 @@ mod tests {
     }
 
     fn identity_provider_mock(
-        _: &SystemIdentityArgs,
+        _: &SystemIdentityData,
         _: Region,
         _: Option<ProxyConfig>,
     ) -> Result<Identity, CliError> {
@@ -392,26 +393,32 @@ mod tests {
     }
 
     fn create_test_args(
-        fleet_enabled: bool,
+        fleet_disabled: bool,
         region: Region,
         proxy_config: Option<ProxyConfig>,
     ) -> Inputs {
+        let fleet = if fleet_disabled {
+            FleetInputs::FleetDisabled
+        } else {
+            FleetInputs::FleetEnabled {
+                fleet_id: "test-fleet-id".to_string(),
+                identity: SystemIdentityData {
+                    method: ProvisioningMethod::ParentSecret {
+                        secret: "parent-client-secret".to_string(),
+                        parent_client_id: "parent-client-id".to_string(),
+                        organization_id: "test-org-id".to_string(),
+                    },
+                    private_key_path: PathBuf::from("/path/to/key"),
+                },
+            }
+        };
         Inputs {
             output_path: PathBuf::from("/tmp/config.yaml"),
-            fleet_disabled: fleet_enabled,
             region,
-            fleet_id: "test-fleet-id".to_string(),
-            identity: SystemIdentityArgs {
-                organization_id: "test-org-id".to_string(),
-                auth_parent_client_id: "parent-client-id".to_string(),
-                auth_parent_client_secret: "parent-client-secret".to_string(),
-                auth_parent_token: "parent-token".to_string(),
-                auth_private_key_path: Some(PathBuf::from("/path/to/key")),
-                auth_client_id: "client-id".to_string(),
-            },
             proxy_config,
             newrelic_license_key: "test-license-key".to_string(),
             env_vars_file_path: None,
+            fleet,
         }
     }
 

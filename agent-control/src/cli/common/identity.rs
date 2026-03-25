@@ -65,6 +65,7 @@ pub struct SystemIdentityArgs {
     pub organization_id: String,
 }
 
+#[derive(Debug)]
 pub enum ProvisioningMethod {
     ExistingIdentity {
         auth_client_id: String,
@@ -81,6 +82,7 @@ pub enum ProvisioningMethod {
     },
 }
 
+#[derive(Debug)]
 pub struct SystemIdentityData {
     pub method: ProvisioningMethod,
     pub private_key_path: PathBuf,
@@ -141,30 +143,6 @@ impl SystemIdentityArgs {
             method,
             private_key_path: auth_private_key_path,
         })
-
-        //// Requirements for existing identity
-        //if !self.auth_client_id.is_empty() && !auth_private_key_path.exists() {
-        //    return Err(String::from(
-        //        "when 'auth_client_id' is provided the 'auth_private_key_path' must also be provided and exist",
-        //    ));
-        //}
-        //// Requirements for token-based identity generation
-        //if !self.auth_parent_token.is_empty()
-        //    && (self.organization_id.is_empty() || self.auth_parent_client_id.is_empty())
-        //{
-        //    return Err(String::from(
-        //        "token based system identity generation requires 'auth_parent_token', 'auth_parent_client_id' and 'organization_id'",
-        //    ));
-        //}
-        //// Requirements for client + secret identity generation
-        //if !self.auth_parent_client_secret.is_empty()
-        //    && (self.organization_id.is_empty() || self.auth_parent_client_id.is_empty())
-        //{
-        //    return Err(String::from(
-        //        "client-secret based system identity generation requires 'auth_parent_client_secret', 'auth_parent_client_id' and 'organization_id'",
-        //    ));
-        //}
-        //Ok(())
     }
 }
 
@@ -365,14 +343,17 @@ pub mod tests {
                 .parse()
                 .expect("url should be valid"),
         };
+        // Key file must exist when using ExistingIdentity
+        fs::write(&auth_private_key_path, "").unwrap();
         let identity_args = SystemIdentityArgs {
             auth_private_key_path: Some(auth_private_key_path.clone()),
             auth_client_id: "provided_client_id".to_string(),
             ..Default::default()
         };
+        let identity_data = identity_args.validate().expect("validation should succeed");
 
         let identity =
-            build_identity(&identity_args, environment, None).expect("no error expected");
+            build_identity(&identity_data, environment, None).expect("no error expected");
         assert_eq!(identity.client_id, "provided_client_id".to_string());
         assert_eq!(identity.private_key_path, auth_private_key_path);
     }
@@ -388,6 +369,7 @@ pub mod tests {
             auth_parent_client_id: "parent-client-id".to_string(),
             auth_parent_token: "TOKEN".to_string(),
             auth_private_key_path: Some(auth_private_key_path.clone()),
+            organization_id: "test-org-id".to_string(),
             ..Default::default()
         };
 
@@ -396,10 +378,8 @@ pub mod tests {
             when.method(POST)
                 .path("/identity")
                 .header_includes(AUTHORIZATION.as_str(), "Bearer TOKEN");
-            then.status(200).body(identity_body(
-                "created_client_id",
-                &identity_args.organization_id,
-            ));
+            then.status(200)
+                .body(identity_body("created_client_id", "test-org-id"));
         });
 
         let environment = NewRelicEnvironment::Custom {
@@ -411,8 +391,9 @@ pub mod tests {
                 .expect("url should be valid"),
         };
 
+        let identity_data = identity_args.validate().expect("validation should succeed");
         let identity =
-            build_identity(&identity_args, environment, None).expect("no error expected");
+            build_identity(&identity_data, environment, None).expect("no error expected");
 
         identity_mock.assert_calls(1);
         assert_eq!(identity.client_id, "created_client_id".to_string());
@@ -435,6 +416,7 @@ pub mod tests {
             auth_parent_client_id: "parent-client-id".to_string(),
             auth_parent_client_secret: "client-secret-value".to_string(),
             auth_private_key_path: Some(auth_private_key_path.clone()),
+            organization_id: "test-org-id".to_string(),
             ..Default::default()
         };
 
@@ -451,10 +433,8 @@ pub mod tests {
             when.method(POST)
                 .path("/identity")
                 .header_includes(AUTHORIZATION.as_str(), "Bearer TOKEN-VALUE");
-            then.status(200).body(identity_body(
-                "created_client_id",
-                &identity_args.organization_id,
-            ));
+            then.status(200)
+                .body(identity_body("created_client_id", "test-org-id"));
         });
 
         let environment = NewRelicEnvironment::Custom {
@@ -466,8 +446,9 @@ pub mod tests {
                 .expect("url should be valid"),
         };
 
+        let identity_data = identity_args.validate().expect("validation should succeed");
         let identity =
-            build_identity(&identity_args, environment, None).expect("no error expected");
+            build_identity(&identity_data, environment, None).expect("no error expected");
 
         identity_mock.assert_calls(1);
         token_mock.assert_calls(1);
