@@ -1,6 +1,9 @@
 //! This module provides the functions to handle identity creation when setting up Agent Control.
 //!
-use std::{path::PathBuf, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use nr_auth::{
     TokenRetriever,
@@ -82,8 +85,9 @@ pub enum ProvisioningMethod {
     },
 }
 
+/// Valid data to create a SystemIdentity, represent [SystemIdentityArgs] after validation.
 #[derive(Debug)]
-pub struct SystemIdentityData {
+pub struct SytemIdentitySpec {
     pub method: ProvisioningMethod,
     pub private_key_path: PathBuf,
 }
@@ -91,64 +95,73 @@ pub struct SystemIdentityData {
 impl SystemIdentityArgs {
     /// Performs additional args validation (not covered by clap's arguments) and returns [SystemIdentityData] if
     /// validation was Ok.
-    pub fn validate(self) -> Result<SystemIdentityData, String> {
-        // 'auth_private_key_path' is required
-        let Some(auth_private_key_path) = self.auth_private_key_path else {
-            return Err(String::from(
-                "'auth_private_key_path' needs to be set to register System Identity",
-            ));
-        };
+    pub fn validate(self) -> Result<SytemIdentitySpec, String> {
+        let private_key_path = self
+            .auth_private_key_path
+            .as_ref()
+            .ok_or_else(|| {
+                "'auth_private_key_path' needs to be set to register System Identity".to_string()
+            })?
+            .clone();
 
-        let method = if !self.auth_client_id.is_empty() {
-            if !auth_private_key_path.exists() {
-                Err(String::from(
-                    "when 'auth_client_id' is provided the 'auth_private_key_path' must also be provided and exist",
-                ))
-            } else {
-                Ok(ProvisioningMethod::ExistingIdentity {
-                    auth_client_id: self.auth_client_id,
-                })
-            }
-        } else if !self.auth_parent_token.is_empty() {
-            if self.organization_id.is_empty() || self.auth_parent_client_id.is_empty() {
-                Err(String::from(
-                    "token based system identity generation requires 'auth_parent_token', 'auth_parent_client_id' and 'organization_id'",
-                ))
-            } else {
-                Ok(ProvisioningMethod::ParentToken {
-                    token: self.auth_parent_token,
-                    parent_client_id: self.auth_parent_client_id,
-                    organization_id: self.organization_id,
-                })
-            }
-        } else if !self.auth_parent_client_secret.is_empty() {
-            if self.organization_id.is_empty() || self.auth_parent_client_id.is_empty() {
-                Err(String::from(
-                    "token based system identity generation requires 'auth_parent_token', 'auth_parent_client_id' and 'organization_id'",
-                ))
-            } else {
-                Ok(ProvisioningMethod::ParentSecret {
-                    secret: self.auth_parent_client_secret,
-                    parent_client_id: self.auth_parent_client_id,
-                    organization_id: self.organization_id,
-                })
-            }
-        } else {
-            Err(String::from(
-                "either 'auth_client_id', 'auth_parent_token' or 'auth_parent_secret' should be set to register System Identity",
-            ))
-        }?;
+        let method = self.resolve_provisioning_method(&private_key_path)?;
 
-        Ok(SystemIdentityData {
+        Ok(SytemIdentitySpec {
             method,
-            private_key_path: auth_private_key_path,
+            private_key_path,
         })
+    }
+
+    fn resolve_provisioning_method(self, key_path: &Path) -> Result<ProvisioningMethod, String> {
+        if !self.auth_client_id.is_empty() {
+            if !key_path.exists() {
+                return Err(
+                    "when 'auth_client_id' is provided the 'auth_private_key_path' must also be provided and exist"
+                        .to_string(),
+                );
+            }
+            return Ok(ProvisioningMethod::ExistingIdentity {
+                auth_client_id: self.auth_client_id,
+            });
+        }
+
+        if !self.auth_parent_token.is_empty() {
+            self.require_org_and_parent_id("token based")?;
+            return Ok(ProvisioningMethod::ParentToken {
+                token: self.auth_parent_token,
+                parent_client_id: self.auth_parent_client_id,
+                organization_id: self.organization_id,
+            });
+        }
+
+        if !self.auth_parent_client_secret.is_empty() {
+            self.require_org_and_parent_id("client-secret based")?;
+            return Ok(ProvisioningMethod::ParentSecret {
+                secret: self.auth_parent_client_secret,
+                parent_client_id: self.auth_parent_client_id,
+                organization_id: self.organization_id,
+            });
+        }
+
+        Err(
+            "either 'auth_client_id', 'auth_parent_token' or 'auth_parent_secret' should be set to register System Identity"
+                .to_string(),
+        )
+    }
+
+    fn require_org_and_parent_id(&self, mode: &str) -> Result<(), String> {
+        if self.organization_id.is_empty() || self.auth_parent_client_id.is_empty() {
+            return Err(format!(
+                "{mode} system identity generation requires 'auth_parent_client_id' and 'organization_id'"
+            ));
+        }
+        Ok(())
     }
 }
 
 /// Provides a key-based identity considering the supplied args.
 pub fn provide_identity(
-    identity_input: &SystemIdentityData,
+    identity_input: &SytemIdentitySpec,
     region: Region,
     proxy_config: Option<ProxyConfig>,
 ) -> Result<Identity, CliError> {
@@ -158,11 +171,11 @@ pub fn provide_identity(
 
 /// Helper to allow injecting testing urls when building the identity.
 fn build_identity(
-    identity_input: &SystemIdentityData,
+    identity_input: &SytemIdentitySpec,
     environment: NewRelicEnvironment,
     proxy_config: Option<ProxyConfig>,
 ) -> Result<Identity, CliError> {
-    let SystemIdentityData {
+    let SytemIdentitySpec {
         private_key_path,
         method,
     } = identity_input;

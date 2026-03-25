@@ -4,7 +4,7 @@ use crate::cli::{
         error::CliError,
         proxy_config::ProxyConfig,
         region::{Region, region_parser},
-        system_identity::{Identity, SystemIdentityArgs, SystemIdentityData, provide_identity},
+        system_identity::{Identity, SystemIdentityArgs, SytemIdentitySpec, provide_identity},
     },
     on_host::config_gen::config::{
         AuthConfig, Config, FleetControl, LogConfig, Server, SignatureValidation,
@@ -55,36 +55,38 @@ pub struct Args {
     env_vars_file_path: Option<PathBuf>,
 }
 
+/// Represents fleet parameters to generate configuration depending of it its enabled or not.
 #[derive(Debug)]
-pub enum FleetInputs {
+pub enum FleetParams {
     FleetDisabled,
     FleetEnabled {
         fleet_id: String,
-        identity: SystemIdentityData,
+        identity: SytemIdentitySpec,
     },
 }
 
+/// Valid parameters to generate Agent Control configuration, represent [Args] after validation.
 #[derive(Debug)]
-pub struct Inputs {
+pub struct Params {
     output_path: PathBuf,
     region: Region,
     proxy_config: Option<ProxyConfig>,
     newrelic_license_key: String,
     env_vars_file_path: Option<PathBuf>,
-    fleet: FleetInputs,
+    fleet: FleetParams,
 }
 
 impl Args {
     /// Performs additional args validation (not covered by clap's arguments)
-    pub fn validate(self) -> Result<Inputs, String> {
+    pub fn validate(self) -> Result<Params, String> {
         let fleet_inputs = if self.fleet_disabled {
-            FleetInputs::FleetDisabled
+            FleetParams::FleetDisabled
         } else {
             // Fleet-id is required
             if self.fleet_id.is_empty() {
                 return Err(String::from("'fleet_id' should be set when enabling fleet"));
             }
-            FleetInputs::FleetEnabled {
+            FleetParams::FleetEnabled {
                 fleet_id: self.fleet_id,
                 identity: self.identity.validate()?,
             }
@@ -94,7 +96,7 @@ impl Args {
         {
             return Err(format!("invalid proxy configuration: {err}"));
         }
-        Ok(Inputs {
+        Ok(Params {
             output_path: self.output_path,
             region: self.region,
             proxy_config: self.proxy_config,
@@ -109,14 +111,14 @@ impl Args {
 /// 1. The Agent Control configuration file according to the provided args.
 /// 2. The system identity required for Fleet Control, if applicable.
 /// 3. The environment variables file required for the agents, if applicable.
-pub fn generate(inputs: Inputs) -> Result<(), CliError> {
+pub fn generate(inputs: Params) -> Result<(), CliError> {
     write_config_and_generate_system_identity(&inputs)?;
     write_env_var_config(&inputs)?;
     Ok(())
 }
 
 /// Generates the Agent Control configuration, the system identity and any requisite according to the provided inputs.
-fn write_config_and_generate_system_identity(inputs: &Inputs) -> Result<(), CliError> {
+fn write_config_and_generate_system_identity(inputs: &Params) -> Result<(), CliError> {
     info!("Generating Agent Control configuration");
 
     let yaml = generate_config_and_system_identity(inputs, provide_identity)?;
@@ -133,7 +135,7 @@ fn write_config_and_generate_system_identity(inputs: &Inputs) -> Result<(), CliE
 }
 
 /// Generates and writes the environment variables configuration file if requested.
-fn write_env_var_config(inputs: &Inputs) -> Result<(), CliError> {
+fn write_env_var_config(inputs: &Params) -> Result<(), CliError> {
     let Some(path) = &inputs.env_vars_file_path else {
         info!("No environment variables file path provided, skipping generation");
         return Ok(());
@@ -157,18 +159,18 @@ fn write_env_var_config(inputs: &Inputs) -> Result<(), CliError> {
 }
 
 /// Generates the environment variables configuration according to the provided args.    
-fn generate_env_var_config(args: &Inputs) -> Result<String, CliError> {
+fn generate_env_var_config(inputs: &Params) -> Result<String, CliError> {
     info!("Inserting OTEL endpoint env var");
     let mut env_vars = HashMap::from([(
         OTLP_ENDPOINT_ENV_VAR.to_string(),
-        args.region.otel_endpoint().to_string(),
+        inputs.region.otel_endpoint().to_string(),
     )]);
 
-    if !args.newrelic_license_key.is_empty() {
+    if !inputs.newrelic_license_key.is_empty() {
         info!("Inserting New Relic license key env var");
         env_vars.insert(
             NR_LICENSE_ENV_VAR.to_string(),
-            args.newrelic_license_key.clone(),
+            inputs.newrelic_license_key.clone(),
         );
     }
 
@@ -181,15 +183,15 @@ fn generate_env_var_config(args: &Inputs) -> Result<String, CliError> {
 
 /// Generates the configuration according to args using the provided function to generate the identity.
 fn generate_config_and_system_identity<F>(
-    inputs: &Inputs,
+    inputs: &Params,
     provide_identity_fn: F,
 ) -> Result<String, CliError>
 where
-    F: Fn(&SystemIdentityData, Region, Option<ProxyConfig>) -> Result<Identity, CliError>,
+    F: Fn(&SytemIdentitySpec, Region, Option<ProxyConfig>) -> Result<Identity, CliError>,
 {
     let fleet_control = match &inputs.fleet {
-        FleetInputs::FleetDisabled => None,
-        FleetInputs::FleetEnabled { fleet_id, identity } => {
+        FleetParams::FleetDisabled => None,
+        FleetParams::FleetEnabled { fleet_id, identity } => {
             let Identity {
                 client_id,
                 private_key_path,
@@ -245,15 +247,15 @@ mod tests {
     use rstest::rstest;
     use std::env::current_dir;
 
-    impl Default for Inputs {
+    impl Default for Params {
         fn default() -> Self {
-            Inputs {
+            Params {
                 output_path: Default::default(),
                 region: Region::US,
                 proxy_config: None,
                 newrelic_license_key: Default::default(),
                 env_vars_file_path: Default::default(),
-                fleet: FleetInputs::FleetDisabled,
+                fleet: FleetParams::FleetDisabled,
             }
         }
     }
@@ -349,7 +351,7 @@ mod tests {
     #[case(Region::EU, "")]
     #[case(Region::STAGING, "another-license")]
     fn test_generate_env_var_config(#[case] region: Region, #[case] license: &str) {
-        let args = Inputs {
+        let args = Params {
             region,
             newrelic_license_key: license.to_string(),
             ..Default::default()
@@ -382,7 +384,7 @@ mod tests {
     }
 
     fn identity_provider_mock(
-        _: &SystemIdentityData,
+        _: &SytemIdentitySpec,
         _: Region,
         _: Option<ProxyConfig>,
     ) -> Result<Identity, CliError> {
@@ -396,13 +398,13 @@ mod tests {
         fleet_disabled: bool,
         region: Region,
         proxy_config: Option<ProxyConfig>,
-    ) -> Inputs {
+    ) -> Params {
         let fleet = if fleet_disabled {
-            FleetInputs::FleetDisabled
+            FleetParams::FleetDisabled
         } else {
-            FleetInputs::FleetEnabled {
+            FleetParams::FleetEnabled {
                 fleet_id: "test-fleet-id".to_string(),
-                identity: SystemIdentityData {
+                identity: SytemIdentitySpec {
                     method: ProvisioningMethod::ParentSecret {
                         secret: "parent-client-secret".to_string(),
                         parent_client_id: "parent-client-id".to_string(),
@@ -412,7 +414,7 @@ mod tests {
                 },
             }
         };
-        Inputs {
+        Params {
             output_path: PathBuf::from("/tmp/config.yaml"),
             region,
             proxy_config,
