@@ -186,8 +186,8 @@ mod tests {
     use assert_matches::assert_matches;
     use mockall::mock;
     use rstest::rstest;
-    use tracing_test::traced_test;
     use std::time::Duration;
+    use tracing_test::traced_test;
 
     mock! {
         pub VerifyExecutorMock {}
@@ -253,7 +253,9 @@ mod tests {
         let err = executor.execute(Path::new(bin), &args).unwrap_err();
         assert_matches!(err, VerifyError::UnexpectedFailure);
 
-        assert!(logs_contain("Verification subprocess failed and output couldn't be parsed stdout=some stdout stderr=some stderr"));
+        assert!(logs_contain(
+            "Verification subprocess failed and output couldn't be parsed stdout=some stdout stderr=some stderr"
+        ));
     }
 
     #[rstest]
