@@ -150,7 +150,8 @@ impl VerifyExecutor for ProcessVerifyExecutor {
         match output_to_parse {
             Some(output) => Err(VerifyError::VerificationFailed(output.message)),
             None => {
-                error!(stdout = %stdout_buf, stderr = %stderr_buf, "Verification subprocess failed and output couldn't be parsed");
+                // exit code of -1 indicates that the process was terminated by a signal (Unix)
+                error!(stdout = %stdout_buf, stderr = %stderr_buf, exit_code = exit_status.code().unwrap_or(-1), "Verification subprocess failed and output couldn't be parsed");
                 Err(VerifyError::UnexpectedFailure)
             }
         }
