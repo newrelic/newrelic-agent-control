@@ -120,6 +120,7 @@ ac_flags = [
   '--set=agentControlDeployment.chartValues.config.cdRemoteUpdate=' + enable_cd_remote_update,
   '--version=>=0.0.0-beta',
   '--set=agentControlDeployment.chartValues.image.imagePullPolicy=Always',
+  '--set=agentControlDeployment.chartValues.toolkitImage.imagePullPolicy=Always',
   '--values=' + sa_chart_values_file,
 ]
 
@@ -193,7 +194,8 @@ helm_resource(
   flags=ac_flags,
   image_deps=['tilt.local/agent-control-dev', 'tilt.local/agent-control-cli-dev'],
   image_keys=[('agentControlDeployment.chartValues.image.registry', 'agentControlDeployment.chartValues.image.repository', 'agentControlDeployment.chartValues.image.tag'),
-              [('toolkitImage.registry', 'toolkitImage.repository', 'toolkitImage.tag')]],
+              [('agentControlDeployment.chartValues.toolkitImage.registry', 'agentControlDeployment.chartValues.toolkitImage.repository', 'agentControlDeployment.chartValues.toolkitImage.tag'),
+               ('toolkitImage.registry', 'toolkitImage.repository', 'toolkitImage.tag')]],
   resource_deps=ac_chart_deps
 )
 

@@ -1,8 +1,10 @@
-use clap::{Parser, Subcommand};
+use clap::error::ErrorKind;
+use clap::{CommandFactory, Parser, Subcommand};
 use newrelic_agent_control::cli::common::{error::CliError, logs};
 use newrelic_agent_control::cli::k8s::install::agent_control::InstallAgentControl;
 use newrelic_agent_control::cli::k8s::install::flux::InstallFlux;
 use newrelic_agent_control::cli::k8s::install::{InstallData, apply_resources};
+use newrelic_agent_control::cli::k8s::system_identity::{self, register_system_identity};
 use newrelic_agent_control::cli::k8s::uninstall::agent_control::{
     AgentControlUninstallData, uninstall_agent_control,
 };
@@ -41,6 +43,9 @@ enum Operations {
     /// Remove the resources created to handled the Continuous Deployment utility
     #[clap(name = "remove-cd-resources")]
     RemoveCDResources(FluxUninstallData),
+
+    /// Registers the System Identity to be used in Agent Control for authentication.
+    RegisterSystemIdentity(system_identity::Args),
 }
 
 fn main() -> ExitCode {
@@ -67,6 +72,14 @@ fn main() -> ExitCode {
         Operations::RemoveCDResources(cd_data) => {
             remove_flux_crs(&cli.namespace, &cd_data.release_name)
         }
+        Operations::RegisterSystemIdentity(args) => match args.validate() {
+            Ok(spec) => register_system_identity(&cli.namespace, spec),
+            Err(err) => {
+                let mut cmd = Cli::command();
+                cmd.error(ErrorKind::ArgumentConflict, err.to_string())
+                    .exit()
+            }
+        },
     };
 
     match result {
