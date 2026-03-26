@@ -33,8 +33,8 @@ const EXPECTED_DOMAINS: &[&str] = &[
     "identity-api.newrelic.com",
 ];
 
-/// ac-e2e-host-no-deployment fleet on canaries account
-const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWE5NjY2LTkxYzQtN2M0My1hNzZhLWY0YWVmODE4NWM4NA";
+/// ac-e2e-host-no-deployment-win fleet on canaries account
+const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWQyYTE1LTQ4NWEtN2U2My04Zjk4LWVkMGZmNzAwM2Q4NA";
 
 /// Installs AC configured to use a proxy and verifies that the proxy is used.
 pub fn test_proxy(args: Args) {
