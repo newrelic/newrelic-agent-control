@@ -80,8 +80,6 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
   NEW_RELIC_AGENT_CONTROL_PROXY_URL={} \
   HTTPS_PROXY={} \
   /usr/local/bin/newrelic install \
-  -y \
-  --debug \
   --localRecipes {}\
   -n {}
 "#,
@@ -106,7 +104,7 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
         exec_bash_command(&install_command)
     })
     .unwrap_or_else(|err| panic!("failure executing recipe after retries: {err}"));
-    debug!("Output:\n{output}");
+    info!("Output:\n{output}");
 }
 
 pub fn tear_down_test() {
