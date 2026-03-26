@@ -191,7 +191,7 @@ impl Command {
             Err(err) => {
                 // We are leveraging println here instead of error! because if we fail to build the run context,
                 // it means we probably failed before initializing tracing, so we can't guarantee that the error will be logged.
-                println!("Failed building the run context {}", err);
+                eprintln!("Failed building the run context {}", err);
                 ExitCode::FAILURE
             }
             Ok(run_context) => match main_fn(run_context) {
