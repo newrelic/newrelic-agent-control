@@ -1,6 +1,6 @@
 //! Contains the definition of the configuration to be generated
 
-use crate::cli::on_host::proxy_config::ProxyConfig;
+use crate::cli::common::proxy_config::ProxyConfig;
 use serde::Serialize;
 use std::collections::HashMap;
 

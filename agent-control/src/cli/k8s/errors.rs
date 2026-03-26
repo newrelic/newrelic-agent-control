@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::cli::error::CliError;
+use crate::cli::common::error::CliError;
 
 #[derive(Debug, Error)]
 pub enum K8sCliError {

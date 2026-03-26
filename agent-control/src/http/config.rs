@@ -191,12 +191,10 @@ impl ProxyConfig {
     }
 }
 
-impl TryFrom<crate::cli::on_host::proxy_config::ProxyConfig> for ProxyConfig {
+impl TryFrom<crate::cli::common::proxy_config::ProxyConfig> for ProxyConfig {
     type Error = ProxyError;
 
-    fn try_from(
-        value: crate::cli::on_host::proxy_config::ProxyConfig,
-    ) -> Result<Self, Self::Error> {
+    fn try_from(value: crate::cli::common::proxy_config::ProxyConfig) -> Result<Self, Self::Error> {
         let url = value.proxy_url.unwrap_or_default();
         Ok(Self {
             url: ProxyUrl::try_from(url.as_str())?,

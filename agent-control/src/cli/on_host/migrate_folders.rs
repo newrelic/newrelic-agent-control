@@ -2,7 +2,7 @@ use crate::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA, INSTANCE_ID_FILENAME,
     STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG,
 };
-use crate::cli::error::CliError;
+use crate::cli::common::error::CliError;
 use crate::on_host::file_store::build_config_name;
 use std::fs;
 use std::path::{Path, PathBuf};

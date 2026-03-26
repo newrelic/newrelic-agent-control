@@ -4,7 +4,7 @@ use tracing::Level;
 
 use crate::{
     agent_control::defaults::AGENT_CONTROL_LOG_DIR,
-    cli::error::CliError,
+    cli::common::error::CliError,
     instrumentation::{
         config::logs::config::LoggingConfig,
         tracing::{TracingConfig, TracingGuardBox, try_init_tracing},
