@@ -46,7 +46,7 @@ fn test_ac_log_to_file_as_root() {
     dbg!(&log_file_path);
     // Asserting content is logged to stdout as well
     // The failure is just because of the timeout set in the command execution.
-    cmd.assert().failure().stdout(log_predicate.clone());
+    cmd.assert().failure().stderr(log_predicate.clone());
 
     // The behavior of the appender functionality is already unit tested as part of the sub-agent
     // logging feature. Here we just assert that the files are created.

@@ -236,7 +236,7 @@ agents: {{}}
         .expect_err("should have failure before timeout")
         .assert()
         .failure()
-        .stdout(predicate::str::is_match(r".*ERROR.*could not build auth headers.*").unwrap());
+        .stderr(predicate::str::is_match(r".*ERROR.*could not build auth headers.*").unwrap());
 }
 
 fn cmd_agent_control(
