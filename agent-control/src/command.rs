@@ -189,7 +189,7 @@ impl Command {
             as_windows_service,
         ) {
             Err(err) => {
-                // We are leveraging println here instead of error! because if we fail to build the run context,
+                // We are leveraging eprintln here instead of error! because if we fail to build the run context,
                 // it means we probably failed before initializing tracing, so we can't guarantee that the error will be logged.
                 eprintln!("Failed building the run context {}", err);
                 ExitCode::FAILURE
