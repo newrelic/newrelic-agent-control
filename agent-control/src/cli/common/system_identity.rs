@@ -38,6 +38,16 @@ pub struct Identity {
 }
 
 /// Arguments required to provide or generate a system identity.
+///
+/// **Design note:** modelling the different provisioning methods as subcommands would be
+/// a more natural fit for clap (each subcommand carrying only its own required fields),
+/// but it was deliberately avoided. These arguments are shared across several external
+/// installation tools — the Linux recipe, the Windows installation script, and the
+/// Kubernetes installation job — none of which can easily branch on a subcommand name.
+/// A flat, optional-field struct means the logic for selecting the provisioning method
+/// (reuse an existing identity, generate a new one, obtain a bearer token via client
+/// credentials, or accept a pre-obtained token) lives here rather than being duplicated
+/// in each installer.
 #[derive(Debug, Default, clap::Args)]
 pub struct SystemIdentityArgs {
     /// Path where the private key is stored or will be written.

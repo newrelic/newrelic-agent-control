@@ -37,7 +37,7 @@ fn main() -> ExitCode {
 
     let result = match cli.command {
         Commands::GenerateConfig(args) => match args.validate() {
-            Ok(inputs) => config_gen::generate(inputs),
+            Ok(params) => config_gen::generate(params),
             Err(err) => {
                 let mut cmd = Cli::command();
                 cmd.error(ErrorKind::ArgumentConflict, err.to_string())
