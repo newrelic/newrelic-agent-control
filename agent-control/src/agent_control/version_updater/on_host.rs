@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{debug, error};
 use wrapper_with_default::WrapperWithDefault;
@@ -12,40 +12,36 @@ use crate::agent_control::config::AgentControlDynamicConfig;
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
 use crate::command::SubCommand;
 
-// TODO adjust according to cli command expected behavior.
-const DEFAULT_VERIFY_TIMEOUT: Duration = Duration::from_secs(30);
-const POLL_INTERVAL: Duration = Duration::from_millis(500);
+// Configuration and OpAMP connectivy checks take up 8 seconds in total.
+// Setting the default timeout to 20 seconds gives room for the checks to complete while
+// avoiding excessively long waits in case of hangs or crashes.
+const DEFAULT_VERIFY_TIMEOUT: Duration = Duration::from_secs(20);
+const POLL_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Errors that can occur while running the verification subprocess.
 #[derive(Debug, Error)]
 pub enum VerifyError {
-    #[error("{0}")]
+    #[error("dry-run check of new version failed due to subprocess error: {0}")]
     SubProcessError(String),
 
-    #[error("timed out after {0:?}")]
+    #[error("dry-run check of new version timed out after {0:?}")]
     Timeout(Duration),
 
     /// Returned when the command exits with a non-zero status code, indicating
     /// that verification did not pass. The message is the human-readable
     /// explanation written by the command to stdout.
-    #[error("{0}")]
+    #[error("dry-run check of new version failed with: {0}")]
     VerificationFailed(String),
 
     /// Returned when the command exits with a non-zero status code and its
-    /// stdout cannot be parsed as [`CommandOutput`].
-    #[error("unexpected failure (exit status {exit_status}) stdout={stdout} stderr={stderr}")]
-    UnexpectedFailure {
-        exit_status: std::process::ExitStatus,
-        stdout: String,
-        stderr: String,
-    },
+    /// stdout cannot be parsed as [`CommandResult`].
+    #[error("dry-run check of new version failed unexpectedly")]
+    UnexpectedFailure,
 }
 
 /// Output written by the verify command to stdout.
-///
-/// TODO: Replace with the actual types defined in the CLI commands task once available.
-#[derive(Debug, Deserialize)]
-pub struct CommandOutput {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CommandResult {
     pub message: String,
 }
 
@@ -65,7 +61,7 @@ pub struct VerifyTimeout(Duration);
 ///
 /// The verify command (`<binary> verify`) is expected to behave as follows:
 ///
-/// - **stdout**: always contains a JSON-encoded `CommandOutput` with a human-readable
+/// - **stdout**: always contains a JSON-encoded `CommandResult` with a human-readable
 ///   `message`, regardless of whether verification succeeded or failed. This
 ///   message is suitable for logging or surfacing to operators.
 /// - **exit code**: `0` signals that verification passed; any non-zero exit code
@@ -146,15 +142,17 @@ impl VerifyExecutor for ProcessVerifyExecutor {
         // On failure the command is expected to have written a structured
         // CommandOutput to stdout. If parsing fails the binary likely crashed
         // (e.g., a panic) rather than performing a controlled verification failure.
-        match serde_json::from_str::<CommandOutput>(&stdout_buf) {
-            Ok(output) => Err(VerifyError::VerificationFailed(output.message)),
-            Err(err) => {
-                error!(%err, stdout = %stdout_buf, stderr = %stderr_buf, "Verification subprocess failed and output couldn't be parsed");
-                Err(VerifyError::UnexpectedFailure {
-                    exit_status,
-                    stdout: stdout_buf,
-                    stderr: stderr_buf,
-                })
+        let output_to_parse = stdout_buf
+            .lines()
+            .filter_map(|line| serde_json::from_str::<CommandResult>(line).ok())
+            .next_back();
+
+        match output_to_parse {
+            Some(output) => Err(VerifyError::VerificationFailed(output.message)),
+            None => {
+                // exit code of -1 indicates that the process was terminated by a signal (Unix)
+                error!(stdout = %stdout_buf, stderr = %stderr_buf, exit_code = exit_status.code().unwrap_or(-1), "Verification subprocess failed and output couldn't be parsed");
+                Err(VerifyError::UnexpectedFailure)
             }
         }
     }
@@ -186,9 +184,11 @@ impl<E: VerifyExecutor> VersionUpdater for OnHostUpdater<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assert_matches::assert_matches;
     use mockall::mock;
     use rstest::rstest;
     use std::time::Duration;
+    use tracing_test::traced_test;
 
     mock! {
         pub VerifyExecutorMock {}
@@ -242,47 +242,38 @@ mod tests {
         assert!(executor.execute(Path::new(bin), &args).is_ok());
     }
 
+    #[traced_test]
     #[rstest]
     #[cfg_attr(unix, case("sh", vec!["-c", "printf 'some stdout'; printf 'some stderr' >&2; exit 2"]))]
-    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", r#"Write-Output 'some stdout'; [Console]::Error.WriteLine('some stderr'); exit 2"#]))]
+    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", r#"[Console]::Write('some stdout'); [Console]::Error.Write('some stderr'); exit 2"#]))]
     fn test_process_executor_unexpected_failure_contains_stdout_stderr_and_exit_status(
         #[case] bin: &'static str,
         #[case] args: Vec<&'static str>,
     ) {
         let executor = ProcessVerifyExecutor::default();
         let err = executor.execute(Path::new(bin), &args).unwrap_err();
-        match err {
-            VerifyError::UnexpectedFailure {
-                exit_status,
-                stdout,
-                stderr,
-            } => {
-                assert!(stdout.starts_with("some stdout"));
-                assert!(stderr.starts_with("some stderr"));
-                assert_eq!(exit_status.code(), Some(2));
-            }
-            other => panic!("expected UnexpectedFailure, got {other:?}"),
-        }
+        assert_matches!(err, VerifyError::UnexpectedFailure);
+
+        assert!(logs_contain(
+            "Verification subprocess failed and output couldn't be parsed stdout=some stdout stderr=some stderr exit_code=2"
+        ));
     }
 
     #[rstest]
-    #[cfg_attr(unix, case("sh", vec!["-c", r#"printf '{"message":"pre-flight check failed"}'; exit 1"#]))]
-    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", r#"Write-Output '{"message":"pre-flight check failed"}'; exit 1"#]))]
+    #[cfg_attr(unix, case("sh", vec!["-c", r#"printf 'previous lines\n{"message":"pre-flight check failed"}'; exit 1"#]))]
+    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", r#"Write-Output 'previous lines'; Write-Output '{"message":"pre-flight check failed"}'; exit 1"#]))]
     fn test_process_executor_verification_failed_on_json_stdout(
         #[case] bin: &'static str,
         #[case] args: Vec<&'static str>,
     ) {
         let executor = ProcessVerifyExecutor::default();
         let err = executor.execute(Path::new(bin), &args).unwrap_err();
-        match err {
-            VerifyError::VerificationFailed(msg) => assert_eq!(msg, "pre-flight check failed"),
-            other => panic!("expected VerificationFailed, got {other:?}"),
-        }
+        assert_matches!(err, VerifyError::VerificationFailed(msg) if msg == "pre-flight check failed");
     }
 
     #[rstest]
-    #[cfg_attr(unix, case("sleep", vec!["1"]))]
-    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", "Start-Sleep -Seconds 1"]))]
+    #[cfg_attr(unix, case("sleep", vec!["3"]))]
+    #[cfg_attr(windows, case("powershell", vec!["-NoProfile", "-Command", "Start-Sleep -Seconds 3"]))]
     fn test_process_executor_times_out(#[case] bin: &'static str, #[case] args: Vec<&'static str>) {
         let executor = ProcessVerifyExecutor::new(Duration::from_millis(200));
         assert!(matches!(
