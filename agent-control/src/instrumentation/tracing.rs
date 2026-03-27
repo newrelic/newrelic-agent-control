@@ -8,7 +8,7 @@ use super::{
     tracing_layers::{
         file::file,
         otel::{OtelBuildError, OtelLayers},
-        stdout::stdout,
+        stderr::stderr,
     },
 };
 use std::path::PathBuf;
@@ -93,8 +93,8 @@ impl TracingConfig {
 /// tracing::info!("some instrumentation");
 /// ```
 pub fn try_init_tracing(config: TracingConfig) -> Result<Vec<TracingGuardBox>, TracingError> {
-    // Currently stdout output is always on, we could consider allowing to turn it off.
-    let mut layers = Vec::from([stdout(&config.logging_config)?]);
+    // Currently stderr output is always on, we could consider allowing to turn it off.
+    let mut layers = Vec::from([stderr(&config.logging_config)?]);
     let mut guards = Vec::<TracingGuardBox>::new();
 
     if let Some((file_layer, file_guard)) = file(&config.logging_config, config.logging_path)? {

@@ -7,7 +7,7 @@ pub fn print_cli_output(assert: &Assert) {
     io::stderr().write_all(&output.stderr).unwrap();
 }
 
-pub fn assert_stdout_contains(assert: &Assert, value: &str) {
-    let stderr = String::from_utf8_lossy(&assert.get_output().stdout);
+pub fn assert_stderr_contains(assert: &Assert, value: &str) {
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(stderr.contains(value))
 }

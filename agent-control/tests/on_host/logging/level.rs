@@ -35,14 +35,14 @@ fn default_log_level_no_root() {
     let mut cmd = cmd_with_config_file(dir.path());
     cmd.assert()
         .failure()
-        .stdout(
+        .stderr(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned()
                     + "INFO.*New Relic Agent Control Version: .*, Rust Version: .*, GitCommit: .*",
             )
             .unwrap(),
         )
-        .stdout(
+        .stderr(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "ERROR.*Program must run with elevated permissions",
             )
@@ -71,20 +71,20 @@ fn default_log_level_as_root() {
     let mut cmd = cmd_with_config_file(dir.path());
     cmd.assert()
         .failure()
-        .stdout(
+        .stderr(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned()
                     + "INFO.*New Relic Agent Control Version: .*, Rust Version: .*, GitCommit: .*, Environment: .*",
             )
             .unwrap(),
         )
-        .stdout(
+        .stderr(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Agent Control",
             )
             .unwrap(),
         )
-        .stdout(
+        .stderr(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "INFO.*Starting the agents supervisor runtime",
             )
@@ -116,13 +116,13 @@ fn debug_log_level_no_root() {
     // Expecting to fail as non_root
     cmd.assert()
         .failure()
-        .stdout(
+        .stderr(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "DEBUG.*tracing_subscriber initialized successfully",
             )
             .unwrap(),
         )
-        .stdout(
+        .stderr(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "ERROR.*Program must run with elevated permissions",
             )
@@ -152,19 +152,19 @@ fn trace_log_level_as_root() {
     // Expecting to fail as non_root
     cmd.assert()
         .failure()
-        .stdout(
+        .stderr(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "DEBUG.*tracing_subscriber initialized successfully",
             )
             .unwrap(),
         )
-        .stdout(
+        .stderr(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Agent Control",
             )
             .unwrap(),
         )
-        .stdout(
+        .stderr(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "INFO.*Starting the agents supervisor runtime",
             )

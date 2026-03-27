@@ -1,7 +1,7 @@
 use crate::common::opamp::FakeServer;
 use crate::common::runtime::block_on;
 use crate::k8s::tools::agent_control::{DUMMY_PRIVATE_KEY, K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET};
-use crate::k8s::tools::cmd::{assert_stdout_contains, print_cli_output};
+use crate::k8s::tools::cmd::{assert_stderr_contains, print_cli_output};
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use crate::k8s::tools::local_chart::{
@@ -47,7 +47,7 @@ fn k8s_cli_install_agent_control_installation_with_invalid_chart_version() {
     );
     let assert = cmd.assert();
     print_cli_output(&assert);
-    assert_stdout_contains(
+    assert_stderr_contains(
         &assert,
         format!(
             "no 'agent-control-deployment' chart with version matching '{MISSING_VERSION}' found"
@@ -81,7 +81,7 @@ fn k8s_cli_install_agent_control_installation_with_invalid_image_tag() {
     );
     let assert = cmd.assert();
     print_cli_output(&assert);
-    assert_stdout_contains(
+    assert_stderr_contains(
         &assert,
         &format!(
             "Deployment `{}-agent-control`: has 1 unavailable replicas",
@@ -135,7 +135,7 @@ fn k8s_cli_install_agent_control_installation_failed_upgrade() {
     );
     let assert = cmd.assert();
     print_cli_output(&assert);
-    assert_stdout_contains(
+    assert_stderr_contains(
         &assert,
         format!(
             "no 'agent-control-deployment' chart with version matching '{MISSING_VERSION}' found"

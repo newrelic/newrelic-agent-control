@@ -51,7 +51,7 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
         r"agents: {}",
     )?;
     let mut cmd = cmd_with_config_file(dir.path());
-    cmd.assert().failure().stdout(predicate::str::contains(
+    cmd.assert().failure().stderr(predicate::str::contains(
         "Program must run with elevated permissions",
     ));
     Ok(())
@@ -88,14 +88,14 @@ logs:
     // values: \u{1b}[2m2024\u{1b}[0m \u{1b}[32m INFO\u{1b}[0m \u{1b}[2mnewrelic_agent_control\u{1b}[0m\u{1b}[2m:\u{1b}[0m Creating the global context
     cmd.assert()
         .failure()
-        .stdout(
+        .stderr(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned()
                     + "INFO.*New Relic Agent Control Version: .*, Rust Version: .*, GitCommit: .*",
             )
             .unwrap(),
         )
-        .stdout(
+        .stderr(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Agent Control",
             )
@@ -137,13 +137,13 @@ server:
     // values: \u{1b}[2m2024\u{1b}[0m \u{1b}[32m INFO\u{1b}[0m \u{1b}[2mnewrelic_agent_control\u{1b}[0m\u{1b}[2m:\u{1b}[0m Creating the global context
     cmd.assert()
         .failure()
-        .stdout(
+        .stderr(
             predicate::str::is_match(
                 r".*(\d{4}).*INFO.*New Relic Agent Control Version: .*, Rust Version: .*, GitCommit: .*",
             )
                 .unwrap(),
         )
-        .stdout(
+        .stderr(
             predicate::str::is_match(
                 r".*(\d{4}).*INFO.*newrelic_agent_control.*Starting NewRelic Agent Control",
             )
@@ -216,7 +216,7 @@ server:
         .timeout(Duration::from_secs(10));
 
     // Ensure AC reaches a certain point in execution by checking the logs
-    let _output = command.output()?.assert().stdout(predicates::str::contains(
+    let _output = command.output()?.assert().stderr(predicates::str::contains(
         "Agents supervisor runtime successfully started",
     ));
 
@@ -255,7 +255,7 @@ fn runs_with_no_config() -> Result<(), Box<dyn Error>> {
     // values: \u{1b}[2m2024\u{1b}[0m \u{1b}[32m INFO\u{1b}[0m \u{1b}[2mnewrelic_agent_control\u{1b}[0m\u{1b}[2m:\u{1b}[0m Creating the global context
     cmd.assert()
         .failure()
-        .stdout(predicate::str::contains(format!(
+        .stderr(predicate::str::contains(format!(
             "could not read Agent Control config from {}",
             dir.path().to_string_lossy()
         )));

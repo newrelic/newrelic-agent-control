@@ -1,3 +1,3 @@
 pub mod file;
 pub mod otel;
-pub mod stdout;
+pub mod stderr;
