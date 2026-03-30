@@ -68,7 +68,7 @@ jobs:
       - name: "Linux e2e ${{ matrix.group }}"
         run: |
           echo "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/newrelic-agent-control-priv.key
-          sudo ${{ github.workspace }}/target/debug/e2e-runner --log-level=debug ${{ matrix.group }} \
+          sudo ${{ github.workspace }}/target/debug/e2e-runner ${{ matrix.group }} \
             --artifacts-package-dir ./dist \
             --nr-api-key "${{ secrets.E2E_API_KEY }}" \
             --nr-license-key "${{ secrets.E2E_LICENSE_KEY }}" \
@@ -131,7 +131,7 @@ jobs:
         shell: powershell
         run: |
           "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" | Out-File -Encoding utf8 -FilePath $env:TEMP\newrelic-agent-control-priv.key
-          & "${{ github.workspace }}\target\debug\e2e-runner.exe" --log-level=debug ${{ matrix.group }} `
+          & "${{ github.workspace }}\target\debug\e2e-runner.exe" ${{ matrix.group }} `
             --artifacts-package-dir .\dist `
             --nr-api-key "${{ secrets.E2E_API_KEY }}" `
             --nr-license-key "${{ secrets.E2E_LICENSE_KEY }}" `

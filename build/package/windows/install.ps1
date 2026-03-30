@@ -198,7 +198,10 @@ Start-Service -Name $serviceName | Out-Null
 Write-Host "Installation completed!"
 
 # Verify service is running and AC is healthy
-$MAX_RETRIES = 10
+
+# AC has a noop health check for on-host which should return healthy after startup.
+$MAX_RETRIES = 5
+$INTERVAL_SECONDS = 15
 $TRIES = 0
 
 while ($TRIES -lt $MAX_RETRIES) {
@@ -222,8 +225,15 @@ while ($TRIES -lt $MAX_RETRIES) {
 
         break
     } elseif ($TRIES -eq $MAX_RETRIES) {
-        Write-Error "New Relic Agent Control has not started or is un-healthy after installing. Please try again later, or see our documentation for installing manually https://docs.newrelic.com/docs/using-new-relic/cross-product-functions/install-configure/install-new-relic"
+        Write-Host "=== New Relic Agent Control logs ==="
+        $acLogFiles = Get-ChildItem -Path "$acLogsDir\agent-control" -Filter "*.newrelic-agent-control.log" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+        foreach ($logFile in $acLogFiles) {
+            Write-Host "--- $($logFile.FullName) ---"
+            Get-Content $logFile.FullName -ErrorAction SilentlyContinue | Write-Host
+        }
+        Write-Error "New Relic Agent Control verification failed. Visit https://docs.newrelic.com/docs/new-relic-control/agent-control/troubleshooting/#cli-debug for troubleshooting guidance."
+
         exit 31
     }
-    Start-Sleep -Seconds 30
+    Start-Sleep -Seconds $INTERVAL_SECONDS
 }

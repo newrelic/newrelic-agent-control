@@ -87,10 +87,8 @@ $env:NEW_RELIC_AGENT_CONTROL_PROXY_URL='{}'; `
 $env:HTTPS_PROXY='{}'; `
 $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
 & "C:\Program Files\New Relic\New Relic CLI\newrelic.exe" install `
--y `
 --localRecipes {} `
--n {} `
---debug
+-n {}
 "#,
         data.args.nr_license_key,
         data.args.nr_api_key,
@@ -113,7 +111,7 @@ $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
     // issue with that is that "-ExecutionPolicy" won't bypass all the checks. It seems
     // to only work properly using a ps1 script. We are forced to create a temporary script file.
     info!("Creating install script");
-    debug!("Install script content: \n{install_command}");
+    info!("Install script content: \n{install_command}");
     let script_dir = tempdir().expect("failed to create temp dir for script");
     let script_path = script_dir.path().join("install_command.ps1");
     write(&script_path, &install_command);
@@ -132,7 +130,7 @@ $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
     })
     .unwrap_or_else(|err| panic!("failure executing recipe after retries: {err}"));
 
-    debug!("Output:\n{output}");
+    info!("Output:\n{output}");
 }
 
 pub fn tear_down_test() {
