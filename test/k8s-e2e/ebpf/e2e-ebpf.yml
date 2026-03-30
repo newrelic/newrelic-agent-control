@@ -22,6 +22,9 @@ scenarios:
       - echo "=== Pod Security ==="
       - kubectl get psp || echo "PSP not available"
       - kubectl get all -o wide -A | grep -i "security\|policy"
+      - echo "=== More logs ==="
+      - echo kubectl logs --tail=-1 -l app.kubernetes.io/instance=ebpf --all-containers --prefix=true -n newrelic-agents
+      - echo "=== end ==="
       - kubectl get secrets --show-labels
       - kubectl get all -o wide
       - kubectl get helmrelease
