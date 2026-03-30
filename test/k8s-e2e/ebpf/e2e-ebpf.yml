@@ -10,6 +10,18 @@ scenarios:
     after:
       - kubectl logs --tail=-1 -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
       - kubectl logs --tail=-1 -l app.kubernetes.io/instance=ebpf --all-containers --prefix=true -n newrelic-agents
+      - echo "=== Debugging eBPF Pod Issues ==="
+      - kubectl get pods -n newrelic-agents -o wide
+      - kubectl get daemonsets -n newrelic-agents -o wide
+      - kubectl describe daemonset nr-ebpf-agent -n newrelic-agents
+      - kubectl get events -n newrelic-agents --sort-by='.lastTimestamp'
+      - kubectl describe pods -l app.kubernetes.io/instance=ebpf -n newrelic-agents
+      - echo "=== Node Information ==="
+      - kubectl get nodes -o wide
+      - kubectl describe nodes
+      - echo "=== Pod Security ==="
+      - kubectl get psp || echo "PSP not available"
+      - kubectl get all -o wide -A | grep -i "security\|policy"
       - kubectl get secrets --show-labels
       - kubectl get all -o wide
       - kubectl get helmrelease
