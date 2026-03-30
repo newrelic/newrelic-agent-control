@@ -40,7 +40,7 @@ jobs:
           echo "GIT_BRANCH=$GIT_BRANCH" >> "$GITHUB_ENV"
 
       - name: Sync k8s staging canary
-        uses: newrelic/fargate-runner-action@main
+        uses: newrelic/fargate-runner-action@121b96de1a4d7135204fd8a510927b0463df1b6b # main
         with:
           aws_region: us-east-2
           container_make_target: "TERRAFORM_DIR=test/k8s-canaries/terraform CANARY_DIR=staging test/k8s-canaries/terraform-apply"
@@ -54,7 +54,7 @@ jobs:
           ref: "${{ env.GIT_BRANCH }}"
 
       - name: Sync k8s production canary
-        uses: newrelic/fargate-runner-action@main
+        uses: newrelic/fargate-runner-action@121b96de1a4d7135204fd8a510927b0463df1b6b # main
         with:
           aws_region: us-east-2
           container_make_target: "TERRAFORM_DIR=test/k8s-canaries/terraform CANARY_DIR=production test/k8s-canaries/terraform-apply"

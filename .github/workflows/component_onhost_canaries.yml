@@ -76,7 +76,7 @@ jobs:
           echo "GIT_BRANCH=$GIT_BRANCH" >> "$GITHUB_ENV"
 
       - name: Execute operation
-        uses: newrelic/fargate-runner-action@main
+        uses: newrelic/fargate-runner-action@121b96de1a4d7135204fd8a510927b0463df1b6b # main
         with:
           aws_region: us-east-2
           container_make_target: "AC_CANARY_WINDOWS_PASSWORD=${{ secrets.AC_CANARY_WINDOWS_PASSWORD }} FLEET_ID=${{ inputs.fleet_id }} WINDOWS_FLEET_ID=${{ inputs.windows_fleet_id }} ENVIRONMENT=${{ inputs.environment }} PACKAGE_VERSION=${{ inputs.package_version }} test/onhost-canaries/terraform-${{ inputs.operation }}"
