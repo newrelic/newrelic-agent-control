@@ -54,7 +54,7 @@ jobs:
           fetch-depth: 0
 
       - name: Upgrade helm release
-        uses: newrelic/fargate-runner-action@main
+        uses: newrelic/fargate-runner-action@121b96de1a4d7135204fd8a510927b0463df1b6b # main
         with:
           aws_region: us-east-2
           container_make_target: "FLEET_ID=${{ inputs.fleet_id }} IMAGE_TAG=${{ inputs.image-tag }} CLUSTER_NAME=${{ inputs.cluster_name }} CANARY_DIR=${{ inputs.canary_dir }} test/k8s-canaries/helm-upgrade"
