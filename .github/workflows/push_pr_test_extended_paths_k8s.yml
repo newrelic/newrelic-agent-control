@@ -31,7 +31,12 @@ jobs:
     if: "!contains(github.event.pull_request.labels.*.name, 'k8s-extended-e2e')" # Avoid triggering twice if the label is set
     uses: ./.github/workflows/component_k8s_e2e.yml
     with:
-      scenarios: '["apm", "collector", "ebpf", "dynamic", "custom-repo", "fleet-control", "proxy"]'
+      # TODO
+      # Enable ebpf test back once we manage to run the e2e.
+      # Context:
+      # We were using version 0.2.6, which downloaded the linux headers from an s3 bucket in staging.
+      # This is no longer true and newer versions don't work out of the box.
+      scenarios: '["apm", "collector", "dynamic", "custom-repo", "fleet-control", "proxy"]'
       # Network policies needs calico installed, the others do not
       minikube_start_args: '--cni=calico'
       caller_workflow: push_pr_test_extended_paths_k8s

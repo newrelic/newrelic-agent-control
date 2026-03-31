@@ -13,7 +13,12 @@ jobs:
   k8s-e2e-tests-latest-flux:
     uses: ./.github/workflows/component_k8s_e2e.yml
     with:
-      scenarios: '["apm", "collector", "fleet-control", "ebpf", "dynamic"]'
+      # TODO
+      # Enable ebpf test back once we manage to run the e2e.
+      # Context:
+      # We were using version 0.2.6, which downloaded the linux headers from an s3 bucket in staging.
+      # This is no longer true and newer versions don't work out of the box.
+      scenarios: '["apm", "collector", "fleet-control", "dynamic"]'
       use_latest_flux: true
       caller_workflow: latest_flux_e2e
     secrets:
