@@ -6,9 +6,10 @@ scenarios:
   - description: Deploy eBPF Agent
     before:
       - echo The cluster name of the test is ${SCENARIO_TAG}
-      - ls /usr/src/linux-headers-$(uname -r)
-      - minikube cp /usr/src/linux-headers-$(uname -r) /usr/src/linux-headers-$(uname -r)
-      - minikube ssh 'ls /usr/src/linux-headers-$(uname -r)/include'
+      - sudo tar -czf /tmp/linux-headers.tar.gz -C /usr/src linux-headers-$(uname -r)
+      - minikube cp /tmp/linux-headers.tar.gz /tmp/linux-headers.tar.gz
+      - minikube ssh 'sudo mkdir -p /usr/src && sudo tar -xzf /tmp/linux-headers.tar.gz -C /usr/src && ls /usr/src/linux-headers-$(uname -r)/include'
+      - minikube ssh 'sudo mkdir -p /lib/modules/$(uname -r) && sudo ln -sf /usr/src/linux-headers-$(uname -r) /lib/modules/$(uname -r)/build && ls -la /lib/modules/$(uname -r)/build'
       - cd ../../../ && sed -i "s|KERNEL_VERSION_PLACEHOLDER|/host/usr/src/linux-headers-$(uname -r)|g" test/k8s-e2e/ebpf/ac-values-ebpf.yml
       - cd ../../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/ebpf/ac-values-ebpf.yml" CLUSTER=${SCENARIO_TAG} USE_LATEST_FLUX=${USE_LATEST_FLUX} tilt ci
     after:
