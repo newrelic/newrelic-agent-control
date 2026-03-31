@@ -1,4 +1,6 @@
 # Cluster and License info is set with "--set" in the e2e-spec file
+global:
+  nrStaging: true
 toolkitImage:
   tag: failIfNotReplaced
 agentControlDeployment:
@@ -22,5 +24,6 @@ agentControlDeployment:
         # Testing the latest released version of the chart
         chart_version: "*" # TODO: move back to latest when issues are fixed
         chart_values:
-          ebpfAgent:
-            distroKernelHeadersPath: "/host/usr/src/linux-headers-$(uname -r)/include"
+          nr-ebpf-agent:
+            ebpfAgent:
+              distroKernelHeadersPath: "/host/usr/src/linux-headers-$(uname -r)"
