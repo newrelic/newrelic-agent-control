@@ -19,7 +19,7 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
 
       - name: Upload agent metadata to New Relic
-        uses: newrelic/agent-metadata-action@ec85fe665aea3d94097af1fd46455a043df84502 # v1
+        uses: newrelic/agent-metadata-action@35f8e4ce08e08eaa070ec7a7630ec065d0032694 #v1.0.8
         with:
           agent-type: NRAgentControl
           version: ${{ github.event.release.tag_name }}
@@ -27,4 +27,4 @@ jobs:
           newrelic-client-id: ${{ secrets.AC_NEWRELIC_CLIENT_ID }}
           newrelic-private-key: ${{ secrets.AC_NEWRELIC_PRIVATE_KEY }}
           # shared newrelic key to instrument the go binary used in the action
-          newrelic-license-key: ${{ secrets.APM_CONTROL_NR_LICENSE_KEY }}
+          apm-control-nr-license-key: ${{ secrets.APM_CONTROL_NR_LICENSE_KEY }}
