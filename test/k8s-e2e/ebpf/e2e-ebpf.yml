@@ -6,8 +6,9 @@ scenarios:
   - description: Deploy eBPF Agent
     before:
       - echo The cluster name of the test is ${SCENARIO_TAG}
-      - sudo apt-get install linux-headers-$(uname -r)
-      - sudo ls /usr/src/linux-headers-$(uname -r)/include
+      - ls /usr/src/linux-headers-$(uname -r)
+      - minikube cp /usr/src/linux-headers-$(uname -r) /usr/src/linux-headers-$(uname -r)
+      - minikube ssh 'ls /usr/src/linux-headers-$(uname -r)/include'
       - cd ../../../ && sed -i "s|KERNEL_VERSION_PLACEHOLDER|/host/usr/src/linux-headers-$(uname -r)|g" test/k8s-e2e/ebpf/ac-values-ebpf.yml
       - cd ../../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/ebpf/ac-values-ebpf.yml" CLUSTER=${SCENARIO_TAG} USE_LATEST_FLUX=${USE_LATEST_FLUX} tilt ci
     after:
