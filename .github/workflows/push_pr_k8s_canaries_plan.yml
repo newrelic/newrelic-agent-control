@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - test/k8s-canaries/terraform/**
+      - .github/workflows/component_k8s_canaries_infra.yml
+      - .github/workflows/push_pr_k8s_canaries_plan.yml
 
 permissions:
   contents: read
@@ -13,54 +15,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  infra:
-    name: Prepare infra
-    runs-on: ubuntu-latest
+  plan_k8s_canaries:
+    name: infra changes ${{ matrix.canary_dir }}
+    uses: ./.github/workflows/component_k8s_canaries_infra.yml
     permissions:
       # required to oidc AWS
       id-token: write
       contents: read
-    steps:
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-2
-
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Set branch name
-        run: |
-          # Short name for current branch. For PRs, use target branch (base ref)
-          GIT_BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
-          # Is the ref a tag? If so, remove refs/tags/ prefix
-          GIT_BRANCH="${GIT_BRANCH#refs/tags/}"
-          echo "GIT_BRANCH=$GIT_BRANCH" >> "$GITHUB_ENV"
-
-      - name: Plan k8s staging canary changes
-        uses: newrelic/fargate-runner-action@121b96de1a4d7135204fd8a510927b0463df1b6b # main
-        with:
-          aws_region: us-east-2
-          container_make_target: "TERRAFORM_DIR=test/k8s-canaries/terraform CANARY_DIR=staging test/k8s-canaries/terraform-plan"
-          ecs_cluster_name: agent_control
-          task_definition_name: agent_control
-          cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
-          cloud_watch_logs_stream_name: ecs/test-agent_control
-          aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
-          repo_name: ${{ github.repository }}
-          git_clone_url: "ssh://git@github.com/${{ github.repository }}.git"
-          ref: "${{ env.GIT_BRANCH }}"
-
-      - name: Plan k8s production canary changes
-        uses: newrelic/fargate-runner-action@121b96de1a4d7135204fd8a510927b0463df1b6b # main
-        with:
-          aws_region: us-east-2
-          container_make_target: "TERRAFORM_DIR=test/k8s-canaries/terraform CANARY_DIR=production test/k8s-canaries/terraform-plan"
-          ecs_cluster_name: agent_control
-          task_definition_name: agent_control
-          cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
-          cloud_watch_logs_stream_name: ecs/test-agent_control
-          aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
-          repo_name: ${{ github.repository }}
-          git_clone_url: "ssh://git@github.com/${{ github.repository }}.git"
-          ref: "${{ env.GIT_BRANCH }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - canary_dir: staging
+          - canary_dir: production
+    with:
+      canary_dir: ${{ matrix.canary_dir }}
+      apply: false
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
