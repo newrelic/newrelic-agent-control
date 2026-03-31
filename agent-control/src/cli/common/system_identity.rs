@@ -15,11 +15,8 @@ use nr_auth::{
     },
     system_identity::{
         generator::L2SystemIdentityGenerator,
-        iam_client::http::HttpIAMClient,
-        input_data::{
-            SystemIdentityCreationMetadata, SystemIdentityInput, environment::NewRelicEnvironment,
-            output_platform::OutputPlatform,
-        },
+        iam_client::http::{HttpIAMClient, IAMAuthCredential},
+        input_data::{SystemIdentityCreationMetadata, environment::NewRelicEnvironment},
     },
     token::{Token, TokenType},
     token_retriever::TokenRetrieverWithCache,
@@ -85,7 +82,6 @@ pub enum ProvisioningMethod {
     },
     ParentToken {
         token: String,
-        parent_client_id: String,
         organization_id: String,
     },
     ParentSecret {
@@ -139,7 +135,6 @@ impl SystemIdentityArgs {
             self.require_org_and_parent_id("token based")?;
             return Ok(ProvisioningMethod::ParentToken {
                 token: self.auth_parent_token,
-                parent_client_id: self.auth_parent_client_id,
                 organization_id: self.organization_id,
             });
         }
@@ -200,7 +195,6 @@ fn build_identity(
         }
         ProvisioningMethod::ParentToken {
             token,
-            parent_client_id,
             organization_id,
         } => {
             let token = Token::new(token.to_string(), TokenType::Bearer, Default::default());
@@ -209,7 +203,6 @@ fn build_identity(
                 token,
                 private_key_path.clone(),
                 organization_id.clone(),
-                parent_client_id.clone(),
                 environment,
                 http_client,
             )
@@ -230,7 +223,6 @@ fn build_identity(
                 token,
                 private_key_path.clone(),
                 organization_id.clone(),
-                parent_client_id.clone(),
                 environment,
                 http_client,
             )
@@ -282,20 +274,13 @@ fn build_identity_from_token(
     token: Token,
     private_key_path: PathBuf,
     organization_id: String,
-    parent_client_id: String,
     environment: NewRelicEnvironment,
     http_client: HttpClient,
 ) -> Result<Identity, CliError> {
-    let output_platform = OutputPlatform::LocalPrivateKeyPath(private_key_path.clone());
-
     let system_identity_creation_metadata = SystemIdentityCreationMetadata {
-        system_identity_input: SystemIdentityInput {
-            organization_id: organization_id.clone(),
-            client_id: parent_client_id.clone(),
-        },
+        organization_id: organization_id.clone(),
         name: None,
         environment,
-        output_platform,
     };
     let iam_client = HttpIAMClient::new(http_client, system_identity_creation_metadata.to_owned());
 
@@ -309,8 +294,10 @@ fn build_identity_from_token(
         key_creator,
     };
 
+    let auth_credential = IAMAuthCredential::BearerToken(token.access_token().to_string());
+
     let result = system_identity_generator
-        .generate(&token)
+        .generate(&auth_credential)
         .map_err(|err| CliError::Command(format!("error generating the system identity: {err}")))?;
 
     info!(
