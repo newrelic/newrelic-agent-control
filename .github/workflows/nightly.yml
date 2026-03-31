@@ -169,18 +169,18 @@ jobs:
       # AC Staging Account `host-canaries-staging` fleet
       fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlhZTNiNS01Yjg5LTdkNjYtYWU0MC1lNmZkOTY2ZDFhMDA"
       windows_fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTljMjNjYy0yM2I2LTc1OTYtODBkNy0yMzAzYWIyYzcwMTA"
-      operation: apply
       package_version: 0.100.${{ github.run_id }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
       AC_CANARY_WINDOWS_PASSWORD: ${{ secrets.AC_CANARY_WINDOWS_PASSWORD }}
+      SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
 
   notify-e2e-slack:
     name: Report e2e summary to Slack
     runs-on: ubuntu-latest
     if: always()
-    needs: [onhost-e2e, k8s-e2e-tests]
+    needs: [ onhost-e2e, k8s-e2e-tests ]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
