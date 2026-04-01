@@ -4,13 +4,17 @@ use crate::cli::{
         error::CliError,
         proxy_config::ProxyConfig,
         region::{Region, region_parser},
-        system_identity::{Identity, SystemIdentityArgs, SystemIdentitySpec, provide_identity},
+        system_identity::{SystemIdentityArgs, SystemIdentitySpec, provide_identity},
     },
     on_host::config_gen::config::{
         AuthConfig, Config, FleetControl, LogConfig, Server, SignatureValidation,
     },
 };
 use fs::file::{LocalFile, writer::FileWriter};
+use nr_auth::key::{
+    creator::KeyType,
+    local::{KeyPairGeneratorLocalConfig, LocalCreator},
+};
 use std::{collections::HashMap, path::PathBuf};
 use tracing::info;
 
@@ -187,15 +191,27 @@ fn generate_config_and_system_identity<F>(
     provide_identity_fn: F,
 ) -> Result<String, CliError>
 where
-    F: Fn(&SystemIdentitySpec, Region, Option<ProxyConfig>) -> Result<Identity, CliError>,
+    F: Fn(
+        &SystemIdentitySpec,
+        Region,
+        Option<ProxyConfig>,
+        LocalCreator,
+    ) -> Result<String, CliError>,
 {
     let fleet_control = match &params.fleet {
         FleetParams::FleetDisabled => None,
         FleetParams::FleetEnabled { fleet_id, identity } => {
-            let Identity {
-                client_id,
-                private_key_path,
-            } = provide_identity_fn(identity, params.region, params.proxy_config.clone())?;
+            let key_creator = LocalCreator::from(KeyPairGeneratorLocalConfig {
+                key_type: KeyType::Rsa4096,
+                file_path: identity.private_key_path.clone(),
+            });
+
+            let client_id = provide_identity_fn(
+                identity,
+                params.region,
+                params.proxy_config.clone(),
+                key_creator,
+            )?;
 
             Some(FleetControl {
                 endpoint: params.region.opamp_endpoint().to_string(),
@@ -207,7 +223,7 @@ where
                     token_url: params.region.token_renewal_endpoint().to_string(),
                     client_id,
                     provider: "local".to_string(),
-                    private_key_path: private_key_path.to_string_lossy().to_string(),
+                    private_key_path: identity.private_key_path.to_string_lossy().to_string(),
                 },
             })
         }
@@ -387,11 +403,9 @@ mod tests {
         _: &SystemIdentitySpec,
         _: Region,
         _: Option<ProxyConfig>,
-    ) -> Result<Identity, CliError> {
-        Ok(Identity {
-            client_id: "test-client-id".to_string(),
-            private_key_path: PathBuf::from("/path/to/private/key"),
-        })
+        _: LocalCreator,
+    ) -> Result<String, CliError> {
+        Ok("test-client-id".to_string())
     }
 
     fn create_test_args(

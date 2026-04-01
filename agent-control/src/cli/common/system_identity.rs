@@ -9,10 +9,7 @@ use nr_auth::{
     TokenRetriever,
     authenticator::HttpAuthenticator,
     http::{client::HttpClient, config::HttpConfig},
-    key::{
-        creator::KeyType,
-        local::{KeyPairGeneratorLocalConfig, LocalCreator},
-    },
+    key::creator::Creator,
     system_identity::{
         generator::L2SystemIdentityGenerator,
         iam_client::http::{HttpIAMClient, IAMAuthCredential},
@@ -27,12 +24,6 @@ use crate::cli::common::{error::CliError, proxy_config::ProxyConfig, region::Reg
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(3);
 const DEFAULT_RETRIES: u8 = 3;
-
-/// Represents a key-based identity to be used in Agent Control configuration.
-pub struct Identity {
-    pub client_id: String,
-    pub private_key_path: PathBuf,
-}
 
 /// Arguments required to provide or generate a system identity.
 ///
@@ -164,14 +155,15 @@ impl SystemIdentityArgs {
     }
 }
 
-/// Provides a key-based identity considering the supplied args.
+/// Provides a key-based identity considering the supplied args. It returns the corresponding **client_id** as a String.
 pub fn provide_identity(
     identity_input: &SystemIdentitySpec,
     region: Region,
     proxy_config: Option<ProxyConfig>,
-) -> Result<Identity, CliError> {
+    key_creator: impl Creator,
+) -> Result<String, CliError> {
     let environment = NewRelicEnvironment::from(region);
-    build_identity(identity_input, environment, proxy_config)
+    build_identity(identity_input, environment, proxy_config, key_creator)
 }
 
 /// Helper to allow injecting testing urls when building the identity.
@@ -179,19 +171,12 @@ fn build_identity(
     identity_input: &SystemIdentitySpec,
     environment: NewRelicEnvironment,
     proxy_config: Option<ProxyConfig>,
-) -> Result<Identity, CliError> {
-    let SystemIdentitySpec {
-        private_key_path,
-        method,
-    } = identity_input;
-
-    match method {
+    key_creator: impl Creator,
+) -> Result<String, CliError> {
+    match &identity_input.method {
         ProvisioningMethod::ExistingIdentity { auth_client_id } => {
             info!("Using provided System Identity");
-            Ok(Identity {
-                client_id: auth_client_id.to_string(),
-                private_key_path: private_key_path.clone(),
-            })
+            Ok(auth_client_id.to_string())
         }
         ProvisioningMethod::ParentToken {
             token,
@@ -201,10 +186,10 @@ fn build_identity(
             let http_client = http_client(proxy_config)?;
             build_identity_from_token(
                 token,
-                private_key_path.clone(),
                 organization_id.clone(),
                 environment,
                 http_client,
+                key_creator,
             )
         }
         ProvisioningMethod::ParentSecret {
@@ -221,10 +206,10 @@ fn build_identity(
             )?;
             build_identity_from_token(
                 token,
-                private_key_path.clone(),
                 organization_id.clone(),
                 environment,
                 http_client,
+                key_creator,
             )
         }
     }
@@ -272,22 +257,17 @@ fn get_auth_token(
 
 fn build_identity_from_token(
     token: Token,
-    private_key_path: PathBuf,
     organization_id: String,
     environment: NewRelicEnvironment,
     http_client: HttpClient,
-) -> Result<Identity, CliError> {
+    key_creator: impl Creator,
+) -> Result<String, CliError> {
     let system_identity_creation_metadata = SystemIdentityCreationMetadata {
         organization_id: organization_id.clone(),
         name: None,
         environment,
     };
     let iam_client = HttpIAMClient::new(http_client, system_identity_creation_metadata.to_owned());
-
-    let key_creator = LocalCreator::from(KeyPairGeneratorLocalConfig {
-        key_type: KeyType::Rsa4096,
-        file_path: private_key_path.clone(),
-    });
 
     let system_identity_generator = L2SystemIdentityGenerator {
         iam_client,
@@ -300,15 +280,7 @@ fn build_identity_from_token(
         .generate(&auth_credential)
         .map_err(|err| CliError::Command(format!("error generating the system identity: {err}")))?;
 
-    info!(
-        private_key_path = %private_key_path.to_string_lossy(),
-        "System Identity successfully generated"
-    );
-
-    Ok(Identity {
-        client_id: result.client_id,
-        private_key_path,
-    })
+    Ok(result.client_id)
 }
 
 /// Builds the proxy config for nr-auth from the AC's system proxy
@@ -336,11 +308,37 @@ pub mod tests {
     use assert_matches::assert_matches;
     use http::header::AUTHORIZATION;
     use httpmock::{Method::POST, MockServer};
+    use mockall::mock;
+    use nr_auth::key::creator::PublicKeyPem;
     use rstest::rstest;
     use std::fs;
     use tempfile::TempDir;
+    use thiserror::Error;
 
     use super::*;
+
+    #[derive(Debug, Error)]
+    #[error("{0}")]
+    pub struct TestCreatorError(String);
+
+    mock! {
+        pub Creator {}
+        impl Creator for Creator {
+            type Error = TestCreatorError;
+            fn create(&self) -> Result<PublicKeyPem, TestCreatorError>;
+        }
+    }
+    impl MockCreator {
+        fn expecting_create_ok() -> Self {
+            let mut creator = Self::new();
+            creator
+                .expect_create()
+                .once()
+                .returning(|| Ok(PublicKeyPem::default()));
+
+            creator
+        }
+    }
 
     #[rstest]
     #[case::existing_identity(|| SystemIdentityArgs {
@@ -430,10 +428,12 @@ pub mod tests {
         };
         let identity_data = identity_args.validate().expect("validation should succeed");
 
-        let identity =
-            build_identity(&identity_data, environment, None).expect("no error expected");
-        assert_eq!(identity.client_id, "provided_client_id".to_string());
-        assert_eq!(identity.private_key_path, auth_private_key_path);
+        let mut creator_mock = MockCreator::new();
+        creator_mock.expect_create().never();
+
+        let client_id = build_identity(&identity_data, environment, None, creator_mock)
+            .expect("no error expected");
+        assert_eq!(client_id, "provided_client_id".to_string());
     }
 
     #[test]
@@ -469,18 +469,13 @@ pub mod tests {
                 .expect("url should be valid"),
         };
 
+        let creator_mock = MockCreator::expecting_create_ok();
         let identity_data = identity_args.validate().expect("validation should succeed");
-        let identity =
-            build_identity(&identity_data, environment, None).expect("no error expected");
+        let client_id = build_identity(&identity_data, environment, None, creator_mock)
+            .expect("no error expected");
 
         identity_mock.assert_calls(1);
-        assert_eq!(identity.client_id, "created_client_id".to_string());
-        assert_eq!(identity.private_key_path, auth_private_key_path);
-        assert!(
-            fs::read_to_string(&auth_private_key_path)
-                .unwrap()
-                .contains("BEGIN PRIVATE KEY"),
-        );
+        assert_eq!(client_id, "created_client_id".to_string());
     }
 
     #[test]
@@ -524,19 +519,14 @@ pub mod tests {
                 .expect("url should be valid"),
         };
 
+        let creator_mock = MockCreator::expecting_create_ok();
         let identity_data = identity_args.validate().expect("validation should succeed");
-        let identity =
-            build_identity(&identity_data, environment, None).expect("no error expected");
+        let client_id = build_identity(&identity_data, environment, None, creator_mock)
+            .expect("no error expected");
 
         identity_mock.assert_calls(1);
         token_mock.assert_calls(1);
-        assert_eq!(identity.client_id, "created_client_id".to_string());
-        assert_eq!(identity.private_key_path, auth_private_key_path);
-        assert!(
-            fs::read_to_string(&auth_private_key_path)
-                .unwrap()
-                .contains("BEGIN PRIVATE KEY"),
-        );
+        assert_eq!(client_id, "created_client_id".to_string());
     }
 
     fn token_body(token: &str) -> String {

@@ -1,6 +1,11 @@
-use fs::file::{LocalFile, reader::FileReader};
+use std::convert::Infallible;
+
 use k8s_openapi::{Resource as _, api::core::v1::Secret};
 use kube::api::{DynamicObject, ObjectMeta, TypeMeta};
+use nr_auth::key::{
+    creator::{Creator, KeyPair, KeyType, PublicKeyPem},
+    rsa::rsa,
+};
 use serde_json::json;
 use tracing::info;
 
@@ -13,7 +18,7 @@ use crate::{
             error::CliError,
             proxy_config::ProxyConfig,
             region::{Region, region_parser},
-            system_identity::{Identity, SystemIdentityArgs, SystemIdentitySpec, provide_identity},
+            system_identity::{SystemIdentityArgs, SystemIdentitySpec, provide_identity},
         },
         k8s::{errors::K8sCliError, utils::try_new_k8s_client},
     },
@@ -80,8 +85,8 @@ pub fn register_system_identity(
 
 /// Helper function to implement [register_system_identity] while allowing the usage of mocks for the k8s client
 /// and `provide_identity_fn`.
-/// The function `provide_identity_fn` is expected to return an [Identity] and store the corresponding private
-/// key in the filesystem.
+/// The function `provide_identity_fn` is expected to return the client_id of the registered System Identity.
+/// The generated private key is stored in a Kubernetes Secret alongside the client_id.
 fn provide_system_identity_secret<F>(
     namespace: &str,
     spec: IdentityRegistrationSpec,
@@ -89,7 +94,12 @@ fn provide_system_identity_secret<F>(
     provide_identity_fn: F,
 ) -> Result<(), K8sCliError>
 where
-    F: Fn(&SystemIdentitySpec, Region, Option<ProxyConfig>) -> Result<Identity, CliError>,
+    F: Fn(
+        &SystemIdentitySpec,
+        Region,
+        Option<ProxyConfig>,
+        PublicKeyHolder,
+    ) -> Result<String, CliError>,
 {
     let secret_object_key = K8sObjectKey {
         name: &spec.secret_name,
@@ -104,23 +114,31 @@ where
         info!("System Identity already exists, all setup.");
         return Ok(());
     }
-
     info!("Secret is not present, creating system identity");
-    let identity =
-        provide_identity_fn(&spec.identity, spec.region, spec.proxy_config).map_err(|err| {
+
+    let KeyPair {
+        private_key,
+        public_key,
+    } = rsa(&KeyType::Rsa4096).map_err(|err| {
+        K8sCliError::Generic(format!(
+            "failure building key-pair for System Identity: {err}"
+        ))
+    })?;
+    let pk_holder = PublicKeyHolder { public_key };
+
+    let client_id = provide_identity_fn(&spec.identity, spec.region, spec.proxy_config, pk_holder)
+        .map_err(|err| {
             K8sCliError::Generic(format!("failure registering the System Identity: {err}"))
         })?;
 
-    let private_key = LocalFile
-        .read(identity.private_key_path.as_path())
-        .map_err(|err| {
-            K8sCliError::Generic(format!(
-                "failure reading System Identity generated private-key: {err}"
-            ))
-        })?;
+    let private_key = String::from_utf8(private_key).map_err(|err| {
+        K8sCliError::Generic(format!(
+            "failure decoding System Identity private-key: {err}"
+        ))
+    })?;
 
     let secret_content = json!({"stringData": {
-        CLIENT_ID_SECRET_KEY: identity.client_id,
+        CLIENT_ID_SECRET_KEY: client_id,
         PRIVATE_KEY_SECRET_KEY: private_key
     }});
 
@@ -177,6 +195,19 @@ fn secret_type_meta() -> TypeMeta {
     }
 }
 
+/// Helper struct to hold a public key an use it as [Creator] for System Identity provisioning.
+struct PublicKeyHolder {
+    public_key: PublicKeyPem,
+}
+
+impl Creator for PublicKeyHolder {
+    type Error = Infallible;
+
+    fn create(&self) -> Result<PublicKeyPem, Self::Error> {
+        Ok(self.public_key.clone())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,7 +217,6 @@ mod tests {
     use clap::{CommandFactory, FromArgMatches};
     use rstest::rstest;
     use std::{env::current_dir, path::PathBuf, sync::Arc};
-    use tempfile::TempDir;
 
     impl Default for IdentityRegistrationSpec {
         fn default() -> Self {
@@ -280,17 +310,13 @@ mod tests {
             "test-namespace",
             IdentityRegistrationSpec::default(),
             &mock_client,
-            |_, _, _| panic!("identity provider should not be called"),
+            |_, _, _, _| panic!("identity provider should not be called"),
         )
         .expect("system identity should be provided successfully");
     }
 
     #[test]
     fn test_creates_secret_when_not_present() {
-        let tempdir = TempDir::new().unwrap();
-        let key_path = tempdir.path().join("private-key");
-        std::fs::write(&key_path, "test-private-key-content").unwrap();
-
         let mut mock_client = MockSyncK8sClient::new();
 
         mock_client
@@ -306,8 +332,9 @@ mod tests {
                     && obj.metadata.namespace.as_deref() == Some("test-namespace")
                     && obj.data["stringData"][CLIENT_ID_SECRET_KEY].as_str()
                         == Some("new-client-id")
-                    && obj.data["stringData"][PRIVATE_KEY_SECRET_KEY].as_str()
-                        == Some("test-private-key-content")
+                    && obj.data["stringData"][PRIVATE_KEY_SECRET_KEY]
+                        .as_str()
+                        .is_some_and(|k| k.contains("-----BEGIN PRIVATE KEY-----"))
             })
             .returning(|_| Ok(()));
 
@@ -315,12 +342,7 @@ mod tests {
             "test-namespace",
             IdentityRegistrationSpec::default(),
             &mock_client,
-            move |_, _, _| {
-                Ok(Identity {
-                    client_id: "new-client-id".to_string(),
-                    private_key_path: key_path.clone(),
-                })
-            },
+            move |_, _, _, _| Ok("new-client-id".to_string()),
         )
         .expect("system identity should be provided successfully");
     }
@@ -341,7 +363,7 @@ mod tests {
             "test-namespace",
             IdentityRegistrationSpec::default(),
             &mock_client,
-            |_, _, _| panic!("should not be called"),
+            |_, _, _, _| panic!("should not be called"),
         );
         assert_matches!(result, Err(K8sCliError::GetResource(_)));
     }
@@ -354,35 +376,13 @@ mod tests {
             "test-namespace",
             IdentityRegistrationSpec::default(),
             &mock_client,
-            |_, _, _| Err(CliError::Command("identity failure".to_string())),
-        );
-        assert_matches!(result, Err(K8sCliError::Generic(_)));
-    }
-
-    #[test]
-    fn test_error_reading_private_key_returns_error() {
-        let mock_client = mock_secret_not_found();
-
-        let result = provide_system_identity_secret(
-            "test-namespace",
-            IdentityRegistrationSpec::default(),
-            &mock_client,
-            |_, _, _| {
-                Ok(Identity {
-                    client_id: "id".to_string(),
-                    private_key_path: PathBuf::from("/does/not/exist/key.pem"),
-                })
-            },
+            |_, _, _, _| Err(CliError::Command("identity failure".to_string())),
         );
         assert_matches!(result, Err(K8sCliError::Generic(_)));
     }
 
     #[test]
     fn test_apply_dynamic_object_error_returns_error() {
-        let tempdir = TempDir::new().unwrap();
-        let key_path = tempdir.path().join("private-key");
-        std::fs::write(&key_path, "key-content").unwrap();
-
         let mut mock_client = mock_secret_not_found();
         mock_client
             .expect_apply_dynamic_object()
@@ -393,17 +393,11 @@ mod tests {
                 ))
             });
 
-        let key_path_clone = key_path.clone();
         let result = provide_system_identity_secret(
             "test-namespace",
             IdentityRegistrationSpec::default(),
             &mock_client,
-            move |_, _, _| {
-                Ok(Identity {
-                    client_id: "id".to_string(),
-                    private_key_path: key_path_clone.clone(),
-                })
-            },
+            move |_, _, _, _| Ok("id".to_string()),
         );
         assert_matches!(result, Err(K8sCliError::ApplyResource(_)));
     }
