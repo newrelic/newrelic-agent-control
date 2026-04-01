@@ -1,0 +1,9 @@
+# Region-specific overrides for US/Production (fleet-control scenario)
+agentControlDeployment:
+  chartValues:
+    config:
+      fleet_control:
+        # Fleet with name 'ac-e2e-3' (Production)
+        fleet_id: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyODk4LTg0OWMtNzdmZC1iN2Y1LWMwYjNiNDRmNzlkNw"
+    systemIdentity:
+      organizationId: "b961cf81-d62b-4359-8822-7b1d6dadd374"

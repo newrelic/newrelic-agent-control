@@ -6,6 +6,7 @@ agentControlDeployment:
     image:
       tag: failIfNotReplaced
     subAgentsNamespace: "newrelic-agents"
+    # NOTE: nrStaging is set by Tiltfile based on REGION env var (staging vs US)
     systemIdentity:
       create: false
       secretName: "sys-identity"
@@ -17,7 +18,7 @@ agentControlDeployment:
       fleet_control:
         enabled: true
         # Fleet with name 'ac-e2e-3'. The sub-agent reports data to the 'Agent Control Canaries' account.
-        fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyODk4LTg0OWMtNzdmZC1iN2Y1LWMwYjNiNDRmNzlkNw
+        # NOTE: This fleet_id is provided by region-specific values file (ac-values-fleet-control-<region>.yml)
       log:
         level: debug
       agents:
@@ -27,6 +28,7 @@ agentControlDeployment:
       infra:
         chart_version: "*" # Use latest
         chart_values:
+          # NOTE: nrStaging is set by Tiltfile based on REGION env var (staging vs US)
           global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
             customAttributes:
               cluster_name: ${nr-env:NR_CLUSTER_NAME}

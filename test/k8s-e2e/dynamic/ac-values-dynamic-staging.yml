@@ -1,0 +1,3 @@
+# Region-specific overrides for Staging (dynamic scenario)
+global:
+  nrStaging: true

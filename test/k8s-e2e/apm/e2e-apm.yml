@@ -12,7 +12,7 @@ scenarios:
     before:
       - echo The cluster name of the test is ${SCENARIO_TAG}
       - kubectl get secret sys-identity || kubectl create secret generic sys-identity --from-literal=CLIENT_ID="${NR_SYSTEM_IDENTITY_CLIENT_ID}" --from-literal=private_key="${NR_SYSTEM_IDENTITY_PRIVATE_KEY}"
-      - cd ../../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/apm/ac-values-apm.yml" CLUSTER=${SCENARIO_TAG} USE_LATEST_FLUX=${USE_LATEST_FLUX} tilt ci
+      - cd ../../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/apm/ac-values-apm.yml" SA_CHART_VALUES_FILE_REGION="test/k8s-e2e/apm/ac-values-apm-${REGION,,}.yml" CLUSTER=${SCENARIO_TAG} USE_LATEST_FLUX=${USE_LATEST_FLUX} tilt ci
       # Before spawn the apps, wait for the operator and the Instrumentation CRs to be created.
       - kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 deploy/operator-k8s-agents-operator -n newrelic-agents --timeout=600s
       - kubectl wait --for=create instrumentation/python-agent instrumentation/java-agent instrumentation/node-agent instrumentation/ruby-agent instrumentation/dotnet-agent --timeout=60s -n newrelic-agents

@@ -1,0 +1,3 @@
+# Region-specific overrides for Staging (collector scenario)
+global:
+  nrStaging: true

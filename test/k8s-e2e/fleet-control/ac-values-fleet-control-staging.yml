@@ -1,0 +1,12 @@
+# Region-specific overrides for Staging (fleet-control scenario)
+global:
+  nrStaging: true
+
+agentControlDeployment:
+  chartValues:
+    config:
+      fleet_control:
+        # Fleet with name 'ac-e2e-3' (Staging)
+        fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlkMjVhOC04NTI2LTdkZDItOWVkMC1mYjM5YmMxYjdlZTE"
+    systemIdentity:
+      organizationId: "9d789cca-f661-458d-be06-882d1e6e409d"

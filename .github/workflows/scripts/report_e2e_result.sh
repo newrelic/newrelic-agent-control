@@ -7,6 +7,7 @@
 #   E2E_ENVIRONMENT       - One of: linux, windows, k8s
 #   E2E_STATUS            - job.status value: success, failure, or cancelled
 #   E2E_CALLER_WORKFLOW   - Name of the top-level workflow that triggered this run
+#   E2E_REGION            - New Relic region: "staging" or "production" (default: production)
 #   NR_ACCOUNT_ID         - New Relic account ID
 #   NR_LICENSE_KEY        - New Relic license key (used as the Events API ingest key)
 #
@@ -17,7 +18,16 @@ set -euo pipefail
 
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - JOB_START_TIME))
-ACCOUNT="Agent Control Canaries (prod)"
+
+# Set insights collector URL based on region
+E2E_REGION="${E2E_REGION:-production}"
+if [[ "$E2E_REGION" == "staging" ]]; then
+  INSIGHTS_COLLECTOR_URL="https://staging-insights-collector.newrelic.com"
+  ACCOUNT="Agent Control Canaries (staging)"
+else
+  INSIGHTS_COLLECTOR_URL="https://insights-collector.newrelic.com"
+  ACCOUNT="Agent Control Canaries (prod)"
+fi
 
 # GITHUB_HEAD_REF is set for pull requests; GITHUB_REF_NAME covers push/schedule/dispatch.
 BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-}}"
@@ -48,7 +58,7 @@ events=$(jq -n \
   }]')
 
 curl -s -X POST \
-  "https://insights-collector.newrelic.com/v1/accounts/${NR_ACCOUNT_ID}/events" \
+  "${INSIGHTS_COLLECTOR_URL}/v1/accounts/${NR_ACCOUNT_ID}/events" \
   -H "Content-Type: application/json" \
   -H "Api-Key: ${NR_LICENSE_KEY}" \
   -d "$events"

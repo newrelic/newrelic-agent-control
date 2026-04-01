@@ -50,6 +50,7 @@ agentControlDeployment:
     image:
       tag: failIfNotReplaced
     subAgentsNamespace: "newrelic-agents"
+    # NOTE: nrStaging is set by Tiltfile based on REGION env var (staging vs US)
     # Mount a CA certificate bundle to the source-controller Trust root store.
     # It should contain the proxy CA certificates on it.
     extraVolumeMounts:
@@ -73,16 +74,17 @@ agentControlDeployment:
         enabled: true
         # Fleet with name 'ac-e2e-empty-deployment'. The sub-agent reports data to the 'Agent Control Canaries' account.
         # This fleet doesn't have any deployment configured.
-        fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTgwOTZiLTk2NzctNzllNi05OWJmLTQ4YWRlOTRiYmZjMw
+        # NOTE: This fleet_id is provided by region-specific values file (ac-values-proxy-<region>.yml)
       agents:
         prometheus:
           agent_type: newrelic/com.newrelic.prometheus:0.1.0
     agentsConfig:
       prometheus:
         chart_version: "*"
+        # NOTE: nrStaging is set by Tiltfile based on REGION env var (staging vs US)
         # Proxy config should be added to Prom config on a prod environment. But this is out of scope of AC.
     systemIdentity:
-      organizationId: b961cf81-d62b-4359-8822-7b1d6dadd374
+      # NOTE: This organizationId is provided by region-specific values file (ac-values-proxy-<region>.yml)
       parentIdentity:
         fromSecret: sys-identity-creds
 

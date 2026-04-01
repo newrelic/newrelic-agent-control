@@ -20,6 +20,8 @@ pub fn test_ebpf_agent(args: Args) {
         .clone()
         .expect("--infra-agent-version is required for this scenario");
 
+    let staging = matches!(args.nr_region.to_lowercase().as_str(), "staging");
+
     let recipe_data = RecipeData {
         args,
         monitoring_source: "infra-agent".to_string(),
@@ -50,15 +52,23 @@ agents:
     );
     config::update_config(linux::DEFAULT_AC_CONFIG_PATH, config);
     // eBPF agent config
-    write_agent_local_config(
-        &linux::local_config_path("nr-ebpf"),
+    let ebpf_config = if staging {
+        format!(
+            r#"
+config_agent:
+  DEPLOYMENT_NAME: {test_id}
+  OTLP_ENDPOINT: staging-otlp.nr-data.net:443
+    "#
+        )
+    } else {
         format!(
             r#"
 config_agent:
   DEPLOYMENT_NAME: {test_id}
     "#
-        ),
-    );
+        )
+    };
+    write_agent_local_config(&linux::local_config_path("nr-ebpf"), ebpf_config);
     // Infra agent config: it is used to generate traffic for eBPF metrics to appear
     write_agent_local_config(
         &linux::local_config_path("nr-infra"),
@@ -66,6 +76,7 @@ config_agent:
             r#"
 config_agent:
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
+  staging: {staging}
 version: {}
 "#,
             infra_version

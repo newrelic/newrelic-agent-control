@@ -12,7 +12,7 @@ use std::thread;
 use std::time::Duration;
 use tracing::info;
 
-/// Windows fleet for remote config testing (ac-e2e-onhost-win-1 on canaries account)
+/// Windows fleet for remote config testing (ac-e2e-onhost-win-1 on prod canaries account)
 const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWM4YWE5LWM3YTgtN2I0ZS04NGE3LWU1YmE3NDRlNTM4Mw";
 
 /// Windows path for environment variables file

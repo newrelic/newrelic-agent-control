@@ -1,0 +1,12 @@
+# Region-specific overrides for Staging (apm scenario)
+global:
+  nrStaging: true
+
+agentControlDeployment:
+  chartValues:
+    config:
+      fleet_control:
+        # Fleet with name 'ac-e2e-apm' (Staging)
+        fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlkMjVhZS02MjQ4LTc1NmYtOGE0Yi1kNWE3OWZmNGU1YTA"
+    systemIdentity:
+      organizationId: "9d789cca-f661-458d-be06-882d1e6e409d"

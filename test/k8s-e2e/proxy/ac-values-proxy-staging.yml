@@ -1,0 +1,12 @@
+# Region-specific overrides for Staging (proxy scenario)
+global:
+  nrStaging: true
+
+agentControlDeployment:
+  chartValues:
+    config:
+      fleet_control:
+        # Fleet with name 'ac-e2e-empty-deployment' (Staging)
+        fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlkMjVhNy0zY2ViLTdhMjUtODZhOS0yYzhiMzQwNDdhMDk"
+    systemIdentity:
+      organizationId: "9d789cca-f661-458d-be06-882d1e6e409d"
