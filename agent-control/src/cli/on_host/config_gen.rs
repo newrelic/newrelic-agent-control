@@ -463,7 +463,7 @@ fleet_control:
     token_url: https://system-identity-oauth.service.newrelic.com/oauth2/token
     client_id: test-client-id
     provider: local
-    private_key_path: /path/to/private/key
+    private_key_path: /path/to/key
 
 "#;
 
@@ -477,7 +477,7 @@ fleet_control:
     token_url: https://system-identity-oauth.service.newrelic.com/oauth2/token
     client_id: test-client-id
     provider: local
-    private_key_path: /path/to/private/key
+    private_key_path: /path/to/key
 
 "#;
 
@@ -491,7 +491,7 @@ fleet_control:
     token_url: https://system-identity-oauth.staging-service.newrelic.com/oauth2/token
     client_id: test-client-id
     provider: local
-    private_key_path: /path/to/private/key
+    private_key_path: /path/to/key
 
 "#;
 
