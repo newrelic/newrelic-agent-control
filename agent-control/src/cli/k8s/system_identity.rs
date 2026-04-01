@@ -1,7 +1,6 @@
 use std::convert::Infallible;
 
-use k8s_openapi::{Resource as _, api::core::v1::Secret};
-use kube::api::{DynamicObject, ObjectMeta, TypeMeta};
+use kube::api::{DynamicObject, ObjectMeta};
 use nr_auth::key::{
     creator::{Creator, KeyPair, KeyType, PublicKeyPem},
     rsa::rsa,
@@ -12,7 +11,7 @@ use tracing::info;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::{
-    agent_control::agent_id::AgentID,
+    agent_control::{agent_id::AgentID, config::secret_type_meta},
     cli::{
         common::{
             error::CliError,
@@ -167,7 +166,7 @@ fn secret_already_exists(
         .map(|s| s.is_some())
         .map_err(|err| {
             K8sCliError::GetResource(format!(
-                "failed to check if the system identity secret exists: {err}"
+                "failure checking if the system identity secret exists: {err}"
             ))
         })
 }
@@ -185,13 +184,6 @@ fn secret_dynamic_object(object_key: K8sObjectKey<'_>, data: serde_json::Value) 
             ..Default::default()
         },
         data,
-    }
-}
-
-fn secret_type_meta() -> TypeMeta {
-    TypeMeta {
-        api_version: Secret::API_VERSION.to_string(),
-        kind: Secret::KIND.to_string(),
     }
 }
 
