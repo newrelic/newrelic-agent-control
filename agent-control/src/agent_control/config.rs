@@ -391,6 +391,13 @@ pub fn deployment_type_meta() -> TypeMeta {
     }
 }
 
+pub fn secret_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "v1".to_string(),
+        kind: "Secret".to_string(),
+    }
+}
+
 pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     // In flux health check we are currently supporting just a single helm_release_type_meta
     // Each time we support a new version we should decide if and how to support retrieving its health
@@ -400,10 +407,7 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
         instrumentation_v1beta3_type_meta(),
         // This allows Secrets created as dynamic objects to be cleaned up by the GC
         // This should not be needed anymore whenever the GC detection logic doesn't rely on this list.
-        TypeMeta {
-            api_version: "v1".to_string(),
-            kind: "Secret".to_string(),
-        },
+        secret_type_meta(),
         helmrepository_type_meta(),
         helmrelease_v2_type_meta(),
     ]
