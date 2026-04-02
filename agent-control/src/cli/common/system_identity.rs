@@ -270,7 +270,7 @@ fn build_identity_from_token(
     let iam_client = HttpIAMClient::new(http_client, system_identity_creation_metadata.to_owned());
 
     let system_identity_generator = L2SystemIdentityGenerator {
-        iam_client,
+        iam_client: &iam_client,
         key_creator,
     };
 
