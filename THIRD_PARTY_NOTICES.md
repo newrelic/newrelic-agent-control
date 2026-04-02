@@ -1781,13 +1781,6 @@ Distributed under the following license(s):
 * Apache-2.0
 * MIT
 
-## pin-utils <https://crates.io/crates/pin-utils>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## pkg-config <https://crates.io/crates/pkg-config>
 
 Distributed under the following license(s):
