@@ -15,11 +15,14 @@ const PROXY_URL: &str = "http://localhost:8080";
 const PROXY_CA_DIR: &str = "/tmp/mitm-ca";
 const PROXY_CA_CERT: &str = "/tmp/mitm-ca/mitmproxy-ca-cert.pem";
 
-/// ac-e2e-host-no-deployment fleet on canaries account
+/// ac-e2e-host-no-deployment fleet on prod canaries account
 const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWE5NjY2LTkxYzQtN2M0My1hNzZhLWY0YWVmODE4NWM4NA";
+/// ac-e2e-host-no-deployment fleet on staging canaries account
+const FLEET_ID_STAGING: &str =
+    "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlkMDY3NC05MGYyLTc4ZDctODM5OS05MDRhMjY3OTZkOGU";
 
 /// Domains expected to be reached through proxy
-const EXPECTED_DOMAINS: &[&str] = &[
+const EXPECTED_DOMAINS_PROD: &[&str] = &[
     // Installation
     "download.newrelic.com",
     // Keys generation and Agent Control authentication
@@ -32,6 +35,19 @@ const EXPECTED_DOMAINS: &[&str] = &[
     "identity-api.newrelic.com",
 ];
 
+const EXPECTED_DOMAINS_STAGING: &[&str] = &[
+    // Installation
+    "download.newrelic.com",
+    // Keys generation and Agent Control authentication
+    "staging-publickeys.newrelic.com",
+    "system-identity-oauth.staging-service.newrelic.com",
+    // Agent Control OpAMP requests
+    "opamp.staging-service.newrelic.com",
+    // Infra-Agent connections
+    "staging-infra-api.newrelic.com",
+    "staging-identity-api.newrelic.com",
+];
+
 pub fn test_agent_control_proxy(args: Args) {
     info!("Setting up mitmproxy container");
     setup_mitmproxy();
@@ -41,13 +57,20 @@ pub fn test_agent_control_proxy(args: Args) {
         .clone()
         .expect("--infra-agent-version is required for this scenario");
 
+    let staging = matches!(args.nr_region.to_lowercase().as_str(), "staging");
+
+    let fleet_id = match args.nr_region.to_lowercase().as_str() {
+        "staging" => FLEET_ID_STAGING.to_string(),
+        _ => FLEET_ID.to_string(),
+    };
+
     info!("Installing Agent Control with proxy configuration");
     let recipe_data = RecipeData {
         args,
         monitoring_source: "infra-agent".to_string(),
         proxy_url: PROXY_URL.to_string(),
         fleet_enabled: true,
-        fleet_id: FLEET_ID.to_string(),
+        fleet_id,
         ..Default::default()
     };
 
@@ -82,6 +105,7 @@ config_agent:
     level: debug
   proxy: {PROXY_URL}
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
+  staging: {staging}
 version: {}
 "#,
             infra_version
@@ -98,11 +122,15 @@ version: {}
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     });
 
+    let expected_domains = match staging {
+        true => EXPECTED_DOMAINS_STAGING,
+        false => EXPECTED_DOMAINS_PROD,
+    };
     info!(
-        expected_domains = EXPECTED_DOMAINS.join(", "),
+        expected_domains = expected_domains.join(", "),
         "Verifying proxy was used as expected by checking mitmproxy logs"
     );
-    verify_proxy_usage();
+    verify_proxy_usage(expected_domains);
 }
 
 fn setup_mitmproxy() {
@@ -167,7 +195,7 @@ fn setup_mitmproxy() {
 }
 
 /// Checks the mitmproxy logs to check if expected domains where reached
-fn verify_proxy_usage() {
+fn verify_proxy_usage(expected_domains: &[&str]) {
     let check_logs_cmd = format!(
         "docker logs {} 2>&1 | grep -i 'newrelic' || echo 'No New Relic traffic found'",
         PROXY_CONTAINER_NAME
@@ -176,7 +204,7 @@ fn verify_proxy_usage() {
     let logs = exec_bash_command(&check_logs_cmd)
         .unwrap_or_else(|err| panic!("Failed to check proxy logs: {err}"));
 
-    for domain in EXPECTED_DOMAINS {
+    for domain in expected_domains {
         if !logs.contains(domain) {
             info!(logs = %logs, "Mitmproxy logs");
             panic!("No connection to '{domain}' found in Mitmproxy logs");

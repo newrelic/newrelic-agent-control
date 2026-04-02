@@ -18,6 +18,8 @@ pub fn test_installation_with_infra_agent(args: Args) {
         .clone()
         .expect("--infra-agent-version is required for this scenario");
 
+    let staging = matches!(args.nr_region.to_lowercase().as_str(), "staging");
+
     let recipe_data = RecipeData {
         args,
         monitoring_source: "infra-agent".to_string(),
@@ -55,8 +57,7 @@ agents:
             r#"
 config_agent:
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
-  log:
-    level: debug
+  staging: {staging}
 config_logging:
     logging.yml:
       logs:

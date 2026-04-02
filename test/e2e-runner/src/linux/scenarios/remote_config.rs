@@ -9,8 +9,11 @@ use crate::{
 use std::time::Duration;
 use tracing::info;
 
-/// ac-e2e-onhost-2 fleet on canaries account
+/// ac-e2e-onhost-2-9-9 fleet on prod canaries account
 const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg";
+/// ac-e2e-onhost-2-9-9 fleet on staging canaries account
+const FLEET_ID_STAGING: &str =
+    "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlkMDY2Yy02YzRmLTdkOTgtYWNlMC1hNDZmY2NjNGU3ODM";
 
 const ENV_VARS_FILE: &str = "/etc/newrelic-agent-control/environment_variables.yaml";
 
@@ -18,11 +21,16 @@ const ENV_VARS_FILE: &str = "/etc/newrelic-agent-control/environment_variables.y
 const INFRA_AGENT_VERSION: &str = "1.72.1";
 
 pub fn test_remote_config_is_applied(args: Args) {
+    let fleet_id = match args.nr_region.to_lowercase().as_str() {
+        "staging" => FLEET_ID_STAGING.to_string(),
+        _ => FLEET_ID.to_string(),
+    };
+
     let recipe_data = RecipeData {
         args,
         monitoring_source: "infra-agent".to_string(),
         fleet_enabled: true,
-        fleet_id: FLEET_ID.to_string(),
+        fleet_id,
         ..Default::default()
     };
 

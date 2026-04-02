@@ -6,6 +6,7 @@ agentControlDeployment:
     image:
       tag: failIfNotReplaced
     subAgentsNamespace: "newrelic-agents"
+    # NOTE: nrStaging is set by Tiltfile based on REGION env var (staging vs US)
     config:
       authSecret:
         secretName: "agent-control-auth"

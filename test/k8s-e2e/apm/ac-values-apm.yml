@@ -6,6 +6,7 @@ agentControlDeployment:
     image:
       tag: failIfNotReplaced
     subAgentsNamespace: "newrelic-agents"
+    # NOTE: nrStaging is set by Tiltfile based on REGION env var (staging vs US)
     systemIdentity:
       create: false
       secretName: "sys-identity"
@@ -16,7 +17,7 @@ agentControlDeployment:
       fleet_control:
         enabled: true
         # Fleet with name 'ac-e2e-apm'.
-        fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWI0NTkxLTYyYmEtN2RiZC04OGY5LWQ1MGMzZDU2YTM3YQ
+        # NOTE: This fleet_id is provided by region-specific values file (ac-values-apm-<region>.yml)
       log:
         insecure_fine_grained_level: newrelic_agent_control=debug,opamp_client=trace,off
       agents:

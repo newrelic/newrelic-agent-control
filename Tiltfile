@@ -10,6 +10,9 @@ load('ext://git_resource', 'git_checkout')
 license_key = os.getenv('LICENSE_KEY', "")
 namespace = os.getenv('NAMESPACE','default')
 sa_chart_values_file = os.getenv('SA_CHART_VALUES_FILE','local/agent-control-tilt.yml')
+# Region-specific values file (e.g., test/k8s-e2e/fleet-control/ac-values-fleet-control-staging.yml)
+# This file contains fleet_id, organization_id, and global.nrStaging settings for the specific region
+sa_chart_values_file_region = os.getenv('SA_CHART_VALUES_FILE_REGION', '')
 cluster = os.getenv('CLUSTER', "")
 # Branch of the helm-charts repo to use.
 feature_branch = os.getenv('FEATURE_BRANCH', "master")
@@ -19,7 +22,7 @@ enable_ac_remote_update = os.getenv('ENABLE_AC_REMOTE_UPDATE', "false")
 enable_cd_remote_update = os.getenv('ENABLE_CD_REMOTE_UPDATE', "false")
 
 # Enables basic auth in chartmuseum (for testing reasons)
-# 
+#
 chartmuseum_basic_auth = os.getenv('CHARTMUSEUM_BASIC_AUTH', "")
 
 # build_with options:
@@ -119,6 +122,11 @@ ac_flags = [
   '--set=agentControlDeployment.chartValues.image.imagePullPolicy=Always',
   '--values=' + sa_chart_values_file,
 ]
+
+# Add region-specific values file if provided
+# This file contains fleet_id, organization_id, and global.nrStaging for the specific region
+if sa_chart_values_file_region != '':
+  ac_flags.append('--values=' + sa_chart_values_file_region)
 
 ac_chart_deps = ['build-binary', 'local-child-chart-upload']
 

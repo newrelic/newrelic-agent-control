@@ -16,7 +16,7 @@ const PUBLIC_KEY_ENDPOINT_EU: &str =
 const PUBLIC_KEY_ENDPOINT_STAGING: &str =
     "https://staging-publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json";
 
-const OTLP_URL_STAGING: &str = "staging.otlp.nr-data.net";
+const OTLP_URL_STAGING: &str = "staging-otlp.nr-data.net";
 const OTLP_URL_EU: &str = "otlp.eu01.nr-data.net";
 const OTLP_URL_US: &str = "otlp.nr-data.net";
 
@@ -161,7 +161,7 @@ mod tests {
     #[rstest]
     #[case(Region::US, "https://otlp.nr-data.net:4317/")]
     #[case(Region::EU, "https://otlp.eu01.nr-data.net:4317/")]
-    #[case(Region::STAGING, "https://staging.otlp.nr-data.net:4317/")]
+    #[case(Region::STAGING, "https://staging-otlp.nr-data.net:4317/")]
     fn test_otel_endpoint(#[case] region: Region, #[case] expected_endpoint: &str) {
         assert_eq!(
             region.otel_endpoint().to_string(),
