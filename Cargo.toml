@@ -6,6 +6,7 @@ members = [
   "resource-detection",
   "fs",
   "wrapper_with_default",
+  "self-replacer",
   "test/e2e-runner",
 ]
 

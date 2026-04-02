@@ -14,6 +14,7 @@ can be found at <https://github.com/newrelic/newrelic-agent-control>.
 {% for dep, licenseObj in dependencies %}
 {%- if dep is matching("newrelic_agent_control") %}{% continue %}{% endif -%}
 {%- if dep is matching("resource-detection") %}{% continue %}{% endif -%}
+{%- if dep is matching("self-replacer") %}{% continue %}{% endif -%}
 {%- if dep is matching("fs") %}{% continue %}{% endif -%}
 {%- if dep is matching("config-migrate") %}{% continue %}{% endif -%}
 {%- if dep is matching("wrapper_with_default") %}{% continue %}{% endif -%}
