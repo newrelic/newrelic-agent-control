@@ -296,11 +296,9 @@ resource "newrelic_alert_policy" "alert_policy" {
   name = format("%s: %s", var.nr_region, each.key)
 }
 
-# Create notification destination for each instance
-resource "newrelic_notification_destination" "destination" {
-  for_each = local.instance_alerts
-
-  name = "SlackWebhook-${each.key}"
+# Create a single notification destination for all instances
+resource "newrelic_notification_destination" "slack_webhook" {
+  name = "SlackWebhook"
   type = "WEBHOOK"
 
   property {
@@ -315,7 +313,7 @@ resource "newrelic_notification_channel" "channel" {
 
   name           = each.key
   type           = "WEBHOOK"
-  destination_id = newrelic_notification_destination.destination[each.key].id
+  destination_id = newrelic_notification_destination.slack_webhook.id
   product        = "IINT"
 
   property {
