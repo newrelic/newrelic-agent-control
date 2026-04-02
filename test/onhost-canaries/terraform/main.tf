@@ -296,7 +296,7 @@ resource "newrelic_alert_policy" "alert_policy" {
   name = format("%s: %s", var.nr_region, each.key)
 }
 
-# Create notification destination (shared across all instances)
+# Create notification destination for each instance
 resource "newrelic_notification_destination" "destination" {
   for_each = local.instance_alerts
 

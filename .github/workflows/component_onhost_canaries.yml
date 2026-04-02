@@ -23,10 +23,6 @@ on:
         required: true
       AWS_VPC_SUBNET:
         required: true
-      AC_CANARY_WINDOWS_PASSWORD:
-        required: true
-      SLACK_WEBHOOK_URL:
-        required: true
 
     inputs:
       environment:
