@@ -288,6 +288,12 @@ output "inventory_file" {
   value       = local_file.ansible_inventory.filename
 }
 
+output "ansible_inventory_content" {
+  description = "Ansible inventory file content (generated from Terraform state)"
+  value       = local_file.ansible_inventory.content
+  sensitive   = true
+}
+
 
 # Create alert policy for each instance
 resource "newrelic_alert_policy" "alert_policy" {

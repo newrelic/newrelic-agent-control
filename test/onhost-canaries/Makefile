@@ -95,10 +95,6 @@ test/onhost-canaries/infra-apply:
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
 	terraform -chdir=$(ONHOST_TF_DIR) apply -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
-	@echo "Uploading inventory file to S3..."
-	@aws s3 cp $(ONHOST_TF_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT) \
-		s3://agent-control-terraform-states/foundations/inventory-onhost-$(ENVIRONMENT).ini
-	@echo "✓ Inventory file uploaded to S3"
 
 .PHONY: test/onhost-canaries/infra-destroy
 test/onhost-canaries/infra-destroy:
@@ -109,18 +105,16 @@ test/onhost-canaries/infra-destroy:
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
 	terraform -chdir=$(ONHOST_TF_DIR) destroy -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
-	@echo "Removing inventory file from S3..."
-	@aws s3 rm s3://agent-control-terraform-states/foundations/inventory-onhost-$(ENVIRONMENT).ini || true
-	@echo "✓ Inventory file removed from S3"
 
 .PHONY: test/onhost-canaries/ansible-install
 test/onhost-canaries/ansible-install:
 	@$(call check_env_vars_install)
-	@echo "Downloading inventory file from S3..."
+	@echo "Generating inventory from Terraform state..."
+	@terraform -chdir=$(ONHOST_TF_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf
 	@mkdir -p $(ONHOST_TF_DIR)/environments/$(ENVIRONMENT)
-	@aws s3 cp s3://agent-control-terraform-states/foundations/inventory-onhost-$(ENVIRONMENT).ini \
+	@terraform -chdir=$(ONHOST_TF_DIR) output -raw ansible_inventory_content > \
 		$(ONHOST_TF_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT)
-	@echo "✓ Inventory file downloaded from S3"
+	@echo "✓ Inventory file generated from Terraform state"
 	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ONHOST_ANSIBLE_FOLDER) ANSIBLE_ENV_SCRIPT=$(ONHOST_ANSIBLE_FOLDER)/set_ansible_env.sh
 	@echo "Running Ansible playbook for environment: $(ENVIRONMENT)"
 	@INVENTORY_FILE=$(ONHOST_TF_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT) && \
