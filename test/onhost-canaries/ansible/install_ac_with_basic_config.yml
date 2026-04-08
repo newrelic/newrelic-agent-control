@@ -13,116 +13,116 @@
 
   tasks:
 
-  - name: Wait for host connection
-    ansible.builtin.wait_for_connection:
-      delay: 10
-      timeout: 300
+    - name: Wait for host connection
+      ansible.builtin.wait_for_connection:
+        delay: 10
+        timeout: 300
 
-  - name: Gather facts
-    setup:
+    - name: Gather facts
+      setup:
 
-  - name: Configure hostname
-    include_role:
-      name: caos.ansible_roles.hostname
+    - name: Configure hostname
+      include_role:
+        name: caos.ansible_roles.hostname
 
-  - name: Set infra version matching an existing one in the Github oci package repo
-    ansible.builtin.set_fact:
-      infra_version: "1.72.1"
+    - name: Set infra version matching an existing one in the Github oci package repo
+      ansible.builtin.set_fact:
+        infra_version: "1.72.1"
 
-  - name: Install Agent Control
-    vars:
-      repo_endpoint: "{{ repo_endpoint }}"
-      package_version: "{{ package_version }}"
-    include_role:
-      name: newrelic-agent-control
+    - name: Install Agent Control
+      vars:
+        repo_endpoint: "{{ repo_endpoint }}"
+        package_version: "{{ package_version }}"
+      include_role:
+        name: newrelic-agent-control
 
-  - name: Register agent control version
-    command: "/usr/bin/newrelic-agent-control version"
-    register: version
+    - name: Register agent control version
+      command: "/usr/bin/newrelic-agent-control version"
+      register: version
 
-  - name: Debug agent control version
-    debug:
-      var: version.stdout
+    - name: Debug agent control version
+      debug:
+        var: version.stdout
 
-  - name: Import the L2 private key from env-var
-    copy:
-      dest: "{{ agent_control_private_key }}"
-      # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
-      content: "{{ lookup('ansible.builtin.env', 'NR_SYSTEM_IDENTITY_PRIVATE_KEY') }}"
+    - name: Import the L2 private key from env-var
+      copy:
+        dest: "{{ agent_control_private_key }}"
+        # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
+        content: "{{ lookup('ansible.builtin.env', 'NR_SYSTEM_IDENTITY_PRIVATE_KEY') }}"
 
-  - name: Setup AC config
-    include_role:
-      name: edit_yaml_config
-    vars:
-      config_path: "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml"
-      update_config:
-        fleet_control:
-          auth_config:
-            client_id: "{{ system_identity_client_id }}"
-            private_key_path: "{{ agent_control_private_key }}"
-            provider: local
-            token_url: "{{ token_endpoint }}"
-          endpoint: "{{ opamp_endpoint }}"
-          fleet_id: "{{ fleet_id }}"
-          signature_validation:
-            public_key_server_url: "{{ signature_validation_endpoint }}"
-        log:
-          level: debug
-        self_instrumentation:
-          opentelemetry:
-            endpoint: "{{ otlp_endpoint }}"
-            headers:
-              api-key: "{{ nr_license_key }}"
-            traces:
-              enabled: true
-            logs:
-              enabled: true
-        agents:
-          infra:
-            agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+    - name: Setup AC config
+      include_role:
+        name: edit_yaml_config
+      vars:
+        config_path: "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml"
+        update_config:
+          fleet_control:
+            auth_config:
+              client_id: "{{ system_identity_client_id }}"
+              private_key_path: "{{ agent_control_private_key }}"
+              provider: local
+              token_url: "{{ token_endpoint }}"
+            endpoint: "{{ opamp_endpoint }}"
+            fleet_id: "{{ fleet_id }}"
+            signature_validation:
+              public_key_server_url: "{{ signature_validation_endpoint }}"
+          log:
+            level: debug
+          self_instrumentation:
+            opentelemetry:
+              endpoint: "{{ otlp_endpoint }}"
+              headers:
+                api-key: "{{ nr_license_key }}"
+              traces:
+                enabled: true
+              logs:
+                enabled: true
+          agents:
+            infra:
+              agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
 
-  - name: Infra Agent config folder
-    file:
-      path: /etc/newrelic-agent-control/local-data/infra/
-      state: directory
+    - name: Infra Agent config folder
+      file:
+        path: /etc/newrelic-agent-control/local-data/infra/
+        state: directory
 
-  - name: Infra Agent config file
-    copy:
-      dest: /etc/newrelic-agent-control/local-data/infra/local_config.yaml
-      content: |
-        {% raw %}
-        config_agent:
-          staging: {% endraw -%} {{ infra_staging }} {%- raw %}
-          enable_process_metrics: true
-          status_server_enabled: true
-          status_server_port: 18003
-          license_key: '{{NEW_RELIC_LICENSE_KEY}}'
-        version: {% endraw -%} {{ infra_version }} {%- raw %}
-        {% endraw %}
+    - name: Infra Agent config file
+      copy:
+        dest: /etc/newrelic-agent-control/local-data/infra/local_config.yaml
+        content: |
+          {% raw %}
+          config_agent:
+            staging: {% endraw -%} {{ infra_staging }} {%- raw %}
+            enable_process_metrics: true
+            status_server_enabled: true
+            status_server_port: 18003
+            license_key: '{{NEW_RELIC_LICENSE_KEY}}'
+          version: {% endraw -%} {{ infra_version }} {%- raw %}
+          {% endraw %}
 
-  - name: Env file
-    copy:
-      dest: /etc/newrelic-agent-control/environment_variables.yaml
-      content: |
-        NEW_RELIC_LICENSE_KEY: "{{ nr_license_key }}"
+    - name: Env file
+      copy:
+        dest: /etc/newrelic-agent-control/environment_variables.yaml
+        content: |
+          NEW_RELIC_LICENSE_KEY: "{{ nr_license_key }}"
 
-  - name: Restart Agent Control
-    include_role:
-      name: caos.ansible_roles.service_status
-    vars:
-      service_name: "newrelic-agent-control"
-      action: "restart"
+    - name: Restart Agent Control
+      include_role:
+        name: caos.ansible_roles.service_status
+      vars:
+        service_name: "newrelic-agent-control"
+        action: "restart"
 
-  - name: Wait for Infra Agent to start and download infra-agent
-    pause:
-      seconds: 60
+    - name: Wait for Infra Agent to start and download infra-agent
+      pause:
+        seconds: 60
 
-  - name: Assert Agent Control and Infra Agent are running
-    include_role:
-      name: caos.ansible_roles.assert_process_running
-    vars:
-      processes_running:
-        - "^/usr/bin/newrelic-agent-control"
+    - name: Assert Agent Control and Infra Agent are running
+      include_role:
+        name: caos.ansible_roles.assert_process_running
+      vars:
+        processes_running:
+          - "^/usr/bin/newrelic-agent-control"
 
 - name: installation-windows
   hosts: testing_hosts_windows
@@ -143,21 +143,21 @@
       include_role:
         name: caos.ansible_roles.hostname
 
-#    At the moment there is no publishing of the last infra-agent package to a public repository, and we use the Github
-#    package repository that can't be on constant sync with the latest infra-agent version.
-#    We may use this commented code to gather the latest infra-agent version once Fleet creates an infra-agent oci repo
-#    and the agent-type points to it.
-#
-#    - name: Get Infra Agent release info from GitHub API
-#      ansible.windows.win_uri:
-#        url: https://api.github.com/repos/newrelic/infrastructure-agent/releases/latest
-#        method: GET
-#        return_content: yes
-#      register: github_api_response
-#
-#    - name: Extract version from API response
-#      ansible.builtin.set_fact:
-#        infra_version: "v{{ github_api_response.json.tag_name }}"
+    #    At the moment there is no publishing of the last infra-agent package to a public repository, and we use the Github
+    #    package repository that can't be on constant sync with the latest infra-agent version.
+    #    We may use this commented code to gather the latest infra-agent version once Fleet creates an infra-agent oci repo
+    #    and the agent-type points to it.
+    #
+    #    - name: Get Infra Agent release info from GitHub API
+    #      ansible.windows.win_uri:
+    #        url: https://api.github.com/repos/newrelic/infrastructure-agent/releases/latest
+    #        method: GET
+    #        return_content: yes
+    #      register: github_api_response
+    #
+    #    - name: Extract version from API response
+    #      ansible.builtin.set_fact:
+    #        infra_version: "v{{ github_api_response.json.tag_name }}"
 
     - name: Set infra version matching an existing one in the Github oci package repo
       ansible.builtin.set_fact:
