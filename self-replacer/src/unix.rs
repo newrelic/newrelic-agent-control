@@ -163,7 +163,6 @@ fn create_temp_file(
 
     let temp_file = tempfile::Builder::new()
         .prefix(&prefix)
-        .permissions(permissions.clone())
         .tempfile_in(parent_dir)
         .map_err(Error::TempCopyFailed)?;
 
@@ -173,6 +172,10 @@ fn create_temp_file(
         temp_file.path().display()
     );
     fs::copy(new_bin, temp_file.path()).map_err(Error::TempCopyFailed)?;
+
+    // Restore original permissions (fs::copy overwrites them with source file's permissions)
+    fs::set_permissions(temp_file.path(), permissions.clone()).map_err(Error::TempCopyFailed)?;
+
     debug!("temp file created at: {}", temp_file.path().display());
 
     Ok(temp_file)
@@ -251,15 +254,34 @@ mod tests {
     #[test]
     fn test_permission_preservation() {
         let temp_dir = TempDir::new().unwrap();
-        let test_file = temp_dir.path().join("test_binary");
+        let current_exe = temp_dir.path().join("current_binary");
+        let new_bin = temp_dir.path().join("new_binary");
 
-        fs::write(&test_file, b"").unwrap();
-
-        let mut perms = fs::metadata(&test_file).unwrap().permissions();
+        // Create current binary with specific permissions (0o755)
+        fs::write(&current_exe, b"old binary").unwrap();
+        let mut perms = fs::metadata(&current_exe).unwrap().permissions();
         perms.set_mode(0o755);
-        fs::set_permissions(&test_file, perms).unwrap();
+        fs::set_permissions(&current_exe, perms).unwrap();
 
-        let metadata = fs::metadata(&test_file).unwrap();
-        assert_eq!(metadata.permissions().mode() & 0o777, 0o755);
+        // Create new binary with DIFFERENT permissions (0o644)
+        fs::write(&new_bin, b"new binary").unwrap();
+        let mut new_perms = fs::metadata(&new_bin).unwrap().permissions();
+        new_perms.set_mode(0o644);
+        fs::set_permissions(&new_bin, new_perms).unwrap();
+
+        // Call the create_temp_file module function to test the permissions
+        let original_permissions = fs::metadata(&current_exe).unwrap().permissions();
+        let temp_file = create_temp_file(&current_exe, &new_bin, &original_permissions).unwrap();
+
+        // Verify permissions are preserved from ORIGINAL (0o755), not from new binary (0o644)
+        let temp_metadata = fs::metadata(temp_file.path()).unwrap();
+        assert_eq!(
+            temp_metadata.permissions().mode() & 0o777,
+            0o755,
+            "Temp file should have original binary's permissions, not new binary's"
+        );
+
+        // Verify content is from new binary
+        assert_eq!(fs::read(temp_file.path()).unwrap(), b"new binary");
     }
 }
