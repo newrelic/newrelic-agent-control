@@ -31,9 +31,6 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
-
 jobs:
   infra:
     name: Canaries infrastructure ${{ inputs.operation }}
