@@ -17,7 +17,10 @@ use crate::{
             error::CliError,
             proxy_config::ProxyConfig,
             region::{Region, region_parser},
-            system_identity::{SystemIdentityArgs, SystemIdentitySpec, provide_identity},
+            system_identity::{
+                ProvisioningMethod, SystemIdentityArgs, SystemIdentityData, SystemIdentitySpec,
+                provide_identity,
+            },
         },
         k8s::{errors::K8sCliError, utils::try_new_k8s_client},
     },
@@ -94,7 +97,7 @@ fn provide_system_identity_secret<F>(
 ) -> Result<(), K8sCliError>
 where
     F: Fn(
-        &SystemIdentitySpec,
+        &ProvisioningMethod,
         Region,
         Option<ProxyConfig>,
         PublicKeyHolder,
@@ -124,11 +127,22 @@ where
         ))
     })?;
     let pk_holder = PublicKeyHolder { public_key };
+    let SystemIdentityData::Provision(provisioning_method) = &spec.identity.system_identity_data
+    else {
+        return Err(K8sCliError::Generic(
+            "existing identity is not supported in the k8s cli".to_string(),
+        ));
+    };
 
-    let client_id = provide_identity_fn(&spec.identity, spec.region, spec.proxy_config, pk_holder)
-        .map_err(|err| {
-            K8sCliError::Generic(format!("failure registering the System Identity: {err}"))
-        })?;
+    let client_id = provide_identity_fn(
+        provisioning_method,
+        spec.region,
+        spec.proxy_config,
+        pk_holder,
+    )
+    .map_err(|err| {
+        K8sCliError::Generic(format!("failure registering the System Identity: {err}"))
+    })?;
 
     let private_key = String::from_utf8(private_key).map_err(|err| {
         K8sCliError::Generic(format!(
@@ -216,9 +230,13 @@ mod tests {
                 secret_name: "test-secret".to_string(),
                 region: Region::US,
                 identity: SystemIdentitySpec {
-                    method: ProvisioningMethod::ExistingIdentity {
-                        auth_client_id: "test-client-id".to_string(),
-                    },
+                    system_identity_data: SystemIdentityData::Provision(
+                        ProvisioningMethod::ParentSecret {
+                            secret: "secret".to_string(),
+                            parent_client_id: "parent_client_id".to_string(),
+                            organization_id: "org_id".to_string(),
+                        },
+                    ),
                     private_key_path: PathBuf::from("/test/key"),
                 },
                 proxy_config: None,

@@ -66,11 +66,25 @@ pub struct SystemIdentityArgs {
     pub organization_id: String,
 }
 
+/// Valid data to create a SystemIdentity, represent [SystemIdentityArgs] after validation.
+#[derive(Debug)]
+pub struct SystemIdentitySpec {
+    pub system_identity_data: SystemIdentityData,
+    pub private_key_path: PathBuf,
+}
+
+/// Defines whereas a SystemIdentity already exists or needs to be provisioned
+#[derive(Debug)]
+pub enum SystemIdentityData {
+    /// The Identity already exists
+    Existing { auth_client_id: String },
+    /// The identity needs to be provisioned
+    Provision(ProvisioningMethod),
+}
+
+/// Defines the supported provisioning methods System Identities
 #[derive(Debug)]
 pub enum ProvisioningMethod {
-    ExistingIdentity {
-        auth_client_id: String,
-    },
     ParentToken {
         token: String,
         organization_id: String,
@@ -80,13 +94,6 @@ pub enum ProvisioningMethod {
         parent_client_id: String,
         organization_id: String,
     },
-}
-
-/// Valid data to create a SystemIdentity, represent [SystemIdentityArgs] after validation.
-#[derive(Debug)]
-pub struct SystemIdentitySpec {
-    pub method: ProvisioningMethod,
-    pub private_key_path: PathBuf,
 }
 
 impl SystemIdentityArgs {
@@ -101,42 +108,49 @@ impl SystemIdentityArgs {
             })?
             .clone();
 
-        let method = self.resolve_provisioning_method(&private_key_path)?;
+        let system_identity_data = self.resolve_provisioning_method(&private_key_path)?;
 
         Ok(SystemIdentitySpec {
-            method,
+            system_identity_data,
             private_key_path,
         })
     }
 
-    fn resolve_provisioning_method(self, key_path: &Path) -> Result<ProvisioningMethod, String> {
+    fn resolve_provisioning_method(
+        self,
+        private_key_path: &Path,
+    ) -> Result<SystemIdentityData, String> {
         if !self.auth_client_id.is_empty() {
-            if !key_path.exists() {
+            if !private_key_path.exists() {
                 return Err(
                     "when 'auth_client_id' is provided the 'auth_private_key_path' must also be provided and exist"
                         .to_string(),
                 );
             }
-            return Ok(ProvisioningMethod::ExistingIdentity {
+            return Ok(SystemIdentityData::Existing {
                 auth_client_id: self.auth_client_id,
             });
         }
 
         if !self.auth_parent_token.is_empty() {
             self.require_org_and_parent_id("token based")?;
-            return Ok(ProvisioningMethod::ParentToken {
-                token: self.auth_parent_token,
-                organization_id: self.organization_id,
-            });
+            return Ok(SystemIdentityData::Provision(
+                ProvisioningMethod::ParentToken {
+                    token: self.auth_parent_token,
+                    organization_id: self.organization_id,
+                },
+            ));
         }
 
         if !self.auth_parent_client_secret.is_empty() {
             self.require_org_and_parent_id("client-secret based")?;
-            return Ok(ProvisioningMethod::ParentSecret {
-                secret: self.auth_parent_client_secret,
-                parent_client_id: self.auth_parent_client_id,
-                organization_id: self.organization_id,
-            });
+            return Ok(SystemIdentityData::Provision(
+                ProvisioningMethod::ParentSecret {
+                    secret: self.auth_parent_client_secret,
+                    parent_client_id: self.auth_parent_client_id,
+                    organization_id: self.organization_id,
+                },
+            ));
         }
 
         Err(
@@ -157,27 +171,23 @@ impl SystemIdentityArgs {
 
 /// Provides a key-based identity considering the supplied args. It returns the corresponding **client_id** as a String.
 pub fn provide_identity(
-    identity_input: &SystemIdentitySpec,
+    method: &ProvisioningMethod,
     region: Region,
     proxy_config: Option<ProxyConfig>,
     key_creator: impl Creator,
 ) -> Result<String, CliError> {
     let environment = NewRelicEnvironment::from(region);
-    build_identity(identity_input, environment, proxy_config, key_creator)
+    build_identity(method, environment, proxy_config, key_creator)
 }
 
 /// Helper to allow injecting testing urls when building the identity.
 fn build_identity(
-    identity_input: &SystemIdentitySpec,
+    method: &ProvisioningMethod,
     environment: NewRelicEnvironment,
     proxy_config: Option<ProxyConfig>,
     key_creator: impl Creator,
 ) -> Result<String, CliError> {
-    match &identity_input.method {
-        ProvisioningMethod::ExistingIdentity { auth_client_id } => {
-            info!("Using provided System Identity");
-            Ok(auth_client_id.to_string())
-        }
+    match &method {
         ProvisioningMethod::ParentToken {
             token,
             organization_id,
@@ -407,18 +417,9 @@ pub mod tests {
     }
 
     #[test]
-    fn test_build_identity_already_provided() {
+    fn test_identity_already_provided() {
         let tempdir = TempDir::new().unwrap();
         let auth_private_key_path = tempdir.path().join("private-key");
-        // Expect no request because the identity was already provided
-        let environment = NewRelicEnvironment::Custom {
-            token_renewal_endpoint: "https://should-not-call.this"
-                .parse()
-                .expect("url should be valid"),
-            system_identity_creation_uri: "https://should-not-call.this"
-                .parse()
-                .expect("url should be valid"),
-        };
         // Key file must exist when using ExistingIdentity
         fs::write(&auth_private_key_path, "").unwrap();
         let identity_args = SystemIdentityArgs {
@@ -428,12 +429,9 @@ pub mod tests {
         };
         let identity_data = identity_args.validate().expect("validation should succeed");
 
-        let mut creator_mock = MockCreator::new();
-        creator_mock.expect_create().never();
-
-        let client_id = build_identity(&identity_data, environment, None, creator_mock)
-            .expect("no error expected");
-        assert_eq!(client_id, "provided_client_id".to_string());
+        assert_matches!(identity_data.system_identity_data, SystemIdentityData::Existing { auth_client_id } => {
+            assert_eq!(auth_client_id, "provided_client_id".to_string());
+        });
     }
 
     #[test]
@@ -470,12 +468,15 @@ pub mod tests {
         };
 
         let creator_mock = MockCreator::expecting_create_ok();
-        let identity_data = identity_args.validate().expect("validation should succeed");
-        let client_id = build_identity(&identity_data, environment, None, creator_mock)
+        let identity_spec = identity_args.validate().expect("validation should succeed");
+
+        assert_matches!(identity_spec.system_identity_data, SystemIdentityData::Provision(method) => {
+        let client_id = build_identity(&method, environment, None, creator_mock)
             .expect("no error expected");
+            assert_eq!(client_id, "created_client_id".to_string());
+        });
 
         identity_mock.assert_calls(1);
-        assert_eq!(client_id, "created_client_id".to_string());
     }
 
     #[test]
@@ -520,13 +521,15 @@ pub mod tests {
         };
 
         let creator_mock = MockCreator::expecting_create_ok();
-        let identity_data = identity_args.validate().expect("validation should succeed");
-        let client_id = build_identity(&identity_data, environment, None, creator_mock)
+        let identity_spec = identity_args.validate().expect("validation should succeed");
+        assert_matches!(identity_spec.system_identity_data, SystemIdentityData::Provision(method) => {
+        let client_id = build_identity(&method, environment, None, creator_mock)
             .expect("no error expected");
+            assert_eq!(client_id, "created_client_id".to_string());
+        });
 
         identity_mock.assert_calls(1);
         token_mock.assert_calls(1);
-        assert_eq!(client_id, "created_client_id".to_string());
     }
 
     fn token_body(token: &str) -> String {

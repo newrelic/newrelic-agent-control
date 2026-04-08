@@ -4,7 +4,10 @@ use crate::cli::{
         error::CliError,
         proxy_config::ProxyConfig,
         region::{Region, region_parser},
-        system_identity::{SystemIdentityArgs, SystemIdentitySpec, provide_identity},
+        system_identity::{
+            ProvisioningMethod, SystemIdentityArgs, SystemIdentityData, SystemIdentitySpec,
+            provide_identity,
+        },
     },
     on_host::config_gen::config::{
         AuthConfig, Config, FleetControl, LogConfig, Server, SignatureValidation,
@@ -192,7 +195,7 @@ fn generate_config_and_system_identity<F>(
 ) -> Result<String, CliError>
 where
     F: Fn(
-        &SystemIdentitySpec,
+        &ProvisioningMethod,
         Region,
         Option<ProxyConfig>,
         LocalCreator,
@@ -200,18 +203,24 @@ where
 {
     let fleet_control = match &params.fleet {
         FleetParams::FleetDisabled => None,
-        FleetParams::FleetEnabled { fleet_id, identity } => {
+        FleetParams::FleetEnabled {
+            fleet_id,
+            identity: identity_spec,
+        } => {
             let key_creator = LocalCreator::from(KeyPairGeneratorLocalConfig {
                 key_type: KeyType::Rsa4096,
-                file_path: identity.private_key_path.clone(),
+                file_path: identity_spec.private_key_path.clone(),
             });
 
-            let client_id = provide_identity_fn(
-                identity,
-                params.region,
-                params.proxy_config.clone(),
-                key_creator,
-            )?;
+            let client_id = match &identity_spec.system_identity_data {
+                SystemIdentityData::Existing { auth_client_id } => auth_client_id.to_string(),
+                SystemIdentityData::Provision(provisioning_method) => provide_identity_fn(
+                    provisioning_method,
+                    params.region,
+                    params.proxy_config.clone(),
+                    key_creator,
+                )?,
+            };
 
             Some(FleetControl {
                 endpoint: params.region.opamp_endpoint().to_string(),
@@ -223,7 +232,7 @@ where
                     token_url: params.region.token_renewal_endpoint().to_string(),
                     client_id,
                     provider: "local".to_string(),
-                    private_key_path: identity.private_key_path.to_string_lossy().to_string(),
+                    private_key_path: identity_spec.private_key_path.to_string_lossy().to_string(),
                 },
             })
         }
@@ -400,7 +409,7 @@ mod tests {
     }
 
     fn identity_provider_mock(
-        _: &SystemIdentitySpec,
+        _: &ProvisioningMethod,
         _: Region,
         _: Option<ProxyConfig>,
         _: LocalCreator,
@@ -419,11 +428,13 @@ mod tests {
             FleetParams::FleetEnabled {
                 fleet_id: "test-fleet-id".to_string(),
                 identity: SystemIdentitySpec {
-                    method: ProvisioningMethod::ParentSecret {
-                        secret: "parent-client-secret".to_string(),
-                        parent_client_id: "parent-client-id".to_string(),
-                        organization_id: "test-org-id".to_string(),
-                    },
+                    system_identity_data: SystemIdentityData::Provision(
+                        ProvisioningMethod::ParentSecret {
+                            secret: "parent-client-secret".to_string(),
+                            parent_client_id: "parent-client-id".to_string(),
+                            organization_id: "test-org-id".to_string(),
+                        },
+                    ),
                     private_key_path: PathBuf::from("/path/to/key"),
                 },
             }
