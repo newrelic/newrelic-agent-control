@@ -57,8 +57,8 @@ impl SelfReplacer for UnixSelfReplacer {
     fn self_replace(new_bin: impl AsRef<Path>) -> Result<(), Self::Error> {
         let new_bin = new_bin.as_ref();
         debug!(
-            "starting self-replacement with new binary: {}",
-            new_bin.display()
+            new_bin = %new_bin.display(),
+            "Starting binary self-replacement",
         );
 
         if !new_bin.exists() {
@@ -68,16 +68,25 @@ impl SelfReplacer for UnixSelfReplacer {
         let current_exe = std::env::current_exe()
             .and_then(|p| p.canonicalize())
             .map_err(Error::CurrentExeNotFound)?;
-        debug!("current executable path: {}", current_exe.display());
+        debug!(
+            current_exe = %current_exe.display(),
+            "Current executable path",
+        );
 
         let original_metadata = current_exe.metadata().map_err(Error::Metadata)?;
         let original_permissions = original_metadata.permissions();
 
         let backup_path = create_backup(&current_exe)?;
-        debug!("backup created at: {}", backup_path.display());
+        debug!(
+            backup_path = %backup_path.display(),
+            "Backup created",
+        );
 
         let temp_file = create_temp_file(&current_exe, new_bin, &original_permissions)?;
-        debug!("temporary file created at: {}", temp_file.path().display());
+        debug!(
+            temp_file = %temp_file.path().display(),
+            "Temporary file created",
+        );
 
         // Convert to TempPath for automatic cleanup on error
         let temp_path = temp_file.into_temp_path();
@@ -85,9 +94,9 @@ impl SelfReplacer for UnixSelfReplacer {
         // Atomically rename temporary file to replace current binary
         // On Unix, rename() is atomic within the same filesystem
         debug!(
-            "performing atomic rename: {} -> {}",
-            temp_path.display(),
-            current_exe.display()
+            temp_path = %temp_path.display(),
+            current_exe = %current_exe.display(),
+            "Performing atomic rename",
         );
         match fs::rename(&temp_path, &current_exe) {
             Ok(()) => {
@@ -95,11 +104,10 @@ impl SelfReplacer for UnixSelfReplacer {
                 Ok(())
             }
             Err(e) => {
-                debug!("rename failed: {}, attempting rollback from backup", e);
+                debug!(error = %e, "Rename failed, attempting rollback from backup");
                 // Replacement failed, attempt to restore from backup
                 // temp_path will auto-delete on drop
                 if let Err(restore_err) = fs::rename(&backup_path, &current_exe) {
-                    debug!("backup restoration failed: {}", restore_err);
                     return Err(Error::BackupRestoreFailed(restore_err));
                 }
 
