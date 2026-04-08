@@ -3,6 +3,10 @@
 //! This module provides atomic binary replacement for Unix-like systems using
 //! the `rename()` system call, which is atomic within the same filesystem.
 //!
+//! Because we want an atomic rename, we need to create a temp file in the current exe folder.
+//! We are using 2 different filesystems for the downloaded binary and the executable /usr/bin/
+//! and /var/lib/, and then the rename is not atomic and can leave a corrupted state.
+//!
 //! The implementation:
 //! 1. Creates a backup of the current binary
 //! 2. Creates a temporary file in the same directory as the current binary
