@@ -23,13 +23,14 @@ Notice that we don't have root modules. We have a `main.tf` and `backend.tf` in 
 That is because we manage different environments with configuration files stored under `environments/{{ env name }}`.
 For instance, `environments/production` contains the different variables required to launch the production canaries.
 
-That has a little inconvenient, `terraform init` will fail because the state changed. Hence, we need to use `terraform init -reconfigure`.
+That has a little inconvenient, `terraform init` will fail because the state changed. Hence, we need to use
+`terraform init -reconfigure`.
 
 ## Local Usage
 
 1. Get AWS access for terminal
 
-    Log-in to the aws cli and export the AWS_PROFILE env variable for terraform to have access.
+   Log-in to the aws cli and export the AWS_PROFILE env variable for terraform to have access.
 
     ```bash
     aws sso login --profile "profile name"
@@ -38,26 +39,54 @@ That has a little inconvenient, `terraform init` will fail because the state cha
 
 2. Prepare S3 and DynamodDB for terraform states
 
-    Follow the instructions in [states_setup](../terraform/states_setup/README.md) in order to create the S3 bucket and DynamoDB used to save the terraform states for the canaries.
+   Follow the instructions in [states_setup](../terraform/states_setup/README.md) in order to create the S3 bucket and
+   DynamoDB used to save the terraform states for the canaries.
 
 3. Configure the SSH key
 
-    You need to have `~/.ssh/caos-dev-arm.cer`. You can get it from AWS Secrets Manager.
+   You need to have `~/.ssh/caos-dev-arm.cer`. You can get it from AWS Secrets Manager.
 
 4. Create canaries
 
-    To select to which "environment" should the canaries send the information to, use the `ENVIRONMENT` environment variable with "staging" or "production".
-    To set the agent-control "package version" to install, use the `PACKAGE_VERSION` environment variable, if not set it will use latest.
+   To select to which "environment" should the canaries send the information to, use the `ENVIRONMENT` environment
+   variable with "staging" or "production".
+   To set the agent-control "package version" to install, use the `PACKAGE_VERSION` environment variable, if not set it
+   will use latest.
 
     ```bash
     ENVIRONMENT=staging NR_LICENSE_KEY=xxx NR_SYSTEM_IDENTITY_CLIENT_ID=xxx NR_SYSTEM_IDENTITY_PRIVATE_KEY=xxx NEW_RELIC_ACCOUNT_ID=xxx NEW_RELIC_API_KEY=xxx SLACK_WEBHOOK_URL=xxx PACKAGE_VERSION=x.x.x make test/onhost-canaries/terraform-apply
     ```
 
-That's it. If you want to create another set of canaries, just create a new folder under `environments` and populate the config files.
-Apart from `terraform-plan` and `terraform-apply` make targets, we also have `terraform-destroy` in case we need to remove the canaries. 
+That's it. If you want to create another set of canaries, just create a new folder under `environments` and populate the
+config files.
+Apart from `terraform-plan` and `terraform-apply` make targets, we also have `terraform-destroy` in case we need to
+remove the canaries.
 
 ## Usage on pipelines
 
-In that case, we will use fargate runner to execute make targets. The commands will be very similar, but remember that secrets come from AWS. It will also add the ssh key into the instance.
+In that case, we will use fargate runner to execute make targets. The commands will be very similar, but remember that
+secrets come from AWS. It will also add the ssh key into the instance.
 
 Check out [component_onhost_canaries.yml](/.github/workflows/component_onhost_canaries.yml) to see real world examples.
+
+## Environments
+
+We maintain two separate canary environments:
+
+### Staging Environment
+
+- **Purpose**: Testing nightly builds
+- **Package Source**: Points to the **testing bucket**
+- **Package Format**: Nightly packages with version format `0.100.*`
+- **Use Case**: Continuous validation of daily builds before they reach pre-release
+
+### Production Environment
+
+- **Purpose**: Validation of release candidates
+- **Package Source**: Points to the **staging bucket**
+- **Package Version**: Latest pre-release version
+- **Use Case**: Final validation before promoting packages to general availability
+
+Both environments run the same canary test suite but against different package sources to provide coverage across the
+release pipeline.
+
