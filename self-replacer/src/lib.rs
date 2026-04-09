@@ -11,8 +11,6 @@ mod unix;
 #[cfg(unix)]
 pub use unix::UnixSelfReplacer;
 
-#[cfg(unix)]
-// TODO: this constant should also be used in Windows
 const BACKUP_SUFIX: &str = "bak";
 
 /// Trait for platform-specific binary self-replacement.
