@@ -28,7 +28,7 @@
 use std::fs::rename;
 use std::io;
 use std::path::{Path, PathBuf};
-use tracing::error;
+use tracing::{debug, error};
 
 use super::SelfReplacer;
 
@@ -36,6 +36,9 @@ use super::SelfReplacer;
 pub enum ReplaceError {
     #[error("could not determine current executable path: {0}")]
     CurrentExe(#[source] io::Error),
+
+    #[error("failed to canonicalize current executable path: {0}")]
+    Canonicalize(#[source] io::Error),
 
     #[error("new binary does not exist at path: {0}")]
     NewBinMissing(String),
@@ -56,8 +59,19 @@ pub struct WindowsSelfReplacer;
 impl SelfReplacer for WindowsSelfReplacer {
     type Error = ReplaceError;
 
-    fn self_replace(&self, new_bin: impl AsRef<Path>) -> Result<(), ReplaceError> {
-        let current_exe = std::env::current_exe().map_err(ReplaceError::CurrentExe)?;
+    fn self_replace(new_bin: impl AsRef<Path>) -> Result<(), ReplaceError> {
+        let raw_current_exe = std::env::current_exe().map_err(ReplaceError::CurrentExe)?;
+        let current_exe = raw_current_exe
+            .canonicalize()
+            .map_err(ReplaceError::CurrentExe)?;
+
+        debug!(
+            raw_path = %raw_current_exe.display(),
+            canonical_path = %current_exe.display(),
+            new_bin = %new_bin.as_ref().display(),
+            "Starting self-replacement"
+        );
+
         replace_binary(&current_exe, new_bin.as_ref())
     }
 }
@@ -65,8 +79,20 @@ impl SelfReplacer for WindowsSelfReplacer {
 fn replace_binary(current_exe: &Path, new_bin: &Path) -> Result<(), ReplaceError> {
     let backup = backup_path(current_exe);
 
+    debug!(
+        current_exe = %current_exe.display(),
+        backup = %backup.display(),
+        "Moving current binary to backup"
+    );
+
     // Rename will replace the backup if it already exists.
     rename(current_exe, &backup).map_err(ReplaceError::Backup)?;
+
+    debug!(
+        new_bin = %new_bin.display(),
+        current_exe = %current_exe.display(),
+        "Replacing with new binary"
+    );
 
     if let Err(err) = rename(new_bin, current_exe) {
         error!(
@@ -89,6 +115,12 @@ fn replace_binary(current_exe: &Path, new_bin: &Path) -> Result<(), ReplaceError
             ReplaceError::Replace(err)
         });
     }
+
+    debug!(
+        current_exe = %current_exe.display(),
+        backup = %backup.display(),
+        "Binary replacement completed successfully"
+    );
 
     Ok(())
 }
