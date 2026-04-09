@@ -7,3 +7,18 @@ edition.workspace = true
 publish.workspace = true
 rust-version.workspace = true
 license-file.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+assert_matches = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dev-dependencies]
+windows = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+] }
