@@ -73,7 +73,7 @@ pub struct SystemIdentitySpec {
     pub private_key_path: PathBuf,
 }
 
-/// Defines wether a SystemIdentity already exists or needs to be provisioned
+/// Defines whether a SystemIdentity already exists or needs to be provisioned
 #[derive(Debug)]
 pub enum SystemIdentityData {
     /// The Identity already exists
