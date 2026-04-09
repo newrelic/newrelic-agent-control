@@ -2,6 +2,7 @@ use super::agent_id::AgentID;
 use super::http_server::config::ServerConfig;
 use super::uptime_report::UptimeReportConfig;
 use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
+use crate::agent_type::runtime_config::on_host::package::PackageID;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
@@ -41,6 +42,10 @@ pub struct AgentControlConfig {
     /// kubernetes-specific settings
     #[serde(default)]
     pub k8s: Option<K8sConfig>,
+
+    /// OnHost-specific settings
+    #[serde(default)]
+    pub onhost: Option<OnHostConfig>,
 
     #[serde(default)]
     pub server: ServerConfig,
@@ -105,6 +110,9 @@ const AGENTS_KEY: &str = "agents";
 pub struct AgentControlDynamicConfig {
     pub agents: SubAgentsMap,
     /// chart_version represent the AC version that needs to be executed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    /// chart_version represent the AC chart version that needs to be executed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chart_version: Option<String>,
     /// cd_chart_version represent the agent control cd chart version that needs to be executed.
@@ -340,6 +348,42 @@ pub struct K8sConfig {
     /// used to retrieve the required secret for credentials.
     #[serde(default)]
     pub auth_secret: AuthSecret,
+}
+
+/// OnHostConfig represents the AgentControl configuration for onHost environments
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+pub struct OnHostConfig {
+    /// ac_remote_update enables or disables remote update for agent-control binary
+    #[serde(default)]
+    pub ac_remote_update: bool,
+
+    #[serde(default)]
+    pub packages: HashMap<PackageID, Package>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+pub struct Package {
+    #[serde(default)]
+    pub package: Download,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+pub struct Download {
+    #[serde(default)]
+    pub oci: Oci,
+}
+
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct Oci {
+    /// OCI registry url.
+    pub registry: String,
+    /// Repository name.
+    pub repository: String,
+    /// Package version including tag, digest or tag + digest.
+    #[serde(default)]
+    pub version: String,
+    /// Public key url is expected to be a jwks.
+    pub public_key_url: Option<String>,
 }
 
 pub fn helmrelease_v2_type_meta() -> TypeMeta {

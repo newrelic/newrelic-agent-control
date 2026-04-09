@@ -11,7 +11,8 @@ use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
 use crate::agent_control::run::{
     AgentControlRunner, Environment, RunError, setup_config_repository_and_store,
 };
-use crate::agent_control::version_updater::updater::NoOpUpdater;
+use crate::agent_control::version_updater::on_host::ProcessVerifyExecutor;
+use crate::agent_control::version_updater::updater::OnHostACUpdater;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::checkers::health::noop::NoOpHealthChecker;
@@ -52,6 +53,9 @@ use oci_client::client::ClientProtocol;
 use opamp_client::http::StartedHttpClient;
 use opamp_client::http::client::OpAMPHttpClient;
 use opamp_client::operation::settings::DescriptionValueType;
+use self_replacer::unix::MockUNIXSelfReplacer;
+#[cfg(target_family = "windows")]
+use self_replacer::windows::WindowsSelfReplacer;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -83,6 +87,8 @@ type OnHostInstanceIdGetter =
 
 impl AgentControlRunner {
     pub fn run_onhost(self) -> Result<(), RunError> {
+        let on_host_config = self.bootstrap_config.onhost.clone().unwrap_or_default();
+
         let local_dir = self.base_paths.local_dir;
         let remote_dir = self.base_paths.remote_dir;
         let file_store = Arc::new(FileStore::new_local_fs(
@@ -164,12 +170,15 @@ impl AgentControlRunner {
                 .into(),
         );
 
-        let package_manager =
-            OCIPackageManager::new(packages_downloader, DirectoryManagerFs, remote_dir.clone());
+        let package_manager = Arc::new(OCIPackageManager::new(
+            packages_downloader,
+            DirectoryManagerFs,
+            remote_dir.clone(),
+        ));
 
         let supervisor_builder = SupervisorBuilderOnHost {
             logging_path: self.base_paths.log_dir,
-            package_manager: Arc::new(package_manager),
+            package_manager: package_manager.clone(),
         };
 
         let signature_validator = Arc::new(self.signature_validator);
@@ -204,6 +213,25 @@ impl AgentControlRunner {
             .map_err(|err| RunError(format!("failed to start HTTP server: {err}")))?;
 
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
+
+        #[cfg(target_family = "windows")]
+        let updater = OnHostACUpdater {
+            ac_remote_update_enabled: on_host_config.ac_remote_update,
+            agent_control_internal_publisher: agent_control_internal_publisher.clone(),
+            self_replacer: WindowsSelfReplacer,
+            verify_executor: ProcessVerifyExecutor::default(),
+            package_manager,
+        };
+
+        #[cfg(target_family = "unix")]
+        let updater = OnHostACUpdater {
+            ac_remote_update_enabled: on_host_config.ac_remote_update,
+            agent_control_internal_publisher: agent_control_internal_publisher.clone(),
+            self_replacer: MockUNIXSelfReplacer,
+            verify_executor: ProcessVerifyExecutor::default(),
+            package_manager,
+        };
+
         AgentControl::new(
             maybe_client,
             sub_agent_builder,
@@ -217,7 +245,7 @@ impl AgentControlRunner {
             SupportedRemoteConfigValidator::Signature(signature_validator),
             dynamic_config_validator,
             NoOpResourceCleaner,
-            NoOpUpdater,
+            updater,
             |t| Some(NoOpHealthChecker::new(t)),
             agent_control_config,
         )
