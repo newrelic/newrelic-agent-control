@@ -9,10 +9,10 @@ use nr_auth::{
     TokenRetriever,
     authenticator::HttpAuthenticator,
     http::{client::HttpClient, config::HttpConfig},
-    key::creator::Creator,
+    key::generation::PublicKeyPem,
     system_identity::{
-        generator::L2SystemIdentityGenerator,
         iam_client::http::{HttpIAMClient, IAMAuthCredential},
+        identity_creator::L2IdentityCreator,
         input_data::{SystemIdentityCreationMetadata, environment::NewRelicEnvironment},
     },
     token::{Token, TokenType},
@@ -73,7 +73,7 @@ pub struct SystemIdentitySpec {
     pub private_key_path: PathBuf,
 }
 
-/// Defines whereas a SystemIdentity already exists or needs to be provisioned
+/// Defines wether a SystemIdentity already exists or needs to be provisioned
 #[derive(Debug)]
 pub enum SystemIdentityData {
     /// The Identity already exists
@@ -82,7 +82,7 @@ pub enum SystemIdentityData {
     Provision(ProvisioningMethod),
 }
 
-/// Defines the supported provisioning methods System Identities
+/// Defines the supported provisioning methods for System Identities
 #[derive(Debug)]
 pub enum ProvisioningMethod {
     ParentToken {
@@ -174,10 +174,10 @@ pub fn provide_identity(
     method: &ProvisioningMethod,
     region: Region,
     proxy_config: Option<ProxyConfig>,
-    key_creator: impl Creator,
+    pub_key: PublicKeyPem,
 ) -> Result<String, CliError> {
     let environment = NewRelicEnvironment::from(region);
-    build_identity(method, environment, proxy_config, key_creator)
+    build_identity(method, environment, proxy_config, pub_key)
 }
 
 /// Helper to allow injecting testing urls when building the identity.
@@ -185,9 +185,9 @@ fn build_identity(
     method: &ProvisioningMethod,
     environment: NewRelicEnvironment,
     proxy_config: Option<ProxyConfig>,
-    key_creator: impl Creator,
+    pub_key: PublicKeyPem,
 ) -> Result<String, CliError> {
-    match &method {
+    match method {
         ProvisioningMethod::ParentToken {
             token,
             organization_id,
@@ -199,7 +199,7 @@ fn build_identity(
                 organization_id.clone(),
                 environment,
                 http_client,
-                key_creator,
+                pub_key,
             )
         }
         ProvisioningMethod::ParentSecret {
@@ -219,7 +219,7 @@ fn build_identity(
                 organization_id.clone(),
                 environment,
                 http_client,
-                key_creator,
+                pub_key,
             )
         }
     }
@@ -270,7 +270,7 @@ fn build_identity_from_token(
     organization_id: String,
     environment: NewRelicEnvironment,
     http_client: HttpClient,
-    key_creator: impl Creator,
+    pub_key: PublicKeyPem,
 ) -> Result<String, CliError> {
     let system_identity_creation_metadata = SystemIdentityCreationMetadata {
         organization_id: organization_id.clone(),
@@ -279,15 +279,10 @@ fn build_identity_from_token(
     };
     let iam_client = HttpIAMClient::new(http_client, system_identity_creation_metadata.to_owned());
 
-    let system_identity_generator = L2SystemIdentityGenerator {
-        iam_client: &iam_client,
-        key_creator,
-    };
+    let auth_credentials = IAMAuthCredential::BearerToken(token.access_token().to_string());
 
-    let auth_credential = IAMAuthCredential::BearerToken(token.access_token().to_string());
-
-    let result = system_identity_generator
-        .generate(&auth_credential)
+    let result = iam_client
+        .create_l2_system_identity(&auth_credentials, &pub_key)
         .map_err(|err| CliError::Command(format!("error generating the system identity: {err}")))?;
 
     Ok(result.client_id)
@@ -318,37 +313,11 @@ pub mod tests {
     use assert_matches::assert_matches;
     use http::header::AUTHORIZATION;
     use httpmock::{Method::POST, MockServer};
-    use mockall::mock;
-    use nr_auth::key::creator::PublicKeyPem;
     use rstest::rstest;
     use std::fs;
     use tempfile::TempDir;
-    use thiserror::Error;
 
     use super::*;
-
-    #[derive(Debug, Error)]
-    #[error("{0}")]
-    pub struct TestCreatorError(String);
-
-    mock! {
-        pub Creator {}
-        impl Creator for Creator {
-            type Error = TestCreatorError;
-            fn create(&self) -> Result<PublicKeyPem, TestCreatorError>;
-        }
-    }
-    impl MockCreator {
-        fn expecting_create_ok() -> Self {
-            let mut creator = Self::new();
-            creator
-                .expect_create()
-                .once()
-                .returning(|| Ok(PublicKeyPem::default()));
-
-            creator
-        }
-    }
 
     #[rstest]
     #[case::existing_identity(|| SystemIdentityArgs {
@@ -467,12 +436,11 @@ pub mod tests {
                 .expect("url should be valid"),
         };
 
-        let creator_mock = MockCreator::expecting_create_ok();
         let identity_spec = identity_args.validate().expect("validation should succeed");
+        let pub_key = b"mock-pub-key";
 
         assert_matches!(identity_spec.system_identity_data, SystemIdentityData::Provision(method) => {
-        let client_id = build_identity(&method, environment, None, creator_mock)
-            .expect("no error expected");
+            let client_id = build_identity(&method, environment, None, pub_key.to_vec()).expect("no error expected");
             assert_eq!(client_id, "created_client_id".to_string());
         });
 
@@ -520,11 +488,10 @@ pub mod tests {
                 .expect("url should be valid"),
         };
 
-        let creator_mock = MockCreator::expecting_create_ok();
         let identity_spec = identity_args.validate().expect("validation should succeed");
+        let pub_key = b"mock-public-key";
         assert_matches!(identity_spec.system_identity_data, SystemIdentityData::Provision(method) => {
-        let client_id = build_identity(&method, environment, None, creator_mock)
-            .expect("no error expected");
+            let client_id = build_identity(&method, environment, None, pub_key.to_vec()).expect("no error expected");
             assert_eq!(client_id, "created_client_id".to_string());
         });
 

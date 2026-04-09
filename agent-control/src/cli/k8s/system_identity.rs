@@ -1,8 +1,6 @@
-use std::convert::Infallible;
-
 use kube::api::{DynamicObject, ObjectMeta};
 use nr_auth::key::{
-    creator::{Creator, KeyPair, KeyType, PublicKeyPem},
+    generation::{KeyPair, KeyType, PublicKeyPem},
     rsa::rsa,
 };
 use serde_json::json;
@@ -100,7 +98,7 @@ where
         &ProvisioningMethod,
         Region,
         Option<ProxyConfig>,
-        PublicKeyHolder,
+        PublicKeyPem,
     ) -> Result<String, CliError>,
 {
     let secret_object_key = K8sObjectKey {
@@ -118,6 +116,16 @@ where
     }
     info!("Secret is not present, creating system identity");
 
+    // Existing identities cannot be used here because the private key must be stored in the Secret,
+    // not on local filesystem.
+    let SystemIdentityData::Provision(provisioning_method) = &spec.identity.system_identity_data
+    else {
+        return Err(K8sCliError::Generic(
+            "the k8s cli requires provisioning a new System Identity; use --auth-parent-token or --auth-parent-client-secret instead of --auth-client-id"
+                .to_string(),
+        ));
+    };
+
     let KeyPair {
         private_key,
         public_key,
@@ -126,19 +134,12 @@ where
             "failure building key-pair for System Identity: {err}"
         ))
     })?;
-    let pk_holder = PublicKeyHolder { public_key };
-    let SystemIdentityData::Provision(provisioning_method) = &spec.identity.system_identity_data
-    else {
-        return Err(K8sCliError::Generic(
-            "existing identity is not supported in the k8s cli".to_string(),
-        ));
-    };
 
     let client_id = provide_identity_fn(
         provisioning_method,
         spec.region,
         spec.proxy_config,
-        pk_holder,
+        public_key,
     )
     .map_err(|err| {
         K8sCliError::Generic(format!("failure registering the System Identity: {err}"))
@@ -198,19 +199,6 @@ fn secret_dynamic_object(object_key: K8sObjectKey<'_>, data: serde_json::Value) 
             ..Default::default()
         },
         data,
-    }
-}
-
-/// Helper struct to hold a public key an use it as [Creator] for System Identity provisioning.
-struct PublicKeyHolder {
-    public_key: PublicKeyPem,
-}
-
-impl Creator for PublicKeyHolder {
-    type Error = Infallible;
-
-    fn create(&self) -> Result<PublicKeyPem, Self::Error> {
-        Ok(self.public_key.clone())
     }
 }
 

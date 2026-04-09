@@ -15,8 +15,8 @@ use crate::cli::{
 };
 use fs::file::{LocalFile, writer::FileWriter};
 use nr_auth::key::{
-    creator::KeyType,
-    local::{KeyPairGeneratorLocalConfig, LocalCreator},
+    generation::{KeyType, PublicKeyPem},
+    local::{LocalKeyPairGenerator, LocalKeyPairGeneratorConfig},
 };
 use std::{collections::HashMap, path::PathBuf};
 use tracing::info;
@@ -198,7 +198,7 @@ where
         &ProvisioningMethod,
         Region,
         Option<ProxyConfig>,
-        LocalCreator,
+        PublicKeyPem,
     ) -> Result<String, CliError>,
 {
     let fleet_control = match &params.fleet {
@@ -207,19 +207,17 @@ where
             fleet_id,
             identity: identity_spec,
         } => {
-            let key_creator = LocalCreator::from(KeyPairGeneratorLocalConfig {
-                key_type: KeyType::Rsa4096,
-                file_path: identity_spec.private_key_path.clone(),
-            });
-
             let client_id = match &identity_spec.system_identity_data {
                 SystemIdentityData::Existing { auth_client_id } => auth_client_id.to_string(),
-                SystemIdentityData::Provision(provisioning_method) => provide_identity_fn(
-                    provisioning_method,
-                    params.region,
-                    params.proxy_config.clone(),
-                    key_creator,
-                )?,
+                SystemIdentityData::Provision(provisioning_method) => {
+                    let pub_key = public_key_from_key_pair(identity_spec.private_key_path.clone())?;
+                    provide_identity_fn(
+                        provisioning_method,
+                        params.region,
+                        params.proxy_config.clone(),
+                        pub_key,
+                    )?
+                }
             };
 
             Some(FleetControl {
@@ -262,6 +260,19 @@ fn default_log_config() -> Option<LogConfig> {
     }
 }
 
+/// Helper to generate a key pair using the provided path for the private key and return the public key.
+fn public_key_from_key_pair(private_key_path: PathBuf) -> Result<PublicKeyPem, CliError> {
+    let key_generator = LocalKeyPairGenerator::from(LocalKeyPairGeneratorConfig {
+        key_type: KeyType::Rsa4096,
+        file_path: private_key_path,
+    });
+    key_generator.generate().map_err(|err| {
+        CliError::Command(format!(
+            "could not generate System Identity's key-pair; {err}"
+        ))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -271,6 +282,7 @@ mod tests {
     use clap::{CommandFactory, FromArgMatches};
     use rstest::rstest;
     use std::env::current_dir;
+    use tempfile::tempdir;
 
     impl Default for Params {
         fn default() -> Self {
@@ -354,7 +366,16 @@ mod tests {
         #[case] proxy_config: Option<ProxyConfig>,
         #[case] expected: String,
     ) {
-        let args = create_test_args(fleet_enabled, region, proxy_config);
+        let tmp = tempdir().unwrap();
+        let private_key_path = tmp.path().join("private_key");
+        let args = create_test_args(
+            fleet_enabled,
+            region,
+            proxy_config,
+            private_key_path.clone(),
+        );
+        // Replacing hardcoded path in expectations because the private-key-path is dynamic
+        let expected = expected.replace("/path/to/key", &private_key_path.to_string_lossy());
 
         let yaml = generate_config_and_system_identity(&args, identity_provider_mock)
             .expect("result expected to be OK");
@@ -412,7 +433,7 @@ mod tests {
         _: &ProvisioningMethod,
         _: Region,
         _: Option<ProxyConfig>,
-        _: LocalCreator,
+        _: PublicKeyPem,
     ) -> Result<String, CliError> {
         Ok("test-client-id".to_string())
     }
@@ -421,6 +442,7 @@ mod tests {
         fleet_disabled: bool,
         region: Region,
         proxy_config: Option<ProxyConfig>,
+        private_key_path: PathBuf,
     ) -> Params {
         let fleet = if fleet_disabled {
             FleetParams::FleetDisabled
@@ -435,7 +457,7 @@ mod tests {
                             organization_id: "test-org-id".to_string(),
                         },
                     ),
-                    private_key_path: PathBuf::from("/path/to/key"),
+                    private_key_path,
                 },
             }
         };
