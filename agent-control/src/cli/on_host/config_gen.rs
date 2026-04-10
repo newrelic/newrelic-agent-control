@@ -331,19 +331,6 @@ fn default_log_config() -> Option<LogConfig> {
     }
 }
 
-/// Helper to generate a key pair using the provided path for the private key and return the public key.
-fn public_key_from_key_pair(private_key_path: PathBuf) -> Result<PublicKeyPem, CliError> {
-    let key_generator = LocalKeyPairGenerator::from(LocalKeyPairGeneratorConfig {
-        key_type: KeyType::Rsa4096,
-        file_path: private_key_path,
-    });
-    key_generator.generate().map_err(|err| {
-        CliError::Command(format!(
-            "could not generate System Identity's key-pair; {err}"
-        ))
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
