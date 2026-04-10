@@ -276,7 +276,7 @@ where
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) {
-        debug!("Listening for events from agents");
+        debug!("Listening for events");
         let never_receive = EventConsumer::from(never());
         let opamp_receiver = self
             .agent_control_opamp_consumer
@@ -353,12 +353,23 @@ where
                         },
                     }
                 }
-                recv(self.application_event_consumer.as_ref()) -> _agent_control_event => {
-                    let span = info_span!("process_application_event", id=AGENT_CONTROL_ID);
-                    let _span_guard = span.enter();
-                    debug!("stopping Agent Control event processor");
-                    self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
-                    break sub_agents.stop();
+                recv(self.application_event_consumer.as_ref()) -> agent_control_event => {
+                    match agent_control_event{
+                        Err(err) => {
+                            debug!("Error receiving Agent Control internal event {err}")
+                        },
+                        Ok(event) => {
+                            match event {
+                                ApplicationEvent::StopRequested => {
+                                    let span = info_span!("process_application_event", id=AGENT_CONTROL_ID);
+                                    let _span_guard = span.enter();
+                                    debug!("stopping Agent Control event processor");
+                                    self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
+                                    break sub_agents.stop();
+                                }
+                            }
+                        },
+                    }
                 },
                 recv(uptime_reporter.receiver()) -> _tick => { let _ = uptime_reporter.report(); },
             }

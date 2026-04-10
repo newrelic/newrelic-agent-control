@@ -1,5 +1,7 @@
 use crate::agent_control::AgentControl;
-use crate::agent_control::config::{AgentControlConfig, OpAMPClientConfig};
+use crate::agent_control::config::{
+    AGENT_CONTROL_BIN_PACKAGE_ID, AgentControlConfig, OpAMPClientConfig,
+};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
@@ -12,7 +14,8 @@ use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
 use crate::agent_control::run::{
     AgentControlRunner, Environment, RunError, RunningMode, setup_config_repository_and_store,
 };
-use crate::agent_control::version_updater::updater::NoOpUpdater;
+use crate::agent_control::version_updater::on_host::OnHostACUpdater;
+use crate::agent_control::version_updater::on_host::ProcessVerifyExecutor;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::checkers::health::noop::NoOpHealthChecker;
@@ -53,6 +56,10 @@ use oci_client::client::ClientProtocol;
 use opamp_client::http::StartedHttpClient;
 use opamp_client::http::client::OpAMPHttpClient;
 use opamp_client::operation::settings::{DescriptionValueType, StartSettings};
+#[cfg(target_family = "unix")]
+use self_replacer::UnixSelfReplacer;
+#[cfg(target_family = "windows")]
+use self_replacer::windows::WindowsSelfReplacer;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -96,6 +103,8 @@ impl AgentControlRunner {
         let agent_control_config = config_storer
             .load()
             .map_err(|err| RunError(format!("failed to load Agent Control config: {err}")))?;
+
+        let on_host_config = agent_control_config.onhost.clone().unwrap_or_default();
 
         let identifiers = ac_identifiers(&agent_control_config)?;
 
@@ -172,12 +181,15 @@ impl AgentControlRunner {
                 .into(),
         );
 
-        let package_manager =
-            OCIPackageManager::new(packages_downloader, DirectoryManagerFs, remote_dir.clone());
+        let package_manager = Arc::new(OCIPackageManager::new(
+            packages_downloader,
+            DirectoryManagerFs,
+            remote_dir.clone(),
+        ));
 
         let supervisor_builder = SupervisorBuilderOnHost {
             logging_path: self.base_paths.log_dir,
-            package_manager: Arc::new(package_manager),
+            package_manager: package_manager.clone(),
         };
 
         let signature_validator = Arc::new(self.signature_validator);
@@ -211,7 +223,25 @@ impl AgentControlRunner {
             .transpose()
             .map_err(|err| RunError(format!("failed to start HTTP server: {err}")))?;
 
+        #[cfg(target_family = "windows")]
+        let self_replacer = WindowsSelfReplacer;
+        #[cfg(target_family = "unix")]
+        let self_replacer = UnixSelfReplacer;
+
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
+
+        let updater = OnHostACUpdater {
+            ac_remote_update_enabled: on_host_config.ac_remote_update,
+            agent_control_internal_publisher: agent_control_internal_publisher.clone(),
+            self_replacer,
+            verify_executor: ProcessVerifyExecutor::default(),
+            package_manager,
+            reference: on_host_config
+                .packages
+                .clone()
+                .remove(AGENT_CONTROL_BIN_PACKAGE_ID),
+        };
+
         AgentControl::new(
             maybe_client,
             sub_agent_builder,
@@ -225,7 +255,7 @@ impl AgentControlRunner {
             SupportedRemoteConfigValidator::Signature(signature_validator),
             dynamic_config_validator,
             NoOpResourceCleaner,
-            NoOpUpdater,
+            updater,
             |t| Some(NoOpHealthChecker::new(t)),
             agent_control_config,
         )
