@@ -251,20 +251,20 @@ pub mod tests {
     use super::*;
 
     #[rstest]
-    #[case::parent_token(|| ProvisionIdentityArgs {
+    #[case::parent_token(ProvisionIdentityArgs {
         auth_parent_token: "TOKEN".to_string(),
         auth_parent_client_id: "parent-id".to_string(),
         organization_id: "org-id".to_string(),
         ..Default::default()
     })]
-    #[case::parent_secret(|| ProvisionIdentityArgs {
+    #[case::parent_secret(ProvisionIdentityArgs {
         auth_parent_client_secret: "SECRET".to_string(),
         auth_parent_client_id: "parent-id".to_string(),
         organization_id: "org-id".to_string(),
         ..Default::default()
     })]
-    fn test_validate(#[case] make_args: fn() -> ProvisionIdentityArgs) {
-        assert_matches!(make_args().validate(), Ok(_));
+    fn test_validate(#[case] make_args: ProvisionIdentityArgs) {
+        assert_matches!(make_args.validate(), Ok(_));
     }
 
     #[rstest]

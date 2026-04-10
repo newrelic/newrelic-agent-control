@@ -271,7 +271,17 @@ where
             let client_id = match &identity_spec.system_identity_data {
                 SystemIdentityData::Existing { auth_client_id } => auth_client_id.to_string(),
                 SystemIdentityData::Provision(provisioning_method) => {
-                    let pub_key = public_key_from_key_pair(identity_spec.private_key_path.clone())?;
+                    let pub_key = LocalKeyPairGenerator::from(LocalKeyPairGeneratorConfig {
+                        key_type: KeyType::Rsa4096,
+                        file_path: identity_spec.private_key_path.clone(),
+                    })
+                    .generate()
+                    .map_err(|err| {
+                        CliError::Command(format!(
+                            "could not generate System Identity's key-pair; {err}"
+                        ))
+                    })?;
+
                     create_identity(
                         provisioning_method,
                         params.region,
