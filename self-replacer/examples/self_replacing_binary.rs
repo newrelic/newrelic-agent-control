@@ -4,7 +4,10 @@ use self_replacer::{SelfReplacer, UnixSelfReplacer};
 #[cfg(windows)]
 use self_replacer::{SelfReplacer, WindowsSelfReplacer};
 
+use std::collections::hash_map::DefaultHasher;
 use std::env;
+use std::fs;
+use std::hash::{Hash, Hasher};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -30,7 +33,15 @@ fn main() {
             }
         }
     } else {
-        // Just print version
-        println!("VERSION:{}", env!("CARGO_PKG_VERSION"));
+        // Report hash of binary content as identifier
+        // This allows us to verify the binary changed after replacement
+        let exe_path = env::current_exe().unwrap();
+        let content = fs::read(&exe_path).unwrap();
+
+        let mut hasher = DefaultHasher::new();
+        content.hash(&mut hasher);
+        let hash = hasher.finish();
+
+        println!("HASH:{:016x}", hash);
     }
 }

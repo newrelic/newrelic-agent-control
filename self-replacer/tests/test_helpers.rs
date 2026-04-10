@@ -2,88 +2,78 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
-/// Path to the self-replacing binary fixture source
-const SELF_REPLACING_BINARY_SOURCE: &str = include_str!("fixtures/self_replacing_binary.rs");
+/// Returns path to the pre-built example binary.
+/// Cargo builds examples to target/debug/examples/ when running tests.
+pub fn get_example_binary() -> PathBuf {
+    // Get the target directory (usually target/debug or target/release)
+    let mut path = std::env::current_exe()
+        .expect("Failed to get current test executable path");
 
-/// Helper to create a binary that uses self_replacer to update itself
-pub fn create_self_replacing_binary(dir: &Path, name: &str, version: &str) -> PathBuf {
+    // Navigate from test binary location to examples directory
+    // Test is at: target/debug/deps/integration_tests-<hash>
+    // Example is at: target/debug/examples/self_replacing_binary
+    path.pop(); // Remove test binary name
+    path.pop(); // Remove 'deps' directory
+    path.push("examples");
+
     let binary_name = if cfg!(windows) {
+        "self_replacing_binary.exe"
+    } else {
+        "self_replacing_binary"
+    };
+    path.push(binary_name);
+
+    assert!(
+        path.exists(),
+        "Example binary not found at {:?}. Did you run 'cargo build --example self_replacing_binary'?",
+        path
+    );
+
+    path
+}
+
+/// Creates a copy of the example binary at the specified location.
+pub fn copy_example_binary(dest: &Path) -> PathBuf {
+    let source = get_example_binary();
+    fs::copy(&source, dest).unwrap();
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(dest).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(dest, perms).unwrap();
+    }
+
+    dest.to_path_buf()
+}
+
+/// Creates a modified copy of the example binary with different content (different hash).
+/// The binary remains functional but will have a different hash when run.
+pub fn create_modified_binary(dir: &Path, name: &str) -> PathBuf {
+    let source = get_example_binary();
+
+    let dest_name = if cfg!(windows) {
         format!("{}.exe", name)
     } else {
         name.to_string()
     };
+    let dest = dir.join(dest_name);
 
-    let source_file = dir.join(format!("{}.rs", name));
-    fs::write(&source_file, SELF_REPLACING_BINARY_SOURCE).unwrap();
+    // Copy binary and append a null byte to change the hash
+    // The binary still works because the OS ignores trailing data
+    let mut content = fs::read(&source).unwrap();
+    content.push(0);
+    fs::write(&dest, content).unwrap();
 
-    let binary_path = dir.join(&binary_name);
-
-    // Compile with self-replacer dependency
-    // Get the self-replacer crate path - it should be the current directory when tests run
-    let self_replacer_path = std::env::current_dir().unwrap().canonicalize().unwrap();
-
-    // Convert path to string suitable for TOML
-    // On Windows, canonicalize() returns UNC paths like \\?\C:\path which need special handling
-    let mut path_str = self_replacer_path.display().to_string();
-
-    // Strip Windows UNC prefix if present
-    if path_str.starts_with(r"\\?\") {
-        path_str = path_str[4..].to_string();
-    }
-
-    // Convert backslashes to forward slashes (works on all platforms)
-    let path_str = path_str.replace('\\', "/");
-
-    let manifest = format!(
-        r#"
-[package]
-name = "{}"
-version = "{}"
-edition = "2024"
-
-[dependencies]
-self-replacer = {{ path = "{}" }}
-"#,
-        name, version, path_str
-    );
-
-    let project_dir = dir.join(format!("{}_project", name));
-    fs::create_dir_all(project_dir.join("src")).unwrap();
-
-    let manifest_path = project_dir.join("Cargo.toml");
-    fs::write(&manifest_path, manifest).unwrap();
-
-    let main_rs = project_dir.join("src/main.rs");
-    fs::copy(&source_file, &main_rs).unwrap();
-
-    // Build the binary
-    let output = Command::new("cargo")
-        .arg("build")
-        .arg("--release")
-        .arg("--manifest-path")
-        .arg(&manifest_path)
-        .output()
-        .expect("Failed to build self-replacing binary");
-
-    assert!(
-        output.status.success(),
-        "Failed to build binary: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let built_binary = project_dir.join("target/release").join(&binary_name);
-    fs::copy(&built_binary, &binary_path).unwrap();
-
-    // Make it executable on Unix
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(&binary_path).unwrap().permissions();
+        let mut perms = fs::metadata(&dest).unwrap().permissions();
         perms.set_mode(0o755);
-        fs::set_permissions(&binary_path, perms).unwrap();
+        fs::set_permissions(&dest, perms).unwrap();
     }
 
-    binary_path
+    dest
 }

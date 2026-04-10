@@ -9,7 +9,7 @@ use std::fs;
 use tempfile::TempDir;
 
 mod test_helpers;
-use test_helpers::create_self_replacing_binary;
+use test_helpers::{copy_example_binary, create_modified_binary};
 
 #[cfg(unix)]
 use self_replacer::{SelfReplacer, UnixSelfReplacer};
@@ -27,58 +27,87 @@ const TEST_EXEC_MODE: u32 = 0o754; // rwxr-xr--
 #[test]
 fn test_self_replacement_with_real_binary() {
     let temp_dir = TempDir::new().unwrap();
-    let test_dir = temp_dir.path().to_path_buf();
+    let test_dir = temp_dir.path();
 
-    let binary_v1 = create_self_replacing_binary(&test_dir, "test_app", "1.0.0");
-    let binary_v2 = create_self_replacing_binary(&test_dir, "test_app_v2", "2.0.0");
+    // Create test binary (copy of example)
+    let binary_path = if cfg!(windows) {
+        test_dir.join("test_app.exe")
+    } else {
+        test_dir.join("test_app")
+    };
+    copy_example_binary(&binary_path);
 
-    // Verify v1 prints correct version
-    Command::new(&binary_v1)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("VERSION:1.0.0"));
+    // Get original hash
+    let output1 = Command::new(&binary_path)
+        .output()
+        .expect("Failed to get original hash");
+    let hash1 = String::from_utf8_lossy(&output1.stdout);
+    assert!(hash1.starts_with("HASH:"), "Expected hash output");
+
+    // Create modified binary (different hash)
+    let binary_v2 = create_modified_binary(test_dir, "test_app_v2");
 
     // Perform self-replacement
-    Command::new(&binary_v1)
+    Command::new(&binary_path)
         .arg("--replace")
         .arg(&binary_v2)
         .assert()
         .success()
         .stdout(predicate::str::contains("REPLACEMENT_SUCCESS"));
 
-    // Verify the binary was replaced (should now be v2)
-    Command::new(&binary_v1)
+    // Verify the binary was replaced (hash should be different)
+    Command::new(&binary_path)
         .assert()
         .success()
-        .stdout(predicate::str::contains("VERSION:2.0.0"));
+        .stdout(predicate::str::starts_with("HASH:"));
+
+    let output2 = Command::new(&binary_path)
+        .output()
+        .expect("Failed to get new hash");
+    let hash2 = String::from_utf8_lossy(&output2.stdout);
+
+    assert_ne!(
+        hash1.trim(),
+        hash2.trim(),
+        "Hash should change after replacement"
+    );
 
     // Verify backup was created
-    // Backup appends .bak to the full filename (e.g., test_app.exe.bak on Windows)
     let backup_path = {
-        let filename = binary_v1.file_name().unwrap();
+        let filename = binary_path.file_name().unwrap();
         let backup_name = format!("{}.{}", filename.to_string_lossy(), BACKUP_SUFFIX);
-        binary_v1.with_file_name(backup_name)
+        binary_path.with_file_name(backup_name)
     };
     assert!(
         backup_path.exists(),
         "Backup file should exist at {:?}",
         backup_path
     );
+
+    // Verify backup has the original hash
+    Command::new(&backup_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(hash1.trim()));
 }
 
 #[test]
 fn test_rollback_on_invalid_path() {
     let temp_dir = TempDir::new().unwrap();
-    let test_dir = temp_dir.path().to_path_buf();
+    let test_dir = temp_dir.path();
 
     // Create a real binary to be the "current" executable
-    let original_binary = create_self_replacing_binary(&test_dir, "test_rollback", "1.0.0");
+    let original_binary = if cfg!(windows) {
+        test_dir.join("test_rollback.exe")
+    } else {
+        test_dir.join("test_rollback")
+    };
+    copy_example_binary(&original_binary);
 
     // Store original content
     let original_content = fs::read(&original_binary).unwrap();
 
-    // Try to replace with non-existent binary from a separate process
-    // We need to simulate this without actually being the running binary
+    // Try to replace with non-existent binary
     let non_existent = if cfg!(windows) {
         test_dir.join("does_not_exist.exe")
     } else {
@@ -113,11 +142,13 @@ mod unix_specific {
     #[test]
     fn test_permission_preservation_with_real_binary() {
         let temp_dir = TempDir::new().unwrap();
-        let test_dir = temp_dir.path().to_path_buf();
+        let test_dir = temp_dir.path();
 
         // Create binaries
-        let binary_v1 = create_self_replacing_binary(&test_dir, "test_perms", "1.0.0");
-        let binary_v2 = create_self_replacing_binary(&test_dir, "test_perms_v2", "2.0.0");
+        let binary_v1 = test_dir.join("test_perms");
+        copy_example_binary(&binary_v1);
+
+        let binary_v2 = create_modified_binary(test_dir, "test_perms_v2");
 
         // Set specific permissions on v1
         let mut perms = fs::metadata(&binary_v1).unwrap().permissions();

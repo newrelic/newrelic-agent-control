@@ -27,3 +27,7 @@ windows = { workspace = true, features = [
 
 [target.'cfg(unix)'.dependencies]
 tempfile = { workspace = true }
+
+[[example]]
+name = "self_replacing_binary"
+test = false
