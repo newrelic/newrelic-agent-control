@@ -7,8 +7,7 @@ use std::path::{Path, PathBuf};
 /// Cargo builds examples to target/debug/examples/ when running tests.
 pub fn get_example_binary() -> PathBuf {
     // Get the target directory (usually target/debug or target/release)
-    let mut path = std::env::current_exe()
-        .expect("Failed to get current test executable path");
+    let mut path = std::env::current_exe().expect("Failed to get current test executable path");
 
     // Navigate from test binary location to examples directory
     // Test is at: target/debug/deps/integration_tests-<hash>
