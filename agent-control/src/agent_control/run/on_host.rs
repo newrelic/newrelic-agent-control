@@ -1,5 +1,7 @@
 use crate::agent_control::AgentControl;
-use crate::agent_control::config::{AgentControlConfig, OpAMPClientConfig};
+use crate::agent_control::config::{
+    AGENT_CONTROL_BIN_PACKAGE_ID, AgentControlConfig, OpAMPClientConfig,
+};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
@@ -53,7 +55,7 @@ use oci_client::client::ClientProtocol;
 use opamp_client::http::StartedHttpClient;
 use opamp_client::http::client::OpAMPHttpClient;
 use opamp_client::operation::settings::DescriptionValueType;
-use self_replacer::unix::MockUNIXSelfReplacer;
+use self_replacer::UnixSelfReplacer;
 #[cfg(target_family = "windows")]
 use self_replacer::windows::WindowsSelfReplacer;
 use std::collections::HashMap;
@@ -215,21 +217,20 @@ impl AgentControlRunner {
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
 
         #[cfg(target_family = "windows")]
+        let self_replacer = WindowsSelfReplacer;
+        #[cfg(target_family = "unix")]
+        let self_replacer = UnixSelfReplacer;
+
         let updater = OnHostACUpdater {
             ac_remote_update_enabled: on_host_config.ac_remote_update,
             agent_control_internal_publisher: agent_control_internal_publisher.clone(),
             self_replacer: WindowsSelfReplacer,
             verify_executor: ProcessVerifyExecutor::default(),
             package_manager,
-        };
-
-        #[cfg(target_family = "unix")]
-        let updater = OnHostACUpdater {
-            ac_remote_update_enabled: on_host_config.ac_remote_update,
-            agent_control_internal_publisher: agent_control_internal_publisher.clone(),
-            self_replacer: MockUNIXSelfReplacer,
-            verify_executor: ProcessVerifyExecutor::default(),
-            package_manager,
+            reference: on_host_config
+                .packages
+                .clone()
+                .remove(AGENT_CONTROL_BIN_PACKAGE_ID),
         };
 
         AgentControl::new(

@@ -5,6 +5,8 @@ use std::path::Path;
 
 #[cfg(target_os = "windows")]
 pub mod windows;
+#[cfg(target_os = "windows")]
+pub use windows::WindowsSelfReplacer;
 
 #[cfg(unix)]
 mod unix;

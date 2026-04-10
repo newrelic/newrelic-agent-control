@@ -1,5 +1,5 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::config::{AgentControlDynamicConfig, Oci};
+use crate::agent_control::config::{AgentControlDynamicConfig, Oci, Package};
 use crate::agent_control::defaults::{AGENT_CONTROL_ID, AGENT_CONTROL_VERSION};
 use crate::agent_control::version_updater::on_host::VerifyExecutor;
 use crate::agent_type::error::AgentTypeError;
@@ -14,6 +14,8 @@ use std::sync::Arc;
 use thiserror::Error;
 use tracing::debug;
 use url::Url;
+
+pub const AGENT_CONTROL_BIN: &str = "newrelic-agent-control";
 
 /// Represents errors that can occur during the update process of the agent control version.
 #[derive(Debug, Error)]
@@ -47,7 +49,7 @@ where
     pub self_replacer: S,
     pub package_manager: Arc<P>,
     pub verify_executor: V,
-    pub reference: Oci,
+    pub reference: Option<Package>,
 }
 
 impl<S, P, V> VersionUpdater for OnHostACUpdater<S, P, V>
@@ -61,6 +63,7 @@ where
             debug!("Remote update is disabled, skipping update process");
             return Ok(());
         }
+
         let Some(new_version) = config.version else {
             debug!("Version is not specified in the dynamic config");
             return Ok(());
@@ -73,14 +76,72 @@ where
             return Ok(());
         }
 
+        debug!("Starting update process for agent control version {new_version}");
+
+        let Some(package) = self.reference else {
+            return Err(UpdaterError::UpdateFailed(
+                "package reference is not specified in the updater, cannot proceed with the update process".to_string(),
+            ));
+        };
+
+        let package_data = Self::get_package_data(new_version, package)?;
+
+        let new_binary_path = self
+            .package_manager
+            .install(&AgentID::AgentControl, package_data)
+            .map_err(|e| UpdaterError::UpdateFailed(e.to_string()))?
+            .installation_path
+            .join(AGENT_CONTROL_BIN);
+
         debug!(
-            "Starting update process for agent control version {}",
-            new_version
+            "Verifying new binary {} before self-replace",
+            new_binary_path.to_string_lossy()
         );
+        self.verify_executor
+            .execute(&new_binary_path, &vec!["verify"])
+            .map_err(|e| UpdaterError::UpdateFailed(e.to_string()))?;
+
+        debug!(
+            "Attempting to self-replace with new binary {}",
+            new_binary_path.to_string_lossy()
+        );
+        self.self_replacer
+            //TODO we should consider managing the errors that can happen in the self-replace process
+            .self_replace(&new_binary_path)
+            .map_err(|e| UpdaterError::UpdateFailed(e.to_string()))?;
+
+        debug!(
+            "Successfully updated agent control to version, stopping the agent control to allow the new version to start",
+        );
+        self.agent_control_internal_publisher
+            .publish(AgentControlInternalEvent::StopRequested())
+            .unwrap();
+
+        Ok(())
+    }
+}
+
+impl<S, P, V> OnHostACUpdater<S, P, V>
+where
+    P: PackageManager,
+    S: SelfReplacer,
+    V: VerifyExecutor,
+{
+    fn get_package_data(
+        new_version: String,
+        package: Package,
+    ) -> Result<PackageData, UpdaterError> {
+        let public_key_url = package
+            .download
+            .oci
+            .public_key_url
+            .map(|s| Url::parse(&s))
+            .transpose()
+            .map_err(|err| UpdaterError::UpdateFailed(format!("invalid public_key_url: {err}")))?;
 
         let string_reference = format!(
             "{}/{}{}",
-            self.reference.registry, self.reference.repository, new_version
+            package.download.oci.registry, package.download.oci.repository, new_version
         );
 
         let reference = Reference::from(
@@ -89,46 +150,12 @@ where
             }),
         );
 
-        let public_key_url = self
-            .reference
-            .public_key_url
-            .map(|s| Url::parse(&s))
-            .transpose()
-            .map_err(|err| UpdaterError::UpdateFailed(format!("invalid public_key_url: {err}")))?;
-
-        let data = PackageData {
+        let package_data = PackageData {
             id: "binary".to_string(),
             oci_reference: reference,
             public_key_url,
         };
-
-        let new_binary = self
-            .package_manager
-            .install(&AgentID::AgentControl, data)
-            .map_err(|e| UpdaterError::UpdateFailed(e.to_string()))?
-            .installation_path;
-
-        debug!(
-            "Verifying new binary {} before self-replace",
-            new_binary.to_string_lossy()
-        );
-        self.verify_executor
-            .execute(&new_binary, &vec!["verify"])
-            .map_err(|e| UpdaterError::UpdateFailed(e.to_string()))?;
-
-        debug!(
-            "Attempting to self-replace with new binary {}",
-            new_binary.to_string_lossy()
-        );
-        self.self_replacer
-            .self_replace(&new_binary)
-            .map_err(|e| UpdaterError::UpdateFailed(e.to_string()))?;
-
-        self.agent_control_internal_publisher
-            .publish(AgentControlInternalEvent::StopRequested())
-            .unwrap();
-
-        Ok(())
+        Ok(package_data)
     }
 }
 

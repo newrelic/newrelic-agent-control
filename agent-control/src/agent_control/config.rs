@@ -350,6 +350,8 @@ pub struct K8sConfig {
     pub auth_secret: AuthSecret,
 }
 
+pub const AGENT_CONTROL_BIN_PACKAGE_ID: &str = "agent_control_bin";
+
 /// OnHostConfig represents the AgentControl configuration for onHost environments
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct OnHostConfig {
@@ -357,6 +359,7 @@ pub struct OnHostConfig {
     #[serde(default)]
     pub ac_remote_update: bool,
 
+    // TODO provide a default that allows the user not to specify anything
     #[serde(default)]
     pub packages: HashMap<PackageID, Package>,
 }
@@ -364,7 +367,7 @@ pub struct OnHostConfig {
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct Package {
     #[serde(default)]
-    pub package: Download,
+    pub download: Download,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
