@@ -1,9 +1,6 @@
 //! This module provides the functions to handle identity creation when setting up Agent Control.
 //!
-use std::{
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::{path::PathBuf, time::Duration};
 
 use nr_auth::{
     TokenRetriever,
@@ -25,7 +22,7 @@ use crate::cli::common::{error::CliError, proxy_config::ProxyConfig, region::Reg
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(3);
 const DEFAULT_RETRIES: u8 = 3;
 
-/// Arguments required to provide or generate a system identity.
+/// Arguments required to provision system identity.
 ///
 /// **Design note:** modelling the different provisioning methods as subcommands would be
 /// a more natural fit for clap (each subcommand carrying only its own required fields),
@@ -37,16 +34,7 @@ const DEFAULT_RETRIES: u8 = 3;
 /// credentials, or accept a pre-obtained token) lives here rather than being duplicated
 /// in each installer.
 #[derive(Debug, Default, clap::Args)]
-pub struct SystemIdentityArgs {
-    /// Path where the private key is stored or will be written.
-    #[arg(long)]
-    pub auth_private_key_path: Option<PathBuf>,
-
-    /// Client ID of an already-provisioned system identity. When non-empty, no identity
-    /// generation is performed.
-    #[arg(long, default_value_t)]
-    pub auth_client_id: String,
-
+pub struct ProvisionIdentityArgs {
     /// Client ID of the parent system identity, used to obtain a token or as metadata
     /// during identity generation.
     #[arg(long, default_value_t)]
@@ -66,22 +54,6 @@ pub struct SystemIdentityArgs {
     pub organization_id: String,
 }
 
-/// Valid data to create a SystemIdentity, represent [SystemIdentityArgs] after validation.
-#[derive(Debug)]
-pub struct SystemIdentitySpec {
-    pub system_identity_data: SystemIdentityData,
-    pub private_key_path: PathBuf,
-}
-
-/// Defines whether a SystemIdentity already exists or needs to be provisioned
-#[derive(Debug)]
-pub enum SystemIdentityData {
-    /// The Identity already exists
-    Existing { auth_client_id: String },
-    /// The identity needs to be provisioned
-    Provision(ProvisioningMethod),
-}
-
 /// Defines the supported provisioning methods for System Identities
 #[derive(Debug)]
 pub enum ProvisioningMethod {
@@ -96,63 +68,24 @@ pub enum ProvisioningMethod {
     },
 }
 
-impl SystemIdentityArgs {
-    /// Performs additional args validation (not covered by clap's arguments) and returns [SystemIdentityData] if
-    /// validation was Ok.
-    pub fn validate(self) -> Result<SystemIdentitySpec, String> {
-        let private_key_path = self
-            .auth_private_key_path
-            .as_ref()
-            .ok_or_else(|| {
-                "'auth_private_key_path' needs to be set to register System Identity".to_string()
-            })?
-            .clone();
-
-        let system_identity_data = self.resolve_provisioning_method(&private_key_path)?;
-
-        Ok(SystemIdentitySpec {
-            system_identity_data,
-            private_key_path,
-        })
-    }
-
-    fn resolve_provisioning_method(
-        self,
-        private_key_path: &Path,
-    ) -> Result<SystemIdentityData, String> {
-        if !self.auth_client_id.is_empty() {
-            if !private_key_path.exists() {
-                return Err(
-                    "when 'auth_client_id' is provided the 'auth_private_key_path' must also be provided and exist"
-                        .to_string(),
-                );
-            }
-            return Ok(SystemIdentityData::Existing {
-                auth_client_id: self.auth_client_id,
-            });
-        }
-
+impl ProvisionIdentityArgs {
+    pub fn validate(self) -> Result<ProvisioningMethod, String> {
         if !self.auth_parent_token.is_empty() {
             self.require_org_and_parent_id("token based")?;
-            return Ok(SystemIdentityData::Provision(
-                ProvisioningMethod::ParentToken {
-                    token: self.auth_parent_token,
-                    organization_id: self.organization_id,
-                },
-            ));
+            return Ok(ProvisioningMethod::ParentToken {
+                token: self.auth_parent_token,
+                organization_id: self.organization_id,
+            });
         }
 
         if !self.auth_parent_client_secret.is_empty() {
             self.require_org_and_parent_id("client-secret based")?;
-            return Ok(SystemIdentityData::Provision(
-                ProvisioningMethod::ParentSecret {
-                    secret: self.auth_parent_client_secret,
-                    parent_client_id: self.auth_parent_client_id,
-                    organization_id: self.organization_id,
-                },
-            ));
+            return Ok(ProvisioningMethod::ParentSecret {
+                secret: self.auth_parent_client_secret,
+                parent_client_id: self.auth_parent_client_id,
+                organization_id: self.organization_id,
+            });
         }
-
         Err(
             "either 'auth_client_id', 'auth_parent_token' or 'auth_parent_secret' should be set to register System Identity"
                 .to_string(),
@@ -169,8 +102,8 @@ impl SystemIdentityArgs {
     }
 }
 
-/// Provides a key-based identity considering the supplied args. It returns the corresponding **client_id** as a String.
-pub fn provide_identity(
+/// Creates a key-based identity considering the supplied args. It returns the corresponding **client_id** as a String.
+pub fn create_identity(
     method: &ProvisioningMethod,
     region: Region,
     proxy_config: Option<ProxyConfig>,
@@ -314,106 +247,59 @@ pub mod tests {
     use http::header::AUTHORIZATION;
     use httpmock::{Method::POST, MockServer};
     use rstest::rstest;
-    use std::fs;
-    use tempfile::TempDir;
 
     use super::*;
 
     #[rstest]
-    #[case::existing_identity(|| SystemIdentityArgs {
-        auth_private_key_path: Some(std::env::current_dir().unwrap()),
-        auth_client_id: "some-client-id".to_string(),
-        ..Default::default()
-    })]
-    #[case::parent_token(|| SystemIdentityArgs {
-        auth_private_key_path: Some(PathBuf::from("/some/path")),
+    #[case::parent_token(|| ProvisionIdentityArgs {
         auth_parent_token: "TOKEN".to_string(),
         auth_parent_client_id: "parent-id".to_string(),
         organization_id: "org-id".to_string(),
         ..Default::default()
     })]
-    #[case::parent_secret(|| SystemIdentityArgs {
-        auth_private_key_path: Some(PathBuf::from("/some/path")),
+    #[case::parent_secret(|| ProvisionIdentityArgs {
         auth_parent_client_secret: "SECRET".to_string(),
         auth_parent_client_id: "parent-id".to_string(),
         organization_id: "org-id".to_string(),
         ..Default::default()
     })]
-    fn test_validate(#[case] make_args: fn() -> SystemIdentityArgs) {
+    fn test_validate(#[case] make_args: fn() -> ProvisionIdentityArgs) {
         assert_matches!(make_args().validate(), Ok(_));
     }
 
     #[rstest]
-    #[case::missing_private_key_path(|| SystemIdentityArgs {
-        auth_client_id: "some-client-id".to_string(),
-        ..Default::default()
-    })]
-    #[case::nonexistent_key_with_client_id(|| SystemIdentityArgs {
-        auth_private_key_path: Some(PathBuf::from("/does/not/exist")),
-        auth_client_id: "some-client-id".to_string(),
-        ..Default::default()
-    })]
-    #[case::token_missing_org_id(|| SystemIdentityArgs {
-        auth_private_key_path: Some(PathBuf::from("/some/path")),
+    #[case::token_missing_org_id(|| ProvisionIdentityArgs {
         auth_parent_token: "TOKEN".to_string(),
         auth_parent_client_id: "parent-id".to_string(),
         ..Default::default()
     })]
-    #[case::token_missing_parent_client_id(|| SystemIdentityArgs {
-        auth_private_key_path: Some(PathBuf::from("/some/path")),
+    #[case::token_missing_parent_client_id(|| ProvisionIdentityArgs {
         auth_parent_token: "TOKEN".to_string(),
         organization_id: "org-id".to_string(),
         ..Default::default()
     })]
-    #[case::secret_missing_org_id(|| SystemIdentityArgs {
-        auth_private_key_path: Some(PathBuf::from("/some/path")),
+    #[case::secret_missing_org_id(|| ProvisionIdentityArgs {
         auth_parent_client_secret: "SECRET".to_string(),
         auth_parent_client_id: "parent-id".to_string(),
         ..Default::default()
     })]
-    #[case::secret_missing_parent_client_id(|| SystemIdentityArgs {
-        auth_private_key_path: Some(PathBuf::from("/some/path")),
+    #[case::secret_missing_parent_client_id(|| ProvisionIdentityArgs {
         auth_parent_client_secret: "SECRET".to_string(),
         organization_id: "org-id".to_string(),
         ..Default::default()
     })]
-    #[case::no_method_provided(|| SystemIdentityArgs {
-        auth_private_key_path: Some(PathBuf::from("/some/path")),
-        ..Default::default()
-    })]
-    fn test_validate_errors(#[case] make_args: fn() -> SystemIdentityArgs) {
+    #[case::no_method_provided(|| ProvisionIdentityArgs::default())]
+    fn test_validate_errors(#[case] make_args: fn() -> ProvisionIdentityArgs) {
         assert_matches!(make_args().validate(), Err(_));
     }
 
     #[test]
-    fn test_identity_already_provided() {
-        let tempdir = TempDir::new().unwrap();
-        let auth_private_key_path = tempdir.path().join("private-key");
-        // Key file must exist when using ExistingIdentity
-        fs::write(&auth_private_key_path, "").unwrap();
-        let identity_args = SystemIdentityArgs {
-            auth_private_key_path: Some(auth_private_key_path.clone()),
-            auth_client_id: "provided_client_id".to_string(),
-            ..Default::default()
-        };
-        let identity_data = identity_args.validate().expect("validation should succeed");
-
-        assert_matches!(identity_data.system_identity_data, SystemIdentityData::Existing { auth_client_id } => {
-            assert_eq!(auth_client_id, "provided_client_id".to_string());
-        });
-    }
-
-    #[test]
     fn test_build_identity_with_token() {
-        let tempdir = TempDir::new().unwrap();
-        let auth_private_key_path = tempdir.path().join("private-key");
-
         let server = MockServer::start();
 
-        let identity_args = SystemIdentityArgs {
+        let identity_args = ProvisionIdentityArgs {
             auth_parent_client_id: "parent-client-id".to_string(),
             auth_parent_token: "TOKEN".to_string(),
-            auth_private_key_path: Some(auth_private_key_path.clone()),
             organization_id: "test-org-id".to_string(),
             ..Default::default()
         };
@@ -436,28 +322,23 @@ pub mod tests {
                 .expect("url should be valid"),
         };
 
-        let identity_spec = identity_args.validate().expect("validation should succeed");
+        let method = identity_args.validate().expect("validation should succeed");
         let pub_key = b"mock-pub-key";
 
-        assert_matches!(identity_spec.system_identity_data, SystemIdentityData::Provision(method) => {
-            let client_id = build_identity(&method, environment, None, pub_key.to_vec()).expect("no error expected");
-            assert_eq!(client_id, "created_client_id".to_string());
-        });
+        let client_id = build_identity(&method, environment, None, pub_key.to_vec())
+            .expect("no error expected");
+        assert_eq!(client_id, "created_client_id".to_string());
 
         identity_mock.assert_calls(1);
     }
 
     #[test]
     fn test_build_identity_client_secret() {
-        let tempdir = TempDir::new().unwrap();
-        let auth_private_key_path = tempdir.path().join("private-key");
-
         let server = MockServer::start();
 
-        let identity_args = SystemIdentityArgs {
+        let identity_args = ProvisionIdentityArgs {
             auth_parent_client_id: "parent-client-id".to_string(),
             auth_parent_client_secret: "client-secret-value".to_string(),
-            auth_private_key_path: Some(auth_private_key_path.clone()),
             organization_id: "test-org-id".to_string(),
             ..Default::default()
         };
@@ -488,12 +369,11 @@ pub mod tests {
                 .expect("url should be valid"),
         };
 
-        let identity_spec = identity_args.validate().expect("validation should succeed");
+        let method = identity_args.validate().expect("validation should succeed");
         let pub_key = b"mock-public-key";
-        assert_matches!(identity_spec.system_identity_data, SystemIdentityData::Provision(method) => {
-            let client_id = build_identity(&method, environment, None, pub_key.to_vec()).expect("no error expected");
-            assert_eq!(client_id, "created_client_id".to_string());
-        });
+        let client_id = build_identity(&method, environment, None, pub_key.to_vec())
+            .expect("no error expected");
+        assert_eq!(client_id, "created_client_id".to_string());
 
         identity_mock.assert_calls(1);
         token_mock.assert_calls(1);

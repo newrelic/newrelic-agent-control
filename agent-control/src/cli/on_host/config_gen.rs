@@ -4,10 +4,7 @@ use crate::cli::{
         error::CliError,
         proxy_config::ProxyConfig,
         region::{Region, region_parser},
-        system_identity::{
-            ProvisioningMethod, SystemIdentityArgs, SystemIdentityData, SystemIdentitySpec,
-            provide_identity,
-        },
+        system_identity::{ProvisionIdentityArgs, ProvisioningMethod, create_identity},
     },
     on_host::config_gen::config::{
         AuthConfig, Config, FleetControl, LogConfig, Server, SignatureValidation,
@@ -18,7 +15,10 @@ use nr_auth::key::{
     generation::{KeyType, PublicKeyPem},
     local::{LocalKeyPairGenerator, LocalKeyPairGeneratorConfig},
 };
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 use tracing::info;
 
 pub mod config;
@@ -45,9 +45,18 @@ pub struct Args {
     #[arg(long, default_value_t)]
     fleet_id: String,
 
+    /// Path where the private key is stored or will be written.
+    #[arg(long)]
+    pub auth_private_key_path: Option<PathBuf>,
+
+    /// Client ID of an already-provisioned system identity. When non-empty, no identity
+    /// generation is performed.
+    #[arg(long, default_value_t)]
+    pub auth_client_id: String,
+
     /// Identity configuration
     #[command(flatten)]
-    identity: SystemIdentityArgs,
+    identity: ProvisionIdentityArgs,
 
     /// Proxy configuration
     #[command(flatten)]
@@ -60,6 +69,24 @@ pub struct Args {
     /// Path to a file containing environment variables to be set for the Agents.
     #[arg(long)]
     env_vars_file_path: Option<PathBuf>,
+}
+
+/// Valid data to create a SystemIdentity, represent [SystemIdentityArgs] after validation.
+#[derive(Debug)]
+pub struct SystemIdentitySpec {
+    /// Data to get or create the System Identity to be used by Agent Control
+    pub system_identity_data: SystemIdentityData,
+    /// Path where the corresponding private key needs to be read from or written to
+    pub private_key_path: PathBuf,
+}
+
+/// Defines whether a SystemIdentity already exists or needs to be provisioned
+#[derive(Debug)]
+pub enum SystemIdentityData {
+    /// The Identity already exists
+    Existing { auth_client_id: String },
+    /// The identity needs to be provisioned
+    Provision(ProvisioningMethod),
 }
 
 /// Represents fleet parameters to generate configuration depending of it its enabled or not.
@@ -93,9 +120,25 @@ impl Args {
             if self.fleet_id.is_empty() {
                 return Err(String::from("'fleet_id' should be set when enabling fleet"));
             }
+            let private_key_path = self
+                .auth_private_key_path
+                .as_ref()
+                .ok_or_else(|| {
+                    "'auth_private_key_path' needs to be set to register System Identity"
+                        .to_string()
+                })?
+                .clone();
+
             FleetParams::FleetEnabled {
                 fleet_id: self.fleet_id,
-                identity: self.identity.validate()?,
+                identity: SystemIdentitySpec {
+                    system_identity_data: Self::identity_data(
+                        &private_key_path,
+                        self.auth_client_id,
+                        self.identity,
+                    )?,
+                    private_key_path,
+                },
             }
         };
         if let Some(proxy_config) = self.proxy_config.clone()
@@ -111,6 +154,24 @@ impl Args {
             env_vars_file_path: self.env_vars_file_path,
             fleet: fleet_inputs,
         })
+    }
+
+    /// Helper to build [SystemIdentityData] from args
+    fn identity_data(
+        private_key_path: &Path,
+        auth_client_id: String,
+        identity_args: ProvisionIdentityArgs,
+    ) -> Result<SystemIdentityData, String> {
+        if !auth_client_id.is_empty() {
+            if !private_key_path.exists() {
+                return Err(
+                    "when 'auth_client_id' is provided, 'auth_private_key_path' must exist"
+                        .to_string(),
+                );
+            }
+            return Ok(SystemIdentityData::Existing { auth_client_id });
+        }
+        Ok(SystemIdentityData::Provision(identity_args.validate()?))
     }
 }
 
@@ -128,7 +189,7 @@ pub fn generate(params: Params) -> Result<(), CliError> {
 fn write_config_and_generate_system_identity(params: &Params) -> Result<(), CliError> {
     info!("Generating Agent Control configuration");
 
-    let yaml = generate_config_and_system_identity(params, provide_identity)?;
+    let yaml = generate_config_and_system_identity(params, create_identity)?;
 
     LocalFile.write(&params.output_path, yaml).map_err(|err| {
         CliError::Command(format!(
@@ -191,7 +252,7 @@ fn generate_env_var_config(params: &Params) -> Result<String, CliError> {
 /// Generates the configuration according to args using the provided function to generate the identity.
 fn generate_config_and_system_identity<F>(
     params: &Params,
-    provide_identity_fn: F,
+    create_identity: F,
 ) -> Result<String, CliError>
 where
     F: Fn(
@@ -211,7 +272,7 @@ where
                 SystemIdentityData::Existing { auth_client_id } => auth_client_id.to_string(),
                 SystemIdentityData::Provision(provisioning_method) => {
                     let pub_key = public_key_from_key_pair(identity_spec.private_key_path.clone())?;
-                    provide_identity_fn(
+                    create_identity(
                         provisioning_method,
                         params.region,
                         params.proxy_config.clone(),
@@ -301,9 +362,6 @@ mod tests {
     #[case::fleet_disabled(
         || String::from("--fleet-disabled --output-path /some/path --region us")
     )]
-    #[case::identity_already_provided(
-        || format!("--output-path /some/path --region us --fleet-id some-id --auth-private-key-path {} --auth-client-id some-client-id", pwd())
-    )]
     #[case::token_based_identity(
         || format!("--output-path /some/path --region us --fleet-id some-id --auth-private-key-path {} --auth-parent-token TOKEN --auth-parent-client-id id --organization-id org-id", pwd())
     )]
@@ -317,6 +375,27 @@ mod tests {
             .expect("arguments should be valid");
         let args = Args::from_arg_matches(&matches).expect("should create the struct back");
         assert_matches!(args.validate(), Ok(_));
+    }
+
+    #[test]
+    fn test_identity_already_provided() {
+        let args_definition = format!(
+            "--output-path /some/path --region us --fleet-id some-id --auth-private-key-path {} --auth-client-id some-client-id",
+            pwd()
+        );
+        let cmd = Args::command().no_binary_name(true);
+        let matches = cmd
+            .try_get_matches_from(args_definition.split_ascii_whitespace())
+            .expect("arguments should be valid");
+        let args = Args::from_arg_matches(&matches).expect("should create the struct back");
+        assert_matches!(args.validate(), Ok(params) => {
+            assert_matches!(params.fleet, FleetParams::FleetEnabled { fleet_id, identity } => {
+                assert_eq!(fleet_id, "some-id".to_string());
+                assert_matches!(identity.system_identity_data, SystemIdentityData::Existing { auth_client_id } => {
+                    assert_eq!(auth_client_id, "some-client-id".to_string());
+                })
+            })
+        })
     }
 
     #[rstest]
