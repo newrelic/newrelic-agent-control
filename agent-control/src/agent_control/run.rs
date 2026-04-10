@@ -46,6 +46,15 @@ impl Display for Environment {
     }
 }
 
+/// Defines the execution mode of Agent Control
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum RunningMode {
+    /// Normal long-running process mode
+    Normal,
+    /// Verification mode (dry-run check)
+    Verify,
+}
+
 /// Structure with all base paths required to run Agent Control
 #[derive(Debug, Clone)]
 pub struct BasePaths {

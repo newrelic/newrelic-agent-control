@@ -2,6 +2,7 @@ use opamp_client::StartedClient;
 use tracing::info;
 
 use crate::{
+    agent_control::run::RunningMode,
     agent_control::run::on_host::{ac_identifiers, opamp_client_builder, start_ac_opamp_client},
     command::on_host_checks::config::VerifiedConfig,
     opamp::instance_id::{getter::InstanceIDWithIdentifiersGetter, storer::Storer},
@@ -41,8 +42,12 @@ pub fn check_connectivity(
     // - Even when calling `stop`, the thread might still get spawned
     // - The check sends an `AgentToServer` message and processes a `ServerToAgent` via
     //   `process_message`, doing more work than strictly necessary for connectivity verification
-    let (client, _consumer) =
-        start_ac_opamp_client(&opamp_client_builder, &instance_id_getter, &identifiers)?;
+    let (client, _consumer) = start_ac_opamp_client(
+        &opamp_client_builder,
+        &instance_id_getter,
+        &identifiers,
+        RunningMode::Verify,
+    )?;
     client.stop()?;
 
     info!("OpAMP connectivity check successful");

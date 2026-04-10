@@ -3,13 +3,14 @@ use crate::agent_control::config::{AgentControlConfig, OpAMPClientConfig};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
+    AGENT_CONTROL_VERSION, EXECUTION_MODE_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
+    HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
 use crate::agent_control::run::{
-    AgentControlRunner, Environment, RunError, setup_config_repository_and_store,
+    AgentControlRunner, Environment, RunError, RunningMode, setup_config_repository_and_store,
 };
 use crate::agent_control::version_updater::updater::NoOpUpdater;
 use crate::agent_type::render::TemplateRenderer;
@@ -122,7 +123,14 @@ impl AgentControlRunner {
         // Build and start AC OpAMP client
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
             .as_ref()
-            .map(|builder| start_ac_opamp_client(builder, &instance_id_getter, &identifiers))
+            .map(|builder| {
+                start_ac_opamp_client(
+                    builder,
+                    &instance_id_getter,
+                    &identifiers,
+                    RunningMode::Normal,
+                )
+            })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()?
             .map(|(client, consumer)| (Some(client), Some(consumer)))
@@ -269,6 +277,7 @@ pub fn start_ac_opamp_client(
     builder: &OnHostOpAMPClientBuilder,
     instance_id_getter: &OnHostInstanceIdGetter,
     identifiers: &Identifiers,
+    running_mode: RunningMode,
 ) -> Result<(OnHostOpAMPClient, OnHostOpAMPConsumer), RunError> {
     info!("Starting Agent Control OpAMP client");
 
@@ -282,7 +291,7 @@ pub fn start_ac_opamp_client(
         instance_id,
         &agent_identity,
         ac_identifying_attributes(),
-        ac_non_identifying_attributes(identifiers),
+        ac_non_identifying_attributes(identifiers, running_mode),
     );
 
     builder
@@ -299,8 +308,9 @@ fn ac_identifying_attributes() -> HashMap<String, DescriptionValueType> {
 
 fn ac_non_identifying_attributes(
     identifiers: &Identifiers,
+    running_mode: RunningMode,
 ) -> HashMap<String, DescriptionValueType> {
-    HashMap::from([
+    let mut attributes = HashMap::from([
         (
             HOST_NAME_ATTRIBUTE_KEY.to_string(),
             identifiers.hostname.clone().into(),
@@ -317,5 +327,15 @@ fn ac_non_identifying_attributes(
             OS_ATTRIBUTE_KEY.to_string(),
             OS_ATTRIBUTE_VALUE.to_string().into(),
         ),
-    ])
+    ]);
+
+    // Only add execution mode attribute in verify mode
+    if running_mode == RunningMode::Verify {
+        attributes.insert(
+            EXECUTION_MODE_ATTRIBUTE_KEY.to_string(),
+            "dry-run".to_string().into(),
+        );
+    }
+
+    attributes
 }
