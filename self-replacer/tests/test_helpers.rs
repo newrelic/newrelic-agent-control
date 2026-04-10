@@ -41,7 +41,7 @@ pub fn create_self_replacing_binary(dir: &Path, name: &str, version: &str) -> Pa
 [package]
 name = "{}"
 version = "{}"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 self-replacer = {{ path = "{}" }}

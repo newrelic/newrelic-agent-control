@@ -4246,7 +4246,9 @@ dependencies = [
 name = "self-replacer"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "assert_matches",
+ "predicates",
  "tempfile",
  "thiserror 2.0.18",
  "tracing",

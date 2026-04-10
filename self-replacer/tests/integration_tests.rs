@@ -3,8 +3,9 @@
 //! These tests compile and run real binaries to verify the self-replacement
 //! behavior works correctly in realistic scenarios.
 
+use assert_cmd::Command;
+use predicates::prelude::*;
 use std::fs;
-use std::process::Command;
 use tempfile::TempDir;
 
 mod test_helpers;
@@ -21,6 +22,8 @@ use self_replacer::{SelfReplacer, WindowsSelfReplacer};
 // Common tests that run on all platforms
 // ============================================================================
 
+const TEST_EXEC_MODE: u32 = 0o754; // rwxr-xr--
+
 #[test]
 fn test_self_replacement_with_real_binary() {
     let temp_dir = TempDir::new().unwrap();
@@ -30,50 +33,24 @@ fn test_self_replacement_with_real_binary() {
     let binary_v2 = create_self_replacing_binary(&test_dir, "test_app_v2", "2.0.0");
 
     // Verify v1 prints correct version
-    let output = Command::new(&binary_v1)
-        .output()
-        .expect("Failed to run v1 binary");
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("VERSION:1.0.0"),
-        "Expected v1, got: {}",
-        stdout
-    );
+    Command::new(&binary_v1)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("VERSION:1.0.0"));
 
     // Perform self-replacement
-    let output = Command::new(&binary_v1)
+    Command::new(&binary_v1)
         .arg("--replace")
         .arg(&binary_v2)
-        .output()
-        .expect("Failed to run self-replacement");
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert!(
-        output.status.success(),
-        "Self-replacement failed. stdout: {}, stderr: {}",
-        stdout,
-        stderr
-    );
-    assert!(
-        stdout.contains("REPLACEMENT_SUCCESS"),
-        "Expected success message, got: {}",
-        stdout
-    );
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("REPLACEMENT_SUCCESS"));
 
     // Verify the binary was replaced (should now be v2)
-    let output = Command::new(&binary_v1)
-        .output()
-        .expect("Failed to run replaced binary");
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("VERSION:2.0.0"),
-        "Expected v2, got: {}",
-        stdout
-    );
+    Command::new(&binary_v1)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("VERSION:2.0.0"));
 
     // Verify backup was created
     // Backup appends .bak to the full filename (e.g., test_app.exe.bak on Windows)
@@ -144,20 +121,20 @@ mod unix_specific {
 
         // Set specific permissions on v1
         let mut perms = fs::metadata(&binary_v1).unwrap().permissions();
-        perms.set_mode(0o754);
+        perms.set_mode(TEST_EXEC_MODE);
         fs::set_permissions(&binary_v1, perms).unwrap();
 
+        // The bitmask 0o777 is needed to extract only the 9 permission bits (rwxrwxrwx) and ignore
+        // the file type bits. This is the standard practice when comparing Unix file permissions.
         let original_mode = fs::metadata(&binary_v1).unwrap().permissions().mode() & 0o777;
-        assert_eq!(original_mode, 0o754);
+        assert_eq!(original_mode, TEST_EXEC_MODE);
 
         // Perform replacement
-        let output = Command::new(&binary_v1)
+        Command::new(&binary_v1)
             .arg("--replace")
             .arg(&binary_v2)
-            .output()
-            .expect("Failed to run self-replacement");
-
-        assert!(output.status.success());
+            .assert()
+            .success();
 
         // Verify permissions were preserved
         let new_mode = fs::metadata(&binary_v1).unwrap().permissions().mode() & 0o777;
