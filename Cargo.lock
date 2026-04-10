@@ -2903,6 +2903,7 @@ dependencies = [
  "rstest",
  "rustls-pki-types",
  "schemars",
+ "self-replacer",
  "semver",
  "serde",
  "serde_json",

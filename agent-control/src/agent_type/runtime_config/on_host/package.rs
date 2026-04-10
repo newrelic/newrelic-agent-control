@@ -6,6 +6,7 @@ use crate::oci::reference_parser::ReferenceParser;
 use oci_client::Reference;
 use serde::Deserialize;
 use std::str::FromStr;
+use url::Url;
 
 pub mod rendered;
 
@@ -67,7 +68,7 @@ impl Templateable for Oci {
             .transpose()?;
 
         let public_key_url = public_key_url
-            .map(|s| s.parse())
+            .map(|s| Url::parse(&s))
             .transpose()
             .map_err(|err| {
                 AgentTypeError::OCIReferenceParsingError(format!("invalid public_key_url: {err}"))
