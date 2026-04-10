@@ -6,6 +6,7 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
+use std::process::Command;
 use tempfile::TempDir;
 
 mod test_helpers;
@@ -67,6 +68,7 @@ fn test_self_replacement_with_real_binary() {
     );
 
     // Verify backup was created
+    // Backup appends .bak to the full filename (e.g., test_app.exe.bak on Windows)
     let backup_path = {
         let filename = binary_path.file_name().unwrap();
         let backup_name = format!("{}.{}", filename.to_string_lossy(), BACKUP_SUFFIX);
