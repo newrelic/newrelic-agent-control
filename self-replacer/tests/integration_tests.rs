@@ -23,8 +23,6 @@ use self_replacer::{SelfReplacer, WindowsSelfReplacer};
 // Common tests that run on all platforms
 // ============================================================================
 
-const TEST_EXEC_MODE: u32 = 0o754; // rwxr-xr--
-
 #[test]
 fn test_self_replacement_with_real_binary() {
     let temp_dir = TempDir::new().unwrap();
