@@ -161,6 +161,7 @@ agents:
                     ]),
                     chart_version: None,
                     cd_chart_version: None,
+                    version: None,
                 },
             },
             TestCase {
@@ -211,6 +212,7 @@ agents:
                     ]),
                     chart_version: None,
                     cd_chart_version: None,
+                    version: None,
                 },
             },
         ];

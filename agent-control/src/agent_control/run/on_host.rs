@@ -55,6 +55,7 @@ use oci_client::client::ClientProtocol;
 use opamp_client::http::StartedHttpClient;
 use opamp_client::http::client::OpAMPHttpClient;
 use opamp_client::operation::settings::DescriptionValueType;
+#[cfg(target_family = "unix")]
 use self_replacer::UnixSelfReplacer;
 #[cfg(target_family = "windows")]
 use self_replacer::windows::WindowsSelfReplacer;
@@ -224,7 +225,7 @@ impl AgentControlRunner {
         let updater = OnHostACUpdater {
             ac_remote_update_enabled: on_host_config.ac_remote_update,
             agent_control_internal_publisher: agent_control_internal_publisher.clone(),
-            self_replacer: WindowsSelfReplacer,
+            self_replacer,
             verify_executor: ProcessVerifyExecutor::default(),
             package_manager,
             reference: on_host_config

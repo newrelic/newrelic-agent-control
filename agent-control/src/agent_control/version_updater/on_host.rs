@@ -182,7 +182,7 @@ impl<E: VerifyExecutor> VersionUpdater for OnHostUpdater<E> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use mockall::mock;
