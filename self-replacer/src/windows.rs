@@ -30,7 +30,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use tracing::{debug, error};
 
-use super::{BACKUP_SUFIX, SelfReplacer};
+use super::{BACKUP_SUFFIX, SelfReplacer};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReplaceError {
@@ -128,8 +128,8 @@ fn replace_binary(current_exe: &Path, new_bin: &Path) -> Result<(), ReplaceError
 fn backup_path(exe_path: &Path) -> PathBuf {
     let filename = exe_path
         .file_name()
-        .map(|f| format!("{}.{}", f.to_string_lossy(), BACKUP_SUFIX))
-        .unwrap_or_else(|| format!("replaced_binary.{}", BACKUP_SUFIX));
+        .map(|f| format!("{}.{}", f.to_string_lossy(), BACKUP_SUFFIX))
+        .unwrap_or_else(|| format!("replaced_binary.{}", BACKUP_SUFFIX));
 
     exe_path.with_file_name(filename)
 }
