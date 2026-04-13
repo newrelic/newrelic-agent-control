@@ -4,7 +4,7 @@ use crate::cli::{
         error::CliError,
         proxy_config::ProxyConfig,
         region::{Region, region_parser},
-        system_identity::{ProvisionIdentityArgs, ProvisioningMethod, create_identity},
+        system_identity::{ParentAuthMethod, ProvisionIdentityArgs, create_identity},
     },
     on_host::config_gen::config::{
         AuthConfig, Config, FleetControl, LogConfig, Server, SignatureValidation,
@@ -47,12 +47,12 @@ pub struct Args {
 
     /// Path where the private key is stored or will be written.
     #[arg(long)]
-    pub auth_private_key_path: Option<PathBuf>,
+    auth_private_key_path: Option<PathBuf>,
 
     /// Client ID of an already-provisioned system identity. When non-empty, no identity
     /// generation is performed.
     #[arg(long, default_value_t)]
-    pub auth_client_id: String,
+    auth_client_id: String,
 
     /// Identity configuration
     #[command(flatten)]
@@ -86,7 +86,7 @@ pub enum SystemIdentityData {
     /// The Identity already exists
     Existing { auth_client_id: String },
     /// The identity needs to be provisioned
-    Provision(ProvisioningMethod),
+    Provision(ParentAuthMethod),
 }
 
 /// Represents fleet parameters to generate configuration depending of it its enabled or not.
@@ -255,12 +255,7 @@ fn generate_config_and_system_identity<F>(
     create_identity: F,
 ) -> Result<String, CliError>
 where
-    F: Fn(
-        &ProvisioningMethod,
-        Region,
-        Option<ProxyConfig>,
-        PublicKeyPem,
-    ) -> Result<String, CliError>,
+    F: Fn(&ParentAuthMethod, Region, Option<ProxyConfig>, PublicKeyPem) -> Result<String, CliError>,
 {
     let fleet_control = match &params.fleet {
         FleetParams::FleetDisabled => None,
@@ -270,7 +265,7 @@ where
         } => {
             let client_id = match &identity_spec.system_identity_data {
                 SystemIdentityData::Existing { auth_client_id } => auth_client_id.to_string(),
-                SystemIdentityData::Provision(provisioning_method) => {
+                SystemIdentityData::Provision(parent_auth_method) => {
                     let pub_key = LocalKeyPairGenerator::from(LocalKeyPairGeneratorConfig {
                         key_type: KeyType::Rsa4096,
                         file_path: identity_spec.private_key_path.clone(),
@@ -283,7 +278,7 @@ where
                     })?;
 
                     create_identity(
-                        provisioning_method,
+                        parent_auth_method,
                         params.region,
                         params.proxy_config.clone(),
                         pub_key,
@@ -335,7 +330,7 @@ fn default_log_config() -> Option<LogConfig> {
 mod tests {
     use super::*;
     use crate::agent_control::config::AgentControlConfig;
-    use crate::cli::common::system_identity::ProvisioningMethod;
+    use crate::cli::common::system_identity::ParentAuthMethod;
     use assert_matches::assert_matches;
     use clap::{CommandFactory, FromArgMatches};
     use rstest::rstest;
@@ -506,7 +501,7 @@ mod tests {
     }
 
     fn identity_provider_mock(
-        _: &ProvisioningMethod,
+        _: &ParentAuthMethod,
         _: Region,
         _: Option<ProxyConfig>,
         _: PublicKeyPem,
@@ -527,7 +522,7 @@ mod tests {
                 fleet_id: "test-fleet-id".to_string(),
                 identity: SystemIdentitySpec {
                     system_identity_data: SystemIdentityData::Provision(
-                        ProvisioningMethod::ParentSecret {
+                        ParentAuthMethod::ParentSecret {
                             secret: "parent-client-secret".to_string(),
                             parent_client_id: "parent-client-id".to_string(),
                             organization_id: "test-org-id".to_string(),

@@ -15,7 +15,7 @@ use crate::{
             error::CliError,
             proxy_config::ProxyConfig,
             region::{Region, region_parser},
-            system_identity::{ProvisionIdentityArgs, ProvisioningMethod, create_identity},
+            system_identity::{ParentAuthMethod, ProvisionIdentityArgs, create_identity},
         },
         k8s::{errors::K8sCliError, utils::try_new_k8s_client},
     },
@@ -50,7 +50,7 @@ pub struct Args {
 pub struct IdentityRegistrationSpec {
     secret_name: String,
     region: Region,
-    identity_provisioning_method: ProvisioningMethod,
+    identity_provisioning_method: ParentAuthMethod,
     proxy_config: Option<ProxyConfig>,
 }
 
@@ -91,12 +91,7 @@ fn provide_system_identity_secret<F>(
     create_identity: F,
 ) -> Result<(), K8sCliError>
 where
-    F: Fn(
-        &ProvisioningMethod,
-        Region,
-        Option<ProxyConfig>,
-        PublicKeyPem,
-    ) -> Result<String, CliError>,
+    F: Fn(&ParentAuthMethod, Region, Option<ProxyConfig>, PublicKeyPem) -> Result<String, CliError>,
 {
     let secret_object_key = K8sObjectKey {
         name: &spec.secret_name,
@@ -192,7 +187,7 @@ fn secret_dynamic_object(object_key: K8sObjectKey<'_>, data: serde_json::Value) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::common::system_identity::ProvisioningMethod;
+    use crate::cli::common::system_identity::ParentAuthMethod;
     use crate::k8s::client::MockSyncK8sClient;
     use assert_matches::assert_matches;
     use clap::{CommandFactory, FromArgMatches};
@@ -204,7 +199,7 @@ mod tests {
             IdentityRegistrationSpec {
                 secret_name: "test-secret".to_string(),
                 region: Region::US,
-                identity_provisioning_method: ProvisioningMethod::ParentSecret {
+                identity_provisioning_method: ParentAuthMethod::ParentSecret {
                     secret: "secret".to_string(),
                     parent_client_id: "parent_client_id".to_string(),
                     organization_id: "org_id".to_string(),

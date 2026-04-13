@@ -56,7 +56,7 @@ pub struct ProvisionIdentityArgs {
 
 /// Defines the supported provisioning methods for System Identities
 #[derive(Debug)]
-pub enum ProvisioningMethod {
+pub enum ParentAuthMethod {
     ParentToken {
         token: String,
         organization_id: String,
@@ -69,10 +69,10 @@ pub enum ProvisioningMethod {
 }
 
 impl ProvisionIdentityArgs {
-    pub fn validate(self) -> Result<ProvisioningMethod, String> {
+    pub fn validate(self) -> Result<ParentAuthMethod, String> {
         if !self.auth_parent_token.is_empty() {
             self.require_org_and_parent_id("token based")?;
-            return Ok(ProvisioningMethod::ParentToken {
+            return Ok(ParentAuthMethod::ParentToken {
                 token: self.auth_parent_token,
                 organization_id: self.organization_id,
             });
@@ -80,14 +80,14 @@ impl ProvisionIdentityArgs {
 
         if !self.auth_parent_client_secret.is_empty() {
             self.require_org_and_parent_id("client-secret based")?;
-            return Ok(ProvisioningMethod::ParentSecret {
+            return Ok(ParentAuthMethod::ParentSecret {
                 secret: self.auth_parent_client_secret,
                 parent_client_id: self.auth_parent_client_id,
                 organization_id: self.organization_id,
             });
         }
         Err(
-            "either 'auth_client_id', 'auth_parent_token' or 'auth_parent_secret' should be set to register System Identity"
+            "either 'auth_parent_token' or 'auth_parent_secret' should be set to create a System Identity"
                 .to_string(),
         )
     }
@@ -104,24 +104,24 @@ impl ProvisionIdentityArgs {
 
 /// Creates a key-based identity considering the supplied args. It returns the corresponding **client_id** as a String.
 pub fn create_identity(
-    method: &ProvisioningMethod,
+    parent_auth_method: &ParentAuthMethod,
     region: Region,
     proxy_config: Option<ProxyConfig>,
     pub_key: PublicKeyPem,
 ) -> Result<String, CliError> {
     let environment = NewRelicEnvironment::from(region);
-    build_identity(method, environment, proxy_config, pub_key)
+    build_identity(parent_auth_method, environment, proxy_config, pub_key)
 }
 
 /// Helper to allow injecting testing urls when building the identity.
 fn build_identity(
-    method: &ProvisioningMethod,
+    parent_auth_method: &ParentAuthMethod,
     environment: NewRelicEnvironment,
     proxy_config: Option<ProxyConfig>,
     pub_key: PublicKeyPem,
 ) -> Result<String, CliError> {
-    match method {
-        ProvisioningMethod::ParentToken {
+    match parent_auth_method {
+        ParentAuthMethod::ParentToken {
             token,
             organization_id,
         } => {
@@ -135,7 +135,7 @@ fn build_identity(
                 pub_key,
             )
         }
-        ProvisioningMethod::ParentSecret {
+        ParentAuthMethod::ParentSecret {
             secret,
             parent_client_id,
             organization_id,
@@ -184,12 +184,9 @@ fn get_auth_token(
     let authenticator =
         HttpAuthenticator::new(http_client.clone(), environment.token_renewal_endpoint());
 
-    let token_retriever = TokenRetrieverWithCache::new_with_secret(
-        parent_client_id.clone(),
-        authenticator,
-        secret.into(),
-    )
-    .with_retries(DEFAULT_RETRIES);
+    let token_retriever =
+        TokenRetrieverWithCache::new_with_secret(parent_client_id, authenticator, secret.into())
+            .with_retries(DEFAULT_RETRIES);
 
     token_retriever.retrieve().map_err(|err| {
         CliError::Command(format!(
