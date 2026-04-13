@@ -1,8 +1,6 @@
-use std::convert::Infallible;
-
 use kube::api::{DynamicObject, ObjectMeta};
 use nr_auth::key::{
-    creator::{Creator, KeyPair, KeyType, PublicKeyPem},
+    generation::{KeyPair, KeyType, PublicKeyPem},
     rsa::rsa,
 };
 use serde_json::json;
@@ -17,7 +15,7 @@ use crate::{
             error::CliError,
             proxy_config::ProxyConfig,
             region::{Region, region_parser},
-            system_identity::{SystemIdentityArgs, SystemIdentitySpec, provide_identity},
+            system_identity::{ParentAuthMethod, ProvisionIdentityArgs, create_identity},
         },
         k8s::{errors::K8sCliError, utils::try_new_k8s_client},
     },
@@ -40,7 +38,7 @@ pub struct Args {
 
     /// Identity configuration
     #[command(flatten)]
-    identity: SystemIdentityArgs,
+    identity: ProvisionIdentityArgs,
 
     /// Proxy configuration
     #[command(flatten)]
@@ -52,7 +50,7 @@ pub struct Args {
 pub struct IdentityRegistrationSpec {
     secret_name: String,
     region: Region,
-    identity: SystemIdentitySpec,
+    identity_provisioning_method: ParentAuthMethod,
     proxy_config: Option<ProxyConfig>,
 }
 
@@ -67,7 +65,7 @@ impl Args {
         Ok(IdentityRegistrationSpec {
             secret_name: self.secret_name,
             region: self.region,
-            identity: self.identity.validate()?,
+            identity_provisioning_method: self.identity.validate()?,
             proxy_config: self.proxy_config,
         })
     }
@@ -79,7 +77,7 @@ pub fn register_system_identity(
     spec: IdentityRegistrationSpec,
 ) -> Result<(), K8sCliError> {
     let k8s_client = try_new_k8s_client()?;
-    provide_system_identity_secret(namespace, spec, &k8s_client, provide_identity)
+    provide_system_identity_secret(namespace, spec, &k8s_client, create_identity)
 }
 
 /// Helper function to implement [register_system_identity] while allowing the usage of mocks for the k8s client
@@ -90,15 +88,10 @@ fn provide_system_identity_secret<F>(
     namespace: &str,
     spec: IdentityRegistrationSpec,
     k8s_client: &SyncK8sClient,
-    provide_identity_fn: F,
+    create_identity: F,
 ) -> Result<(), K8sCliError>
 where
-    F: Fn(
-        &SystemIdentitySpec,
-        Region,
-        Option<ProxyConfig>,
-        PublicKeyHolder,
-    ) -> Result<String, CliError>,
+    F: Fn(&ParentAuthMethod, Region, Option<ProxyConfig>, PublicKeyPem) -> Result<String, CliError>,
 {
     let secret_object_key = K8sObjectKey {
         name: &spec.secret_name,
@@ -123,12 +116,16 @@ where
             "failure building key-pair for System Identity: {err}"
         ))
     })?;
-    let pk_holder = PublicKeyHolder { public_key };
 
-    let client_id = provide_identity_fn(&spec.identity, spec.region, spec.proxy_config, pk_holder)
-        .map_err(|err| {
-            K8sCliError::Generic(format!("failure registering the System Identity: {err}"))
-        })?;
+    let client_id = create_identity(
+        &spec.identity_provisioning_method,
+        spec.region,
+        spec.proxy_config,
+        public_key,
+    )
+    .map_err(|err| {
+        K8sCliError::Generic(format!("failure registering the System Identity: {err}"))
+    })?;
 
     let private_key = String::from_utf8(private_key).map_err(|err| {
         K8sCliError::Generic(format!(
@@ -187,39 +184,25 @@ fn secret_dynamic_object(object_key: K8sObjectKey<'_>, data: serde_json::Value) 
     }
 }
 
-/// Helper struct to hold a public key an use it as [Creator] for System Identity provisioning.
-struct PublicKeyHolder {
-    public_key: PublicKeyPem,
-}
-
-impl Creator for PublicKeyHolder {
-    type Error = Infallible;
-
-    fn create(&self) -> Result<PublicKeyPem, Self::Error> {
-        Ok(self.public_key.clone())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::common::system_identity::ProvisioningMethod;
+    use crate::cli::common::system_identity::ParentAuthMethod;
     use crate::k8s::client::MockSyncK8sClient;
     use assert_matches::assert_matches;
     use clap::{CommandFactory, FromArgMatches};
     use rstest::rstest;
-    use std::{env::current_dir, path::PathBuf, sync::Arc};
+    use std::sync::Arc;
 
     impl Default for IdentityRegistrationSpec {
         fn default() -> Self {
             IdentityRegistrationSpec {
                 secret_name: "test-secret".to_string(),
                 region: Region::US,
-                identity: SystemIdentitySpec {
-                    method: ProvisioningMethod::ExistingIdentity {
-                        auth_client_id: "test-client-id".to_string(),
-                    },
-                    private_key_path: PathBuf::from("/test/key"),
+                identity_provisioning_method: ParentAuthMethod::ParentSecret {
+                    secret: "secret".to_string(),
+                    parent_client_id: "parent_client_id".to_string(),
+                    organization_id: "org_id".to_string(),
                 },
                 proxy_config: None,
             }
@@ -227,44 +210,39 @@ mod tests {
     }
 
     #[rstest]
-    #[case::token_based_identity(
-        || String::from("--secret-name s  --region us --auth-private-key-path /some/path --auth-parent-token TOKEN --auth-parent-client-id id --organization-id org-id")
-    )]
-    #[case::client_secret_based_identity(
-        || String::from("--secret-name s --region us --auth-private-key-path /some/path --auth-parent-client-secret SECRET --auth-parent-client-id id --organization-id org-id")
-    )]
-    fn test_args_validation(#[case] args: fn() -> String) {
+    #[case::token_based_identity(String::from(
+        "--secret-name s  --region us --auth-parent-token TOKEN --auth-parent-client-id id --organization-id org-id"
+    ))]
+    #[case::client_secret_based_identity(String::from(
+        "--secret-name s --region us --auth-parent-client-secret SECRET --auth-parent-client-id id --organization-id org-id"
+    ))]
+    fn test_args_validation(#[case] args: String) {
         let cmd = Args::command().no_binary_name(true);
         let matches = cmd
-            .try_get_matches_from(args().split_ascii_whitespace())
+            .try_get_matches_from(args.split_ascii_whitespace())
             .expect("arguments should be valid");
         let args = Args::from_arg_matches(&matches).expect("should create the struct back");
         assert!(args.validate().is_ok());
     }
 
     #[rstest]
-    #[case::missing_private_key_path(
-        || String::from("--secret-name s --region us --auth-client-id some-id")
-    )]
-    #[case::no_identity_method(
-        || format!("--secret-name s --region us --auth-private-key-path {}", current_dir().unwrap().display())
-    )]
-    #[case::missing_org_id_with_token(
-        || String::from("--secret-name s --region us --auth-private-key-path /p --auth-parent-token TOKEN --auth-parent-client-id id")
-    )]
-    #[case::missing_parent_client_id_with_secret(
-        || String::from("--secret-name s --region us --auth-private-key-path /p --auth-parent-client-secret SECRET --organization-id org-id")
-    )]
-    #[case::missing_org_id_with_secret(
-        || String::from("--secret-name s --region us --auth-private-key-path /p --auth-parent-client-secret SECRET --auth-parent-client-id id")
-    )]
-    #[case::invalid_proxy_config(
-        || String::from("--secret-name s --region us --auth-private-key-path /p --auth-parent-client-secret SECRET --auth-parent-client-id id --organization-id org-id --proxy-url https::/invalid")
-    )]
-    fn test_args_validation_errors(#[case] args: fn() -> String) {
+    #[case::no_identity_method(String::from("--secret-name s --region us"))]
+    #[case::missing_org_id_with_token(String::from(
+        "--secret-name s --region us --auth-parent-token TOKEN --auth-parent-client-id id"
+    ))]
+    #[case::missing_parent_client_id_with_secret(String::from(
+        "--secret-name s --region us --auth-parent-client-secret SECRET --organization-id org-id"
+    ))]
+    #[case::missing_org_id_with_secret(String::from(
+        "--secret-name s --region us --auth-parent-client-secret SECRET --auth-parent-client-id id"
+    ))]
+    #[case::invalid_proxy_config(String::from(
+        "--secret-name s --region us --auth-parent-client-secret SECRET --auth-parent-client-id id --organization-id org-id --proxy-url https::/invalid"
+    ))]
+    fn test_args_validation_errors(#[case] args: String) {
         let cmd = Args::command().no_binary_name(true);
         let matches = cmd
-            .try_get_matches_from(args().split_ascii_whitespace())
+            .try_get_matches_from(args.split_ascii_whitespace())
             .expect("arguments should be valid");
         let args = Args::from_arg_matches(&matches).expect("should create the struct back");
         assert_matches!(args.validate(), Err(_));
