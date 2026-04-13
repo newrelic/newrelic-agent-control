@@ -75,9 +75,9 @@ pub struct Args {
 #[derive(Debug)]
 pub struct SystemIdentitySpec {
     /// Data to get or create the System Identity to be used by Agent Control
-    pub system_identity_data: SystemIdentityData,
+    system_identity_data: SystemIdentityData,
     /// Path where the corresponding private key needs to be read from or written to
-    pub private_key_path: PathBuf,
+    private_key_path: PathBuf,
 }
 
 /// Defines whether a SystemIdentity already exists or needs to be provisioned
