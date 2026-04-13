@@ -3,8 +3,13 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Returns path to the pre-built example binary.
-/// Cargo builds examples to target/debug/examples/ when running tests.
+/// Returns path to the pre-built example binary, building it if necessary.
+///
+/// Locates the `self_replacing_binary` example by navigating from the test executable's
+/// location to the examples directory. If the binary doesn't exist, automatically builds
+/// it using `cargo build --example self_replacing_binary`.
+///
+/// This ensures tests work both locally and in CI without requiring a separate build step.
 pub fn get_example_binary() -> PathBuf {
     // Get the target directory (usually target/debug or target/release)
     let mut path = std::env::current_exe().expect("Failed to get current test executable path");
@@ -23,9 +28,27 @@ pub fn get_example_binary() -> PathBuf {
     };
     path.push(binary_name);
 
+    // Build the example if it doesn't exist
+    if !path.exists() {
+        eprintln!("Example binary not found, building it...");
+        let output = std::process::Command::new("cargo")
+            .arg("build")
+            .arg("--example")
+            .arg("self_replacing_binary")
+            .output()
+            .expect("Failed to run cargo build");
+
+        if !output.status.success() {
+            panic!(
+                "Failed to build example binary:\n{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+
     assert!(
         path.exists(),
-        "Example binary not found at {:?}. Did you run 'cargo build --example self_replacing_binary'?",
+        "Example binary not found at {:?} even after building",
         path
     );
 
