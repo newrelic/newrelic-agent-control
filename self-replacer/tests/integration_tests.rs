@@ -36,11 +36,11 @@ fn test_self_replacement_with_real_binary() {
     copy_example_binary(&binary_path);
 
     // Get original hash
-    let output1 = Command::new(&binary_path)
-        .output()
-        .expect("Failed to get original hash");
-    let hash1 = String::from_utf8_lossy(&output1.stdout);
-    assert!(hash1.starts_with("HASH:"), "Expected hash output");
+    let assert1 = Command::new(&binary_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("HASH:"));
+    let hash1 = String::from_utf8_lossy(&assert1.get_output().stdout);
 
     // Create modified binary (different hash)
     let binary_v2 = create_modified_binary(test_dir, "test_app_v2");
@@ -54,15 +54,11 @@ fn test_self_replacement_with_real_binary() {
         .stdout(predicate::str::contains("REPLACEMENT_SUCCESS"));
 
     // Verify the binary was replaced (hash should be different)
-    Command::new(&binary_path)
+    let assert2 = Command::new(&binary_path)
         .assert()
         .success()
         .stdout(predicate::str::starts_with("HASH:"));
-
-    let output2 = Command::new(&binary_path)
-        .output()
-        .expect("Failed to get new hash");
-    let hash2 = String::from_utf8_lossy(&output2.stdout);
+    let hash2 = String::from_utf8_lossy(&assert2.get_output().stdout);
 
     assert_ne!(
         hash1.trim(),
