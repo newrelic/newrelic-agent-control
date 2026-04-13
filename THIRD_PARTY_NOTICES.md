@@ -478,6 +478,20 @@ Distributed under the following license(s):
 
 * MIT
 
+## const-random <https://crates.io/crates/const-random>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## const-random-macro <https://crates.io/crates/const-random-macro>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## const_format <https://crates.io/crates/const_format>
 
 Distributed under the following license(s):
@@ -587,6 +601,12 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## crunchy <https://crates.io/crates/crunchy>
+
+Distributed under the following license(s):
+
+* MIT
 
 ## crypto-common <https://crates.io/crates/crypto-common>
 
@@ -708,6 +728,13 @@ Distributed under the following license(s):
 * MIT
 
 ## displaydoc <https://crates.io/crates/displaydoc>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## dlv-list <https://crates.io/crates/dlv-list>
 
 Distributed under the following license(s):
 
@@ -1677,6 +1704,12 @@ Distributed under the following license(s):
 
 * MIT
 
+## ordered-multimap <https://crates.io/crates/ordered-multimap>
+
+Distributed under the following license(s):
+
+* MIT
+
 ## parking <https://crates.io/crates/parking>
 
 Distributed under the following license(s):
@@ -2027,6 +2060,12 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## rust-ini <https://crates.io/crates/rust-ini>
+
+Distributed under the following license(s):
+
+* MIT
 
 ## rust_decimal <https://crates.io/crates/rust_decimal>
 
@@ -2454,6 +2493,12 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## tiny-keccak <https://crates.io/crates/tiny-keccak>
+
+Distributed under the following license(s):
+
+* CC0-1.0
 
 ## tinystr <https://crates.io/crates/tinystr>
 
