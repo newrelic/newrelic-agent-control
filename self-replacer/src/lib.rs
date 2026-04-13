@@ -5,13 +5,15 @@ use std::path::Path;
 
 #[cfg(target_os = "windows")]
 pub mod windows;
+#[cfg(target_os = "windows")]
+pub use windows::WindowsSelfReplacer;
 
 #[cfg(unix)]
 mod unix;
 #[cfg(unix)]
 pub use unix::UnixSelfReplacer;
 
-const BACKUP_SUFIX: &str = "bak";
+pub const BACKUP_SUFFIX: &str = "bak";
 
 /// Trait for platform-specific binary self-replacement.
 pub trait SelfReplacer {

@@ -15,7 +15,7 @@
 //! 5. Atomically renames the temporary file to replace the current binary
 //! 6. On failure, attempts to restore from backup
 
-use crate::{BACKUP_SUFIX, SelfReplacer};
+use crate::{BACKUP_SUFFIX, SelfReplacer};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 use thiserror::Error;
@@ -69,6 +69,8 @@ impl SelfReplacer for UnixSelfReplacer {
             return Err(Error::NewBinaryNotFound(new_bin.display().to_string()));
         }
 
+        // Canonicalize resolves symlinks, so self-replacement works
+        // even if the binary is invoked through a symlink
         let current_exe = std::env::current_exe()
             .and_then(|p| p.canonicalize())
             .map_err(Error::CurrentExeNotFound)?;
@@ -126,7 +128,7 @@ impl SelfReplacer for UnixSelfReplacer {
 ///
 /// The backup is created in the same directory with a `.backup` extension.
 fn create_backup(current_exe: &Path) -> Result<PathBuf, Error> {
-    let backup_path = current_exe.with_extension(BACKUP_SUFIX);
+    let backup_path = current_exe.with_extension(BACKUP_SUFFIX);
     debug!(
         "copying {} -> {}",
         current_exe.display(),

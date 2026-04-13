@@ -15,13 +15,21 @@ tracing = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 assert_matches = { workspace = true }
+assert_cmd = "2.0"
+predicates = "3.1"
 
 [target.'cfg(target_os = "windows")'.dev-dependencies]
 windows = { workspace = true, features = [
-  "Win32_Foundation",
-  "Win32_Security",
-  "Win32_Storage_FileSystem",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
 ] }
 
 [target.'cfg(unix)'.dependencies]
 tempfile = { workspace = true }
+
+[[example]]
+name = "self_replacing_binary"
+# This flags ensures this example is not run as a test - it's used by tests, but it's not a test.
+# Integration tests build and run this binary to verify self-replacement behavior.
+test = false
