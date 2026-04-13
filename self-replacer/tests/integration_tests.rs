@@ -82,7 +82,7 @@ fn test_self_replacement_with_real_binary() {
         backup_path
     );
 
-    // Verify backup has the original hash
+    // Verify that the binary in the backup is the original
     Command::new(&backup_path)
         .assert()
         .success()

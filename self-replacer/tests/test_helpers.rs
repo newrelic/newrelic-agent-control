@@ -3,13 +3,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Returns path to the pre-built example binary, building it if necessary.
+/// Returns path to the example binary, building it automatically if needed.
 ///
 /// Locates the `self_replacing_binary` example by navigating from the test executable's
 /// location to the examples directory. If the binary doesn't exist, automatically builds
 /// it using `cargo build --example self_replacing_binary`.
 ///
-/// This ensures tests work both locally and in CI without requiring a separate build step.
+/// This ensures tests work both locally and in CI by handling the build step automatically
+/// on-demand, rather than requiring it to be run manually or as a separate CI step.
 pub fn get_example_binary() -> PathBuf {
     // Get the target directory (usually target/debug or target/release)
     let mut path = std::env::current_exe().expect("Failed to get current test executable path");
