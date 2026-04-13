@@ -1,18 +1,15 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::config::{
-    AGENT_CONTROL_BIN_PACKAGE_ID, AgentControlDynamicConfig, Package,
-};
+use crate::agent_control::config::{AgentControlDynamicConfig, Package};
 use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;
-use crate::oci::reference_parser::ReferenceParser;
 use crate::package::manager::{PackageData, PackageManager};
-use core::str::FromStr;
 use oci_client::Reference;
 use self_replacer::SelfReplacer;
 use serde::{Deserialize, Serialize};
 use std::io::Read;
+use std::marker::PhantomData;
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Arc;
@@ -22,20 +19,31 @@ use tracing::{debug, error};
 use url::Url;
 use wrapper_with_default::WrapperWithDefault;
 
+#[cfg(target_family = "unix")]
 pub const AGENT_CONTROL_BIN: &str = "newrelic-agent-control";
+#[cfg(target_family = "windows")]
+pub const AGENT_CONTROL_BIN: &str = "newrelic-agent-control.exe";
 
+pub const AGENT_CONTROL_BIN_PACKAGE_ID: &str = "agent_control_bin";
+
+#[derive(Debug, Error)]
+pub enum BuildError {
+    #[error("invalid OCI reference in package config: {0}")]
+    InvalidReference(#[from] oci_client::ParseError),
+}
 pub struct OnHostACUpdater<S, P, V>
 where
     S: SelfReplacer,
     P: PackageManager,
     V: VerifyExecutor,
 {
-    pub ac_remote_update_enabled: bool,
-    pub agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
-    pub self_replacer: S,
-    pub package_manager: Arc<P>,
-    pub verify_executor: V,
-    pub reference: Option<Package>,
+    ac_remote_update_enabled: bool,
+    agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
+    package_manager: Arc<P>,
+    verify_executor: V,
+    base_reference: Reference,
+    pub_key_url: Url,
+    _self_replacer: PhantomData<S>,
 }
 
 impl<S, P, V> VersionUpdater for OnHostACUpdater<S, P, V>
@@ -64,18 +72,14 @@ where
 
         debug!("Starting update process for agent control version {new_version}");
 
-        let Some(package) = &self.reference else {
-            return Err(UpdaterError::UpdateFailed(
-                "package reference is not specified in the updater, cannot proceed with the update process".to_string(),
-            ));
-        };
-
-        let package_data = Self::get_package_data(new_version, package)?;
+        let package_data = self.get_package_data(new_version);
 
         let new_binary_path = self
             .package_manager
             .install(&AgentID::AgentControl, package_data)
-            .map_err(|e| UpdaterError::UpdateFailed(e.to_string()))?
+            .map_err(|e| {
+                UpdaterError::UpdateFailed(format!("installing new Agent Control binary: {e}"))
+            })?
             .installation_path
             .join(AGENT_CONTROL_BIN);
 
@@ -85,22 +89,27 @@ where
         );
         self.verify_executor
             .execute(&new_binary_path, &["verify"])
-            .map_err(|e| UpdaterError::UpdateFailed(e.to_string()))?;
+            .map_err(|e| {
+                UpdaterError::UpdateFailed(format!("verifying new Agent Control binary: {e}"))
+            })?;
 
         debug!(
             "Attempting to self-replace with new binary {}",
             new_binary_path.to_string_lossy()
         );
 
-        //TODO we should consider managing the errors that can happen in the self-replace process
-        S::self_replace(&new_binary_path).map_err(|e| UpdaterError::UpdateFailed(e.to_string()))?;
+        S::self_replace(&new_binary_path).map_err(|e| {
+            UpdaterError::UpdateFailed(format!("self replacing Agent Control binary: {e}"))
+        })?;
 
         debug!(
-            "Successfully updated agent control to version, stopping the agent control to allow the new version to start",
+            previous_version = AGENT_CONTROL_VERSION,
+            %new_version,
+            "Agent Control current binary has replaced by new version, stopping to allow the new version to start",
         );
         self.agent_control_internal_publisher
             .publish(AgentControlInternalEvent::StopRequested())
-            .unwrap();
+            .map_err(|e| UpdaterError::UpdateFailed(format!("publishing stop request: {e}")))?;
 
         Ok(())
     }
@@ -111,36 +120,39 @@ where
     S: SelfReplacer,
     V: VerifyExecutor,
 {
-    fn get_package_data(
-        new_version: &String,
-        package: &Package,
-    ) -> Result<PackageData, UpdaterError> {
-        let public_key_url = package
-            .download
-            .oci
-            .public_key_url
-            .clone()
-            .map(|s| Url::parse(&s))
-            .transpose()
-            .map_err(|err| UpdaterError::UpdateFailed(format!("invalid public_key_url: {err}")))?;
+    pub fn try_new(
+        ac_remote_update_enabled: bool,
+        agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
+        package_manager: Arc<P>,
+        verify_executor: V,
+        package: Package,
+    ) -> Result<Self, BuildError> {
+        let base_reference = Reference::try_from(format!(
+            "{}/{}",
+            package.download.oci.registry, package.download.oci.repository
+        ))?;
+        Ok(Self {
+            ac_remote_update_enabled,
+            agent_control_internal_publisher,
+            package_manager,
+            verify_executor,
+            base_reference,
+            pub_key_url: package.download.oci.public_key_url,
+            _self_replacer: PhantomData,
+        })
+    }
 
-        let string_reference = format!(
-            "{}/{}{}",
-            package.download.oci.registry, package.download.oci.repository, new_version
+    fn get_package_data(&self, new_version: &str) -> PackageData {
+        let reference = Reference::with_tag(
+            self.base_reference.registry().to_string(),
+            self.base_reference.repository().to_string(),
+            new_version.to_string(),
         );
-
-        let reference = Reference::from(
-            ReferenceParser::from_str(string_reference.as_str()).map_err(|err| {
-                UpdaterError::UpdateFailed(format!("cannot parse reference: {err}"))
-            })?,
-        );
-
-        let package_data = PackageData {
+        PackageData {
             id: AGENT_CONTROL_BIN_PACKAGE_ID.to_string(),
             oci_reference: reference,
-            public_key_url,
-        };
-        Ok(package_data)
+            public_key_url: Some(self.pub_key_url.clone()),
+        }
     }
 }
 
@@ -293,13 +305,16 @@ impl VerifyExecutor for ProcessVerifyExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_control::config::Oci;
+    use crate::agent_control::config::{AgentControlPackage, Download, Oci};
+    use crate::event::channel::pub_sub;
     use crate::package::manager::tests::MockPackageManager;
     use assert_matches::assert_matches;
     use mockall::mock;
     use rstest::rstest;
+    use std::sync::Arc;
     use std::time::Duration;
     use tracing_test::traced_test;
+    use url::Url;
 
     mock! {
         pub VerifyExecutorMock {}
@@ -308,7 +323,6 @@ mod tests {
         }
     }
 
-    /// Mock SelfReplacer for testing
     struct MockSelfReplacer;
     impl SelfReplacer for MockSelfReplacer {
         type Error = std::io::Error;
@@ -318,60 +332,68 @@ mod tests {
         }
     }
 
-    type TestUpdater = OnHostACUpdater<MockSelfReplacer, MockPackageManager, ProcessVerifyExecutor>;
+    type TestUpdater =
+        OnHostACUpdater<MockSelfReplacer, MockPackageManager, MockVerifyExecutorMock>;
 
-    #[rstest]
-    #[case("registry.io", "repo/binary:", "v1.0.0", None)]
-    #[case(
-        "ghcr.io",
-        "org/pkg:",
-        "v1.2.3",
-        Some("https://keys.example.com/jwks.json")
-    )]
-    fn test_get_package_data_parses_reference(
-        #[case] registry: &str,
-        #[case] repository: &str,
-        #[case] new_version: &str,
-        #[case] public_key_url: Option<&str>,
-    ) {
-        let package = Package {
-            download: crate::agent_control::config::Download {
-                oci: Oci {
-                    registry: registry.to_string(),
-                    repository: repository.to_string(),
-                    version: String::new(),
-                    public_key_url: public_key_url.map(|s| s.to_string()),
-                },
-            },
-        };
-
-        let data = TestUpdater::get_package_data(&new_version.to_string(), &package).unwrap();
-        assert_eq!(data.id, AGENT_CONTROL_BIN_PACKAGE_ID);
-        assert!(data.oci_reference.to_string().contains(registry));
-        assert_eq!(data.public_key_url.is_some(), public_key_url.is_some());
+    fn new_test_updater(ac_remote_update_enabled: bool) -> TestUpdater {
+        let (publisher, _) = pub_sub();
+        OnHostACUpdater::try_new(
+            ac_remote_update_enabled,
+            publisher,
+            Arc::new(MockPackageManager::new()),
+            MockVerifyExecutorMock::new(),
+            AgentControlPackage::default().into(),
+        )
+        .unwrap()
     }
 
     #[test]
-    fn test_get_package_data_fails_with_invalid_url() {
+    fn update_is_noop_when_remote_update_disabled() {
+        let updater = new_test_updater(false);
+        let config = AgentControlDynamicConfig::default();
+        assert!(updater.update(&config).is_ok());
+    }
+
+    #[test]
+    fn update_is_noop_when_version_not_specified() {
+        let updater = new_test_updater(true);
+        let config = AgentControlDynamicConfig::default();
+        assert!(updater.update(&config).is_ok());
+    }
+
+    #[test]
+    fn update_is_noop_when_version_matches_current() {
+        let updater = new_test_updater(true);
+        let config = AgentControlDynamicConfig {
+            version: Some(AGENT_CONTROL_VERSION.to_string()),
+            ..Default::default()
+        };
+        assert!(updater.update(&config).is_ok());
+    }
+
+    #[test]
+    fn try_new_fails_with_invalid_oci_reference() {
+        let (publisher, _) = pub_sub();
         let package = Package {
-            download: crate::agent_control::config::Download {
+            download: Download {
                 oci: Oci {
-                    registry: "registry.io".to_string(),
-                    repository: "repo:".to_string(),
-                    version: String::new(),
-                    public_key_url: Some("not a valid url".to_string()),
+                    registry: "invalid registry with spaces".to_string(),
+                    repository: "repo".to_string(),
+                    public_key_url: Url::parse("https://newrelic.com/keys").unwrap(),
                 },
             },
         };
-
-        let result = TestUpdater::get_package_data(&"v1.0.0".to_string(), &package);
-
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("invalid public_key_url")
+        assert_matches!(
+            OnHostACUpdater::<MockSelfReplacer, MockPackageManager, MockVerifyExecutorMock>::try_new(
+                true,
+                publisher,
+                Arc::new(MockPackageManager::new()),
+                MockVerifyExecutorMock::new(),
+                package,
+            )
+            .err()
+            .unwrap(),
+            BuildError::InvalidReference(_)
         );
     }
 

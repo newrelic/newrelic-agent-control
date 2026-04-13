@@ -1,8 +1,11 @@
 use super::agent_id::AgentID;
 use super::http_server::config::ServerConfig;
 use super::uptime_report::UptimeReportConfig;
+use crate::agent_control::defaults::{
+    AC_OCI_PACKAGE_DEFAULT_REGISTRY, AC_OCI_PACKAGE_DEFAULT_REPOSITORY,
+    AC_OCI_PACKAGE_PUBLIC_KEY_URL,
+};
 use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
-use crate::agent_type::runtime_config::on_host::package::PackageID;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
@@ -43,10 +46,6 @@ pub struct AgentControlConfig {
     #[serde(default)]
     pub k8s: Option<K8sConfig>,
 
-    /// OnHost-specific settings
-    #[serde(default)]
-    pub onhost: Option<OnHostConfig>,
-
     #[serde(default)]
     pub server: ServerConfig,
 
@@ -73,6 +72,20 @@ pub struct AgentControlConfig {
     /// Contains the configuration related to host agent packages
     #[serde(default)]
     pub agent_packages: PackagesConfig,
+
+    /// Contains configuration for on-host self-update mechanism
+    #[serde(default)]
+    pub self_update: SelfUpdateConfig,
+}
+
+#[derive(Debug, Default, Deserialize, PartialEq, Clone)]
+pub struct SelfUpdateConfig {
+    /// Indicates whether the self remote update mechanism is enabled or not
+    pub enabled: bool,
+    /// Indicates whether package signature verification is enabled or not
+    pub signature_verification_enabled: SignatureVerificationEnabled,
+    /// Package configuration for the self-update mechanism in on-host environments
+    pub package: AgentControlPackage,
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
@@ -350,43 +363,46 @@ pub struct K8sConfig {
     pub auth_secret: AuthSecret,
 }
 
-pub const AGENT_CONTROL_BIN_PACKAGE_ID: &str = "agent_control_bin";
-
-/// OnHostConfig represents the AgentControl configuration for onHost environments
-#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
-pub struct OnHostConfig {
-    /// ac_remote_update enables or disables remote update for agent-control binary
-    #[serde(default)]
-    pub ac_remote_update: bool,
-
-    // TODO provide a default that allows the user not to specify anything
-    #[serde(default)]
-    pub packages: HashMap<PackageID, Package>,
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub struct AgentControlPackage(Package);
+impl Default for AgentControlPackage {
+    fn default() -> Self {
+        AgentControlPackage(Package {
+            download: Download {
+                oci: Oci {
+                    registry: AC_OCI_PACKAGE_DEFAULT_REGISTRY.to_string(),
+                    repository: AC_OCI_PACKAGE_DEFAULT_REPOSITORY.to_string(),
+                    public_key_url: Url::parse(AC_OCI_PACKAGE_PUBLIC_KEY_URL)
+                        .expect("valid default url"),
+                },
+            },
+        })
+    }
+}
+impl From<AgentControlPackage> for Package {
+    fn from(value: AgentControlPackage) -> Self {
+        value.0
+    }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct Package {
-    #[serde(default)]
     pub download: Download,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct Download {
-    #[serde(default)]
     pub oci: Oci,
 }
 
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct Oci {
     /// OCI registry url.
     pub registry: String,
     /// Repository name.
     pub repository: String,
-    /// Package version including tag, digest or tag + digest.
-    #[serde(default)]
-    pub version: String,
     /// Public key url is expected to be a jwks.
-    pub public_key_url: Option<String>,
+    pub public_key_url: Url,
 }
 
 pub fn helmrelease_v2_type_meta() -> TypeMeta {
