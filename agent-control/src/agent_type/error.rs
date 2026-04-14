@@ -27,4 +27,6 @@ pub enum AgentTypeError {
     ConflictingVariableDefinition(String),
     #[error("error parsing oci reference: {0}")]
     OCIReferenceParsingError(String),
+    #[error("error with OCI auth configuration: {0}")]
+    OCIAuthError(String),
 }
