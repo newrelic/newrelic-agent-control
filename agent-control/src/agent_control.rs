@@ -346,7 +346,7 @@ where
                                     .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message")));
                                 },
                                 AgentControlInternalEvent::StopRequested() => {
-                                    debug!("stopping Agent Control event processor after request");
+                                    debug!("Stopping Agent Control event processor after request");
                                     self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
                                     break sub_agents.stop();
                                 }}
@@ -356,8 +356,8 @@ where
                 recv(self.application_event_consumer.as_ref()) -> agent_control_event => {
                     let span = info_span!("process_application_event", id=AGENT_CONTROL_ID);
                     let _span_guard = span.enter();
-                    let _= agent_control_event.inspect_err(|err| error!(error = %err, select_arm = "application_event_consumer", "receiving application event"));
-                    debug!("stopping Agent Control event processor");
+                    let _= agent_control_event.inspect_err(|err| error!(error = %err, select_arm = "application_event_consumer", "Receiving application event"));
+                    debug!("Stopping Agent Control event processor");
                     self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
                     break sub_agents.stop();
                 },

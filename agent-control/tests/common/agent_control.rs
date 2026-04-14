@@ -3,7 +3,9 @@ use crate::on_host::tools::config::create_file;
 use newrelic_agent_control::agent_control::config_repository::repository::AgentControlConfigLoader;
 use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
 use newrelic_agent_control::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
-use newrelic_agent_control::agent_control::run::{AgentControlRunner, BasePaths, Environment};
+use newrelic_agent_control::agent_control::run::{
+    AgentControlRunner, BasePaths, Environment, RunError,
+};
 use newrelic_agent_control::command::RunnerContext;
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
@@ -51,7 +53,6 @@ pub fn start_agent_control_with_custom_config(
             Environment::Linux | Environment::Windows => runner.run_onhost(),
             Environment::K8s => runner.run_k8s(),
         }
-        .unwrap();
     });
 
     StartedAgentControl {
@@ -62,19 +63,37 @@ pub fn start_agent_control_with_custom_config(
 
 pub struct StartedAgentControl {
     application_event_publisher: EventPublisher<ApplicationEvent>,
-    handle: Option<std::thread::JoinHandle<()>>,
+
+    handle: Option<std::thread::JoinHandle<Result<(), RunError>>>,
+}
+impl StartedAgentControl {
+    pub fn has_gracefully_stopped(&mut self) -> bool {
+        if self
+            .handle
+            .as_ref()
+            .is_some_and(|handle| handle.is_finished())
+        {
+            let result = self.handle.take().unwrap().join().unwrap();
+            return result.is_ok();
+        }
+        false
+    }
 }
 
 impl Drop for StartedAgentControl {
     fn drop(&mut self) {
-        self.application_event_publisher
-            .publish(ApplicationEvent::StopRequested)
-            .unwrap();
+        if self.handle.is_none() {
+            return;
+        }
+        let _ = self
+            .application_event_publisher
+            .publish(ApplicationEvent::StopRequested);
 
         self.handle
             .take()
             .expect("handle should exist")
             .join()
-            .expect("joining handle");
+            .expect("joining handle")
+            .expect("Agent control exited with error");
     }
 }
