@@ -363,11 +363,13 @@ pub struct K8sConfig {
     pub auth_secret: AuthSecret,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct AgentControlPackage(Package);
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct AgentControlPackage {
+    pub download: Download,
+}
 impl Default for AgentControlPackage {
     fn default() -> Self {
-        AgentControlPackage(Package {
+        AgentControlPackage {
             download: Download {
                 oci: Oci {
                     registry: AC_OCI_PACKAGE_DEFAULT_REGISTRY.to_string(),
@@ -376,18 +378,8 @@ impl Default for AgentControlPackage {
                         .expect("valid default url"),
                 },
             },
-        })
+        }
     }
-}
-impl From<AgentControlPackage> for Package {
-    fn from(value: AgentControlPackage) -> Self {
-        value.0
-    }
-}
-
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-pub struct Package {
-    pub download: Download,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]

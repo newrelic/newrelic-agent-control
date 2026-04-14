@@ -1,5 +1,5 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::config::{AgentControlDynamicConfig, Package};
+use crate::agent_control::config::{AgentControlDynamicConfig, AgentControlPackage};
 use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
 use crate::event::AgentControlInternalEvent;
@@ -125,7 +125,7 @@ where
         agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
         package_manager: Arc<P>,
         verify_executor: V,
-        package: Package,
+        package: AgentControlPackage,
     ) -> Result<Self, BuildError> {
         let base_reference = Reference::try_from(format!(
             "{}/{}",
@@ -374,7 +374,7 @@ mod tests {
     #[test]
     fn try_new_fails_with_invalid_oci_reference() {
         let (publisher, _) = pub_sub();
-        let package = Package {
+        let package = AgentControlPackage {
             download: Download {
                 oci: Oci {
                     registry: "invalid registry with spaces".to_string(),
