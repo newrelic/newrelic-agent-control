@@ -1,4 +1,4 @@
-use oci_client::Reference;
+use oci_client::{Reference, secrets::RegistryAuth};
 use url::Url;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -17,4 +17,5 @@ pub struct Download {
 pub struct Oci {
     pub reference: Reference,
     pub public_key_url: Option<Url>,
+    pub auth: RegistryAuth,
 }
