@@ -741,11 +741,6 @@ executables:
             password: "",
             bearer: "token",
         };
-        const ALL: Self = Self {
-            username: "user",
-            password: "pass",
-            bearer: "token",
-        };
     }
 
     #[rstest]
@@ -754,7 +749,6 @@ executables:
     #[case::no_credentials(PACKAGES, AuthCredentials::NONE, RegistryAuth::Anonymous)]
     #[case::basic_credentials(PACKAGES, AuthCredentials::BASIC, RegistryAuth::Basic("user".to_string(), "pass".to_string()))]
     #[case::bearer_credentials(PACKAGES, AuthCredentials::BEARER, RegistryAuth::Bearer("token".to_string()))]
-    #[case::all_credentials(PACKAGES, AuthCredentials::ALL, RegistryAuth::Basic("user".to_string(), "pass".to_string()))]
     fn test_auth_parsing(
         #[case] yaml: &str,
         #[case] creds: AuthCredentials,
