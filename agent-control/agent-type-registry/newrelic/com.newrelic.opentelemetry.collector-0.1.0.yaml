@@ -49,6 +49,23 @@ variables:
         variants:
           ac_config_field: "oci_nrdot_registry_repositories"
           values: [ "newrelic/nrdot-agent-artifacts" ]
+      auth:
+        basic:
+          username:
+            description: "Username for HTTP Basic authentication"
+            type: string
+            required: false
+            default: ""
+          password:
+            description: "Password for HTTP Basic authentication"
+            type: string
+            required: false
+            default: ""
+        bearer:
+          description: "Bearer token for authentication"
+          type: string
+          required: false
+          default: ""
     version:
       description: "Agent version"
       type: string
@@ -95,6 +112,23 @@ variables:
         variants:
           ac_config_field: "oci_nrdot_registry_repositories"
           values: [ "newrelic/nrdot-agent-artifacts" ]
+      auth:
+        basic:
+          username:
+            description: "Username for HTTP Basic authentication"
+            type: string
+            required: false
+            default: ""
+          password:
+            description: "Password for HTTP Basic authentication"
+            type: string
+            required: false
+            default: ""
+        bearer:
+          description: "Bearer token for authentication"
+          type: string
+          required: false
+          default: ""
     version:
       description: "Agent version"
       type: string
@@ -157,6 +191,11 @@ deployment:
             repository: ${nr-var:oci.repository}
             version: ${nr-var:version}
             public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrdot/jwks.json
+            auth:
+              basic:
+                username: ${nr-var:oci.auth.basic.username}
+                password: ${nr-var:oci.auth.basic.password}
+              bearer: ${nr-var:oci.auth.bearer}
     version:
       path: ${nr-sub:packages.nrdot.dir}\\nrdot-collector.exe
       args:
@@ -190,6 +229,11 @@ deployment:
             repository: ${nr-var:oci.repository}
             version: ${nr-var:version}
             public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrdot/jwks.json
+            auth:
+              basic:
+                username: ${nr-var:oci.auth.basic.username}
+                password: ${nr-var:oci.auth.basic.password}
+              bearer: ${nr-var:oci.auth.bearer}
     health:
       interval: 30s
       initial_delay: 90s
