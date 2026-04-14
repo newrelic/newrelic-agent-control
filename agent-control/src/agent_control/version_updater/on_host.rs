@@ -326,7 +326,7 @@ mod tests {
             publisher,
             Arc::new(MockPackageManager::new()),
             MockVerifyExecutorMock::new(),
-            AgentControlPackage::default().into(),
+            AgentControlPackage::default(),
         )
         .unwrap()
     }
