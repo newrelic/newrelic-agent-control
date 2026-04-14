@@ -1,7 +1,5 @@
 use crate::agent_control::AgentControl;
-use crate::agent_control::config::{
-    AGENT_CONTROL_BIN_PACKAGE_ID, AgentControlConfig, OpAMPClientConfig,
-};
+use crate::agent_control::config::{AgentControlConfig, OpAMPClientConfig};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
@@ -104,8 +102,6 @@ impl AgentControlRunner {
             .load()
             .map_err(|err| RunError(format!("failed to load Agent Control config: {err}")))?;
 
-        let on_host_config = agent_control_config.onhost.clone().unwrap_or_default();
-
         let identifiers = ac_identifiers(&agent_control_config)?;
 
         let agent_control_variables = HashMap::from([(
@@ -173,23 +169,23 @@ impl AgentControlRunner {
         let oci_client = oci::Client::try_new(oci_client_config, proxy, self.runtime.clone())
             .map_err(|err| RunError(format!("failed to create the OciClient: {err}")))?;
 
-        let packages_downloader = OCIArtifactDownloader::new(
-            oci_client,
+        let agents_packages_downloader = OCIArtifactDownloader::new(
+            oci_client.clone(),
             agent_control_config
                 .agent_packages
                 .signature_verification_enabled
                 .into(),
         );
 
-        let package_manager = Arc::new(OCIPackageManager::new(
-            packages_downloader,
+        let agents_package_manager = OCIPackageManager::new(
+            agents_packages_downloader,
             DirectoryManagerFs,
             remote_dir.clone(),
-        ));
+        );
 
         let supervisor_builder = SupervisorBuilderOnHost {
             logging_path: self.base_paths.log_dir,
-            package_manager: package_manager.clone(),
+            package_manager: Arc::new(agents_package_manager),
         };
 
         let signature_validator = Arc::new(self.signature_validator);
@@ -223,24 +219,30 @@ impl AgentControlRunner {
             .transpose()
             .map_err(|err| RunError(format!("failed to start HTTP server: {err}")))?;
 
-        #[cfg(target_family = "windows")]
-        let self_replacer = WindowsSelfReplacer;
-        #[cfg(target_family = "unix")]
-        let self_replacer = UnixSelfReplacer;
-
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
 
-        let updater = OnHostACUpdater {
-            ac_remote_update_enabled: on_host_config.ac_remote_update,
-            agent_control_internal_publisher: agent_control_internal_publisher.clone(),
-            self_replacer,
-            verify_executor: ProcessVerifyExecutor::default(),
+        let packages_downloader = OCIArtifactDownloader::new(
+            oci_client.clone(),
+            agent_control_config
+                .self_update
+                .signature_verification_enabled
+                .into(),
+        );
+
+        let package_manager = Arc::new(OCIPackageManager::new(
+            packages_downloader,
+            DirectoryManagerFs,
+            remote_dir.clone(),
+        ));
+
+        let self_updater = OnHostACUpdater::try_new(
+            agent_control_config.self_update.enabled,
+            agent_control_internal_publisher.clone(),
             package_manager,
-            reference: on_host_config
-                .packages
-                .clone()
-                .remove(AGENT_CONTROL_BIN_PACKAGE_ID),
-        };
+            ProcessVerifyExecutor::default(),
+            agent_control_config.self_update.package.clone(),
+        )
+        .map_err(|err| RunError(format!("failed to initialize self updater: {err}")))?;
 
         AgentControl::new(
             maybe_client,
@@ -255,7 +257,7 @@ impl AgentControlRunner {
             SupportedRemoteConfigValidator::Signature(signature_validator),
             dynamic_config_validator,
             NoOpResourceCleaner,
-            updater,
+            self_updater,
             |t| Some(NoOpHealthChecker::new(t)),
             agent_control_config,
         )
