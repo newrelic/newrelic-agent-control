@@ -118,26 +118,30 @@ impl Templateable for Auth {
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         let username = self.basic.username.template_with(variables)?;
         let password = self.basic.password.template_with(variables)?;
-
-        if !username.is_empty() && !password.is_empty() {
-            debug!("Basic auth credentials provided, using basic auth");
-            return Ok(RegistryAuth::Basic(username, password));
-        }
-
-        debug!(
-            "Basic auth credentials not fully provided (username was empty: {}, password was empty: {})",
-            username.is_empty(),
-            password.is_empty()
-        );
-
         let token = self.bearer.template_with(variables)?;
-        if !token.is_empty() {
-            debug!("Bearer token provided, using bearer auth");
-            return Ok(RegistryAuth::Bearer(token));
-        }
 
-        debug!("No basic credentials or bearer token provided, falling back to anonymous auth");
-        Ok(RegistryAuth::Anonymous)
+        match (
+            !&username.is_empty(),
+            !&password.is_empty(),
+            !&token.is_empty(),
+        ) {
+            (false, false, false) => Ok(RegistryAuth::Anonymous),
+            (true, true, false) => {
+                debug!("Basic auth credentials provided, using basic auth");
+                Ok(RegistryAuth::Basic(username, password))
+            }
+            (false, false, true) => {
+                debug!("Bearer token provided, using bearer auth");
+                Ok(RegistryAuth::Bearer(token))
+            }
+            (true, true, true) => Err(AgentTypeError::OCIAuthError(
+                "multiple authentication methods provided, only one should be used".to_string(),
+            )),
+            (true, false, _) | (false, true, _) => Err(AgentTypeError::OCIAuthError(
+                "incomplete basic auth credentials provided, username or password is empty"
+                    .to_string(),
+            )),
+        }
     }
 }
 
@@ -276,5 +280,39 @@ mod tests {
             rendered_oci.auth,
             RegistryAuth::Bearer("bearer-token".to_string())
         );
+    }
+
+    #[test]
+    fn test_auth_error_when_multiple_credentials_provided() {
+        let mut variables = Variables::new();
+        variables.insert(
+            "nr-var:username".to_string(),
+            Variable::new_final_string_variable("myuser".to_string()),
+        );
+        variables.insert(
+            "nr-var:password".to_string(),
+            Variable::new_final_string_variable("mypass".to_string()),
+        );
+        variables.insert(
+            "nr-var:token".to_string(),
+            Variable::new_final_string_variable("bearer-token".to_string()),
+        );
+
+        let oci = Oci {
+            registry: TemplateableValue::from_template("gcr.io".to_string()),
+            repository: TemplateableValue::from_template("myproject/myimage".to_string()),
+            version: TemplateableValue::from_template("latest".to_string()),
+            public_key_url: None,
+            auth: Auth {
+                basic: BasicAuth {
+                    username: TemplateableValue::from_template("${nr-var:username}".to_string()),
+                    password: TemplateableValue::from_template("${nr-var:password}".to_string()),
+                },
+                bearer: TemplateableValue::from_template("${nr-var:token}".to_string()),
+            },
+        };
+
+        let rendered_oci = oci.template_with(&variables);
+        matches!(rendered_oci, Err(AgentTypeError::OCIAuthError(_)));
     }
 }
