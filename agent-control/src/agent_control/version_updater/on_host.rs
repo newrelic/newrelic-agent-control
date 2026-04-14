@@ -6,10 +6,9 @@ use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;
 use crate::package::manager::{PackageData, PackageManager};
 use oci_client::Reference;
-use self_replacer::SelfReplacer;
+use self_replacer::{BinarySelfReplacer, SelfReplacer};
 use serde::{Deserialize, Serialize};
 use std::io::Read;
-use std::marker::PhantomData;
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Arc;
@@ -31,9 +30,8 @@ pub enum BuildError {
     #[error("invalid OCI reference in package config: {0}")]
     InvalidReference(#[from] oci_client::ParseError),
 }
-pub struct OnHostACUpdater<S, P, V>
+pub struct OnHostACUpdater<P, V>
 where
-    S: SelfReplacer,
     P: PackageManager,
     V: VerifyExecutor,
 {
@@ -43,12 +41,10 @@ where
     verify_executor: V,
     base_reference: Reference,
     pub_key_url: Url,
-    _self_replacer: PhantomData<S>,
 }
 
-impl<S, P, V> VersionUpdater for OnHostACUpdater<S, P, V>
+impl<P, V> VersionUpdater for OnHostACUpdater<P, V>
 where
-    S: SelfReplacer,
     P: PackageManager,
     V: VerifyExecutor,
 {
@@ -98,7 +94,7 @@ where
             new_binary_path.to_string_lossy()
         );
 
-        S::self_replace(&new_binary_path).map_err(|e| {
+        BinarySelfReplacer::self_replace(&new_binary_path).map_err(|e| {
             UpdaterError::UpdateFailed(format!("self replacing Agent Control binary: {e}"))
         })?;
 
@@ -114,10 +110,9 @@ where
         Ok(())
     }
 }
-impl<S, P, V> OnHostACUpdater<S, P, V>
+impl<P, V> OnHostACUpdater<P, V>
 where
     P: PackageManager,
-    S: SelfReplacer,
     V: VerifyExecutor,
 {
     pub fn try_new(
@@ -138,7 +133,6 @@ where
             verify_executor,
             base_reference,
             pub_key_url: package.download.oci.public_key_url,
-            _self_replacer: PhantomData,
         })
     }
 
@@ -323,17 +317,7 @@ mod tests {
         }
     }
 
-    struct MockSelfReplacer;
-    impl SelfReplacer for MockSelfReplacer {
-        type Error = std::io::Error;
-
-        fn self_replace(_new_bin: impl AsRef<Path>) -> Result<(), Self::Error> {
-            panic!("MockSelfReplacer::self_replace should never be called in these tests")
-        }
-    }
-
-    type TestUpdater =
-        OnHostACUpdater<MockSelfReplacer, MockPackageManager, MockVerifyExecutorMock>;
+    type TestUpdater = OnHostACUpdater<MockPackageManager, MockVerifyExecutorMock>;
 
     fn new_test_updater(ac_remote_update_enabled: bool) -> TestUpdater {
         let (publisher, _) = pub_sub();
@@ -384,7 +368,7 @@ mod tests {
             },
         };
         assert_matches!(
-            OnHostACUpdater::<MockSelfReplacer, MockPackageManager, MockVerifyExecutorMock>::try_new(
+            TestUpdater::try_new(
                 true,
                 publisher,
                 Arc::new(MockPackageManager::new()),
