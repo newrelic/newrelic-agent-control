@@ -3,19 +3,12 @@
 
 use std::path::Path;
 
-#[cfg(target_os = "windows")]
-pub mod windows;
-#[cfg(target_os = "windows")]
-pub use windows::WindowsSelfReplacer;
-
-#[cfg(unix)]
-mod unix;
-#[cfg(unix)]
-pub use unix::UnixSelfReplacer;
+mod replacer;
+pub use replacer::{BinarySelfReplacer, ReplaceError};
 
 pub const BACKUP_SUFFIX: &str = "bak";
 
-/// Trait for platform-specific binary self-replacement.
+/// Trait for platform-agnostic binary self-replacement.
 pub trait SelfReplacer {
     type Error: std::error::Error;
 

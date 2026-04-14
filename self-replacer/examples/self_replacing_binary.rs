@@ -14,11 +14,7 @@
 //!
 //! ```
 
-#[cfg(unix)]
-use self_replacer::{SelfReplacer, UnixSelfReplacer};
-
-#[cfg(windows)]
-use self_replacer::{SelfReplacer, WindowsSelfReplacer};
+use self_replacer::{BinarySelfReplacer, SelfReplacer};
 
 use std::collections::hash_map::DefaultHasher;
 use std::env;
@@ -32,11 +28,7 @@ fn main() {
         // Perform self-replacement
         let new_binary_path = &args[2];
 
-        #[cfg(unix)]
-        let result = UnixSelfReplacer::self_replace(new_binary_path);
-
-        #[cfg(windows)]
-        let result = WindowsSelfReplacer::self_replace(new_binary_path);
+        let result = BinarySelfReplacer::self_replace(new_binary_path);
 
         match result {
             Ok(()) => {

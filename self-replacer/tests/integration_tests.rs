@@ -9,14 +9,10 @@ use std::fs;
 use tempfile::TempDir;
 
 mod test_helpers;
+use self_replacer::{BinarySelfReplacer, SelfReplacer};
 use test_helpers::{copy_example_binary, create_modified_binary};
 
-#[cfg(unix)]
-use self_replacer::{SelfReplacer, UnixSelfReplacer};
-
 use self_replacer::BACKUP_SUFFIX;
-#[cfg(windows)]
-use self_replacer::{SelfReplacer, WindowsSelfReplacer};
 
 // ============================================================================
 // Common tests that run on all platforms
@@ -67,6 +63,7 @@ fn test_self_replacement_with_real_binary() {
     );
 
     // Verify backup was created
+    // Backup appends .bak to the full filename (e.g., test_app.exe.bak on Windows)
     let backup_path = {
         let filename = binary_path.file_name().unwrap();
         let backup_name = format!("{}.{}", filename.to_string_lossy(), BACKUP_SUFFIX);
@@ -108,11 +105,7 @@ fn test_rollback_on_invalid_path() {
         test_dir.join("does_not_exist")
     };
 
-    #[cfg(unix)]
-    let result = UnixSelfReplacer::self_replace(&non_existent);
-
-    #[cfg(windows)]
-    let result = WindowsSelfReplacer::self_replace(&non_existent);
+    let result = BinarySelfReplacer::self_replace(&non_existent);
 
     assert!(result.is_err(), "Should fail when new binary doesn't exist");
 
