@@ -40,5 +40,8 @@ pub fn run_linux_e2e() {
         LinuxScenarios::Proxy(args) => {
             scenarios::proxy::test_agent_control_proxy(args);
         }
+        LinuxScenarios::FleetControl(args) => {
+            scenarios::fleet_control::test_fleet_control(args);
+        }
     };
 }

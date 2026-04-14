@@ -1,0 +1,38 @@
+# Region-specific overrides for Staging (fleet-control tests scenario)
+global:
+  nrStaging: true
+# Cluster and License info is set with "--set" in the e2e-spec file
+toolkitImage:
+  tag: failIfNotReplaced
+agentControlDeployment:
+  chartValues:
+    image:
+      tag: failIfNotReplaced
+    subAgentsNamespace: "newrelic-agents"
+    systemIdentity:
+      create: false
+      secretName: "sys-identity"
+      organizationId: "0da0a58a-2d3d-4a0c-8f39-3060bb6cf944"
+
+    config:
+      authSecret:
+        secretName: "sys-identity"
+        secretKeyName: "private_key"
+      fleet_control:
+        enabled: true
+        # Fleet with name 'AC-FC E2E tests' using FC's account 'Test Automation' (Staging)
+        fleet_id: "MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTliZTAzZC03MDYwLTcxMDctOTUwYS04YTFiODc3YjJiN2Q"
+      log:
+        level: debug
+      agents:
+        infra:
+          agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+    agentsConfig:
+      infra:
+        chart_version: "*" # Use latest
+        chart_values:
+          # NOTE: nrStaging is set by Tiltfile based on REGION env var (staging vs US)
+          global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
+            customAttributes:
+              cluster_name: ${nr-env:NR_CLUSTER_NAME}
+              config_origin: local

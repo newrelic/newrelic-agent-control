@@ -32,6 +32,10 @@ enum LinuxScenarios {
     RemoteConfig(Args),
     /// Checks that the Agent Control proxy support works as expected. It uses mitproxy as a docker service.
     Proxy(Args),
+    /// Tests Fleet Control integration by installing Agent Control with fleet configuration and triggering Fleet Control tests.
+    ///
+    /// This relies on polling certain fixed Fleet Control endpoints, failing if the response is not expected or a timeout is reached.
+    FleetControl(Args),
 }
 
 #[derive(Debug, clap::Subcommand)]

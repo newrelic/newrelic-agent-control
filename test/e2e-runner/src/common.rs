@@ -61,6 +61,14 @@ pub struct Args {
     /// Version of the NRDot OCI image to use in tests
     #[arg(long)]
     pub nrdot_version: Option<String>,
+
+    /// Fleet ID for Fleet Control tests
+    #[arg(long)]
+    pub fleet_id: Option<String>,
+
+    /// Fleet Control authentication token
+    #[arg(long)]
+    pub fleet_control_token: Option<String>,
 }
 
 /// Data to set up installation

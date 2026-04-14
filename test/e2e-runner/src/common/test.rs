@@ -34,12 +34,8 @@ pub fn retry_panic<F, T>(retries: i64, delay: Duration, err_context: impl AsRef<
 where
     F: Fn() -> TestResult<T>,
 {
-    retry(retries, delay, err_context.as_ref(), f).unwrap_or_else(|err| {
-        panic!(
-            "Operation '{}' failed after {} retries: {}",
-            err_context.as_ref(),
-            retries,
-            err
-        )
+    let err_context_str = err_context.as_ref();
+    retry(retries, delay, err_context_str, f).unwrap_or_else(|err| {
+        panic!("Operation '{err_context_str}' failed after {retries} retries: {err}")
     })
 }

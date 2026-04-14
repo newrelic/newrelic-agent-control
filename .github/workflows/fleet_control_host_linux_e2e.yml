@@ -1,0 +1,133 @@
+name: 📞 OnHost Fleet Control E2E Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      fleet_id:
+        description: "Fleet ID to use for Fleet Control tests"
+        required: false
+        type: string
+        # Fleet `AC-FC E2E tests (linux)` on staging using FC's `Test Automation` account.
+        default: "MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTlkOGNkOC0xNTc1LTdjZjAtYjBlNi02ZThlYzM2YjAyODU"
+  # schedule:
+  #   # Scheduled to run at 4 a.m on every day-of-week from Monday through Friday.
+  #   - cron: "0 4 * * 1-5"
+
+permissions:
+  contents: read
+
+# NOTE: The below environment vars are bumped automatically by Renovate
+env:
+  HOST_E2E_INFRA_AGENT_VERSION: "1.73.0"
+
+jobs:
+  build-packages:
+    name: Build packages
+    uses: ./.github/workflows/component_packages.yml
+    with:
+      pre-release: false
+      skip_sign: true
+      tag_name: 0.900.${{ github.run_id }}
+
+  on-host-linux-fleet-control-e2e:
+    name: OnHost Linux Fleet Control E2E
+    needs: [build-packages]
+    runs-on: linux-4-core-nr-control
+    steps:
+      - name: Record job start time
+        run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: ./.github/actions/install-rust-toolchain
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: built-binaries-0.900.${{ github.run_id }}
+          path: ./
+
+      - name: Install newrelic-auth-rs
+        run: cargo install --locked --git https://github.com/newrelic/newrelic-auth-rs.git
+
+      - name: Get Fleet Control authentication token
+        id: get-token
+        run: |
+          echo "${{ secrets.AC_FLEET_CONTROL_STAG_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/cred.pem
+
+          if ! newrelic-auth-cli authenticate \
+            --client-id "${{ secrets.AC_FLEET_CONTROL_STAG_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}" \
+            --environment STAGING \
+            --private-key-path /tmp/cred.pem \
+            --output-token-format PLAIN \
+            > /tmp/agent-control-token.txt 2> /tmp/auth-error.log; then
+            echo "::error::Authentication failed!"
+            cat /tmp/auth-error.log
+            exit 1
+          fi
+
+          TOKEN=$(cat /tmp/agent-control-token.txt)
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Agent control token is empty!"
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+          rm /tmp/cred.pem
+          rm /tmp/agent-control-token.txt
+
+      - name: Build e2e-runner binary
+        run: cargo build -p e2e-runner
+
+      - name: Run Fleet Control E2E test
+        run: |
+          echo "${{ secrets.AC_FLEET_CONTROL_STAG_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/newrelic-agent-control-priv.key
+
+          # Use input fleet_id if provided, otherwise use default
+          # Fleet `AC-FC E2E tests (linux)` on staging using FC's `Test Automation` account.
+          FLEET_ID="${{ inputs.fleet_id || 'MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTlkOGNkOC0xNTc1LTdjZjAtYjBlNi02ZThlYzM2YjAyODU' }}"
+
+          sudo ${{ github.workspace }}/target/debug/e2e-runner fleet-control \
+            --artifacts-package-dir ./dist \
+            --nr-api-key "${{ secrets.AC_FLEET_CONTROL_STAG_E2E_API_KEY }}" \
+            --nr-license-key "${{ secrets.AC_FLEET_CONTROL_STAG_E2E_LICENSE_KEY }}" \
+            --nr-account-id "${{ secrets.AC_FLEET_CONTROL_STAG_E2E_ACCOUNT_ID }}" \
+            --nr-region "staging" \
+            --system-identity-client-id "${{ secrets.AC_FLEET_CONTROL_STAG_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}" \
+            --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
+            --agent-control-version "0.900.${{ github.run_id }}" \
+            --recipes-repo-branch "main" \
+            --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" \
+            --fleet-id "$FLEET_ID" \
+            --fleet-control-token "${{ steps.get-token.outputs.token }}"
+
+      - name: Report test result to New Relic
+        if: always()
+        env:
+          NR_LICENSE_KEY: ${{ secrets.AC_FLEET_CONTROL_STAG_E2E_LICENSE_KEY }}
+          NR_ACCOUNT_ID: ${{ secrets.AC_FLEET_CONTROL_STAG_E2E_ACCOUNT_ID }}
+          E2E_SCENARIO: fleet-control-joint
+          E2E_ENVIRONMENT: linux
+          E2E_STATUS: ${{ job.status }}
+          E2E_CALLER_WORKFLOW: fleet_control_host_linux_e2e
+          E2E_REGION: staging
+        run: bash .github/workflows/scripts/report_e2e_result.sh
+
+      - name: Upload e2e result summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: e2e-result-linux-fleet-control-joint
+          path: e2e-result-*-linux-fleet-control-joint.txt
+          if-no-files-found: warn
+
+  on-host-fleet-control-tests-check:
+    name: OnHost Fleet Control E2E Check
+    if: always()
+    runs-on: ubuntu-latest
+    needs: [on-host-linux-fleet-control-e2e]
+    steps:
+      - name: Check if needed jobs succeeded
+        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
+        with:
+          jobs: ${{ toJSON(needs) }}
