@@ -1,0 +1,447 @@
+{
+  description = "New Relic Agent Control - Development Environment";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    crane = {
+      url = "github:ipetkov/crane";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    flake-utils.url = "github:numtide/flake-utils";
+  };
+
+  outputs =
+    {
+      nixpkgs,
+      rust-overlay,
+      crane,
+      flake-utils,
+      ...
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
+      let
+        overlays = [ (import rust-overlay) ];
+        pkgs = import nixpkgs {
+          inherit system overlays;
+        };
+
+        # Read the rust-version from Cargo.toml
+        cargoToml = fromTOML (builtins.readFile ./Cargo.toml);
+        rustVersion = cargoToml.workspace.package.rust-version;
+
+        # Build Rust toolchain with the version from Cargo.toml
+        rustToolchain = pkgs.rust-bin.stable.${rustVersion}.default.override {
+          extensions = [
+            "rust-src"
+            "rust-analyzer"
+          ];
+          targets = [
+            "x86_64-unknown-linux-musl"
+            "aarch64-unknown-linux-musl"
+            "x86_64-pc-windows-msvc"
+          ];
+        };
+
+        # Crane library for building Rust projects
+        craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
+
+        # Libraries that the compiled program links against
+        # Note: This project uses rustls + aws-lc-rs (pure Rust crypto) for static builds
+        buildInputs = pkgs.lib.optionals pkgs.stdenv.isDarwin [
+          # macOS-specific frameworks required for Rust std
+          pkgs.libiconv
+        ];
+
+        # Tools that run on the build machine during compilation
+        baseBuildInputs = with pkgs; [
+          # Rust toolchain
+          rustToolchain
+
+          # Build tools
+          pkg-config
+          git # Required by build.rs
+        ];
+
+        # Development tools (for devShell)
+        devTools = with pkgs; [
+          cargo-watch
+          cargo-edit
+          cargo-audit
+          cargo-llvm-cov
+          cargo-deny
+        ];
+
+        # Common source filtering (exclude non-source files)
+        src = pkgs.lib.cleanSourceWith {
+          src = craneLib.path ./.;
+          filter =
+            path: type:
+            (craneLib.filterCargoSources path type)
+            || (builtins.match ".*\\.yaml$" path != null)
+            || (builtins.match ".*/agent-type-registry/.*" path != null);
+        };
+
+        # Package metadata from agent-control/Cargo.toml
+        agentControlCargoToml = fromTOML (builtins.readFile ./agent-control/Cargo.toml);
+
+        # Common build arguments
+        commonArgs = {
+          inherit src;
+          strictDeps = true;
+
+          # Package metadata
+          pname = agentControlCargoToml.package.name;
+          version = agentControlCargoToml.package.version;
+
+          nativeBuildInputs = baseBuildInputs ++ [
+            pkgs.zig
+            pkgs.cargo-zigbuild
+          ];
+          inherit buildInputs;
+        };
+
+        # Build dependencies (cargo fetch / cargo vendor)
+        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+
+        # Function to create a package for a specific target
+        mkPackage =
+          {
+            target,
+            zigTarget ? null,
+            isWindows ? false,
+          }:
+          let
+            # Determine cargo command based on target
+            cargoCommand = if zigTarget != null then "zigbuild" else "build";
+            zigbuildArgs = if zigTarget != null then "--target ${target}" else "";
+
+            buildArgs = commonArgs // {
+              inherit cargoArtifacts;
+
+              # Build commands for each binary
+              buildPhaseCargoCommand = ''
+                cargo ${cargoCommand} --release --locked \
+                  ${zigbuildArgs} \
+                  --bin newrelic-agent-control \
+                  --bin newrelic-agent-control-cli \
+                  --bin newrelic-agent-control-k8s \
+                  --bin newrelic-agent-control-k8s-cli
+              '';
+
+              installPhaseCommand = ''
+                mkdir -p $out/bin
+
+                ${
+                  if isWindows then
+                    ''
+                      cp target/${target}/release/newrelic-agent-control.exe $out/bin/
+                      cp target/${target}/release/newrelic-agent-control-cli.exe $out/bin/
+                      cp target/${target}/release/newrelic-agent-control-k8s.exe $out/bin/
+                      cp target/${target}/release/newrelic-agent-control-k8s-cli.exe $out/bin/
+                    ''
+                  else
+                    ''
+                      cp target/${target}/release/newrelic-agent-control $out/bin/
+                      cp target/${target}/release/newrelic-agent-control-cli $out/bin/
+                      cp target/${target}/release/newrelic-agent-control-k8s $out/bin/
+                      cp target/${target}/release/newrelic-agent-control-k8s-cli $out/bin/
+                    ''
+                }
+              '';
+            };
+          in
+          craneLib.buildPackage buildArgs;
+
+        # Build binary packages for each target
+        binaryPackages = {
+          x86_64-linux-musl = mkPackage {
+            target = "x86_64-unknown-linux-musl";
+            zigTarget = "x86_64-unknown-linux-musl";
+          };
+
+          aarch64-linux-musl = mkPackage {
+            target = "aarch64-unknown-linux-musl";
+            zigTarget = "aarch64-unknown-linux-musl";
+          };
+
+          x86_64-windows-msvc = mkPackage {
+            target = "x86_64-pc-windows-msvc";
+            zigTarget = "x86_64-pc-windows-msvc";
+            isWindows = true;
+          };
+        };
+
+        # Function to create deb/rpm packages from a binary package
+        mkLinuxPackage =
+          {
+            binaryPackage,
+            arch, # "x86_64" or "aarch64"
+            format, # "deb" or "rpm"
+          }:
+          let
+            # Map architecture names
+            debArch = if arch == "x86_64" then "amd64" else "arm64";
+            rpmArch = if arch == "x86_64" then "x86_64" else "aarch64";
+            pkgArch = if format == "deb" then debArch else rpmArch;
+
+            version = agentControlCargoToml.package.version;
+            packageName = "newrelic-agent-control";
+          in
+          pkgs.stdenv.mkDerivation {
+            pname = "${packageName}-${format}-${arch}";
+            inherit version;
+
+            src = ./.;
+
+            nativeBuildInputs = [ pkgs.nfpm ];
+
+            buildPhase = ''
+              # Create package structure
+              mkdir -p package/usr/bin
+              mkdir -p package/etc/newrelic-agent-control/local-data/agent-control
+              mkdir -p package/lib/systemd/system
+              mkdir -p package/usr/share/doc/newrelic/newrelic-agent-control
+              mkdir -p package/var/lib/newrelic-agent-control/filesystem
+
+              # Copy binaries from the binary package
+              cp ${binaryPackage}/bin/newrelic-agent-control package/usr/bin/
+              cp ${binaryPackage}/bin/newrelic-agent-control-cli package/usr/bin/
+              chmod +x package/usr/bin/newrelic-agent-control
+              chmod +x package/usr/bin/newrelic-agent-control-cli
+
+              # Copy configuration and service files
+              cp ${./build/package/config.yaml} package/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml
+              cp ${./build/package/newrelic-agent-control.service} package/lib/systemd/system/
+              cp ${./build/package/newrelic-agent-control.conf} package/etc/newrelic-agent-control/systemd-env.conf
+              cp ${./LICENSE.md} package/usr/share/doc/newrelic/newrelic-agent-control/
+
+              # Create nfpm configuration
+              cat > nfpm.yaml <<EOF
+              name: ${packageName}
+              arch: ${pkgArch}
+              platform: linux
+              version: ${version}
+              maintainer: "New Relic <caos-team@newrelic.com>"
+              description: "New Relic Agent Control - newrelic-agent-control"
+              license: "Apache 2.0"
+
+              provides:
+                - newrelic-infra (= 3.0.0)
+                - nr-otel-collector (= 2.0.0)
+
+              conflicts:
+                - newrelic-infra
+                - nr-otel-collector
+
+              replaces:
+                - newrelic-infra
+                - nr-otel-collector
+
+              recommends:
+                - td-agent-bit
+                - fluent-bit
+
+              contents:
+                - src: package/usr/bin/newrelic-agent-control
+                  dst: /usr/bin/newrelic-agent-control
+                  file_info:
+                    mode: 0755
+                - src: package/usr/bin/newrelic-agent-control-cli
+                  dst: /usr/bin/newrelic-agent-control-cli
+                  file_info:
+                    mode: 0755
+                - src: package/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml
+                  dst: /etc/newrelic-agent-control/local-data/agent-control/local_config.yaml
+                  type: config
+                  file_info:
+                    mode: 0600
+                - src: package/lib/systemd/system/newrelic-agent-control.service
+                  dst: /lib/systemd/system/newrelic-agent-control.service
+                - src: package/etc/newrelic-agent-control/systemd-env.conf
+                  dst: /etc/newrelic-agent-control/systemd-env.conf
+                  type: config|noreplace
+                  file_info:
+                    mode: 0600
+                - src: package/usr/share/doc/newrelic/newrelic-agent-control/LICENSE.md
+                  dst: /usr/share/doc/newrelic/newrelic-agent-control/LICENSE.md
+                - dst: /etc/newrelic-agent-control
+                  type: dir
+                  file_info:
+                    mode: 0700
+                - dst: /var/lib/newrelic-agent-control
+                  type: dir
+                  file_info:
+                    mode: 0700
+                - dst: /var/lib/newrelic-agent-control/filesystem
+                  type: dir
+                  file_info:
+                    mode: 0700
+
+              scripts:
+                postinstall: ${./build/package/postinstall.sh}
+                preremove: ${./build/package/preremove.sh}
+                postremove: ${./build/package/postremove.sh}
+              EOF
+
+              # Build the package
+              nfpm package --packager ${format} --target .
+            '';
+
+            installPhase = ''
+              mkdir -p $out
+              cp *.${format} $out/
+            '';
+
+            meta = {
+              description = "New Relic Agent Control - ${format} package for ${arch}";
+              license = pkgs.lib.licenses.asl20;
+              platforms = [ "${arch}-linux" ];
+            };
+          };
+
+      in
+      {
+        devShells.default = pkgs.mkShell {
+          inherit buildInputs;
+          nativeBuildInputs =
+            baseBuildInputs
+            ++ devTools
+            ++ [
+              pkgs.zig
+              pkgs.cargo-zigbuild
+            ];
+
+          # Environment variables
+          RUST_SRC_PATH = "${rustToolchain}/lib/rustlib/src/rust/library";
+
+          # Workaround for macOS file descriptor limit issue with cargo-zigbuild
+          shellHook = ''
+            echo "🦀 New Relic Agent Control Development Environment"
+            echo "📦 Rust version: ${rustVersion}"
+            echo "🔧 Rust toolchain: ${rustToolchain}"
+
+            # Increase file descriptor limit on macOS
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+              ulimit -n 4096 2>/dev/null || true
+              echo "⚠️  File descriptor limit set to 4096 (required for cargo-zigbuild on macOS)"
+            fi
+
+            echo ""
+            echo "Available commands:"
+            echo "  cargo build                       - Build the project"
+            echo "  cargo zigbuild --target <T>       - Cross-compile (T=x86_64-unknown-linux-musl, etc.)"
+            echo "  cargo test --workspace            - Run tests"
+            echo "  make coverage                     - Generate coverage report"
+            echo "  make third-party-notices          - Check third-party licenses"
+            echo ""
+            echo "Build with Nix:"
+            echo "  nix build .#x86_64-linux-musl      - Build x86_64 Linux static binary"
+            echo "  nix build .#aarch64-linux-musl     - Build aarch64 Linux static binary"
+            echo "  nix build .#x86_64-windows-msvc    - Build x86_64 Windows binary"
+            echo "  nix build .#deb-x86_64             - Build x86_64 DEB package"
+            echo "  nix build .#deb-aarch64            - Build aarch64 DEB package"
+            echo "  nix build .#rpm-x86_64             - Build x86_64 RPM package"
+            echo "  nix build .#rpm-aarch64            - Build aarch64 RPM package"
+            echo "  nix build .#all-linux-packages     - Build all Linux packages (binaries + deb + rpm)"
+            echo ""
+          '';
+        };
+
+        # Package outputs for different targets
+        packages = rec {
+          # Binary packages
+          inherit (binaryPackages) x86_64-linux-musl aarch64-linux-musl x86_64-windows-msvc;
+
+          # Native build for current system
+          default = mkPackage {
+            target =
+              if pkgs.stdenv.isLinux then
+                if pkgs.stdenv.isAarch64 then "aarch64-unknown-linux-musl" else "x86_64-unknown-linux-musl"
+              else if pkgs.stdenv.isDarwin then
+                pkgs.stdenv.hostPlatform.config
+              else
+                throw "Unsupported system: ${system}";
+            zigTarget =
+              if pkgs.stdenv.isLinux then
+                if pkgs.stdenv.isAarch64 then "aarch64-unknown-linux-musl" else "x86_64-unknown-linux-musl"
+              else
+                null;
+          };
+
+          # DEB packages (depends on binary packages)
+          deb-x86_64 = mkLinuxPackage {
+            binaryPackage = x86_64-linux-musl;
+            arch = "x86_64";
+            format = "deb";
+          };
+
+          deb-aarch64 = mkLinuxPackage {
+            binaryPackage = aarch64-linux-musl;
+            arch = "aarch64";
+            format = "deb";
+          };
+
+          # RPM packages (depends on binary packages)
+          rpm-x86_64 = mkLinuxPackage {
+            binaryPackage = x86_64-linux-musl;
+            arch = "x86_64";
+            format = "rpm";
+          };
+
+          rpm-aarch64 = mkLinuxPackage {
+            binaryPackage = aarch64-linux-musl;
+            arch = "aarch64";
+            format = "rpm";
+          };
+
+          # Convenience: build all Linux binaries
+          all-linux-binaries = pkgs.symlinkJoin {
+            name = "newrelic-agent-control-binaries-${agentControlCargoToml.package.version}";
+            paths = [
+              x86_64-linux-musl
+              aarch64-linux-musl
+            ];
+          };
+
+          # Convenience: build all DEB packages
+          all-deb-packages = pkgs.symlinkJoin {
+            name = "newrelic-agent-control-all-deb-${agentControlCargoToml.package.version}";
+            paths = [
+              deb-x86_64
+              deb-aarch64
+            ];
+          };
+
+          # Convenience: build all RPM packages
+          all-rpm-packages = pkgs.symlinkJoin {
+            name = "newrelic-agent-control-all-rpm-${agentControlCargoToml.package.version}";
+            paths = [
+              rpm-x86_64
+              rpm-aarch64
+            ];
+          };
+
+          # Convenience: build everything (binaries + all packages)
+          all-linux-packages = pkgs.symlinkJoin {
+            name = "newrelic-agent-control-all-${agentControlCargoToml.package.version}";
+            paths = [
+              x86_64-linux-musl
+              aarch64-linux-musl
+              deb-x86_64
+              deb-aarch64
+              rpm-x86_64
+              rpm-aarch64
+            ];
+          };
+        };
+      }
+    );
+}
