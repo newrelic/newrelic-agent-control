@@ -4,6 +4,7 @@ use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;
+use crate::oci::reference_parser::ReferenceParser;
 use crate::package::manager::{PackageData, PackageManager};
 use oci_client::Reference;
 use self_replacer::{BinarySelfReplacer, SelfReplacer};
@@ -11,10 +12,11 @@ use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use thiserror::Error;
-use tracing::{debug, error};
+use tracing::{debug, debug_span, error};
 use url::Url;
 use wrapper_with_default::WrapperWithDefault;
 
@@ -59,14 +61,19 @@ where
             return Ok(());
         };
 
+        let _span = debug_span!(
+            "self-update",
+            previous_version = AGENT_CONTROL_VERSION,
+            new_version = %new_version,
+        )
+        .entered();
+
         if new_version == AGENT_CONTROL_VERSION {
-            debug!(
-                "Desired agent control version {new_version} is the same as the current version, skipping update process"
-            );
+            debug!("Desired version is the same as current, skipping update");
             return Ok(());
         }
 
-        debug!("Starting update process for agent control version {new_version}");
+        debug!("Starting update process");
 
         let package_data = self.get_package_data(new_version);
 
@@ -80,8 +87,8 @@ where
             .join(AGENT_CONTROL_BIN);
 
         debug!(
-            "Verifying new binary {} before self-replace",
-            new_binary_path.to_string_lossy()
+            binary = %new_binary_path.display(),
+            "Verifying new binary before self-replace",
         );
         self.verify_executor
             .execute(&new_binary_path, &["verify"])
@@ -89,20 +96,13 @@ where
                 UpdaterError::UpdateFailed(format!("verifying new Agent Control binary: {e}"))
             })?;
 
-        debug!(
-            "Attempting to self-replace with new binary {}",
-            new_binary_path.to_string_lossy()
-        );
+        debug!("Attempting to self-replace with new binary",);
 
         BinarySelfReplacer::self_replace(&new_binary_path).map_err(|e| {
             UpdaterError::UpdateFailed(format!("self replacing Agent Control binary: {e}"))
         })?;
 
-        debug!(
-            previous_version = AGENT_CONTROL_VERSION,
-            %new_version,
-            "Agent Control current binary has replaced by new version, stopping to allow the new version to start",
-        );
+        debug!("Agent Control binary replaced, stopping to allow the new version to start");
         self.agent_control_internal_publisher
             .publish(AgentControlInternalEvent::StopRequested())
             .map_err(|e| UpdaterError::UpdateFailed(format!("publishing stop request: {e}")))?;
@@ -122,10 +122,13 @@ where
         verify_executor: V,
         package: AgentControlPackage,
     ) -> Result<Self, BuildError> {
-        let base_reference = Reference::try_from(format!(
-            "{}/{}",
-            package.download.oci.registry, package.download.oci.repository
-        ))?;
+        let base_reference = Reference::from(ReferenceParser::from_str(
+            format!(
+                "{}/{}",
+                package.download.oci.registry, package.download.oci.repository
+            )
+            .as_str(),
+        )?);
         Ok(Self {
             ac_remote_update_enabled,
             agent_control_internal_publisher,
@@ -373,7 +376,7 @@ mod tests {
                 publisher,
                 Arc::new(MockPackageManager::new()),
                 MockVerifyExecutorMock::new(),
-                package,
+                package
             )
             .err()
             .unwrap(),
