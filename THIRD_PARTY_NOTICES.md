@@ -2580,6 +2580,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## toml_writer <https://crates.io/crates/toml_writer>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## tonic <https://crates.io/crates/tonic>
 
 Distributed under the following license(s):
