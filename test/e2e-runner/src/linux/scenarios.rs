@@ -4,3 +4,4 @@ pub mod infra_agent;
 pub mod nrdot_agent;
 pub mod proxy;
 pub mod remote_config;
+pub mod self_update;

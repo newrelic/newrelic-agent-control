@@ -16,7 +16,14 @@ reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 serde_yaml.workspace = true
+sha2 = "0.10"
 tempfile.workspace = true
+actix-web = "4.13.0"
+tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros", "sync"] }
+aws-lc-rs = "1.16.3"
+prost = "0.14.3"
+opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.37" }
+base64 = "0.22.1"
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 

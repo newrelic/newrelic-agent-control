@@ -1439,14 +1439,21 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 name = "e2e-runner"
 version = "0.1.0"
 dependencies = [
+ "actix-web",
+ "aws-lc-rs",
+ "base64 0.22.1",
  "chrono",
  "clap",
  "glob",
+ "opamp-client",
+ "prost",
  "reqwest 0.13.3",
  "serde",
  "serde_json",
  "serde_yaml",
+ "sha2",
  "tempfile",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]

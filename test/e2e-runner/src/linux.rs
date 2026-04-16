@@ -2,6 +2,8 @@ use crate::common::fleet_control_api;
 use crate::{LinuxCli, LinuxScenarios, init_logging};
 use clap::Parser;
 
+pub mod fake_oci_registry;
+pub mod fake_opamp_server;
 pub mod install;
 pub mod scenarios;
 
@@ -46,6 +48,9 @@ pub fn run_linux_e2e() {
         }
         LinuxScenarios::FleetControlApi(args) => {
             fleet_control_api::run_fleet_control_api(args.fleet_control);
+        }
+        LinuxScenarios::SelfUpdate(args) => {
+            scenarios::self_update::test_agent_control_self_update(args);
         }
     };
 }

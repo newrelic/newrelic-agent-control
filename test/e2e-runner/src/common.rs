@@ -36,6 +36,10 @@ pub struct InstallationArgs {
     #[arg(long)]
     pub artifacts_package_dir: Option<PathBuf>,
 
+    /// Local path to a recipes directory. When set, skips the git clone and uses this path directly as --localRecipes.
+    #[arg(long)]
+    pub local_recipes_dir: Option<PathBuf>,
+
     /// Recipes repository
     #[arg(
         long,
@@ -82,6 +86,11 @@ pub struct InstallationArgs {
     /// Version of the NRDot OCI image to use in tests
     #[arg(long)]
     pub nrdot_version: Option<String>,
+
+    /// Path to a local recipe YAML file to install (passed as -c to newrelic install).
+    /// When set, replaces --localRecipes + -n with a direct file reference.
+    #[arg(short = 'c', long)]
+    pub recipe_file: Option<PathBuf>,
 }
 
 /// Arguments for Fleet Control scenarios that also install Agent Control
