@@ -36,6 +36,11 @@ enum LinuxScenarios {
     ///
     /// This relies on polling certain fixed Fleet Control endpoints, failing if the response is not expected or a timeout is reached.
     FleetControl(Args),
+    /// Triggers Fleet Control tests via API and polls for completion (without installing Agent Control).
+    ///
+    /// This is useful when Agent Control is already deployed and you only need to trigger and monitor Fleet Control tests.
+    /// Requires --fleet-id and --fleet-control-token arguments.
+    FleetControlApi(Args),
 }
 
 #[derive(Debug, clap::Subcommand)]

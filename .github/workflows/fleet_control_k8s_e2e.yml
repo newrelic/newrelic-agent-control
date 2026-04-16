@@ -10,9 +10,9 @@ name: 📞 K8s Fleet Control E2E Tests
 # 2. Trigger Fleet Control tests via external API
 # 3. Poll for test completion and validate results
 #
-# These tests use a bash script (fleet_control_api.sh) that interacts with the
-# Fleet Control test controller endpoint to run deployment tests against the
-# configured fleet.
+# These tests use the e2e-runner Rust binary with the fleet-control-api subcommand
+# that interacts with the Fleet Control test controller endpoint to run deployment
+# tests against the configured fleet.
 
 on:
   workflow_dispatch:
@@ -86,6 +86,9 @@ jobs:
         with:
           name: built-binaries-0.200.${{ github.run_id }}
           path: ./dist
+
+      - name: Build e2e-runner binary
+        run: cargo build -p e2e-runner
 
       - name: Get Fleet Control authentication token
         id: get-token
@@ -164,12 +167,12 @@ jobs:
           kubectl logs -l app.kubernetes.io/name=agent-control --tail=50 --all-containers --prefix=true
 
       - name: Run Fleet Control E2E test
-        env:
-          FLEET_CONTROL_TOKEN: ${{ steps.get-token.outputs.token }}
-          FLEET_ID: ${{ inputs.fleet_id }}
         run: |
           echo "🧪 Running Fleet Control E2E test for cluster: ${CLUSTER_NAME}"
-          bash .github/workflows/scripts/fleet_control_api.sh
+          ${{ github.workspace }}/target/debug/e2e-runner fleet-control-api \
+            --fleet-id "${{ inputs.fleet_id }}" \
+            --fleet-control-token "${{ steps.get-token.outputs.token }}" \
+            --fleet-type "k8s-fleet"
 
       - name: Collect logs on failure
         if: failure()

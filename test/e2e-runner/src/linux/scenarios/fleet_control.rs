@@ -38,8 +38,81 @@ const STATUS_TIMEOUT: Duration = Duration::from_secs(600); // 10 minutes
 const FLEET_CONTROL_TEST_CONTROLLER_ENDPOINT: &str =
     "https://fleet-management-e2e-test-runner.staging-service.newrelic.com";
 
+/// Triggers Fleet Control tests via API and waits for completion.
+///
+/// This is the core API interaction logic shared by both the full fleet-control
+/// test (which installs AC first) and the fleet-control-api command (which assumes
+/// AC is already deployed externally).
+fn trigger_and_wait_for_fleet_control_tests(
+    fleet_id: &str,
+    fleet_control_token: &str,
+    fleet_type: &str,
+) {
+    info!("Triggering Fleet Control tests");
+    info!("Fleet ID: {fleet_id}");
+    info!("Fleet type: {fleet_type}");
+
+    // Trigger Fleet Control tests
+    let test_run_id = retry_panic(
+        3,
+        Duration::from_secs(5),
+        "trigger Fleet Control tests",
+        || {
+            trigger_fleet_control_tests(
+                FLEET_CONTROL_TEST_CONTROLLER_ENDPOINT,
+                fleet_control_token,
+                fleet_id,
+                fleet_type,
+            )
+        },
+    );
+
+    // Wait for completion
+    retry_panic(
+        1,
+        Duration::from_secs(1),
+        "wait for Fleet Control tests completion",
+        || {
+            wait_for_fleet_control_completion(
+                FLEET_CONTROL_TEST_CONTROLLER_ENDPOINT,
+                fleet_control_token,
+                &test_run_id,
+            )
+        },
+    );
+
+    info!("✅ Fleet Control tests completed successfully");
+}
+
+/// Runs Fleet Control API interaction (trigger tests and poll for completion).
+///
+/// This function only handles the Fleet Control API communication and does not
+/// install or configure Agent Control. Useful when AC is already deployed externally.
+pub fn run_fleet_control_api(args: Args) {
+    let fleet_id = args
+        .fleet_id
+        .as_ref()
+        .expect("--fleet-id is required for fleet-control-api scenario");
+
+    let fleet_control_token = args
+        .fleet_control_token
+        .as_ref()
+        .expect("--fleet-control-token is required for fleet-control-api scenario");
+
+    let fleet_type = args.fleet_type.as_ref();
+
+    info!("Starting Fleet Control API E2E test");
+
+    trigger_and_wait_for_fleet_control_tests(fleet_id, fleet_control_token, fleet_type);
+}
+
 /// Triggers Fleet Control tests and returns the test run ID
-fn trigger_fleet_control_tests(base_url: &str, token: &str, fleet_id: &str) -> TestResult<String> {
+fn trigger_fleet_control_tests(
+    base_url: &str,
+    token: &str,
+    fleet_id: &str,
+    fleet_type: &str,
+) -> TestResult<String> {
     let client = Client::builder().timeout(CLIENT_TIMEOUT).build()?;
     let url = format!("{}/test-runner/trigger-suites", base_url);
 
@@ -49,7 +122,7 @@ fn trigger_fleet_control_tests(base_url: &str, token: &str, fleet_id: &str) -> T
         test_threads: 1,
         user_defined_args: serde_json::json!({
             "DeploymentServicesTestSuite": {
-                "linux-fleet": fleet_id
+                fleet_type: fleet_id
             }
         }),
         ..TriggerTestRequest::default()
@@ -155,6 +228,8 @@ pub fn test_fleet_control(args: Args) {
         .as_ref()
         .expect("--fleet-control-token is required for fleet-control scenario");
 
+    let fleet_type = args.fleet_type.as_ref();
+
     assert_eq!(
         args.nr_region.to_lowercase().as_str(),
         "staging",
@@ -203,33 +278,6 @@ agents:
     info!("Waiting for Agent Control to connect to Fleet Control...");
     std::thread::sleep(Duration::from_secs(30));
 
-    // Trigger Fleet Control tests
-    let test_run_id = retry_panic(
-        3,
-        Duration::from_secs(5),
-        "trigger Fleet Control tests",
-        || {
-            trigger_fleet_control_tests(
-                FLEET_CONTROL_TEST_CONTROLLER_ENDPOINT,
-                fleet_control_token,
-                fleet_id,
-            )
-        },
-    );
-
-    // Wait for completion
-    retry_panic(
-        1,
-        Duration::from_secs(1),
-        "wait for Fleet Control tests completion",
-        || {
-            wait_for_fleet_control_completion(
-                FLEET_CONTROL_TEST_CONTROLLER_ENDPOINT,
-                fleet_control_token,
-                &test_run_id,
-            )
-        },
-    );
-
-    info!("✅ Fleet Control E2E test completed successfully");
+    // Trigger Fleet Control tests and wait for completion
+    trigger_and_wait_for_fleet_control_tests(fleet_id, fleet_control_token, fleet_type);
 }

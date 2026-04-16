@@ -16,7 +16,7 @@ Unlike other K8s E2E test scenarios, Fleet Control tests **do not use** the stan
 Fleet Control tests are orchestrated directly by the GitHub Actions workflow:
 
 - **Workflow**: [.github/workflows/fleet_control_k8s_e2e.yml](../../../.github/workflows/fleet_control_k8s_e2e.yml)
-- **Test Driver**: [.github/workflows/scripts/fleet_control_api.sh](../../../.github/workflows/scripts/fleet_control_api.sh)
+- **Test Driver**: Rust e2e-runner with `fleet-control-api` subcommand ([test/e2e-runner/src/linux/scenarios/fleet_control.rs](../../e2e-runner/src/linux/scenarios/fleet_control.rs))
 - **Values File**: [ac-values-fleet-control.yml](./ac-values-fleet-control.yml)
 
 ## Files in This Directory
@@ -30,6 +30,7 @@ Fleet Control tests are orchestrated directly by the GitHub Actions workflow:
 ## Running Tests
 
 ### Via GitHub Actions
+
 ```bash
 # Trigger manually with default fleet
 gh workflow run fleet_control_k8s_e2e.yml
@@ -39,6 +40,7 @@ gh workflow run fleet_control_k8s_e2e.yml -f fleet_id="YOUR_FLEET_ID"
 ```
 
 ### Locally
+
 ```bash
 # Set up environment
 export NR_SYSTEM_IDENTITY_CLIENT_ID="your-client-id"
@@ -58,8 +60,12 @@ tilt ci
 # Wait for AC to connect
 sleep 60
 
-# Run Fleet Control tests
-bash ../../../.github/workflows/scripts/fleet_control_api.sh
+# Build and run Fleet Control tests
+cargo build -p e2e-runner
+./target/debug/e2e-runner fleet-control-api \
+  --fleet-id "${FLEET_ID}" \
+  --fleet-control-token "${FLEET_CONTROL_TOKEN}" \
+  --fleet-type "k8s-fleet"
 
 # Cleanup
 tilt down
@@ -68,6 +74,7 @@ tilt down
 ## Fleet Configuration
 
 The default fleet used for testing:
+
 - **Name**: AC-FC E2E tests (k8s)
 - **Account**: Test Automation (Staging)
 - **Fleet ID**: `MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTliZTAzZC03MDYwLTcxMDctOTUwYS04YTFiODc3YjJiN2Q`

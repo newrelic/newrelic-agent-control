@@ -69,6 +69,10 @@ pub struct Args {
     /// Fleet Control authentication token
     #[arg(long)]
     pub fleet_control_token: Option<String>,
+
+    /// Fleet type for Fleet Control API (linux-fleet or k8s-fleet)
+    #[arg(long, default_value = "linux-fleet")]
+    pub fleet_type: String,
 }
 
 /// Data to set up installation
