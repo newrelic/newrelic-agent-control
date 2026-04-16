@@ -57,6 +57,22 @@ impl TestDataHelper {
         tar.finish().unwrap();
     }
 
+    /// Compresses a single existing file into a tar.gz archive
+    #[cfg(target_family = "unix")]
+    pub fn compress_tar_gz_file(file_path: &Path, archive_path: &Path) {
+        let filename = file_path.file_name().expect("file_path has no filename");
+        let tar_gz = File::create(archive_path).unwrap();
+        let enc = GzEncoder::new(tar_gz, Compression::default());
+        let mut tar = tar::Builder::new(enc);
+        let mut file = File::open(file_path).unwrap();
+        let mut header = tar::Header::new_gnu();
+        header.set_size(file_path.metadata().unwrap().len());
+        header.set_mode(0o755);
+        header.set_cksum();
+        tar.append_data(&mut header, filename, &mut file).unwrap();
+        tar.finish().unwrap();
+    }
+
     #[cfg(target_os = "windows")]
     pub fn compress_zip(
         source_path: &Path,
@@ -79,6 +95,21 @@ impl TestDataHelper {
             std::io::copy(&mut f, &mut zip).unwrap();
         }
 
+        zip.finish().unwrap();
+    }
+
+    /// Compresses a single existing file into a zip archive
+    #[cfg(target_os = "windows")]
+    pub fn compress_zip_file(file_path: &Path, archive_path: &Path) {
+        use zip::write::SimpleFileOptions;
+        let filename = file_path.file_name().expect("file_path has no filename");
+        let file = File::create(archive_path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        zip.start_file(filename.to_string_lossy(), options).unwrap();
+        let mut f = File::open(file_path).unwrap();
+        std::io::copy(&mut f, &mut zip).unwrap();
         zip.finish().unwrap();
     }
 

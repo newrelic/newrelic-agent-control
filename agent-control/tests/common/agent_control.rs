@@ -65,6 +65,17 @@ pub struct StartedAgentControl {
     handle: Option<std::thread::JoinHandle<()>>,
 }
 
+impl StartedAgentControl {
+    /// Checks if the agent control process has stopped gracefully
+    pub fn has_gracefully_stopped(&mut self) -> bool {
+        if let Some(handle) = &self.handle {
+            handle.is_finished()
+        } else {
+            true
+        }
+    }
+}
+
 impl Drop for StartedAgentControl {
     fn drop(&mut self) {
         self.application_event_publisher
