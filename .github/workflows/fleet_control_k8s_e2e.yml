@@ -127,7 +127,7 @@ jobs:
           # Tilt/deployment config
           USE_LATEST_FLUX: false
           ARCH: amd64
-          FLEET_ID: ${{ inputs.fleet_id || 'MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTliZTAzZC03MDYwLTcxMDctOTUwYS04YTFiODc3YjJiN2Q' }}
+          FLEET_ID: ${{ inputs.fleet_id }}
         run: |
           # Create system identity secret
           kubectl get secret sys-identity || kubectl create secret generic sys-identity \
@@ -166,8 +166,7 @@ jobs:
       - name: Run Fleet Control E2E test
         env:
           FLEET_CONTROL_TOKEN: ${{ steps.get-token.outputs.token }}
-          # Fleet with name 'AC-FC E2E tests' using FC's account 'Test Automation' (Staging)
-          FLEET_ID: ${{ inputs.fleet_id || 'MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTliZTAzZC03MDYwLTcxMDctOTUwYS04YTFiODc3YjJiN2Q' }}
+          FLEET_ID: ${{ inputs.fleet_id }}
         run: |
           echo "🧪 Running Fleet Control E2E test for cluster: ${CLUSTER_NAME}"
           bash .github/workflows/scripts/fleet_control_api.sh
