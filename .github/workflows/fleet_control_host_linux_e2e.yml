@@ -1,5 +1,19 @@
 name: 📞 OnHost Fleet Control E2E Tests
 
+# This workflow tests Fleet Control integration with Agent Control on Linux hosts.
+# Unlike regular E2E tests that validate agent functionality, these tests verify
+# that Fleet Control can successfully orchestrate and manage Agent Control via its
+# external test controller API.
+#
+# The test flow:
+# 1. Deploy Agent Control with Fleet Control enabled
+# 2. Trigger Fleet Control tests via external API
+# 3. Poll for test completion and validate results
+#
+# These tests use a dedicated Fleet Control test runner (e2e-runner) that interacts
+# with the Fleet Control test controller endpoint to run deployment tests against
+# the configured fleet.
+
 on:
   workflow_dispatch:
     inputs:
