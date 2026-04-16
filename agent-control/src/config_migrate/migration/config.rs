@@ -327,14 +327,13 @@ configs: []
             MigrationConfig::parse(NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING).unwrap();
 
         for config in migration_config.configs.into_iter() {
-            let dir_mappings =
-                config
-                    .filesystem_mappings
-                    .into_iter()
-                    .filter_map(|(_, v)| match v {
-                        MappingType::Dir(dir) => Some(dir),
-                        _ => None,
-                    });
+            let dir_mappings = config
+                .filesystem_mappings
+                .into_values()
+                .filter_map(|v| match v {
+                    MappingType::Dir(dir) => Some(dir),
+                    _ => None,
+                });
             for dir_map in dir_mappings {
                 assert!(dir_map.valid_filename("something.yaml"));
                 assert!(dir_map.valid_filename("something.yml"));
