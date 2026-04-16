@@ -539,13 +539,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## core2 <https://crates.io/crates/core2>
-
-Distributed under the following license(s):
-
-* Apache-2.0
-* MIT
-
 ## cpufeatures <https://crates.io/crates/cpufeatures>
 
 Distributed under the following license(s):
@@ -1549,6 +1542,13 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 
+* MIT
+
+## no_std_io2 <https://crates.io/crates/no_std_io2>
+
+Distributed under the following license(s):
+
+* Apache-2.0
 * MIT
 
 ## nom <https://crates.io/crates/nom>
