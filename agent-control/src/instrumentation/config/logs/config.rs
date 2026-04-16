@@ -11,7 +11,8 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::Filter;
 use tracing_subscriber::{EnvFilter, Registry};
 
-const LOGGING_ENABLED_CRATES: &[&str] = &["newrelic_agent_control", "opamp_client"];
+// The list of crates with enabled logging is generated at build time in `build.rs` and injected as an env variable.
+const LOGGING_ENABLED_CRATES: &str = env!("LOGGING_ENABLED_CRATES");
 
 const SPAN_ATTRIBUTES_MAX_LEVEL: &Level = &Level::INFO;
 
@@ -106,7 +107,7 @@ impl LoggingConfig {
             .with_default_directive(LevelFilter::OFF.into()) // Disables logs for any crate
             .parse_lossy("");
         // Enables and sets up the log level for known crates
-        for crate_name in LOGGING_ENABLED_CRATES {
+        for crate_name in LOGGING_ENABLED_CRATES.split(',') {
             let directive = format!("{}={}", crate_name, &level);
             env_filter =
                 env_filter.add_directive(Self::logging_directive(directive.as_str(), "level")?)
@@ -205,7 +206,15 @@ mod tests {
             TestCase {
                 name: "everything default",
                 config: Default::default(),
-                expected: "newrelic_agent_control=info,opamp_client=info,off",
+                expected: "newrelic_agent_control=info,resource_detection=info,self_replacer=info,opamp_client=info,nr_auth=info,fs=info,off",
+            },
+            TestCase {
+                name: "debug level applies to all known crates",
+                config: LoggingConfig {
+                    level: LogLevel(Level::DEBUG),
+                    ..Default::default()
+                },
+                expected: "newrelic_agent_control=debug,resource_detection=debug,self_replacer=debug,opamp_client=debug,nr_auth=debug,fs=debug,off",
             },
             TestCase {
                 name: "insecure fine grained overrides any logging",
@@ -222,7 +231,7 @@ mod tests {
                     insecure_fine_grained_level: Some("".into()),
                     ..Default::default()
                 },
-                expected: "newrelic_agent_control=info,opamp_client=info,off", // default
+                expected: "newrelic_agent_control=info,resource_detection=info,self_replacer=info,opamp_client=info,nr_auth=info,fs=info,off", // default
             },
             TestCase {
                 name: "several specific targets in insecure_fine_grained_level",
