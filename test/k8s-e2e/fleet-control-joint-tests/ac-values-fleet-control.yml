@@ -32,7 +32,7 @@ agentControlDeployment:
         chart_version: "*" # Use latest
         chart_values:
           # NOTE: nrStaging is set by Tiltfile based on REGION env var (staging vs US)
-          global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
+          global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
             customAttributes:
               cluster_name: ${nr-env:NR_CLUSTER_NAME}
               config_origin: local
