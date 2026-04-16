@@ -96,13 +96,3 @@ for (variable_fqn, end_spec) in agent_type.variables.iter() { ... }
 for (k, agent_cfg) in agents.iter() { ... }
 for (k, v) in agent_type.variables.iter() { ... }
 ```
-
-## Generic type parameter names
-
-Generic parameters should be consistent. Prefer a word matching the trait or combination of traits over single letters:
-
-```rust
-// 👍 Good:
-where Sender: Sender
-where SyncedSender: Sender + Sync
-```

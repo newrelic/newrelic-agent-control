@@ -15,7 +15,7 @@ struct Agent {
 }
 ```
 
-Do not use a `bool` field inside a struct to represent binary state. If an enum is truly needed, it is almost always better than a `bool` because it can be extended and both the type and its variants can have explanatory names.
+Do not use a `bool` field inside a struct to represent binary state. An enum is almost always better than a `bool` because it can be extended and both the type and its variants can have explanatory names.
 
 ## Type-state pattern
 
