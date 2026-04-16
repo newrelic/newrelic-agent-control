@@ -41,7 +41,7 @@ jobs:
     with:
       pre-release: false
       skip_sign: true
-      tag_name: 0.900.${{ github.run_id }}
+      tag_name: 0.200.${{ github.run_id }}
 
   on-host-linux-fleet-control-e2e:
     name: OnHost Linux Fleet Control E2E
@@ -57,7 +57,7 @@ jobs:
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: built-binaries-0.900.${{ github.run_id }}
+          name: built-binaries-0.200.${{ github.run_id }}
           path: ./
 
       - name: Install newrelic-auth-rs
@@ -105,7 +105,7 @@ jobs:
             --nr-region "staging" \
             --system-identity-client-id "${{ secrets.AC_FLEET_CONTROL_STAG_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}" \
             --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
-            --agent-control-version "0.900.${{ github.run_id }}" \
+            --agent-control-version "0.200.${{ github.run_id }}" \
             --recipes-repo-branch "main" \
             --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" \
             --fleet-id "${{ inputs.fleet_id }}" \
