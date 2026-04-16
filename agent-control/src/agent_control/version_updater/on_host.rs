@@ -1,16 +1,157 @@
-use std::io::Read;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, ExitStatus, Stdio};
-use std::time::{Duration, Instant};
-
+use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::config::{AgentControlDynamicConfig, AgentControlPackage};
+use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
+use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
+use crate::event::AgentControlInternalEvent;
+use crate::event::channel::EventPublisher;
+use crate::oci::reference_parser::ReferenceParser;
+use crate::package::manager::{PackageData, PackageManager};
+use oci_client::Reference;
+use self_replacer::{BinarySelfReplacer, SelfReplacer};
 use serde::{Deserialize, Serialize};
+use std::io::Read;
+use std::path::Path;
+use std::process::{Child, Command, ExitStatus, Stdio};
+use std::str::FromStr;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use thiserror::Error;
-use tracing::{debug, error};
+use tracing::{debug, debug_span, error};
+use url::Url;
 use wrapper_with_default::WrapperWithDefault;
 
-use crate::agent_control::config::AgentControlDynamicConfig;
-use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
-use crate::command::SubCommand;
+#[cfg(target_family = "unix")]
+pub const AGENT_CONTROL_BIN: &str = "newrelic-agent-control";
+#[cfg(target_family = "windows")]
+pub const AGENT_CONTROL_BIN: &str = "newrelic-agent-control.exe";
+
+pub const AGENT_CONTROL_BIN_PACKAGE_ID: &str = "agent_control_bin";
+
+#[derive(Debug, Error)]
+pub enum BuildError {
+    #[error("invalid OCI reference in package config: {0}")]
+    InvalidReference(#[from] oci_client::ParseError),
+}
+pub struct OnHostACUpdater<P, V>
+where
+    P: PackageManager,
+    V: VerifyExecutor,
+{
+    ac_remote_update_enabled: bool,
+    agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
+    package_manager: Arc<P>,
+    verify_executor: V,
+    base_reference: Reference,
+    pub_key_url: Url,
+}
+
+impl<P, V> VersionUpdater for OnHostACUpdater<P, V>
+where
+    P: PackageManager,
+    V: VerifyExecutor,
+{
+    fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError> {
+        if !self.ac_remote_update_enabled {
+            debug!("Remote update is disabled, skipping update process");
+            return Ok(());
+        }
+
+        let Some(new_version) = &config.version else {
+            debug!("Version is not specified in the dynamic config");
+            return Ok(());
+        };
+
+        let _span = debug_span!(
+            "self-update",
+            previous_version = AGENT_CONTROL_VERSION,
+            new_version = %new_version,
+        )
+        .entered();
+
+        if new_version == AGENT_CONTROL_VERSION {
+            debug!("Desired version is the same as current, skipping update");
+            return Ok(());
+        }
+
+        debug!("Starting update process");
+
+        let package_data = self.get_package_data(new_version);
+
+        let new_binary_path = self
+            .package_manager
+            .install(&AgentID::AgentControl, package_data)
+            .map_err(|e| {
+                UpdaterError::UpdateFailed(format!("installing new Agent Control binary: {e}"))
+            })?
+            .installation_path
+            .join(AGENT_CONTROL_BIN);
+
+        debug!(
+            binary = %new_binary_path.display(),
+            "Verifying new binary before self-replace",
+        );
+        self.verify_executor
+            .execute(&new_binary_path, &["verify"])
+            .map_err(|e| {
+                UpdaterError::UpdateFailed(format!("verifying new Agent Control binary: {e}"))
+            })?;
+
+        debug!("Attempting to self-replace with new binary",);
+
+        BinarySelfReplacer::self_replace(&new_binary_path).map_err(|e| {
+            UpdaterError::UpdateFailed(format!("self replacing Agent Control binary: {e}"))
+        })?;
+
+        debug!("Agent Control binary replaced, stopping to allow the new version to start");
+        self.agent_control_internal_publisher
+            .publish(AgentControlInternalEvent::StopRequested())
+            .map_err(|e| UpdaterError::UpdateFailed(format!("publishing stop request: {e}")))?;
+
+        Ok(())
+    }
+}
+impl<P, V> OnHostACUpdater<P, V>
+where
+    P: PackageManager,
+    V: VerifyExecutor,
+{
+    pub fn try_new(
+        ac_remote_update_enabled: bool,
+        agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
+        package_manager: Arc<P>,
+        verify_executor: V,
+        package: AgentControlPackage,
+    ) -> Result<Self, BuildError> {
+        let base_reference = Reference::from(ReferenceParser::from_str(
+            format!(
+                "{}/{}",
+                package.download.oci.registry, package.download.oci.repository
+            )
+            .as_str(),
+        )?);
+        Ok(Self {
+            ac_remote_update_enabled,
+            agent_control_internal_publisher,
+            package_manager,
+            verify_executor,
+            base_reference,
+            pub_key_url: package.download.oci.public_key_url,
+        })
+    }
+
+    fn get_package_data(&self, new_version: &str) -> PackageData {
+        let reference = Reference::with_tag(
+            self.base_reference.registry().to_string(),
+            self.base_reference.repository().to_string(),
+            new_version.to_string(),
+        );
+        PackageData {
+            id: AGENT_CONTROL_BIN_PACKAGE_ID.to_string(),
+            oci_reference: reference,
+            public_key_url: Some(self.pub_key_url.clone()),
+        }
+    }
+}
 
 // Configuration and OpAMP connectivy checks take up 8 seconds in total.
 // Setting the default timeout to 20 seconds gives room for the checks to complete while
@@ -158,37 +299,19 @@ impl VerifyExecutor for ProcessVerifyExecutor {
     }
 }
 
-/// On-host [`VersionUpdater`] implementation.
-pub struct OnHostUpdater<E: VerifyExecutor> {
-    verifier_executor: E,
-}
-
-impl<E: VerifyExecutor> OnHostUpdater<E> {
-    pub fn new(verifier_executor: E) -> Self {
-        Self { verifier_executor }
-    }
-}
-
-impl<E: VerifyExecutor> VersionUpdater for OnHostUpdater<E> {
-    fn update(&self, _config: &AgentControlDynamicConfig) -> Result<(), UpdaterError> {
-        // TODO: Here should downloading new binary step providing the binary path.
-
-        let new_binary_path = PathBuf::from("/fake_path");
-        let verify_arg = SubCommand::Verify.to_string();
-        self.verifier_executor
-            .execute(&new_binary_path, &[&verify_arg])
-            .map_err(|err| UpdaterError::UpdateFailed(format!("verifying new version: {err}")))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent_control::config::{AgentControlPackage, Download, Oci};
+    use crate::event::channel::pub_sub;
+    use crate::package::manager::tests::MockPackageManager;
     use assert_matches::assert_matches;
     use mockall::mock;
     use rstest::rstest;
+    use std::sync::Arc;
     use std::time::Duration;
     use tracing_test::traced_test;
+    use url::Url;
 
     mock! {
         pub VerifyExecutorMock {}
@@ -197,34 +320,68 @@ mod tests {
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // OnHostUpdater tests
-    // ---------------------------------------------------------------------------
+    type TestUpdater = OnHostACUpdater<MockPackageManager, MockVerifyExecutorMock>;
 
-    #[test]
-    fn test_update_returns_ok_when_executor_succeeds() {
-        let mut executor = MockVerifyExecutorMock::new();
-        executor.expect_execute().once().returning(|_, _| Ok(()));
-
-        let updater = OnHostUpdater::new(executor);
-        assert!(
-            updater
-                .update(&AgentControlDynamicConfig::default())
-                .is_ok()
-        );
+    fn new_test_updater(ac_remote_update_enabled: bool) -> TestUpdater {
+        let (publisher, _) = pub_sub();
+        OnHostACUpdater::try_new(
+            ac_remote_update_enabled,
+            publisher,
+            Arc::new(MockPackageManager::new()),
+            MockVerifyExecutorMock::new(),
+            AgentControlPackage::default(),
+        )
+        .unwrap()
     }
 
     #[test]
-    fn test_update_returns_err_when_executor_fails() {
-        let mut executor = MockVerifyExecutorMock::new();
-        executor
-            .expect_execute()
-            .once()
-            .returning(|_, _| Err(VerifyError::Timeout(DEFAULT_VERIFY_TIMEOUT)));
+    fn update_is_noop_when_remote_update_disabled() {
+        let updater = new_test_updater(false);
+        let config = AgentControlDynamicConfig::default();
+        assert!(updater.update(&config).is_ok());
+    }
 
-        let updater = OnHostUpdater::new(executor);
-        let result = updater.update(&AgentControlDynamicConfig::default());
-        assert!(matches!(result.unwrap_err(), UpdaterError::UpdateFailed(_)));
+    #[test]
+    fn update_is_noop_when_version_not_specified() {
+        let updater = new_test_updater(true);
+        let config = AgentControlDynamicConfig::default();
+        assert!(updater.update(&config).is_ok());
+    }
+
+    #[test]
+    fn update_is_noop_when_version_matches_current() {
+        let updater = new_test_updater(true);
+        let config = AgentControlDynamicConfig {
+            version: Some(AGENT_CONTROL_VERSION.to_string()),
+            ..Default::default()
+        };
+        assert!(updater.update(&config).is_ok());
+    }
+
+    #[test]
+    fn try_new_fails_with_invalid_oci_reference() {
+        let (publisher, _) = pub_sub();
+        let package = AgentControlPackage {
+            download: Download {
+                oci: Oci {
+                    registry: "invalid registry with spaces".to_string(),
+                    repository: "repo".to_string(),
+                    public_key_url: Url::parse("https://newrelic.com/keys").unwrap(),
+                },
+            },
+        };
+        assert_matches!(
+            TestUpdater::try_new(
+                true,
+                publisher,
+                Arc::new(MockPackageManager::new()),
+                MockVerifyExecutorMock::new(),
+                package
+            )
+            .err()
+            .unwrap(),
+            BuildError::InvalidReference(_)
+        );
     }
 
     // ---------------------------------------------------------------------------

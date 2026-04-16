@@ -239,6 +239,7 @@ pub(crate) mod tests {
                         agent_type: AgentTypeID::try_from("namespace/name:0.0.2").unwrap(),
                     },
                 )]),
+                version: None,
                 chart_version: Some("1.0.0".to_string()),
                 cd_chart_version: None,
             },

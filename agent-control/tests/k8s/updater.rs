@@ -42,6 +42,7 @@ fn k8s_run_updater_for_cd_and_ac() {
 
     let config_to_update = &AgentControlDynamicConfig {
         agents: Default::default(),
+        version: None,
         chart_version: Some(NEW_AC_VERSION.to_string()),
         cd_chart_version: Some(NEW_CD_VERSION.to_string()),
     };

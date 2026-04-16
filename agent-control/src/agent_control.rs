@@ -345,7 +345,11 @@ where
                                         update_opamp_attributes(c, attributes)
                                     .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message")));
                                 },
-                            }
+                                AgentControlInternalEvent::StopRequested() => {
+                                    debug!("stopping Agent Control event processor after request");
+                                    self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
+                                    break sub_agents.stop();
+                                }}
                         },
                     }
                 }

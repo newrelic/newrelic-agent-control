@@ -1,6 +1,10 @@
 use super::agent_id::AgentID;
 use super::http_server::config::ServerConfig;
 use super::uptime_report::UptimeReportConfig;
+use crate::agent_control::defaults::{
+    AC_OCI_PACKAGE_DEFAULT_REGISTRY, AC_OCI_PACKAGE_DEFAULT_REPOSITORY,
+    AC_OCI_PACKAGE_PUBLIC_KEY_URL,
+};
 use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::http::config::ProxyConfig;
@@ -68,6 +72,20 @@ pub struct AgentControlConfig {
     /// Contains the configuration related to host agent packages
     #[serde(default)]
     pub agent_packages: PackagesConfig,
+
+    /// Contains configuration for on-host self-update mechanism
+    #[serde(default)]
+    pub self_update: SelfUpdateConfig,
+}
+
+#[derive(Debug, Default, Deserialize, PartialEq, Clone)]
+pub struct SelfUpdateConfig {
+    /// Indicates whether the self remote update mechanism is enabled or not
+    pub enabled: bool,
+    /// Indicates whether package signature verification is enabled or not
+    pub signature_verification_enabled: SignatureVerificationEnabled,
+    /// Package configuration for the self-update mechanism in on-host environments
+    pub package: AgentControlPackage,
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
@@ -104,7 +122,10 @@ const AGENTS_KEY: &str = "agents";
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub struct AgentControlDynamicConfig {
     pub agents: SubAgentsMap,
-    /// chart_version represent the AC version that needs to be executed.
+    /// version represent the AC version that needs to be executed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    /// chart_version represent the AC chart version that needs to be executed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chart_version: Option<String>,
     /// cd_chart_version represent the agent control cd chart version that needs to be executed.
@@ -340,6 +361,40 @@ pub struct K8sConfig {
     /// used to retrieve the required secret for credentials.
     #[serde(default)]
     pub auth_secret: AuthSecret,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct AgentControlPackage {
+    pub download: Download,
+}
+impl Default for AgentControlPackage {
+    fn default() -> Self {
+        AgentControlPackage {
+            download: Download {
+                oci: Oci {
+                    registry: AC_OCI_PACKAGE_DEFAULT_REGISTRY.to_string(),
+                    repository: AC_OCI_PACKAGE_DEFAULT_REPOSITORY.to_string(),
+                    public_key_url: Url::parse(AC_OCI_PACKAGE_PUBLIC_KEY_URL)
+                        .expect("valid default url"),
+                },
+            },
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct Download {
+    pub oci: Oci,
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub struct Oci {
+    /// OCI registry url.
+    pub registry: String,
+    /// Repository name.
+    pub repository: String,
+    /// Public key url is expected to be a jwks.
+    pub public_key_url: Url,
 }
 
 pub fn helmrelease_v2_type_meta() -> TypeMeta {
@@ -777,6 +832,11 @@ k8s:
             config.proxy.url_as_string(),
             "http://localhost:8080/".to_string()
         )
+    }
+
+    #[test]
+    fn test_default_package_compiles() {
+        let _ = AgentControlPackage::default();
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
