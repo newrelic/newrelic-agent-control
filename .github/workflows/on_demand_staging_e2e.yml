@@ -97,7 +97,7 @@ jobs:
           - fleet-control
           - dynamic
           - custom-repo
-          # proxy has issues pointing to staging
+          - proxy
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
