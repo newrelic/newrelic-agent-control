@@ -52,7 +52,7 @@ use oci_client::client::ClientConfig;
 use oci_client::client::ClientProtocol;
 use opamp_client::http::StartedHttpClient;
 use opamp_client::http::client::OpAMPHttpClient;
-use opamp_client::operation::settings::DescriptionValueType;
+use opamp_client::operation::settings::{DescriptionValueType, StartSettings};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -79,8 +79,6 @@ type OnHostOpAMPClient = StartedHttpClient<
     >,
 >;
 type OnHostOpAMPConsumer = EventConsumer<OpAMPEvent>;
-type OnHostInstanceIdGetter =
-    InstanceIDWithIdentifiersGetter<Storer<FileStore<LocalFile, DirectoryManagerFs>, Identifiers>>;
 
 impl AgentControlRunner {
     pub fn run_onhost(self) -> Result<(), RunError> {
@@ -124,12 +122,14 @@ impl AgentControlRunner {
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
             .as_ref()
             .map(|builder| {
-                start_ac_opamp_client(
-                    builder,
+                let agent_identity = AgentIdentity::new_agent_control_identity();
+                let settings = build_ac_opamp_start_settings(
                     &instance_id_getter,
+                    &agent_identity,
                     &identifiers,
                     RunningMode::Normal,
-                )
+                )?;
+                start_ac_opamp_client(builder, agent_identity, settings)
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()?
@@ -273,29 +273,34 @@ pub fn opamp_client_builder(
     OpAMPClientBuilder::new(poll_interval, http_builder, loader)
 }
 
-pub fn start_ac_opamp_client(
-    builder: &OnHostOpAMPClientBuilder,
-    instance_id_getter: &OnHostInstanceIdGetter,
+/// Builds the OpAMP [StartSettings] for Agent Control, including the agent identity and
+/// all identifying and non-identifying attributes.
+pub fn build_ac_opamp_start_settings(
+    instance_id_getter: &impl InstanceIDGetter,
+    agent_identity: &AgentIdentity,
     identifiers: &Identifiers,
     running_mode: RunningMode,
-) -> Result<(OnHostOpAMPClient, OnHostOpAMPConsumer), RunError> {
-    info!("Starting Agent Control OpAMP client");
-
-    let agent_identity = AgentIdentity::new_agent_control_identity();
+) -> Result<StartSettings, RunError> {
     let instance_id = instance_id_getter
         .get(&agent_identity.id)
         .map_err(|err| RunError(format!("error getting instance id: {err}")))?;
 
-    let agent_identity = AgentIdentity::new_agent_control_identity();
-    let start_settings = start_settings(
+    Ok(start_settings(
         instance_id,
-        &agent_identity,
+        agent_identity,
         ac_identifying_attributes(),
         ac_non_identifying_attributes(identifiers, running_mode),
-    );
+    ))
+}
 
+pub fn start_ac_opamp_client(
+    builder: &OnHostOpAMPClientBuilder,
+    agent_identity: AgentIdentity,
+    settings: StartSettings,
+) -> Result<(OnHostOpAMPClient, OnHostOpAMPConsumer), RunError> {
+    info!("Starting Agent Control OpAMP client");
     builder
-        .build_and_start(agent_identity, start_settings)
+        .build_and_start(agent_identity, settings)
         .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))
 }
 
