@@ -15,6 +15,7 @@ use crate::secrets_provider::SecretsProviders;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
 
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -130,6 +131,7 @@ where
     variable_constraints: VariableConstraints,
     secrets_providers: SecretsProviders,
     remote_dir: PathBuf,
+    global_defaults: HashMap<String, serde_yaml::Value>,
 }
 
 impl<R> LocalEffectiveAgentsAssembler<R>
@@ -142,6 +144,7 @@ where
         variable_constraints: VariableConstraints,
         secrets_providers: SecretsProviders,
         remote_dir: &Path,
+        global_defaults: HashMap<String, serde_yaml::Value>,
     ) -> Self {
         LocalEffectiveAgentsAssembler {
             registry,
@@ -149,6 +152,7 @@ where
             variable_constraints,
             secrets_providers,
             remote_dir: remote_dir.to_path_buf(),
+            global_defaults,
         }
     }
 }
@@ -163,33 +167,38 @@ where
         values: YAMLConfig,
         environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
-        // Load the agent type definition
         let agent_type_definition = self
             .registry
             .get(&agent_identity.agent_type_id.to_string())?;
-        // Build the corresponding agent type
+
         let agent_type = build_agent_type(
             agent_type_definition,
             environment,
             &self.variable_constraints,
         )?;
 
-        // Build the agent attributes
         let attributes =
             AgentAttributes::try_new(agent_identity.id.to_owned(), self.remote_dir.to_path_buf())
                 .map_err(|e| {
                 EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(e.to_string())
             })?;
 
-        // Values are expanded substituting all ${nr-env...} with environment variables.
-        // Notice that only environment variables are taken into consideration (no other vars for example)
-        let secret_variables = SecretVariables::try_from(values.clone())?;
         let env_vars = load_env_vars();
+
+        let mut secret_variables = SecretVariables::try_from(values.clone())?;
+        let global_defaults_secrets =
+            SecretVariables::try_from(YAMLConfig::from(self.global_defaults.clone()))?;
+        secret_variables.merge(global_defaults_secrets);
         let secrets = secret_variables.load_secrets(&self.secrets_providers)?;
 
-        let runtime_config = self
-            .renderer
-            .render(agent_type, values, attributes, env_vars, secrets)?;
+        let runtime_config = self.renderer.render(
+            agent_type,
+            values,
+            attributes,
+            env_vars,
+            secrets,
+            self.global_defaults.clone(),
+        )?;
 
         Ok(EffectiveAgent::new(agent_identity.clone(), runtime_config))
     }
@@ -291,6 +300,7 @@ pub(crate) mod tests {
                 variable_constraints: VariableConstraints::default(),
                 secrets_providers: SecretsProviders::default(),
                 remote_dir: PathBuf::default(),
+                global_defaults: HashMap::new(),
             }
         }
     }

@@ -102,9 +102,18 @@ impl Tree<VariableDefinition> {
 
 impl VariableTree {
     /// Returns a new [VariableTree] with the provided values assigned.
-    pub fn fill_with_values(self, values: YAMLConfig) -> Result<Self, AgentTypeError> {
+    /// After user values are applied, global defaults are used to override agent-type defaults
+    /// for any variables that the user didn't provide.
+    pub fn fill_with_values(
+        self,
+        values: YAMLConfig,
+        global_defaults: HashMap<String, serde_yaml::Value>,
+    ) -> Result<Self, AgentTypeError> {
         let mut vars = self.0;
+        // First apply user-provided values
         update_specs(values.into(), &mut vars)?;
+        // Then apply global defaults to variables not provided by user
+        apply_global_defaults(&mut vars, &global_defaults)?;
         Ok(Self(vars))
     }
 }
@@ -124,6 +133,35 @@ fn update_specs(
             Tree::Mapping(m) => {
                 let v: HashMap<String, serde_yaml::Value> = serde_yaml::from_value(value)?;
                 update_specs(v, m)?
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Applies global defaults to variables that don't have user-provided values.
+/// For each variable in the tree, if the variable's default value exists as a key
+/// in global_defaults and the variable doesn't have a final_value (user didn't provide it),
+/// the global default value replaces the agent-type's default.
+///
+/// Example: If a variable has default "registry_url" and global_defaults contains
+/// {"registry_url": "docker.io"}, the variable's default will be replaced with "docker.io".
+fn apply_global_defaults(
+    agent_vars: &mut HashMap<String, Tree<Variable>>,
+    global_defaults: &HashMap<String, serde_yaml::Value>,
+) -> Result<(), AgentTypeError> {
+    for (_key, var_tree) in agent_vars.iter_mut() {
+        match var_tree {
+            Tree::End(variable) => {
+                // Look up by the variable's default value, not by the variable name
+                if let Some(default_key) = variable.get_default_as_key()
+                    && let Some(global_value) = global_defaults.get(&default_key)
+                {
+                    variable.set_default_from_global(global_value.clone())?;
+                }
+            }
+            Tree::Mapping(nested) => {
+                apply_global_defaults(nested, global_defaults)?;
             }
         }
     }
@@ -284,7 +322,7 @@ pub mod tests {
             let values = serde_yaml::from_str::<YAMLConfig>(yaml_values).unwrap();
             self.variables
                 .clone()
-                .fill_with_values(values)
+                .fill_with_values(values, HashMap::new())
                 .unwrap()
                 .flatten()
         }
@@ -550,7 +588,7 @@ restart_policy:
         let filled_variables_result = agent_type
             .variables
             .clone()
-            .fill_with_values(invalid_values);
+            .fill_with_values(invalid_values, HashMap::new());
         assert!(filled_variables_result.is_err());
         assert_eq!(
             filled_variables_result.unwrap_err().to_string(),

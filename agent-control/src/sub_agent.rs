@@ -790,6 +790,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     use super::super::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
     use super::super::sub_agent::remote_config_parser::AgentRemoteConfigParser;
@@ -816,7 +817,6 @@ pub mod tests {
     use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
     use opamp_client::operation::capabilities::Capabilities;
     use rstest::*;
-    use std::collections::HashMap;
     use std::ops::Deref;
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -1098,6 +1098,7 @@ deployment:
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),
+            HashMap::new(),
         ));
 
         SubAgent::new(
@@ -1226,6 +1227,7 @@ deployment:
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),
+            HashMap::new(),
         ));
 
         let sub_agent = SubAgent::new(
@@ -1872,6 +1874,7 @@ deployment:
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),
+            HashMap::new(),
         ));
 
         let supervisor = sub_agent.init_supervisor();

@@ -11,6 +11,9 @@ pub enum Namespace {
     SubAgent,
     AgentControl,
 
+    // References global default values configured in the agent control configuration.
+    Default,
+
     // Below variables are "secret" variables.
     // These are loaded every time a remote config is received.
     EnvironmentVariable,
@@ -29,6 +32,9 @@ impl Namespace {
     const SUB_AGENT: &'static str = "sub";
     /// Encapsulates attributes related to the agent-control
     const AC: &'static str = "ac";
+
+    /// Encapsulates global default values from agent control configuration
+    const DEFAULT: &'static str = "default";
 
     /// Encapsulates the environment variables
     const ENVIRONMENT_VARIABLE: &'static str = "env";
@@ -60,6 +66,7 @@ impl Display for Namespace {
             Self::Variable => Self::VARIABLE,
             Self::SubAgent => Self::SUB_AGENT,
             Self::AgentControl => Self::AC,
+            Self::Default => Self::DEFAULT,
             Self::EnvironmentVariable => Self::ENVIRONMENT_VARIABLE,
             Self::Vault => Self::VAULT_SECRET,
             Self::File => Self::FILE_SECRET,
@@ -89,6 +96,10 @@ mod tests {
         assert_eq!(
             "nr-ac:test".to_string(),
             Namespace::AgentControl.namespaced_name("test")
+        );
+        assert_eq!(
+            "nr-default:test".to_string(),
+            Namespace::Default.namespaced_name("test")
         );
         assert_eq!(
             "nr-vault:test".to_string(),

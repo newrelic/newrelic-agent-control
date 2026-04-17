@@ -26,6 +26,7 @@ impl TemplateRenderer {
         attributes: AgentAttributes,
         env_vars: HashMap<String, Variable>,
         secrets: HashMap<String, Variable>,
+        global_defaults: HashMap<String, serde_yaml::Value>,
     ) -> Result<Runtime, AgentTypeError> {
         // Get empty variables and runtime_config from the agent-type
         let (variables, runtime_config) = (agent_type.variables, agent_type.runtime_config);
@@ -34,8 +35,13 @@ impl TemplateRenderer {
         // Notice that only environment variables and secrets are taken into consideration (no other vars for example)
         let values_expanded = values.template_with(&secrets)?;
 
-        // Fill agent variables
-        let filled_variables = variables.fill_with_values(values_expanded)?.flatten();
+        // Expand templates in global defaults (so they can reference secrets/env vars)
+        let global_defaults_expanded = global_defaults.template_with(&secrets)?;
+
+        // Fill agent variables with user values and global defaults, then flatten
+        let filled_variables = variables
+            .fill_with_values(values_expanded, global_defaults_expanded)?
+            .flatten();
 
         Self::check_all_vars_are_populated(&filled_variables)?;
 
@@ -145,6 +151,7 @@ pub(crate) mod tests {
                 attributes,
                 HashMap::new(),
                 HashMap::new(),
+                HashMap::new(),
             )
             .unwrap();
 
@@ -181,6 +188,7 @@ pub(crate) mod tests {
             attributes,
             HashMap::new(),
             HashMap::new(),
+            HashMap::new(),
         );
         assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
             assert_eq!(vars, vec!["config_path".to_string()])
@@ -200,6 +208,7 @@ pub(crate) mod tests {
             agent_type,
             values,
             attributes,
+            HashMap::new(),
             HashMap::new(),
             HashMap::new(),
         );
@@ -222,6 +231,7 @@ pub(crate) mod tests {
                 agent_type,
                 values,
                 attributes,
+                HashMap::new(),
                 HashMap::new(),
                 HashMap::new(),
             )
@@ -274,6 +284,7 @@ pub(crate) mod tests {
                 attributes,
                 HashMap::new(),
                 HashMap::new(),
+                HashMap::new(),
             )
             .unwrap();
 
@@ -319,7 +330,7 @@ pub(crate) mod tests {
                 agent_type
                     .variables
                     .clone()
-                    .fill_with_values(values)
+                    .fill_with_values(values, HashMap::new())
                     .is_err()
             )
         }
@@ -355,6 +366,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
                 agent_type,
                 values,
                 attributes,
+                HashMap::new(),
                 HashMap::new(),
                 HashMap::new(),
             )
@@ -410,8 +422,14 @@ substituted_2: my-value-2
             serde_yaml::from_str(expected_spec_yaml).unwrap();
 
         let renderer = TemplateRenderer::default();
-        let runtime_config =
-            renderer.render(agent_type, values, attributes, env_vars, HashMap::new());
+        let runtime_config = renderer.render(
+            agent_type,
+            values,
+            attributes,
+            env_vars,
+            HashMap::new(),
+            HashMap::new(),
+        );
 
         let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
         let cr1 = k8s.objects.get("cr1").unwrap();
@@ -465,8 +483,14 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
             serde_yaml::from_str(expected_spec_yaml).unwrap();
 
         let renderer = TemplateRenderer::default();
-        let runtime_config =
-            renderer.render(agent_type, values, attributes, HashMap::new(), secrets);
+        let runtime_config = renderer.render(
+            agent_type,
+            values,
+            attributes,
+            HashMap::new(),
+            secrets,
+            HashMap::new(),
+        );
 
         let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
         let values = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
@@ -488,6 +512,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
             agent_type,
             values,
             attributes,
+            HashMap::new(),
             HashMap::new(),
             HashMap::new(),
         );
@@ -539,8 +564,14 @@ deployment:
         )]);
 
         let renderer = TemplateRenderer::default();
-        let runtime_config =
-            renderer.render(agent_type, values, attributes, env_vars, HashMap::new());
+        let runtime_config = renderer.render(
+            agent_type,
+            values,
+            attributes,
+            env_vars,
+            HashMap::new(),
+            HashMap::new(),
+        );
 
         assert_matches!(
             runtime_config.unwrap_err(),
@@ -591,10 +622,142 @@ deployment:
                 attributes,
                 HashMap::new(),
                 HashMap::new(),
+                HashMap::new(),
             )
             .unwrap();
         assert_eq!(
             rendered::Args(vec!("fake_value".to_string())),
+            extract_runtime_by_environment(runtime_config)
+                .executables
+                .first()
+                .unwrap()
+                .args
+                .clone()
+        );
+    }
+
+    #[test]
+    fn test_render_global_defaults() {
+        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+
+        let agent_type = AgentType::build_for_testing(
+            r#"
+namespace: newrelic
+name: first
+version: 0.1.0
+variables:
+  common:
+    registry:
+      description: "registry url"
+      type: string
+      required: false
+      default: registry_url
+deployment:
+  linux:
+    executables:
+      - id: first
+        path: /opt/first
+        args: 
+          - "${nr-var:registry}"
+  windows:
+    executables:
+      - id: first
+        path: /opt/first
+        args: 
+          - "${nr-var:registry}"
+"#,
+            &AGENT_CONTROL_MODE_ON_HOST,
+        );
+        let values = testing_values("");
+        let attributes = testing_agent_attributes(&agent_id);
+
+        let global_defaults = HashMap::from([(
+            "registry_url".to_string(),
+            serde_yaml::to_value("random-registry-url").unwrap(),
+        )]);
+
+        let renderer =
+            TemplateRenderer::default().with_agent_control_variables(HashMap::new().into_iter());
+        let runtime_config = renderer
+            .render(
+                agent_type,
+                values,
+                attributes,
+                HashMap::new(),
+                HashMap::new(),
+                global_defaults,
+            )
+            .unwrap();
+        assert_eq!(
+            rendered::Args(vec!("random-registry-url".to_string())),
+            extract_runtime_by_environment(runtime_config)
+                .executables
+                .first()
+                .unwrap()
+                .args
+                .clone()
+        );
+    }
+
+    #[test]
+    fn test_render_global_defaults_secret_expansion() {
+        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+
+        let agent_type = AgentType::build_for_testing(
+            r#"
+namespace: newrelic
+name: first
+version: 0.1.0
+variables:
+  common:
+    registry:
+      description: "registry url"
+      type: string
+      required: false
+      default: registry_url
+deployment:
+  linux:
+    executables:
+      - id: first
+        path: /opt/first
+        args: 
+          - "${nr-var:registry}"
+  windows:
+    executables:
+      - id: first
+        path: /opt/first
+        args: 
+          - "${nr-var:registry}"
+"#,
+            &AGENT_CONTROL_MODE_ON_HOST,
+        );
+        let values = testing_values("");
+        let attributes = testing_agent_attributes(&agent_id);
+
+        let global_defaults = HashMap::from([(
+            "registry_url".to_string(),
+            serde_yaml::to_value("${nr-env:REGISTRY_URL}").unwrap(),
+        )]);
+
+        let secrets = HashMap::from([(
+            Namespace::EnvironmentVariable.namespaced_name("REGISTRY_URL"),
+            Variable::new_final_string_variable("random-registry-url".to_string()),
+        )]);
+
+        let renderer =
+            TemplateRenderer::default().with_agent_control_variables(HashMap::new().into_iter());
+        let runtime_config = renderer
+            .render(
+                agent_type,
+                values,
+                attributes,
+                HashMap::new(),
+                secrets,
+                global_defaults,
+            )
+            .unwrap();
+        assert_eq!(
+            rendered::Args(vec!("random-registry-url".to_string())),
             extract_runtime_by_environment(runtime_config)
                 .executables
                 .first()

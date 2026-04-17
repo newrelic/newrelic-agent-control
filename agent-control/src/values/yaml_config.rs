@@ -90,6 +90,12 @@ impl From<YAMLConfig> for HashMap<String, serde_yaml::Value> {
     }
 }
 
+impl From<HashMap<String, serde_yaml::Value>> for YAMLConfig {
+    fn from(values: HashMap<String, serde_yaml::Value>) -> Self {
+        YAMLConfig(values)
+    }
+}
+
 impl TryFrom<&AgentControlDynamicConfig> for YAMLConfig {
     type Error = YAMLConfigError;
 
@@ -301,7 +307,7 @@ deployment:
 
         let filled_variables = agent_type
             .variables
-            .fill_with_values(input_structure)
+            .fill_with_values(input_structure, HashMap::new())
             .unwrap();
 
         assert_eq!(expected, filled_variables.0);
@@ -324,7 +330,9 @@ deployment:
         let agent_type =
             AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &AGENT_CONTROL_MODE_ON_HOST);
 
-        let result = agent_type.variables.fill_with_values(input_structure);
+        let result = agent_type
+            .variables
+            .fill_with_values(input_structure, HashMap::new());
 
         assert!(result.is_err());
         assert_eq!(

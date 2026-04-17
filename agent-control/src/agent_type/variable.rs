@@ -80,6 +80,27 @@ impl Variable {
         self.variable_type.merge_with_yaml_value(yaml)
     }
 
+    /// Sets the default value from a global default configuration.
+    /// Only applies if the user hasn't already provided a final value.
+    pub(crate) fn set_default_from_global(
+        &mut self,
+        value: serde_yaml::Value,
+    ) -> Result<(), AgentTypeError> {
+        // Only set default if we don't already have a final_value (user didn't provide it)
+        // Check final_value directly, not get_final_value() which includes defaults
+        if self.variable_type.has_final_value() {
+            return Ok(());
+        }
+
+        self.variable_type.set_default(value)
+    }
+
+    /// Gets the default value as a string key for looking up in global defaults.
+    /// Returns None if there's no default or if the default is not a string.
+    pub(crate) fn get_default_as_key(&self) -> Option<String> {
+        self.variable_type.get_default_as_key()
+    }
+
     pub fn kind(&self) -> &VariableType {
         &self.variable_type
     }

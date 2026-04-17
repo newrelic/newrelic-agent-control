@@ -143,6 +143,8 @@ impl AgentControlRunner {
             ),
         ]);
 
+        let global_defaults = agent_control_config.defaults();
+
         let template_renderer = TemplateRenderer::default()
             .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
@@ -161,6 +163,7 @@ impl AgentControlRunner {
             self.bootstrap_config.agent_type_var_constraints,
             secrets_providers,
             &self.base_paths.remote_dir,
+            global_defaults,
         ));
 
         let supervisor_builder = SupervisorBuilderK8s::new(k8s_client.clone(), k8s_config.clone());
