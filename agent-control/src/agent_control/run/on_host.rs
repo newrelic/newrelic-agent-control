@@ -13,7 +13,7 @@ use crate::agent_control::run::{
     AgentControlRunner, Environment, RunError, RunningMode, setup_config_repository_and_store,
 };
 use crate::agent_control::version_updater::on_host::OnHostACUpdater;
-use crate::agent_control::version_updater::on_host::ProcessVerifyExecutor;
+use crate::agent_control::version_updater::on_host::verify::ProcessVerifyExecutor;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::checkers::health::noop::NoOpHealthChecker;
@@ -54,10 +54,6 @@ use oci_client::client::ClientProtocol;
 use opamp_client::http::StartedHttpClient;
 use opamp_client::http::client::OpAMPHttpClient;
 use opamp_client::operation::settings::{DescriptionValueType, StartSettings};
-#[cfg(target_family = "unix")]
-use self_replacer::UnixSelfReplacer;
-#[cfg(target_family = "windows")]
-use self_replacer::windows::WindowsSelfReplacer;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
