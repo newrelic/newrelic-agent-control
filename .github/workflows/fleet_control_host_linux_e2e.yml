@@ -136,6 +136,7 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.AC_FLEET_COMMON_SLACK_WEBHOOK }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          E2E_REPORT_TITLE: "OnHost Fleet Control E2E Test with Running AC"
         run: |
           mkdir -p e2e-results
           mv e2e-result-*-linux-fleet-control-joint.txt e2e-results/ 2>/dev/null || true

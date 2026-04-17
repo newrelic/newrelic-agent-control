@@ -5,6 +5,9 @@
 #   SLACK_WEBHOOK_URL  - Slack incoming webhook URL
 #   RUN_URL            - GitHub Actions run URL shown in the "View run" link
 #
+# Optional environment variables:
+#   E2E_REPORT_TITLE   - Custom title prefix (default: "Agent Control Nightly E2E Results")
+#
 # Expects per-scenario TSV result files at e2e-results/e2e-result-{env}-{scenario}.txt
 # (written by report_e2e_result.sh), each with the format:
 #   environment<TAB>scenario<TAB>duration<TAB>status
@@ -21,10 +24,11 @@ tsv=$(
 # Compute the title: show failure count if any, otherwise confirm all passed.
 total=$(tail -n +2 <<< "$tsv" | wc -l | xargs)
 failures=$(tail -n +2 <<< "$tsv" | grep -cF $'\t❌ Failure' || true)
+title_prefix="${E2E_REPORT_TITLE:-Agent Control Nightly E2E Results}"
 if (( failures > 0 )); then
-  title="❌ Agent Control Nightly E2E Results: ${failures}/${total} failed"
+  title="❌ ${title_prefix}: ${failures}/${total} failed"
 else
-  title="✅ Agent Control Nightly E2E Results"
+  title="✅ ${title_prefix}"
 fi
 
 # Build the Slack Block Kit payload from the TSV.
