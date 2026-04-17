@@ -144,14 +144,14 @@ jobs:
 
           # Update ac-values-fleet-control.yml with the actual fleet ID
           sed -i "s|fleet_id:.*|fleet_id: \"${FLEET_ID}\"|" \
-            test/k8s-e2e/fleet-control-joint-tests/ac-values-fleet-control.yml
+            test/k8s-e2e/fleet-control-integration/ac-values-fleet-control.yml
 
           # Update ac-values-fleet-control.yml with cluster name in customAttributes
           sed -i "s|cluster_name:.*|cluster_name: ${CLUSTER_NAME}|" \
-            test/k8s-e2e/fleet-control-joint-tests/ac-values-fleet-control.yml
+            test/k8s-e2e/fleet-control-integration/ac-values-fleet-control.yml
 
           # Deploy using Tilt
-          SA_CHART_VALUES_FILE="test/k8s-e2e/fleet-control-joint-tests/ac-values-fleet-control.yml" \
+          SA_CHART_VALUES_FILE="test/k8s-e2e/fleet-control-integration/ac-values-fleet-control.yml" \
           CLUSTER="${CLUSTER_NAME}" \
           tilt ci
 
@@ -226,7 +226,7 @@ jobs:
         env:
           NR_LICENSE_KEY: ${{ secrets.AC_FLEET_CONTROL_STAG_E2E_LICENSE_KEY }}
           NR_ACCOUNT_ID: ${{ secrets.AC_FLEET_CONTROL_STAG_E2E_ACCOUNT_ID }}
-          E2E_SCENARIO: fleet-control-joint
+          E2E_SCENARIO: fleet-control-integration
           E2E_ENVIRONMENT: k8s
           E2E_STATUS: ${{ job.status }}
           E2E_CALLER_WORKFLOW: fleet_control_k8s_e2e
@@ -237,8 +237,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: e2e-result-k8s-fleet-control-joint
-          path: e2e-result-*-k8s-fleet-control-joint.txt
+          name: e2e-result-k8s-fleet-control-integration
+          path: e2e-result-*-k8s-fleet-control-integration.txt
           if-no-files-found: warn
 
       - name: Send result to Slack
@@ -249,7 +249,7 @@ jobs:
           E2E_REPORT_TITLE: "K8s Fleet Control E2E Test with Running AC"
         run: |
           mkdir -p e2e-results
-          mv e2e-result-*-k8s-fleet-control-joint.txt e2e-results/ 2>/dev/null || true
+          mv e2e-result-*-k8s-fleet-control-integration.txt e2e-results/ 2>/dev/null || true
           if [ -f e2e-results/e2e-result-*.txt ]; then
             bash .github/workflows/scripts/slack_e2e_summary.sh
           else

@@ -1,4 +1,4 @@
-# Fleet Control Joint Tests
+# Fleet Control Integration Test Scenario
 
 This directory contains configuration for Fleet Control E2E tests that run against K8s deployments.
 
