@@ -684,6 +684,26 @@ fn iterate_test_cases(environment: &Environment) {
 
         let agent_id = AgentID::try_from("random-agent-id").unwrap();
 
+        // Create default global defaults for OCI configuration
+        let global_defaults = HashMap::from([
+            (
+                "oci.registry".to_string(),
+                serde_yaml::Value::String("docker.io".to_string()),
+            ),
+            (
+                "oci.auth.basic.username".to_string(),
+                serde_yaml::Value::String("".to_string()),
+            ),
+            (
+                "oci.auth.basic.password".to_string(),
+                serde_yaml::Value::String("".to_string()),
+            ),
+            (
+                "oci.auth.bearer".to_string(),
+                serde_yaml::Value::String("".to_string()),
+            ),
+        ]);
+
         // Create the renderer with specifics for the environment
         let renderer = match environment {
             Environment::K8s => TemplateRenderer::default().with_agent_control_variables(
@@ -719,6 +739,7 @@ fn iterate_test_cases(environment: &Environment) {
                 attributes,
                 values.additional_env.clone(),
                 HashMap::new(), // Secrets are not used in this test
+                global_defaults.clone(),
             );
 
             assert!(

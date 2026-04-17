@@ -104,6 +104,8 @@ impl AgentControlRunner {
             Variable::new_final_string_variable(identifiers.host_id.clone()),
         )]);
 
+        let global_defaults = agent_control_config.defaults();
+
         let instance_id_storer = Storer::from(file_store);
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers.clone());
@@ -152,6 +154,7 @@ impl AgentControlRunner {
             self.bootstrap_config.agent_type_var_constraints,
             secrets_providers,
             &remote_dir,
+            global_defaults,
         ));
 
         // We are setting client http in debug_assertions mode for tests

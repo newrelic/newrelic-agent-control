@@ -76,6 +76,26 @@ pub struct AgentControlConfig {
     /// Contains configuration for on-host self-update mechanism
     #[serde(default)]
     pub self_update: SelfUpdateConfig,
+
+    /// Default values to override agent types variables
+    ///
+    /// These default values are intended to be used for variables that are common across multiple agent types
+    /// such as OCI registry credentials. By defining them in a single place, we can avoid duplication over different
+    /// agent types configurations and ensure consistency across them.
+    ///
+    /// This only works if the agent type definition declares a variable whose `default` field references
+    /// one of the default configured values, (e.g. `default: ${nr-default:oci.registry}`).
+    ///
+    /// For backwards compatibility reasons, these default values are optional. If not defined, they will be set to a set
+    /// of sensible defaults (e.g. `oci.registry` will default to `docker.io`).
+    #[serde(default)]
+    pub global_defaults: GlobalDefaults,
+}
+
+impl AgentControlConfig {
+    pub fn defaults(&self) -> HashMap<String, serde_yaml::Value> {
+        self.global_defaults.oci.to_hashmap()
+    }
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
@@ -92,6 +112,76 @@ pub struct SelfUpdateConfig {
 pub struct PackagesConfig {
     /// Indicates whether package signature verification is enabled or not
     pub signature_verification_enabled: SignatureVerificationEnabled,
+}
+
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct GlobalDefaults {
+    #[serde(default)]
+    oci: OciConfig,
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub struct OciConfig {
+    #[serde(default = "OciConfig::default_registry")]
+    registry: String,
+    #[serde(default)]
+    auth: OciAuth,
+}
+
+impl Default for OciConfig {
+    fn default() -> Self {
+        Self {
+            registry: OciConfig::default_registry(),
+            auth: OciAuth::default(),
+        }
+    }
+}
+
+impl OciConfig {
+    fn default_registry() -> String {
+        "docker.io".to_string()
+    }
+}
+
+impl OciConfig {
+    fn to_hashmap(&self) -> HashMap<String, serde_yaml::Value> {
+        let mut vars = HashMap::new();
+
+        vars.insert(
+            "oci.registry".to_string(),
+            serde_yaml::Value::String(self.registry.clone()),
+        );
+
+        vars.insert(
+            "oci.auth.basic.username".to_string(),
+            serde_yaml::Value::String(self.auth.basic.username.clone()),
+        );
+        vars.insert(
+            "oci.auth.basic.password".to_string(),
+            serde_yaml::Value::String(self.auth.basic.password.clone()),
+        );
+
+        vars.insert(
+            "oci.auth.bearer".to_string(),
+            serde_yaml::Value::String(self.auth.bearer.clone()),
+        );
+
+        vars
+    }
+}
+
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+struct OciAuth {
+    #[serde(default)]
+    basic: BasicAuth,
+    #[serde(default)]
+    bearer: String,
+}
+
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+struct BasicAuth {
+    username: String,
+    password: String,
 }
 
 const DEFAULT_SIGNATURE_VERIFICATION_ENABLED: bool = true;
@@ -1084,5 +1174,106 @@ k8s:
         agents.extend(infra());
         agents.extend(nrdot());
         agents
+    }
+
+    #[test]
+    fn test_oci_config_default_values() {
+        let vars = OciConfig::default().to_hashmap();
+        assert_eq!(vars.len(), 4);
+        assert!(vars.get("oci.registry").is_some_and(|v| v == "docker.io"));
+        assert!(vars.get("oci.auth.basic.username").is_some_and(|v| v == ""));
+        assert!(vars.get("oci.auth.basic.password").is_some_and(|v| v == ""));
+        assert!(vars.get("oci.auth.bearer").is_some_and(|v| v == ""));
+    }
+
+    #[test]
+    fn test_oci_config_provided_values() {
+        let oci_config = OciConfig {
+            registry: "custom.docker.io".to_string(),
+            auth: OciAuth {
+                basic: BasicAuth {
+                    username: "user".to_string(),
+                    password: "pass".to_string(),
+                },
+                bearer: "token".to_string(),
+            },
+        };
+
+        let vars = oci_config.to_hashmap();
+        assert_eq!(vars.len(), 4);
+        assert!(
+            vars.get("oci.registry")
+                .is_some_and(|v| v == "custom.docker.io")
+        );
+        assert!(
+            vars.get("oci.auth.basic.username")
+                .is_some_and(|v| v == "user")
+        );
+        assert!(
+            vars.get("oci.auth.basic.password")
+                .is_some_and(|v| v == "pass")
+        );
+        assert!(vars.get("oci.auth.bearer").is_some_and(|v| v == "token"));
+    }
+
+    #[test]
+    fn test_agent_control_config_oci_auth() {
+        let config = serde_yaml::from_str::<AgentControlConfig>(
+            r#"
+agents: {}
+"#,
+        );
+
+        let oci_config = config.unwrap().global_defaults.oci;
+        assert_eq!(oci_config.registry, "docker.io");
+        assert_eq!(oci_config.auth.basic.username, "");
+        assert_eq!(oci_config.auth.basic.password, "");
+        assert_eq!(oci_config.auth.bearer, "");
+
+        let config = serde_yaml::from_str::<AgentControlConfig>(
+            r#"
+agents: {}
+global_defaults:
+  oci:
+    registry: custom.docker.io
+"#,
+        );
+        let oci_config = config.unwrap().global_defaults.oci;
+        assert_eq!(oci_config.registry, "custom.docker.io");
+        assert_eq!(oci_config.auth.basic.username, "");
+        assert_eq!(oci_config.auth.basic.password, "");
+        assert_eq!(oci_config.auth.bearer, "");
+
+        let config = serde_yaml::from_str::<AgentControlConfig>(
+            r#"
+agents: {}
+global_defaults:
+  oci:
+    auth:
+      basic:
+        username: user
+        password: pass
+"#,
+        );
+        let oci_config = config.unwrap().global_defaults.oci;
+        assert_eq!(oci_config.registry, "docker.io");
+        assert_eq!(oci_config.auth.basic.username, "user");
+        assert_eq!(oci_config.auth.basic.password, "pass");
+        assert_eq!(oci_config.auth.bearer, "");
+
+        let config = serde_yaml::from_str::<AgentControlConfig>(
+            r#"
+agents: {}
+global_defaults:
+  oci:
+    auth:
+      bearer: token
+"#,
+        );
+        let oci_config = config.unwrap().global_defaults.oci;
+        assert_eq!(oci_config.registry, "docker.io");
+        assert_eq!(oci_config.auth.basic.username, "");
+        assert_eq!(oci_config.auth.basic.password, "");
+        assert_eq!(oci_config.auth.bearer, "token");
     }
 }

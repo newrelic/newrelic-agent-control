@@ -17,6 +17,9 @@ pub enum Namespace {
     Vault,
     File,
     K8sSecret,
+
+    // References global default values configured in the agent control configuration.
+    Default,
 }
 
 impl Namespace {
@@ -37,6 +40,9 @@ impl Namespace {
     /// Encapsulates the secrets retrieved from K8s Secrets
     const K8S_SECRET: &'static str = "kubesec";
     const FILE_SECRET: &'static str = "file";
+
+    /// Encapsulates global default values from agent control configuration
+    const DEFAULT: &'static str = "default";
 
     pub fn namespaced_name(&self, name: impl AsRef<str>) -> NamespacedVariableName {
         format!("{}{}{}", self, Self::PREFIX_NS_SEPARATOR, name.as_ref())
@@ -64,6 +70,7 @@ impl Display for Namespace {
             Self::Vault => Self::VAULT_SECRET,
             Self::File => Self::FILE_SECRET,
             Self::K8sSecret => Self::K8S_SECRET,
+            Self::Default => Self::DEFAULT,
         };
         write!(f, "{}{ns}", Self::PREFIX)
     }
@@ -101,6 +108,10 @@ mod tests {
         assert_eq!(
             "nr-file:test".to_string(),
             Namespace::File.namespaced_name("test")
+        );
+        assert_eq!(
+            "nr-default:test".to_string(),
+            Namespace::Default.namespaced_name("test")
         );
     }
 }

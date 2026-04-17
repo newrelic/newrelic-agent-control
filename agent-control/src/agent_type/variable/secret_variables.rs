@@ -121,6 +121,16 @@ impl SecretVariables {
             .expect("Namespace format should be valid");
         self.variables.entry(prefix).or_default().insert(var_name);
     }
+
+    /// Merges another SecretVariables into self, combining all secret references.
+    pub fn merge(&mut self, other: SecretVariables) {
+        for (namespace, variables) in other.variables {
+            self.variables
+                .entry(namespace)
+                .or_default()
+                .extend(variables);
+        }
+    }
 }
 
 /// Loads all environment variables present in the system.
@@ -220,5 +230,33 @@ eof"#;
         };
         let result = secrets.load_secrets(&SecretsProviders::default()).unwrap();
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_merge_secrets() {
+        let mut secrets1 = SecretVariables {
+            variables: HashMap::from([(
+                "nr-vault".to_string(),
+                HashSet::from(["PATH_A".to_string(), "PATH_B".to_string()]),
+            )]),
+        };
+
+        let secrets2 = SecretVariables {
+            variables: HashMap::from([(
+                "nr-vault".to_string(),
+                HashSet::from(["PATH_C".to_string()]),
+            )]),
+        };
+
+        secrets1.merge(secrets2);
+        let expected = HashMap::from([(
+            "nr-vault".to_string(),
+            HashSet::from([
+                "PATH_A".to_string(),
+                "PATH_B".to_string(),
+                "PATH_C".to_string(),
+            ]),
+        )]);
+        assert_eq!(secrets1.variables, expected);
     }
 }

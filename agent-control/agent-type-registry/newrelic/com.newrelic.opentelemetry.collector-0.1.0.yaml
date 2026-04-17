@@ -37,7 +37,7 @@ variables:
         description: "Package registry url"
         type: string
         required: false
-        default: docker.io
+        default: oci.registry
         variants:
           ac_config_field: "oci_nrdot_registry_urls"
           values: [ "docker.io" ]
@@ -55,17 +55,17 @@ variables:
             description: "Username for HTTP Basic authentication"
             type: string
             required: false
-            default: ""
+            default: oci.auth.basic.username
           password:
             description: "Password for HTTP Basic authentication"
             type: string
             required: false
-            default: ""
+            default: oci.auth.basic.password
         bearer:
           description: "Bearer token for authentication"
           type: string
           required: false
-          default: ""
+          default: oci.auth.bearer
     version:
       description: "Agent version"
       type: string
@@ -100,7 +100,7 @@ variables:
         description: "Package registry url"
         type: string
         required: false
-        default: docker.io
+        default: oci.registry
         variants:
           ac_config_field: "oci_nrdot_registry_repositories"
           values: [ "docker.io" ]
@@ -118,17 +118,17 @@ variables:
             description: "Username for HTTP Basic authentication"
             type: string
             required: false
-            default: ""
+            default: oci.auth.basic.username
           password:
             description: "Password for HTTP Basic authentication"
             type: string
             required: false
-            default: ""
+            default: oci.auth.basic.password
         bearer:
           description: "Bearer token for authentication"
           type: string
           required: false
-          default: ""
+          default: oci.auth.bearer
     version:
       description: "Agent version"
       type: string
