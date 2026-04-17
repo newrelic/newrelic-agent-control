@@ -5,7 +5,7 @@ use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
-use tracing::info;
+use tracing::{debug, info};
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -115,9 +115,9 @@ fn trigger_fleet_control_tests(
         }),
         ..TriggerTestRequest::default()
     };
-
     info!("Triggering Fleet Control tests for fleet ID: {}", fleet_id);
 
+    debug!(payload = ?request_body, "Sending request");
     let response = client
         .post(&url)
         .bearer_auth(token)
