@@ -240,3 +240,17 @@ jobs:
           name: e2e-result-k8s-fleet-control-joint
           path: e2e-result-*-k8s-fleet-control-joint.txt
           if-no-files-found: warn
+
+      - name: Send result to Slack
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.AC_FLEET_COMMON_SLACK_WEBHOOK }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          mkdir -p e2e-results
+          mv e2e-result-*-k8s-fleet-control-joint.txt e2e-results/ 2>/dev/null || true
+          if [ -f e2e-results/e2e-result-*.txt ]; then
+            bash .github/workflows/scripts/slack_e2e_summary.sh
+          else
+            echo "No result file found, skipping Slack notification"
+          fi
