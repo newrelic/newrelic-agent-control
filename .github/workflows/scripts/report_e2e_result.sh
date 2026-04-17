@@ -11,6 +11,11 @@
 #   NR_ACCOUNT_ID         - New Relic account ID
 #   NR_LICENSE_KEY        - New Relic license key (used as the Events API ingest key)
 #
+# Optional environment variables:
+#   E2E_ACCOUNT           - Display name for the account (shown in Slack table). If not set,
+#                           defaults to "Agent Control Canaries (staging)" or "Agent Control Canaries (prod)"
+#                           based on E2E_REGION.
+#
 # Standard GitHub Actions variables (automatically injected by the runner):
 #   GITHUB_EVENT_NAME, GITHUB_HEAD_REF, GITHUB_REF_NAME, GITHUB_RUN_ID
 
@@ -19,15 +24,18 @@ set -euo pipefail
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - JOB_START_TIME))
 
-# Set insights collector URL based on region
+# Set insights collector URL and account display name based on region
 E2E_REGION="${E2E_REGION:-production}"
 if [[ "$E2E_REGION" == "staging" ]]; then
   INSIGHTS_COLLECTOR_URL="https://staging-insights-collector.newrelic.com"
-  ACCOUNT="Agent Control Canaries (staging)"
+  DEFAULT_ACCOUNT="Agent Control Canaries (staging)"
 else
   INSIGHTS_COLLECTOR_URL="https://insights-collector.newrelic.com"
-  ACCOUNT="Agent Control Canaries (prod)"
+  DEFAULT_ACCOUNT="Agent Control Canaries (prod)"
 fi
+
+# Allow custom account name override
+ACCOUNT="${E2E_ACCOUNT:-$DEFAULT_ACCOUNT}"
 
 # GITHUB_HEAD_REF is set for pull requests; GITHUB_REF_NAME covers push/schedule/dispatch.
 BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-}}"

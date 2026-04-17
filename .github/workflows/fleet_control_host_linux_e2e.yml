@@ -121,6 +121,7 @@ jobs:
           E2E_STATUS: ${{ job.status }}
           E2E_CALLER_WORKFLOW: fleet_control_host_linux_e2e
           E2E_REGION: staging
+          E2E_ACCOUNT: "Fleet Control Test Automation (staging)"
         run: bash .github/workflows/scripts/report_e2e_result.sh
 
       - name: Upload e2e result summary
