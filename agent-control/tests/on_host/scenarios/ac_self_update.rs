@@ -1,21 +1,25 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::oci_signer::OCISigner;
 use crate::common::opamp::FakeServer;
+use crate::common::remote_config_status::check_latest_remote_config_status;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::retry::retry;
+use crate::common::retry::retry_never;
 use crate::on_host::tools::config::create_local_config;
-use crate::on_host::tools::fake_binary::assert_current_exe_is_fake_ac;
+use crate::on_host::tools::fake_binary::assert_is_fake_binary;
 use crate::on_host::tools::fake_binary::build_fake_ac_binary;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_artifact::push_agent_package;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_ID;
+use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_VERSION;
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
+use std::path::Path;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -29,36 +33,14 @@ fn test_agent_control_self_update_with_oci_registry() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    let new_version_tag = push_fake_ac_package(&signer);
+    let new_version_tag = push_signed_fake_ac_package(&signer);
 
-    let agent_control_config = format!(
-        r#"
-host_id: integration-test
-fleet_control:
-  endpoint: {}
-  poll_interval: 5s
-  signature_validation:
-    public_key_server_url: {}
-agents: {{}}
-self_update:
-  enabled: true
-  signature_verification_enabled: true
-  package:
-    download:
-      oci:
-        registry: {OCI_TEST_REGISTRY_URL}
-        repository: test
-        public_key_url: {}
-"#,
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        signer.jwks_url()
-    );
-    create_local_config(
-        AGENT_CONTROL_ID,
-        agent_control_config,
-        local_dir.path().to_path_buf(),
-    );
+    create_self_update_local_config(&opamp_server, &signer, local_dir.path(), true);
+
+    let current_exe_path = std::env::current_exe()
+        .expect("failed to get current exe path")
+        .canonicalize()
+        .expect("failed to canonicalize current exe path");
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -80,7 +62,7 @@ agents: {{}}
     );
     opamp_server.set_config_response(ac_instance_id.clone(), update_config);
 
-    // Expect a applied remote config in case the updater was successful executed.
+    // Expect an applied remote config in case the updater was successfully executed.
     retry(60, Duration::from_secs(5), || {
         check_latest_remote_config_status_is_expected(
             &opamp_server,
@@ -97,11 +79,228 @@ agents: {{}}
         }
     });
 
-    assert_current_exe_is_fake_ac();
+    assert_is_fake_binary(&current_exe_path);
 }
 
-/// Pushes a fake agent-control binary package to OCI registry and signs it
-fn push_fake_ac_package(signer: &OCISigner) -> String {
+#[test]
+#[ignore = "needs oci registry (use *with_oci_registry suffix)"]
+fn test_agent_control_self_update_fails_for_unsigned_package_with_oci_registry() {
+    let signer = OCISigner::start();
+    let mut opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    let new_version_tag = push_unsigned_fake_ac_package();
+
+    create_self_update_local_config(&opamp_server, &signer, local_dir.path(), true);
+
+    let base_paths = BasePaths {
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+
+    let mut agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+
+    let update_config = format!(
+        r#"
+version: "{}"
+agents: {{}}
+"#,
+        new_version_tag
+    );
+    opamp_server.set_config_response(ac_instance_id.clone(), update_config);
+
+    // Signature verification must reject the package and report a failed config status
+    // with a message mentioning the root cause.
+    retry(60, Duration::from_secs(5), || {
+        check_latest_remote_config_status(&opamp_server, &ac_instance_id, |status| {
+            if status.status != RemoteConfigStatuses::Failed as i32 {
+                return Err(format!("expected Failed status, got: {}", status.status).into());
+            }
+            if !status.error_message.contains("signature verification") {
+                return Err(format!(
+                    "expected error message to contain 'signature verification', got: {}",
+                    status.error_message
+                )
+                .into());
+            }
+            Ok(())
+        })
+    });
+
+    retry_never(10, Duration::from_secs(1), || {
+        if agent_control.has_gracefully_stopped() {
+            Err(
+                "Agent Control should not have stopped when the package signature is missing"
+                    .into(),
+            )
+        } else {
+            Ok(())
+        }
+    });
+}
+
+#[test]
+#[ignore = "needs oci registry (use *with_oci_registry suffix)"]
+fn test_agent_control_self_update_does_nothing_for_same_version_with_oci_registry() {
+    let signer = OCISigner::start();
+    let mut opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    create_self_update_local_config(&opamp_server, &signer, local_dir.path(), true);
+
+    let base_paths = BasePaths {
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+
+    let mut agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+
+    // Requesting the same version that is already running — AC skips the update without
+    // contacting the OCI registry.
+    let update_config = format!(
+        r#"
+version: "{}"
+agents: {{}}
+"#,
+        AGENT_CONTROL_VERSION
+    );
+    opamp_server.set_config_response(ac_instance_id.clone(), update_config);
+
+    retry(60, Duration::from_secs(5), || {
+        check_latest_remote_config_status_is_expected(
+            &opamp_server,
+            &ac_instance_id,
+            RemoteConfigStatuses::Applied as i32,
+        )
+    });
+
+    retry_never(10, Duration::from_secs(1), || {
+        if agent_control.has_gracefully_stopped() {
+            Err("Agent Control should not have stopped when the requested version is the current one".into())
+        } else {
+            Ok(())
+        }
+    });
+}
+
+#[test]
+#[ignore = "needs oci registry (use *with_oci_registry suffix)"]
+fn test_agent_control_self_update_fails_for_missing_version_with_oci_registry() {
+    let signer = OCISigner::start();
+    let mut opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    // Disables signature verification to make sure the test reaches the package fetch step, which should fail for a non-existent version.
+    create_self_update_local_config(&opamp_server, &signer, local_dir.path(), false);
+
+    let base_paths = BasePaths {
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+
+    let mut agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+
+    // This tag does not exist in the registry — the package fetch will fail.
+    let update_config = r#"
+version: "nonexistent-version-tag"
+agents: {}
+"#;
+    opamp_server.set_config_response(ac_instance_id.clone(), update_config);
+
+    retry(60, Duration::from_secs(5), || {
+        check_latest_remote_config_status(&opamp_server, &ac_instance_id, |status| {
+            if status.status != RemoteConfigStatuses::Failed as i32 {
+                return Err(format!("expected Failed status, got: {}", status.status).into());
+            }
+            if !status
+                .error_message
+                .contains("requested version does not exist")
+            {
+                return Err(format!(
+                    "expected error message to contain 'requested version does not exist', got: {}",
+                    status.error_message
+                )
+                .into());
+            }
+            Ok(())
+        })
+    });
+
+    retry_never(10, Duration::from_secs(1), || {
+        if agent_control.has_gracefully_stopped() {
+            Err(
+                "Agent Control should not have stopped when the requested version does not exist"
+                    .into(),
+            )
+        } else {
+            Ok(())
+        }
+    });
+}
+
+fn create_self_update_local_config(
+    opamp_server: &FakeServer,
+    signer: &OCISigner,
+    local_dir: &Path,
+    signature_verification_enabled: bool,
+) {
+    let config = format!(
+        r#"
+host_id: integration-test
+fleet_control:
+  endpoint: {}
+  poll_interval: 5s
+  signature_validation:
+    public_key_server_url: {}
+agents: {{}}
+self_update:
+  enabled: true
+  signature_verification_enabled: {signature_verification_enabled}
+  package:
+    download:
+      oci:
+        registry: {OCI_TEST_REGISTRY_URL}
+        repository: test
+        public_key_url: {}
+"#,
+        opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
+        signer.jwks_url()
+    );
+    create_local_config(AGENT_CONTROL_ID, config, local_dir.to_path_buf());
+}
+
+/// Pushes a fake agent-control binary package to the OCI registry and signs it.
+fn push_signed_fake_ac_package(signer: &OCISigner) -> String {
+    let reference = push_fake_ac_package();
+    signer.sign_artifact(&reference);
+    reference.tag().unwrap().to_string()
+}
+
+/// Pushes a fake agent-control binary package to the OCI registry without signing it.
+fn push_unsigned_fake_ac_package() -> String {
+    push_fake_ac_package().tag().unwrap().to_string()
+}
+
+fn push_fake_ac_package() -> oci_client::Reference {
     let dir = tempdir().unwrap();
 
     let (_binary_dir, binary_path) = build_fake_ac_binary();
@@ -121,8 +320,5 @@ fn push_fake_ac_package(signer: &OCISigner) -> String {
     };
 
     let (_, reference) = push_agent_package(&path, OCI_TEST_REGISTRY_URL, media_type);
-
-    signer.sign_artifact(&reference);
-
-    reference.tag().unwrap().to_string()
+    reference
 }

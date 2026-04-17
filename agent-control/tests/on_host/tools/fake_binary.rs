@@ -1,5 +1,5 @@
 use crate::common::util::current_test_id;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 #[cfg(target_family = "unix")]
@@ -25,9 +25,9 @@ pub fn build_fake_ac_binary() -> (TempDir, PathBuf) {
     (dir, binary_path)
 }
 
-pub fn assert_current_exe_is_fake_ac() {
+pub fn assert_is_fake_binary(path: &Path) {
     let test_id = current_test_id();
-    let output = std::process::Command::new(std::env::current_exe().unwrap())
+    let output = std::process::Command::new(path)
         .arg("id")
         .output()
         .expect("failed to execute process");
