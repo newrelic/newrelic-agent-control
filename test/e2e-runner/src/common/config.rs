@@ -1,7 +1,9 @@
-use crate::common::file::write;
-use serde_yaml::Value;
 use std::{fs, io::Write, path::PathBuf};
+
+use serde_yaml::Value;
 use tracing::info;
+
+use crate::common::file::write;
 
 /// Updates the agent control config in `config_path` to include the content specified in `new_content`
 pub fn update_config(config_path: impl AsRef<str>, new_content: impl AsRef<str>) {
@@ -35,6 +37,7 @@ pub fn update_config(config_path: impl AsRef<str>, new_content: impl AsRef<str>)
     write(config_path, updated_content);
 }
 
+#[cfg(target_os = "windows")]
 /// Updates the agent control agents config in `config_path` to the specified in `new_content`
 pub fn modify_agents_config(
     config_path: impl AsRef<str>,
@@ -76,6 +79,7 @@ log:
     formatter: pretty
 "#;
 
+#[cfg(target_os = "linux")]
 /// Modifies the agent-control configuration file to enable debug logging and write logs to a file.
 pub fn update_config_for_debug_logging(config_path: &str) {
     update_config(config_path, DEBUG_LOGGING_CONFIG)

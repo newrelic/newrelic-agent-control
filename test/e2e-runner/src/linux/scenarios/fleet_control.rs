@@ -1,19 +1,11 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config};
 use crate::common::fleet_control_api;
 use crate::common::on_drop::CleanUp;
-use crate::common::{FleetControlApiArgs, InstallationArgs, RecipeData};
+use crate::common::{InstallationArgs, RecipeData};
 use crate::linux;
 use crate::linux::install::{install_agent_control_from_recipe, tear_down_test};
 use std::time::Duration;
 use tracing::info;
-
-/// Runs Fleet Control API interaction (trigger tests and poll for completion).
-///
-/// This function only handles the Fleet Control API communication and does not
-/// install or configure Agent Control. Useful when AC is already deployed externally.
-pub fn run_fleet_control_api(args: FleetControlApiArgs) {
-    fleet_control_api::run_fleet_control_api(args);
-}
 
 pub fn test_fleet_control(args: InstallationArgs) {
     let fleet_id = args

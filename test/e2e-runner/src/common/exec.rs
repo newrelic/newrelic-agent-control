@@ -76,6 +76,7 @@ impl LongRunningProcess {
             .clone()
     }
 }
+
 impl Drop for LongRunningProcess {
     fn drop(&mut self) {
         #[cfg(target_family = "windows")]
