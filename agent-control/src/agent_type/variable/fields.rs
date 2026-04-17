@@ -119,11 +119,6 @@ where
         self.final_value = Some(value);
         Ok(())
     }
-
-    pub(crate) fn set_default(&mut self, value: T) -> Result<(), AgentTypeError> {
-        self.default = Some(value);
-        Ok(())
-    }
 }
 
 impl StringFields {
@@ -132,14 +127,6 @@ impl StringFields {
             return Err(AgentTypeError::InvalidVariant(self.variants.to_string()));
         }
         self.inner.set_final_value(value)?;
-        Ok(())
-    }
-
-    pub(crate) fn set_default(&mut self, value: String) -> Result<(), AgentTypeError> {
-        if !self.variants.is_valid(&value) {
-            return Err(AgentTypeError::InvalidVariant(self.variants.to_string()));
-        }
-        self.inner.set_default(value)?;
         Ok(())
     }
 }

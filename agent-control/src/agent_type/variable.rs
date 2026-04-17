@@ -14,6 +14,8 @@ pub mod tree;
 pub mod variable_type;
 pub mod variants;
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::agent_type::{
@@ -53,6 +55,53 @@ impl VariableDefinition {
     }
 }
 
+impl From<serde_yaml::Value> for Variable {
+    fn from(value: serde_yaml::Value) -> Self {
+        let variable_type = match value {
+            serde_yaml::Value::String(s) => VariableType::String(StringFields {
+                inner: Fields {
+                    required: false,
+                    default: None,
+                    final_value: Some(s),
+                },
+                variants: Default::default(),
+            }),
+            serde_yaml::Value::Bool(b) => VariableType::Bool(Fields {
+                required: false,
+                default: None,
+                final_value: Some(b),
+            }),
+            serde_yaml::Value::Number(n) => VariableType::Number(Fields {
+                required: false,
+                default: None,
+                final_value: Some(n),
+            }),
+            serde_yaml::Value::Mapping(m) => {
+                let map: HashMap<String, serde_yaml::Value> = m
+                    .into_iter()
+                    .filter_map(|(k, v)| k.as_str().map(|s| (s.to_string(), v)))
+                    .collect();
+
+                VariableType::MapStringYaml(Fields {
+                    required: false,
+                    default: None,
+                    final_value: Some(map),
+                })
+            }
+            _ => VariableType::Yaml(Fields {
+                required: false,
+                default: None,
+                final_value: Some(value),
+            }),
+        };
+
+        Self {
+            description: String::new(),
+            variable_type,
+        }
+    }
+}
+
 impl Variable {
     pub fn new_final_string_variable(final_value: impl ToString) -> Self {
         Self {
@@ -80,25 +129,11 @@ impl Variable {
         self.variable_type.merge_with_yaml_value(yaml)
     }
 
-    /// Sets the default value from a global default configuration.
-    /// Only applies if the user hasn't already provided a final value.
-    pub(crate) fn set_default_from_global(
+    pub fn template_default(
         &mut self,
-        value: serde_yaml::Value,
+        global_defaults_vars: &HashMap<String, Variable>,
     ) -> Result<(), AgentTypeError> {
-        // Only set default if we don't already have a final_value (user didn't provide it)
-        // Check final_value directly, not get_final_value() which includes defaults
-        if self.variable_type.has_final_value() {
-            return Ok(());
-        }
-
-        self.variable_type.set_default(value)
-    }
-
-    /// Gets the default value as a string key for looking up in global defaults.
-    /// Returns None if there's no default or if the default is not a string.
-    pub(crate) fn get_default_as_key(&self) -> Option<String> {
-        self.variable_type.get_default_as_key()
+        self.variable_type.template_default(global_defaults_vars)
     }
 
     pub fn kind(&self) -> &VariableType {

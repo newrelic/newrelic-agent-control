@@ -307,7 +307,7 @@ deployment:
 
         let filled_variables = agent_type
             .variables
-            .fill_with_values(input_structure, HashMap::new())
+            .fill_with_values(input_structure)
             .unwrap();
 
         assert_eq!(expected, filled_variables.0);
@@ -330,9 +330,7 @@ deployment:
         let agent_type =
             AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &AGENT_CONTROL_MODE_ON_HOST);
 
-        let result = agent_type
-            .variables
-            .fill_with_values(input_structure, HashMap::new());
+        let result = agent_type.variables.fill_with_values(input_structure);
 
         assert!(result.is_err());
         assert_eq!(

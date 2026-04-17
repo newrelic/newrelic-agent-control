@@ -38,9 +38,21 @@ impl TemplateRenderer {
         // Expand templates in global defaults (so they can reference secrets/env vars)
         let global_defaults_expanded = global_defaults.template_with(&secrets)?;
 
-        // Fill agent variables with user values and global defaults, then flatten
+        // Convert global defaults to Variables with nr-default namespace
+        let global_defaults_vars = global_defaults_expanded
+            .into_iter()
+            .map(|(key, value)| {
+                (
+                    Namespace::Default.namespaced_name(&key),
+                    Variable::from(value),
+                )
+            })
+            .collect();
+
+        // Template defaults in variables, then fill with user values, then flatten
         let filled_variables = variables
-            .fill_with_values(values_expanded, global_defaults_expanded)?
+            .template_defaults(&global_defaults_vars)?
+            .fill_with_values(values_expanded)?
             .flatten();
 
         Self::check_all_vars_are_populated(&filled_variables)?;
@@ -330,7 +342,7 @@ pub(crate) mod tests {
                 agent_type
                     .variables
                     .clone()
-                    .fill_with_values(values, HashMap::new())
+                    .fill_with_values(values)
                     .is_err()
             )
         }
@@ -647,34 +659,50 @@ name: first
 version: 0.1.0
 variables:
   common:
+    path:
+      description: "path"
+      type: string
+      required: false
+      default: ${nr-default:path}
     registry:
       description: "registry url"
       type: string
       required: false
-      default: registry_url
+      default: "${nr-default:registry_url}/test-repository"
 deployment:
   linux:
     executables:
       - id: first
-        path: /opt/first
-        args: 
+        path: ${nr-var:path}
+        args:
           - "${nr-var:registry}"
   windows:
     executables:
       - id: first
-        path: /opt/first
-        args: 
+        path: ${nr-var:path}
+        args:
           - "${nr-var:registry}"
 "#,
             &AGENT_CONTROL_MODE_ON_HOST,
         );
-        let values = testing_values("");
+
+        let values = testing_values(
+            r#"
+path: /opt/first
+"#,
+        );
         let attributes = testing_agent_attributes(&agent_id);
 
-        let global_defaults = HashMap::from([(
-            "registry_url".to_string(),
-            serde_yaml::to_value("random-registry-url").unwrap(),
-        )]);
+        let global_defaults = HashMap::from([
+            (
+                "path".to_string(),
+                serde_yaml::to_value("/opt/second").unwrap(),
+            ),
+            (
+                "registry_url".to_string(),
+                serde_yaml::to_value("test-registry-url").unwrap(),
+            ),
+        ]);
 
         let renderer =
             TemplateRenderer::default().with_agent_control_variables(HashMap::new().into_iter());
@@ -688,14 +716,16 @@ deployment:
                 global_defaults,
             )
             .unwrap();
+
+        let executable = extract_runtime_by_environment(runtime_config)
+            .executables
+            .first()
+            .unwrap()
+            .clone();
+        assert_eq!("/opt/first".to_string(), executable.path.clone());
         assert_eq!(
-            rendered::Args(vec!("random-registry-url".to_string())),
-            extract_runtime_by_environment(runtime_config)
-                .executables
-                .first()
-                .unwrap()
-                .args
-                .clone()
+            rendered::Args(vec!("test-registry-url/test-repository".to_string())),
+            executable.args.clone()
         );
     }
 
@@ -714,19 +744,19 @@ variables:
       description: "registry url"
       type: string
       required: false
-      default: registry_url
+      default: "${nr-default:registry_url}"
 deployment:
   linux:
     executables:
       - id: first
         path: /opt/first
-        args: 
+        args:
           - "${nr-var:registry}"
   windows:
     executables:
       - id: first
         path: /opt/first
-        args: 
+        args:
           - "${nr-var:registry}"
 "#,
             &AGENT_CONTROL_MODE_ON_HOST,
