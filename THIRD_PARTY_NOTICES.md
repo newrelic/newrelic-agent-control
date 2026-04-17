@@ -1340,6 +1340,18 @@ Distributed under the following license(s):
 
 * Apache-2.0
 
+## konst <https://crates.io/crates/konst>
+
+Distributed under the following license(s):
+
+* Zlib
+
+## konst_macro_rules <https://crates.io/crates/konst_macro_rules>
+
+Distributed under the following license(s):
+
+* Zlib
+
 ## kube <https://crates.io/crates/kube>
 
 Distributed under the following license(s):
