@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::agent_type::{
     error::AgentTypeError,
+    templates::Templateable,
     trivial_value::TrivialValue,
     variable::{
         constraints::VariableConstraints,
@@ -84,19 +85,6 @@ impl VariableType {
         Ok(())
     }
 
-    /// Sets the default value for this variable type from a global default.
-    /// This replaces the agent-type's default value.
-    pub(crate) fn set_default(&mut self, value: serde_yaml::Value) -> Result<(), AgentTypeError> {
-        match self {
-            VariableType::String(f) => f.set_default(serde_yaml::from_value(value)?),
-            VariableType::Bool(f) => f.set_default(serde_yaml::from_value(value)?),
-            VariableType::Number(f) => f.set_default(serde_yaml::from_value(value)?),
-            VariableType::MapStringYaml(f) => f.set_default(serde_yaml::from_value(value)?),
-            VariableType::Yaml(f) => f.set_default(value),
-        }?;
-        Ok(())
-    }
-
     pub(crate) fn get_final_value(&self) -> Option<TrivialValue> {
         match self {
             VariableType::String(f) => f
@@ -128,25 +116,21 @@ impl VariableType {
         }
     }
 
-    /// Gets the default value as a string key for looking up in global defaults.
-    /// Returns None if there's no default or if the default is not a string type.
-    /// Only String variables can have their defaults looked up in global defaults.
-    pub(crate) fn get_default_as_key(&self) -> Option<String> {
+    pub(crate) fn template_default(
+        &mut self,
+        global_defaults_vars: &HashMap<String, super::Variable>,
+    ) -> Result<(), AgentTypeError> {
         match self {
-            VariableType::String(f) => f.inner.default.clone(),
-            _ => None,
+            VariableType::String(f) => {
+                if let Some(default) = &f.inner.default {
+                    // Template the default value
+                    let templated = default.clone().template_with(global_defaults_vars)?;
+                    f.inner.default = Some(templated);
+                }
+            }
+            _ => {}
         }
-    }
-
-    /// Returns true if the variable has a user-provided final value (not just a default).
-    pub(crate) fn has_final_value(&self) -> bool {
-        match self {
-            VariableType::String(f) => f.inner.final_value.is_some(),
-            VariableType::Bool(f) => f.final_value.is_some(),
-            VariableType::Number(f) => f.final_value.is_some(),
-            VariableType::MapStringYaml(f) => f.final_value.is_some(),
-            VariableType::Yaml(f) => f.final_value.is_some(),
-        }
+        Ok(())
     }
 }
 

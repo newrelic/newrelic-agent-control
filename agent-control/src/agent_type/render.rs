@@ -1,6 +1,6 @@
 use crate::agent_type::{
     agent_attributes::AgentAttributes,
-    definition::AgentType,
+    definition::{AgentType, Variables},
     error::AgentTypeError,
     runtime_config::rendered::Runtime,
     templates::Templateable,
@@ -38,9 +38,13 @@ impl TemplateRenderer {
         // Expand templates in global defaults (so they can reference secrets/env vars)
         let global_defaults_expanded = global_defaults.template_with(&secrets)?;
 
-        // Fill agent variables with user values and global defaults, then flatten
+        // Convert global defaults to Variables with nr-default namespace
+        let global_defaults_vars = global_defaults_to_variables(global_defaults_expanded);
+
+        // Template defaults in variables, then fill with user values, then flatten
         let filled_variables = variables
-            .fill_with_values(values_expanded, global_defaults_expanded)?
+            .template_defaults(&global_defaults_vars)?
+            .fill_with_values(values_expanded)?
             .flatten();
 
         Self::check_all_vars_are_populated(&filled_variables)?;
@@ -104,6 +108,24 @@ impl TemplateRenderer {
             .chain(self.ac_variables.clone())
             .collect::<HashMap<NamespacedVariableName, Variable>>()
     }
+}
+
+fn global_defaults_to_variables(global_defaults: HashMap<String, serde_yaml::Value>) -> Variables {
+    global_defaults
+        .into_iter()
+        .map(|(key, value)| {
+            // Convert the YAML value to a string representation
+            let string_value = match value {
+                serde_yaml::Value::String(s) => s,
+                other => serde_yaml::to_string(&other)
+                    .unwrap_or_else(|_| String::new())
+                    .trim()
+                    .to_string(),
+            };
+            let var = Variable::new_final_string_variable(string_value);
+            (Namespace::Default.namespaced_name(&key), var)
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -330,7 +352,7 @@ pub(crate) mod tests {
                 agent_type
                     .variables
                     .clone()
-                    .fill_with_values(values, HashMap::new())
+                    .fill_with_values(values)
                     .is_err()
             )
         }
@@ -651,19 +673,19 @@ variables:
       description: "registry url"
       type: string
       required: false
-      default: registry_url
+      default: "${nr-default:registry_url}"
 deployment:
   linux:
     executables:
       - id: first
         path: /opt/first
-        args: 
+        args:
           - "${nr-var:registry}"
   windows:
     executables:
       - id: first
         path: /opt/first
-        args: 
+        args:
           - "${nr-var:registry}"
 "#,
             &AGENT_CONTROL_MODE_ON_HOST,
@@ -714,19 +736,19 @@ variables:
       description: "registry url"
       type: string
       required: false
-      default: registry_url
+      default: "${nr-default:registry_url}"
 deployment:
   linux:
     executables:
       - id: first
         path: /opt/first
-        args: 
+        args:
           - "${nr-var:registry}"
   windows:
     executables:
       - id: first
         path: /opt/first
-        args: 
+        args:
           - "${nr-var:registry}"
 "#,
             &AGENT_CONTROL_MODE_ON_HOST,
