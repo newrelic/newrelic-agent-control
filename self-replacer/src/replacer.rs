@@ -2,26 +2,16 @@
 //!
 //! ## Replacement Strategy
 //!
-//! ### Unix/Linux
-//! Uses a temporary file approach to ensure atomic replacement:
-//! 1. Creates a backup of the current binary
-//! 2. Creates a temporary file in the same directory as the current binary
-//! 3. Copies the new binary to the temporary location
-//! 4. Preserves the original file permissions
-//! 5. Atomically renames the temporary file to replace the current binary
-//! 6. On failure, attempts to restore from backup
+//! 1. Read the current binary's permissions
+//! 2. Create a backup of the current binary
+//! 3. Copy/move the new binary into a temporary file in the **same directory** as the current
+//!    binary (ensures the final rename is on the same filesystem and therefore atomic)
+//! 4. Atomically rename the temp file over the current binary path
+//! 5. On failure, restore from backup
 //!
-//! The temp file ensures the final rename is atomic even when the new binary
-//! is on a different filesystem (e.g., `/usr/bin/` vs `/var/lib/`).
-//!
-//! ### Windows
-//! Uses two rename operations:
-//! 1. Move the currently running binary to a backup location
-//! 2. Move the new binary into the now-vacated slot
-//! 3. On failure, restore the backup
-//!
-//! Windows allows renaming a running executable because the image loader opens
-//! files with `FILE_SHARE_DELETE` (but not `FILE_SHARE_WRITE`).
+//! The only platform difference is in step 2: on Unix the backup is a copy (the OS keeps the
+//! inode alive for the running process), while on Windows it is a rename (running `.exe` files
+//! cannot be deleted but can be renamed).
 //!
 //! ## Backup Files
 //! Backup files are created as `{original_name}.{BACKUP_SUFFIX}` and are NOT automatically
@@ -33,37 +23,32 @@ use std::{fs, io};
 use thiserror::Error;
 use tracing::{debug, error};
 
-#[cfg(unix)]
 const TEMP_PREFIX: &str = "__temp__";
 
 /// Errors that can occur during self-replacement operations.
 #[derive(Debug, Error)]
 pub enum ReplaceError {
-    #[error("failed to determine current executable path")]
+    #[error("failed to determine current executable path: {0}")]
     CurrentExeNotFound(#[source] io::Error),
 
     #[error("new binary not found at {0}")]
     NewBinaryNotFound(String),
 
-    #[error("failed to create backup")]
+    #[error("failed to create backup: {0}")]
     BackupCreationFailed(#[source] io::Error),
 
-    #[error("failed to replace binary")]
+    #[error("failed to replace binary: {0}")]
     ReplaceFailed(#[source] io::Error),
 
     #[error("failed to restore backup: {0}")]
     BackupRestoreFailed(#[source] io::Error),
 
-    // Unix-specific errors
-    #[cfg(unix)]
-    #[error("failed to read file metadata")]
+    #[error("failed to read file metadata: {0}")]
     Metadata(#[source] io::Error),
 
-    #[cfg(unix)]
-    #[error("failed to copy new binary to temporary location")]
+    #[error("failed to copy new binary to temporary location: {0}")]
     TempCopyFailed(#[source] io::Error),
 
-    #[cfg(unix)]
     #[error("current executable has no parent directory")]
     NoParentDirectory,
 }
@@ -104,21 +89,17 @@ impl SelfReplacer for BinarySelfReplacer {
     }
 }
 
-/// Unified replacement implementation with platform-specific sections.
 fn replace_binary(current_exe: &Path, new_bin: &Path) -> Result<(), ReplaceError> {
     let backup = backup_path(current_exe);
 
-    #[cfg(unix)]
     let original_permissions = {
         let metadata = current_exe.metadata().map_err(ReplaceError::Metadata)?;
         metadata.permissions()
     };
 
-    // Create backup
-    // Unix: Copy (keeps original in place) - running executables can be replaced/deleted,
-    //       the OS keeps the inode alive for the running process
-    // Windows: Move (vacates the slot) - running .exe files are locked and cannot be deleted,
-    //          but CAN be renamed. Renaming frees up the original path for the new binary
+    // Create backup — strategy differs by platform:
+    // Unix: copy (the OS keeps the inode alive for the running process)
+    // Windows: rename/vacate (running .exe files cannot be deleted but CAN be renamed)
     debug!(
         current_exe = %current_exe.display(),
         backup = %backup.display(),
@@ -128,33 +109,30 @@ fn replace_binary(current_exe: &Path, new_bin: &Path) -> Result<(), ReplaceError
     #[cfg(unix)]
     fs::copy(current_exe, &backup).map_err(ReplaceError::BackupCreationFailed)?;
 
+    // When the Windows image loader maps an executable into memory it opens the
+    // file with [`FILE_SHARE_DELETE`] but **not** `FILE_SHARE_WRITE`. The
+    // `FILE_SHARE_DELETE` flag permits other callers to request delete access on
+    // the same handle — and a rename (move) internally requires delete access —
+    // so a rename of a running `.exe` succeeds. A direct write or overwrite of
+    // the same file would fail with `ERROR_SHARING_VIOLATION` because write
+    // access is not shared.
+    //
+    // Reference: [`CreateFileW` — `dwShareMode` / `FILE_SHARE_DELETE`][msdn-create-file]
+    //
+    // [msdn-create-file]: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew
+    //
     #[cfg(windows)]
     fs::rename(current_exe, &backup).map_err(ReplaceError::BackupCreationFailed)?;
 
-    // Prepare source for final rename
-    // Unix: Create temp file in same dir as current_exe (ensures atomic rename across filesystems)
-    // Windows: Use new_bin directly
-    #[cfg(unix)]
-    let temp_path = create_temp_file(current_exe, new_bin, &original_permissions)?;
-
-    let source: &Path = {
-        #[cfg(unix)]
-        {
-            &temp_path
-        }
-        #[cfg(windows)]
-        {
-            new_bin
-        }
-    };
+    let new_bin_temp = create_temp_file(current_exe, new_bin, &original_permissions)?;
 
     debug!(
-        source = %source.display(),
+        temp_path = %new_bin_temp.display(),
         current_exe = %current_exe.display(),
         "Performing final rename"
     );
 
-    match fs::rename(source, current_exe) {
+    match fs::rename(&new_bin_temp, current_exe) {
         Ok(()) => {
             debug!("Self-replacement completed successfully");
             Ok(())
@@ -177,7 +155,7 @@ fn replace_binary(current_exe: &Path, new_bin: &Path) -> Result<(), ReplaceError
             debug!("Backup restored successfully");
 
             Err(if err.kind() == io::ErrorKind::NotFound {
-                ReplaceError::NewBinaryNotFound(source.display().to_string())
+                ReplaceError::NewBinaryNotFound(new_bin_temp.display().to_string())
             } else {
                 ReplaceError::ReplaceFailed(err)
             })
@@ -195,9 +173,8 @@ fn backup_path(exe_path: &Path) -> PathBuf {
     exe_path.with_file_name(filename)
 }
 
-/// Creates a temporary file in the same directory and copies the new binary to it.
-/// Unix-only: Required for atomic rename across filesystems.
-#[cfg(unix)]
+/// Stages the new binary into a temporary file in the same directory as `current_exe`.
+/// Using the same directory ensures the final rename is on the same filesystem and atomic.
 fn create_temp_file(
     current_exe: &Path,
     new_bin: &Path,
@@ -320,92 +297,81 @@ mod tests {
         assert_matches!(result, Err(ReplaceError::NewBinaryNotFound(_)));
     }
 
-    #[cfg(unix)]
-    mod unix_tests {
-        use super::*;
-        use std::os::unix::fs::PermissionsExt;
+    #[test]
+    fn test_create_temp_file_no_collision() {
+        let temp_dir = TempDir::new().unwrap();
+        let current_exe = temp_dir.path().join("current_binary");
+        let new_bin = temp_dir.path().join("new_binary");
 
-        #[test]
-        fn test_create_temp_file_no_collision() {
-            let temp_dir = TempDir::new().unwrap();
-            let current_exe = temp_dir.path().join("current_binary");
-            let new_bin = temp_dir.path().join("new_binary");
+        fs::write(&current_exe, b"old").unwrap();
 
-            fs::write(&current_exe, b"old").unwrap();
+        // Get default permissions for test
+        let permissions = fs::metadata(&current_exe).unwrap().permissions();
 
-            // Get default permissions for test
-            let permissions = fs::metadata(&current_exe).unwrap().permissions();
+        // Create multiple temp files to verify they don't collide
+        // Recreate new_bin before each call since create_temp_file may move it
+        fs::write(&new_bin, b"new").unwrap();
+        let temp_path1 = create_temp_file(&current_exe, &new_bin, &permissions).unwrap();
 
-            // Create multiple temp files to verify they don't collide
-            // Recreate new_bin before each call since create_temp_file may move it
-            fs::write(&new_bin, b"new").unwrap();
-            let temp_path1 = create_temp_file(&current_exe, &new_bin, &permissions).unwrap();
+        fs::write(&new_bin, b"new").unwrap();
+        let temp_path2 = create_temp_file(&current_exe, &new_bin, &permissions).unwrap();
 
-            fs::write(&new_bin, b"new").unwrap();
-            let temp_path2 = create_temp_file(&current_exe, &new_bin, &permissions).unwrap();
+        fs::write(&new_bin, b"new").unwrap();
+        let temp_path3 = create_temp_file(&current_exe, &new_bin, &permissions).unwrap();
 
-            fs::write(&new_bin, b"new").unwrap();
-            let temp_path3 = create_temp_file(&current_exe, &new_bin, &permissions).unwrap();
+        // All should exist simultaneously
+        assert!(temp_path1.exists());
+        assert!(temp_path2.exists());
+        assert!(temp_path3.exists());
 
-            // All should exist simultaneously
-            assert!(temp_path1.exists());
-            assert!(temp_path2.exists());
-            assert!(temp_path3.exists());
+        // All should have different names (collision prevention)
+        assert_ne!(temp_path1.as_ref() as &Path, temp_path2.as_ref() as &Path);
+        assert_ne!(temp_path2.as_ref() as &Path, temp_path3.as_ref() as &Path);
+        assert_ne!(temp_path1.as_ref() as &Path, temp_path3.as_ref() as &Path);
 
-            // All should have different names (collision prevention)
-            assert_ne!(temp_path1.as_ref() as &Path, temp_path2.as_ref() as &Path);
-            assert_ne!(temp_path2.as_ref() as &Path, temp_path3.as_ref() as &Path);
-            assert_ne!(temp_path1.as_ref() as &Path, temp_path3.as_ref() as &Path);
+        // All should have the correct content
+        assert_eq!(fs::read(&temp_path1).unwrap(), b"new");
+        assert_eq!(fs::read(&temp_path2).unwrap(), b"new");
+        assert_eq!(fs::read(&temp_path3).unwrap(), b"new");
 
-            // All should have the correct content
-            assert_eq!(fs::read(&temp_path1).unwrap(), b"new");
-            assert_eq!(fs::read(&temp_path2).unwrap(), b"new");
-            assert_eq!(fs::read(&temp_path3).unwrap(), b"new");
+        // All should have the correct prefix
+        let expected_prefix = format!(".current_binary.{}", TEMP_PREFIX);
+        let file_name1 = temp_path1.file_name().unwrap().to_str().unwrap();
+        let file_name2 = temp_path2.file_name().unwrap().to_str().unwrap();
+        let file_name3 = temp_path3.file_name().unwrap().to_str().unwrap();
+        assert!(file_name1.starts_with(&expected_prefix));
+        assert!(file_name2.starts_with(&expected_prefix));
+        assert!(file_name3.starts_with(&expected_prefix));
+    }
 
-            // All should have the correct prefix
-            let expected_prefix = format!(".current_binary.{}", TEMP_PREFIX);
-            let file_name1 = temp_path1.file_name().unwrap().to_str().unwrap();
-            let file_name2 = temp_path2.file_name().unwrap().to_str().unwrap();
-            let file_name3 = temp_path3.file_name().unwrap().to_str().unwrap();
-            assert!(file_name1.starts_with(&expected_prefix));
-            assert!(file_name2.starts_with(&expected_prefix));
-            assert!(file_name3.starts_with(&expected_prefix));
-        }
+    #[test]
+    fn test_permission_preservation() {
+        let temp_dir = TempDir::new().unwrap();
+        let current_exe = temp_dir.path().join("current_binary");
+        let new_bin = temp_dir.path().join("new_binary");
 
-        #[test]
-        fn test_permission_preservation() {
-            let temp_dir = TempDir::new().unwrap();
-            let current_exe = temp_dir.path().join("current_binary");
-            let new_bin = temp_dir.path().join("new_binary");
+        fs::write(&current_exe, b"old binary").unwrap();
+        fs::write(&new_bin, b"new binary").unwrap();
 
-            // Create current binary with specific permissions (0o755)
-            fs::write(&current_exe, b"old binary").unwrap();
-            let mut perms = fs::metadata(&current_exe).unwrap().permissions();
-            perms.set_mode(0o755);
-            fs::set_permissions(&current_exe, perms).unwrap();
+        // Give current_exe and new_bin opposite readonly flags so we can distinguish them.
+        let mut current_perms = fs::metadata(&current_exe).unwrap().permissions();
+        #[allow(clippy::permissions_set_readonly_false)]
+        current_perms.set_readonly(false);
+        fs::set_permissions(&current_exe, current_perms).unwrap();
 
-            // Create new binary with DIFFERENT permissions (0o644)
-            fs::write(&new_bin, b"new binary").unwrap();
-            let mut new_perms = fs::metadata(&new_bin).unwrap().permissions();
-            new_perms.set_mode(0o644);
-            fs::set_permissions(&new_bin, new_perms).unwrap();
+        let mut new_perms = fs::metadata(&new_bin).unwrap().permissions();
+        new_perms.set_readonly(true);
+        fs::set_permissions(&new_bin, new_perms).unwrap();
 
-            // Call create_temp_file to test permission preservation
-            let original_permissions = fs::metadata(&current_exe).unwrap().permissions();
-            let temp_path =
-                create_temp_file(&current_exe, &new_bin, &original_permissions).unwrap();
+        let original_permissions = fs::metadata(&current_exe).unwrap().permissions();
+        let temp_path = create_temp_file(&current_exe, &new_bin, &original_permissions).unwrap();
 
-            // Verify permissions are preserved from ORIGINAL (0o755), not from new binary (0o644)
-            let temp_metadata = fs::metadata(&temp_path).unwrap();
-            assert_eq!(
-                temp_metadata.permissions().mode() & 0o777,
-                0o755,
-                "Temp file should have original binary's permissions, not new binary's"
-            );
-
-            // Verify content is from new binary
-            assert_eq!(fs::read(&temp_path).unwrap(), b"new binary");
-        }
+        // Permissions must come from current_exe (writable), not new_bin (read-only).
+        assert!(
+            !fs::metadata(&temp_path).unwrap().permissions().readonly(),
+            "Temp file should have original binary's permissions, not new binary's"
+        );
+        assert_eq!(fs::read(&temp_path).unwrap(), b"new binary");
     }
 
     #[cfg(windows)]
@@ -506,17 +472,18 @@ mod tests {
         }
 
         #[test]
-        fn test_rollback_when_replacement_failed_due_to_lock() {
+        fn test_replace_binary_succeeds_despite_delete_lock_on_new_bin() {
+            // A delete-lock on new_bin prevents rename but not reads, so create_temp_file
+            // falls back to copy and the replacement still succeeds.
             let files = TestFiles::new();
             write(&files.current_exe, b"old binary").unwrap();
             write(&files.new_bin, b"new binary").unwrap();
 
             let _lock = SimulatedLock::delete_lock(&files.new_bin).unwrap();
 
-            let err = replace_binary(&files.current_exe, &files.new_bin).unwrap_err();
+            replace_binary(&files.current_exe, &files.new_bin).unwrap();
 
-            assert_matches!(err, ReplaceError::ReplaceFailed(_));
-            assert_eq!(read(&files.current_exe).unwrap(), b"old binary");
+            assert_eq!(read(&files.current_exe).unwrap(), b"new binary");
         }
 
         #[test]
