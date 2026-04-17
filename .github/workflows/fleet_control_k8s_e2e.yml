@@ -130,7 +130,8 @@ jobs:
           # Tilt/deployment config
           USE_LATEST_FLUX: false
           ARCH: amd64
-          FLEET_ID: ${{ inputs.fleet_id }}
+          # Use input fleet_id or fall back to default (for push triggers)
+          FLEET_ID: ${{ inputs.fleet_id || 'MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTliZTAzZC03MDYwLTcxMDctOTUwYS04YTFiODc3YjJiN2Q' }}
         run: |
           # Create system identity secret
           kubectl get secret sys-identity || kubectl create secret generic sys-identity \
@@ -142,17 +143,10 @@ jobs:
           echo "CLUSTER_NAME=${CLUSTER_NAME}" >> "$GITHUB_ENV"
           echo "📦 Deploying to cluster: ${CLUSTER_NAME}"
 
-          # Update ac-values-fleet-control.yml with the actual fleet ID
-          sed -i "s|fleet_id:.*|fleet_id: \"${FLEET_ID}\"|" \
-            test/k8s-e2e/fleet-control-integration/ac-values-fleet-control.yml
-
-          # Update ac-values-fleet-control.yml with cluster name in customAttributes
-          sed -i "s|cluster_name:.*|cluster_name: ${CLUSTER_NAME}|" \
-            test/k8s-e2e/fleet-control-integration/ac-values-fleet-control.yml
-
-          # Deploy using Tilt
+          # Deploy using Tilt (FLEET_ID and CLUSTER_NAME are passed via env vars)
           SA_CHART_VALUES_FILE="test/k8s-e2e/fleet-control-integration/ac-values-fleet-control.yml" \
           CLUSTER="${CLUSTER_NAME}" \
+          FLEET_ID="${FLEET_ID}" \
           tilt ci
 
       - name: Wait for Agent Control to connect
@@ -167,10 +161,12 @@ jobs:
           kubectl logs -l app.kubernetes.io/name=agent-control --tail=50 --all-containers --prefix=true
 
       - name: Run Fleet Control E2E test
+        env:
+          FLEET_ID: ${{ inputs.fleet_id || 'MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTliZTAzZC03MDYwLTcxMDctOTUwYS04YTFiODc3YjJiN2Q' }}
         run: |
           echo "🧪 Running Fleet Control E2E test for cluster: ${CLUSTER_NAME}"
           ${{ github.workspace }}/target/debug/e2e-runner fleet-control-api \
-            --fleet-id "${{ inputs.fleet_id }}" \
+            --fleet-id "${FLEET_ID}" \
             --fleet-control-token "${{ steps.get-token.outputs.token }}" \
             --fleet-type "k8s-fleet"
 

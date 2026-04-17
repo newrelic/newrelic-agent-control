@@ -14,6 +14,7 @@ sa_chart_values_file = os.getenv('SA_CHART_VALUES_FILE','local/agent-control-til
 # This file contains fleet_id, organization_id, and global.nrStaging settings for the specific region
 sa_chart_values_file_region = os.getenv('SA_CHART_VALUES_FILE_REGION', '')
 cluster = os.getenv('CLUSTER', "")
+fleet_id = os.getenv('FLEET_ID', "")
 # Branch of the helm-charts repo to use.
 feature_branch = os.getenv('FEATURE_BRANCH', "master")
 
@@ -154,9 +155,13 @@ if latest_flux:
 
 if license_key != '':
   ac_flags.append('--set=global.licenseKey='+license_key)
-  
+
 if cluster != '':
   ac_flags.append('--set=global.cluster='+cluster)
+  ac_flags.append('--set=global.customAttributes.cluster_name='+cluster)
+
+if fleet_id != '':
+  ac_flags.append('--set=agentControlDeployment.chartValues.config.fleet_control.fleet_id='+fleet_id)
 
 #### Troubleshooting logs from installation Jobs
 local_resource(

@@ -20,7 +20,8 @@ agentControlDeployment:
         secretKeyName: "private_key"
       fleet_control:
         enabled: true
-        # Fleet with name 'AC-FC E2E tests' using FC's account 'Test Automation' (Staging)
+        # Fleet ID (can be overridden via FLEET_ID env var in Tiltfile)
+        # Default: Fleet 'AC-FC E2E tests (k8s)' using FC's account 'Test Automation' (Staging)
         fleet_id: "MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTliZTAzZC03MDYwLTcxMDctOTUwYS04YTFiODc3YjJiN2Q"
       log:
         level: debug
@@ -32,7 +33,8 @@ agentControlDeployment:
         chart_version: "*" # Use latest
         chart_values:
           # NOTE: nrStaging is set by Tiltfile based on REGION env var (staging vs US)
-          global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
+          global:
+            # cluster_name is set via CLUSTER env var in Tiltfile
             customAttributes:
               cluster_name: ${nr-env:NR_CLUSTER_NAME}
               config_origin: local
