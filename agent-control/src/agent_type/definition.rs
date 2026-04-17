@@ -101,12 +101,9 @@ impl Tree<VariableDefinition> {
 }
 
 impl VariableTree {
-    pub fn template_defaults(
-        self,
-        global_defaults_vars: &Variables,
-    ) -> Result<Self, AgentTypeError> {
+    pub fn template_defaults(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let mut vars = self.0;
-        template_defaults_recursive(&mut vars, global_defaults_vars)?;
+        template_defaults_recursive(&mut vars, variables)?;
         Ok(Self(vars))
     }
 
@@ -120,15 +117,15 @@ impl VariableTree {
 
 fn template_defaults_recursive(
     agent_vars: &mut HashMap<String, Tree<Variable>>,
-    global_defaults_vars: &Variables,
+    variables: &Variables,
 ) -> Result<(), AgentTypeError> {
     for (_key, var_tree) in agent_vars.iter_mut() {
         match var_tree {
             Tree::End(variable) => {
-                variable.template_default(global_defaults_vars)?;
+                variable.template_default(variables)?;
             }
             Tree::Mapping(nested) => {
-                template_defaults_recursive(nested, global_defaults_vars)?;
+                template_defaults_recursive(nested, variables)?;
             }
         }
     }

@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::agent_type::{
+    definition::Variables,
     error::AgentTypeError,
     trivial_value::TrivialValue,
     variable::{
@@ -129,11 +130,8 @@ impl Variable {
         self.variable_type.merge_with_yaml_value(yaml)
     }
 
-    pub fn template_default(
-        &mut self,
-        global_defaults_vars: &HashMap<String, Variable>,
-    ) -> Result<(), AgentTypeError> {
-        self.variable_type.template_default(global_defaults_vars)
+    pub fn template_default(&mut self, variables: &Variables) -> Result<(), AgentTypeError> {
+        self.variable_type.template_default(variables)
     }
 
     pub fn kind(&self) -> &VariableType {
@@ -211,6 +209,7 @@ mod tests {
 
     #[test]
     fn variable_definition_tree_deserialize() {
+        use super::fields::DefaultValue;
         let value = r#"
 foo:
   bar:
@@ -235,7 +234,7 @@ foo:
                         variable_type: VariableTypeDefinition::String(StringFieldsDefinition {
                             inner: FieldsDefinition {
                                 required: false,
-                                default: Some("a".to_string()),
+                                default: Some(DefaultValue::Value("a".to_string())),
                             },
                             variants: VariantsConfig {
                                 ac_config_field: Some("foo.bar.var_name".to_string()),

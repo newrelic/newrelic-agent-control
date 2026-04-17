@@ -8,6 +8,7 @@ use crate::agent_type::{
     error::AgentTypeError,
     variable::{
         constraints::{VariableConstraints, VariantsConstraints},
+        namespace::Namespace,
         variants::{Variants, VariantsConfig},
     },
 };
@@ -19,7 +20,17 @@ where
     T: PartialEq,
 {
     pub(crate) required: bool,
-    pub(crate) default: Option<T>,
+    pub(crate) default: Option<DefaultValue<T>>,
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize)]
+#[serde(untagged)]
+pub enum DefaultValue<T>
+where
+    T: PartialEq,
+{
+    Value(T),
+    Template(String),
 }
 
 /// Type to support special default deserialization for 'null' Yaml value in 'default'.
@@ -47,7 +58,8 @@ where
     T: PartialEq,
 {
     pub(crate) required: bool,
-    pub(crate) default: Option<T>,
+    #[serde(flatten)]
+    pub(crate) default: Option<DefaultValue<T>>,
     pub(crate) final_value: Option<T>, // TODO: move this outside the struct and avoid mutating the variables
 }
 
@@ -133,7 +145,7 @@ impl StringFields {
 
 impl<'de, T> Deserialize<'de> for FieldsDefinition<T>
 where
-    T: Deserialize<'de> + PartialEq,
+    T: serde::de::DeserializeOwned + PartialEq,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -142,8 +154,8 @@ where
         use serde::de::Error;
         // intermediate serialization type to validate `default` and `required` fields
         #[derive(Debug, Deserialize)]
-        struct IntermediateValueKind<T: PartialEq> {
-            default: Option<T>,
+        struct IntermediateValueKind {
+            default: Option<serde_yaml::Value>,
             required: bool,
         }
 
@@ -162,9 +174,57 @@ where
         }
 
         Ok(FieldsDefinition {
-            default: intermediate_spec.default,
             required: intermediate_spec.required,
+            default: intermediate_spec
+                .default
+                .map(serde_yaml::from_value::<DefaultValue<T>>)
+                .transpose()
+                .map_err(|_| {
+                    D::Error::custom(AgentTypeError::Parse(
+                        "default value is not of the correct type".to_string(),
+                    ))
+                })?,
         })
+    }
+}
+
+impl<T> DefaultValue<T>
+where
+    T: PartialEq,
+{
+    pub fn as_value(&self) -> Option<&T> {
+        match self {
+            DefaultValue::Value(v) => Some(v),
+            DefaultValue::Template(_) => None,
+        }
+    }
+}
+
+impl<'de, T> Deserialize<'de> for DefaultValue<T>
+where
+    T: serde::de::DeserializeOwned + PartialEq,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let yaml_val = serde_yaml::Value::deserialize(deserializer)?;
+
+        match serde_yaml::from_value::<T>(yaml_val.clone()) {
+            Ok(value) => Ok(DefaultValue::Value(value)),
+            Err(_) => {
+                if let serde_yaml::Value::String(s) = yaml_val
+                    && s.starts_with(format!("${{{}", Namespace::Default).as_str())
+                    && s.ends_with("}")
+                {
+                    Ok(DefaultValue::Template(s))
+                } else {
+                    Err(serde::de::Error::custom(
+                        "default value must be of the correct type or an `nr-default` template string",
+                    ))
+                }
+            }
+        }
     }
 }
 
@@ -198,7 +258,7 @@ impl<'de> Deserialize<'de> for YamlFieldsDefinition {
         Ok(YamlFieldsDefinition {
             inner: FieldsDefinition {
                 required: intermediate_spec.required,
-                default: intermediate_spec.default,
+                default: intermediate_spec.default.map(DefaultValue::Value),
             },
         })
     }
@@ -221,7 +281,7 @@ mod tests {
         },
     };
 
-    use super::Fields;
+    use super::{DefaultValue, Fields};
 
     impl<T> Fields<T>
     where
@@ -230,7 +290,7 @@ mod tests {
         pub(crate) fn new(required: bool, default: Option<T>, final_value: Option<T>) -> Self {
             Self {
                 required,
-                default,
+                default: default.map(DefaultValue::Value),
                 final_value,
             }
         }
@@ -246,7 +306,7 @@ mod tests {
             Self {
                 inner: Fields::<String> {
                     required,
-                    default,
+                    default: default.map(DefaultValue::Value),
                     final_value,
                 },
                 variants,
@@ -257,7 +317,10 @@ mod tests {
     impl YamlFieldsDefinition {
         pub(crate) fn new(required: bool, default: Option<serde_yaml::Value>) -> Self {
             Self {
-                inner: FieldsDefinition { required, default },
+                inner: FieldsDefinition {
+                    required,
+                    default: default.map(DefaultValue::Value),
+                },
             }
         }
     }

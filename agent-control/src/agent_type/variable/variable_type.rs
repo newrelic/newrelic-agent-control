@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::agent_type::{
     error::AgentTypeError,
@@ -10,7 +10,7 @@ use crate::agent_type::{
     trivial_value::TrivialValue,
     variable::{
         constraints::VariableConstraints,
-        fields::{StringFields, StringFieldsDefinition, YamlFieldsDefinition},
+        fields::{DefaultValue, StringFields, StringFieldsDefinition, YamlFieldsDefinition},
     },
 };
 
@@ -91,26 +91,29 @@ impl VariableType {
                 .inner
                 .final_value
                 .as_ref()
-                .or(f.inner.default.as_ref())
+                .or(f.inner.default.as_ref().and_then(|d| d.as_value()))
                 .cloned()
                 .map(TrivialValue::String),
-            VariableType::Bool(f) => f.final_value.or(f.default).map(TrivialValue::Bool),
+            VariableType::Bool(f) => f
+                .final_value
+                .or(f.default.as_ref().and_then(|d| d.as_value()).copied())
+                .map(TrivialValue::Bool),
             VariableType::Number(f) => f
                 .final_value
                 .as_ref()
-                .or(f.default.as_ref())
+                .or(f.default.as_ref().and_then(|d| d.as_value()))
                 .cloned()
                 .map(TrivialValue::Number),
             VariableType::MapStringYaml(f) => f
                 .final_value
                 .as_ref()
-                .or(f.default.as_ref())
+                .or(f.default.as_ref().and_then(|d| d.as_value()))
                 .cloned()
                 .map(TrivialValue::MapStringYaml),
             VariableType::Yaml(f) => f
                 .final_value
                 .as_ref()
-                .or(f.default.as_ref())
+                .or(f.default.as_ref().and_then(|d| d.as_value()))
                 .cloned()
                 .map(TrivialValue::Yaml),
         }
@@ -118,20 +121,58 @@ impl VariableType {
 
     pub(crate) fn template_default(
         &mut self,
-        global_defaults_vars: &HashMap<String, super::Variable>,
+        variables: &HashMap<String, super::Variable>,
     ) -> Result<(), AgentTypeError> {
         match self {
             VariableType::String(f) => {
-                if let Some(default) = &f.inner.default {
-                    // Template the default value
-                    let templated = default.clone().template_with(global_defaults_vars)?;
-                    f.inner.default = Some(templated);
+                let value = match &f.inner.default {
+                    Some(DefaultValue::Value(value)) => value.clone(),
+                    Some(DefaultValue::Template(template)) => template.clone(),
+                    None => return Ok(()),
+                };
+                let templated = value.template_with(variables)?;
+                f.inner.default = Some(DefaultValue::Value(templated));
+            }
+            VariableType::Bool(f) => {
+                if let Some(DefaultValue::Template(template)) = &f.default {
+                    let value = template.clone().template_with(variables)?;
+                    f.default = Some(parse_default(value, template.clone())?);
                 }
             }
-            _ => {}
+            VariableType::Number(f) => {
+                if let Some(DefaultValue::Template(template)) = &f.default {
+                    let value = template.clone().template_with(variables)?;
+                    f.default = Some(parse_default(value, template.clone())?);
+                }
+            }
+            VariableType::MapStringYaml(f) => {
+                if let Some(DefaultValue::Template(template)) = &f.default {
+                    let value = template.clone().template_with(variables)?;
+                    f.default = Some(parse_default(value, template.clone())?);
+                }
+            }
+            VariableType::Yaml(f) => {
+                if let Some(DefaultValue::Template(template)) = &f.default {
+                    let value = template.clone().template_with(variables)?;
+                    f.default = Some(parse_default(value, template.clone())?);
+                }
+            }
         }
         Ok(())
     }
+}
+
+fn parse_default<T: PartialEq + DeserializeOwned>(
+    value: String,
+    template: String,
+) -> Result<DefaultValue<T>, AgentTypeError> {
+    let result = serde_yaml::from_str::<T>(&value).map_err(|e| {
+        AgentTypeError::Parse(format!(
+            "template '{template}' was resolved to '{value}' which is not a map: {e}",
+        ))
+    })?;
+
+    Ok(DefaultValue::Value(result))
 }
 
 #[cfg(test)]
