@@ -2,7 +2,7 @@ use crate::common::config::nrdot_config;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::{retry, retry_panic};
-use crate::common::{Args, RecipeData, nrql};
+use crate::common::{InstallationArgs, RecipeData, nrql};
 use crate::windows;
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
 use crate::windows::scenarios::DEFAULT_STATUS_PORT;
@@ -12,7 +12,7 @@ use std::time::Duration;
 use tracing::info;
 
 /// Runs a complete Windows E2E installation test with NRDOT
-pub fn test_nrdot(args: Args) {
+pub fn test_nrdot(args: InstallationArgs) {
     let nrdot_version = args
         .nrdot_version
         .clone()

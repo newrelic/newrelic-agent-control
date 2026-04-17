@@ -1,7 +1,7 @@
 use crate::common::config::write_agent_local_config;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
-use crate::common::{Args, RecipeData};
+use crate::common::{InstallationArgs, RecipeData};
 use crate::linux::install::tear_down_test;
 use crate::{
     common::{config, nrql},
@@ -48,7 +48,7 @@ const EXPECTED_DOMAINS_STAGING: &[&str] = &[
     "staging-identity-api.newrelic.com",
 ];
 
-pub fn test_agent_control_proxy(args: Args) {
+pub fn test_agent_control_proxy(args: InstallationArgs) {
     info!("Setting up mitmproxy container");
     setup_mitmproxy();
 

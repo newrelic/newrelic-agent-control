@@ -2,7 +2,7 @@ use crate::common::config::nrdot_config;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
-use crate::common::{Args, RecipeData};
+use crate::common::{InstallationArgs, RecipeData};
 use crate::linux::install::tear_down_test;
 use crate::{
     common::nrql,
@@ -11,7 +11,7 @@ use crate::{
 use std::time::Duration;
 use tracing::info;
 
-pub fn test_nrdot_agent(args: Args) {
+pub fn test_nrdot_agent(args: InstallationArgs) {
     let nrdot_version = args
         .nrdot_version
         .clone()

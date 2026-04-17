@@ -8,9 +8,9 @@ pub mod nrql;
 pub mod on_drop;
 pub mod test;
 
-/// Arguments to be set for every test that needs Agent Control installation
+/// Arguments for scenarios that require Agent Control installation
 #[derive(Default, Debug, Clone, clap::Parser)]
-pub struct Args {
+pub struct InstallationArgs {
     /// Folder where packages are stored
     #[arg(long)]
     pub artifacts_package_dir: Option<PathBuf>,
@@ -75,9 +75,25 @@ pub struct Args {
     pub fleet_type: String,
 }
 
+/// Arguments for Fleet Control API tests that don't require Agent Control installation
+#[derive(Debug, Clone, clap::Parser)]
+pub struct FleetControlApiArgs {
+    /// Fleet ID for Fleet Control tests
+    #[arg(long)]
+    pub fleet_id: String,
+
+    /// Fleet Control authentication token
+    #[arg(long)]
+    pub fleet_control_token: String,
+
+    /// Fleet type for Fleet Control API (linux-fleet or k8s-fleet)
+    #[arg(long, default_value = "linux-fleet")]
+    pub fleet_type: String,
+}
+
 /// Data to set up installation
 pub struct RecipeData {
-    pub args: Args,
+    pub args: InstallationArgs,
     pub fleet_id: String,
     pub fleet_enabled: bool,
     pub recipe_list: String,

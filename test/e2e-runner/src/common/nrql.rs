@@ -1,4 +1,4 @@
-use crate::common::Args;
+use crate::common::InstallationArgs;
 use crate::common::test::TestResult;
 use reqwest::blocking::Client;
 use serde::Serialize;
@@ -58,7 +58,7 @@ impl Region {
 /// * `Ok(())` - The NRQL query results on success
 /// * `Err` - Error if the query fails, returns errors, or has no results
 pub fn check_query_results_are_not_empty(
-    install_args: &Args,
+    install_args: &InstallationArgs,
     nrql_query: &str,
 ) -> TestResult<Vec<Value>> {
     check_query_results(install_args, nrql_query, |r| !r.is_empty())
@@ -80,7 +80,7 @@ pub fn check_query_results_are_not_empty(
 /// * `Ok(())` - The NRQL query results on success
 /// * `Err` - Error if the query fails, returns errors or does not satisefy the predicate.
 pub fn check_query_results(
-    install_args: &Args,
+    install_args: &InstallationArgs,
     nrql_query: &str,
     predicate: impl FnOnce(&Vec<Value>) -> bool,
 ) -> TestResult<Vec<Value>> {
@@ -90,7 +90,7 @@ pub fn check_query_results(
 
 /// Helper to execute [check_query_results_are_not_empty] with custom setup. Eg: setting up proxy.
 fn check_query_results_with_client(
-    install_args: &Args,
+    install_args: &InstallationArgs,
     nrql_query: &str,
     client: Client,
     predicate: impl FnOnce(&Vec<Value>) -> bool,

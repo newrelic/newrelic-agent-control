@@ -1,7 +1,7 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::{TestResult, retry_panic};
-use crate::common::{Args, RecipeData};
+use crate::common::{FleetControlApiArgs, InstallationArgs, RecipeData};
 use crate::linux;
 use crate::linux::install::{install_agent_control_from_recipe, tear_down_test};
 use reqwest::Url;
@@ -88,22 +88,10 @@ fn trigger_and_wait_for_fleet_control_tests(
 ///
 /// This function only handles the Fleet Control API communication and does not
 /// install or configure Agent Control. Useful when AC is already deployed externally.
-pub fn run_fleet_control_api(args: Args) {
-    let fleet_id = args
-        .fleet_id
-        .as_ref()
-        .expect("--fleet-id is required for fleet-control-api scenario");
-
-    let fleet_control_token = args
-        .fleet_control_token
-        .as_ref()
-        .expect("--fleet-control-token is required for fleet-control-api scenario");
-
-    let fleet_type = args.fleet_type.as_ref();
-
+pub fn run_fleet_control_api(args: FleetControlApiArgs) {
     info!("Starting Fleet Control API E2E test");
 
-    trigger_and_wait_for_fleet_control_tests(fleet_id, fleet_control_token, fleet_type);
+    trigger_and_wait_for_fleet_control_tests(&args.fleet_id, &args.fleet_control_token, &args.fleet_type);
 }
 
 /// Triggers Fleet Control tests and returns the test run ID
@@ -217,7 +205,7 @@ fn wait_for_fleet_control_completion(
     }
 }
 
-pub fn test_fleet_control(args: Args) {
+pub fn test_fleet_control(args: InstallationArgs) {
     let fleet_id = args
         .fleet_id
         .as_ref()
@@ -228,7 +216,7 @@ pub fn test_fleet_control(args: Args) {
         .as_ref()
         .expect("--fleet-control-token is required for fleet-control scenario");
 
-    let fleet_type = args.fleet_type.as_ref();
+    let fleet_type = &args.fleet_type;
 
     assert_eq!(
         args.nr_region.to_lowercase().as_str(),

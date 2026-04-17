@@ -1,7 +1,7 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
-use crate::common::{Args, RecipeData};
+use crate::common::{InstallationArgs, RecipeData};
 use crate::{
     common::nrql,
     linux::{
@@ -12,7 +12,7 @@ use crate::{
 use std::time::Duration;
 use tracing::info;
 
-pub fn test_installation_with_infra_agent(args: Args) {
+pub fn test_installation_with_infra_agent(args: InstallationArgs) {
     let infra_version = args
         .infra_agent_version
         .clone()
