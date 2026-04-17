@@ -3,6 +3,7 @@ use std::path::PathBuf;
 pub mod config;
 pub mod exec;
 pub mod file;
+pub mod fleet_control_api;
 pub mod logs;
 pub mod nrql;
 pub mod on_drop;

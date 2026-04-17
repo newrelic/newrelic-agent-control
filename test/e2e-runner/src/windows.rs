@@ -1,3 +1,4 @@
+use crate::common::fleet_control_api;
 use crate::{WindowsCli, WindowsScenarios, init_logging};
 use clap::Parser;
 
@@ -52,6 +53,12 @@ pub fn run_windows_e2e() {
             scenarios::service_wrong_config::test_service_restart_depending_on_config_correctness(
                 args,
             );
+        }
+        WindowsScenarios::FleetControl(args) => {
+            scenarios::fleet_control::test_fleet_control(args);
+        }
+        WindowsScenarios::FleetControlApi(args) => {
+            fleet_control_api::run_fleet_control_api(args);
         }
     }
 }

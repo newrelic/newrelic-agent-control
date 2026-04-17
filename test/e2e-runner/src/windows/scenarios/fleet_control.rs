@@ -2,8 +2,9 @@ use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config};
 use crate::common::fleet_control_api;
 use crate::common::on_drop::CleanUp;
 use crate::common::{FleetControlApiArgs, InstallationArgs, RecipeData};
-use crate::linux;
-use crate::linux::install::{install_agent_control_from_recipe, tear_down_test};
+use crate::windows;
+use crate::windows::install::{install_agent_control_from_recipe, tear_down_test};
+use crate::windows::service::STATUS_RUNNING;
 use std::time::Duration;
 use tracing::info;
 
@@ -34,7 +35,7 @@ pub fn test_fleet_control(args: InstallationArgs) {
         "This test can only run on staging environment"
     );
 
-    info!("Starting Fleet Control E2E test");
+    info!("Starting Fleet Control E2E test on Windows");
     info!("Using Fleet ID: {fleet_id}");
 
     let recipe_data = RecipeData {
@@ -57,7 +58,7 @@ pub fn test_fleet_control(args: InstallationArgs) {
 
     info!("Configuring Agent Control for Fleet Control");
     update_config(
-        linux::DEFAULT_AC_CONFIG_PATH,
+        windows::DEFAULT_AC_CONFIG_PATH,
         format!(
             r#"
 host_id: {test_id}
@@ -70,7 +71,7 @@ agents:
     );
 
     info!("Restarting Agent Control service");
-    linux::service::restart_service(linux::SERVICE_NAME);
+    windows::service::restart_service(windows::install::SERVICE_NAME, STATUS_RUNNING);
 
     // Wait a bit for Agent Control to start and connect to Fleet Control
     info!("Waiting for Agent Control to connect to Fleet Control...");
