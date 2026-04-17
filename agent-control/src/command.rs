@@ -6,7 +6,7 @@
 use crate::agent_control::config::AgentControlConfig;
 use crate::agent_control::defaults::ENVIRONMENT_VARIABLES_FILE_NAME;
 use crate::agent_control::run::Environment;
-use crate::agent_control::version_updater::on_host::CommandResult;
+use crate::agent_control::version_updater::on_host::verify::CommandResult;
 use crate::agent_control::{
     config_repository::{repository::AgentControlConfigLoader, store::AgentControlConfigStore},
     run::BasePaths,

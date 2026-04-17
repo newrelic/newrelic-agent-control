@@ -4,7 +4,7 @@ use assert_matches::assert_matches;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::EXECUTION_MODE_ATTRIBUTE_KEY;
 use newrelic_agent_control::agent_control::run::BasePaths;
-use newrelic_agent_control::agent_control::version_updater::on_host::{
+use newrelic_agent_control::agent_control::version_updater::on_host::verify::{
     ProcessVerifyExecutor, VerifyError, VerifyExecutor,
 };
 use opamp_client::opamp::proto::any_value::Value;
