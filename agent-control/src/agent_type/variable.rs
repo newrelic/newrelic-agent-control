@@ -64,8 +64,57 @@ impl Variable {
                     required: false,
                     default: None,
                     final_value: Some(final_value.to_string()),
+                    default_template: None,
                 },
                 variants: Default::default(),
+            }),
+        }
+    }
+
+    pub fn new_final_bool_variable(final_value: bool) -> Self {
+        Self {
+            description: String::new(),
+            variable_type: VariableType::Bool(Fields {
+                required: false,
+                default: None,
+                final_value: Some(final_value),
+                default_template: None,
+            }),
+        }
+    }
+
+    pub fn new_final_number_variable(final_value: serde_yaml::Number) -> Self {
+        Self {
+            description: String::new(),
+            variable_type: VariableType::Number(Fields {
+                required: false,
+                default: None,
+                final_value: Some(final_value),
+                default_template: None,
+            }),
+        }
+    }
+
+    pub fn new_final_mapping_variable(final_value: HashMap<String, serde_yaml::Value>) -> Self {
+        Self {
+            description: String::new(),
+            variable_type: VariableType::MapStringYaml(Fields {
+                required: false,
+                default: None,
+                final_value: Some(final_value),
+                default_template: None,
+            }),
+        }
+    }
+
+    pub fn new_final_yaml_variable(final_value: serde_yaml::Value) -> Self {
+        Self {
+            description: String::new(),
+            variable_type: VariableType::Yaml(Fields {
+                required: false,
+                default: None,
+                final_value: Some(final_value),
+                default_template: None,
             }),
         }
     }
@@ -164,6 +213,7 @@ mod tests {
 
     #[test]
     fn variable_definition_tree_deserialize() {
+        use super::fields::DefaultValue;
         let value = r#"
 foo:
   bar:
@@ -188,7 +238,7 @@ foo:
                         variable_type: VariableTypeDefinition::String(StringFieldsDefinition {
                             inner: FieldsDefinition {
                                 required: false,
-                                default: Some("a".to_string()),
+                                default: Some(DefaultValue::Value("a".to_string())),
                             },
                             variants: VariantsConfig {
                                 ac_config_field: Some("foo.bar.var_name".to_string()),

@@ -114,15 +114,20 @@ fn global_defaults_to_variables(global_defaults: HashMap<String, serde_yaml::Val
     global_defaults
         .into_iter()
         .map(|(key, value)| {
-            // Convert the YAML value to a string representation
-            let string_value = match value {
-                serde_yaml::Value::String(s) => s,
-                other => serde_yaml::to_string(&other)
-                    .unwrap_or_else(|_| String::new())
-                    .trim()
-                    .to_string(),
+            // Create the appropriate Variable type based on the YAML value type
+            let var = match value {
+                serde_yaml::Value::String(s) => Variable::new_final_string_variable(s),
+                serde_yaml::Value::Bool(b) => Variable::new_final_bool_variable(b),
+                serde_yaml::Value::Number(n) => Variable::new_final_number_variable(n),
+                serde_yaml::Value::Mapping(m) => {
+                    let map: HashMap<String, serde_yaml::Value> = m
+                        .into_iter()
+                        .filter_map(|(k, v)| k.as_str().map(|s| (s.to_string(), v)))
+                        .collect();
+                    Variable::new_final_mapping_variable(map)
+                }
+                other => Variable::new_final_yaml_variable(other),
             };
-            let var = Variable::new_final_string_variable(string_value);
             (Namespace::Default.namespaced_name(&key), var)
         })
         .collect()
@@ -673,15 +678,22 @@ variables:
       description: "registry url"
       type: string
       required: false
-      default: "${nr-default:registry_url}"
+      default: "${nr-default:registry_url}/test-repository"
+    enable_file_logging:
+      description: "enable file logging"
+      type: bool
+      required: false
+      default: ${nr-default:enable_file_logging}
 deployment:
   linux:
+    enable_file_logging: ${nr-var:enable_file_logging}
     executables:
       - id: first
         path: /opt/first
         args:
           - "${nr-var:registry}"
   windows:
+    enable_file_logging: ${nr-var:enable_file_logging}
     executables:
       - id: first
         path: /opt/first
@@ -693,10 +705,16 @@ deployment:
         let values = testing_values("");
         let attributes = testing_agent_attributes(&agent_id);
 
-        let global_defaults = HashMap::from([(
-            "registry_url".to_string(),
-            serde_yaml::to_value("random-registry-url").unwrap(),
-        )]);
+        let global_defaults = HashMap::from([
+            (
+                "registry_url".to_string(),
+                serde_yaml::to_value("test-registry-url").unwrap(),
+            ),
+            (
+                "enable_file_logging".to_string(),
+                serde_yaml::to_value(true).unwrap(),
+            ),
+        ]);
 
         let renderer =
             TemplateRenderer::default().with_agent_control_variables(HashMap::new().into_iter());
@@ -711,13 +729,17 @@ deployment:
             )
             .unwrap();
         assert_eq!(
-            rendered::Args(vec!("random-registry-url".to_string())),
-            extract_runtime_by_environment(runtime_config)
+            rendered::Args(vec!("test-registry-url/test-repository".to_string())),
+            extract_runtime_by_environment(runtime_config.clone())
                 .executables
                 .first()
                 .unwrap()
                 .args
                 .clone()
+        );
+        assert_eq!(
+            true,
+            extract_runtime_by_environment(runtime_config.clone()).enable_file_logging
         );
     }
 
@@ -736,15 +758,22 @@ variables:
       description: "registry url"
       type: string
       required: false
-      default: "${nr-default:registry_url}"
+      default: "${nr-default:registry_url}/test-repository"
+    enable_file_logging:
+      description: "enable file logging"
+      type: bool
+      required: false
+      default: ${nr-default:enable_file_logging}
 deployment:
   linux:
+    enable_file_logging: ${nr-var:enable_file_logging}
     executables:
       - id: first
         path: /opt/first
         args:
           - "${nr-var:registry}"
   windows:
+    enable_file_logging: ${nr-var:enable_file_logging}
     executables:
       - id: first
         path: /opt/first
@@ -756,15 +785,27 @@ deployment:
         let values = testing_values("");
         let attributes = testing_agent_attributes(&agent_id);
 
-        let global_defaults = HashMap::from([(
-            "registry_url".to_string(),
-            serde_yaml::to_value("${nr-env:REGISTRY_URL}").unwrap(),
-        )]);
+        let global_defaults = HashMap::from([
+            (
+                "registry_url".to_string(),
+                serde_yaml::to_value("${nr-env:REGISTRY_URL}").unwrap(),
+            ),
+            (
+                "enable_file_logging".to_string(),
+                serde_yaml::to_value("${nr-env:ENABLE_FILE_LOGGING}").unwrap(),
+            ),
+        ]);
 
-        let secrets = HashMap::from([(
-            Namespace::EnvironmentVariable.namespaced_name("REGISTRY_URL"),
-            Variable::new_final_string_variable("random-registry-url".to_string()),
-        )]);
+        let secrets = HashMap::from([
+            (
+                Namespace::EnvironmentVariable.namespaced_name("REGISTRY_URL"),
+                Variable::new_final_string_variable("test-registry-url".to_string()),
+            ),
+            (
+                Namespace::EnvironmentVariable.namespaced_name("ENABLE_FILE_LOGGING"),
+                Variable::new_final_bool_variable(true),
+            ),
+        ]);
 
         let renderer =
             TemplateRenderer::default().with_agent_control_variables(HashMap::new().into_iter());
@@ -779,13 +820,17 @@ deployment:
             )
             .unwrap();
         assert_eq!(
-            rendered::Args(vec!("random-registry-url".to_string())),
-            extract_runtime_by_environment(runtime_config)
+            rendered::Args(vec!("test-registry-url/test-repository".to_string())),
+            extract_runtime_by_environment(runtime_config.clone())
                 .executables
                 .first()
                 .unwrap()
                 .args
                 .clone()
+        );
+        assert_eq!(
+            true,
+            extract_runtime_by_environment(runtime_config.clone()).enable_file_logging
         );
     }
 

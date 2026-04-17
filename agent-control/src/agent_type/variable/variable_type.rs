@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::agent_type::{
     error::AgentTypeError,
-    templates::Templateable,
     trivial_value::TrivialValue,
     variable::{
         constraints::VariableConstraints,
@@ -120,6 +119,8 @@ impl VariableType {
         &mut self,
         global_defaults_vars: &HashMap<String, super::Variable>,
     ) -> Result<(), AgentTypeError> {
+        use crate::agent_type::templates::Templateable;
+
         match self {
             VariableType::String(f) => {
                 if let Some(default) = &f.inner.default {
@@ -128,7 +129,58 @@ impl VariableType {
                     f.inner.default = Some(templated);
                 }
             }
-            _ => {}
+            VariableType::Bool(f) => {
+                // For bool types with template defaults, extract and inject the value directly
+                if let Some(template) = &f.default_template {
+                    let resolved = template.clone().template_with(global_defaults_vars)?;
+                    // Parse the resolved string as bool
+                    f.default = Some(resolved.parse().map_err(|_| {
+                        AgentTypeError::Parse(format!(
+                            "Cannot parse '{}' as bool from template '{}'",
+                            resolved, template
+                        ))
+                    })?);
+                }
+            }
+            VariableType::Number(f) => {
+                // For number types with template defaults, extract and inject the value directly
+                if let Some(template) = &f.default_template {
+                    let resolved = template.clone().template_with(global_defaults_vars)?;
+                    // Parse the resolved string as number
+                    f.default = Some(serde_yaml::from_str(&resolved).map_err(|e| {
+                        AgentTypeError::Parse(format!(
+                            "Cannot parse '{}' as number from template '{}': {}",
+                            resolved, template, e
+                        ))
+                    })?);
+                }
+            }
+            VariableType::MapStringYaml(f) => {
+                // For map types with template defaults, extract and inject the value directly
+                if let Some(template) = &f.default_template {
+                    let resolved = template.clone().template_with(global_defaults_vars)?;
+                    // Parse the resolved string as map
+                    f.default = Some(serde_yaml::from_str(&resolved).map_err(|e| {
+                        AgentTypeError::Parse(format!(
+                            "Cannot parse '{}' as map from template '{}': {}",
+                            resolved, template, e
+                        ))
+                    })?);
+                }
+            }
+            VariableType::Yaml(f) => {
+                // For yaml types with template defaults, extract and inject the value directly
+                if let Some(template) = &f.default_template {
+                    let resolved = template.clone().template_with(global_defaults_vars)?;
+                    // Parse the resolved string as yaml
+                    f.default = Some(serde_yaml::from_str(&resolved).map_err(|e| {
+                        AgentTypeError::Parse(format!(
+                            "Cannot parse '{}' as yaml from template '{}': {}",
+                            resolved, template, e
+                        ))
+                    })?);
+                }
+            }
         }
         Ok(())
     }
