@@ -165,11 +165,12 @@ jobs:
           FLEET_ID: ${{ inputs.fleet_id || 'MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTliZTAzZC03MDYwLTcxMDctOTUwYS04YTFiODc3YjJiN2Q' }}
         run: |
           echo "🧪 Running Fleet Control E2E test for cluster: ${CLUSTER_NAME}"
-          ${{ github.workspace }}/target/debug/e2e-runner fleet-control-api \
+          ${{ github.workspace }}/target/debug/e2e-runner \
+            --log-level debug \
+            fleet-control-api \
             --fleet-id "${FLEET_ID}" \
             --fleet-control-token "${{ steps.get-token.outputs.token }}" \
             --fleet-type "k8s-fleet"
-            --log-level debug
 
       - name: Collect logs on failure
         if: failure()
