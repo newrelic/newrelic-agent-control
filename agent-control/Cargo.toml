@@ -55,7 +55,7 @@ k8s-openapi = { version = "0.27.1", features = ["v1_31"] }
 either = { version = "1.15.0" }
 
 crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
-tracing-appender = "0.2.4"
+tracing-appender = "0.2.5"
 cfg-if = "1.0.4"
 # HOST_ID and HOST_NAME attributes are experimental fields and after 0.26.0 are not included by default.
 # Check <https://github.com/open-telemetry/opentelemetry-rust/pull/2098> for details.
