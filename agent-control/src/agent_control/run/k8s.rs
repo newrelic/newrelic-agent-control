@@ -23,8 +23,8 @@ use crate::agent_type::version_config::{
 };
 use crate::checkers::version::k8s::checkers::spawn_version_checker;
 use crate::checkers::version::k8s::helmrelease::HelmReleaseVersionChecker;
-use crate::event::AgentControlInternalEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
+use crate::event::{AgentControlEvent, AgentControlInternalEvent};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::client_builder::BuildOpAMPClient;
@@ -111,20 +111,26 @@ impl AgentControlRunner {
             )
         });
 
+        let agent_identity = AgentIdentity::new_agent_control_identity();
+        let opamp_start_settings = build_ac_opamp_start_settings(
+            &instance_id_getter,
+            &agent_identity,
+            &k8s_config,
+            &identifiers,
+        )?;
+
+        self.agent_control_publisher
+            .broadcast(AgentControlEvent::AgentDescriptionUpdated(
+                opamp_start_settings.agent_description.clone(),
+            ));
+
         // Build and start AC OpAMP client
         let (maybe_client, maybe_opamp_consumer) = opamp_client_builder
             .as_ref()
             .map(|builder| -> Result<_, RunError> {
                 info!("Starting Agent Control OpAMP client");
-                let agent_identity = AgentIdentity::new_agent_control_identity();
-                let settings = build_ac_opamp_start_settings(
-                    &instance_id_getter,
-                    &agent_identity,
-                    &k8s_config,
-                    &identifiers,
-                )?;
                 builder
-                    .build_and_start(agent_identity, settings)
+                    .build_and_start(agent_identity, opamp_start_settings)
                     .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function

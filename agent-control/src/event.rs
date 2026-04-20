@@ -8,6 +8,8 @@ pub mod broadcaster;
 pub mod cancellation;
 pub mod channel;
 
+use opamp_client::operation::settings::AgentDescription;
+
 use crate::checkers::health::with_start_time::HealthWithStartTime;
 use crate::opamp::attributes::UpdateAttributesMessage;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
@@ -35,6 +37,7 @@ pub enum AgentControlEvent {
     HealthUpdated(HealthWithStartTime),
     SubAgentRemoved(AgentID),
     AgentControlStopped,
+    AgentDescriptionUpdated(AgentDescription),
     OpAMPConnected,
     OpAMPConnectFailed(Option<LastErrorCode>, LastErrorMessage),
 }

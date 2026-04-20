@@ -16,8 +16,8 @@ use crate::agent_control::version_updater::updater::NoOpUpdater;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::checkers::health::noop::NoOpHealthChecker;
-use crate::event::OpAMPEvent;
 use crate::event::channel::{EventConsumer, pub_sub};
+use crate::event::{AgentControlEvent, OpAMPEvent};
 use crate::http::config::ProxyConfig;
 use crate::oci;
 use crate::on_host::file_store::FileStore;
@@ -118,19 +118,23 @@ impl AgentControlRunner {
             )
         });
 
+        let agent_identity = AgentIdentity::new_agent_control_identity();
+        let opamp_start_settings = build_ac_opamp_start_settings(
+            &instance_id_getter,
+            &agent_identity,
+            &identifiers,
+            RunningMode::Normal,
+        )?;
+
+        self.agent_control_publisher
+            .broadcast(AgentControlEvent::AgentDescriptionUpdated(
+                opamp_start_settings.agent_description.clone(),
+            ));
+
         // Build and start AC OpAMP client
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
             .as_ref()
-            .map(|builder| {
-                let agent_identity = AgentIdentity::new_agent_control_identity();
-                let settings = build_ac_opamp_start_settings(
-                    &instance_id_getter,
-                    &agent_identity,
-                    &identifiers,
-                    RunningMode::Normal,
-                )?;
-                start_ac_opamp_client(builder, agent_identity, settings)
-            })
+            .map(|builder| start_ac_opamp_client(builder, agent_identity, opamp_start_settings))
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()?
             .map(|(client, consumer)| (Some(client), Some(consumer)))

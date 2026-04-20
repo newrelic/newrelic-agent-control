@@ -371,6 +371,7 @@ pub mod tests {
                 ),
             ]),
         );
+
         if opamp_builder_fails {
             opamp_builder
                 .expect_build_and_start()
