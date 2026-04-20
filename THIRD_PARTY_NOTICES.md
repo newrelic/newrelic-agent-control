@@ -390,6 +390,13 @@ Distributed under the following license(s):
 
 * MIT
 
+## chacha20 <https://crates.io/crates/chacha20>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## chrono <https://crates.io/crates/chrono>
 
 Distributed under the following license(s):
@@ -476,6 +483,13 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 
+* MIT
+
+## const-oid <https://crates.io/crates/const-oid>
+
+Distributed under the following license(s):
+
+* Apache-2.0
 * MIT
 
 ## const-random <https://crates.io/crates/const-random>
@@ -1094,6 +1108,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## humantime <https://crates.io/crates/humantime>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## hybrid-array <https://crates.io/crates/hybrid-array>
 
 Distributed under the following license(s):
 
@@ -2403,6 +2424,13 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * BSD-3-Clause
+
+## symlink <https://crates.io/crates/symlink>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
 
 ## syn <https://crates.io/crates/syn>
 
