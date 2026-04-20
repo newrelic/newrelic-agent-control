@@ -12,7 +12,7 @@ use std::time::SystemTime;
 use url::Url;
 
 /// Dynamic fields describing the agent; includes attributes like agent_version, instance_uid, ...
-pub(super) type AgentDescription = serde_json::Map<String, serde_json::Value>;
+pub(super) type AgentAttributes = HashMap<String, String>;
 
 /// Agent Control status and health information.
 /// This information will be shown when the status endpoint is called.
@@ -34,8 +34,8 @@ pub struct AgentControlStatus {
     last_error: Option<String>,
     #[serde(skip_serializing_if = "String::is_empty")]
     status: String,
-    #[serde(skip_serializing_if = "AgentDescription::is_empty")]
-    pub(super) description: AgentDescription,
+    #[serde(skip_serializing_if = "AgentAttributes::is_empty")]
+    pub(super) attributes: AgentAttributes,
 }
 
 impl AgentControlStatus {
@@ -139,7 +139,7 @@ impl OpAMPStatus {
 /// - `agent_type`: The type of the Sub Agent, represented as a fully qualified name (FQN).
 /// - `agent_start_time_unix_nano`: A `u64` representing the start time of the Sub Agent in nanoseconds since the Unix epoch.
 /// - `health_info`: A `HealthInfo` struct containing the health-related information of the Sub Agent.
-/// - `description`: A map of dynamic agent attributes such as version, instance_uid, ...
+/// - `attributes`: A map of dynamic agent attributes such as version, instance_uid, ...
 #[derive(Debug, Serialize, PartialEq, Clone)]
 pub(super) struct SubAgentStatus {
     agent_id: AgentID,
@@ -148,8 +148,8 @@ pub(super) struct SubAgentStatus {
     agent_start_time_unix_nano: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     health_info: Option<HealthInfo>,
-    #[serde(skip_serializing_if = "AgentDescription::is_empty")]
-    pub(super) description: AgentDescription,
+    #[serde(skip_serializing_if = "AgentAttributes::is_empty")]
+    pub(super) attributes: AgentAttributes,
 }
 
 /// Health-related information of a Sub Agent.
@@ -191,7 +191,7 @@ impl SubAgentStatus {
             agent_type: agent_identity.agent_type_id,
             agent_start_time_unix_nano: 0,
             health_info: None,
-            description: Default::default(),
+            attributes: Default::default(),
         }
     }
 
@@ -250,7 +250,7 @@ pub mod tests {
     use crate::agent_control::agent_id::AgentID;
 
     use crate::agent_control::http_server::status::{
-        AgentControlStatus, AgentDescription, HealthInfo, OpAMPStatus, Status, SubAgentStatus,
+        AgentAttributes, AgentControlStatus, HealthInfo, OpAMPStatus, Status, SubAgentStatus,
         SubAgentsStatus,
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
@@ -271,7 +271,7 @@ pub mod tests {
                 healthy: true,
                 last_error: None,
                 status,
-                description: Default::default(),
+                attributes: Default::default(),
             }
         }
         pub fn new_unhealthy(status: String, last_error: String) -> Self {
@@ -279,7 +279,7 @@ pub mod tests {
                 healthy: false,
                 last_error: Some(last_error),
                 status,
-                description: Default::default(),
+                attributes: Default::default(),
             }
         }
     }
@@ -296,7 +296,7 @@ pub mod tests {
                 agent_type,
                 agent_start_time_unix_nano,
                 health_info: Some(health_info),
-                description: Default::default(),
+                attributes: Default::default(),
             }
         }
 
@@ -371,7 +371,7 @@ pub mod tests {
                 healthy: true,
                 last_error: None,
                 status: "".to_string(),
-                description: Default::default(),
+                attributes: Default::default(),
             },
             fleet: OpAMPStatus {
                 enabled: true,
@@ -388,7 +388,7 @@ pub mod tests {
                         agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
                         agent_start_time_unix_nano: 0,
                         health_info: None,
-                        description: Default::default(),
+                        attributes: Default::default(),
                     },
                 ),
                 (
@@ -404,7 +404,7 @@ pub mod tests {
                             start_time_unix_nano: 0,
                             status_time_unix_nano: 0,
                         }),
-                        description: Default::default(),
+                        attributes: Default::default(),
                     },
                 ),
                 (
@@ -420,7 +420,7 @@ pub mod tests {
                             start_time_unix_nano: 0,
                             status_time_unix_nano: 0,
                         }),
-                        description: Default::default(),
+                        attributes: Default::default(),
                     },
                 ),
             ]),
@@ -468,47 +468,31 @@ pub mod tests {
     }
 
     #[test]
-    fn test_description_omitted_when_empty() {
+    fn test_attributes_omitted_when_empty() {
         let status = AgentControlStatus::default();
         let value = serde_json::to_value(&status).unwrap();
         assert!(!value.as_object().unwrap().contains_key("description"));
     }
 
     #[test]
-    fn test_description_serialized_when_populated() {
-        let mut description = AgentDescription::new();
-        description.insert("version".to_string(), json!("1.2.3"));
-        description.insert(
+    fn test_attributes_serialized_when_populated() {
+        let mut attributes = AgentAttributes::new();
+        attributes.insert("version".to_string(), "1.2.3".to_string());
+        attributes.insert(
             "instance_uid".to_string(),
-            json!("550e8400-e29b-41d4-a716-446655440000"),
+            "550e8400-e29b-41d4-a716-446655440000".to_string(),
         );
         let status = AgentControlStatus {
-            description,
+            attributes,
             ..Default::default()
         };
         let value = serde_json::to_value(&status).unwrap();
         assert_eq!(
-            value["description"],
+            value["attributes"],
             json!({
                 "version": "1.2.3",
                 "instance_uid": "550e8400-e29b-41d4-a716-446655440000"
             })
         );
-    }
-
-    #[test]
-    fn test_description_supports_mixed_value_types() {
-        let mut description = AgentDescription::new();
-        description.insert("version".to_string(), json!("1.0.0"));
-        description.insert("port".to_string(), json!(51200));
-        description.insert("k8s_mode".to_string(), json!(true));
-        let status = AgentControlStatus {
-            description,
-            ..Default::default()
-        };
-        let value = serde_json::to_value(&status).unwrap();
-        assert_eq!(value["description"]["version"], json!("1.0.0"));
-        assert_eq!(value["description"]["port"], json!(51200));
-        assert_eq!(value["description"]["k8s_mode"], json!(true));
     }
 }
