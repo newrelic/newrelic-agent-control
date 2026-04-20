@@ -2,42 +2,61 @@ use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::http_port::available_port;
 use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
-use crate::on_host::tools::config::create_agent_control_config_with_status_server;
+use crate::common::runtime::block_on;
+use crate::k8s::tools::agent_control::{
+    DUMMY_PRIVATE_KEY, K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET, TEST_CLUSTER_NAME,
+    create_k8s_agent_control_config_with_status_server,
+};
+use crate::k8s::tools::k8s_api::create_values_secret;
+use crate::k8s::tools::k8s_env::K8sEnv;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
+    AGENT_CONTROL_VERSION, CLUSTER_NAME_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
 };
-use newrelic_agent_control::agent_control::run::BasePaths;
-use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use serde_json::json;
 use std::time::Duration;
 use tempfile::tempdir;
 
-/// The /status endpoint should return the expected response shape:
+/// The /status endpoint should return the expected response shape in k8s mode:
 /// - fleet fields reflect the configured OpAMP connection
 /// - agents is empty when no sub-agents are configured
-/// - agent_control.attributes contains the agent description derived from OpAMP start settings
+/// - agent_control.attributes contains the agent description derived from OpAMP start settings,
+///   including k8s-specific attributes like cluster.name
 #[test]
-fn test_http_status_endpoint_response() {
+#[ignore = "needs a k8s cluster"]
+fn test_k8s_http_status_endpoint_response() {
     let opamp_server = FakeServer::start_new();
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let mut k8s = block_on(K8sEnv::new());
+    let namespace = block_on(k8s.test_namespace());
+    let tmp_dir = tempdir().expect("failed to create local temp dir");
 
     let status_server_port = available_port();
-    create_agent_control_config_with_status_server(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        "{}".to_string(),
-        local_dir.path().to_path_buf(),
+    create_k8s_agent_control_config_with_status_server(
+        k8s.client.clone(),
+        &namespace,
+        &opamp_server.endpoint(),
+        &opamp_server.jwks_endpoint(),
         status_server_port,
+        tmp_dir.path(),
     );
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
-    let _ac = start_agent_control_with_custom_config(base_paths, AGENT_CONTROL_MODE_ON_HOST);
+    create_values_secret(
+        k8s.client.clone(),
+        &namespace,
+        K8S_PRIVATE_KEY_SECRET,
+        K8S_KEY_SECRET,
+        DUMMY_PRIVATE_KEY.to_string(),
+    );
+
+    let _ac = start_agent_control_with_custom_config(
+        BasePaths {
+            local_dir: tmp_dir.path().to_path_buf(),
+            remote_dir: tmp_dir.path().join("remote"),
+            log_dir: tmp_dir.path().join("log"),
+        },
+        Environment::K8s,
+    );
 
     retry(30, Duration::from_secs(1), || {
         let body: serde_json::Value =
@@ -56,7 +75,7 @@ fn test_http_status_endpoint_response() {
             return Err(format!("expected empty agents, got: {}", body["agents"]).into());
         }
 
-        // agent_control.attributes is populated
+        // agent_control.attributes is populated by the AgentDescriptionUpdated event
         let attrs = body["agent_control"]["attributes"]
             .as_object()
             .ok_or("agent_control.attributes not present or not an object")?;
@@ -72,13 +91,13 @@ fn test_http_status_endpoint_response() {
             .into());
         }
 
-        let got_host_id = attrs
-            .get(HOST_ID_ATTRIBUTE_KEY)
+        let got_cluster = attrs
+            .get(CLUSTER_NAME_ATTRIBUTE_KEY)
             .and_then(|v| v.as_str())
-            .ok_or(format!("{HOST_ID_ATTRIBUTE_KEY} missing"))?;
-        if got_host_id != "integration-test" {
+            .ok_or(format!("{CLUSTER_NAME_ATTRIBUTE_KEY} missing"))?;
+        if got_cluster != TEST_CLUSTER_NAME {
             return Err(format!(
-                "expected {HOST_ID_ATTRIBUTE_KEY}=integration-test, got {got_host_id}"
+                "expected {CLUSTER_NAME_ATTRIBUTE_KEY}={TEST_CLUSTER_NAME}, got {got_cluster}"
             )
             .into());
         }

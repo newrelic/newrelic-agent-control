@@ -76,7 +76,7 @@ async fn update_agent_control_status(
             status.fleet.unreachable(error_code, error_message);
         }
         AgentControlEvent::AgentDescriptionUpdated(agent_description) => {
-            trace!("Updating Agent Control attributes for HTTPServer");
+            trace!("Updating Agent Control attributes for HTTP-Server");
             status.agent_control.attributes = build_agent_attributes(agent_description)
         }
     }
