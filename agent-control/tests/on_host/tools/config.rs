@@ -31,6 +31,38 @@ pub fn create_agent_control_config(
     );
 }
 
+/// Extends [create_agent_control_config] enabling the HTTP status server on the given port.
+pub fn create_agent_control_config_with_status_server(
+    opamp_server_endpoint: String,
+    jwks_endpoint: String,
+    agents: String,
+    local_dir: PathBuf,
+    status_server_port: u16,
+) {
+    let agent_control_config = format!(
+        r#"
+host_id: integration-test
+fleet_control:
+  endpoint: {}
+  poll_interval: 5s
+  signature_validation:
+    public_key_server_url: {}
+agents: {}
+server:
+  enabled: true
+  port: {}
+"#,
+        opamp_server_endpoint, jwks_endpoint, agents, status_server_port,
+    );
+    create_file(
+        agent_control_config,
+        local_dir
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID)
+            .join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)),
+    );
+}
+
 /// Extends [create_agent_control_config] with a proxy configuration parameter.
 pub fn create_agent_control_config_with_proxy(
     opamp_server_endpoint: String,
