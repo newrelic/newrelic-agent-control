@@ -100,7 +100,26 @@ Specifies if providing a value for this variable is required or not. If `require
 
 ##### `default` (optional)
 
-A default value for this variable, for the cases where no configuration value has been passed for this variable when creating an instance for the agent type. Its value must be of the same type as the one declared for the variable.
+A default value for this variable, for the cases where no configuration value has been passed for this variable when creating an instance for the agent type. Its value must be of the same type as the one declared for the variable or a templatable string using `nr-default`.
+
+Example:
+
+```yaml
+default: "${nr-default:oci.registry}"
+```
+
+This values come from the `global_defaults` field in the `AgentControlConfig`. They can be accessed by concatenating the nested keys from `global_defaults` to the key of the final value to access. In other words, to access the username in
+
+```yaml
+global_defaults:
+  oci:
+    auth:
+      basic:
+        username: user
+        password: pass
+```
+
+we have to use `${nr-default:oci.auth.basic.username}`.
 
 In the case of the `yaml` variable type, is recommended to explicitly set a 'null' default value as `default: null`.
 
