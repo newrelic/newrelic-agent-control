@@ -2404,6 +2404,13 @@ Distributed under the following license(s):
 
 * BSD-3-Clause
 
+## symlink <https://crates.io/crates/symlink>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## syn <https://crates.io/crates/syn>
 
 Distributed under the following license(s):
