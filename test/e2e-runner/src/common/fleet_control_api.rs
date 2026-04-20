@@ -26,6 +26,23 @@ struct TriggerTestResponse {
     test_run_id: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SuccessfulTestResponse {
+    test_run_id: String,
+    test_run_timestamp: f64,
+    triggered_test_count: usize,
+    debug_run: bool,
+    passed_count: usize,
+    failed_count: usize,
+    inconclusive_count: usize,
+    ignored_count: usize,
+    passed_tests: Value,
+    failed_tests: Value,
+    inconclusive_tests: Value,
+    ignored_tests: Value,
+}
+
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 
 const STATUS_INITIAL_WAIT: Duration = Duration::from_secs(300); // 5 minutes
@@ -33,6 +50,7 @@ const STATUS_POLL_INTERVAL: Duration = Duration::from_secs(30);
 const STATUS_TIMEOUT: Duration = Duration::from_secs(600); // 10 minutes
 const FLEET_CONTROL_TEST_CONTROLLER_ENDPOINT: &str =
     "https://fleet-management-e2e-test-runner.staging-service.newrelic.com";
+const FLEET_CONTROL_TEST_SUITE: &str = "DeploymentServicesTestSuite"; // TODO parameterize at CLI
 
 /// Runs Fleet Control API interaction (trigger tests and poll for completion).
 ///
@@ -46,6 +64,7 @@ pub fn run_fleet_control_api(args: FleetControlApiArgs) {
         &args.fleet_id,
         &args.fleet_control_token,
         &args.fleet_type,
+        FLEET_CONTROL_TEST_SUITE,
     );
 }
 
@@ -58,6 +77,7 @@ pub fn trigger_and_wait_for_fleet_control_tests(
     fleet_id: &str,
     fleet_control_token: &str,
     fleet_type: &str,
+    test_suite: &str,
 ) {
     info!("Triggering Fleet Control tests");
     info!("Fleet ID: {fleet_id}");
@@ -74,6 +94,7 @@ pub fn trigger_and_wait_for_fleet_control_tests(
                 fleet_control_token,
                 fleet_id,
                 fleet_type,
+                test_suite,
             )
         },
     );
@@ -88,6 +109,7 @@ pub fn trigger_and_wait_for_fleet_control_tests(
                 FLEET_CONTROL_TEST_CONTROLLER_ENDPOINT,
                 fleet_control_token,
                 &test_run_id,
+                test_suite,
             )
         },
     );
@@ -101,6 +123,7 @@ fn trigger_fleet_control_tests(
     token: &str,
     fleet_id: &str,
     fleet_type: &str,
+    test_suite: &str,
 ) -> TestResult<String> {
     let client = Client::builder().timeout(CLIENT_TIMEOUT).build()?;
     let url = Url::parse(base_url)?
@@ -111,7 +134,7 @@ fn trigger_fleet_control_tests(
         include_test_tags: vec!["FLEET_DEPLOYMENT".to_string()],
         test_threads: 1,
         user_defined_args: serde_json::json!({
-            "DeploymentServicesTestSuite": {
+            test_suite: {
                 fleet_type: fleet_id
             }
         }),
@@ -144,6 +167,7 @@ fn wait_for_fleet_control_completion(
     base_url: &str,
     token: &str,
     test_run_id: &str,
+    test_suite: &str,
 ) -> TestResult<()> {
     let client = Client::builder().timeout(CLIENT_TIMEOUT).build()?;
 
@@ -184,9 +208,10 @@ fn wait_for_fleet_control_completion(
                 std::thread::sleep(STATUS_POLL_INTERVAL);
             }
             200 => {
-                let response = serde_json::to_string_pretty(&response.json::<Value>()?)?;
+                let response = response.json::<SuccessfulTestResponse>()?; // TODO extract report from test_suite param
+                let response_str = serde_json::to_string_pretty(&response)?;
                 info!("✅ [{elapsed_secs} s] Tests completed successfully (200)!");
-                info!("Response: {response}");
+                info!("Response: {response_str}");
                 break Ok(());
             }
             450 => {
