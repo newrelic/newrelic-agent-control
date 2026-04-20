@@ -103,7 +103,9 @@ fn trigger_fleet_control_tests(
     fleet_type: &str,
 ) -> TestResult<String> {
     let client = Client::builder().timeout(CLIENT_TIMEOUT).build()?;
-    let url = format!("{}/test-runner/trigger-suites", base_url);
+    let url = Url::parse(base_url)?
+        .join("test-runner/")?
+        .join("trigger-suites")?;
 
     let request_body = TriggerTestRequest {
         include_test_tags: vec!["FLEET_DEPLOYMENT".to_string()],
@@ -119,7 +121,7 @@ fn trigger_fleet_control_tests(
 
     debug!(payload = ?request_body, "Sending request");
     let response = client
-        .post(&url)
+        .post(url.as_ref())
         .bearer_auth(token)
         .json(&request_body)
         .send()?;
@@ -146,8 +148,11 @@ fn wait_for_fleet_control_completion(
     let client = Client::builder().timeout(CLIENT_TIMEOUT).build()?;
 
     let url = Url::parse(base_url)?
-        .join("test-runner/status")?
+        .join("test-runner/")?
+        .join("status/")?
         .join(test_run_id)?;
+
+    debug!("Status check URL for this test: {url}");
 
     info!("Waiting for {STATUS_INITIAL_WAIT:?} before checking status...");
     std::thread::sleep(STATUS_INITIAL_WAIT);
