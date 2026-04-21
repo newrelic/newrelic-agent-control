@@ -9,12 +9,12 @@ use crate::event::channel::{EventConsumer, EventPublisher};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::{get_namespace, get_type_meta};
-use crate::opamp::attributes::{
-    Attribute, AttributeType, UpdateAttributesMessage, publish_update_attributes_event,
-};
+use crate::opamp::attributes::{UpdateAttributesMessage, publish_update_attributes_event};
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use kube::api::{DynamicObject, TypeMeta};
+use opamp_client::operation::settings::{AgentDescription, DescriptionValueType};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread::sleep;
 use tracing::{debug, info, info_span, warn};
@@ -145,11 +145,13 @@ where
 
                 publish_update_attributes_event(
                     &version_event_publisher,
-                    version_event_generator(vec![Attribute::from((
-                        AttributeType::Identifying,
-                        agent_data.opamp_field,
-                        agent_data.version,
-                    ))]),
+                    version_event_generator(AgentDescription {
+                        identifying_attributes: HashMap::from([(
+                            agent_data.opamp_field,
+                            agent_data.version.into(),
+                        )]),
+                        ..Default::default()
+                    }),
                 );
             }
             Err(error) => {
@@ -356,11 +358,13 @@ mod tests {
 
         // Check that we received the expected version event
         assert_eq!(
-            SubAgentInternalEvent::AgentAttributesUpdated(vec![Attribute::from((
-                AttributeType::Identifying,
-                OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
-                "1.0.0".to_string(),
-            ))],),
+            SubAgentInternalEvent::AgentAttributesUpdated(AgentDescription {
+                identifying_attributes: HashMap::from([(
+                    OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                    DescriptionValueType::String("1.0.0".to_string()),
+                )]),
+                ..Default::default()
+            }),
             version_consumer.as_ref().recv().unwrap()
         );
 

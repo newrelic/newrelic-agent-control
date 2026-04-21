@@ -261,7 +261,7 @@ where
             // The below argument expects a function "UpdateAttributesMessage -> T"
             // where T is the "event" sendable by the above publisher.
             // Using an enum variant that wraps a type is the same as a function taking the type.
-            // Basically, it's the same as passing "|x| SubAgentInternalEvent::UpdateAttributesMessage(x)"
+            // Basically, it's the same as passing "|x| SubAgentInternalEvent::AgentAttributesUpdated(x)"
             SubAgentInternalEvent::AgentAttributesUpdated,
         )
     }

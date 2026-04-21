@@ -2,10 +2,10 @@ use std::process::Command;
 
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 use crate::agent_type::runtime_config::on_host::executable::rendered::Args;
-use crate::opamp::attributes::{
-    Attribute, AttributeType, UpdateAttributesMessage, publish_update_attributes_event,
-};
+use crate::opamp::attributes::{UpdateAttributesMessage, publish_update_attributes_event};
+use opamp_client::operation::settings::{AgentDescription, DescriptionValueType};
 use regex::Regex;
+use std::collections::HashMap;
 
 use crate::checkers::version::{AgentVersion, VersionCheckError, VersionChecker};
 use crate::event::channel::EventPublisher;
@@ -67,11 +67,13 @@ pub(crate) fn check_version<V, T, F>(
 
             publish_update_attributes_event(
                 &version_event_publisher,
-                version_event_generator(vec![Attribute::from((
-                    AttributeType::Identifying,
-                    agent_data.opamp_field,
-                    agent_data.version,
-                ))]),
+                version_event_generator(AgentDescription {
+                    identifying_attributes: HashMap::from([(
+                        agent_data.opamp_field,
+                        agent_data.version.into(),
+                    )]),
+                    ..Default::default()
+                }),
             );
         }
         Err(error) => {
@@ -154,11 +156,13 @@ mod tests {
 
         // Check that we received the expected version event
         assert_eq!(
-            SubAgentInternalEvent::AgentAttributesUpdated(vec![Attribute::from((
-                AttributeType::Identifying,
-                OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
-                "1.0.0".to_string(),
-            ))],),
+            SubAgentInternalEvent::AgentAttributesUpdated(AgentDescription {
+                identifying_attributes: HashMap::from([(
+                    OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                    DescriptionValueType::String("1.0.0".to_string()),
+                )]),
+                ..Default::default()
+            }),
             version_consumer.as_ref().recv().unwrap()
         );
 

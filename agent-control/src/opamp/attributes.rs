@@ -1,74 +1,21 @@
 use std::fmt::Debug;
 
-use opamp_client::opamp::proto::any_value::Value;
-use opamp_client::opamp::proto::{AgentDescription, AnyValue, KeyValue};
+use opamp_client::opamp::proto::{AgentDescription as ProtoAgentDescription, KeyValue};
+use opamp_client::operation::settings::AgentDescription;
 use opamp_client::{ClientError, StartedClient};
 use tracing::error;
 
 use crate::event::channel::EventPublisher;
 
 /// Event message type for updating OpAMP agent attributes
-pub type UpdateAttributesMessage = Vec<Attribute>;
-
-/// Represents the type of an [AgentDescription message in OpAMP](https://opentelemetry.io/docs/specs/opamp/#agentdescription-message)
-#[derive(Debug, Clone, PartialEq)]
-pub enum AttributeType {
-    Identifying,
-    NonIdentifying,
-}
-
-/// Represents an agent attribute
-///
-/// Simple wrapper for [`KeyValue`] and it's type, that simplifies the creation
-/// of agent attributes.
-///
-/// ## Example:
-/// ```
-/// # use newrelic_agent_control::opamp::attributes::{Attribute, AttributeType};
-/// let attr = Attribute::from((AttributeType::Identifying, "key", "value"));
-/// ```
-/// instead of (assume we don't care about the type for this example):
-/// ```
-/// # use opamp_client::opamp::proto::any_value::Value;
-/// # use opamp_client::opamp::proto::{AnyValue, KeyValue};
-/// let attr = KeyValue {
-///     key: "key".into(),
-///     value: Some(AnyValue {
-///         value: Some(Value::StringValue("value".into())),
-///     }),
-/// };
-/// ```
-#[derive(Debug, Clone, PartialEq)]
-pub struct Attribute {
-    attribute_type: AttributeType,
-    key_value: KeyValue,
-}
-
-impl<K, V> From<(AttributeType, K, V)> for Attribute
-where
-    K: AsRef<str>,
-    V: AsRef<str>,
-{
-    fn from((attribute_type, key, value): (AttributeType, K, V)) -> Self {
-        Attribute {
-            attribute_type,
-            key_value: KeyValue {
-                key: String::from(key.as_ref()),
-                value: Some(AnyValue {
-                    value: Some(Value::StringValue(String::from(value.as_ref()))),
-                }),
-            },
-        }
-    }
-}
+pub type UpdateAttributesMessage = AgentDescription;
 
 /// Updates the attributes of the OpAMP agent
 ///
 /// If an attribute already exists, it will be updated. If it doesn't, it will be added.
-/// If the `new_attributes` contain duplicated keys, the last occurrence will be kept.
 pub fn update_opamp_attributes<C>(
     opamp_client: &C,
-    new_attributes: Vec<Attribute>,
+    new_attributes: AgentDescription,
 ) -> Result<(), ClientError>
 where
     C: StartedClient,
@@ -81,33 +28,25 @@ where
 }
 
 fn update_agent_description_attributes(
-    old_agent_description: AgentDescription,
-    new_attributes: Vec<Attribute>,
-) -> AgentDescription {
-    let (new_identifying_attributes, new_non_identifying_attributes): (Vec<_>, Vec<_>) =
-        new_attributes
-            .into_iter()
-            .partition(|attribute| attribute.attribute_type == AttributeType::Identifying);
-
+    old_agent_description: ProtoAgentDescription,
+    new_attributes: AgentDescription,
+) -> ProtoAgentDescription {
+    let new_proto: ProtoAgentDescription = new_attributes.into();
     let mut agent_description = old_agent_description;
-    let key_value_iter = |attrs: Vec<Attribute>| attrs.into_iter().map(|attr| attr.key_value);
     agent_description.identifying_attributes = merge_attributes(
         agent_description.identifying_attributes,
-        key_value_iter(new_identifying_attributes),
+        new_proto.identifying_attributes.into_iter(),
     );
-
     agent_description.non_identifying_attributes = merge_attributes(
         agent_description.non_identifying_attributes,
-        key_value_iter(new_non_identifying_attributes),
+        new_proto.non_identifying_attributes.into_iter(),
     );
-
     agent_description
 }
 
 /// Merges new attributes into old attributes
 ///
 /// If an attribute already exists, it will be updated. If it doesn't, it will be added.
-/// If the `new_attributes` contain duplicated keys, the last occurrence will be kept.
 fn merge_attributes(
     old_attributes: Vec<KeyValue>,
     new_attributes: impl Iterator<Item = KeyValue>,
@@ -140,6 +79,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use opamp_client::opamp::proto::any_value::Value;
+    use opamp_client::opamp::proto::{AnyValue, KeyValue};
+    use opamp_client::operation::settings::DescriptionValueType;
+    use std::collections::HashMap;
 
     fn new_key_value(key: &str, value: &str) -> KeyValue {
         KeyValue {
@@ -152,8 +95,7 @@ mod tests {
 
     #[test]
     fn test_update_agent_attributes() {
-        // Create base agent description
-        let agent_description = AgentDescription {
+        let agent_description = ProtoAgentDescription {
             identifying_attributes: vec![
                 new_key_value("identifying1", "value1"),
                 new_key_value("identifying3", "value3"),
@@ -162,46 +104,50 @@ mod tests {
             non_identifying_attributes: vec![new_key_value("non_identifying1", "value1")],
         };
 
-        // Check identifying attributes are correctly updated
-        // Here we check behaviour like order and duplicates
         let updated_description = update_agent_description_attributes(
             agent_description.clone(),
-            vec![
-                Attribute::from((AttributeType::Identifying, "identifying2", "new_value2")),
-                Attribute::from((AttributeType::Identifying, "identifying3", "new_value3")),
-                Attribute::from((
-                    AttributeType::NonIdentifying,
-                    "non_identifying2",
-                    "new_value2",
-                )),
-                Attribute::from((AttributeType::Identifying, "identifying4", "new_value4")),
-                Attribute::from((
-                    AttributeType::Identifying,
-                    "identifying4",
-                    "duplicated_value4",
-                )),
-            ],
+            AgentDescription {
+                identifying_attributes: HashMap::from([
+                    (
+                        "identifying2".to_string(),
+                        DescriptionValueType::String("new_value2".to_string()),
+                    ),
+                    (
+                        "identifying3".to_string(),
+                        DescriptionValueType::String("new_value3".to_string()),
+                    ),
+                    (
+                        "identifying4".to_string(),
+                        DescriptionValueType::String("new_value4".to_string()),
+                    ),
+                ]),
+                non_identifying_attributes: HashMap::from([(
+                    "non_identifying2".to_string(),
+                    DescriptionValueType::String("new_value2".to_string()),
+                )]),
+            },
         );
 
-        let expected_identifying_attributes = vec![
+        // Sort both sides before comparing since HashMap iteration order is non-deterministic.
+        let mut actual_identifying = updated_description.identifying_attributes;
+        actual_identifying.sort_by_key(|kv| kv.key.clone());
+        let mut expected_identifying = vec![
             new_key_value("identifying1", "value1"),
-            new_key_value("identifying3", "new_value3"),
-            new_key_value("identifying5", "value5"),
             new_key_value("identifying2", "new_value2"),
-            new_key_value("identifying4", "duplicated_value4"),
+            new_key_value("identifying3", "new_value3"),
+            new_key_value("identifying4", "new_value4"),
+            new_key_value("identifying5", "value5"),
         ];
-        assert_eq!(
-            expected_identifying_attributes,
-            updated_description.identifying_attributes
-        );
+        expected_identifying.sort_by_key(|kv| kv.key.clone());
+        assert_eq!(expected_identifying, actual_identifying);
 
-        let expected_non_identifying_attributes = vec![
+        let mut actual_non_identifying = updated_description.non_identifying_attributes;
+        actual_non_identifying.sort_by_key(|kv| kv.key.clone());
+        let mut expected_non_identifying = vec![
             new_key_value("non_identifying1", "value1"),
             new_key_value("non_identifying2", "new_value2"),
         ];
-        assert_eq!(
-            expected_non_identifying_attributes,
-            updated_description.non_identifying_attributes
-        );
+        expected_non_identifying.sort_by_key(|kv| kv.key.clone());
+        assert_eq!(expected_non_identifying, actual_non_identifying);
     }
 }
