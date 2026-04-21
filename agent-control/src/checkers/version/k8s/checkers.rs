@@ -13,7 +13,7 @@ use crate::opamp::attributes::{UpdateAttributesMessage, publish_update_attribute
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use kube::api::{DynamicObject, TypeMeta};
-use opamp_client::operation::settings::{AgentDescription, DescriptionValueType};
+use opamp_client::operation::settings::AgentDescription;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread::sleep;
@@ -183,6 +183,7 @@ mod tests {
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::api::{DynamicObject, TypeMeta};
     use mockall::{Sequence, mock};
+    use opamp_client::operation::settings::DescriptionValueType;
     use std::{sync::Arc, time::Duration};
 
     mock! {

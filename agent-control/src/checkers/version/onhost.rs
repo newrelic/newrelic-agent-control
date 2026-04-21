@@ -3,7 +3,7 @@ use std::process::Command;
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 use crate::agent_type::runtime_config::on_host::executable::rendered::Args;
 use crate::opamp::attributes::{UpdateAttributesMessage, publish_update_attributes_event};
-use opamp_client::operation::settings::{AgentDescription, DescriptionValueType};
+use opamp_client::operation::settings::AgentDescription;
 use regex::Regex;
 use std::collections::HashMap;
 
@@ -94,6 +94,7 @@ mod tests {
 
     use super::*;
 
+    use opamp_client::operation::settings::DescriptionValueType;
     use rstest::rstest;
 
     #[rstest]

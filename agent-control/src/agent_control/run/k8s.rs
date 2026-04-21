@@ -120,7 +120,7 @@ impl AgentControlRunner {
         );
 
         self.agent_control_publisher
-            .broadcast(AgentControlEvent::AgentDescriptionSet(
+            .broadcast(AgentControlEvent::AgentDescriptionUpdated(
                 agent_description.clone(),
             ));
 

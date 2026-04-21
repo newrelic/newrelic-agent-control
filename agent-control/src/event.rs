@@ -37,7 +37,7 @@ pub enum AgentControlEvent {
     HealthUpdated(HealthWithStartTime),
     SubAgentRemoved(AgentID),
     AgentControlStopped,
-    AgentDescriptionSet(AgentDescription),
+    AgentDescriptionUpdated(AgentDescription),
     OpAMPConnected,
     OpAMPConnectFailed(Option<LastErrorCode>, LastErrorMessage),
 }
@@ -47,7 +47,7 @@ pub enum AgentControlEvent {
 pub enum SubAgentEvent {
     HealthUpdated(AgentIdentity, HealthWithStartTime),
     SubAgentStarted(AgentIdentity, SystemTime),
-    AgentDescriptionSet(AgentIdentity, AgentDescription),
+    AgentDescriptionUpdated(AgentIdentity, AgentDescription),
 }
 
 impl SubAgentEvent {
