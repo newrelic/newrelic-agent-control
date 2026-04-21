@@ -370,8 +370,10 @@ where
                             Ok(SubAgentInternalEvent::AgentAttributesUpdated(attributes)) => {
                                 debug!("Updating SubAgent attributes with: {:?}", attributes);
                                 let _ = self.maybe_opamp_client.as_ref().map(|c|
-                                    update_opamp_attributes(c, attributes)
+                                    update_opamp_attributes(c, attributes.clone())
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing update agent attributes message")));
+
+                                self.sub_agent_publisher.broadcast(SubAgentEvent::AgentDescriptionUpdated(self.identity.clone(), attributes));
                             }
                         }
                     }

@@ -115,6 +115,7 @@ async fn update_sub_agent_status(sub_agent_event: SubAgentEvent, status: Arc<RwL
             status
                 .agents
                 .entry(agent_identity.id.clone())
+                // New entry if sub-agent was unknown (Eg: SubAgentStarted was never received)
                 .or_insert_with(|| SubAgentStatus::with_identity(agent_identity))
                 .attributes
                 .extend(attributes_update);

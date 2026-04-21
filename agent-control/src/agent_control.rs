@@ -343,8 +343,9 @@ where
                                 },
                                 AgentControlInternalEvent::AgentControlAttributesUpdated(attributes) => {
                                     let _ = self.opamp_client.as_ref().map(|c|
-                                        update_opamp_attributes(c, attributes)
+                                        update_opamp_attributes(c, attributes.clone())
                                     .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message")));
+                                    self.agent_control_publisher.broadcast(AgentControlEvent::AgentDescriptionUpdated(attributes));
                                 },
                                 AgentControlInternalEvent::SelfUpdateRestartRequested() => {
                                     debug!("Stopping Agent Control to apply self-update");
