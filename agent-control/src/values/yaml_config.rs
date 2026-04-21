@@ -1,7 +1,4 @@
 use crate::agent_control::config::AgentControlDynamicConfig;
-use crate::agent_type::definition::Variables;
-use crate::agent_type::error::AgentTypeError;
-use crate::agent_type::templates::Templateable;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
@@ -65,24 +62,6 @@ impl YAMLConfig {
 #[derive(Error, Debug)]
 #[error("{0}")]
 pub struct YAMLConfigError(pub String);
-
-impl Templateable for YAMLConfig {
-    type Output = Self;
-
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self(self.0.template_with(variables)?))
-    }
-}
-
-impl Templateable for HashMap<String, serde_yaml::Value> {
-    type Output = Self;
-
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        self.into_iter()
-            .map(|(key, v)| Ok((key, v.template_with(variables)?)))
-            .collect()
-    }
-}
 
 impl From<YAMLConfig> for HashMap<String, serde_yaml::Value> {
     fn from(values: YAMLConfig) -> Self {

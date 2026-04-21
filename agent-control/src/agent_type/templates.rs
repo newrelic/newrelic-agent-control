@@ -16,6 +16,7 @@ use super::templates_function::{Function, SupportedFunction};
 use super::variable::Variable;
 use super::variable::variable_type::VariableType;
 use regex::Regex;
+use std::collections::HashSet;
 use std::sync::OnceLock;
 
 /// Regular expression patterns for parsing template variables and functions.
@@ -81,35 +82,58 @@ impl Templateable for String {
 
 fn template_string(s: String, variables: &Variables) -> Result<String, AgentTypeError> {
     let re_template = template_re();
-
-    // Iterates over each found place holder replacing the value in the original string.
     let mut render_result = s.clone();
-    for captures in re_template.captures_iter(&s) {
-        // "Example with a template: ${nr-var:name|indent 2|to_upper}"
-        // templatable_placeholder="${nr-var:name|indent 2|to_upper}"
-        // captured_var="nr-var:name"
-        // captured_functions="|indent 2|to_upper"
-        let (templatable_placeholder, [captured_var, captured_functions]) = captures.extract();
+    let mut seen = HashSet::new();
+    seen.insert(s.clone());
 
-        // Get variable value
-        let normalized_var = normalized_var(captured_var, variables)?;
-        let value = normalized_var
-            .get_final_value()
-            .ok_or(AgentTypeError::MissingTemplateKey(
-                templatable_placeholder.to_string(),
-            ))?
-            .to_string();
+    // Keep templating until no more substitutions happen (iterative resolution)
+    loop {
+        let mut changed = false;
+        let current = render_result.clone();
 
-        // Apply functions
-        let functions: Vec<SupportedFunction> =
-            SupportedFunction::parse_function_list(captured_functions)
-                .map_err(|e| AgentTypeError::RenderingTemplate(e.to_string()))?;
-        let final_value = functions.iter().try_fold(value, |acc, m| {
-            m.apply(acc)
-                .map_err(|e| AgentTypeError::RenderingTemplate(e.to_string()))
-        })?;
+        // Collect all captures first to avoid borrowing issues
+        let captures_vec: Vec<_> = re_template.captures_iter(&current).collect();
 
-        render_result = render_result.replace(templatable_placeholder, &final_value);
+        for captures in captures_vec {
+            // "Example with a template: ${nr-var:name|indent 2|to_upper}"
+            // templatable_placeholder="${nr-var:name|indent 2|to_upper}"
+            // captured_var="nr-var:name"
+            // captured_functions="|indent 2|to_upper"
+            let (templatable_placeholder, [captured_var, captured_functions]) = captures.extract();
+
+            // Get variable value
+            let normalized_var = normalized_var(captured_var, variables)?;
+            let value = normalized_var
+                .get_final_value()
+                .ok_or(AgentTypeError::MissingTemplateKey(
+                    templatable_placeholder.to_string(),
+                ))?
+                .to_string();
+
+            // Apply functions
+            let functions: Vec<SupportedFunction> =
+                SupportedFunction::parse_function_list(captured_functions)
+                    .map_err(|e| AgentTypeError::RenderingTemplate(e.to_string()))?;
+            let final_value = functions.iter().try_fold(value, |acc, m| {
+                m.apply(acc)
+                    .map_err(|e| AgentTypeError::RenderingTemplate(e.to_string()))
+            })?;
+
+            render_result = render_result.replace(templatable_placeholder, &final_value);
+            changed = true;
+        }
+
+        // Exit loop if no changes were made (fully resolved)
+        if !changed {
+            break;
+        }
+
+        // Detect circular references: if this intermediate value was already seen, we're in a cycle
+        if !seen.insert(render_result.clone()) {
+            return Err(AgentTypeError::RenderingTemplate(format!(
+                "circular reference detected in template: {s}"
+            )));
+        }
     }
 
     Ok(render_result)
@@ -182,12 +206,16 @@ fn template_yaml_value_string(
 
     match var_spec.kind() {
         VariableType::Yaml(_) => {
-            var_value
-                .to_yaml_value()
-                .ok_or(AgentTypeError::UnexpectedValueForKey(
-                    var_name.to_string(),
-                    var_value.to_string(),
-                ))
+            let yaml_value =
+                var_value
+                    .to_yaml_value()
+                    .ok_or(AgentTypeError::UnexpectedValueForKey(
+                        var_name.to_string(),
+                        var_value.to_string(),
+                    ))?;
+            // Recursively template the YAML value to resolve any nested templates
+            // This enables iterative resolution: ${nr-var:x} -> YAML with ${nr-env:y} -> final value
+            yaml_value.template_with(variables)
         }
         VariableType::Bool(_) | VariableType::Number(_) => {
             serde_yaml::from_str(var_value.to_string().as_str()).map_err(AgentTypeError::SerdeYaml)
@@ -479,7 +507,7 @@ mod tests {
         a_yaml:
           key: value
         another_yaml:
-          "this.will.not.be.expanded": "${nr-var:change.me.string}" # A variable inside another other variable value is not expanded
+          "this.will.not.be.expanded": "CHANGED-STRING ${UNTOUCHED}" # With recursive templating, variables inside YAML values ARE now expanded
         string_key: "here, the value key: value\n is encoded as string because it is not alone"
         string_multiline_containing_yaml: |
           a_string: CHANGED-STRING ${UNTOUCHED}

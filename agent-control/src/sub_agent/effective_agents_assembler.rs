@@ -7,7 +7,9 @@ use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::rendered::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime, rendered};
+use crate::agent_type::variable::Variable;
 use crate::agent_type::variable::constraints::VariableConstraints;
+use crate::agent_type::variable::namespace::Namespace;
 use crate::agent_type::variable::secret_variables::{
     SecretVariables, SecretVariablesError, load_env_vars,
 };
@@ -183,21 +185,31 @@ where
                 EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(e.to_string())
             })?;
 
-        let env_vars = load_env_vars();
-
         let mut secret_variables = SecretVariables::try_from(values.clone())?;
         let global_defaults_secrets =
             SecretVariables::try_from(YAMLConfig::from(self.global_defaults.clone()))?;
         secret_variables.merge(global_defaults_secrets);
-        let secrets = secret_variables.load_secrets(&self.secrets_providers)?;
+        let mut secrets = secret_variables.load_secrets(&self.secrets_providers)?;
+        secrets.extend(load_env_vars());
+
+        let global_defaults_vars = self
+            .global_defaults
+            .clone()
+            .into_iter()
+            .map(|(key, value)| {
+                (
+                    Namespace::Default.namespaced_name(&key),
+                    Variable::from(value),
+                )
+            })
+            .collect();
 
         let runtime_config = self.renderer.render(
             agent_type,
             values,
             attributes,
-            env_vars,
             secrets,
-            self.global_defaults.clone(),
+            global_defaults_vars,
         )?;
 
         Ok(EffectiveAgent::new(agent_identity.clone(), runtime_config))

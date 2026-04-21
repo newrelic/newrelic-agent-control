@@ -687,20 +687,20 @@ fn iterate_test_cases(environment: &Environment) {
         // Create default global defaults for OCI configuration
         let global_defaults = HashMap::from([
             (
-                "oci.registry".to_string(),
-                serde_yaml::Value::String("docker.io".to_string()),
+                Namespace::Default.namespaced_name("oci.registry"),
+                Variable::new_final_string_variable("docker.io".to_string()),
             ),
             (
-                "oci.auth.basic.username".to_string(),
-                serde_yaml::Value::String("".to_string()),
+                Namespace::Default.namespaced_name("oci.auth.basic.username"),
+                Variable::new_final_string_variable("".to_string()),
             ),
             (
-                "oci.auth.basic.password".to_string(),
-                serde_yaml::Value::String("".to_string()),
+                Namespace::Default.namespaced_name("oci.auth.basic.password"),
+                Variable::new_final_string_variable("".to_string()),
             ),
             (
-                "oci.auth.bearer".to_string(),
-                serde_yaml::Value::String("".to_string()),
+                Namespace::Default.namespaced_name("oci.auth.bearer"),
+                Variable::new_final_string_variable("".to_string()),
             ),
         ]);
 
@@ -738,7 +738,6 @@ fn iterate_test_cases(environment: &Environment) {
                 variables,
                 attributes,
                 values.additional_env.clone(),
-                HashMap::new(), // Secrets are not used in this test
                 global_defaults.clone(),
             );
 

@@ -1,6 +1,6 @@
 use crate::agent_type::{
     agent_attributes::AgentAttributes,
-    definition::AgentType,
+    definition::{AgentType, Variables},
     error::AgentTypeError,
     runtime_config::rendered::Runtime,
     templates::Templateable,
@@ -24,44 +24,27 @@ impl TemplateRenderer {
         agent_type: AgentType,
         values: YAMLConfig,
         attributes: AgentAttributes,
-        env_vars: HashMap<String, Variable>,
-        secrets: HashMap<String, Variable>,
-        global_defaults: HashMap<String, serde_yaml::Value>,
+        secrets: Variables,
+        global_defaults: Variables,
     ) -> Result<Runtime, AgentTypeError> {
         // Get empty variables and runtime_config from the agent-type
         let (variables, runtime_config) = (agent_type.variables, agent_type.runtime_config);
 
-        // Values are expanded substituting all ${nr-env...} with environment variables.
-        // Notice that only environment variables and secrets are taken into consideration (no other vars for example)
-        let values_expanded = values.template_with(&secrets)?;
-
-        // Expand templates in global defaults (so they can reference secrets/env vars)
-        let global_defaults_expanded = global_defaults.template_with(&secrets)?;
-
-        // Convert global defaults to Variables with nr-default namespace
-        let global_defaults_vars = global_defaults_expanded
-            .into_iter()
-            .map(|(key, value)| {
-                (
-                    Namespace::Default.namespaced_name(&key),
-                    Variable::from(value),
-                )
-            })
-            .collect::<HashMap<String, Variable>>();
-        let mut default_vars = global_defaults_vars;
-        default_vars.extend(env_vars.clone());
+        let mut default_vars = global_defaults;
+        default_vars.extend(secrets.clone());
 
         // Template defaults in variables, then fill with user values, then flatten
         let filled_variables = variables
             .template_defaults(&default_vars)?
-            .fill_with_values(values_expanded)?
+            .fill_with_values(values)?
             .flatten();
 
         Self::check_all_vars_are_populated(&filled_variables)?;
 
-        // Setup namespaced variables
-        let ns_variables = self.build_namespaced_variables(filled_variables, env_vars, &attributes);
-        // Render runtime config
+        // Setup namespaced variables (includes all env vars which enable template expansion)
+        let ns_variables = self.build_namespaced_variables(filled_variables, secrets, &attributes);
+
+        // Render runtime config - iterative templating resolves all nested templates automatically
         let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
 
         Ok(rendered_runtime_config)
@@ -111,7 +94,7 @@ impl TemplateRenderer {
         // Get the namespaced variables from sub-agent attributes
         let sub_agent_vars_iter = attributes.sub_agent_variables().into_iter();
 
-        // Join all variables together
+        // Join all variables together (including env vars/secrets for template expansion)
         vars_iter
             .chain(sub_agent_vars_iter)
             .chain(env_vars)
@@ -165,7 +148,6 @@ pub(crate) mod tests {
                 attributes,
                 HashMap::new(),
                 HashMap::new(),
-                HashMap::new(),
             )
             .unwrap();
 
@@ -202,7 +184,6 @@ pub(crate) mod tests {
             attributes,
             HashMap::new(),
             HashMap::new(),
-            HashMap::new(),
         );
         assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
             assert_eq!(vars, vec!["config_path".to_string()])
@@ -222,7 +203,6 @@ pub(crate) mod tests {
             agent_type,
             values,
             attributes,
-            HashMap::new(),
             HashMap::new(),
             HashMap::new(),
         );
@@ -245,7 +225,6 @@ pub(crate) mod tests {
                 agent_type,
                 values,
                 attributes,
-                HashMap::new(),
                 HashMap::new(),
                 HashMap::new(),
             )
@@ -296,7 +275,6 @@ pub(crate) mod tests {
                 agent_type,
                 values,
                 attributes,
-                HashMap::new(),
                 HashMap::new(),
                 HashMap::new(),
             )
@@ -382,7 +360,6 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
                 attributes,
                 HashMap::new(),
                 HashMap::new(),
-                HashMap::new(),
             )
             .unwrap();
 
@@ -406,7 +383,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
 
-        let env_vars = HashMap::from([
+        let secrets = HashMap::from([
             (
                 Namespace::EnvironmentVariable.namespaced_name("MY_VARIABLE"),
                 Variable::new_final_string_variable("my-value".to_string()),
@@ -436,14 +413,8 @@ substituted_2: my-value-2
             serde_yaml::from_str(expected_spec_yaml).unwrap();
 
         let renderer = TemplateRenderer::default();
-        let runtime_config = renderer.render(
-            agent_type,
-            values,
-            attributes,
-            env_vars,
-            HashMap::new(),
-            HashMap::new(),
-        );
+        let runtime_config =
+            renderer.render(agent_type, values, attributes, secrets, HashMap::new());
 
         let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
         let cr1 = k8s.objects.get("cr1").unwrap();
@@ -497,14 +468,8 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
             serde_yaml::from_str(expected_spec_yaml).unwrap();
 
         let renderer = TemplateRenderer::default();
-        let runtime_config = renderer.render(
-            agent_type,
-            values,
-            attributes,
-            HashMap::new(),
-            secrets,
-            HashMap::new(),
-        );
+        let runtime_config =
+            renderer.render(agent_type, values, attributes, secrets, HashMap::new());
 
         let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
         let values = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
@@ -526,7 +491,6 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
             agent_type,
             values,
             attributes,
-            HashMap::new(),
             HashMap::new(),
             HashMap::new(),
         );
@@ -572,20 +536,14 @@ deployment:
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
 
-        let env_vars = HashMap::from([(
+        let secrets = HashMap::from([(
             Namespace::EnvironmentVariable.namespaced_name("my_variable"),
             Variable::new_final_string_variable("my-value".to_string()),
         )]);
 
         let renderer = TemplateRenderer::default();
-        let runtime_config = renderer.render(
-            agent_type,
-            values,
-            attributes,
-            env_vars,
-            HashMap::new(),
-            HashMap::new(),
-        );
+        let runtime_config =
+            renderer.render(agent_type, values, attributes, secrets, HashMap::new());
 
         assert_matches!(
             runtime_config.unwrap_err(),
@@ -634,7 +592,6 @@ deployment:
                 agent_type,
                 values,
                 attributes,
-                HashMap::new(),
                 HashMap::new(),
                 HashMap::new(),
             )
@@ -709,20 +666,20 @@ path: /opt/first
 
         let global_defaults = HashMap::from([
             (
-                "path".to_string(),
-                serde_yaml::to_value("/opt/second").unwrap(),
+                Namespace::Default.namespaced_name("path"),
+                Variable::new_final_string_variable("/opt/second".to_string()),
             ),
             (
-                "registry_url".to_string(),
-                serde_yaml::to_value("test-registry-url").unwrap(),
+                Namespace::Default.namespaced_name("registry_url"),
+                Variable::new_final_string_variable("test-registry-url".to_string()),
             ),
             (
-                "enable_file_logging".to_string(),
-                serde_yaml::to_value(true).unwrap(),
+                Namespace::Default.namespaced_name("enable_file_logging"),
+                Variable::new_final_string_variable(true.to_string()),
             ),
         ]);
 
-        let env_vars = HashMap::from([(
+        let secrets = HashMap::from([(
             Namespace::EnvironmentVariable.namespaced_name("id"),
             Variable::new_final_string_variable("first".to_string()),
         )]);
@@ -730,14 +687,7 @@ path: /opt/first
         let renderer =
             TemplateRenderer::default().with_agent_control_variables(HashMap::new().into_iter());
         let runtime_config = renderer
-            .render(
-                agent_type,
-                values,
-                attributes,
-                env_vars,
-                HashMap::new(),
-                global_defaults,
-            )
+            .render(agent_type, values, attributes, secrets, global_defaults)
             .unwrap();
 
         let executable = extract_runtime_by_environment(runtime_config.clone())
@@ -798,12 +748,12 @@ deployment:
 
         let global_defaults = HashMap::from([
             (
-                "registry_url".to_string(),
-                serde_yaml::to_value("${nr-env:REGISTRY_URL}").unwrap(),
+                Namespace::Default.namespaced_name("registry_url"),
+                Variable::from(serde_yaml::to_value("${nr-env:REGISTRY_URL}").unwrap()),
             ),
             (
-                "enable_file_logging".to_string(),
-                serde_yaml::to_value("${nr-env:ENABLE_FILE_LOGGING}").unwrap(),
+                Namespace::Default.namespaced_name("enable_file_logging"),
+                Variable::from(serde_yaml::to_value("${nr-env:ENABLE_FILE_LOGGING}").unwrap()),
             ),
         ]);
 
@@ -821,14 +771,7 @@ deployment:
         let renderer =
             TemplateRenderer::default().with_agent_control_variables(HashMap::new().into_iter());
         let runtime_config = renderer
-            .render(
-                agent_type,
-                values,
-                attributes,
-                HashMap::new(),
-                secrets,
-                global_defaults,
-            )
+            .render(agent_type, values, attributes, secrets, global_defaults)
             .unwrap();
         assert_eq!(
             rendered::Args(vec!("test-registry-url/test-repository".to_string())),
