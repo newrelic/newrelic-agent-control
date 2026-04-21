@@ -59,10 +59,21 @@ agents:
     std::thread::sleep(Duration::from_secs(30));
 
     // Trigger Fleet Control tests and wait for completion
-    fleet_control_api::trigger_and_wait_for_fleet_control_tests(
+    let test_response = fleet_control_api::trigger_and_wait_for_fleet_control_tests(
         fleet_id,
         fleet_control_token,
         fleet_type,
         test_suite,
     );
+
+    // Write test report to JSON file
+    fleet_control_api::write_test_report(&test_response);
+
+    // Check if tests failed and exit with error if so
+    if test_response.is_failed() {
+        panic!(
+            "❌ Tests failed: {} failed, {} inconclusive",
+            test_response.failed_count, test_response.inconclusive_count
+        );
+    }
 }

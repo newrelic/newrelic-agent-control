@@ -238,7 +238,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-result-k8s-fleet-control-integration
-          path: e2e-result-*-k8s-fleet-control-integration.txt
+          path: |
+            e2e-result-*-k8s-fleet-control-integration.txt
+            fleet-control-test-report.json
           if-no-files-found: warn
 
       - name: Send result to Slack
@@ -250,6 +252,7 @@ jobs:
         run: |
           mkdir -p e2e-results
           mv e2e-result-*-k8s-fleet-control-integration.txt e2e-results/ 2>/dev/null || true
+          mv fleet-control-test-report.json e2e-results/ 2>/dev/null || true
           if [ -f e2e-results/e2e-result-*.txt ]; then
             bash .github/workflows/scripts/slack_e2e_summary.sh
           else

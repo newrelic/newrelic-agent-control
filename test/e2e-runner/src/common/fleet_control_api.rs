@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -80,12 +80,23 @@ pub fn run_fleet_control_api(
 ) {
     info!("Starting Fleet Control API E2E test");
 
-    trigger_and_wait_for_fleet_control_tests(
+    let response = trigger_and_wait_for_fleet_control_tests(
         fleet_id.as_str(),
         fleet_control_token.as_str(),
         fleet_type.as_str(),
         test_suite.as_str(),
     );
+
+    // Write test report to JSON file
+    write_test_report(&response);
+
+    // Check if tests failed and exit with error if so
+    if response.is_failed() {
+        panic!(
+            "❌ Tests failed: {} failed, {} inconclusive",
+            response.failed_count, response.inconclusive_count
+        );
+    }
 }
 
 /// Triggers Fleet Control tests via API and waits for completion.
@@ -98,7 +109,7 @@ pub fn trigger_and_wait_for_fleet_control_tests(
     fleet_control_token: &str,
     fleet_type: &str,
     test_suite: &str,
-) {
+) -> FinishedTestResponse {
     info!("Triggering Fleet Control tests");
     info!("Fleet ID: {fleet_id}");
     info!("Fleet type: {fleet_type}");
@@ -134,6 +145,7 @@ pub fn trigger_and_wait_for_fleet_control_tests(
     );
 
     info!("✅ Fleet Control test run completed successfully");
+    test_response
 }
 
 /// Triggers Fleet Control tests and returns the test run ID
@@ -250,5 +262,17 @@ fn wait_for_fleet_control_completion(
                 ))?;
             }
         }
+    }
+}
+
+/// Writes a flat test report derived from the API response to a JSON file.
+pub fn write_test_report(response: &FinishedTestResponse) {
+    let filename = "fleet-control-test-report.json";
+    match std::fs::write(
+        filename,
+        serde_json::to_string_pretty(&response).expect("Could not render response as JSON"),
+    ) {
+        Ok(_) => info!("📝 Test report written to: {filename}"),
+        Err(e) => error!("⚠️  Failed to write report file: {e}"),
     }
 }
