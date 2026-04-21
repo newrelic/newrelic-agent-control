@@ -94,7 +94,7 @@ pub struct AgentControlConfig {
 
 impl AgentControlConfig {
     pub fn defaults(&self) -> HashMap<String, serde_yaml::Value> {
-        self.global_defaults.oci.to_hashmap()
+        self.global_defaults.to_hashmap()
     }
 }
 
@@ -114,13 +114,80 @@ pub struct PackagesConfig {
     pub signature_verification_enabled: SignatureVerificationEnabled,
 }
 
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct GlobalDefaults {
     #[serde(default)]
     oci: OciConfig,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+impl GlobalDefaults {
+    /// Flattens the nested structure of GlobalDefaults into a single level HashMap with dot-separated keys.
+    ///
+    /// # Example
+    ///
+    /// Given the following GlobalDefaults structure:
+    /// ```ignore
+    /// GlobalDefaults {
+    ///   oci: OciConfig {
+    ///     registry: "docker.io",
+    ///     auth: OciAuth {
+    ///       basic: BasicAuth {
+    ///         username: "user",
+    ///         password: "pass",
+    ///       },
+    ///       bearer: "",
+    ///     },
+    ///   }
+    /// }
+    /// ```
+    ///
+    /// we get the following HashMap:
+    /// ```ignore
+    /// {
+    ///   "oci.registry": "docker.io",
+    ///   "oci.auth.basic.username": "user",
+    ///   "oci.auth.basic.password": "pass",
+    ///   "oci.auth.bearer": "",
+    /// }
+    /// ```
+    fn to_hashmap(&self) -> HashMap<String, serde_yaml::Value> {
+        let value = serde_yaml::to_value(self).expect("GlobalDefaults should serialize to YAML");
+
+        let mut result = HashMap::new();
+
+        if let serde_yaml::Value::Mapping(map) = value {
+            for (key, val) in map {
+                if let Some(key_str) = key.as_str() {
+                    flatten_value(key_str, &val, &mut result);
+                }
+            }
+        }
+
+        result
+    }
+}
+
+fn flatten_value(
+    prefix: &str,
+    value: &serde_yaml::Value,
+    result: &mut HashMap<String, serde_yaml::Value>,
+) {
+    match value {
+        serde_yaml::Value::Mapping(map) => {
+            for (key, val) in map {
+                if let Some(key_str) = key.as_str() {
+                    let new_prefix = format!("{}.{}", prefix, key_str);
+                    flatten_value(&new_prefix, val, result);
+                }
+            }
+        }
+        _ => {
+            result.insert(prefix.to_string(), value.clone());
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct OciConfig {
     #[serde(default = "OciConfig::default_registry")]
     registry: String,
@@ -143,34 +210,7 @@ impl OciConfig {
     }
 }
 
-impl OciConfig {
-    fn to_hashmap(&self) -> HashMap<String, serde_yaml::Value> {
-        let mut vars = HashMap::new();
-
-        vars.insert(
-            "oci.registry".to_string(),
-            serde_yaml::Value::String(self.registry.clone()),
-        );
-
-        vars.insert(
-            "oci.auth.basic.username".to_string(),
-            serde_yaml::Value::String(self.auth.basic.username.clone()),
-        );
-        vars.insert(
-            "oci.auth.basic.password".to_string(),
-            serde_yaml::Value::String(self.auth.basic.password.clone()),
-        );
-
-        vars.insert(
-            "oci.auth.bearer".to_string(),
-            serde_yaml::Value::String(self.auth.bearer.clone()),
-        );
-
-        vars
-    }
-}
-
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 struct OciAuth {
     #[serde(default)]
     basic: BasicAuth,
@@ -178,7 +218,7 @@ struct OciAuth {
     bearer: String,
 }
 
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 struct BasicAuth {
     username: String,
     password: String,
@@ -1177,8 +1217,8 @@ k8s:
     }
 
     #[test]
-    fn test_oci_config_default_values() {
-        let vars = OciConfig::default().to_hashmap();
+    fn test_global_defaults_base_values() {
+        let vars = GlobalDefaults::default().to_hashmap();
         assert_eq!(vars.len(), 4);
         assert!(vars.get("oci.registry").is_some_and(|v| v == "docker.io"));
         assert!(vars.get("oci.auth.basic.username").is_some_and(|v| v == ""));
@@ -1187,19 +1227,21 @@ k8s:
     }
 
     #[test]
-    fn test_oci_config_provided_values() {
-        let oci_config = OciConfig {
-            registry: "custom.docker.io".to_string(),
-            auth: OciAuth {
-                basic: BasicAuth {
-                    username: "user".to_string(),
-                    password: "pass".to_string(),
+    fn test_global_defaults_provided_values() {
+        let global_defaults = GlobalDefaults {
+            oci: OciConfig {
+                registry: "custom.docker.io".to_string(),
+                auth: OciAuth {
+                    basic: BasicAuth {
+                        username: "user".to_string(),
+                        password: "pass".to_string(),
+                    },
+                    bearer: "token".to_string(),
                 },
-                bearer: "token".to_string(),
             },
         };
 
-        let vars = oci_config.to_hashmap();
+        let vars = global_defaults.to_hashmap();
         assert_eq!(vars.len(), 4);
         assert!(
             vars.get("oci.registry")
