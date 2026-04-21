@@ -127,7 +127,7 @@ impl AgentControlRunner {
         )?;
 
         self.agent_control_publisher
-            .broadcast(AgentControlEvent::AgentDescriptionUpdated(
+            .broadcast(AgentControlEvent::AgentDescriptionSet(
                 opamp_start_settings.agent_description.clone(),
             ));
 

@@ -75,8 +75,8 @@ async fn update_agent_control_status(
             );
             status.fleet.unreachable(error_code, error_message);
         }
-        AgentControlEvent::AgentDescriptionUpdated(agent_description) => {
-            trace!("Updating Agent Control attributes for HTTP-Server");
+        AgentControlEvent::AgentDescriptionSet(agent_description) => {
+            trace!("Setting Agent Control attributes for HTTP-Server");
             status.agent_control.attributes = build_agent_attributes(agent_description)
         }
     }
@@ -107,6 +107,10 @@ async fn update_sub_agent_status(sub_agent_event: SubAgentEvent, status: Arc<RwL
                 .or_insert_with(|| {
                     SubAgentStatus::with_identity(agent_identity).with_start_time(start_time)
                 });
+        }
+        SubAgentEvent::AgentDescriptionSet(agent_description) => {
+            trace!("Setting SubAgent attributes for HTTP-Server");
+            status.agent_control.attributes = build_agent_attributes(agent_description);
         }
     }
 }
