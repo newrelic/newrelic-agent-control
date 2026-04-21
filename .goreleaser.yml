@@ -98,13 +98,13 @@ archives:
   - id: linux
     formats: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    builds:
+    ids:
       - newrelic-agent-control-linux
       - newrelic-agent-control-cli-linux
   - id: windows
     formats: zip
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    builds:
+    ids:
       - newrelic-agent-control-windows
       - newrelic-agent-control-cli-windows
     files:
