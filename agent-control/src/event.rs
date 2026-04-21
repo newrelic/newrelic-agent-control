@@ -47,7 +47,7 @@ pub enum AgentControlEvent {
 pub enum SubAgentEvent {
     HealthUpdated(AgentIdentity, HealthWithStartTime),
     SubAgentStarted(AgentIdentity, SystemTime),
-    AgentDescriptionSet(AgentDescription),
+    AgentDescriptionSet(AgentIdentity, AgentDescription),
 }
 
 impl SubAgentEvent {

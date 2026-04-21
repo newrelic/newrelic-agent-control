@@ -108,9 +108,14 @@ async fn update_sub_agent_status(sub_agent_event: SubAgentEvent, status: Arc<RwL
                     SubAgentStatus::with_identity(agent_identity).with_start_time(start_time)
                 });
         }
-        SubAgentEvent::AgentDescriptionSet(agent_description) => {
+        SubAgentEvent::AgentDescriptionSet(agent_identity, agent_description) => {
             trace!("Setting SubAgent attributes for HTTP-Server");
-            status.agent_control.attributes = build_agent_attributes(agent_description);
+            let attributes = build_agent_attributes(agent_description);
+            status
+                .agents
+                .entry(agent_identity.id.clone())
+                .or_insert_with(|| SubAgentStatus::with_identity(agent_identity))
+                .attributes = attributes;
         }
     }
 }

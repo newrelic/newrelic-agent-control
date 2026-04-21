@@ -33,6 +33,7 @@ pub fn create_agent_control_config(
 
 /// Extends [create_agent_control_config] enabling the HTTP status server on the given port.
 pub fn create_agent_control_config_with_status_server(
+    host_id: &str,
     opamp_server_endpoint: String,
     jwks_endpoint: String,
     agents: String,
@@ -41,18 +42,17 @@ pub fn create_agent_control_config_with_status_server(
 ) {
     let agent_control_config = format!(
         r#"
-host_id: integration-test
+host_id: {host_id}
 fleet_control:
-  endpoint: {}
+  endpoint: {opamp_server_endpoint}
   poll_interval: 5s
   signature_validation:
-    public_key_server_url: {}
-agents: {}
+    public_key_server_url: {jwks_endpoint}
+agents: {agents}
 server:
   enabled: true
-  port: {}
+  port: {status_server_port}
 "#,
-        opamp_server_endpoint, jwks_endpoint, agents, status_server_port,
     );
     create_file(
         agent_control_config,

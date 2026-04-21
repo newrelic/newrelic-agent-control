@@ -195,6 +195,7 @@ pub fn create_local_agent_control_config(
 
 /// Creates the AC config (ConfigMap + local file) with the HTTP status server enabled on the given port.
 /// Uses [TEST_CLUSTER_NAME] as the cluster name.
+/// `agents` is the YAML value for the `agents:` key (e.g. `"{}"` for empty, or an indented block for sub-agents).
 pub fn create_k8s_agent_control_config_with_status_server(
     client: Client,
     ac_ns: &str,
@@ -202,6 +203,7 @@ pub fn create_k8s_agent_control_config_with_status_server(
     jwks_endpoint: &str,
     status_server_port: u16,
     local_dir: &Path,
+    agents: &str,
 ) {
     let content = format!(
         r#"fleet_control:
@@ -217,7 +219,7 @@ k8s:
   auth_secret:
     secret_name: {K8S_PRIVATE_KEY_SECRET}
     secret_key_name: {K8S_KEY_SECRET}
-agents: {{}}
+agents: {agents}
 server:
   enabled: true
   port: {status_server_port}

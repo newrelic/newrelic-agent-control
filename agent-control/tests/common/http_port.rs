@@ -8,3 +8,7 @@ pub fn available_port() -> u16 {
         .unwrap()
         .port()
 }
+
+pub fn status_server_url(port: u16) -> String {
+    format!("http://127.0.0.1:{port}/status")
+}
