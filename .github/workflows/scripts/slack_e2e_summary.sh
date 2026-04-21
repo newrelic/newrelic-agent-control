@@ -48,16 +48,16 @@ if [ -f "$json_file" ]; then
     ] +
     # Add test name blocks in order: failed, inconclusive, passed, ignored
     (if .failedCount > 0 then
-      [{type: "section", text: {type: "mrkdwn", text: ("*❌ Failed tests:*\n" + ([.failedTests | to_entries[] | "  *[\(.key)]*\n" + (.value | map("    • " + .) | join("\n"))] | join("\n")))}}]
+      [{type: "section", text: {type: "mrkdwn", text: ("*❌ Failed tests:*\n" + ([.failedTests | to_entries[] | "  *\(.key):*\n" + (.value | map("    • " + .) | join("\n"))] | join("\n")))}}]
     else [] end) +
     (if .inconclusiveCount > 0 then
-      [{type: "section", text: {type: "mrkdwn", text: ("*⚠️ Inconclusive tests:*\n" + ([.inconclusiveTests | to_entries[] | "  *[\(.key)]*\n" + (.value | map("    • " + .) | join("\n"))] | join("\n")))}}]
+      [{type: "section", text: {type: "mrkdwn", text: ("*⚠️ Inconclusive tests:*\n" + ([.inconclusiveTests | to_entries[] | "  *\(.key):*\n" + (.value | map("    • " + .) | join("\n"))] | join("\n")))}}]
     else [] end) +
     (if .passedCount > 0 then
-      [{type: "section", text: {type: "mrkdwn", text: ("*✅ Passed tests:*\n" + ([.passedTests | to_entries[] | "  *[\(.key)]*\n" + (.value | map("    • " + .) | join("\n"))] | join("\n")))}}]
+      [{type: "section", text: {type: "mrkdwn", text: ("*✅ Passed tests:*\n" + ([.passedTests | to_entries[] | "  *\(.key):*\n" + (.value | map("    • " + .) | join("\n"))] | join("\n")))}}]
     else [] end) +
     (if .ignoredCount > 0 then
-      [{type: "section", text: {type: "mrkdwn", text: ("*⏭️ Ignored tests:*\n" + ([.ignoredTests | to_entries[] | "  *[\(.key)]*\n" + (.value | map("    • " + .) | join("\n"))] | join("\n")))}}]
+      [{type: "section", text: {type: "mrkdwn", text: ("*⏭️ Ignored tests:*\n" + ([.ignoredTests | to_entries[] | "  *\(.key):*\n" + (.value | map("    • " + .) | join("\n"))] | join("\n")))}}]
     else [] end)
   ' "$json_file")
 fi
