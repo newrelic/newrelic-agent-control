@@ -1,17 +1,11 @@
 use std::path::PathBuf;
 
-#[cfg(any(target_os = "linux", target_os = "windows"))]
 pub mod config;
-#[cfg(target_os = "windows")]
 pub mod exec;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
 pub mod file;
 pub mod fleet_control_api;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
 pub mod logs;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
 pub mod nrql;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
 pub mod on_drop;
 pub mod test;
 
@@ -103,18 +97,15 @@ pub struct FleetControlApiArgs {
 }
 
 /// Data to set up installation
-#[cfg(any(target_os = "linux", target_os = "windows"))]
 pub struct RecipeData {
     pub args: InstallationArgs,
     pub fleet_id: String,
     pub fleet_enabled: bool,
     pub recipe_list: String,
     pub proxy_url: String,
-    #[cfg(target_os = "linux")]
     pub monitoring_source: String,
 }
 
-#[cfg(any(target_os = "linux", target_os = "windows"))]
 impl Default for RecipeData {
     fn default() -> Self {
         Self {
@@ -123,7 +114,6 @@ impl Default for RecipeData {
             proxy_url: Default::default(),
             fleet_enabled: false,
             recipe_list: "agent-control".to_string(),
-            #[cfg(target_os = "linux")]
             monitoring_source: "infra-agent".to_string(),
         }
     }

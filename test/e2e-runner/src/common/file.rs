@@ -2,7 +2,6 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
 
-#[cfg(target_os = "windows")]
 use crate::common::test::TestResult;
 
 /// Writes contents to a file and ensures data is flushed to disk before returning.
@@ -34,7 +33,6 @@ pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) {
     });
 }
 
-#[cfg(target_os = "windows")]
 /// Removes the directories receives as list
 pub fn remove_dirs(dirs: &[&str]) -> TestResult<()> {
     dirs.iter()

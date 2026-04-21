@@ -1,9 +1,6 @@
 mod common;
-#[cfg(target_os = "linux")]
 mod linux;
-#[cfg(target_os = "macos")]
 mod macos;
-#[cfg(target_os = "windows")]
 mod windows;
 
 use crate::common::{FleetControlApiArgs, InstallationArgs};
@@ -12,11 +9,14 @@ use std::process;
 use tracing_subscriber::EnvFilter;
 
 fn main() {
-    cfg_select! {
-        target_os = "windows" => windows::run_windows_e2e(),
-        target_os = "linux" => linux::run_linux_e2e(),
-        target_os = "macos" => macos::run_macos_e2e(),
-        _ => panic!("Unsupported OS -- only Linux, Windows, and macOS are supported")
+    if cfg!(target_os = "windows") {
+        windows::run_windows_e2e()
+    } else if cfg!(target_os = "linux") {
+        linux::run_linux_e2e()
+    } else if cfg!(target_os = "macos") {
+        macos::run_macos_e2e()
+    } else {
+        panic!("Unsupported OS -- only Linux, Windows, and macOS are supported")
     }
     process::exit(0);
 }

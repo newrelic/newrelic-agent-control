@@ -1,6 +1,6 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config};
-use crate::common::fleet_control_api;
 use crate::common::on_drop::CleanUp;
+use crate::common::{FleetControlArgs, fleet_control_api};
 use crate::common::{InstallationArgs, RecipeData};
 use crate::windows;
 use crate::windows::install::{install_agent_control_from_recipe, tear_down_test};
