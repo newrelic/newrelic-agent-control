@@ -3,7 +3,7 @@ mod linux;
 mod macos;
 mod windows;
 
-use crate::common::{FleetControlApiArgs, InstallationArgs};
+use crate::common::{FleetControlApiArgs, FleetControlInstallationArgs, InstallationArgs};
 use clap::Parser;
 use std::process;
 use tracing_subscriber::EnvFilter;
@@ -37,7 +37,7 @@ enum LinuxScenarios {
     /// Tests Fleet Control integration by installing Agent Control with fleet configuration and triggering Fleet Control tests.
     ///
     /// This relies on polling certain fixed Fleet Control endpoints, failing if the response is not expected or a timeout is reached.
-    FleetControl(InstallationArgs),
+    FleetControl(FleetControlInstallationArgs),
     /// Triggers Fleet Control tests via API and polls for completion (without installing Agent Control).
     ///
     /// This is useful when Agent Control is already deployed and you only need to trigger and monitor Fleet Control tests.
@@ -64,7 +64,7 @@ enum WindowsScenarios {
     /// Tests Fleet Control integration by installing Agent Control with fleet configuration and triggering Fleet Control tests.
     ///
     /// This relies on polling certain fixed Fleet Control endpoints, failing if the response is not expected or a timeout is reached.
-    FleetControl(InstallationArgs),
+    FleetControl(FleetControlInstallationArgs),
     /// Triggers Fleet Control tests via API and polls for completion (without installing Agent Control).
     ///
     /// This is useful when Agent Control is already deployed and you only need to trigger and monitor Fleet Control tests.

@@ -1,17 +1,20 @@
+use crate::common::RecipeData;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config};
 use crate::common::on_drop::CleanUp;
-use crate::common::{FleetControlArgs, fleet_control_api};
-use crate::common::{InstallationArgs, RecipeData};
+use crate::common::{FleetControlInstallationArgs, fleet_control_api};
 use crate::linux;
 use crate::linux::install::{install_agent_control_from_recipe, tear_down_test};
 use std::time::Duration;
 use tracing::info;
 
-pub fn test_fleet_control(args: InstallationArgs) {
-    let FleetControlArgs {fleet_id, fleet_control_token, fleet_type, test_suite} = args.fleet_control.as_ref().expect("Fleet Control configs (--fleet-id, --fleet-control-token, --fleet-type, --test-suite) must be added for running the fleet-control scenario");
+pub fn test_fleet_control(args: FleetControlInstallationArgs) {
+    let fleet_id = &args.fleet_control.fleet_id;
+    let fleet_control_token = &args.fleet_control.fleet_control_token;
+    let fleet_type = &args.fleet_control.fleet_type;
+    let test_suite = &args.fleet_control.test_suite;
 
     assert_eq!(
-        args.nr_region.to_lowercase().as_str(),
+        args.installation.nr_region.to_lowercase().as_str(),
         "staging",
         "This test can only run on staging environment"
     );
@@ -20,7 +23,7 @@ pub fn test_fleet_control(args: InstallationArgs) {
     info!("Using Fleet ID: {fleet_id}");
 
     let recipe_data = RecipeData {
-        args: args.clone(),
+        args: args.installation,
         monitoring_source: "infra-agent".to_string(),
         fleet_enabled: true,
         fleet_id: fleet_id.clone(),

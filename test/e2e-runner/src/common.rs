@@ -82,10 +82,15 @@ pub struct InstallationArgs {
     /// Version of the NRDot OCI image to use in tests
     #[arg(long)]
     pub nrdot_version: Option<String>,
+}
 
-    /// Fleet Control arguments
+/// Arguments for Fleet Control scenarios that also install Agent Control
+#[derive(Debug, Clone, clap::Parser)]
+pub struct FleetControlInstallationArgs {
     #[command(flatten)]
-    pub fleet_control: Option<FleetControlArgs>,
+    pub installation: InstallationArgs,
+    #[command(flatten)]
+    pub fleet_control: FleetControlArgs,
 }
 
 /// Arguments for Fleet Control API tests that don't require Agent Control installation
