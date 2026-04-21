@@ -170,7 +170,8 @@ jobs:
             fleet-control-api \
             --fleet-id "${FLEET_ID}" \
             --fleet-control-token "${{ steps.get-token.outputs.token }}" \
-            --fleet-type "k8s-fleet"
+            --fleet-type "k8s-fleet" \
+            --test-suite "DeploymentServicesTestSuite"
 
       - name: Collect logs on failure
         if: failure()

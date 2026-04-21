@@ -9,17 +9,7 @@ use std::time::Duration;
 use tracing::info;
 
 pub fn test_fleet_control(args: InstallationArgs) {
-    let fleet_id = args
-        .fleet_id
-        .as_ref()
-        .expect("--fleet-id is required for fleet-control scenario");
-
-    let fleet_control_token = args
-        .fleet_control_token
-        .as_ref()
-        .expect("--fleet-control-token is required for fleet-control scenario");
-
-    let fleet_type = &args.fleet_type;
+    let FleetControlArgs {fleet_id, fleet_control_token, fleet_type, test_suite} = args.fleet_control.as_ref().expect("Fleet Control configs (--fleet-id, --fleet-control-token, --fleet-type, --test-suite) must be added for running the fleet-control scenario");
 
     assert_eq!(
         args.nr_region.to_lowercase().as_str(),
@@ -73,5 +63,6 @@ agents:
         fleet_id,
         fleet_control_token,
         fleet_type,
+        test_suite,
     );
 }

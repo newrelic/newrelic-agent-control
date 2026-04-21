@@ -58,7 +58,7 @@ pub fn run_windows_e2e() {
             scenarios::fleet_control::test_fleet_control(args);
         }
         WindowsScenarios::FleetControlApi(args) => {
-            fleet_control_api::run_fleet_control_api(args);
+            fleet_control_api::run_fleet_control_api(args.fleet_control);
         }
     }
 }

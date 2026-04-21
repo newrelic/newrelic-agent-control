@@ -1,11 +1,12 @@
-use crate::common::FleetControlApiArgs;
+use crate::common::FleetControlArgs;
 use crate::common::test::{TestResult, retry_panic};
 use reqwest::Url;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::time::Duration;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,9 +27,11 @@ struct TriggerTestResponse {
     test_run_id: String,
 }
 
+type TestSuitesReport = HashMap<String, Vec<String>>;
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct SuccessfulTestResponse {
+pub struct FinishedTestResponse {
     test_run_id: String,
     test_run_timestamp: f64,
     triggered_test_count: usize,
@@ -37,10 +40,21 @@ struct SuccessfulTestResponse {
     failed_count: usize,
     inconclusive_count: usize,
     ignored_count: usize,
-    passed_tests: Value,
-    failed_tests: Value,
-    inconclusive_tests: Value,
-    ignored_tests: Value,
+    passed_tests: TestSuitesReport,
+    failed_tests: TestSuitesReport,
+    inconclusive_tests: TestSuitesReport,
+    ignored_tests: TestSuitesReport,
+}
+
+impl FinishedTestResponse {
+    /// Determines if this test run failed.
+    ///
+    /// According to the docs at <https://pages.datanerd.us/site-engineering/nr-platform-docs/nr-test-runner/resource.html>,
+    /// the HTTP status code of a test suite with at least 1 failed/unconclusive
+    /// test should be `450`, but the caller of a function returning [`FinishedTestResponse`] might not have access to this status, so we provide this method to inspect the response type.
+    pub fn is_failed(&self) -> bool {
+        self.failed_count > 0 || self.inconclusive_count > 0
+    }
 }
 
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -50,21 +64,27 @@ const STATUS_POLL_INTERVAL: Duration = Duration::from_secs(30);
 const STATUS_TIMEOUT: Duration = Duration::from_secs(600); // 10 minutes
 const FLEET_CONTROL_TEST_CONTROLLER_ENDPOINT: &str =
     "https://fleet-management-e2e-test-runner.staging-service.newrelic.com";
-const FLEET_CONTROL_TEST_SUITE: &str = "DeploymentServicesTestSuite"; // TODO parameterize at CLI
 
 /// Runs Fleet Control API interaction (trigger tests and poll for completion).
 ///
 /// This function only handles the Fleet Control API communication and does not
 /// install or configure Agent Control. Useful when AC is already deployed externally
 /// (e.g., in a minikube cluster).
-pub fn run_fleet_control_api(args: FleetControlApiArgs) {
+pub fn run_fleet_control_api(
+    FleetControlArgs {
+        fleet_id,
+        fleet_control_token,
+        fleet_type,
+        test_suite,
+    }: FleetControlArgs,
+) {
     info!("Starting Fleet Control API E2E test");
 
     trigger_and_wait_for_fleet_control_tests(
-        &args.fleet_id,
-        &args.fleet_control_token,
-        &args.fleet_type,
-        FLEET_CONTROL_TEST_SUITE,
+        fleet_id.as_str(),
+        fleet_control_token.as_str(),
+        fleet_type.as_str(),
+        test_suite.as_str(),
     );
 }
 
@@ -100,7 +120,7 @@ pub fn trigger_and_wait_for_fleet_control_tests(
     );
 
     // Wait for completion
-    retry_panic(
+    let test_response = retry_panic(
         1,
         Duration::from_secs(1),
         "wait for Fleet Control tests completion",
@@ -109,12 +129,11 @@ pub fn trigger_and_wait_for_fleet_control_tests(
                 FLEET_CONTROL_TEST_CONTROLLER_ENDPOINT,
                 fleet_control_token,
                 &test_run_id,
-                test_suite,
             )
         },
     );
 
-    info!("✅ Fleet Control tests completed successfully");
+    info!("✅ Fleet Control test run completed successfully");
 }
 
 /// Triggers Fleet Control tests and returns the test run ID
@@ -167,8 +186,7 @@ fn wait_for_fleet_control_completion(
     base_url: &str,
     token: &str,
     test_run_id: &str,
-    test_suite: &str,
-) -> TestResult<()> {
+) -> TestResult<FinishedTestResponse> {
     let client = Client::builder().timeout(CLIENT_TIMEOUT).build()?;
 
     let url = Url::parse(base_url)?
@@ -199,26 +217,31 @@ fn wait_for_fleet_control_completion(
         let elapsed_secs = elapsed.as_secs();
 
         match status.as_u16() {
+            // Provided 'testRunId' isn't found in the cache
             404 => {
                 info!("⏳ [{elapsed_secs} s] Run not found / initializing (404). Retrying...");
                 std::thread::sleep(STATUS_POLL_INTERVAL);
             }
+            // Tests are still running
             204 => {
                 info!("🏃 [{elapsed_secs} s] Tests are running (204). Retrying...");
                 std::thread::sleep(STATUS_POLL_INTERVAL);
             }
+            // Tests completed successfully
             200 => {
-                let response = response.json::<SuccessfulTestResponse>()?; // TODO extract report from test_suite param
+                let response = response.json::<FinishedTestResponse>()?;
                 let response_str = serde_json::to_string_pretty(&response)?;
                 info!("✅ [{elapsed_secs} s] Tests completed successfully (200)!");
                 info!("Response: {response_str}");
-                break Ok(());
+                break Ok(response);
             }
+            // At least 1 test failed, or was marked as inconclusive
             450 => {
-                let response = serde_json::to_string_pretty(&response.json::<Value>()?)?;
-                Err(format!(
-                    "❌ [{elapsed_secs} s] Tests failed (450). Response: {response}"
-                ))?;
+                let response = response.json::<FinishedTestResponse>()?;
+                let response_str = serde_json::to_string_pretty(&response)?;
+                warn!("❌ [{elapsed_secs} s] Tests failed (450).");
+                warn!("Response: {response_str}");
+                break Ok(response);
             }
             _ => {
                 let error_body = serde_json::to_string_pretty(&response.json::<Value>()?)?;

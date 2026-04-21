@@ -15,6 +15,26 @@ pub mod nrql;
 pub mod on_drop;
 pub mod test;
 
+/// Common Fleet Control arguments shared across different commands
+#[derive(Debug, Clone, clap::Parser)]
+pub struct FleetControlArgs {
+    /// Fleet ID for Fleet Control tests
+    #[arg(long)]
+    pub fleet_id: String,
+
+    /// Fleet Control authentication token
+    #[arg(long)]
+    pub fleet_control_token: String,
+
+    /// Fleet type for Fleet Control API (e.g. linux-fleet or k8s-fleet)
+    #[arg(long)]
+    pub fleet_type: String,
+
+    /// Name of the test suite to run (e.g. DeploymentServicesTestSuite)
+    #[arg(long)]
+    pub test_suite: String,
+}
+
 /// Arguments for scenarios that require Agent Control installation
 #[derive(Default, Debug, Clone, clap::Parser)]
 pub struct InstallationArgs {
@@ -69,33 +89,17 @@ pub struct InstallationArgs {
     #[arg(long)]
     pub nrdot_version: Option<String>,
 
-    /// Fleet ID for Fleet Control tests
-    #[arg(long)]
-    pub fleet_id: Option<String>,
-
-    /// Fleet Control authentication token
-    #[arg(long)]
-    pub fleet_control_token: Option<String>,
-
-    /// Fleet type for Fleet Control API (linux-fleet or k8s-fleet)
-    #[arg(long, default_value = "linux-fleet")]
-    pub fleet_type: String,
+    /// Fleet Control arguments
+    #[command(flatten)]
+    pub fleet_control: Option<FleetControlArgs>,
 }
 
 /// Arguments for Fleet Control API tests that don't require Agent Control installation
 #[derive(Debug, Clone, clap::Parser)]
 pub struct FleetControlApiArgs {
-    /// Fleet ID for Fleet Control tests
-    #[arg(long)]
-    pub fleet_id: String,
-
-    /// Fleet Control authentication token
-    #[arg(long)]
-    pub fleet_control_token: String,
-
-    /// Fleet type for Fleet Control API (linux-fleet or k8s-fleet)
-    #[arg(long, default_value = "linux-fleet")]
-    pub fleet_type: String,
+    /// Fleet Control arguments
+    #[command(flatten)]
+    pub fleet_control: FleetControlArgs,
 }
 
 /// Data to set up installation
