@@ -38,7 +38,7 @@ json_file="e2e-results/fleet-control-test-report.json"
 if [ -f "$json_file" ]; then
   details_blocks_json=$(jq -c '
     # Build summary line
-    ("✅ " + (.totalPassed | tostring) + " passed  ❌ " + (.totalFailed | tostring) + " failed  ⚠️ " + (.totalInconclusive | tostring) + " inconclusive  ⏭️ " + (.totalIgnored | tostring) + " ignored") as $summary |
+    ("✅ " + (.passedCount | tostring) + " passed  ❌ " + (.failedCount | tostring) + " failed  ⚠️ " + (.inconclusiveCount | tostring) + " inconclusive  ⏭️ " + (.ignoredCount | tostring) + " ignored") as $summary |
 
     # Build blocks array
     [
@@ -47,16 +47,16 @@ if [ -f "$json_file" ]; then
       {type: "section", text: {type: "mrkdwn", text: $summary}}
     ] +
     # Add test name blocks in order: failed, inconclusive, passed, ignored
-    (if .totalFailed > 0 then
+    (if .failedCount > 0 then
       [{type: "section", text: {type: "mrkdwn", text: ("*❌ Failed tests:*\n" + ([.failedTests | to_entries[] | "  *[\(.key)]*\n" + (.value | map("    • " + .) | join("\n"))] | join("\n")))}}]
     else [] end) +
-    (if .totalInconclusive > 0 then
+    (if .inconclusiveCount > 0 then
       [{type: "section", text: {type: "mrkdwn", text: ("*⚠️ Inconclusive tests:*\n" + ([.inconclusiveTests | to_entries[] | "  *[\(.key)]*\n" + (.value | map("    • " + .) | join("\n"))] | join("\n")))}}]
     else [] end) +
-    (if .totalPassed > 0 then
+    (if .passedCount > 0 then
       [{type: "section", text: {type: "mrkdwn", text: ("*✅ Passed tests:*\n" + ([.passedTests | to_entries[] | "  *[\(.key)]*\n" + (.value | map("    • " + .) | join("\n"))] | join("\n")))}}]
     else [] end) +
-    (if .totalIgnored > 0 then
+    (if .ignoredCount > 0 then
       [{type: "section", text: {type: "mrkdwn", text: ("*⏭️ Ignored tests:*\n" + ([.ignoredTests | to_entries[] | "  *[\(.key)]*\n" + (.value | map("    • " + .) | join("\n"))] | join("\n")))}}]
     else [] end)
   ' "$json_file")
