@@ -8,6 +8,12 @@ use crate::windows::service::STATUS_RUNNING;
 use std::time::Duration;
 use tracing::info;
 
+/// Installs Agent Control with Fleet Control enabled on Windows, then triggers Fleet Control tests via API.
+///
+/// This scenario installs Agent Control from recipe with a fleet-enabled configuration,
+/// waits for it to connect to the Fleet Control backend, then delegates to
+/// [`fleet_control_api::trigger_and_wait_for_fleet_control_tests`] to run the suite.
+/// Only runs on the staging environment.
 pub fn test_fleet_control(args: FleetControlInstallationArgs) {
     let fleet_id = &args.fleet_control.fleet_id;
     let fleet_control_token = &args.fleet_control.fleet_control_token;

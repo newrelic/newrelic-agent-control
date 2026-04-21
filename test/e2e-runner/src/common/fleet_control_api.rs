@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
 
+/// Request body sent to the Fleet Control test runner to trigger a test suite.
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct TriggerTestRequest {
@@ -21,14 +22,20 @@ struct TriggerTestRequest {
     user_defined_args: Value,
 }
 
+/// Response received after successfully triggering a Fleet Control test run.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TriggerTestResponse {
     test_run_id: String,
 }
 
+/// Maps test suite names to the list of test names within that suite.
 type TestSuitesReport = HashMap<String, Vec<String>>;
 
+/// Response returned by the Fleet Control test runner when a test run has completed.
+///
+/// Deserialized from JSON responses with HTTP status `200` (all passed) or `450` (at least one
+/// test failed or was inconclusive). Use [`FinishedTestResponse::is_failed`] to check the outcome.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FinishedTestResponse {
@@ -57,11 +64,17 @@ impl FinishedTestResponse {
     }
 }
 
+/// HTTP client timeout per request.
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 
-const STATUS_INITIAL_WAIT: Duration = Duration::from_secs(300); // 5 minutes
+/// How long to wait before polling for status after triggering a test run.
+/// Fleet Control tests take several minutes to start, so we avoid busy-polling early.
+const STATUS_INITIAL_WAIT: Duration = Duration::from_secs(300);
+/// Interval between successive status polls once the initial wait has elapsed.
 const STATUS_POLL_INTERVAL: Duration = Duration::from_secs(30);
-const STATUS_TIMEOUT: Duration = Duration::from_secs(600); // 10 minutes
+/// Maximum total time to wait for a test run to finish after the initial wait.
+const STATUS_TIMEOUT: Duration = Duration::from_secs(600);
+/// Base URL of the Fleet Control E2E test runner service (staging only).
 const FLEET_CONTROL_TEST_CONTROLLER_ENDPOINT: &str =
     "https://fleet-management-e2e-test-runner.staging-service.newrelic.com";
 
