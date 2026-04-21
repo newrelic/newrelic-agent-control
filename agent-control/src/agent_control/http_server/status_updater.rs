@@ -128,15 +128,12 @@ mod tests {
     use std::sync::Arc;
     use std::time::{Duration, SystemTime};
 
-    use fake::faker::boolean::en;
-    use fake::faker::filesystem::en::Semver;
-    use fake::faker::lorem::en::{Word, Words};
-    use fake::{Fake, Faker};
+    use opamp_client::operation::settings::{AgentDescription, DescriptionValueType};
+    use rstest::rstest;
     use tokio::runtime::Handle;
     use tokio::sync::RwLock;
     use tokio::sync::mpsc::unbounded_channel;
     use tokio::time::sleep;
-
     use url::Url;
 
     use crate::agent_control::agent_id::AgentID;
@@ -157,396 +154,503 @@ mod tests {
     use crate::event::SubAgentEvent::HealthUpdated;
     use crate::sub_agent::identity::AgentIdentity;
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_events() {
-        struct Test {
-            _name: &'static str,
-            agent_control_event: Option<AgentControlEvent>,
-            sub_agent_event: Option<SubAgentEvent>,
-            current_status: Arc<RwLock<Status>>,
-            expected_status: Status,
-        }
-        impl Test {
-            async fn run(&self) {
-                if let Some(agent_control_event) = self.agent_control_event.clone() {
-                    update_agent_control_status(agent_control_event, self.current_status.clone())
-                        .await;
-                }
-                if let Some(sub_agent_event) = self.sub_agent_event.clone() {
-                    update_sub_agent_status(sub_agent_event, self.current_status.clone()).await;
-                }
-                let st = self.current_status.read().await;
-                assert_eq!(self.expected_status, *st, "{}", self._name);
-            }
-        }
+    fn fixed_fleet() -> OpAMPStatus {
+        OpAMPStatus::enabled_and_reachable(Some(Url::try_from("http://127.0.0.1").unwrap()))
+    }
 
-        // Generate stubs. We'll use this to assert on what doesn't need to change
-        // in the events
-        let opamp_status_random = opamp_status_random();
-        let agent_control_status_random = agent_control_status_random();
-        let sub_agents_status_random = sub_agents_status_random();
+    fn fixed_agent_control() -> AgentControlStatus {
+        AgentControlStatus::new_healthy("running".to_string())
+    }
 
-        let tests = vec![
-            Test {
-                _name: "Unhealthy Agent Control becomes healthy",
-                agent_control_event: Some(AgentControlEvent::HealthUpdated(
-                    HealthWithStartTime::new(
-                        Healthy::new().with_status("some status".to_string()).into(),
-                        SystemTime::UNIX_EPOCH,
-                    ),
-                )),
-                sub_agent_event: None,
-                current_status: Arc::new(RwLock::new(Status {
-                    agent_control: AgentControlStatus::new_unhealthy(
-                        String::from("some status"),
-                        String::from("some error"),
-                    ),
-                    fleet: opamp_status_random.clone(),
-                    agents: sub_agents_status_random.clone(),
-                })),
-                expected_status: Status {
-                    agent_control: AgentControlStatus::new_healthy(String::from("some status")),
-                    fleet: opamp_status_random.clone(),
-                    agents: sub_agents_status_random.clone(),
-                },
-            },
-            Test {
-                _name: "Healthy Agent Control becomes unhealthy",
-                agent_control_event: Some(AgentControlEvent::HealthUpdated(
-                    HealthWithStartTime::new(
-                        Unhealthy::new(
-                            "some error message for agent control unhealthy".to_string(),
-                        )
-                        .with_status("some status".to_string())
-                        .into(),
-                        SystemTime::UNIX_EPOCH,
-                    ),
-                )),
-                sub_agent_event: None,
-                current_status: Arc::new(RwLock::new(Status {
-                    agent_control: AgentControlStatus::new_healthy(String::from("some status")),
-                    fleet: opamp_status_random.clone(),
-                    agents: sub_agents_status_random.clone(),
-                })),
-                expected_status: Status {
-                    agent_control: AgentControlStatus::new_unhealthy(
-                        String::from("some status"),
-                        String::from("some error message for agent control unhealthy"),
-                    ),
-                    fleet: opamp_status_random.clone(),
-                    agents: sub_agents_status_random.clone(),
-                },
-            },
-            Test {
-                _name: "Sub Agent first healthy event should add it to the list",
-                agent_control_event: None,
-                sub_agent_event: Some(HealthUpdated(
-                    AgentIdentity::from((
-                        AgentID::try_from("some-agent-id").unwrap(),
-                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    )),
-                    HealthWithStartTime::new(Healthy::default().into(), SystemTime::UNIX_EPOCH),
-                )),
-                current_status: Arc::new(RwLock::new(Status {
-                    agent_control: agent_control_status_random.clone(),
-                    fleet: opamp_status_random.clone(),
-                    agents: SubAgentsStatus::default(),
-                })),
-                expected_status: Status {
-                    agent_control: agent_control_status_random.clone(),
-                    fleet: opamp_status_random.clone(),
-                    agents: SubAgentsStatus::from([(
-                        AgentID::try_from("some-agent-id").unwrap(),
-                        SubAgentStatus::new(
-                            AgentID::try_from("some-agent-id").unwrap(),
-                            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                            0,
-                            HealthInfo::new(String::default(), true, None, 0, 0),
-                        ),
-                    )]),
-                },
-            },
-            Test {
-                _name: "Sub Agent first unhealthy event should add it to the list",
-                agent_control_event: None,
-                sub_agent_event: Some(HealthUpdated(
-                    AgentIdentity::from((
-                        AgentID::try_from("some-agent-id").unwrap(),
-                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    )),
-                    HealthWithStartTime::new(
-                        Unhealthy::default()
-                            .with_last_error("this is an error message".to_string())
-                            .into(),
-                        SystemTime::UNIX_EPOCH,
-                    ),
-                )),
-                current_status: Arc::new(RwLock::new(Status {
-                    agent_control: agent_control_status_random.clone(),
-                    fleet: opamp_status_random.clone(),
-                    agents: SubAgentsStatus::default(),
-                })),
-                expected_status: Status {
-                    agent_control: agent_control_status_random.clone(),
-                    fleet: opamp_status_random.clone(),
-                    agents: SubAgentsStatus::from([(
-                        AgentID::try_from("some-agent-id").unwrap(),
-                        SubAgentStatus::new(
-                            AgentID::try_from("some-agent-id").unwrap(),
-                            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                            0,
-                            HealthInfo::new(
-                                String::default(),
-                                false,
-                                Some(String::from("this is an error message")),
-                                0,
-                                0,
-                            ),
-                        ),
-                    )]),
-                },
-            },
-            Test {
-                _name: "Sub Agent second unhealthy event should change existing one",
-                agent_control_event: None,
-                sub_agent_event: Some(HealthUpdated(
-                    AgentIdentity::from((
-                        AgentID::try_from("some-agent-id").unwrap(),
-                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    )),
-                    HealthWithStartTime::new(
-                        Unhealthy::default()
-                            .with_last_error("this is an error message".to_string())
-                            .into(),
-                        SystemTime::UNIX_EPOCH,
-                    ),
-                )),
-                current_status: Arc::new(RwLock::new(Status {
-                    agent_control: agent_control_status_random.clone(),
-                    fleet: opamp_status_random.clone(),
-                    agents: SubAgentsStatus::from([
-                        (
-                            AgentID::try_from("some-agent-id").unwrap(),
-                            SubAgentStatus::new(
-                                AgentID::try_from("some-agent-id").unwrap(),
-                                AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                                0,
-                                HealthInfo::new(
-                                    String::default(),
-                                    true,
-                                    Some(String::default()),
-                                    0,
-                                    0,
-                                ),
-                            ),
-                        ),
-                        (
-                            AgentID::try_from("some-other-id").unwrap(),
-                            SubAgentStatus::new(
-                                AgentID::try_from("some-other-id").unwrap(),
-                                AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                                0,
-                                HealthInfo::new(
-                                    String::default(),
-                                    true,
-                                    Some(String::default()),
-                                    0,
-                                    0,
-                                ),
-                            ),
-                        ),
-                    ]),
-                })),
-                expected_status: Status {
-                    agent_control: agent_control_status_random.clone(),
-                    fleet: opamp_status_random.clone(),
-                    agents: SubAgentsStatus::from([
-                        (
-                            AgentID::try_from("some-agent-id").unwrap(),
-                            SubAgentStatus::new(
-                                AgentID::try_from("some-agent-id").unwrap(),
-                                AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                                0,
-                                HealthInfo::new(
-                                    String::default(),
-                                    false,
-                                    Some(String::from("this is an error message")),
-                                    0,
-                                    0,
-                                ),
-                            ),
-                        ),
-                        (
-                            AgentID::try_from("some-other-id").unwrap(),
-                            SubAgentStatus::new(
-                                AgentID::try_from("some-other-id").unwrap(),
-                                AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                                0,
-                                HealthInfo::new(
-                                    String::default(),
-                                    true,
-                                    Some(String::default()),
-                                    0,
-                                    0,
-                                ),
-                            ),
-                        ),
-                    ]),
-                },
-            },
-            Test {
-                _name: "Sub Agent gets removed",
-                agent_control_event: Some(SubAgentRemoved(
+    fn fixed_agents() -> SubAgentsStatus {
+        SubAgentsStatus::from([(
+            AgentID::try_from("fixed-agent-id").unwrap(),
+            SubAgentStatus::new(
+                AgentID::try_from("fixed-agent-id").unwrap(),
+                AgentTypeID::try_from("ns/type:1.0.0").unwrap(),
+                0,
+                HealthInfo::new(String::default(), true, None, 0, 0),
+            ),
+        )])
+    }
+
+    fn agent_identity(id: &str) -> AgentIdentity {
+        AgentIdentity::from((
+            AgentID::try_from(id).unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ))
+    }
+
+    fn agent_description(
+        identifying: &[(&str, &str)],
+        non_identifying: &[(&str, &str)],
+    ) -> AgentDescription {
+        AgentDescription {
+            identifying_attributes: identifying
+                .iter()
+                .map(|(k, v)| (k.to_string(), DescriptionValueType::String(v.to_string())))
+                .collect(),
+            non_identifying_attributes: non_identifying
+                .iter()
+                .map(|(k, v)| (k.to_string(), DescriptionValueType::String(v.to_string())))
+                .collect(),
+        }
+    }
+
+    #[rstest]
+    #[case::health_updated_becomes_healthy(
+        AgentControlEvent::HealthUpdated(HealthWithStartTime::new(
+            Healthy::new().with_status("some status".to_string()).into(),
+            SystemTime::UNIX_EPOCH,
+        )),
+        Status {
+            agent_control: AgentControlStatus::new_unhealthy(
+                "some status".to_string(),
+                "some error".to_string(),
+            ),
+            fleet: fixed_fleet(),
+            agents: fixed_agents(),
+        },
+        Status {
+            agent_control: AgentControlStatus::new_healthy("some status".to_string()),
+            fleet: fixed_fleet(),
+            agents: fixed_agents(),
+        },
+    )]
+    #[case::health_updated_becomes_unhealthy(
+        AgentControlEvent::HealthUpdated(HealthWithStartTime::new(
+            Unhealthy::new("some error message for agent control unhealthy".to_string())
+                .with_status("some status".to_string())
+                .into(),
+            SystemTime::UNIX_EPOCH,
+        )),
+        Status {
+            agent_control: AgentControlStatus::new_healthy("some status".to_string()),
+            fleet: fixed_fleet(),
+            agents: fixed_agents(),
+        },
+        Status {
+            agent_control: AgentControlStatus::new_unhealthy(
+                "some status".to_string(),
+                "some error message for agent control unhealthy".to_string(),
+            ),
+            fleet: fixed_fleet(),
+            agents: fixed_agents(),
+        },
+    )]
+    #[case::sub_agent_removed(
+        SubAgentRemoved(AgentID::try_from("some-agent-id").unwrap()),
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::from([
+                (
                     AgentID::try_from("some-agent-id").unwrap(),
-                )),
-                sub_agent_event: None,
-                current_status: Arc::new(RwLock::new(Status {
-                    agent_control: agent_control_status_random.clone(),
-                    fleet: opamp_status_random.clone(),
-                    agents: SubAgentsStatus::from([
-                        (
-                            AgentID::try_from("some-agent-id").unwrap(),
-                            SubAgentStatus::new(
-                                AgentID::try_from("some-agent-id").unwrap(),
-                                AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                                0,
-                                HealthInfo::new(
-                                    String::default(),
-                                    true,
-                                    Some(String::default()),
-                                    0,
-                                    0,
-                                ),
-                            ),
-                        ),
-                        (
-                            AgentID::try_from("some-other-id").unwrap(),
-                            SubAgentStatus::new(
-                                AgentID::try_from("some-other-id").unwrap(),
-                                AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                                0,
-                                HealthInfo::new(
-                                    String::default(),
-                                    true,
-                                    Some(String::default()),
-                                    0,
-                                    0,
-                                ),
-                            ),
-                        ),
-                    ]),
-                })),
-                expected_status: Status {
-                    agent_control: agent_control_status_random.clone(),
-                    fleet: opamp_status_random,
-                    agents: SubAgentsStatus::from([(
-                        AgentID::try_from("some-other-id").unwrap(),
-                        SubAgentStatus::new(
-                            AgentID::try_from("some-other-id").unwrap(),
-                            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                            0,
-                            HealthInfo::new(String::default(), true, Some(String::default()), 0, 0),
-                        ),
-                    )]),
-                },
-            },
-            Test {
-                _name: "OpAMP Agent gets unhealthy",
-                agent_control_event: Some(OpAMPConnectFailed(
-                    Some(404),
-                    String::from("some error msg"),
-                )),
-                sub_agent_event: None,
-                current_status: Arc::new(RwLock::new(Status {
-                    agent_control: agent_control_status_random.clone(),
-                    fleet: OpAMPStatus::enabled_and_reachable(Some(
-                        Url::try_from("http://127.0.0.1").unwrap(),
-                    )),
-                    agents: sub_agents_status_random.clone(),
-                })),
-                expected_status: Status {
-                    agent_control: agent_control_status_random.clone(),
-                    fleet: OpAMPStatus::enabled_and_unreachable(
-                        Some(Url::try_from("http://127.0.0.1").unwrap()),
-                        404,
-                        String::from("some error msg"),
+                    SubAgentStatus::new(
+                        AgentID::try_from("some-agent-id").unwrap(),
+                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                        0,
+                        HealthInfo::new(String::default(), true, None, 0, 0),
                     ),
-                    agents: sub_agents_status_random.clone(),
-                },
-            },
-        ];
-
-        for test in tests {
-            test.run().await;
-        }
+                ),
+                (
+                    AgentID::try_from("some-other-id").unwrap(),
+                    SubAgentStatus::new(
+                        AgentID::try_from("some-other-id").unwrap(),
+                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                        0,
+                        HealthInfo::new(String::default(), true, None, 0, 0),
+                    ),
+                ),
+            ]),
+        },
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::from([(
+                AgentID::try_from("some-other-id").unwrap(),
+                SubAgentStatus::new(
+                    AgentID::try_from("some-other-id").unwrap(),
+                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    0,
+                    HealthInfo::new(String::default(), true, None, 0, 0),
+                ),
+            )]),
+        },
+    )]
+    #[case::opamp_connected(
+        AgentControlEvent::OpAMPConnected,
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: OpAMPStatus::enabled_and_unreachable(
+                Some(Url::try_from("http://127.0.0.1").unwrap()),
+                503,
+                "service unavailable".to_string(),
+            ),
+            agents: fixed_agents(),
+        },
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: fixed_agents(),
+        },
+    )]
+    #[case::opamp_connect_failed(
+        OpAMPConnectFailed(Some(404), "some error msg".to_string()),
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: fixed_agents(),
+        },
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: OpAMPStatus::enabled_and_unreachable(
+                Some(Url::try_from("http://127.0.0.1").unwrap()),
+                404,
+                "some error msg".to_string(),
+            ),
+            agents: fixed_agents(),
+        },
+    )]
+    #[case::agent_description_updated_sets_new_attributes(
+        AgentControlEvent::AgentDescriptionUpdated(agent_description(
+            &[("agent_version", "1.0.0")],
+            &[("host_name", "my-host")],
+        )),
+        Status {
+            agent_control: AgentControlStatus::new_healthy("running".to_string()),
+            fleet: fixed_fleet(),
+            agents: fixed_agents(),
+        },
+        Status {
+            agent_control: AgentControlStatus::new_healthy("running".to_string()).with_attributes(
+                HashMap::from([
+                    ("agent_version".to_string(), "1.0.0".to_string()),
+                    ("host_name".to_string(), "my-host".to_string()),
+                ]),
+            ),
+            fleet: fixed_fleet(),
+            agents: fixed_agents(),
+        },
+    )]
+    #[case::agent_description_updated_extends_and_preserves_existing_attributes(
+        AgentControlEvent::AgentDescriptionUpdated(agent_description(
+            &[("agent_version", "2.0.0")],
+            &[("new_key", "new_val")],
+        )),
+        Status {
+            agent_control: AgentControlStatus::new_healthy("running".to_string()).with_attributes(
+                HashMap::from([
+                    ("agent_version".to_string(), "1.0.0".to_string()),
+                    ("host_name".to_string(), "my-host".to_string()),
+                ]),
+            ),
+            fleet: fixed_fleet(),
+            agents: fixed_agents(),
+        },
+        Status {
+            agent_control: AgentControlStatus::new_healthy("running".to_string()).with_attributes(
+                HashMap::from([
+                    ("agent_version".to_string(), "2.0.0".to_string()), // overwritten
+                    ("host_name".to_string(), "my-host".to_string()),   // preserved
+                    ("new_key".to_string(), "new_val".to_string()),     // added
+                ]),
+            ),
+            fleet: fixed_fleet(),
+            agents: fixed_agents(),
+        },
+    )]
+    #[tokio::test]
+    async fn test_update_agent_control_status(
+        #[case] event: AgentControlEvent,
+        #[case] current_status: Status,
+        #[case] expected_status: Status,
+    ) {
+        let status = Arc::new(RwLock::new(current_status));
+        update_agent_control_status(event, status.clone()).await;
+        assert_eq!(expected_status, *status.read().await);
     }
 
-    fn uri_to_url(uri: http::Uri) -> Option<Url> {
-        let uri_str = uri.to_string();
-        Url::try_from(uri_str.as_str()).ok()
-    }
-
-    // create random OpAMP status
-    fn opamp_status_random() -> OpAMPStatus {
-        // There is no fake instance for the `Url` type, so we will assemble it step by step from an `Uri`,
-        // given that all URLs are URIs but not all URIs are URLs.
-        let endpoint = uri_to_url(Faker.fake::<http::Uri>());
-        let reachable = en::Boolean(50).fake::<bool>();
-        let enabled = en::Boolean(50).fake::<bool>();
-        let error_code = Some((400..599).fake::<u16>());
-        let error_message = Some(Words(3..5).fake::<Vec<String>>().join(" "));
-
-        OpAMPStatus::new(enabled, endpoint, reachable, error_code, error_message)
-    }
-
-    // create random Agent Control status
-    fn agent_control_status_random() -> AgentControlStatus {
-        let healthy = en::Boolean(50).fake::<bool>();
-
-        //random status
-        let status = Word().fake::<String>();
-
-        if healthy {
-            AgentControlStatus::new_healthy(status.clone())
-        } else {
-            AgentControlStatus::new_unhealthy(status, Words(3..5).fake::<Vec<String>>().join(" "))
-        }
-    }
-
-    // create random Sub Agent status
-    fn sub_agent_status_random() -> SubAgentStatus {
-        let healthy = en::Boolean(50).fake::<bool>();
-        let last_error = healthy
-            .then_some(Words(3..5).fake::<Vec<String>>().join(" "))
-            .or(Some(String::default()));
-        let agent_id = AgentID::try_from(Word().fake::<&str>()).unwrap();
-        let agent_type_fqn = format!(
-            "{}/{}:{}",
-            Word().fake::<&str>(),
-            Word().fake::<&str>(),
-            Semver().fake::<String>(),
-        );
-        let agent_type = AgentTypeID::try_from(agent_type_fqn.as_str()).unwrap();
-        //random status
-        let status = Word().fake::<String>();
-
-        SubAgentStatus::new(
-            agent_id,
-            agent_type,
-            0,
-            HealthInfo::new(status, healthy, last_error, 0, 0),
-        )
-    }
-
-    // create N (0..5) random Sub Agent status
-    fn sub_agents_status_random() -> SubAgentsStatus {
-        let sub_agents_amount = (0..5).fake::<u32>();
-        let mut sub_agents: HashMap<AgentID, SubAgentStatus> = HashMap::new();
-        for _ in 0..sub_agents_amount {
-            let sub_agent = sub_agent_status_random();
-            sub_agents.insert(sub_agent.agent_id(), sub_agent);
-        }
-        SubAgentsStatus::from(sub_agents)
+    #[rstest]
+    #[case::health_updated_first_healthy(
+        HealthUpdated(
+            agent_identity("some-agent-id"),
+            HealthWithStartTime::new(Healthy::default().into(), SystemTime::UNIX_EPOCH),
+        ),
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::default(),
+        },
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::from([(
+                AgentID::try_from("some-agent-id").unwrap(),
+                SubAgentStatus::new(
+                    AgentID::try_from("some-agent-id").unwrap(),
+                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    0,
+                    HealthInfo::new(String::default(), true, None, 0, 0),
+                ),
+            )]),
+        },
+    )]
+    #[case::health_updated_first_unhealthy(
+        HealthUpdated(
+            agent_identity("some-agent-id"),
+            HealthWithStartTime::new(
+                Unhealthy::default()
+                    .with_last_error("this is an error message".to_string())
+                    .into(),
+                SystemTime::UNIX_EPOCH,
+            ),
+        ),
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::default(),
+        },
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::from([(
+                AgentID::try_from("some-agent-id").unwrap(),
+                SubAgentStatus::new(
+                    AgentID::try_from("some-agent-id").unwrap(),
+                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    0,
+                    HealthInfo::new(
+                        String::default(),
+                        false,
+                        Some("this is an error message".to_string()),
+                        0,
+                        0,
+                    ),
+                ),
+            )]),
+        },
+    )]
+    #[case::health_updated_changes_existing_agent(
+        HealthUpdated(
+            agent_identity("some-agent-id"),
+            HealthWithStartTime::new(
+                Unhealthy::default()
+                    .with_last_error("this is an error message".to_string())
+                    .into(),
+                SystemTime::UNIX_EPOCH,
+            ),
+        ),
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::from([
+                (
+                    AgentID::try_from("some-agent-id").unwrap(),
+                    SubAgentStatus::new(
+                        AgentID::try_from("some-agent-id").unwrap(),
+                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                        0,
+                        HealthInfo::new(String::default(), true, None, 0, 0),
+                    ),
+                ),
+                (
+                    AgentID::try_from("some-other-id").unwrap(),
+                    SubAgentStatus::new(
+                        AgentID::try_from("some-other-id").unwrap(),
+                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                        0,
+                        HealthInfo::new(String::default(), true, None, 0, 0),
+                    ),
+                ),
+            ]),
+        },
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::from([
+                (
+                    AgentID::try_from("some-agent-id").unwrap(),
+                    SubAgentStatus::new(
+                        AgentID::try_from("some-agent-id").unwrap(),
+                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                        0,
+                        HealthInfo::new(
+                            String::default(),
+                            false,
+                            Some("this is an error message".to_string()),
+                            0,
+                            0,
+                        ),
+                    ),
+                ),
+                (
+                    AgentID::try_from("some-other-id").unwrap(),
+                    SubAgentStatus::new(
+                        AgentID::try_from("some-other-id").unwrap(),
+                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                        0,
+                        HealthInfo::new(String::default(), true, None, 0, 0),
+                    ),
+                ),
+            ]),
+        },
+    )]
+    #[case::sub_agent_started_adds_new_agent(
+        SubAgentEvent::SubAgentStarted(agent_identity("some-agent-id"), SystemTime::UNIX_EPOCH),
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::default(),
+        },
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::from([(
+                AgentID::try_from("some-agent-id").unwrap(),
+                SubAgentStatus::with_identity(agent_identity("some-agent-id"))
+                    .with_start_time(SystemTime::UNIX_EPOCH),
+            )]),
+        },
+    )]
+    #[case::sub_agent_started_does_not_override_existing(
+        SubAgentEvent::SubAgentStarted(agent_identity("some-agent-id"), SystemTime::UNIX_EPOCH),
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::from([(
+                AgentID::try_from("some-agent-id").unwrap(),
+                SubAgentStatus::new(
+                    AgentID::try_from("some-agent-id").unwrap(),
+                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    0,
+                    HealthInfo::new(String::default(), true, None, 0, 0),
+                ),
+            )]),
+        },
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::from([(
+                AgentID::try_from("some-agent-id").unwrap(),
+                SubAgentStatus::new(
+                    AgentID::try_from("some-agent-id").unwrap(),
+                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    0,
+                    HealthInfo::new(String::default(), true, None, 0, 0),
+                ),
+            )]),
+        },
+    )]
+    #[case::agent_description_updated_sets_attributes_on_known_agent(
+        SubAgentEvent::AgentDescriptionUpdated(
+            agent_identity("some-agent-id"),
+            agent_description(&[("agent_version", "1.0.0")], &[("host_name", "my-host")]),
+        ),
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::from([(
+                AgentID::try_from("some-agent-id").unwrap(),
+                SubAgentStatus::new(
+                    AgentID::try_from("some-agent-id").unwrap(),
+                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    0,
+                    HealthInfo::new(String::default(), true, None, 0, 0),
+                ),
+            )]),
+        },
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::from([(
+                AgentID::try_from("some-agent-id").unwrap(),
+                SubAgentStatus::new(
+                    AgentID::try_from("some-agent-id").unwrap(),
+                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    0,
+                    HealthInfo::new(String::default(), true, None, 0, 0),
+                )
+                .with_attributes(HashMap::from([
+                    ("agent_version".to_string(), "1.0.0".to_string()),
+                    ("host_name".to_string(), "my-host".to_string()),
+                ])),
+            )]),
+        },
+    )]
+    #[case::agent_description_updated_extends_and_preserves_existing_attributes(
+        SubAgentEvent::AgentDescriptionUpdated(
+            agent_identity("some-agent-id"),
+            agent_description(&[("agent_version", "2.0.0")], &[("new_key", "new_val")]),
+        ),
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::from([(
+                AgentID::try_from("some-agent-id").unwrap(),
+                SubAgentStatus::new(
+                    AgentID::try_from("some-agent-id").unwrap(),
+                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    0,
+                    HealthInfo::new(String::default(), true, None, 0, 0),
+                )
+                .with_attributes(HashMap::from([
+                    ("agent_version".to_string(), "1.0.0".to_string()),
+                    ("host_name".to_string(), "my-host".to_string()),
+                ])),
+            )]),
+        },
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::from([(
+                AgentID::try_from("some-agent-id").unwrap(),
+                SubAgentStatus::new(
+                    AgentID::try_from("some-agent-id").unwrap(),
+                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    0,
+                    HealthInfo::new(String::default(), true, None, 0, 0),
+                )
+                .with_attributes(HashMap::from([
+                    ("agent_version".to_string(), "2.0.0".to_string()), // overwritten
+                    ("host_name".to_string(), "my-host".to_string()),   // preserved
+                    ("new_key".to_string(), "new_val".to_string()),     // added
+                ])),
+            )]),
+        },
+    )]
+    #[case::agent_description_updated_creates_agent_when_absent(
+        SubAgentEvent::AgentDescriptionUpdated(
+            agent_identity("some-agent-id"),
+            agent_description(&[("agent_version", "1.0.0")], &[]),
+        ),
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::default(),
+        },
+        Status {
+            agent_control: fixed_agent_control(),
+            fleet: fixed_fleet(),
+            agents: SubAgentsStatus::from([(
+                AgentID::try_from("some-agent-id").unwrap(),
+                SubAgentStatus::with_identity(agent_identity("some-agent-id"))
+                    .with_attributes(HashMap::from([(
+                        "agent_version".to_string(),
+                        "1.0.0".to_string(),
+                    )])),
+            )]),
+        },
+    )]
+    #[tokio::test]
+    async fn test_update_sub_agent_status(
+        #[case] event: SubAgentEvent,
+        #[case] current_status: Status,
+        #[case] expected_status: Status,
+    ) {
+        let status = Arc::new(RwLock::new(current_status));
+        update_sub_agent_status(event, status.clone()).await;
+        assert_eq!(expected_status, *status.read().await);
     }
 
     #[tokio::test(flavor = "multi_thread")]

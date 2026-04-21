@@ -329,6 +329,10 @@ pub mod tests {
                 attributes: Default::default(),
             }
         }
+        pub fn with_attributes(mut self, attrs: HashMap<String, String>) -> Self {
+            self.attributes = attrs;
+            self
+        }
     }
 
     impl SubAgentStatus {
@@ -347,8 +351,9 @@ pub mod tests {
             }
         }
 
-        pub fn agent_id(&self) -> AgentID {
-            self.agent_id.clone()
+        pub fn with_attributes(mut self, attrs: HashMap<String, String>) -> Self {
+            self.attributes = attrs;
+            self
         }
     }
 
@@ -371,22 +376,6 @@ pub mod tests {
     }
 
     impl OpAMPStatus {
-        pub fn new(
-            enabled: bool,
-            endpoint: Option<Url>,
-            reachable: bool,
-            error_code: Option<LastErrorCode>,
-            error_message: Option<LastErrorMessage>,
-        ) -> Self {
-            OpAMPStatus {
-                enabled,
-                endpoint,
-                reachable,
-                error_code,
-                error_message,
-            }
-        }
-
         pub fn enabled_and_reachable(endpoint: Option<Url>) -> Self {
             OpAMPStatus {
                 enabled: true,
