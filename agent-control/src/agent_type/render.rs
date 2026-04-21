@@ -47,11 +47,13 @@ impl TemplateRenderer {
                     Variable::from(value),
                 )
             })
-            .collect();
+            .collect::<HashMap<String, Variable>>();
+        let mut default_vars = global_defaults_vars;
+        default_vars.extend(env_vars.clone());
 
         // Template defaults in variables, then fill with user values, then flatten
         let filled_variables = variables
-            .template_defaults(&global_defaults_vars)?
+            .template_defaults(&default_vars)?
             .fill_with_values(values_expanded)?
             .flatten();
 
@@ -659,6 +661,11 @@ name: first
 version: 0.1.0
 variables:
   common:
+    id:
+      description: "id"
+      type: string
+      required: false
+      default: ${nr-env:id}
     path:
       description: "path"
       type: string
@@ -678,14 +685,14 @@ deployment:
   linux:
     enable_file_logging: ${nr-var:enable_file_logging}
     executables:
-      - id: first
+      - id: ${nr-var:id}
         path: ${nr-var:path}
         args:
           - "${nr-var:registry}"
   windows:
     enable_file_logging: ${nr-var:enable_file_logging}
     executables:
-      - id: first
+      - id: ${nr-var:id}
         path: ${nr-var:path}
         args:
           - "${nr-var:registry}"
@@ -715,6 +722,11 @@ path: /opt/first
             ),
         ]);
 
+        let env_vars = HashMap::from([(
+            Namespace::EnvironmentVariable.namespaced_name("id"),
+            Variable::new_final_string_variable("first".to_string()),
+        )]);
+
         let renderer =
             TemplateRenderer::default().with_agent_control_variables(HashMap::new().into_iter());
         let runtime_config = renderer
@@ -722,7 +734,7 @@ path: /opt/first
                 agent_type,
                 values,
                 attributes,
-                HashMap::new(),
+                env_vars,
                 HashMap::new(),
                 global_defaults,
             )
@@ -733,6 +745,7 @@ path: /opt/first
             .first()
             .unwrap()
             .clone();
+        assert_eq!("first".to_string(), executable.id.clone());
         assert_eq!("/opt/first".to_string(), executable.path.clone());
         assert_eq!(
             rendered::Args(vec!("test-registry-url/test-repository".to_string())),
