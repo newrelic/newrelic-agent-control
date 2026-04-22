@@ -3,10 +3,9 @@
 Requirements:
 
 - Docker
-- [Install minikube](https://minikube.sigs.k8s.io/docs/start/) 
+- [Install minikube](https://minikube.sigs.k8s.io/docs/start/)
   No external registry should be configured and docker driver must be used so Tilt uses minikube docker engine
   for image building.
-
 
 On the repo root directory Run:
 
@@ -22,15 +21,15 @@ Notes:
   the test can be configured to use the `KUBECONFIG` environment.
 - Tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop, so
   `#[tokio::test(flavor = "multi_thread", worker_threads = 2)]` needs to be added
-- Any test requiring a running k8s cluster should be implemented this way: unit-tests in the agent-control create define
+- Any test requiring a running k8s cluster should be implemented this way: unit-tests in the agent-control crate define
   the k8s client as a mock using [mockall::double](https://docs.rs/mockall_double/latest/mockall_double/). Therefore,
-  using the _real_ implementation can be problematic. This also means that the mocks defined in the agent-control create
-  cannot be used in integration test (if a particular component mock is needed we need to either re-implement it in the
+  using the _real_ implementation can be problematic. This also means that the mocks defined in the agent-control crate
+  cannot be used in integration tests (if a particular component mock is needed we need to either re-implement it in the
   integration test module or expose them in the agent-control crate, outside the `test` feature flag).
 - You can run test manually dumping the minikube context to the dev kubecontext:
 
-```bash
-$ KUBECONFIG='./.kubeconfig-dev' minikube update-context
+```sh
+KUBECONFIG='./.kubeconfig-dev' minikube update-context
 ```
 
 ## sync / async integration tests
@@ -39,7 +38,7 @@ Some tests use the `SyncK8sClient` which encapsulates calls to `runtime.block_on
 When this client is used, `#[tokio::test]` cannot be used because `runtime.block_on` would be executing in a tokio
 runtime context, leading to a panic:
 
-```
+```txt
 'Cannot start a runtime from within a runtime. This happens because a function (like `block_on`) attempted to block the current thread while the thread is being used to drive asynchronous tasks.'
 ```
 
