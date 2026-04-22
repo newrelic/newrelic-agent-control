@@ -302,20 +302,27 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_auth_error_when_multiple_credentials_provided() {
+    #[rstest]
+    #[case::multiple_credentials_provided("myuser", "mypass", "bearer-token")]
+    #[case::no_username_in_basic_auth("", "mypass", "")]
+    #[case::no_password_in_basic_auth("myuser", "", "")]
+    fn test_auth_credentials_error(
+        #[case] username: String,
+        #[case] password: String,
+        #[case] token: String,
+    ) {
         let mut variables = Variables::new();
         variables.insert(
             "nr-var:username".to_string(),
-            Variable::new_final_string_variable("myuser".to_string()),
+            Variable::new_final_string_variable(username),
         );
         variables.insert(
             "nr-var:password".to_string(),
-            Variable::new_final_string_variable("mypass".to_string()),
+            Variable::new_final_string_variable(password),
         );
         variables.insert(
             "nr-var:token".to_string(),
-            Variable::new_final_string_variable("bearer-token".to_string()),
+            Variable::new_final_string_variable(token),
         );
 
         let oci = Oci {
