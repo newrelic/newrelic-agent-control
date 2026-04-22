@@ -308,7 +308,7 @@ fn push_fake_ac_package() -> oci_client::Reference {
     #[cfg(target_family = "unix")]
     let (path, media_type) = {
         let path = dir.path().join("ac_package.tar.gz");
-        TestDataHelper::compress_tar_gz_file(&binary_path, &path);
+        TestDataHelper::compress_tar_gz_executable(&binary_path, &path);
         (path, PackageMediaType::AgentPackageLayerTarGz)
     };
 

@@ -11,7 +11,6 @@ use crate::package::manager::{PackageData, PackageManager};
 use oci_client::Reference;
 use self_replacer::{BinarySelfReplacer, SelfReplacer};
 use std::str::FromStr;
-use std::sync::Arc;
 use thiserror::Error;
 use tracing::{debug, debug_span};
 use url::Url;
@@ -37,7 +36,7 @@ where
 {
     ac_remote_update_enabled: bool,
     agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
-    package_manager: Arc<P>,
+    package_manager: P,
     verify_executor: V,
     base_reference: Reference,
     pub_key_url: Url,
@@ -117,7 +116,7 @@ where
     pub fn try_new(
         ac_remote_update_enabled: bool,
         agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
-        package_manager: Arc<P>,
+        package_manager: P,
         verify_executor: V,
         package: AgentControlPackage,
     ) -> Result<Self, BuildError> {
@@ -161,7 +160,6 @@ mod tests {
     use assert_matches::assert_matches;
     use mockall::mock;
     use std::path::Path;
-    use std::sync::Arc;
     use url::Url;
 
     mock! {
@@ -178,7 +176,7 @@ mod tests {
         OnHostACUpdater::try_new(
             ac_remote_update_enabled,
             publisher,
-            Arc::new(MockPackageManager::new()),
+            MockPackageManager::new(),
             MockVerifyExecutorMock::new(),
             AgentControlPackage::default(),
         )
@@ -225,7 +223,7 @@ mod tests {
             TestUpdater::try_new(
                 true,
                 publisher,
-                Arc::new(MockPackageManager::new()),
+                MockPackageManager::new(),
                 MockVerifyExecutorMock::new(),
                 package
             )

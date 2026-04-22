@@ -165,16 +165,14 @@ impl AgentControlRunner {
         let oci_client = oci::Client::try_new(oci_client_config, proxy, self.runtime.clone())
             .map_err(|err| RunError(format!("failed to create the OciClient: {err}")))?;
 
-        let agents_packages_downloader = OCIArtifactDownloader::new(
-            oci_client.clone(),
-            agent_control_config
-                .agent_packages
-                .signature_verification_enabled
-                .into(),
-        );
-
         let agents_package_manager = OCIPackageManager::new(
-            agents_packages_downloader,
+            OCIArtifactDownloader::new(
+                oci_client.clone(),
+                agent_control_config
+                    .agent_packages
+                    .signature_verification_enabled
+                    .into(),
+            ),
             DirectoryManagerFs,
             remote_dir.clone(),
         );
@@ -217,24 +215,22 @@ impl AgentControlRunner {
 
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
 
-        let packages_downloader = OCIArtifactDownloader::new(
-            oci_client.clone(),
-            agent_control_config
-                .self_update
-                .signature_verification_enabled
-                .into(),
-        );
-
-        let package_manager = Arc::new(OCIPackageManager::new(
-            packages_downloader,
+        let agent_control_package_manager = OCIPackageManager::new(
+            OCIArtifactDownloader::new(
+                oci_client.clone(),
+                agent_control_config
+                    .self_update
+                    .signature_verification_enabled
+                    .into(),
+            ),
             DirectoryManagerFs,
             remote_dir.clone(),
-        ));
+        );
 
         let self_updater = OnHostACUpdater::try_new(
             agent_control_config.self_update.enabled,
             agent_control_internal_publisher.clone(),
-            package_manager,
+            agent_control_package_manager,
             ProcessVerifyExecutor::default(),
             agent_control_config.self_update.package.clone(),
         )

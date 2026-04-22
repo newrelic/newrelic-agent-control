@@ -7,6 +7,6 @@
 pub(crate) fn current_test_id() -> String {
     std::thread::current()
         .name()
-        .unwrap_or("unknown")
+        .expect("thread name is expected to avoid collisions")
         .to_string()
 }
