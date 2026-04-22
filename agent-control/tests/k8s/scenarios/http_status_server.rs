@@ -11,8 +11,9 @@ use crate::k8s::tools::agent_control::{
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, CLUSTER_NAME_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION,
+    AGENT_CONTROL_ID, AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
+    CLUSTER_NAME_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY,
 };
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use serde_json::json;
@@ -83,82 +84,68 @@ fn test_k8s_http_status_endpoint_response() {
         Environment::K8s,
     );
 
+    let expected_fleet = json!({
+        "enabled": true,
+        "endpoint": opamp_server.endpoint(),
+        "reachable": true,
+    });
+
     retry(30, Duration::from_secs(1), || {
         let body: serde_json::Value = reqwest::blocking::get(status_server_url(status_server_port))
             .map_err(|e| format!("request failed: {e}"))?
             .json()
             .map_err(|e| format!("json parse failed: {e}"))?;
 
-        // fleet fields are set from config at server init, not event-driven
-        if body["fleet"]["enabled"] != json!(true) {
-            return Err(format!("expected fleet.enabled=true, got: {}", body["fleet"]).into());
+        if body["fleet"] != expected_fleet {
+            return Err(format!("expected fleet={expected_fleet}, got: {}", body["fleet"]).into());
         }
 
-        // agent_control.attributes is populated by the AgentDescriptionUpdated event
-        let ac_attrs = body["agent_control"]["attributes"]
-            .as_object()
-            .ok_or("agent_control.attributes not present or not an object")?;
-
-        let got_version = ac_attrs
-            .get(OPAMP_AGENT_VERSION_ATTRIBUTE_KEY)
-            .and_then(|v| v.as_str())
-            .ok_or(format!("{OPAMP_AGENT_VERSION_ATTRIBUTE_KEY} missing"))?;
-        if got_version != AGENT_CONTROL_VERSION {
-            return Err(format!(
-                "expected {OPAMP_AGENT_VERSION_ATTRIBUTE_KEY}={AGENT_CONTROL_VERSION}, got {got_version}"
-            )
-            .into());
+        let ac_attrs = &body["agent_control"]["attributes"];
+        if !ac_attrs.is_object() {
+            return Err("agent_control.attributes not present or not an object".into());
         }
-
-        let got_cluster = ac_attrs
-            .get(CLUSTER_NAME_ATTRIBUTE_KEY)
-            .and_then(|v| v.as_str())
-            .ok_or(format!("{CLUSTER_NAME_ATTRIBUTE_KEY} missing"))?;
-        if got_cluster != TEST_CLUSTER_NAME {
-            return Err(format!(
-                "expected {CLUSTER_NAME_ATTRIBUTE_KEY}={TEST_CLUSTER_NAME}, got {got_cluster}"
-            )
-            .into());
+        let expected_ac_attrs = [
+            (
+                OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+                json!(AGENT_CONTROL_VERSION),
+            ),
+            (CLUSTER_NAME_ATTRIBUTE_KEY, json!(TEST_CLUSTER_NAME)),
+            (OPAMP_SERVICE_NAME, json!(AGENT_CONTROL_TYPE)),
+            (OPAMP_SERVICE_NAMESPACE, json!(AGENT_CONTROL_NAMESPACE)),
+            (OPAMP_SUPERVISOR_KEY, json!(AGENT_CONTROL_ID)),
+        ];
+        for (key, expected) in expected_ac_attrs {
+            if ac_attrs[key] != expected {
+                return Err(format!("expected {key}={expected}, got: {}", ac_attrs[key]).into());
+            }
         }
-
-        if ac_attrs
-            .get(HOST_NAME_ATTRIBUTE_KEY)
-            .and_then(|v| v.as_str())
+        if ac_attrs[HOST_NAME_ATTRIBUTE_KEY]
+            .as_str()
             .unwrap_or("")
             .is_empty()
         {
             return Err(format!("{HOST_NAME_ATTRIBUTE_KEY} is missing or empty").into());
         }
 
-        // sub-agent attributes are populated from AgentDescriptionSet
-        let sub_attrs = body["agents"][AGENT_ID]["attributes"]
-            .as_object()
-            .ok_or(format!(
-                "agents.{AGENT_ID}.attributes not present or not an object"
-            ))?;
-
-        let got_service_version = sub_attrs
-            .get(OPAMP_SERVICE_VERSION)
-            .and_then(|v| v.as_str())
-            .ok_or(format!("{OPAMP_SERVICE_VERSION} missing from sub-agent"))?;
-        if got_service_version != "0.0.1" {
-            return Err(format!(
-                "expected sub-agent {OPAMP_SERVICE_VERSION}=0.0.1, got {got_service_version}"
-            )
-            .into());
+        let sub_attrs = &body["agents"][AGENT_ID]["attributes"];
+        if !sub_attrs.is_object() {
+            return Err(
+                format!("agents.{AGENT_ID}.attributes not present or not an object").into(),
+            );
         }
-
-        let got_sub_cluster = sub_attrs
-            .get(CLUSTER_NAME_ATTRIBUTE_KEY)
-            .and_then(|v| v.as_str())
-            .ok_or(format!(
-                "{CLUSTER_NAME_ATTRIBUTE_KEY} missing from sub-agent"
-            ))?;
-        if got_sub_cluster != TEST_CLUSTER_NAME {
-            return Err(format!(
-                "expected sub-agent {CLUSTER_NAME_ATTRIBUTE_KEY}={TEST_CLUSTER_NAME}, got {got_sub_cluster}"
-            )
-            .into());
+        let expected_sub_attrs = [
+            (OPAMP_SERVICE_VERSION, json!("0.0.1")),
+            (CLUSTER_NAME_ATTRIBUTE_KEY, json!(TEST_CLUSTER_NAME)),
+            (OPAMP_SERVICE_NAME, json!("com.newrelic.custom_agent")),
+            (OPAMP_SERVICE_NAMESPACE, json!(AGENT_CONTROL_NAMESPACE)),
+            (OPAMP_SUPERVISOR_KEY, json!(AGENT_ID)),
+        ];
+        for (key, expected) in expected_sub_attrs {
+            if sub_attrs[key] != expected {
+                return Err(
+                    format!("expected sub {key}={expected}, got: {}", sub_attrs[key]).into(),
+                );
+            }
         }
 
         Ok(())
