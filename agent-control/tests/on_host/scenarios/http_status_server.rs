@@ -87,27 +87,42 @@ fn test_http_status_endpoint_response() {
         if !ac_attrs.is_object() {
             return Err("agent_control.attributes not present or not an object".into());
         }
-        let expected_ac_attrs = [
+        let expected_ac_attrs = vec![
             (
-                OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+                format!("identifying/{OPAMP_AGENT_VERSION_ATTRIBUTE_KEY}"),
                 json!(AGENT_CONTROL_VERSION),
             ),
-            (HOST_ID_ATTRIBUTE_KEY, json!(HOST_ID)),
-            (OPAMP_SERVICE_NAME, json!(AGENT_CONTROL_TYPE)),
-            (OPAMP_SERVICE_NAMESPACE, json!(AGENT_CONTROL_NAMESPACE)),
-            (OPAMP_SUPERVISOR_KEY, json!(AGENT_CONTROL_ID)),
+            (
+                format!("non-identifying/{HOST_ID_ATTRIBUTE_KEY}"),
+                json!(HOST_ID),
+            ),
+            (
+                format!("identifying/{OPAMP_SERVICE_NAME}"),
+                json!(AGENT_CONTROL_TYPE),
+            ),
+            (
+                format!("identifying/{OPAMP_SERVICE_NAMESPACE}"),
+                json!(AGENT_CONTROL_NAMESPACE),
+            ),
+            (
+                format!("identifying/{OPAMP_SUPERVISOR_KEY}"),
+                json!(AGENT_CONTROL_ID),
+            ),
         ];
-        for (key, expected) in expected_ac_attrs {
-            if ac_attrs[key] != expected {
-                return Err(format!("expected {key}={expected}, got: {}", ac_attrs[key]).into());
+        for (key, expected) in &expected_ac_attrs {
+            if ac_attrs[key.as_str()] != *expected {
+                return Err(
+                    format!("expected {key}={expected}, got: {}", ac_attrs[key.as_str()]).into(),
+                );
             }
         }
-        if ac_attrs[HOST_NAME_ATTRIBUTE_KEY]
+        let ac_host_name_key = format!("non-identifying/{HOST_NAME_ATTRIBUTE_KEY}");
+        if ac_attrs[ac_host_name_key.as_str()]
             .as_str()
             .unwrap_or("")
             .is_empty()
         {
-            return Err(format!("{HOST_NAME_ATTRIBUTE_KEY} is missing or empty").into());
+            return Err(format!("{ac_host_name_key} is missing or empty").into());
         }
 
         // Check sub-agent attributes
@@ -117,26 +132,44 @@ fn test_http_status_endpoint_response() {
                 format!("agents.{AGENT_ID}.attributes not present or not an object").into(),
             );
         }
-        let expected_sub_attrs = [
-            (OPAMP_SERVICE_VERSION, json!("0.1.0")),
-            (OS_ATTRIBUTE_KEY, json!(OS_ATTRIBUTE_VALUE)),
-            (OPAMP_SERVICE_NAME, json!("com.newrelic.custom_agent")),
-            (OPAMP_SERVICE_NAMESPACE, json!(AGENT_CONTROL_NAMESPACE)),
-            (OPAMP_SUPERVISOR_KEY, json!(AGENT_ID)),
+        let expected_sub_attrs = vec![
+            (
+                format!("identifying/{OPAMP_SERVICE_VERSION}"),
+                json!("0.1.0"),
+            ),
+            (
+                format!("non-identifying/{OS_ATTRIBUTE_KEY}"),
+                json!(OS_ATTRIBUTE_VALUE),
+            ),
+            (
+                format!("identifying/{OPAMP_SERVICE_NAME}"),
+                json!("com.newrelic.custom_agent"),
+            ),
+            (
+                format!("identifying/{OPAMP_SERVICE_NAMESPACE}"),
+                json!(AGENT_CONTROL_NAMESPACE),
+            ),
+            (
+                format!("identifying/{OPAMP_SUPERVISOR_KEY}"),
+                json!(AGENT_ID),
+            ),
         ];
-        for (key, expected) in expected_sub_attrs {
-            if sub_attrs[key] != expected {
-                return Err(
-                    format!("expected sub {key}={expected}, got: {}", sub_attrs[key]).into(),
-                );
+        for (key, expected) in &expected_sub_attrs {
+            if sub_attrs[key.as_str()] != *expected {
+                return Err(format!(
+                    "expected sub {key}={expected}, got: {}",
+                    sub_attrs[key.as_str()]
+                )
+                .into());
             }
         }
-        if sub_attrs[HOST_NAME_ATTRIBUTE_KEY]
+        let sub_host_name_key = format!("non-identifying/{HOST_NAME_ATTRIBUTE_KEY}");
+        if sub_attrs[sub_host_name_key.as_str()]
             .as_str()
             .unwrap_or("")
             .is_empty()
         {
-            return Err(format!("sub-agent {HOST_NAME_ATTRIBUTE_KEY} is missing or empty").into());
+            return Err(format!("sub-agent {sub_host_name_key} is missing or empty").into());
         }
 
         Ok(())

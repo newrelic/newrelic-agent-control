@@ -12,22 +12,35 @@ use std::collections::HashMap;
 use std::time::SystemTime;
 use url::Url;
 
+const IDENTIFYING_ATTRIBUTES_PREFIX: &str = "identifying";
+const NON_IDENTIFYING_ATTRIBUTES_PREFIX: &str = "non-identifying";
+
 /// Dynamic fields describing the agent; includes attributes like agent_version, instance_uid, ...
 pub(super) type AgentAttributes = HashMap<String, String>;
 
 /// Encodes the provided [AgentDescription] as key-val. If there is an overlap in non-identifying
 /// and identifying attributes, the identifying attributes take precedence.
 pub(super) fn build_agent_attributes(agent_description: AgentDescription) -> AgentAttributes {
-    let mut attributes = encode_attributes(agent_description.non_identifying_attributes);
-    attributes.extend(encode_attributes(agent_description.identifying_attributes));
+    let mut attributes = encode_attributes(
+        agent_description.non_identifying_attributes,
+        NON_IDENTIFYING_ATTRIBUTES_PREFIX,
+    );
+    attributes.extend(encode_attributes(
+        agent_description.identifying_attributes,
+        IDENTIFYING_ATTRIBUTES_PREFIX,
+    ));
     attributes
 }
 
 /// Helper to encode attributes from `agent_description` as key-val.
-fn encode_attributes(attributes: HashMap<String, DescriptionValueType>) -> HashMap<String, String> {
+/// The keys are prefixed by `{prefix}/`. Example `"agent.id"` with
+fn encode_attributes(
+    attributes: HashMap<String, DescriptionValueType>,
+    prefix: &str,
+) -> HashMap<String, String> {
     attributes
         .into_iter()
-        .map(|(k, v)| (k.to_string(), encode_description_value(v)))
+        .map(|(k, v)| (format!("{prefix}/{k}"), encode_description_value(v)))
         .collect()
 }
 
@@ -535,22 +548,22 @@ pub mod tests {
     #[case::non_identifying_only(
         HashMap::new(),
         HashMap::from([("k".to_string(), DescriptionValueType::String("v".to_string()))]),
-        vec![("k", "v")]
+        vec![("non-identifying/k", "v")]
     )]
     #[case::identifying_only(
         HashMap::from([("k".to_string(), DescriptionValueType::String("v".to_string()))]),
         HashMap::new(),
-        vec![("k", "v")]
+        vec![("identifying/k", "v")]
     )]
     #[case::merged_no_overlap(
         HashMap::from([("id".to_string(), DescriptionValueType::String("id_val".to_string()))]),
         HashMap::from([("non_id".to_string(), DescriptionValueType::String("non_id_val".to_string()))]),
-        vec![("id", "id_val"), ("non_id", "non_id_val")]
+        vec![("identifying/id", "id_val"), ("non-identifying/non_id", "non_id_val")]
     )]
-    #[case::identifying_takes_precedence_on_overlap(
+    #[case::both_present_when_key_in_both(
         HashMap::from([("shared".to_string(), DescriptionValueType::String("id_value".to_string()))]),
         HashMap::from([("shared".to_string(), DescriptionValueType::String("non_id_value".to_string()))]),
-        vec![("shared", "id_value")]
+        vec![("identifying/shared", "id_value"), ("non-identifying/shared", "non_id_value")]
     )]
     fn test_agent_description(
         #[case] identifying_attributes: HashMap<String, DescriptionValueType>,
@@ -585,7 +598,7 @@ pub mod tests {
 
         assert_eq!(
             build_agent_attributes(agent_description)
-                .get("k")
+                .get("identifying/k")
                 .map(String::as_str),
             Some(expected)
         );
