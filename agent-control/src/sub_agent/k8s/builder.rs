@@ -181,7 +181,7 @@ pub mod tests {
     use crate::opamp::http::builder::HttpClientBuilderError;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
-    use crate::opamp::operations::start_settings;
+    use crate::opamp::operations::{agent_description, start_settings};
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::tests::MockSupervisorStarter;
@@ -364,21 +364,23 @@ pub mod tests {
         let mut opamp_builder = MockOpAMPClientBuilder::new();
         let start_settings = start_settings(
             instance_id.clone(),
-            &agent_identity,
-            HashMap::from([(
-                OPAMP_SERVICE_VERSION.to_string(),
-                agent_identity.agent_type_id.version().to_string().into(),
-            )]),
-            HashMap::from([
-                (
-                    CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
-                    DescriptionValueType::String(TEST_CLUSTER_NAME.to_string()),
-                ),
-                (
-                    PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
-                    DescriptionValueType::Bytes(instance_id.clone().into()),
-                ),
-            ]),
+            agent_description(
+                &agent_identity,
+                HashMap::from([(
+                    OPAMP_SERVICE_VERSION.to_string(),
+                    agent_identity.agent_type_id.version().to_string().into(),
+                )]),
+                HashMap::from([
+                    (
+                        CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
+                        DescriptionValueType::String(TEST_CLUSTER_NAME.to_string()),
+                    ),
+                    (
+                        PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
+                        DescriptionValueType::Bytes(instance_id.clone().into()),
+                    ),
+                ]),
+            ),
         );
 
         if opamp_builder_fails {

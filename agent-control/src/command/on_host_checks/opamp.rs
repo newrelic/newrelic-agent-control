@@ -5,8 +5,8 @@ use crate::{
     agent_control::run::{
         RunningMode,
         on_host::{
-            ac_identifiers, build_ac_opamp_start_settings, opamp_client_builder,
-            start_ac_opamp_client,
+            ac_identifiers, build_ac_onhost_agent_description, build_ac_opamp_start_settings,
+            opamp_client_builder, start_ac_opamp_client,
         },
     },
     command::on_host_checks::config::VerifiedConfig,
@@ -49,14 +49,12 @@ pub fn check_connectivity(
     // - The check sends an `AgentToServer` message and processes a `ServerToAgent` via
     //   `process_message`, doing more work than strictly necessary for connectivity verification
     let agent_identity = AgentIdentity::new_agent_control_identity();
-    let settings = build_ac_opamp_start_settings(
-        &instance_id_getter,
-        &agent_identity,
-        &identifiers,
-        RunningMode::Verify,
-    )?;
+    let agent_description =
+        build_ac_onhost_agent_description(&agent_identity, &identifiers, RunningMode::Verify);
+    let start_settings =
+        build_ac_opamp_start_settings(&instance_id_getter, &agent_identity, agent_description)?;
     let (client, _consumer) =
-        start_ac_opamp_client(&opamp_client_builder, agent_identity, settings)?;
+        start_ac_opamp_client(&opamp_client_builder, agent_identity, start_settings)?;
     client.stop()?;
 
     info!("OpAMP connectivity check successful");

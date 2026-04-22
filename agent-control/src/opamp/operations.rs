@@ -29,19 +29,20 @@ pub fn sub_agent_start_settings<IG: InstanceIDGetter>(
 
     Ok(start_settings(
         instance_id_getter.get(&agent_identity.id)?,
-        agent_identity,
-        additional_identifying_attributes,
-        non_identifying_attributes,
+        agent_description(
+            agent_identity,
+            additional_identifying_attributes,
+            non_identifying_attributes,
+        ),
     ))
 }
 
-/// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent and agent control.
-pub fn start_settings(
-    instance_id: InstanceID,
+/// Builds [AgentDescription] from the provided [AgentIdentity] and additional attributes
+pub fn agent_description(
     agent_identity: &AgentIdentity,
     additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
-) -> StartSettings {
+) -> AgentDescription {
     let mut identifying_attributes = HashMap::from([
         (
             OPAMP_SERVICE_NAME.to_string(),
@@ -59,14 +60,22 @@ pub fn start_settings(
 
     identifying_attributes.extend(additional_identifying_attributes);
 
+    AgentDescription {
+        identifying_attributes,
+        non_identifying_attributes,
+    }
+}
+
+/// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent and agent control.
+pub fn start_settings(
+    instance_id: InstanceID,
+    agent_description: AgentDescription,
+) -> StartSettings {
     StartSettings {
         instance_uid: instance_id.into(),
         capabilities: default_capabilities(),
         custom_capabilities: Some(default_custom_capabilities()),
-        agent_description: AgentDescription {
-            identifying_attributes,
-            non_identifying_attributes,
-        },
+        agent_description,
     }
 }
 
