@@ -116,25 +116,37 @@ impl Templateable for Oci {
 impl Templateable for Auth {
     type Output = RegistryAuth;
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let username = self.basic.username.template_with(variables)?;
-        let password = self.basic.password.template_with(variables)?;
-        let token = self.bearer.template_with(variables)?;
+        let username = self
+            .basic
+            .username
+            .template_with(variables)
+            .map_err(|err| {
+                AgentTypeError::OCIAuthError(format!("error templating username: {err}"))
+            })?;
+        let password =
+            self.basic.password.template_with(variables).map_err(|_| {
+                AgentTypeError::OCIAuthError("error templating password".to_string())
+            })?;
+        let token = self
+            .bearer
+            .template_with(variables)
+            .map_err(|_| AgentTypeError::OCIAuthError("error templating token".to_string()))?;
 
         match (
-            !&username.is_empty(),
-            !&password.is_empty(),
-            !&token.is_empty(),
+            &username.is_empty(),
+            &password.is_empty(),
+            &token.is_empty(),
         ) {
-            (false, false, false) => Ok(RegistryAuth::Anonymous),
-            (true, true, false) => {
+            (true, true, true) => Ok(RegistryAuth::Anonymous),
+            (false, false, true) => {
                 debug!("Basic auth credentials provided, using basic auth");
                 Ok(RegistryAuth::Basic(username, password))
             }
-            (false, false, true) => {
+            (true, true, false) => {
                 debug!("Bearer token provided, using bearer auth");
                 Ok(RegistryAuth::Bearer(token))
             }
-            (true, true, true) => Err(AgentTypeError::OCIAuthError(
+            (false, false, false) => Err(AgentTypeError::OCIAuthError(
                 "multiple authentication methods provided, only one should be used".to_string(),
             )),
             (true, false, _) | (false, true, _) => Err(AgentTypeError::OCIAuthError(
