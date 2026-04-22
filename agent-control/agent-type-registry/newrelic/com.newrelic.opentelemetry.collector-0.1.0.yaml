@@ -62,10 +62,11 @@ variables:
             required: false
             default: ""
         bearer:
-          description: "Bearer token for authentication"
-          type: string
-          required: false
-          default: ""
+          token:
+            description: "Bearer token for authentication"
+            type: string
+            required: false
+            default: ""
     version:
       description: "Agent version"
       type: string
@@ -125,10 +126,11 @@ variables:
             required: false
             default: ""
         bearer:
-          description: "Bearer token for authentication"
-          type: string
-          required: false
-          default: ""
+          token:
+            description: "Bearer token for authentication"
+            type: string
+            required: false
+            default: ""
     version:
       description: "Agent version"
       type: string
@@ -195,7 +197,8 @@ deployment:
               basic:
                 username: ${nr-var:oci.auth.basic.username}
                 password: ${nr-var:oci.auth.basic.password}
-              bearer: ${nr-var:oci.auth.bearer}
+              bearer:
+                token: ${nr-var:oci.auth.bearer.token}
     version:
       path: ${nr-sub:packages.nrdot.dir}\\nrdot-collector.exe
       args:
@@ -233,7 +236,8 @@ deployment:
               basic:
                 username: ${nr-var:oci.auth.basic.username}
                 password: ${nr-var:oci.auth.basic.password}
-              bearer: ${nr-var:oci.auth.bearer}
+              bearer:
+                token: ${nr-var:oci.auth.bearer.token}
     health:
       interval: 30s
       initial_delay: 90s

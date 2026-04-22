@@ -44,13 +44,18 @@ pub struct Oci {
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Auth {
     pub basic: BasicAuth,
-    pub bearer: TemplateableValue<String>,
+    pub bearer: BearerAuth,
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct BasicAuth {
     pub username: TemplateableValue<String>,
     pub password: TemplateableValue<String>,
+}
+
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct BearerAuth {
+    pub token: TemplateableValue<String>,
 }
 
 impl Templateable for Package {
@@ -129,6 +134,7 @@ impl Templateable for Auth {
             })?;
         let token = self
             .bearer
+            .token
             .template_with(variables)
             .map_err(|_| AgentTypeError::OCIAuthError("error templating token".to_string()))?;
 
@@ -257,7 +263,7 @@ mod tests {
                     username: TemplateableValue::from_template("${nr-var:username}".to_string()),
                     password: TemplateableValue::from_template("${nr-var:password}".to_string()),
                 },
-                bearer: TemplateableValue::default(),
+                bearer: BearerAuth::default(),
             },
         };
 
@@ -283,7 +289,9 @@ mod tests {
             public_key_url: None,
             auth: Auth {
                 basic: BasicAuth::default(),
-                bearer: TemplateableValue::from_template("${nr-var:token}".to_string()),
+                bearer: BearerAuth {
+                    token: TemplateableValue::from_template("${nr-var:token}".to_string()),
+                },
             },
         };
 
@@ -320,7 +328,9 @@ mod tests {
                     username: TemplateableValue::from_template("${nr-var:username}".to_string()),
                     password: TemplateableValue::from_template("${nr-var:password}".to_string()),
                 },
-                bearer: TemplateableValue::from_template("${nr-var:token}".to_string()),
+                bearer: BearerAuth {
+                    token: TemplateableValue::from_template("${nr-var:token}".to_string()),
+                },
             },
         };
 

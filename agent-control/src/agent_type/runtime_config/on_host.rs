@@ -778,7 +778,7 @@ executables:
             Variable::new_final_string_variable(creds.password.to_string()),
         );
         vars.insert(
-            "nr-var:oci.auth.bearer".to_string(),
+            "nr-var:oci.auth.bearer.token".to_string(),
             Variable::new_final_string_variable(creds.bearer.to_string()),
         );
 
@@ -858,6 +858,7 @@ packages:
           basic:
             username: ${nr-var:oci.auth.basic.username}
             password: ${nr-var:oci.auth.basic.password}
-          bearer: ${nr-var:oci.auth.bearer}
+          bearer:
+            token: ${nr-var:oci.auth.bearer.token}
 "#;
 }
