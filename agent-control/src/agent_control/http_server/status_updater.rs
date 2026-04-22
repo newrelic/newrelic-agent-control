@@ -326,8 +326,8 @@ mod tests {
         Status {
             agent_control: AgentControlStatus::new_healthy("running".to_string()).with_attributes(
                 HashMap::from([
-                    ("agent_version".to_string(), "1.0.0".to_string()),
-                    ("host_name".to_string(), "my-host".to_string()),
+                    ("identifying/agent_version".to_string(), "1.0.0".to_string()),
+                    ("non-identifying/host_name".to_string(), "my-host".to_string()),
                 ]),
             ),
             fleet: fixed_fleet(),
@@ -342,8 +342,8 @@ mod tests {
         Status {
             agent_control: AgentControlStatus::new_healthy("running".to_string()).with_attributes(
                 HashMap::from([
-                    ("agent_version".to_string(), "1.0.0".to_string()),
-                    ("host_name".to_string(), "my-host".to_string()),
+                    ("identifying/agent_version".to_string(), "1.0.0".to_string()),
+                    ("non-identifying/host_name".to_string(), "my-host".to_string()),
                 ]),
             ),
             fleet: fixed_fleet(),
@@ -352,9 +352,9 @@ mod tests {
         Status {
             agent_control: AgentControlStatus::new_healthy("running".to_string()).with_attributes(
                 HashMap::from([
-                    ("agent_version".to_string(), "2.0.0".to_string()), // overwritten
-                    ("host_name".to_string(), "my-host".to_string()),   // preserved
-                    ("new_key".to_string(), "new_val".to_string()),     // added
+                    ("identifying/agent_version".to_string(), "2.0.0".to_string()), // overwritten
+                    ("non-identifying/host_name".to_string(), "my-host".to_string()), // preserved
+                    ("non-identifying/new_key".to_string(), "new_val".to_string()),  // added
                 ]),
             ),
             fleet: fixed_fleet(),
@@ -573,8 +573,8 @@ mod tests {
                     HealthInfo::new(String::default(), true, None, 0, 0),
                 )
                 .with_attributes(HashMap::from([
-                    ("agent_version".to_string(), "1.0.0".to_string()),
-                    ("host_name".to_string(), "my-host".to_string()),
+                    ("identifying/agent_version".to_string(), "1.0.0".to_string()),
+                    ("non-identifying/host_name".to_string(), "my-host".to_string()),
                 ])),
             )]),
         },
@@ -596,8 +596,8 @@ mod tests {
                     HealthInfo::new(String::default(), true, None, 0, 0),
                 )
                 .with_attributes(HashMap::from([
-                    ("agent_version".to_string(), "1.0.0".to_string()),
-                    ("host_name".to_string(), "my-host".to_string()),
+                    ("identifying/agent_version".to_string(), "1.0.0".to_string()),
+                    ("non-identifying/host_name".to_string(), "my-host".to_string()),
                 ])),
             )]),
         },
@@ -613,9 +613,9 @@ mod tests {
                     HealthInfo::new(String::default(), true, None, 0, 0),
                 )
                 .with_attributes(HashMap::from([
-                    ("agent_version".to_string(), "2.0.0".to_string()), // overwritten
-                    ("host_name".to_string(), "my-host".to_string()),   // preserved
-                    ("new_key".to_string(), "new_val".to_string()),     // added
+                    ("identifying/agent_version".to_string(), "2.0.0".to_string()), // overwritten
+                    ("non-identifying/host_name".to_string(), "my-host".to_string()), // preserved
+                    ("non-identifying/new_key".to_string(), "new_val".to_string()),  // added
                 ])),
             )]),
         },
@@ -637,7 +637,7 @@ mod tests {
                 AgentID::try_from("some-agent-id").unwrap(),
                 SubAgentStatus::with_identity(agent_identity("some-agent-id"))
                     .with_attributes(HashMap::from([(
-                        "agent_version".to_string(),
+                        "identifying/agent_version".to_string(),
                         "1.0.0".to_string(),
                     )])),
             )]),
