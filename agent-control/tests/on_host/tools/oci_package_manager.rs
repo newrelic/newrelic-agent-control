@@ -14,6 +14,7 @@ use std::path::PathBuf;
 
 pub fn new_testing_oci_package_manager(
     base_path: PathBuf,
+    registry: String,
 ) -> OCIPackageManager<OCIArtifactDownloader, DirectoryManagerFs> {
     let client = oci::Client::try_new(
         ClientConfig {
@@ -24,7 +25,7 @@ pub fn new_testing_oci_package_manager(
         tokio_runtime(),
     )
     .unwrap();
-    let downloader = OCIArtifactDownloader::new(client, false);
+    let downloader = OCIArtifactDownloader::new(client, registry, false);
 
     OCIPackageManager::new(downloader, DirectoryManagerFs, base_path)
 }

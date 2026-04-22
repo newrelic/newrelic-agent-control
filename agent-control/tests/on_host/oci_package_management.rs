@@ -33,7 +33,8 @@ fn test_install_and_uninstall_with_oci_registry() {
     let temp_dir = tempdir().unwrap();
     let base_path = temp_dir.path().to_path_buf();
 
-    let package_manager = new_testing_oci_package_manager(base_path.clone());
+    let package_manager =
+        new_testing_oci_package_manager(base_path.clone(), OCI_TEST_REGISTRY_URL.to_string());
 
     let agent_id = AgentID::try_from("test-agent").unwrap();
     let pkg_id = "test-package".to_string();
@@ -96,7 +97,8 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
 
     let temp_dir = tempdir().unwrap();
     let base_path = temp_dir.path().to_path_buf();
-    let package_manager = new_testing_oci_package_manager(base_path.clone());
+    let package_manager =
+        new_testing_oci_package_manager(base_path.clone(), OCI_TEST_REGISTRY_URL.to_string());
 
     let agent_id = AgentID::try_from("test-agent").unwrap();
     let pkg_id = "test-package-idempotency";

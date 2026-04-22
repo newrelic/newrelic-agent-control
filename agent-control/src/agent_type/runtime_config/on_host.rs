@@ -160,7 +160,6 @@ mod tests {
         let pkg = Package {
             download: Download {
                 oci: Oci {
-                    registry: TemplateableValue::from_template("${nr-var:registry}".to_string()),
                     repository: TemplateableValue::from_template(
                         "${nr-var:repository}".to_string(),
                     ),
@@ -191,7 +190,6 @@ packages:
   my-pkg:
     download:
       oci:
-        registry: my.registry
         repository: my/repo
         version: latest
 "#;
@@ -221,7 +219,7 @@ packages:
                 .join("agent-id")
                 .join("stored_packages")
                 .join("my-pkg")
-                .join("oci_my_registry__my__repo_latest")
+                .join("oci_base_io__my__repo_latest")
                 .to_string_lossy()
                 .to_string(),
         );

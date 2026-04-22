@@ -322,7 +322,6 @@ fn create_agent_type(
   type: {pkg_type}
   download:
     oci:
-      registry: {OCI_TEST_REGISTRY_URL}
       repository: test
       version: ${{nr-var:fake_variable}}
       public_key_url: {public_key_url}

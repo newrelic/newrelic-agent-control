@@ -76,6 +76,10 @@ pub struct AgentControlConfig {
     /// Contains configuration for on-host self-update mechanism
     #[serde(default)]
     pub self_update: SelfUpdateConfig,
+
+    /// Oci configuration (used for AC and agents packages)
+    #[serde(default)]
+    pub oci: OciConfig,
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
@@ -92,6 +96,48 @@ pub struct SelfUpdateConfig {
 pub struct PackagesConfig {
     /// Indicates whether package signature verification is enabled or not
     pub signature_verification_enabled: SignatureVerificationEnabled,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct OciConfig {
+    #[serde(default = "OciConfig::default_registry")]
+    pub registry: String,
+    #[serde(default)]
+    pub auth: OciAuth,
+}
+
+impl Default for OciConfig {
+    fn default() -> Self {
+        OciConfig {
+            registry: Self::default_registry(),
+            auth: OciAuth::default(),
+        }
+    }
+}
+
+impl OciConfig {
+    fn default_registry() -> String {
+        "docker.io".to_string()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
+pub struct OciAuth {
+    #[serde(default)]
+    pub basic: BasicAuth,
+    #[serde(default)]
+    pub bearer: BearerAuth,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
+pub struct BasicAuth {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
+pub struct BearerAuth {
+    pub token: String,
 }
 
 const DEFAULT_SIGNATURE_VERIFICATION_ENABLED: bool = true;
@@ -1039,6 +1085,31 @@ k8s:
 
         let result = AgentControlDynamicConfig::try_from(&opamp_config);
         assert_matches!(result, Err(AgentControlConfigError(_)));
+    }
+
+    #[test]
+    fn test_deserialize_oci_config() {
+        let config_input = r#"agents: {}"#;
+        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        assert_eq!("docker.io".to_string(), config.oci.registry);
+
+        let config_input = r#"
+agents: {}
+oci:
+  auth:
+    bearer:
+      token: "token"
+"#;
+        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        assert_eq!("docker.io".to_string(), config.oci.registry);
+
+        let config_input = r#"
+agents: {}
+oci:
+  registry: "custom-registry.io"
+"#;
+        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        assert_eq!("custom-registry.io".to_string(), config.oci.registry);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////

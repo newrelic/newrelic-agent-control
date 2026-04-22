@@ -191,7 +191,6 @@ deployment:
       infra-agent:
         download:
           oci:
-            registry: ${nr-var:oci.registry}
             repository: ${nr-var:oci.repository}
             version: ${nr-var:version}
     filesystem:
@@ -229,7 +228,6 @@ deployment:
       infra-agent:
         download:
           oci:
-            registry: ${nr-var:oci.registry}
             repository: ${nr-var:oci.repository}
             version: ${nr-var:version}
     filesystem:
@@ -335,7 +333,6 @@ The value yaml look like:
 ```yaml
   download:
     oci:
-      registry: ${nr-var:oci.registry}
       repository: ${nr-var:oci.repository}
       version: ${nr-var:version}
       public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrinfraagent/jwks.json
@@ -366,7 +363,6 @@ In this example:
       infra-agent:
         download:
           oci:
-            registry: ${nr-var:oci.registry}
             repository: ${nr-var:oci.repository}
             version: ${nr-var:version}
     executables:
