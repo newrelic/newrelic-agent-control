@@ -3,14 +3,35 @@ use std::path::PathBuf;
 pub mod config;
 pub mod exec;
 pub mod file;
+pub mod fleet_control_api;
 pub mod logs;
 pub mod nrql;
 pub mod on_drop;
 pub mod test;
 
-/// Arguments to be set for every test that needs Agent Control installation
+/// Common Fleet Control arguments shared across different commands
+#[derive(Debug, Clone, clap::Parser)]
+pub struct FleetControlArgs {
+    /// Fleet ID for Fleet Control tests
+    #[arg(long)]
+    pub fleet_id: String,
+
+    /// Fleet Control authentication token
+    #[arg(long)]
+    pub fleet_control_token: String,
+
+    /// Fleet type for Fleet Control API (e.g. linux-fleet or k8s-fleet)
+    #[arg(long)]
+    pub fleet_type: String,
+
+    /// Name of the test suite to run (e.g. DeploymentServicesTestSuite)
+    #[arg(long)]
+    pub test_suite: String,
+}
+
+/// Arguments for scenarios that require Agent Control installation
 #[derive(Default, Debug, Clone, clap::Parser)]
-pub struct Args {
+pub struct InstallationArgs {
     /// Folder where packages are stored
     #[arg(long)]
     pub artifacts_package_dir: Option<PathBuf>,
@@ -63,9 +84,26 @@ pub struct Args {
     pub nrdot_version: Option<String>,
 }
 
+/// Arguments for Fleet Control scenarios that also install Agent Control
+#[derive(Debug, Clone, clap::Parser)]
+pub struct FleetControlInstallationArgs {
+    #[command(flatten)]
+    pub installation: InstallationArgs,
+    #[command(flatten)]
+    pub fleet_control: FleetControlArgs,
+}
+
+/// Arguments for Fleet Control API tests that don't require Agent Control installation
+#[derive(Debug, Clone, clap::Parser)]
+pub struct FleetControlApiArgs {
+    /// Fleet Control arguments
+    #[command(flatten)]
+    pub fleet_control: FleetControlArgs,
+}
+
 /// Data to set up installation
 pub struct RecipeData {
-    pub args: Args,
+    pub args: InstallationArgs,
     pub fleet_id: String,
     pub fleet_enabled: bool,
     pub recipe_list: String,
@@ -81,10 +119,7 @@ impl Default for RecipeData {
             proxy_url: Default::default(),
             fleet_enabled: false,
             recipe_list: "agent-control".to_string(),
-            #[cfg(target_family = "unix")]
             monitoring_source: "infra-agent".to_string(),
-            #[cfg(target_family = "windows")]
-            monitoring_source: "".to_string(),
         }
     }
 }

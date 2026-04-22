@@ -2,7 +2,7 @@ use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_loc
 use crate::common::exec::LongRunningProcess;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
-use crate::common::{Args, RecipeData, nrql};
+use crate::common::{InstallationArgs, RecipeData, nrql};
 use crate::windows;
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
 use crate::windows::powershell::{download_file, exec_ps, extract};
@@ -37,7 +37,7 @@ const EXPECTED_DOMAINS: &[&str] = &[
 const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWQyYTE1LTQ4NWEtN2U2My04Zjk4LWVkMGZmNzAwM2Q4NA";
 
 /// Installs AC configured to use a proxy and verifies that the proxy is used.
-pub fn test_proxy(args: Args) {
+pub fn test_proxy(args: InstallationArgs) {
     let infra_agent_version = args
         .infra_agent_version
         .clone()

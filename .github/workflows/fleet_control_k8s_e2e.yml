@@ -1,0 +1,260 @@
+name: 📞 K8s Fleet Control E2E Tests
+
+# This workflow tests Fleet Control integration with Agent Control on Kubernetes.
+# Unlike regular E2E tests that validate agent functionality, these tests verify
+# that Fleet Control can successfully orchestrate and manage Agent Control via its
+# external test controller API.
+#
+# The test flow:
+# 1. Deploy Agent Control to Minikube with Fleet Control enabled
+# 2. Trigger Fleet Control tests via external API
+# 3. Poll for test completion and validate results
+#
+# These tests use the e2e-runner Rust binary with the fleet-control-api subcommand
+# that interacts with the Fleet Control test controller endpoint to run deployment
+# tests against the configured fleet.
+
+on:
+  workflow_dispatch:
+    inputs:
+      fleet_id:
+        description: "Fleet ID to use for Fleet Control tests"
+        required: false
+        type: string
+        # Fleet `AC-FC E2E tests (k8s)` on staging using FC's `Test Automation` account.
+        default: "MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTliZTAzZC03MDYwLTcxMDctOTUwYS04YTFiODc3YjJiN2Q"
+  schedule:
+    # Scheduled to run at 5 a.m on every day-of-week from Monday through Friday.
+    - cron: "0 4 * * 1-5"
+
+permissions:
+  contents: read
+
+jobs:
+  build-packages:
+    name: Build packages
+    uses: ./.github/workflows/component_packages.yml
+    with:
+      pre-release: false
+      skip_sign: true
+      tag_name: 0.200.${{ github.run_id }}
+
+  k8s-fleet-control-e2e:
+    name: K8s Fleet Control E2E
+    needs: [build-packages]
+    runs-on: linux-4-core-nr-control
+    steps:
+      - name: Record job start time
+        run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Free up space
+        run: bash .github/workflows/scripts/space_cleanup.sh
+
+      - name: Setup Minikube
+        uses: manusa/actions-setup-minikube@96202dee4ae1c2f46a62fe197273aaf22b83f42d # v2.16.1
+        with:
+          minikube version: v1.35.0
+          kubernetes version: "v1.30.14"
+          driver: docker
+          github token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Tilt
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
+
+      - uses: ./.github/actions/install-rust-toolchain
+        with:
+          targets: >-
+            x86_64-unknown-linux-musl
+
+      - uses: ./.github/actions/rust-cache
+        with:
+          identifier: "test-dev"
+          restore-strategy: "nearest"
+          save-cache: false
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
+
+      - uses: taiki-e/install-action@921a4027af787cda265c4f334a0f7f89b21d72e9 # v2.75.8
+        with:
+          tool: cargo-zigbuild@0.20.1
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: built-binaries-0.200.${{ github.run_id }}
+          path: ./dist
+
+      - name: Build e2e-runner binary
+        run: cargo build -p e2e-runner
+
+      - name: Get Fleet Control authentication token
+        id: get-token
+        run: |
+          # Install newrelic-auth-rs for token generation
+          cargo install --locked --git https://github.com/newrelic/newrelic-auth-rs.git
+
+          echo "${{ secrets.AC_FLEET_CONTROL_STAG_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/cred.pem
+
+          if ! newrelic-auth-cli authenticate \
+            --client-id "${{ secrets.AC_FLEET_CONTROL_STAG_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}" \
+            --environment STAGING \
+            --private-key-path /tmp/cred.pem \
+            --output-token-format PLAIN \
+            > /tmp/agent-control-token.txt 2> /tmp/auth-error.log; then
+            echo "::error::Authentication failed!"
+            cat /tmp/auth-error.log
+            exit 1
+          fi
+
+          TOKEN=$(cat /tmp/agent-control-token.txt)
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Agent control token is empty!"
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+          rm /tmp/cred.pem
+          rm /tmp/agent-control-token.txt
+
+      - name: Deploy Agent Control to K8s with Fleet Control
+        env:
+          # Credentials for helm chart deployment
+          LICENSE_KEY: ${{ secrets.AC_FLEET_CONTROL_STAG_E2E_LICENSE_KEY }}
+          # System identity for Fleet Control authentication
+          NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_FLEET_CONTROL_STAG_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
+          NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_FLEET_CONTROL_STAG_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+          # Tilt/deployment config
+          USE_LATEST_FLUX: false
+          ARCH: amd64
+          # Use input fleet_id or fall back to default (for push triggers)
+          FLEET_ID: ${{ inputs.fleet_id || 'MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTliZTAzZC03MDYwLTcxMDctOTUwYS04YTFiODc3YjJiN2Q' }}
+        run: |
+          # Create system identity secret
+          kubectl get secret sys-identity || kubectl create secret generic sys-identity \
+            --from-literal=CLIENT_ID="${NR_SYSTEM_IDENTITY_CLIENT_ID}" \
+            --from-literal=private_key="${NR_SYSTEM_IDENTITY_PRIVATE_KEY}"
+
+          # Generate unique cluster name for this test run
+          CLUSTER_NAME="fc-k8s-e2e-$(date +%Y%m%d-%H%M%S)-${{ github.run_id }}"
+          echo "CLUSTER_NAME=${CLUSTER_NAME}" >> "$GITHUB_ENV"
+          echo "📦 Deploying to cluster: ${CLUSTER_NAME}"
+
+          # Deploy using Tilt (FLEET_ID and CLUSTER_NAME are passed via env vars)
+          SA_CHART_VALUES_FILE="test/k8s-e2e/fleet-control-integration/ac-values-fleet-control.yml" \
+          CLUSTER="${CLUSTER_NAME}" \
+          FLEET_ID="${FLEET_ID}" \
+          tilt ci
+
+      - name: Wait for Agent Control to connect
+        run: |
+          echo "⏳ Waiting 60s for Agent Control to start and connect to Fleet Control..."
+          sleep 60
+
+          echo "📊 Agent Control pod status:"
+          kubectl get pods -l app.kubernetes.io/name=agent-control -o wide
+
+          echo "📊 Agent Control logs (last 50 lines):"
+          kubectl logs -l app.kubernetes.io/name=agent-control --tail=50 --all-containers --prefix=true
+
+      - name: Run Fleet Control E2E test
+        env:
+          FLEET_ID: ${{ inputs.fleet_id || 'MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTliZTAzZC03MDYwLTcxMDctOTUwYS04YTFiODc3YjJiN2Q' }}
+        run: |
+          echo "🧪 Running Fleet Control E2E test for cluster: ${CLUSTER_NAME}"
+          ${{ github.workspace }}/target/debug/e2e-runner \
+            --log-level debug \
+            fleet-control-api \
+            --fleet-id "${FLEET_ID}" \
+            --fleet-control-token "${{ steps.get-token.outputs.token }}" \
+            --fleet-type "k8s-fleet" \
+            --test-suite "DeploymentServicesTestSuite"
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "========================================"
+          echo "Agent Control Logs"
+          echo "========================================"
+          kubectl logs --tail=-1 -l app.kubernetes.io/name=agent-control --all-containers --prefix=true || true
+
+          echo "========================================"
+          echo "Infra Agent Logs"
+          echo "========================================"
+          kubectl logs --tail=-1 -l app.kubernetes.io/instance=infra --all-containers --prefix=true -n newrelic-agents || true
+
+          echo "========================================"
+          echo "Secrets"
+          echo "========================================"
+          kubectl get secrets --show-labels || true
+
+          echo "========================================"
+          echo "ConfigMaps"
+          echo "========================================"
+          kubectl get configmap || true
+
+          echo "========================================"
+          echo "All Resources"
+          echo "========================================"
+          kubectl get all -o wide --all-namespaces --show-labels || true
+
+          echo "========================================"
+          echo "Helm Releases"
+          echo "========================================"
+          kubectl get helmrelease || true
+
+          echo "========================================"
+          echo "Helm Charts"
+          echo "========================================"
+          kubectl get helmchart || true
+
+          echo "========================================"
+          echo "Helm List"
+          echo "========================================"
+          helm list -a -A || true
+
+      - name: Cleanup
+        if: always()
+        run: tilt down || true
+
+      - name: Report test result to New Relic
+        if: always()
+        env:
+          NR_LICENSE_KEY: ${{ secrets.AC_FLEET_CONTROL_STAG_E2E_LICENSE_KEY }}
+          NR_ACCOUNT_ID: ${{ secrets.AC_FLEET_CONTROL_STAG_E2E_ACCOUNT_ID }}
+          E2E_SCENARIO: fleet-control-integration
+          E2E_ENVIRONMENT: k8s
+          E2E_STATUS: ${{ job.status }}
+          E2E_CALLER_WORKFLOW: fleet_control_k8s_e2e
+          E2E_REGION: staging
+          E2E_ACCOUNT: "Fleet Control Test Automation (staging)"
+        run: bash .github/workflows/scripts/report_e2e_result.sh
+
+      - name: Upload e2e result summary
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: e2e-result-k8s-fleet-control-integration
+          path: |
+            e2e-result-*-k8s-fleet-control-integration.txt
+            fleet-control-test-report.json
+          if-no-files-found: warn
+
+      - name: Send result to Slack
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.AC_FLEET_COMMON_SLACK_WEBHOOK }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          E2E_REPORT_TITLE: "K8s Fleet Control E2E Test with Running AC"
+        run: |
+          mkdir -p e2e-results
+          mv e2e-result-*-k8s-fleet-control-integration.txt e2e-results/ 2>/dev/null || true
+          mv fleet-control-test-report.json e2e-results/ 2>/dev/null || true
+          if [ -f e2e-results/e2e-result-*.txt ]; then
+            bash .github/workflows/scripts/slack_e2e_summary.sh
+          else
+            echo "No result file found, skipping Slack notification"
+          fi

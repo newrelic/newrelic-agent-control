@@ -1,7 +1,7 @@
 use crate::common::config::update_config;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
-use crate::common::{Args, RecipeData};
+use crate::common::{InstallationArgs, RecipeData};
 use crate::windows::install::{SERVICE_NAME, tear_down_test};
 use crate::windows::scenarios::DEFAULT_STATUS_PORT;
 use crate::windows::service::STATUS_RUNNING;
@@ -19,7 +19,7 @@ const ENV_VARS_FILE: &str =
 
 const UPDATE_FROM_INFRA_AGENT_VERSION: &str = "1.71.4";
 
-pub fn switch_infra_agent_version(args: Args) {
+pub fn switch_infra_agent_version(args: InstallationArgs) {
     let update_to_infra_agent_version = args
         .infra_agent_version
         .clone()

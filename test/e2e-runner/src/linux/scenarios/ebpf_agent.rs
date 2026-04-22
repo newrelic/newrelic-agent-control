@@ -1,4 +1,4 @@
-use crate::common::Args;
+use crate::common::InstallationArgs;
 use crate::common::RecipeData;
 use crate::common::config::write_agent_local_config;
 use crate::common::on_drop::CleanUp;
@@ -14,7 +14,7 @@ use config::DEBUG_LOGGING_CONFIG;
 use std::time::Duration;
 use tracing::info;
 
-pub fn test_ebpf_agent(args: Args) {
+pub fn test_ebpf_agent(args: InstallationArgs) {
     let infra_version = args
         .infra_agent_version
         .clone()

@@ -1,3 +1,4 @@
+pub mod fleet_control;
 pub mod installation_infra_agent;
 pub mod installation_nrdot;
 pub mod proxy;

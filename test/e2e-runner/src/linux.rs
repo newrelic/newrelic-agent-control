@@ -1,3 +1,4 @@
+use crate::common::fleet_control_api;
 use crate::{LinuxCli, LinuxScenarios, init_logging};
 use clap::Parser;
 
@@ -39,6 +40,12 @@ pub fn run_linux_e2e() {
         }
         LinuxScenarios::Proxy(args) => {
             scenarios::proxy::test_agent_control_proxy(args);
+        }
+        LinuxScenarios::FleetControl(args) => {
+            scenarios::fleet_control::test_fleet_control(args);
+        }
+        LinuxScenarios::FleetControlApi(args) => {
+            fleet_control_api::run_fleet_control_api(args.fleet_control);
         }
     };
 }

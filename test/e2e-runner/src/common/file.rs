@@ -1,8 +1,6 @@
-use std::fs::{self, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
-
-use tracing::warn;
 
 use crate::common::test::TestResult;
 
@@ -37,16 +35,13 @@ pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) {
 
 /// Removes the directories receives as list
 pub fn remove_dirs(dirs: &[&str]) -> TestResult<()> {
-    for dir in dirs {
-        match fs::remove_dir_all(dir) {
-            Ok(_) => {}
+    dirs.iter()
+        .try_for_each(|dir| match std::fs::remove_dir_all(dir) {
+            Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                warn!(directory = dir, "Directory not found");
+                tracing::warn!(directory = dir, "Directory not found");
+                Ok(())
             }
-            Err(e) => {
-                return Err(format!("could not remove {:?}: {}", dir, e).into());
-            }
-        }
-    }
-    Ok(())
+            Err(e) => Err(format!("could not remove {:?}: {}", dir, e).into()),
+        })
 }

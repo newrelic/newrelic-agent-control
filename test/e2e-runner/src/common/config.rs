@@ -1,7 +1,9 @@
-use crate::common::file::write;
-use serde_yaml::Value;
 use std::{fs, io::Write, path::PathBuf};
+
+use serde_yaml::Value;
 use tracing::info;
+
+use crate::common::file::write;
 
 /// Updates the agent control config in `config_path` to include the content specified in `new_content`
 pub fn update_config(config_path: impl AsRef<str>, new_content: impl AsRef<str>) {

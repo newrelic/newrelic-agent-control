@@ -1,7 +1,7 @@
 use crate::common::config::modify_agents_config;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry;
-use crate::common::{Args, RecipeData};
+use crate::common::{InstallationArgs, RecipeData};
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
 use crate::windows::scenarios::DEFAULT_STATUS_PORT;
 use crate::windows::service::{STATUS_RUNNING, STATUS_STOPPED};
@@ -12,7 +12,7 @@ use tracing::info;
 
 /// Runs a Windows E2E installation test modifying the config for a wrong one and restarting the service
 /// to ensure it stops, then sets again a correct config and ensures the service runs correctly.
-pub fn test_service_restart_depending_on_config_correctness(args: Args) {
+pub fn test_service_restart_depending_on_config_correctness(args: InstallationArgs) {
     let recipe_data = RecipeData {
         args,
         ..Default::default()
