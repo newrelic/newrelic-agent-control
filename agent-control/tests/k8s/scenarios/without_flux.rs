@@ -128,3 +128,100 @@ agents: {}
         Ok(())
     });
 }
+
+/// This test exposes a GC labelling bug: when ConfigMap is included in `cr_type_meta`,
+/// the `retain` function at AC startup fails because fleet-data ConfigMaps (created by
+/// the ConfigMapStore with managed-by + agent-id labels but no agent-type-id annotation)
+/// are listed by `garbage_collection_dynamic_object`. When the agent is still active,
+/// `should_delete_agent_id` tries to read the missing annotation and returns a
+/// MissingAnnotations error, crashing AC on startup.
+///
+/// The test:
+/// 1. Starts AC and deploys the config-map-type agent via remote config, which causes AC
+///    to create a fleet-data ConfigMap for that agent.
+/// 2. Stops and restarts AC while the agent is still active.
+/// 3. On restart, `retain` is called with the active agent in the config. The fleet-data
+///    ConfigMap (which has no agent-type-id annotation) triggers the bug.
+/// 4. The test passes only if AC starts successfully, meaning GC handled the fleet-data
+///    ConfigMap correctly without erroring on the missing annotation.
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_config_map_type_gc_does_not_fail_on_restart() {
+    let test_name = "k8s_config_map_type_gc_does_not_fail_on_restart";
+
+    let mut server = FakeServer::start_new();
+
+    let mut k8s = block_on(K8sEnv::new());
+    let namespace = block_on(k8s.test_namespace());
+    let tmp_dir = tempdir().expect("failed to create local temp dir");
+
+    let _ac = start_agent_control_with_testdata_config(
+        test_name,
+        CONFIG_AGENT_TYPE_PATH,
+        k8s.client.clone(),
+        &namespace,
+        &namespace,
+        Some(&server.endpoint()),
+        Some(&server.jwks_endpoint()),
+        Vec::new(),
+        tmp_dir.path(),
+    );
+
+    agent_control::wait_until_agent_control_with_opamp_is_started(
+        k8s.client.clone(),
+        namespace.as_str(),
+    );
+
+    let instance_id =
+        instance_id::get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
+
+    // Deploy the config-map-type agent. This causes AC to create a fleet-data ConfigMap
+    // for the agent (with managed-by + agent-id labels but no agent-type-id annotation).
+    server.set_config_response(
+        instance_id.clone(),
+        r#"
+agents:
+  test-config-map:
+    agent_type: "newrelic/com.newrelic.test_config_map:0.1.0"
+    "#,
+    );
+
+    // Wait for the fleet-data ConfigMap to be created, confirming the agent is running
+    // and the fleet-data ConfigMap (without agent-type-id annotation) now exists.
+    let fleet_data_cm_name = "fleet-data-test-config-map";
+    println!("Waiting for fleet-data ConfigMap to be created...");
+    retry(120, Duration::from_secs(1), || {
+        block_on(check_config_map_exist(
+            k8s.client.clone(),
+            fleet_data_cm_name,
+            &namespace,
+        ))
+    });
+    println!("fleet-data ConfigMap exists — stopping AC to simulate a restart.");
+
+    // Stop AC while the agent is still active. The fleet-data ConfigMap persists.
+    drop(_ac);
+
+    // Restart AC with the same configuration. On startup, `retain` is called with the
+    // active agent ({test-config-map: ...}) and cr_type_meta includes ConfigMap.
+    // Without the fix, `garbage_collection_dynamic_object` finds the fleet-data ConfigMap,
+    // tries to read its missing agent-type-id annotation, and crashes with MissingAnnotations.
+    let _ac = start_agent_control_with_testdata_config(
+        test_name,
+        CONFIG_AGENT_TYPE_PATH,
+        k8s.client.clone(),
+        &namespace,
+        &namespace,
+        Some(&server.endpoint()),
+        Some(&server.jwks_endpoint()),
+        Vec::new(),
+        tmp_dir.path(),
+    );
+
+    // If GC correctly handles fleet-data ConfigMaps on restart, AC starts successfully.
+    // If not, this will time out because AC crashes before creating fleet-data-agent-control.
+    agent_control::wait_until_agent_control_with_opamp_is_started(
+        k8s.client.clone(),
+        namespace.as_str(),
+    );
+}
