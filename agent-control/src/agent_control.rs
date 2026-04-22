@@ -13,6 +13,7 @@ pub mod uptime_report;
 pub mod version_updater;
 
 use crate::agent_control::defaults::AGENT_CONTROL_ID;
+use crate::agent_control::run::GracefulShutdownReason;
 use crate::checkers::health::health_checker::{HealthChecker, spawn_health_checker};
 use crate::checkers::health::with_start_time::HealthWithStartTime;
 use crate::event::AgentControlInternalEvent;
@@ -127,7 +128,7 @@ where
         }
     }
 
-    pub fn run(self) -> Result<(), AgentControlError> {
+    pub fn run(self) -> Result<GracefulShutdownReason, AgentControlError> {
         let ac_startup_span = info_span!("start_agent_control", id = AGENT_CONTROL_ID);
         let _ac_startup_span_guard = ac_startup_span.enter();
         info!("Starting the agents supervisor runtime");
@@ -189,7 +190,7 @@ where
         info!("Agents supervisor runtime successfully started");
         drop(_ac_startup_span_guard); // The span representing agent start finishes before entering in the `process_events` loop. Otherwise the span would be open while Agent Control runs.
 
-        self.process_events(running_sub_agents);
+        let shutdown_reason = self.process_events(running_sub_agents);
 
         if let Some(opamp_client) = self.opamp_client {
             info!("Stopping the OpAMP Client");
@@ -197,7 +198,7 @@ where
         }
 
         info!("AgentControl finished");
-        Ok(())
+        Ok(shutdown_reason)
     }
 
     // Recreates a Sub Agent by its agent_id meaning:
@@ -275,8 +276,8 @@ where
         mut sub_agents: StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-    ) {
-        debug!("Listening for events");
+    ) -> GracefulShutdownReason {
+        debug!("Listening for events from agents");
         let never_receive = EventConsumer::from(never());
         let opamp_receiver = self
             .agent_control_opamp_consumer
@@ -345,10 +346,11 @@ where
                                         update_opamp_attributes(c, attributes)
                                     .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message")));
                                 },
-                                AgentControlInternalEvent::StopRequested() => {
-                                    debug!("Stopping Agent Control event processor after request");
+                                AgentControlInternalEvent::SelfUpdateRestartRequested() => {
+                                    debug!("Stopping Agent Control to apply self-update");
                                     self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
-                                    break sub_agents.stop();
+                                    sub_agents.stop();
+                                    break GracefulShutdownReason::SelfUpdate;
                                 }}
                         },
                     }
@@ -359,7 +361,8 @@ where
                     let _= agent_control_event.inspect_err(|err| error!(error = %err, select_arm = "application_event_consumer", "Receiving application event"));
                     debug!("Stopping Agent Control event processor");
                     self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
-                    break sub_agents.stop();
+                    sub_agents.stop();
+                    break GracefulShutdownReason::ExternalRequested;
                 },
                 recv(uptime_reporter.receiver()) -> _tick => { let _ = uptime_reporter.report(); },
             }

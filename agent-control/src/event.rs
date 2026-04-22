@@ -61,7 +61,7 @@ impl SubAgentEvent {
 pub enum AgentControlInternalEvent {
     HealthUpdated(HealthWithStartTime),
     AgentControlAttributesUpdated(UpdateAttributesMessage),
-    StopRequested(),
+    SelfUpdateRestartRequested(),
 }
 
 /// Defines internal events for the SubAgent component.

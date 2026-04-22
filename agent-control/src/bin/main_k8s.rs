@@ -41,4 +41,5 @@ fn _main(context: Context) -> Result<(), Box<dyn Error>> {
     AgentControlRunner::try_new(context.ac_runner_context)?
         .run_k8s()
         .map_err(|e| e.into())
+        .map(|_shutdown_reason| ())
 }
