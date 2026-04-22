@@ -2,16 +2,19 @@
 
 ## Compiling and running Agent Control
 
-As of now, Agent Control is supported on Linux (x86_64 and aarch64). The program is written in Rust, and for multiplatform compilation we leverage [`cargo-zigbuild`](https://github.com/rust-cross/cargo-zigbuild) and musl libc.
+As of now, Agent Control is supported on Linux (x86_64 and aarch64). The program is written in Rust, and for
+multiplatform compilation we leverage [`cargo-zigbuild`](https://github.com/rust-cross/cargo-zigbuild) and musl libc.
 
 ### On-host
 
 To compile and run locally:
 
-1. Install the [Rust toolchain](https://www.rust-lang.org/tools/install) for your system, also add the targets you wish to compile for, e.g. (`rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl`).
+1. Install the [Rust toolchain](https://www.rust-lang.org/tools/install) for your system, also add the targets you wish
+   to compile for, e.g. (`rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl`).
 2. Install Zig with one of the [supported methods](https://github.com/ziglang/zig#installation).
 3. Install `cargo-zigbuild` with `cargo install --locked cargo-zigbuild`.
-4. Run `cargo zigbuild --bin newrelic-agent-control --target <ARCH>-unknown-linux-musl`, where `<ARCH>` is either `x86_64` or `aarch64`, depending on your system.
+4. Run `cargo zigbuild --bin newrelic-agent-control --target <ARCH>-unknown-linux-musl`, where `<ARCH>` is either
+   `x86_64` or `aarch64`, depending on your system.
     - On macOS, you might run into an error like the following:
 
       ```console
@@ -21,13 +24,16 @@ To compile and run locally:
         = note: error: unable to search for static library /<SOME_PATH_TO_RLIB_FILE>.rlib: ProcessFdQuotaExceeded
       ```
 
-      This is a [known](https://github.com/ziglang/zig/issues/23273) [issue](https://github.com/rust-cross/cargo-zigbuild/issues/329). To address it, increase the number of file descriptors for the current shell session with:
+      This is
+      a [known](https://github.com/ziglang/zig/issues/23273) [issue](https://github.com/rust-cross/cargo-zigbuild/issues/329).
+      To address it, increase the number of file descriptors for the current shell session with:
 
       ```sh
       ulimit -n 4096
       ```
 
-5. `newrelic-agent-control` binary will be generated at `./target/<ARCH>-unknown-linux-musl/debug/newrelic-agent-control`
+5. `newrelic-agent-control` binary will be generated at
+   `./target/<ARCH>-unknown-linux-musl/debug/newrelic-agent-control`
 6. Prepare a `local_config.yaml` file in `/etc/newrelic-agent-control/local-data/agent-control`, example:
 
     ```yaml
@@ -40,7 +46,8 @@ To compile and run locally:
         agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"
     ```
 
-7. Place values files in the folder `/etc/newrelic-agent-control/local-data/{AGENT-ID}/` where `AGENT-ID` is a key in the
+7. Place values files in the folder `/etc/newrelic-agent-control/local-data/{AGENT-ID}/` where `AGENT-ID` is a key in
+   the
    `agents:` list. Example:
 
     ```yaml
@@ -55,7 +62,8 @@ To compile and run locally:
 
 #### Cross-compilation for Windows
 
-The steps below work for the `x86_64-pc-windows-msvc` target only. It is also possible to compile the project for the `x86_64-pc-windows-gnu` target using `cargo-zigbuild`.
+The steps below work for the `x86_64-pc-windows-msvc` target only. It is also possible to compile the project for the
+`x86_64-pc-windows-gnu` target using `cargo-zigbuild`.
 
 1. Install the [Rust toolchain](https://www.rust-lang.org/tools/install): `rustup target add x86_64-pc-windows-msvc`
 2. Install [cargo-xwin](https://github.com/rust-cross/cargo-xwin) and dependencies.
@@ -72,31 +80,40 @@ The steps below work for the `x86_64-pc-windows-msvc` target only. It is also po
    ❯ cargo xwin build --bin newrelic-agent-control --target x86_64-pc-windows-msvc --release
    ```
 
-   ⚠️ This method doesn't work for building debug binaries (`--release` is required). As `cargo-xwin` doesn't provide `msvcrtd.lib` (the debug version of the C runtime library).
+   ⚠️ This method doesn't work for building debug binaries (`--release` is required). As `cargo-xwin` doesn't provide
+   `msvcrtd.lib` (the debug version of the C runtime library).
 
 #### AC Service Windows vs Linux
 
 On Linux, Agent Control is expected to run as a system service, managed by `systemd`.
-Such service file is packaged in the `.deb` and `.rpm` installers by goreleaser and it is installed and enabled by the `postinstall.sh` script.
+Such service file is packaged in the `.deb` and `.rpm` installers by goreleaser and it is installed and enabled by the
+`postinstall.sh` script.
 
-On the other hand, on Windows, Agent Control is expected to run as a Windows Service that is installed using the `install.ps1` script that takes care of registering the service and install AC.
+On the other hand, on Windows, Agent Control is expected to run as a Windows Service that is installed using the
+`install.ps1` script that takes care of registering the service and install AC.
 
-On both Operating Systems, an `environment_variables.yaml` file is created to store environment variables that Agent Control will use when running as a service. This file is created at installation time and it is located at the Agent Control configuration directory.
+On both Operating Systems, an `environment_variables.yaml` file is created to store environment variables that Agent
+Control will use when running as a service. This file is created at installation time and it is located at the Agent
+Control configuration directory.
 
 ### Kubernetes
 
-We use [`minikube`](https://minikube.sigs.k8s.io/docs/) and [`tilt`](https://tilt.dev/) to launch a local cluster and deploy the Agent Control [charts](https://github.com/newrelic/helm-charts/tree/master/charts/agent-control).
+We use [`minikube`](https://minikube.sigs.k8s.io/docs/) and [`tilt`](https://tilt.dev/) to launch a local cluster and
+deploy the Agent Control [charts](https://github.com/newrelic/helm-charts/tree/master/charts/agent-control).
 
 #### Prerequisites
 
-- Install the [Rust toolchain](https://www.rust-lang.org/tools/install) for your system, also add the targets you wish to compile for, e.g. (`rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl`).
+- Install the [Rust toolchain](https://www.rust-lang.org/tools/install) for your system, also add the targets you wish
+  to compile for, e.g. (`rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl`).
 - Install Zig with one of the [supported methods](https://github.com/ziglang/zig#installation).
 - Install `cargo-zigbuild` with `cargo install --locked cargo-zigbuild`.
 - Install `minikube` for local Kubernetes cluster emulation.
 - Ensure you have `tilt` installed for managing local development environments.
 - Add an Agent Control values file in `local/agent-control-tilt.yml`.
 
-Note: Adding the `'chart_repo'` setting, pointing to the [New Relic charts](https://github.com/newrelic/helm-charts/tree/master/charts) on a local path, allows using local helm charts.
+Note: Adding the `'chart_repo'` setting, pointing to
+the [New Relic charts](https://github.com/newrelic/helm-charts/tree/master/charts) on a local path, allows using local
+helm charts.
 
 #### Steps
 
@@ -114,7 +131,9 @@ On macOS, you might run into an error like the following:
   = note: error: unable to search for static library /<SOME_PATH_TO_RLIB_FILE>.rlib: ProcessFdQuotaExceeded
 ```
 
-This is a [known](https://github.com/ziglang/zig/issues/23273) [issue](https://github.com/rust-cross/cargo-zigbuild/issues/329). To address it, increase the number of file descriptors for the current shell session with:
+This is
+a [known](https://github.com/ziglang/zig/issues/23273) [issue](https://github.com/rust-cross/cargo-zigbuild/issues/329).
+To address it, increase the number of file descriptors for the current shell session with:
 
 ```sh
 ulimit -n 4096
@@ -126,7 +145,8 @@ See [diagnose issues with agent control logging](https://docs.newrelic.com/docs/
 
 ### Disable Fleet Control
 
-Users can disable remote management just by commenting its configuration out from `/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml` (on-host):
+Users can disable remote management just by commenting its configuration out from
+`/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml` (on-host):
 
 ```yaml
 # fleet_control:
@@ -158,10 +178,12 @@ agent-control-deployment:
 
 ### Agent Control Health
 
-There is a service that ultimately exposes a `/status` endpoint for Agent Control itself. This service performs a series of checks to determine the output (both in HTTP status code and message):
+There is a service that ultimately exposes a `/status` endpoint for Agent Control itself. This service performs a series
+of checks to determine the output (both in HTTP status code and message):
 
 - Reachability of Fleet Control endpoint (if Fleet Control is enabled at all).
-- Active agents and health of each one, in the same form as used by the OpAMP protocol, mentioned when discussing [sub-agent health](./INTEGRATING_AGENTS.md#health-status).
+- Active agents and health of each one, in the same form as used by the OpAMP protocol, mentioned when
+  discussing [sub-agent health](./INTEGRATING_AGENTS.md#health-status).
 
 ```json
 {
@@ -193,13 +215,15 @@ Users need to enable the local server by adding the following setting in the Age
 
 ```yaml
 server:
-    enabled: true
-    # default values (change if needed)
-    #host: "127.0.0.1"
-    #port: 51200
+  enabled: true
+  # default values (change if needed)
+  #host: "127.0.0.1"
+  #port: 51200
 ```
 
-For Kubernetes, the status endpoint is enabled by default. You can access this easily by performing a Kubernetes [port-forward](https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/), using the following commands **on separate shells**:
+For Kubernetes, the status endpoint is enabled by default. You can access this easily by performing a
+Kubernetes [port-forward](https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/),
+using the following commands **on separate shells**:
 
 ```console
 $ kubectl port-forward ac-agent-control-6558446569-rtwh4 -n newrelic 51200:51200
@@ -248,7 +272,9 @@ make -C agent-control test/onhost/integration
 
 #### Tests that require root user
 
-Running tests that require root user can be not straight-forward, as the Rust toolchain installers like `rustup` tend to not install them globally on a system, so doing `sudo cargo` won't work. An easy way to run the root-required tests is spinning up a container where the user is root and running them there with:
+Running tests that require root user can be not straight-forward, as the Rust toolchain installers like `rustup` tend to
+not install them globally on a system, so doing `sudo cargo` won't work. An easy way to run the root-required tests is
+spinning up a container where the user is root and running them there with:
 
 ```sh
 make -C agent-control test/onhost/root/integration
@@ -264,19 +290,30 @@ make -C agent-control test/k8s
 
 #### Tests that require an existing Kubernetes cluster
 
+For full integration tests using Flux:
+
 ```sh
 make -C agent-control test/k8s/integration
 ```
 
+For full integration tests without Flux:
+
+```sh
+make -C agent-control test/k8s/integration-without-flux
+```
+
 ## Coverage
 
-Generate coverage information easily by running the following `make` recipe from the root directory (will install `cargo-llvm-cov` if it's not installed already):
+Generate coverage information easily by running the following `make` recipe from the root directory (will install
+`cargo-llvm-cov` if it's not installed already):
 
 ```console
 make coverage
 ```
 
-By default, this will generate a report in `lcov` format on `coverage/lcov.info` that IDEs such as VSCode can read via [certain extensions](https://marketplace.visualstudio.com/items?itemName=ryanluker.vscode-coverage-gutters). To modify the output format and the output location, use the variables `COVERAGE_OUT_FORMAT` and `COVERAGE_OUT_FILEPATH`:
+By default, this will generate a report in `lcov` format on `coverage/lcov.info` that IDEs such as VSCode can read
+via [certain extensions](https://marketplace.visualstudio.com/items?itemName=ryanluker.vscode-coverage-gutters). To
+modify the output format and the output location, use the variables `COVERAGE_OUT_FORMAT` and `COVERAGE_OUT_FILEPATH`:
 
 ```console
 COVERAGE_OUT_FORMAT=json COVERAGE_OUT_FILEPATH=jcov-info.json make coverage
@@ -286,9 +323,11 @@ COVERAGE_OUT_FORMAT=json COVERAGE_OUT_FILEPATH=jcov-info.json make coverage
 
 ### Heap Profiling
 
-Heap profiling is supported via the [`dhat` crate](https://docs.rs/dhat/latest/dhat/) and is gated behind the `dhat-heap` feature flag. It can be used to detect memory leaks and analyze heap allocations.
+Heap profiling is supported via the [`dhat` crate](https://docs.rs/dhat/latest/dhat/) and is gated behind the
+`dhat-heap` feature flag. It can be used to detect memory leaks and analyze heap allocations.
 
-To build with heap profiling enabled, use the `release-debug` profile (which inherits from `release` but keeps debug symbols) together with the feature flag:
+To build with heap profiling enabled, use the `release-debug` profile (which inherits from `release` but keeps debug
+symbols) together with the feature flag:
 
 ```sh
 cargo build -p newrelic_agent_control --profile release-debug --features dhat-heap
@@ -303,7 +342,10 @@ Open `dhat-heap.json` in the [DHAT Viewer](https://nnethercote.github.io/dh_view
 
 ### Ad-hoc Profiling
 
-Ad-hoc profiling is also supported via `dhat` and is gated behind the `dhat-ad-hoc` feature flag. Unlike heap profiling, it requires manually annotating the code you want to profile — no annotations are added by default at the time of writing this. See the [`dhat` ad-hoc profiling documentation](https://docs.rs/dhat/latest/dhat/#setup-ad-hoc-profiling) for details on how to instrument your code.
+Ad-hoc profiling is also supported via `dhat` and is gated behind the `dhat-ad-hoc` feature flag. Unlike heap profiling,
+it requires manually annotating the code you want to profile — no annotations are added by default at the time of
+writing this. See the [`dhat` ad-hoc profiling documentation](https://docs.rs/dhat/latest/dhat/#setup-ad-hoc-profiling)
+for details on how to instrument your code.
 
 ```sh
 cargo build -p newrelic_agent_control --profile release-debug --features dhat-ad-hoc
@@ -311,7 +353,8 @@ cargo build -p newrelic_agent_control --profile release-debug --features dhat-ad
 
 ## Codeql
 
-Codeql is executed automatically in GitHub pipelines, in order to check the results locally you need to install the tool and download rust queries:
+Codeql is executed automatically in GitHub pipelines, in order to check the results locally you need to install the tool
+and download rust queries:
 
 ```console
 ❯ brew install codeql
@@ -346,4 +389,6 @@ Check the results
 
 ## Additional information
 
-We maintain separate directories for other documented topics under this `docs` directory and in other Markdown files throughout the codebase. The latter will be centralized under the `docs` directory over time. Feel free to check these documents and ask doubts or propose changes!
+We maintain separate directories for other documented topics under this `docs` directory and in other Markdown files
+throughout the codebase. The latter will be centralized under the `docs` directory over time. Feel free to check these
+documents and ask doubts or propose changes!

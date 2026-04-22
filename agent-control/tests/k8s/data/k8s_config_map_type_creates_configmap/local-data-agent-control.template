@@ -1,0 +1,17 @@
+fleet_control:
+  endpoint: <opamp-endpoint>
+  poll_interval: 5s
+  signature_validation:
+    public_key_server_url: <jwks-endpoint>
+k8s:
+  namespace: <ns>
+  namespace_agents: <agents-ns>
+  cluster_name: <cluster-name>
+  auth_secret:
+    secret_name: agent-control-auth
+    secret_key_name: private_key
+  # Add ConfigMap to the list of supported k8s object types
+  cr_type_meta:
+    - apiVersion: v1
+      kind: ConfigMap
+agents: {}

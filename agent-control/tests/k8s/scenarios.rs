@@ -7,3 +7,4 @@ mod garbage_collector;
 mod no_opamp;
 mod opamp;
 mod secrets_providers;
+mod without_flux;
