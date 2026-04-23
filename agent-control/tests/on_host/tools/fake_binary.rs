@@ -10,10 +10,20 @@ const FAKE_AC_BINARY_NAME: &str = "newrelic-agent-control.exe";
 /// Compiles `tests/on_host/data/fake_ac.rs` into a temporary directory and returns
 /// both the directory (which must be kept alive) and the path to the binary.
 pub fn build_fake_ac_binary() -> (TempDir, PathBuf) {
+    compile_fake_binary("fake_ac.rs")
+}
+
+/// Same as `build_fake_ac_binary` but the verification will fail.
+pub fn build_invalid_fake_ac_binary() -> (TempDir, PathBuf) {
+    compile_fake_binary("fake_ac_invalid.rs")
+}
+
+fn compile_fake_binary(src_file: &str) -> (TempDir, PathBuf) {
     let dir = tempfile::tempdir().expect("failed to create temp dir for fake binary");
     let binary_path = dir.path().join(FAKE_AC_BINARY_NAME);
-    let src =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/on_host/data/fake_ac.rs");
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/on_host/data")
+        .join(src_file);
     let status = std::process::Command::new("rustc")
         .arg(&src)
         .arg("-o")
@@ -21,7 +31,7 @@ pub fn build_fake_ac_binary() -> (TempDir, PathBuf) {
         .env("FAKE_AC_TEST_ID", current_test_id())
         .status()
         .expect("failed to invoke rustc");
-    assert!(status.success(), "failed to compile fake_ac.rs");
+    assert!(status.success(), "failed to compile {src_file}");
     (dir, binary_path)
 }
 

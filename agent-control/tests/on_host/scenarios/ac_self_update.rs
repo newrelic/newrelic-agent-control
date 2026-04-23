@@ -8,6 +8,7 @@ use crate::common::retry::retry_never;
 use crate::on_host::tools::config::create_local_config;
 use crate::on_host::tools::fake_binary::assert_is_fake_binary;
 use crate::on_host::tools::fake_binary::build_fake_ac_binary;
+use crate::on_host::tools::fake_binary::build_invalid_fake_ac_binary;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_artifact::push_agent_package;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
@@ -19,14 +20,18 @@ use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_H
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tempfile::tempdir;
+use tempfile::{TempDir, tempdir};
 
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
-/// Be aware that this test executes a binary self-replace which in this case is the test binary itself.
-fn test_agent_control_self_update_with_oci_registry() {
+/// This test exercises AC self-update using a fake new version of the AC binary pushed to a local OCI registry.
+/// It verifies that AC can fetch the new version from the registry, validate its signature, and apply the update
+/// by gracefully stopping itself (the new version would take effect on restart, which is outside the scope of this test).
+/// The replaced binary in this case is the compiled test binary, so any other test that successfully executes another self-replacement
+/// should be executed sequentially.
+fn test_ac_self_update_with_oci_registry() {
     let signer = OCISigner::start();
     let mut opamp_server = FakeServer::start_new();
 
@@ -84,7 +89,7 @@ agents: {{}}
 
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
-fn test_agent_control_self_update_fails_for_unsigned_package_with_oci_registry() {
+fn test_ac_self_update_fails_for_unsigned_package_with_oci_registry() {
     let signer = OCISigner::start();
     let mut opamp_server = FakeServer::start_new();
 
@@ -147,7 +152,7 @@ agents: {{}}
 
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
-fn test_agent_control_self_update_does_nothing_for_same_version_with_oci_registry() {
+fn test_ac_self_update_does_nothing_for_same_version_with_oci_registry() {
     let signer = OCISigner::start();
     let mut opamp_server = FakeServer::start_new();
 
@@ -197,7 +202,7 @@ agents: {{}}
 
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
-fn test_agent_control_self_update_fails_for_missing_version_with_oci_registry() {
+fn test_ac_self_update_fails_for_missing_version_with_oci_registry() {
     let signer = OCISigner::start();
     let mut opamp_server = FakeServer::start_new();
 
@@ -256,6 +261,65 @@ agents: {}
     });
 }
 
+#[test]
+#[ignore = "needs oci registry (use *with_oci_registry suffix)"]
+fn test_ac_self_update_fails_when_binary_verification_fails_with_oci_registry() {
+    let signer = OCISigner::start();
+    let mut opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    let new_version_tag = push_signed_invalid_fake_ac_package(&signer);
+
+    create_self_update_local_config(&opamp_server, &signer, local_dir.path(), true);
+
+    let base_paths = BasePaths {
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+
+    let mut agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+
+    let update_config = format!(
+        r#"
+version: "{}"
+agents: {{}}
+"#,
+        new_version_tag
+    );
+    opamp_server.set_config_response(ac_instance_id.clone(), update_config);
+
+    // Binary verify returns exit 1 with a message — expect Failed status with that message.
+    retry(60, Duration::from_secs(5), || {
+        check_latest_remote_config_status(&opamp_server, &ac_instance_id, |status| {
+            if status.status != RemoteConfigStatuses::Failed as i32 {
+                return Err(format!("expected Failed status, got: {}", status.status).into());
+            }
+            if !status.error_message.contains("pre-flight check failed") {
+                return Err(format!(
+                    "expected error message to contain 'pre-flight check failed', got: {}",
+                    status.error_message
+                )
+                .into());
+            }
+            Ok(())
+        })
+    });
+
+    retry_never(10, Duration::from_secs(1), || {
+        if agent_control.has_gracefully_stopped() {
+            Err("Agent Control should not have stopped when binary verification fails".into())
+        } else {
+            Ok(())
+        }
+    });
+}
+
 fn create_self_update_local_config(
     opamp_server: &FakeServer,
     signer: &OCISigner,
@@ -288,22 +352,25 @@ self_update:
     create_local_config(AGENT_CONTROL_ID, config, local_dir.to_path_buf());
 }
 
+/// Pushes an invalid fake agent-control binary package to the OCI registry and signs it.
+/// The binary will fail verification (`verify` exits 1 with a structured message).
+fn push_signed_invalid_fake_ac_package(signer: &OCISigner) -> String {
+    push_ac_package(build_invalid_fake_ac_binary, Some(signer))
+}
+
 /// Pushes a fake agent-control binary package to the OCI registry and signs it.
 fn push_signed_fake_ac_package(signer: &OCISigner) -> String {
-    let reference = push_fake_ac_package();
-    signer.sign_artifact(&reference);
-    reference.tag().unwrap().to_string()
+    push_ac_package(build_fake_ac_binary, Some(signer))
 }
 
 /// Pushes a fake agent-control binary package to the OCI registry without signing it.
 fn push_unsigned_fake_ac_package() -> String {
-    push_fake_ac_package().tag().unwrap().to_string()
+    push_ac_package(build_fake_ac_binary, None)
 }
 
-fn push_fake_ac_package() -> oci_client::Reference {
+fn push_ac_package(build: fn() -> (TempDir, PathBuf), signer: Option<&OCISigner>) -> String {
     let dir = tempdir().unwrap();
-
-    let (_binary_dir, binary_path) = build_fake_ac_binary();
+    let (_binary_dir, binary_path) = build();
 
     #[cfg(target_family = "unix")]
     let (path, media_type) = {
@@ -320,5 +387,8 @@ fn push_fake_ac_package() -> oci_client::Reference {
     };
 
     let (_, reference) = push_agent_package(&path, OCI_TEST_REGISTRY_URL, media_type);
-    reference
+    if let Some(signer) = signer {
+        signer.sign_artifact(&reference);
+    }
+    reference.tag().unwrap().to_string()
 }
