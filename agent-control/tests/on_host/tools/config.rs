@@ -107,8 +107,12 @@ pub fn create_file(content: impl Into<String>, path: PathBuf) {
 
 /// Creates local values config for the agent_id provided on the base_dir
 /// with the given content.
-pub fn create_local_config(agent_id: String, config: String, base_dir: PathBuf) {
-    let agent_values_dir_path = base_dir.join(FOLDER_NAME_LOCAL_DATA).join(agent_id);
+pub fn create_local_config(
+    agent_id: impl Into<String>,
+    config: impl Into<String>,
+    base_dir: PathBuf,
+) {
+    let agent_values_dir_path = base_dir.join(FOLDER_NAME_LOCAL_DATA).join(agent_id.into());
     create_dir_all(agent_values_dir_path.clone()).expect("failed to create values directory");
 
     let values_file_path =

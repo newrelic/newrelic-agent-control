@@ -12,7 +12,8 @@ use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
 use crate::agent_control::run::{
     AgentControlRunner, Environment, RunError, RunningMode, setup_config_repository_and_store,
 };
-use crate::agent_control::version_updater::updater::NoOpUpdater;
+use crate::agent_control::version_updater::on_host::OnHostACUpdater;
+use crate::agent_control::version_updater::on_host::verify::ProcessVerifyExecutor;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::checkers::health::noop::NoOpHealthChecker;
@@ -171,20 +172,21 @@ impl AgentControlRunner {
         let oci_client = oci::Client::try_new(oci_client_config, proxy, self.runtime.clone())
             .map_err(|err| RunError(format!("failed to create the OciClient: {err}")))?;
 
-        let packages_downloader = OCIArtifactDownloader::new(
-            oci_client,
-            agent_control_config
-                .agent_packages
-                .signature_verification_enabled
-                .into(),
+        let agents_package_manager = OCIPackageManager::new(
+            OCIArtifactDownloader::new(
+                oci_client.clone(),
+                agent_control_config
+                    .agent_packages
+                    .signature_verification_enabled
+                    .into(),
+            ),
+            DirectoryManagerFs,
+            remote_dir.clone(),
         );
-
-        let package_manager =
-            OCIPackageManager::new(packages_downloader, DirectoryManagerFs, remote_dir.clone());
 
         let supervisor_builder = SupervisorBuilderOnHost {
             logging_path: self.base_paths.log_dir,
-            package_manager: Arc::new(package_manager),
+            package_manager: Arc::new(agents_package_manager),
         };
 
         let signature_validator = Arc::new(self.signature_validator);
@@ -219,6 +221,28 @@ impl AgentControlRunner {
             .map_err(|err| RunError(format!("failed to start HTTP server: {err}")))?;
 
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
+
+        let agent_control_package_manager = OCIPackageManager::new(
+            OCIArtifactDownloader::new(
+                oci_client.clone(),
+                agent_control_config
+                    .self_update
+                    .signature_verification_enabled
+                    .into(),
+            ),
+            DirectoryManagerFs,
+            remote_dir.clone(),
+        );
+
+        let self_updater = OnHostACUpdater::try_new(
+            agent_control_config.self_update.enabled,
+            agent_control_internal_publisher.clone(),
+            agent_control_package_manager,
+            ProcessVerifyExecutor::default(),
+            agent_control_config.self_update.package.clone(),
+        )
+        .map_err(|err| RunError(format!("failed to initialize self updater: {err}")))?;
+
         AgentControl::new(
             maybe_client,
             sub_agent_builder,
@@ -232,7 +256,7 @@ impl AgentControlRunner {
             SupportedRemoteConfigValidator::Signature(signature_validator),
             dynamic_config_validator,
             NoOpResourceCleaner,
-            NoOpUpdater,
+            self_updater,
             |t| Some(NoOpHealthChecker::new(t)),
             agent_control_config,
         )

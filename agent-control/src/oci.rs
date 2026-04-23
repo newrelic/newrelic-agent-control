@@ -23,6 +23,7 @@ pub use error::OciClientError;
 /// [oci_client::Client] wrapper with extended functionality.
 /// It also wraps all _async_ operations using the underlying runtime, all functions will
 /// block the current thread until completion.
+#[derive(Clone)]
 pub struct Client {
     client: oci_client::Client,
     auth: RegistryAuth,

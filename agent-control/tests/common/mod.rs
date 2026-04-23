@@ -12,6 +12,7 @@ pub(super) mod remote_config_status;
 pub(super) mod retry;
 /// Includes helpers to handle the _async_ code execution in non-tokio-tests.
 pub(super) mod runtime;
+pub(crate) mod util;
 
 // TODO remove allow when the tests are created
 #[allow(dead_code)]

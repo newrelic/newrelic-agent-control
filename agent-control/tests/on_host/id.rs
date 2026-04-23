@@ -235,11 +235,7 @@ agents:
         .to_string(),
         sa_config_path.clone(),
     );
-    create_local_config(
-        "test-agent".into(),
-        NO_CONFIG.to_string(),
-        local_dir.path().into(),
-    );
+    create_local_config("test-agent", NO_CONFIG.to_string(), local_dir.path().into());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
