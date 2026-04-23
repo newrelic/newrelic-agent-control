@@ -75,6 +75,14 @@ impl TracingConfig {
     }
 }
 
+/// Initializes tracing with stderr output only, without file or OpenTelemetry layers.
+///
+/// Intended for short-lived commands (e.g. verify) that must not write to the running AC log files.
+pub fn try_init_stderr_tracing(config: &LoggingConfig) -> Result<(), TracingError> {
+    let layers = vec![stderr(config)?];
+    try_init_tracing_subscriber(layers)
+}
+
 /// This function allows initializing tracing as setup in the provided configuration.
 ///
 /// Depending on the configuration, the tracer might be shutdown on drop, therefore the corresponding
