@@ -1,4 +1,4 @@
-use crate::agent_control::http_server::status::{Status, SubAgentStatus};
+use crate::agent_control::http_server::status::{Status, SubAgentStatus, build_agent_attributes};
 use crate::event::{AgentControlEvent, SubAgentEvent};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -75,8 +75,13 @@ async fn update_agent_control_status(
             );
             status.fleet.unreachable(error_code, error_message);
         }
+        AgentControlEvent::AgentDescriptionSet(agent_description) => {
+            trace!("Setting Agent Control attributes for HTTP-Server");
+            status.agent_control.attributes = build_agent_attributes(agent_description)
+        }
     }
 }
+
 async fn update_sub_agent_status(sub_agent_event: SubAgentEvent, status: Arc<RwLock<Status>>) {
     let mut status = status.write().await;
     match sub_agent_event {
@@ -102,6 +107,15 @@ async fn update_sub_agent_status(sub_agent_event: SubAgentEvent, status: Arc<RwL
                 .or_insert_with(|| {
                     SubAgentStatus::with_identity(agent_identity).with_start_time(start_time)
                 });
+        }
+        SubAgentEvent::AgentDescriptionSet(agent_identity, agent_description) => {
+            trace!("Setting SubAgent attributes for HTTP-Server");
+            let attributes = build_agent_attributes(agent_description);
+            status
+                .agents
+                .entry(agent_identity.id.clone())
+                .or_insert_with(|| SubAgentStatus::with_identity(agent_identity))
+                .attributes = attributes;
         }
     }
 }

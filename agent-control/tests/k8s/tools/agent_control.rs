@@ -25,6 +25,7 @@ use std::time::Duration;
 use std::{fs::File, io::Write};
 
 pub const TEST_CLUSTER_NAME: &str = "minikube";
+
 pub const CUSTOM_AGENT_TYPE_PATH: &str = "tests/k8s/data/custom_agent_type.yml";
 pub const CUSTOM_AGENT_TYPE_SPLIT_NS_PATH: &str = "tests/k8s/data/custom_agent_type_split_ns.yml";
 pub const CUSTOM_AGENT_TYPE_SECRETS_PATH: &str = "tests/k8s/data/custom_agent_type_secrets.yml";
@@ -186,6 +187,56 @@ pub fn create_local_agent_control_config(
     let local = tmp_dir.join(FOLDER_NAME_LOCAL_DATA).join(AGENT_CONTROL_ID);
     std::fs::create_dir_all(&local).unwrap();
 
+    File::create(local.join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)))
+        .unwrap()
+        .write_all(content.as_bytes())
+        .unwrap();
+}
+
+/// Creates the AC config (ConfigMap + local file) with the HTTP status server enabled on the given port.
+/// Uses [TEST_CLUSTER_NAME] as the cluster name.
+/// `agents` is the YAML value for the `agents:` key (e.g. `"{}"` for empty, or an indented block for sub-agents).
+pub fn create_k8s_agent_control_config_with_status_server(
+    client: Client,
+    ac_ns: &str,
+    opamp_endpoint: &str,
+    jwks_endpoint: &str,
+    status_server_port: u16,
+    local_dir: &Path,
+    agents: &str,
+) {
+    let content = format!(
+        r#"fleet_control:
+  endpoint: {opamp_endpoint}
+  poll_interval: 5s
+  signature_validation:
+    public_key_server_url: {jwks_endpoint}
+k8s:
+  namespace: {ac_ns}
+  namespace_agents: {ac_ns}
+  cluster_name: {TEST_CLUSTER_NAME}
+  secret_private_key_name: {K8S_PRIVATE_KEY_SECRET}
+  auth_secret:
+    secret_name: {K8S_PRIVATE_KEY_SECRET}
+    secret_key_name: {K8S_KEY_SECRET}
+agents: {agents}
+server:
+  enabled: true
+  port: {status_server_port}
+"#
+    );
+
+    block_on(create_config_map(
+        client,
+        ac_ns,
+        ConfigMapStore::build_cm_name(&AgentID::AgentControl, FOLDER_NAME_LOCAL_DATA).as_str(),
+        content.clone(),
+    ));
+
+    let local = local_dir
+        .join(FOLDER_NAME_LOCAL_DATA)
+        .join(AGENT_CONTROL_ID);
+    std::fs::create_dir_all(&local).unwrap();
     File::create(local.join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)))
         .unwrap()
         .write_all(content.as_bytes())

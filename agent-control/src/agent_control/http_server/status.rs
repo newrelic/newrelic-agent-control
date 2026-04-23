@@ -5,14 +5,57 @@ use crate::checkers::health::health_checker::Health;
 use crate::checkers::health::with_start_time::HealthWithStartTime;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::identity::AgentIdentity;
+use opamp_client::operation::settings::{AgentDescription, DescriptionValueType};
 use serde::Serialize;
 
 use std::collections::HashMap;
 use std::time::SystemTime;
 use url::Url;
 
+const IDENTIFYING_ATTRIBUTES_PREFIX: &str = "identifying";
+const NON_IDENTIFYING_ATTRIBUTES_PREFIX: &str = "non-identifying";
+
 /// Dynamic fields describing the agent; includes attributes like agent_version, instance_uid, ...
 pub(super) type AgentAttributes = HashMap<String, String>;
+
+/// Encodes the provided [AgentDescription] as key-val. If there is an overlap in non-identifying
+/// and identifying attributes, the identifying attributes take precedence.
+pub(super) fn build_agent_attributes(agent_description: AgentDescription) -> AgentAttributes {
+    let mut attributes = encode_attributes(
+        agent_description.non_identifying_attributes,
+        NON_IDENTIFYING_ATTRIBUTES_PREFIX,
+    );
+    attributes.extend(encode_attributes(
+        agent_description.identifying_attributes,
+        IDENTIFYING_ATTRIBUTES_PREFIX,
+    ));
+    attributes
+}
+
+/// Helper to encode attributes from `agent_description` as key-val.
+/// The keys are prefixed by `{prefix}/`. Example `"agent.id"` with
+fn encode_attributes(
+    attributes: HashMap<String, DescriptionValueType>,
+    prefix: &str,
+) -> HashMap<String, String> {
+    attributes
+        .into_iter()
+        .map(|(k, v)| (format!("{prefix}/{k}"), encode_description_value(v)))
+        .collect()
+}
+
+/// Helper to encode a description value as string. Bytes are encoded as lowercase hex characters.
+fn encode_description_value(v: DescriptionValueType) -> String {
+    match v {
+        DescriptionValueType::String(v) => v,
+        DescriptionValueType::Int(v) => v.to_string(),
+        DescriptionValueType::Bool(v) => v.to_string(),
+        DescriptionValueType::Float(v) => v.to_string(),
+        DescriptionValueType::Bytes(v) => v
+            .iter()
+            .fold(String::new(), |acc, b| format!("{acc}{b:02x}")),
+    }
+}
 
 /// Agent Control status and health information.
 /// This information will be shown when the status endpoint is called.
@@ -244,6 +287,10 @@ fn time_to_unix_timestamp(time: SystemTime) -> u64 {
 
 #[cfg(test)]
 pub mod tests {
+    use std::collections::HashMap;
+
+    use opamp_client::operation::settings::{AgentDescription, DescriptionValueType};
+    use rstest::rstest;
     use serde_json::json;
     use url::Url;
 
@@ -251,7 +298,7 @@ pub mod tests {
 
     use crate::agent_control::http_server::status::{
         AgentAttributes, AgentControlStatus, HealthInfo, OpAMPStatus, Status, SubAgentStatus,
-        SubAgentsStatus,
+        SubAgentsStatus, build_agent_attributes,
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::{LastErrorCode, LastErrorMessage};
@@ -471,7 +518,7 @@ pub mod tests {
     fn test_attributes_omitted_when_empty() {
         let status = AgentControlStatus::default();
         let value = serde_json::to_value(&status).unwrap();
-        assert!(!value.as_object().unwrap().contains_key("description"));
+        assert!(!value.as_object().unwrap().contains_key("attributes"));
     }
 
     #[test]
@@ -493,6 +540,67 @@ pub mod tests {
                 "version": "1.2.3",
                 "instance_uid": "550e8400-e29b-41d4-a716-446655440000"
             })
+        );
+    }
+
+    #[rstest]
+    #[case::empty(HashMap::new(), HashMap::new(), vec![])]
+    #[case::non_identifying_only(
+        HashMap::new(),
+        HashMap::from([("k".to_string(), DescriptionValueType::String("v".to_string()))]),
+        vec![("non-identifying/k", "v")]
+    )]
+    #[case::identifying_only(
+        HashMap::from([("k".to_string(), DescriptionValueType::String("v".to_string()))]),
+        HashMap::new(),
+        vec![("identifying/k", "v")]
+    )]
+    #[case::merged_no_overlap(
+        HashMap::from([("id".to_string(), DescriptionValueType::String("id_val".to_string()))]),
+        HashMap::from([("non_id".to_string(), DescriptionValueType::String("non_id_val".to_string()))]),
+        vec![("identifying/id", "id_val"), ("non-identifying/non_id", "non_id_val")]
+    )]
+    #[case::both_present_when_key_in_both(
+        HashMap::from([("shared".to_string(), DescriptionValueType::String("id_value".to_string()))]),
+        HashMap::from([("shared".to_string(), DescriptionValueType::String("non_id_value".to_string()))]),
+        vec![("identifying/shared", "id_value"), ("non-identifying/shared", "non_id_value")]
+    )]
+    fn test_agent_description(
+        #[case] identifying_attributes: HashMap<String, DescriptionValueType>,
+        #[case] non_identifying_attributes: HashMap<String, DescriptionValueType>,
+        #[case] expected: Vec<(&str, &str)>,
+    ) {
+        let agent_description = AgentDescription {
+            identifying_attributes,
+            non_identifying_attributes,
+        };
+        let result = build_agent_attributes(agent_description);
+        assert_eq!(result.len(), expected.len());
+        for (key, val) in expected {
+            assert_eq!(result.get(key).map(String::as_str), Some(val));
+        }
+    }
+
+    #[rstest]
+    #[case::string(DescriptionValueType::String("hello".to_string()), "hello")]
+    #[case::int(DescriptionValueType::Int(42), "42")]
+    #[case::bool(DescriptionValueType::Bool(true), "true")]
+    #[case::float(DescriptionValueType::Float(4.13), "4.13")]
+    #[case::bytes(DescriptionValueType::Bytes(vec![0xde, 0xad, 0xbe, 0xef]), "deadbeef")]
+    fn test_agent_description_encode_types(
+        #[case] value: DescriptionValueType,
+        #[case] expected: &str,
+    ) {
+        let agent_description = AgentDescription {
+            identifying_attributes: HashMap::from([("k".to_string(), value)]),
+            non_identifying_attributes: Default::default(),
+        };
+
+        assert_eq!(
+            build_agent_attributes(agent_description)
+                .get("identifying/k")
+                .map(String::as_str),
+            Some(expected)
         );
     }
 }

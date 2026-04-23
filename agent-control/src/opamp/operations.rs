@@ -1,18 +1,11 @@
 use super::instance_id::InstanceID;
-use super::{
-    client_builder::{BuildOpAMPClient, OpAMPClientBuilderError},
-    instance_id::getter::InstanceIDGetter,
-};
+use super::{client_builder::OpAMPClientBuilderError, instance_id::getter::InstanceIDGetter};
 use crate::agent_control::defaults::{
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
     PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_custom_capabilities,
 };
 use crate::sub_agent::identity::AgentIdentity;
-use crate::{
-    agent_control::agent_id::AgentID,
-    event::{OpAMPEvent, channel::EventConsumer},
-    sub_agent::error::SubAgentError,
-};
+use crate::{agent_control::agent_id::AgentID, sub_agent::error::SubAgentError};
 use opamp_client::{
     StartedClient,
     operation::settings::{AgentDescription, DescriptionValueType, StartSettings},
@@ -20,17 +13,12 @@ use opamp_client::{
 use std::collections::HashMap;
 use tracing::info;
 
-pub fn build_sub_agent_opamp<OB, IG>(
-    opamp_builder: &OB,
+pub fn sub_agent_start_settings<IG: InstanceIDGetter>(
     instance_id_getter: &IG,
     agent_identity: &AgentIdentity,
     additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     mut non_identifying_attributes: HashMap<String, DescriptionValueType>,
-) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
-where
-    OB: BuildOpAMPClient,
-    IG: InstanceIDGetter,
-{
+) -> Result<StartSettings, OpAMPClientBuilderError> {
     let agent_control_id = AgentID::AgentControl;
     let parent_instance_id = instance_id_getter.get(&agent_control_id)?;
 
@@ -39,23 +27,22 @@ where
         DescriptionValueType::Bytes(parent_instance_id.into()),
     );
 
-    let start_settings = start_settings(
+    Ok(start_settings(
         instance_id_getter.get(&agent_identity.id)?,
-        agent_identity,
-        additional_identifying_attributes,
-        non_identifying_attributes,
-    );
-
-    opamp_builder.build_and_start(agent_identity.clone(), start_settings)
+        agent_description(
+            agent_identity,
+            additional_identifying_attributes,
+            non_identifying_attributes,
+        ),
+    ))
 }
 
-/// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent and agent control.
-pub fn start_settings(
-    instance_id: InstanceID,
+/// Builds [AgentDescription] from the provided [AgentIdentity] and additional attributes
+pub fn agent_description(
     agent_identity: &AgentIdentity,
     additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
-) -> StartSettings {
+) -> AgentDescription {
     let mut identifying_attributes = HashMap::from([
         (
             OPAMP_SERVICE_NAME.to_string(),
@@ -73,14 +60,22 @@ pub fn start_settings(
 
     identifying_attributes.extend(additional_identifying_attributes);
 
+    AgentDescription {
+        identifying_attributes,
+        non_identifying_attributes,
+    }
+}
+
+/// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent and agent control.
+pub fn start_settings(
+    instance_id: InstanceID,
+    agent_description: AgentDescription,
+) -> StartSettings {
     StartSettings {
         instance_uid: instance_id.into(),
         capabilities: default_capabilities(),
         custom_capabilities: Some(default_custom_capabilities()),
-        agent_description: AgentDescription {
-            identifying_attributes,
-            non_identifying_attributes,
-        },
+        agent_description,
     }
 }
 

@@ -16,8 +16,8 @@ use crate::agent_control::version_updater::updater::NoOpUpdater;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::checkers::health::noop::NoOpHealthChecker;
-use crate::event::OpAMPEvent;
 use crate::event::channel::{EventConsumer, pub_sub};
+use crate::event::{AgentControlEvent, OpAMPEvent};
 use crate::http::config::ProxyConfig;
 use crate::oci;
 use crate::on_host::file_store::FileStore;
@@ -31,7 +31,7 @@ use crate::opamp::http::client::HttpOpAMPClient;
 use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
 use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
 use crate::opamp::instance_id::storer::Storer;
-use crate::opamp::operations::start_settings;
+use crate::opamp::operations::{agent_description, start_settings};
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::package::oci::downloader::OCIArtifactDownloader;
@@ -52,7 +52,7 @@ use oci_client::client::ClientConfig;
 use oci_client::client::ClientProtocol;
 use opamp_client::http::StartedHttpClient;
 use opamp_client::http::client::OpAMPHttpClient;
-use opamp_client::operation::settings::{DescriptionValueType, StartSettings};
+use opamp_client::operation::settings::{AgentDescription, DescriptionValueType, StartSettings};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -118,18 +118,25 @@ impl AgentControlRunner {
             )
         });
 
+        let agent_identity = AgentIdentity::new_agent_control_identity();
+        let agent_description =
+            build_ac_onhost_agent_description(&agent_identity, &identifiers, RunningMode::Normal);
+
+        self.agent_control_publisher
+            .broadcast(AgentControlEvent::AgentDescriptionSet(
+                agent_description.clone(),
+            ));
+
         // Build and start AC OpAMP client
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
             .as_ref()
             .map(|builder| {
-                let agent_identity = AgentIdentity::new_agent_control_identity();
-                let settings = build_ac_opamp_start_settings(
+                let opamp_start_settings = build_ac_opamp_start_settings(
                     &instance_id_getter,
                     &agent_identity,
-                    &identifiers,
-                    RunningMode::Normal,
+                    agent_description,
                 )?;
-                start_ac_opamp_client(builder, agent_identity, settings)
+                start_ac_opamp_client(builder, agent_identity, opamp_start_settings)
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()?
@@ -273,24 +280,30 @@ pub fn opamp_client_builder(
     OpAMPClientBuilder::new(poll_interval, http_builder, loader)
 }
 
-/// Builds the OpAMP [StartSettings] for Agent Control, including the agent identity and
-/// all identifying and non-identifying attributes.
+/// Builds the OpAMP [StartSettings] for Agent Control on-host.
 pub fn build_ac_opamp_start_settings(
     instance_id_getter: &impl InstanceIDGetter,
     agent_identity: &AgentIdentity,
-    identifiers: &Identifiers,
-    running_mode: RunningMode,
+    agent_description: AgentDescription,
 ) -> Result<StartSettings, RunError> {
     let instance_id = instance_id_getter
         .get(&agent_identity.id)
         .map_err(|err| RunError(format!("error getting instance id: {err}")))?;
 
-    Ok(start_settings(
-        instance_id,
+    Ok(start_settings(instance_id, agent_description))
+}
+
+/// Builds the [AgentDescription] for Agent Control on-host.
+pub fn build_ac_onhost_agent_description(
+    agent_identity: &AgentIdentity,
+    identifiers: &Identifiers,
+    running_mode: RunningMode,
+) -> AgentDescription {
+    agent_description(
         agent_identity,
         ac_identifying_attributes(),
         ac_non_identifying_attributes(identifiers, running_mode),
-    ))
+    )
 }
 
 pub fn start_ac_opamp_client(

@@ -7,7 +7,7 @@ use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
 use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
-use crate::opamp::operations::build_sub_agent_opamp;
+use crate::opamp::operations::sub_agent_start_settings;
 use crate::package::manager::PackageManager;
 use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
@@ -66,27 +66,35 @@ where
             .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?
             .into();
 
+        let opamp_start_settings = sub_agent_start_settings(
+            &self.instance_id_getter,
+            agent_identity,
+            HashMap::from([(
+                OPAMP_SERVICE_VERSION.to_string(),
+                agent_identity.agent_type_id.version().to_string().into(),
+            )]),
+            HashMap::from([
+                (HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname),
+                (
+                    OS_ATTRIBUTE_KEY.to_string(),
+                    DescriptionValueType::String(OS_ATTRIBUTE_VALUE.to_string()),
+                ),
+            ]),
+        )
+        .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?;
+        self.sub_agent_publisher
+            .broadcast(SubAgentEvent::AgentDescriptionSet(
+                agent_identity.clone(),
+                opamp_start_settings.agent_description.clone(),
+            ));
+
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
             .as_ref()
             .map(|builder| {
-                build_sub_agent_opamp(
-                    builder,
-                    &self.instance_id_getter,
-                    agent_identity,
-                    HashMap::from([(
-                        OPAMP_SERVICE_VERSION.to_string(),
-                        agent_identity.agent_type_id.version().to_string().into(),
-                    )]),
-                    HashMap::from([
-                        (HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname),
-                        (
-                            OS_ATTRIBUTE_KEY.to_string(),
-                            DescriptionValueType::String(OS_ATTRIBUTE_VALUE.to_string()),
-                        ),
-                    ]),
-                )
-                .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))
+                builder
+                    .build_and_start(agent_identity.clone(), opamp_start_settings)
+                    .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()?

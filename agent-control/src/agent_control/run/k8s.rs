@@ -23,8 +23,8 @@ use crate::agent_type::version_config::{
 };
 use crate::checkers::version::k8s::checkers::spawn_version_checker;
 use crate::checkers::version::k8s::helmrelease::HelmReleaseVersionChecker;
-use crate::event::AgentControlInternalEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
+use crate::event::{AgentControlEvent, AgentControlInternalEvent};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::client_builder::BuildOpAMPClient;
@@ -34,7 +34,7 @@ use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
 use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
 use crate::opamp::instance_id::storer::Storer;
-use crate::opamp::operations::start_settings;
+use crate::opamp::operations::{agent_description, start_settings};
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::secret_retriever::k8s::retrieve::K8sSecretRetriever;
@@ -46,7 +46,7 @@ use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::thread_context::StartedThreadContext;
 use crate::{k8s::configmap_store::ConfigMapStore, sub_agent::k8s::builder::K8sSubAgentBuilder};
-use opamp_client::operation::settings::{DescriptionValueType, StartSettings};
+use opamp_client::operation::settings::{AgentDescription, DescriptionValueType, StartSettings};
 use resource_detection::system::hostname::get_hostname;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -111,20 +111,30 @@ impl AgentControlRunner {
             )
         });
 
+        let agent_identity = AgentIdentity::new_agent_control_identity();
+        let agent_description = agent_description(
+            &agent_identity,
+            agent_control_additional_opamp_identifying_attributes(&k8s_config),
+            agent_control_opamp_non_identifying_attributes(&identifiers, &k8s_config),
+        );
+
+        self.agent_control_publisher
+            .broadcast(AgentControlEvent::AgentDescriptionSet(
+                agent_description.clone(),
+            ));
+
         // Build and start AC OpAMP client
         let (maybe_client, maybe_opamp_consumer) = opamp_client_builder
             .as_ref()
             .map(|builder| -> Result<_, RunError> {
                 info!("Starting Agent Control OpAMP client");
-                let agent_identity = AgentIdentity::new_agent_control_identity();
-                let settings = build_ac_opamp_start_settings(
+                let opamp_start_settings = build_ac_opamp_start_settings(
                     &instance_id_getter,
                     &agent_identity,
-                    &k8s_config,
-                    &identifiers,
+                    agent_description,
                 )?;
                 builder
-                    .build_and_start(agent_identity, settings)
+                    .build_and_start(agent_identity, opamp_start_settings)
                     .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
@@ -299,24 +309,17 @@ fn start_cd_version_checker(
     )
 }
 
-/// Builds the OpAMP [StartSettings] for Agent Control on Kubernetes, including the agent
-/// identity and all identifying and non-identifying attributes.
+/// Builds the OpAMP [StartSettings] for Agent Control on Kubernetes.
 pub fn build_ac_opamp_start_settings(
     instance_id_getter: &impl InstanceIDGetter,
     agent_identity: &AgentIdentity,
-    k8s_config: &K8sConfig,
-    identifiers: &Identifiers,
+    agent_description: AgentDescription,
 ) -> Result<StartSettings, RunError> {
     let instance_id = instance_id_getter
         .get(&agent_identity.id)
         .map_err(|err| RunError(format!("error getting instance id: {err}")))?;
 
-    Ok(start_settings(
-        instance_id,
-        agent_identity,
-        agent_control_additional_opamp_identifying_attributes(k8s_config),
-        agent_control_opamp_non_identifying_attributes(identifiers, k8s_config),
-    ))
+    Ok(start_settings(instance_id, agent_description))
 }
 
 pub fn agent_control_opamp_non_identifying_attributes(
