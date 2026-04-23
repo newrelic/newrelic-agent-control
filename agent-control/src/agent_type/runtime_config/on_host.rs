@@ -106,8 +106,6 @@ mod tests {
     use crate::agent_type::variable::Variable;
     use crate::agent_type::variable::namespace::Namespace;
     use crate::checkers::health::health_checker::{HealthCheckInterval, InitialDelay};
-    use oci_client::secrets::RegistryAuth;
-    use rstest::rstest;
     use serde_yaml::Number;
     use std::collections::HashMap;
     use std::path::PathBuf;
@@ -170,7 +168,6 @@ mod tests {
                     public_key_url: Some(TemplateableValue::from_template(
                         "${nr-var:public-key-url}".to_string(),
                     )),
-                    auth: package::Auth::default(),
                 },
             },
         };
@@ -179,7 +176,7 @@ mod tests {
             ("otel-first".to_string(), pkg.clone()),
             ("otel-second".to_string(), pkg),
         ]);
-        assert_eq!(on_host.packages, expected_packages);
+        assert_eq!(on_host.packages, expected_packages)
     }
 
     #[test]
@@ -719,75 +716,6 @@ executables:
         );
     }
 
-    struct AuthCredentials {
-        username: &'static str,
-        password: &'static str,
-        bearer: &'static str,
-    }
-
-    impl AuthCredentials {
-        const NONE: Self = Self {
-            username: "",
-            password: "",
-            bearer: "",
-        };
-        const BASIC: Self = Self {
-            username: "user",
-            password: "pass",
-            bearer: "",
-        };
-        const BEARER: Self = Self {
-            username: "",
-            password: "",
-            bearer: "token",
-        };
-    }
-
-    #[rstest]
-    // This case checks backwards compatibility with old agent types not defining auth.
-    #[case::no_auth(PACKAGES_NO_AUTH, AuthCredentials::NONE, RegistryAuth::Anonymous)]
-    #[case::no_credentials(PACKAGES, AuthCredentials::NONE, RegistryAuth::Anonymous)]
-    #[case::basic_credentials(PACKAGES, AuthCredentials::BASIC, RegistryAuth::Basic("user".to_string(), "pass".to_string()))]
-    #[case::bearer_credentials(PACKAGES, AuthCredentials::BEARER, RegistryAuth::Bearer("token".to_string()))]
-    fn test_auth_parsing(
-        #[case] yaml: &str,
-        #[case] creds: AuthCredentials,
-        #[case] expected_auth: RegistryAuth,
-    ) {
-        let on_host: OnHost = serde_yaml::from_str(yaml).unwrap();
-
-        let mut vars = Variables::new();
-        vars.insert(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-            Variable::new_final_string_variable("/filesystem".to_string()),
-        );
-        vars.insert(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_REMOTE_DIR),
-            Variable::new_final_string_variable("remote".to_string()),
-        );
-        vars.insert(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_SUB_AGENT_ID),
-            Variable::new_final_string_variable("agent-id".to_string()),
-        );
-        vars.insert(
-            "nr-var:oci.auth.basic.username".to_string(),
-            Variable::new_final_string_variable(creds.username.to_string()),
-        );
-        vars.insert(
-            "nr-var:oci.auth.basic.password".to_string(),
-            Variable::new_final_string_variable(creds.password.to_string()),
-        );
-        vars.insert(
-            "nr-var:oci.auth.bearer.token".to_string(),
-            Variable::new_final_string_variable(creds.bearer.to_string()),
-        );
-
-        let rendered = on_host.template_with(&vars).unwrap();
-        let pkg = rendered.packages.get("infra-agent").unwrap();
-
-        assert_eq!(pkg.download.oci.auth, expected_auth);
-    }
-
     pub const AGENT_GIVEN_YAML: &str = r#"
 health:
   interval: 3s
@@ -834,31 +762,5 @@ packages:
         repository: ${nr-var:repository}
         version: ${nr-var:version}
         public_key_url: ${nr-var:public-key-url}
-"#;
-
-    const PACKAGES_NO_AUTH: &str = r#"
-packages:
-  infra-agent:
-    download:
-      oci:
-        registry: docker.io
-        repository: repo/image
-        version: 0.0.1
-"#;
-
-    const PACKAGES: &str = r#"
-packages:
-  infra-agent:
-    download:
-      oci:
-        registry: docker.io
-        repository: repo/image
-        version: 0.0.1
-        auth:
-          basic:
-            username: ${nr-var:oci.auth.basic.username}
-            password: ${nr-var:oci.auth.basic.password}
-          bearer:
-            token: ${nr-var:oci.auth.bearer.token}
 "#;
 }
