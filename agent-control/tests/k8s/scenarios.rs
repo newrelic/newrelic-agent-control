@@ -8,3 +8,4 @@ mod http_status_server;
 mod no_opamp;
 mod opamp;
 mod secrets_providers;
+mod without_flux;

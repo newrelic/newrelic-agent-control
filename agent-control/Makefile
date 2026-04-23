@@ -40,10 +40,17 @@ test/onhost/oci-registry/integration:
 test/k8s:
 	cargo $(CARGO_CMD) $(PACKAGE_SA) --all-targets -- --skip on_host
 
+# K8S integration tests without Flux - runs directly without Tilt
+.PHONY: test/k8s/integration-without-flux
+test/k8s/integration-without-flux:
+	@echo "==> Updating kubeconfig for minikube..."
+	KUBECONFIG='./tests/k8s/.kubeconfig-dev' minikube update-context
+	@echo "==> Running integration tests without Flux..."
+	cargo test k8s::scenarios::without_flux -- --nocapture --ignored --test-threads=10
+
+# K8S integration tests with Flux
 .PHONY: test/k8s/integration
 test/k8s/integration: test/k8s/integration-part1 test/k8s/integration-part2
-
-
 
 .PHONY: test/k8s/integration-part1
 test/k8s/integration-part1:
