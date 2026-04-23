@@ -335,6 +335,8 @@ fleet_control:
   signature_validation:
     public_key_server_url: {}
 agents: {{}}
+oci:
+  registry: {OCI_TEST_REGISTRY_URL}
 self_update:
   enabled: true
   signature_verification_enabled: {signature_verification_enabled}
