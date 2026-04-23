@@ -45,8 +45,6 @@ test/k8s:
 test/k8s/integration-without-flux:
 	@echo "==> Updating kubeconfig for minikube..."
 	KUBECONFIG='./tests/k8s/.kubeconfig-dev' minikube update-context
-	@echo "==> Building agent-control-k8s binary..."
-	$(MAKE) -C .. BUILD_MODE=debug ARCH=$(shell uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') build-agent-control-k8s
 	@echo "==> Running integration tests without Flux..."
 	cargo test k8s::scenarios::without_flux -- --nocapture --ignored --test-threads=10
 
