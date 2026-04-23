@@ -47,7 +47,7 @@ fn test_store_remote_no_mocks() {
     };
 
     values_repo
-        .store_remote(&agent_id.clone(), &agent_values)
+        .store_remote(&agent_id.clone(), None, &agent_values)
         .unwrap();
 
     assert_eq!(

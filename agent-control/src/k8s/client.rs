@@ -175,13 +175,18 @@ impl SyncK8sClient {
         name: &str,
         namespace: &str,
         labels: BTreeMap<String, String>,
+        annotations: BTreeMap<String, String>,
         key: &str,
         value: &str,
     ) -> Result<(), K8sError> {
-        self.runtime.block_on(
-            self.async_client
-                .set_configmap_key(name, namespace, labels, key, value),
-        )
+        self.runtime.block_on(self.async_client.set_configmap_key(
+            name,
+            namespace,
+            labels,
+            annotations,
+            key,
+            value,
+        ))
     }
 
     pub fn delete_configmap_key(
@@ -341,6 +346,7 @@ impl AsyncK8sClient {
         name: &str,
         namespace: &str,
         labels: BTreeMap<String, String>,
+        annotations: BTreeMap<String, String>,
         key: &str,
         value: &str,
     ) -> Result<(), K8sError> {
@@ -359,8 +365,12 @@ impl AsyncK8sClient {
             })
             .and_modify(|cm| {
                 cm.metadata.labels = Some(labels);
+                cm.metadata
+                    .annotations
+                    .get_or_insert_default()
+                    .extend(annotations);
                 cm.data
-                    .get_or_insert_with(BTreeMap::default)
+                    .get_or_insert_default()
                     .insert(key.to_string(), value.to_string());
             })
             .commit(&PostParams::default())

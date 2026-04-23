@@ -2,7 +2,10 @@ use std::error::Error;
 
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::{agent_control::agent_id::AgentID, opamp::instance_id::storer::StorerError};
+use crate::{
+    agent_control::agent_id::AgentID, agent_type::agent_type_id::AgentTypeID,
+    opamp::instance_id::storer::StorerError,
+};
 
 /// The key used to identify the data in the OpAMP Data Store.
 pub type StoreKey = str;
@@ -29,6 +32,7 @@ pub trait DataStore {
     fn set_remote_data<T>(
         &self,
         agent_id: &AgentID,
+        agent_type_id: Option<AgentTypeID>,
         key: &str,
         data: &T,
     ) -> Result<(), Self::Error>

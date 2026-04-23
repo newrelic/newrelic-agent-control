@@ -45,7 +45,7 @@ where
 
     fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError> {
         self.values_repository
-            .store_remote(&self.agent_control_id, config)
+            .store_remote(&self.agent_control_id, None, config)
             .map_err(|e| AgentControlConfigError(format!("storing Agent Control config: {e}")))
     }
 
@@ -225,7 +225,7 @@ pub(crate) mod tests {
         .unwrap();
 
         config_repository
-            .store_remote(&AgentID::AgentControl, &remote_config.clone().into())
+            .store_remote(&AgentID::AgentControl, None, &remote_config.clone().into())
             .unwrap();
 
         let store = AgentControlConfigStore::new(Arc::new(config_repository));

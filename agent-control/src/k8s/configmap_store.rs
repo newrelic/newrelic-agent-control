@@ -8,8 +8,9 @@ use super::client::SyncK8sClient;
 use super::labels::Labels;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::data_store::{DataStore, StoreKey};
-use crate::k8s;
+use crate::k8s::{self, annotations::Annotations};
 use std::sync::{Arc, RwLock};
 
 /// Represents a Kubernetes persistent store of Agents data such as instance id and configs.
@@ -92,6 +93,7 @@ impl DataStore for ConfigMapStore {
     fn set_remote_data<T>(
         &self,
         agent_id: &AgentID,
+        agent_type_id: Option<AgentTypeID>,
         key: &StoreKey,
         data: &T,
     ) -> Result<(), Self::Error>
@@ -104,10 +106,14 @@ impl DataStore for ConfigMapStore {
 
         let data_as_string = serde_yaml::to_string(data)?;
         let configmap_name = ConfigMapStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
+        let annotations = agent_type_id
+            .map(|id| Annotations::new_agent_type_id_annotation(&id).get())
+            .unwrap_or_default();
         self.k8s_client.set_configmap_key(
             &configmap_name,
             self.namespace.as_str(),
             Labels::new(agent_id).get(),
+            annotations,
             key,
             &data_as_string,
         )
@@ -135,6 +141,7 @@ pub mod tests {
     use crate::k8s::labels::Labels;
     use mockall::predicate;
     use serde::{Deserialize, Serialize};
+    use std::collections::BTreeMap;
     use std::sync::Arc;
 
     const AGENT_NAME: &str = "agent1";
@@ -165,10 +172,11 @@ pub mod tests {
                 )),
                 predicate::eq(TEST_NAMESPACE),
                 predicate::eq(Labels::new(&AgentID::try_from(AGENT_NAME).unwrap()).get()),
+                predicate::eq(BTreeMap::default()),
                 predicate::eq(STORE_KEY_TEST),
                 predicate::eq(DATA_STORED),
             )
-            .returning(move |_, _, _, _, _| Ok(()));
+            .returning(move |_, _, _, _, _, _| Ok(()));
         k8s_client
             .expect_delete_configmap_key()
             .once()
@@ -186,6 +194,7 @@ pub mod tests {
 
         let _ = k8s_store.set_remote_data(
             &agent_id,
+            None,
             STORE_KEY_TEST,
             &DataToBeStored {
                 test: "foo".to_string(),
@@ -306,13 +315,14 @@ pub mod tests {
         k8s_client
             .expect_set_configmap_key()
             .once()
-            .returning(move |_, _, _, _, _| {
+            .returning(move |_, _, _, _, _, _| {
                 Err(K8sError::KubeRs(Box::new(kube::Error::TlsRequired)))
             });
         let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
         let id = k8s_store.set_remote_data(
             &AgentID::try_from(AGENT_NAME).unwrap(),
+            None,
             STORE_KEY_TEST,
             &DataToBeStored::default(),
         );
@@ -325,10 +335,11 @@ pub mod tests {
         k8s_client
             .expect_set_configmap_key()
             .once()
-            .returning(move |_, _, _, _, _| Ok(()));
+            .returning(move |_, _, _, _, _, _| Ok(()));
         let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
         let id = k8s_store.set_remote_data(
             &AgentID::try_from(AGENT_NAME).unwrap(),
+            None,
             STORE_KEY_TEST,
             &DataToBeStored::default(),
         );
