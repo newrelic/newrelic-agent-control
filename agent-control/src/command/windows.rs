@@ -1,6 +1,7 @@
 //! This module contains functions to handle the Windows version of the main, which involves a Windows Service
 //! running mode.
 
+use crate::agent_control::run::GracefulShutdownReason;
 use crate::event::channel::EventPublisher;
 use crate::{event::ApplicationEvent, utils::retry::retry};
 use std::error::Error;
@@ -43,7 +44,7 @@ impl WindowsServiceStopHandler {
     /// Consumes the handler so that [Drop] is not triggered for panic/error logic.
     pub fn teardown(
         mut self,
-        run_result: &Result<(), Box<dyn Error>>,
+        run_result: &Result<GracefulShutdownReason, Box<dyn Error>>,
     ) -> Result<(), Box<dyn Error>> {
         if let Some(handle) = self.handle.take() {
             debug!(
@@ -55,7 +56,9 @@ impl WindowsServiceStopHandler {
                     error!("Service stopping due to error: {err}");
                     ServiceExitCode::ServiceSpecific(1)
                 }
-                Ok(_) => ServiceExitCode::Win32(0),
+                // ERROR_RESTART_APPLICATION(1467) indicates that the a restart is needed due to a self-update
+                Ok(GracefulShutdownReason::SelfUpdate) => ServiceExitCode::Win32(1467),
+                Ok(GracefulShutdownReason::ExternalRequested) => ServiceExitCode::Win32(0),
             };
 
             set_service_as_stopped(handle, exit_code)?;

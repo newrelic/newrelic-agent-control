@@ -74,8 +74,7 @@ fn _main(context: Context) -> Result<(), Box<dyn Error>> {
     // Create the actual agent control runner with the rest of required configs
     // and the application_event_consumer and capture the result to report the error in windows
     let run_result = AgentControlRunner::try_new(context.ac_runner_context)
-        .and_then(|runner| runner.run_onhost().map_err(|e| e.into()))
-        .map(|_shutdown_reason| ());
+        .and_then(|runner| runner.run_onhost().map_err(|e| e.into()));
 
     #[cfg(target_family = "windows")]
     if let Some(handler) = context.stop_handler {
@@ -87,5 +86,5 @@ fn _main(context: Context) -> Result<(), Box<dyn Error>> {
         }
     }
 
-    run_result
+    run_result.map(|_| ())
 }
