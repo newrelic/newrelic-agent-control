@@ -14,6 +14,15 @@ pub mod helm_release;
 pub mod instrumentation;
 pub mod stateful_set;
 
+/// Defines how to select Kubernetes resources for health-check purposes.
+#[derive(Debug)]
+pub enum ResourceFilter {
+    /// Match workloads by `metadata.name`.
+    ByName(String),
+    /// Match workloads carrying the Flux `helm.toolkit.fluxcd.io/name` label.
+    ByFluxLabel(String),
+}
+
 /// Executes the provided health-check function over the items provided. It expects a list
 /// of `Arc<K>` because k8s reflectors provide shared references.
 /// It returns:
@@ -54,6 +63,15 @@ where
             .as_ref()
             .is_some_and(|labels| selector.matches(labels))
     }
+}
+
+/// Returns a closure which can be used as filter predicate. It will filter objects whose
+/// `metadata.name` exactly matches the provided name.
+pub(crate) fn name_filter<K>(name: String) -> impl Fn(&Arc<K>) -> bool
+where
+    K: Metadata<Ty = ObjectMeta>,
+{
+    move |obj| obj.metadata().name.as_deref().is_some_and(|n| n == name)
 }
 
 /// Helper to return an error when an expected field in the StatefulSet object is missing.

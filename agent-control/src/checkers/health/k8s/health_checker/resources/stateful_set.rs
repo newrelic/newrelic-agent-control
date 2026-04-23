@@ -8,13 +8,15 @@ use crate::k8s::utils as client_utils;
 use k8s_openapi::api::apps::v1::StatefulSet;
 use std::sync::Arc;
 
-use super::{check_health_for_items, flux_release_filter, missing_field_error};
+use super::{
+    ResourceFilter, check_health_for_items, flux_release_filter, missing_field_error, name_filter,
+};
 
-/// Represents a health checker for the StatefulSets or a release.
+/// Represents a health checker for a StatefulSet resource.
 #[derive(Debug)]
 pub struct K8sHealthStatefulSet {
     k8s_client: Arc<SyncK8sClient>,
-    release_name: String,
+    filter: ResourceFilter,
     start_time: StartTime,
     namespace: String,
 }
@@ -23,11 +25,18 @@ impl HealthChecker for K8sHealthStatefulSet {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         let stateful_sets = self.k8s_client.list_stateful_set(&self.namespace)?;
 
-        let target_stateful_sets = stateful_sets
-            .into_iter()
-            .filter(flux_release_filter(self.release_name.clone()));
-
-        let health = check_health_for_items(target_stateful_sets, Self::stateful_set_health)?;
+        let health = match &self.filter {
+            ResourceFilter::ByName(name) => check_health_for_items(
+                stateful_sets.into_iter().filter(name_filter(name.clone())),
+                Self::stateful_set_health,
+            )?,
+            ResourceFilter::ByFluxLabel(release) => check_health_for_items(
+                stateful_sets
+                    .into_iter()
+                    .filter(flux_release_filter(release.clone())),
+                Self::stateful_set_health,
+            )?,
+        };
 
         Ok(HealthWithStartTime::new(health, self.start_time))
     }
@@ -36,13 +45,13 @@ impl HealthChecker for K8sHealthStatefulSet {
 impl K8sHealthStatefulSet {
     pub fn new(
         k8s_client: Arc<SyncK8sClient>,
-        release_name: String,
+        filter: ResourceFilter,
         start_time: StartTime,
         namespace: String,
     ) -> Self {
         Self {
             k8s_client,
-            release_name,
+            filter,
             start_time,
             namespace,
         }
@@ -81,7 +90,6 @@ impl K8sHealthStatefulSet {
 mod tests {
     use super::*;
     use crate::checkers::health::health_checker::Healthy;
-    use crate::checkers::health::k8s::health_checker::LABEL_RELEASE_FLUX;
     use crate::checkers::health::k8s::health_checker::resources::daemon_set::tests::TEST_NAMESPACE;
     use crate::k8s::client::MockSyncK8sClient;
     use assert_matches::assert_matches;
@@ -250,32 +258,21 @@ mod tests {
     #[test]
     fn test_check_health() {
         let mut k8s_client = MockSyncK8sClient::new();
-        let release_name = "flux-release";
+        let name = "target-stateful-set";
 
-        let healthy_matching = StatefulSet {
-            metadata: ObjectMeta {
-                labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
-                ..stateful_set_meta("name")
-            },
+        // Matches by name — healthy.
+        let matching_healthy = StatefulSet {
+            metadata: stateful_set_meta(name),
             spec: Some(StatefulSetSpec::default()),
             status: Some(StatefulSetStatus {
-                updated_replicas: Some(1),
                 ready_replicas: Some(1),
                 ..stateful_set_status()
             }),
         };
 
-        let with_err_not_matching = StatefulSet {
-            metadata: ObjectMeta {
-                labels: Some(
-                    [(
-                        LABEL_RELEASE_FLUX.to_string(),
-                        "another-release".to_string(),
-                    )]
-                    .into(),
-                ),
-                ..Default::default()
-            },
+        // Does not match by name — would error if checked, but must be skipped.
+        let non_matching = StatefulSet {
+            metadata: stateful_set_meta("other-stateful-set"),
             ..Default::default()
         };
 
@@ -284,16 +281,64 @@ mod tests {
             .times(1)
             .returning(move |_| {
                 Ok(vec![
-                    Arc::new(with_err_not_matching.clone()),
-                    Arc::new(healthy_matching.clone()),
+                    Arc::new(non_matching.clone()),
+                    Arc::new(matching_healthy.clone()),
                 ])
             });
 
         let start_time = StartTime::now();
-
         let health_checker = K8sHealthStatefulSet::new(
             Arc::new(k8s_client),
-            release_name.to_string(),
+            ResourceFilter::ByName(name.to_string()),
+            start_time,
+            TEST_NAMESPACE.to_string(),
+        );
+        let result = health_checker.check_health().unwrap();
+        assert_eq!(
+            result,
+            HealthWithStartTime::from_healthy(Healthy::new(), start_time)
+        );
+    }
+
+    #[test]
+    fn test_check_health_for_helm_release() {
+        use crate::checkers::health::k8s::health_checker::LABEL_RELEASE_FLUX;
+        let mut k8s_client = MockSyncK8sClient::new();
+        let release_name = "flux-release";
+
+        // Matches by Flux label — healthy.
+        let matching_healthy = StatefulSet {
+            metadata: ObjectMeta {
+                labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
+                ..stateful_set_meta("chart-stateful-set")
+            },
+            spec: Some(StatefulSetSpec::default()),
+            status: Some(StatefulSetStatus {
+                ready_replicas: Some(1),
+                ..stateful_set_status()
+            }),
+        };
+
+        // Does not carry the Flux label — would error if checked, but must be skipped.
+        let non_matching = StatefulSet {
+            metadata: stateful_set_meta("other-stateful-set"),
+            ..Default::default()
+        };
+
+        k8s_client
+            .expect_list_stateful_set()
+            .times(1)
+            .returning(move |_| {
+                Ok(vec![
+                    Arc::new(non_matching.clone()),
+                    Arc::new(matching_healthy.clone()),
+                ])
+            });
+
+        let start_time = StartTime::now();
+        let health_checker = K8sHealthStatefulSet::new(
+            Arc::new(k8s_client),
+            ResourceFilter::ByFluxLabel(release_name.to_string()),
             start_time,
             TEST_NAMESPACE.to_string(),
         );

@@ -8,14 +8,16 @@ use crate::k8s::utils as client_utils;
 use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus};
 use std::sync::Arc;
 
-use super::{check_health_for_items, flux_release_filter, missing_field_error};
+use super::{
+    ResourceFilter, check_health_for_items, flux_release_filter, missing_field_error, name_filter,
+};
 
 const ROLLING_UPDATE_UPDATE_STRATEGY: &str = "RollingUpdate";
 
 #[derive(Debug)]
 pub struct K8sHealthDaemonSet {
     k8s_client: Arc<SyncK8sClient>,
-    release_name: String,
+    filter: ResourceFilter,
     start_time: StartTime,
     namespace: String,
 }
@@ -24,12 +26,19 @@ impl HealthChecker for K8sHealthDaemonSet {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         let daemon_sets = self.k8s_client.list_daemon_set(&self.namespace)?;
 
-        let target_daemon_sets = daemon_sets
-            .into_iter()
-            .filter(flux_release_filter(self.release_name.clone()));
+        let health = match &self.filter {
+            ResourceFilter::ByName(name) => check_health_for_items(
+                daemon_sets.into_iter().filter(name_filter(name.clone())),
+                Self::check_health_single_daemon_set,
+            )?,
+            ResourceFilter::ByFluxLabel(release) => check_health_for_items(
+                daemon_sets
+                    .into_iter()
+                    .filter(flux_release_filter(release.clone())),
+                Self::check_health_single_daemon_set,
+            )?,
+        };
 
-        let health =
-            check_health_for_items(target_daemon_sets, Self::check_health_single_daemon_set)?;
         Ok(HealthWithStartTime::new(health, self.start_time))
     }
 }
@@ -37,13 +46,13 @@ impl HealthChecker for K8sHealthDaemonSet {
 impl K8sHealthDaemonSet {
     pub fn new(
         k8s_client: Arc<SyncK8sClient>,
-        release_name: String,
+        filter: ResourceFilter,
         start_time: StartTime,
         namespace: String,
     ) -> Self {
         Self {
             k8s_client,
-            release_name,
+            filter,
             start_time,
             namespace,
         }
@@ -129,10 +138,7 @@ fn is_daemon_set_update_strategy_rolling_update(
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::checkers::health::{
-        health_checker::{Healthy, Unhealthy},
-        k8s::health_checker::LABEL_RELEASE_FLUX,
-    };
+    use crate::checkers::health::health_checker::{Healthy, Unhealthy};
     use crate::k8s::client::MockSyncK8sClient;
     use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
     use k8s_openapi::api::apps::v1::DaemonSetUpdateStrategy;
@@ -375,30 +381,12 @@ pub mod tests {
     #[test]
     fn test_check_health() {
         let mut k8s_client = MockSyncK8sClient::new();
-        let release_name = "flux-release";
+        let name = "target-daemon-set";
 
-        let healthy_matching = DaemonSet {
+        // Matches by name — unhealthy (2 ready out of 5 desired).
+        let matching_unhealthy = DaemonSet {
             metadata: ObjectMeta {
-                name: Some("healthy-daemon-set".to_string()),
-                labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
-                ..Default::default()
-            },
-            spec: Some(DaemonSetSpec {
-                update_strategy: Some(DaemonSetUpdateStrategy {
-                    type_: Some(ROLLING_UPDATE_UPDATE_STRATEGY.to_string()),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            status: Some(DaemonSetStatus {
-                ..Default::default()
-            }),
-        };
-
-        let unhealthy_matching = DaemonSet {
-            metadata: ObjectMeta {
-                name: Some("unhealthy-daemon-set".to_string()),
-                labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
+                name: Some(name.to_string()),
                 ..Default::default()
             },
             spec: Some(DaemonSetSpec {
@@ -415,21 +403,29 @@ pub mod tests {
             }),
         };
 
+        // Does not match by name — would error if checked, but must be skipped.
+        let non_matching = DaemonSet {
+            metadata: ObjectMeta {
+                name: Some("other-daemon-set".to_string()),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
         k8s_client
             .expect_list_daemon_set()
             .times(1)
             .returning(move |_| {
                 Ok(vec![
-                    Arc::new(healthy_matching.clone()),
-                    Arc::new(unhealthy_matching.clone()),
+                    Arc::new(non_matching.clone()),
+                    Arc::new(matching_unhealthy.clone()),
                 ])
             });
 
         let start_time = StartTime::now();
-
         let health_checker = K8sHealthDaemonSet::new(
             Arc::new(k8s_client),
-            release_name.to_string(),
+            ResourceFilter::ByName(name.to_string()),
             start_time,
             TEST_NAMESPACE.to_string(),
         );
@@ -438,7 +434,75 @@ pub mod tests {
         assert_eq!(
             health,
             HealthWithStartTime::from_unhealthy(
-                Unhealthy::new("DaemonSet `unhealthy-daemon-set`: the number of pods ready `2` is less that the desired `5`".into()),
+                Unhealthy::new(
+                    "DaemonSet `target-daemon-set`: the number of pods ready `2` is less that the desired `5`".into()
+                ),
+                start_time
+            )
+        );
+    }
+
+    #[test]
+    fn test_check_health_for_helm_release() {
+        let mut k8s_client = MockSyncK8sClient::new();
+        use crate::checkers::health::k8s::health_checker::LABEL_RELEASE_FLUX;
+        let release_name = "flux-release";
+
+        // Matches by Flux label.
+        let matching_unhealthy = DaemonSet {
+            metadata: ObjectMeta {
+                name: Some("chart-daemon-set".to_string()),
+                labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
+                ..Default::default()
+            },
+            spec: Some(DaemonSetSpec {
+                update_strategy: Some(DaemonSetUpdateStrategy {
+                    type_: Some(ROLLING_UPDATE_UPDATE_STRATEGY.to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            status: Some(DaemonSetStatus {
+                desired_number_scheduled: 3,
+                number_ready: 1,
+                ..Default::default()
+            }),
+        };
+
+        // Does not carry the Flux label — must be skipped.
+        let non_matching = DaemonSet {
+            metadata: ObjectMeta {
+                name: Some("other-daemon-set".to_string()),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        k8s_client
+            .expect_list_daemon_set()
+            .times(1)
+            .returning(move |_| {
+                Ok(vec![
+                    Arc::new(non_matching.clone()),
+                    Arc::new(matching_unhealthy.clone()),
+                ])
+            });
+
+        let start_time = StartTime::now();
+        let health_checker = K8sHealthDaemonSet::new(
+            Arc::new(k8s_client),
+            ResourceFilter::ByFluxLabel(release_name.to_string()),
+            start_time,
+            TEST_NAMESPACE.to_string(),
+        );
+        let health = health_checker.check_health().unwrap();
+
+        assert_eq!(
+            health,
+            HealthWithStartTime::from_unhealthy(
+                Unhealthy::new(
+                    "DaemonSet `chart-daemon-set`: the number of pods ready `1` is less that the desired `3`".into()
+                ),
                 start_time
             )
         );
