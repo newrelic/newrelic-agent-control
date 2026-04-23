@@ -381,12 +381,18 @@ mod tests {
         k8s_client
             .expect_list_dynamic_objects()
             .once()
-            .with(predicate::eq(type_meta.clone()), predicate::eq(TEST_NAMESPACE_AGENTS))
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE_AGENTS),
+            )
             .returning(|_, _| Ok(vec![]));
         k8s_client
             .expect_list_dynamic_objects()
             .once()
-            .with(predicate::eq(type_meta.clone()), predicate::eq(TEST_NAMESPACE))
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE),
+            )
             .return_once(move |_, _| Ok(vec![cm]));
         k8s_client.expect_delete_dynamic_object().never();
 
@@ -415,12 +421,18 @@ mod tests {
         k8s_client
             .expect_list_dynamic_objects()
             .once()
-            .with(predicate::eq(type_meta.clone()), predicate::eq(TEST_NAMESPACE_AGENTS))
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE_AGENTS),
+            )
             .returning(|_, _| Ok(vec![]));
         k8s_client
             .expect_list_dynamic_objects()
             .once()
-            .with(predicate::eq(type_meta.clone()), predicate::eq(TEST_NAMESPACE))
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE),
+            )
             .return_once(move |_, _| Ok(vec![cm]));
         k8s_client
             .expect_delete_dynamic_object()
@@ -458,12 +470,18 @@ mod tests {
         k8s_client
             .expect_list_dynamic_objects()
             .once()
-            .with(predicate::eq(type_meta.clone()), predicate::eq(TEST_NAMESPACE_AGENTS))
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE_AGENTS),
+            )
             .returning(|_, _| Ok(vec![]));
         k8s_client
             .expect_list_dynamic_objects()
             .once()
-            .with(predicate::eq(type_meta.clone()), predicate::eq(TEST_NAMESPACE))
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE),
+            )
             .return_once(move |_, _| Ok(vec![cm]));
         k8s_client
             .expect_delete_dynamic_object()

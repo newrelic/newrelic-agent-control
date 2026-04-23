@@ -359,7 +359,10 @@ pub mod tests {
             .expect_set_configmap_key()
             .once()
             .with(
-                predicate::eq(ConfigMapStore::build_cm_name(&agent_id, FOLDER_NAME_FLEET_DATA)),
+                predicate::eq(ConfigMapStore::build_cm_name(
+                    &agent_id,
+                    FOLDER_NAME_FLEET_DATA,
+                )),
                 predicate::eq(TEST_NAMESPACE),
                 predicate::eq(Labels::new(&agent_id).get()),
                 predicate::eq(expected_annotations),
