@@ -136,6 +136,8 @@ pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
+    use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::k8s::annotations::Annotations;
     use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::Labels;
@@ -344,6 +346,38 @@ pub mod tests {
             &DataToBeStored::default(),
         );
         assert!(id.is_ok())
+    }
+
+    #[test]
+    fn test_set_with_agent_type_id_includes_annotation() {
+        let mut k8s_client = MockSyncK8sClient::default();
+        let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
+        let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
+        let expected_annotations = Annotations::new_agent_type_id_annotation(&agent_type_id).get();
+
+        k8s_client
+            .expect_set_configmap_key()
+            .once()
+            .with(
+                predicate::eq(ConfigMapStore::build_cm_name(&agent_id, FOLDER_NAME_FLEET_DATA)),
+                predicate::eq(TEST_NAMESPACE),
+                predicate::eq(Labels::new(&agent_id).get()),
+                predicate::eq(expected_annotations),
+                predicate::eq(STORE_KEY_TEST),
+                predicate::eq(DATA_STORED),
+            )
+            .returning(move |_, _, _, _, _, _| Ok(()));
+
+        let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
+        let result = k8s_store.set_remote_data(
+            &agent_id,
+            Some(agent_type_id),
+            STORE_KEY_TEST,
+            &DataToBeStored {
+                test: "foo".to_string(),
+            },
+        );
+        assert!(result.is_ok());
     }
 
     #[test]

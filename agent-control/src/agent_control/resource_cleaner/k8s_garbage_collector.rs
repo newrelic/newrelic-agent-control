@@ -270,6 +270,7 @@ impl From<K8sGarbageCollectorError> for ResourceCleanerError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kube::api::{DynamicObject, ObjectMeta};
     use mockall::predicate;
 
     const TEST_NAMESPACE: &str = "test-namespace";
@@ -337,5 +338,144 @@ mod tests {
         let agent_type_id = &AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
 
         assert!(garbage_collector.collect(ac_id, agent_type_id).is_ok());
+    }
+
+    fn dynamic_object_with_annotation(
+        agent_id: &AgentID,
+        agent_type_id: &AgentTypeID,
+        namespace: &str,
+    ) -> Arc<DynamicObject> {
+        Arc::new(DynamicObject {
+            types: None,
+            metadata: ObjectMeta {
+                name: Some(format!("fleet-data-{agent_id}")),
+                namespace: Some(namespace.to_string()),
+                labels: Some(Labels::new(agent_id).get()),
+                annotations: Some(
+                    crate::k8s::annotations::Annotations::new_agent_type_id_annotation(
+                        agent_type_id,
+                    )
+                    .get(),
+                ),
+                ..Default::default()
+            },
+            data: serde_json::Value::Null,
+        })
+    }
+
+    // RetainConfig mode: object with a matching annotation for an active agent is retained.
+    #[test]
+    fn retain_skips_dynamic_object_with_matching_annotation() {
+        let type_meta = TypeMeta::default();
+        let agent_id = AgentID::try_from("foo-agent").unwrap();
+        let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
+        let cm = dynamic_object_with_annotation(&agent_id, &agent_type_id, TEST_NAMESPACE);
+
+        let active_agents = HashMap::from([(agent_id, agent_type_id)]);
+
+        let mut k8s_client = SyncK8sClient::default();
+        k8s_client
+            .expect_delete_configmap_collection()
+            .once()
+            .returning(|_, _| Ok(()));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(predicate::eq(type_meta.clone()), predicate::eq(TEST_NAMESPACE_AGENTS))
+            .returning(|_, _| Ok(vec![]));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(predicate::eq(type_meta.clone()), predicate::eq(TEST_NAMESPACE))
+            .return_once(move |_, _| Ok(vec![cm]));
+        k8s_client.expect_delete_dynamic_object().never();
+
+        let gc = K8sGarbageCollector {
+            k8s_client: Arc::new(k8s_client),
+            cr_type_meta: vec![type_meta],
+            namespace: TEST_NAMESPACE.to_string(),
+            namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
+        };
+        assert!(gc.retain(active_agents).is_ok());
+    }
+
+    // Collect mode: dynamic object whose annotation matches the target type is deleted.
+    #[test]
+    fn collect_deletes_dynamic_object_with_matching_annotation() {
+        let type_meta = TypeMeta::default();
+        let agent_id = AgentID::try_from("foo-agent").unwrap();
+        let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
+        let cm = dynamic_object_with_annotation(&agent_id, &agent_type_id, TEST_NAMESPACE);
+
+        let mut k8s_client = SyncK8sClient::default();
+        k8s_client
+            .expect_delete_configmap_collection()
+            .once()
+            .returning(|_, _| Ok(()));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(predicate::eq(type_meta.clone()), predicate::eq(TEST_NAMESPACE_AGENTS))
+            .returning(|_, _| Ok(vec![]));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(predicate::eq(type_meta.clone()), predicate::eq(TEST_NAMESPACE))
+            .return_once(move |_, _| Ok(vec![cm]));
+        k8s_client
+            .expect_delete_dynamic_object()
+            .once()
+            .returning(|_, _| Ok(either::Either::Right(kube::core::Status::default())));
+
+        let gc = K8sGarbageCollector {
+            k8s_client: Arc::new(k8s_client),
+            cr_type_meta: vec![type_meta],
+            namespace: TEST_NAMESPACE.to_string(),
+            namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
+        };
+        assert!(gc.collect(&agent_id, &agent_type_id).is_ok());
+    }
+
+    // RetainConfig mode: object whose annotation names a different type than the active one
+    // must be deleted (the agent type was replaced).
+    #[test]
+    fn retain_deletes_dynamic_object_with_mismatched_annotation() {
+        let type_meta = TypeMeta::default();
+        let agent_id = AgentID::try_from("foo-agent").unwrap();
+        let active_type = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
+        let old_type = AgentTypeID::try_from("newrelic/com.example.bar:0.0.1").unwrap();
+
+        // The object on the cluster carries the OLD type annotation.
+        let cm = dynamic_object_with_annotation(&agent_id, &old_type, TEST_NAMESPACE);
+
+        let active_agents = HashMap::from([(agent_id, active_type)]);
+
+        let mut k8s_client = SyncK8sClient::default();
+        k8s_client
+            .expect_delete_configmap_collection()
+            .once()
+            .returning(|_, _| Ok(()));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(predicate::eq(type_meta.clone()), predicate::eq(TEST_NAMESPACE_AGENTS))
+            .returning(|_, _| Ok(vec![]));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(predicate::eq(type_meta.clone()), predicate::eq(TEST_NAMESPACE))
+            .return_once(move |_, _| Ok(vec![cm]));
+        k8s_client
+            .expect_delete_dynamic_object()
+            .once()
+            .returning(|_, _| Ok(either::Either::Right(kube::core::Status::default())));
+
+        let gc = K8sGarbageCollector {
+            k8s_client: Arc::new(k8s_client),
+            cr_type_meta: vec![type_meta],
+            namespace: TEST_NAMESPACE.to_string(),
+            namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
+        };
+        assert!(gc.retain(active_agents).is_ok());
     }
 }
