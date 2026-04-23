@@ -10,6 +10,7 @@ use newrelic_agent_control::agent_control::defaults::{
     STORE_KEY_OPAMP_DATA_CONFIG, default_capabilities,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::on_host::file_store::{FileStore, build_config_name};
 use newrelic_agent_control::values::ConfigRepo;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
@@ -25,6 +26,26 @@ pub fn create_agent_control_config(
     create_agent_control_config_with_proxy(
         opamp_server_endpoint,
         jwks_endpoint,
+        OCI_TEST_REGISTRY_URL.to_string(),
+        agents,
+        local_dir,
+        None,
+    );
+}
+
+/// Creates the agent-control config given an opamp_server_endpoint
+/// and a list of agents on the specified local_dir.
+pub fn create_agent_control_config_with_oci_registry(
+    opamp_server_endpoint: String,
+    jwks_endpoint: String,
+    oci_registry: String,
+    agents: String,
+    local_dir: PathBuf,
+) {
+    create_agent_control_config_with_proxy(
+        opamp_server_endpoint,
+        jwks_endpoint,
+        oci_registry,
         agents,
         local_dir,
         None,
@@ -67,6 +88,7 @@ server:
 pub fn create_agent_control_config_with_proxy(
     opamp_server_endpoint: String,
     jwks_endpoint: String,
+    oci_registry: String,
     agents: String,
     local_dir: PathBuf,
     proxy: Option<String>,
@@ -83,10 +105,12 @@ fleet_control:
   poll_interval: 5s
   signature_validation:
     public_key_server_url: {}
+oci:
+  registry: "{}"
 agents: {}
 {}
 "#,
-        opamp_server_endpoint, jwks_endpoint, agents, proxy_config,
+        opamp_server_endpoint, jwks_endpoint, oci_registry, agents, proxy_config,
     );
     create_file(
         agent_control_config,

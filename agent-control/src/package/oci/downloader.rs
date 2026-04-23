@@ -1,4 +1,4 @@
-use crate::oci::Client;
+use crate::oci::{Client, reference_parser::ReferenceParser};
 use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::utils::retry::retry;
 use oci_client::Reference;
@@ -30,6 +30,7 @@ pub struct OCIArtifactDownloader {
     signature_verification_enabled: bool,
     max_retries: usize,
     retry_interval: Duration,
+    registry: String,
 }
 
 impl OCIAgentDownloader for OCIArtifactDownloader {
@@ -68,12 +69,13 @@ const DEFAULT_RETRIES: usize = 0;
 
 impl OCIArtifactDownloader {
     /// Returns an artifact downloader with default retries setup.
-    pub fn new(client: Client, signature_verification_enabled: bool) -> Self {
+    pub fn new(client: Client, registry: String, signature_verification_enabled: bool) -> Self {
         OCIArtifactDownloader {
             client,
             signature_verification_enabled,
             max_retries: DEFAULT_RETRIES,
             retry_interval: Duration::default(),
+            registry,
         }
     }
 
@@ -107,6 +109,7 @@ impl OCIArtifactDownloader {
         reference: &Reference,
         public_key_url: &Url,
     ) -> Result<Reference, OCIDownloaderError> {
+        let reference = &reference_with_registry(reference, &self.registry);
         self.client
             .verify_signature(reference, public_key_url)
             .map_err(|err| OCIDownloaderError(err.to_string()))
@@ -117,6 +120,7 @@ impl OCIArtifactDownloader {
         reference: &Reference,
         package_dir: &Path,
     ) -> Result<LocalAgentPackage, OCIDownloaderError> {
+        let reference = &reference_with_registry(reference, &self.registry);
         let (image_manifest, _) = self
             .client
             .pull_image_manifest(reference)
@@ -134,6 +138,17 @@ impl OCIArtifactDownloader {
 
         Ok(LocalAgentPackage::new(media_type, layer_path))
     }
+}
+
+fn reference_with_registry(reference: &Reference, registry: &str) -> Reference {
+    let reference = reference.to_string();
+
+    let mut parts = reference.split('/').collect::<Vec<&str>>();
+    parts[0] = registry;
+
+    ReferenceParser::try_from(parts.join("/"))
+        .expect("Failed to parse reference with registry")
+        .into()
 }
 
 #[cfg(test)]
@@ -185,7 +200,7 @@ pub mod tests {
             .with_signature(&key_pair)
             .build();
 
-        let downloader = create_downloader(true);
+        let downloader = create_downloader(server.registry(), true);
         let dest_dir = tempdir().unwrap();
         let local_agent_package = downloader
             .download(&server.reference(), &Some(jwks_server.url), dest_dir.path())
@@ -211,7 +226,7 @@ pub mod tests {
             )
             .build();
 
-        let downloader = create_downloader(false);
+        let downloader = create_downloader(server.registry(), false);
         let dest_dir = tempdir().unwrap();
         let local_agent_package = downloader
             .download(&server.reference(), &Some(jwks_server.url), dest_dir.path())
@@ -234,7 +249,7 @@ pub mod tests {
             )
             .build();
 
-        let downloader = create_downloader(true);
+        let downloader = create_downloader(server.registry(), true);
         let dest_dir = tempdir().unwrap();
         let local_agent_package = downloader
             .download(&server.reference(), &None, dest_dir.path())
@@ -260,7 +275,7 @@ pub mod tests {
             )
             .build();
 
-        let downloader = create_downloader(false);
+        let downloader = create_downloader(server.registry(), false);
         let dest_dir = tempdir().unwrap();
         let local_agent_package = downloader
             .download(&server.reference(), &None, dest_dir.path())
@@ -282,7 +297,7 @@ pub mod tests {
             .with_artifact_type("application/vnd.unknown.type.v1")
             .build();
 
-        let downloader = create_downloader(false);
+        let downloader = create_downloader(server.registry(), false);
         let dest_dir = tempdir().unwrap();
         let err = downloader
             .download(&server.reference(), &None, dest_dir.path())
@@ -303,7 +318,7 @@ pub mod tests {
         let reference = Reference::from(
             ReferenceParser::from_str(&format!("{}/test-repo:v1.0.0", server.address())).unwrap(),
         );
-        let downloader = create_downloader(false);
+        let downloader = create_downloader(server.address().to_string(), false);
         let dest_dir = tempdir().unwrap();
         let err = downloader
             .download(&reference, &None, dest_dir.path())
@@ -328,7 +343,7 @@ pub mod tests {
             )
             .build(); // No signature
 
-        let downloader = create_downloader(true);
+        let downloader = create_downloader(server.registry(), true);
         let dest_dir = tempdir().unwrap();
         let err = downloader
             .download(&server.reference(), &Some(jwks_server.url), dest_dir.path())
@@ -358,7 +373,7 @@ pub mod tests {
 
         // Verify signature
         let reference = oci_mock_a.reference_on_server(&server);
-        let downloader = create_downloader(true);
+        let downloader = create_downloader(server.address().to_string(), true);
         let verified_reference = downloader
             .verified_package_signature_reference(&reference, &jwks_server.url)
             .expect("Signature should be verified successfully");
@@ -414,7 +429,7 @@ pub mod tests {
             .reference_on_server(&server)
             .clone_with_digest(oci_mock.manifest_digest());
 
-        let downloader = create_downloader(false);
+        let downloader = create_downloader(server.address().to_string(), false);
         let dest_dir = tempdir().unwrap();
         let result = downloader.download(&reference, &None, dest_dir.path());
         assert_matches!(result, Err(OCIDownloaderError(msg)) => {
@@ -422,7 +437,22 @@ pub mod tests {
         });
     }
 
-    fn create_downloader(signature_verification_enabled: bool) -> OCIArtifactDownloader {
+    #[test]
+    fn test_reference_with_registry() {
+        let reference = Reference::with_tag(
+            "docker.io".to_string(),
+            "newrelic".to_string(),
+            "v1.0.0".to_string(),
+        );
+        let registry = "mirror.io";
+        let reference_with_registry = reference_with_registry(&reference, registry);
+        assert_eq!(reference_with_registry.registry(), registry);
+    }
+
+    fn create_downloader(
+        registry: String,
+        signature_verification_enabled: bool,
+    ) -> OCIArtifactDownloader {
         let client = Client::try_new(
             ClientConfig {
                 protocol: ClientProtocol::Http,
@@ -432,6 +462,6 @@ pub mod tests {
             tokio_runtime(),
         )
         .unwrap();
-        OCIArtifactDownloader::new(client, signature_verification_enabled)
+        OCIArtifactDownloader::new(client, registry, signature_verification_enabled)
     }
 }

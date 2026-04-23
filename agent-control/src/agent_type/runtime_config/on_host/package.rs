@@ -26,8 +26,6 @@ pub struct Download {
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Oci {
-    /// OCI registry url.
-    pub registry: TemplateableValue<String>,
     /// Repository name.
     pub repository: TemplateableValue<String>,
     /// Package version including tag, digest or tag + digest.
@@ -58,7 +56,7 @@ impl Templateable for Download {
 impl Templateable for Oci {
     type Output = rendered::Oci;
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let registry = self.registry.template_with(variables)?;
+        let registry = "base.io";
         let repository = self.repository.template_with(variables)?;
         let mut version = self.version.template_with(variables)?;
 
@@ -133,10 +131,6 @@ mod tests {
 
         let mut variables = Variables::new();
         variables.insert(
-            "nr-var:registry".to_string(),
-            Variable::new_final_string_variable("registry.com".to_string()),
-        );
-        variables.insert(
             "nr-var:repository".to_string(),
             Variable::new_final_string_variable("repo".to_string()),
         );
@@ -152,7 +146,6 @@ mod tests {
         }
 
         let oci = Oci {
-            registry: TemplateableValue::from_template("${nr-var:registry}".to_string()),
             repository: TemplateableValue::from_template("${nr-var:repository}".to_string()),
             version: TemplateableValue::from_template("${nr-var:version}".to_string()),
             public_key_url: public_key_url
@@ -163,7 +156,7 @@ mod tests {
         let rendered_oci = oci.template_with(&variables);
         let rendered_oci = rendered_oci.unwrap();
 
-        assert_eq!(rendered_oci.reference.registry(), "registry.com");
+        assert_eq!(rendered_oci.reference.registry(), "base.io");
         assert_eq!(rendered_oci.reference.repository(), "repo");
         assert_eq!(rendered_oci.reference.tag(), expected_tag);
         assert_eq!(rendered_oci.reference.digest(), expected_digest);

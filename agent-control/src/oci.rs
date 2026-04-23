@@ -359,6 +359,14 @@ pub mod tests {
             self
         }
 
+        pub fn registry(&self) -> String {
+            self.server
+                .as_ref()
+                .expect("Call build() first")
+                .address()
+                .to_string()
+        }
+
         pub fn reference(&self) -> Reference {
             self.reference_on_server(self.server.as_ref().expect("Call build() first"))
         }

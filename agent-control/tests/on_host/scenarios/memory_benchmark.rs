@@ -2,7 +2,7 @@ use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::health::check_latest_health_status;
 use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
-use crate::on_host::tools::config::create_agent_control_config;
+use crate::on_host::tools::config::create_agent_control_config_with_oci_registry;
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use memory_stats::memory_stats;
@@ -47,9 +47,10 @@ fn test_memory_on_agent_substitution_and_version_update() {
     let mut opamp_server = FakeServer::start_new();
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    create_agent_control_config(
+    create_agent_control_config_with_oci_registry(
         opamp_server.endpoint(),
         opamp_server.jwks_endpoint(),
+        "non-existent:5000".to_string(),
         "{}".to_string(),
         local_dir.path().to_path_buf(),
     );
