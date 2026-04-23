@@ -2,7 +2,7 @@ use std::process::Command;
 
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 use crate::agent_type::runtime_config::on_host::executable::rendered::Args;
-use crate::opamp::attributes::{UpdateAttributesMessage, publish_update_attributes_event};
+use crate::opamp::attributes::{UpdatedAttributesMessage, publish_update_attributes_event};
 use opamp_client::operation::settings::AgentDescription;
 use regex::Regex;
 use std::collections::HashMap;
@@ -51,7 +51,7 @@ pub(crate) fn check_version<V, T, F>(
 ) where
     V: VersionChecker + Send + Sync + 'static,
     T: Debug + Send + Sync + 'static,
-    F: Fn(UpdateAttributesMessage) -> T + Send + Sync + 'static,
+    F: Fn(UpdatedAttributesMessage) -> T + Send + Sync + 'static,
 {
     let span = info_span!(
         "version_check",

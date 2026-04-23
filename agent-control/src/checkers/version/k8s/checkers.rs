@@ -9,7 +9,7 @@ use crate::event::channel::{EventConsumer, EventPublisher};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::{get_namespace, get_type_meta};
-use crate::opamp::attributes::{UpdateAttributesMessage, publish_update_attributes_event};
+use crate::opamp::attributes::{UpdatedAttributesMessage, publish_update_attributes_event};
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use kube::api::{DynamicObject, TypeMeta};
@@ -120,7 +120,7 @@ pub(crate) fn spawn_version_checker<V, T, F>(
 where
     V: VersionChecker + Send + Sync + 'static,
     T: Debug + Send + Sync + 'static,
-    F: Fn(UpdateAttributesMessage) -> T + Send + Sync + 'static,
+    F: Fn(UpdatedAttributesMessage) -> T + Send + Sync + 'static,
 {
     let thread_name = format!("{version_checker_id}_{VERSION_CHECKER_THREAD_NAME}");
     // Stores if the version was retrieved in last iteration for logging purposes.

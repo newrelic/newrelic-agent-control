@@ -329,9 +329,8 @@ pub mod tests {
                 attributes: Default::default(),
             }
         }
-        pub fn with_attributes(mut self, attrs: HashMap<String, String>) -> Self {
-            self.attributes = attrs;
-            self
+        pub fn with_attributes(self, attributes: HashMap<String, String>) -> Self {
+            Self { attributes, ..self }
         }
     }
 
@@ -351,9 +350,8 @@ pub mod tests {
             }
         }
 
-        pub fn with_attributes(mut self, attrs: HashMap<String, String>) -> Self {
-            self.attributes = attrs;
-            self
+        pub fn with_attributes(self, attributes: HashMap<String, String>) -> Self {
+            Self { attributes, ..self }
         }
     }
 

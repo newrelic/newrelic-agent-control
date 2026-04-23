@@ -8,7 +8,7 @@ use tracing::error;
 use crate::event::channel::EventPublisher;
 
 /// Event message type for updating OpAMP agent attributes
-pub type UpdateAttributesMessage = AgentDescription;
+pub type UpdatedAttributesMessage = AgentDescription;
 
 /// Updates the attributes of the OpAMP agent
 ///

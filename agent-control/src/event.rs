@@ -11,7 +11,7 @@ pub mod channel;
 use opamp_client::operation::settings::AgentDescription;
 
 use crate::checkers::health::with_start_time::HealthWithStartTime;
-use crate::opamp::attributes::UpdateAttributesMessage;
+use crate::opamp::attributes::UpdatedAttributesMessage;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::{agent_control::agent_id::AgentID, opamp::remote_config::OpampRemoteConfig};
@@ -60,7 +60,7 @@ impl SubAgentEvent {
 #[derive(Clone, Debug, PartialEq)]
 pub enum AgentControlInternalEvent {
     HealthUpdated(HealthWithStartTime),
-    AgentControlAttributesUpdated(UpdateAttributesMessage),
+    AgentControlAttributesUpdated(UpdatedAttributesMessage),
     SelfUpdateRestartRequested(),
 }
 
@@ -69,5 +69,5 @@ pub enum AgentControlInternalEvent {
 pub enum SubAgentInternalEvent {
     StopRequested,
     AgentHealthInfo(HealthWithStartTime),
-    AgentAttributesUpdated(UpdateAttributesMessage),
+    AgentAttributesUpdated(UpdatedAttributesMessage),
 }
