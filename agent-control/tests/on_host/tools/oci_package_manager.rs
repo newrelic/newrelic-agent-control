@@ -39,7 +39,7 @@ impl TestDataHelper {
         content: &str,
         filename: &str,
     ) {
-        let file_path = Self::create_data_to_compress(&source_path, filename, content);
+        let file_path = Self::create_data_to_compress(source_path, filename, content);
 
         let tar_gz = File::create(tmp_file_archive).unwrap();
         let enc = GzEncoder::new(tar_gz, Compression::default());
@@ -72,7 +72,7 @@ impl TestDataHelper {
         content: &str,
         filename: &str,
     ) {
-        let file_path = Self::create_data_to_compress(&source_path, filename, content);
+        let file_path = Self::create_data_to_compress(source_path, filename, content);
         Self::compress_zip_file(&file_path, tmp_file_archive);
     }
 
