@@ -18,6 +18,7 @@ use crate::{
         agent_id::AgentID,
         defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA},
     },
+    agent_type::agent_type_id::AgentTypeID,
     data_store::{DataStore, StoreKey},
 };
 
@@ -158,7 +159,13 @@ where
         self.get(self.local_dir.get_file_path(agent_id, key))
     }
 
-    fn set_remote_data<T>(&self, agent_id: &AgentID, key: &str, data: &T) -> Result<(), Self::Error>
+    fn set_remote_data<T>(
+        &self,
+        agent_id: &AgentID,
+        _agent_type_id: Option<AgentTypeID>,
+        key: &str,
+        data: &T,
+    ) -> Result<(), Self::Error>
     where
         T: Serialize,
     {
@@ -657,7 +664,7 @@ state: applied
             hash: Hash::from("a-hash"),
             state: ConfigState::Applying,
         };
-        repo.store_remote(&agent_id, &remote_config).unwrap();
+        repo.store_remote(&agent_id, None, &remote_config).unwrap();
     }
 
     #[rstest]
@@ -685,7 +692,7 @@ state: applied
             hash: Hash::from("a-hash"),
             state: ConfigState::Applying,
         };
-        let result = repo.store_remote(&agent_id, &remote_config);
+        let result = repo.store_remote(&agent_id, None, &remote_config);
         assert_matches!(result, Err(ConfigRepositoryError::StoreError(_)));
     }
 
@@ -718,7 +725,7 @@ state: applied
             hash: Hash::from("a-hash"),
             state: ConfigState::Applying,
         };
-        let result = repo.store_remote(&agent_id, &remote_config);
+        let result = repo.store_remote(&agent_id, None, &remote_config);
         assert_matches!(result, Err(ConfigRepositoryError::StoreError(_)));
     }
 

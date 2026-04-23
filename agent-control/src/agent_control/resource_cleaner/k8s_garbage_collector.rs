@@ -17,7 +17,7 @@ use kube::api::{ObjectMeta, TypeMeta};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::{debug, instrument};
+use tracing::{debug, instrument, warn};
 
 /// The K8sGarbageCollector is responsible for cleaning up resources in Kubernetes that are
 /// no longer needed. In practice, this actually performs the stop and deletion of a sub-agent
@@ -202,19 +202,11 @@ impl K8sGarbageCollectorMode<'_> {
         match self {
             K8sGarbageCollectorMode::RetainConfig(agent_identities) => {
                 if let Some(agent_type_id) = agent_identities.get(agent_id) {
-                    // Objects without the annotation (e.g. fleet-data ConfigMaps from
-                    // ConfigMapStore) are not supervisor-created and should not be deleted here;
-                    // they are handled by garbage_collection_config_maps via label selector.
-                    match Self::retrieve_annotated_agent_type_id(obj_meta) {
-                        Ok(annotated_agent_type_id) => {
-                            // Check if the agent type is different from the one in the config.
-                            // This is to support the case where the agent id exists in the config,
-                            // but it's a different agent type. See PR#655 for some details.
-                            Ok(&annotated_agent_type_id != agent_type_id)
-                        }
-                        Err(K8sGarbageCollectorError::MissingAnnotations) => Ok(false),
-                        Err(e) => Err(e),
-                    }
+                    let annotated_agent_type_id = Self::retrieve_annotated_agent_type_id(obj_meta)?;
+                    // Check if the agent type is different from the one in the config.
+                    // This is to support the case where the agent id exists in the config,
+                    // but it's a different agent type. See PR#655 for some details.
+                    Ok(&annotated_agent_type_id != agent_type_id)
                 } else {
                     // Delete if the agent id does not exist in the passed config
                     Ok(true)
@@ -223,14 +215,8 @@ impl K8sGarbageCollectorMode<'_> {
 
             K8sGarbageCollectorMode::Collect(id, agent_type_id) => {
                 if agent_id == *id {
-                    // Same as above: objects without the annotation are not supervisor-created.
-                    match Self::retrieve_annotated_agent_type_id(obj_meta) {
-                        Ok(annotated_agent_type_id) => {
-                            Ok(annotated_agent_type_id == **agent_type_id)
-                        }
-                        Err(K8sGarbageCollectorError::MissingAnnotations) => Ok(false),
-                        Err(e) => Err(e),
-                    }
+                    let annotated_agent_type_id = Self::retrieve_annotated_agent_type_id(obj_meta)?;
+                    Ok(annotated_agent_type_id == **agent_type_id)
                 } else {
                     Ok(false)
                 }

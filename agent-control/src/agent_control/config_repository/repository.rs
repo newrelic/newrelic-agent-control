@@ -82,7 +82,7 @@ pub(crate) mod tests {
 
         fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError> {
             self.values_repository
-                .store_remote(&AgentID::AgentControl, config)
+                .store_remote(&AgentID::AgentControl, None, config)
                 .map_err(|e| AgentControlConfigError(e.to_string()))
         }
 

@@ -9,12 +9,10 @@ pub struct Annotations(BTreeMap<String, String>);
 
 impl Annotations {
     pub fn new_agent_type_id_annotation(agent_type: &AgentTypeID) -> Self {
-        let mut annotations = Self::default();
-        annotations.0.insert(
+        Self(BTreeMap::from([(
             AGENT_TYPE_ID_ANNOTATION_KEY.to_string(),
             agent_type.to_string(),
-        );
-        annotations
+        )]))
     }
 
     pub fn get(&self) -> BTreeMap<String, String> {

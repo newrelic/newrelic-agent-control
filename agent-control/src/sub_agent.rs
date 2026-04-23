@@ -462,7 +462,11 @@ where
                 if let Some(remote_config) = maybe_remote_config {
                     let _ = self
                         .config_repository
-                        .store_remote(&self.identity.id, remote_config)
+                        .store_remote(
+                            &self.identity.id,
+                            Some(self.identity.agent_type_id.clone()),
+                            remote_config,
+                        )
                         .inspect_err(|err| {
                             warn!("Failed to store remote configuration: {err}");
                         });
@@ -1532,7 +1536,7 @@ deployment:
             state: ConfigState::Applied,
         };
         config_repository
-            .store_remote(&TestAgent::id(), &old_remote_config)
+            .store_remote(&TestAgent::id(), None, &old_remote_config)
             .unwrap();
 
         let supervisor_builder = expect_build_supervisor_with(TestAgent::valid_config_value());
@@ -1583,7 +1587,7 @@ deployment:
             state: ConfigState::Applied,
         };
         config_repository
-            .store_remote(&TestAgent::id(), &old_remote_config)
+            .store_remote(&TestAgent::id(), None, &old_remote_config)
             .unwrap();
 
         let supervisor_builder = MockSupervisorBuilder::new();
@@ -1633,7 +1637,7 @@ deployment:
             state: ConfigState::Applying,
         };
         config_repository
-            .store_remote(&TestAgent::id(), &remote_config)
+            .store_remote(&TestAgent::id(), None, &remote_config)
             .unwrap();
 
         let supervisor_builder = expect_supervisor_do_not_build();
@@ -1685,7 +1689,7 @@ deployment:
             state: ConfigState::Applied,
         };
         config_repository
-            .store_remote(&TestAgent::id(), &old_remote_config)
+            .store_remote(&TestAgent::id(), None, &old_remote_config)
             .unwrap();
 
         let supervisor_builder = MockSupervisorBuilder::new();
@@ -1738,7 +1742,7 @@ deployment:
             state: ConfigState::Applying,
         };
         config_repository
-            .store_remote(&TestAgent::id(), &old_remote_config)
+            .store_remote(&TestAgent::id(), None, &old_remote_config)
             .unwrap();
 
         let supervisor_builder = MockSupervisorBuilder::new();
@@ -1789,7 +1793,7 @@ deployment:
         };
 
         config_repository
-            .store_remote(&TestAgent::id(), &old_remote_config)
+            .store_remote(&TestAgent::id(), None, &old_remote_config)
             .unwrap();
 
         let supervisor_builder = expect_supervisor_do_not_build();
@@ -1902,7 +1906,7 @@ deployment:
             state: ConfigState::Applied,
         };
         config_repository
-            .store_remote(&TestAgent::id(), &remote_config)
+            .store_remote(&TestAgent::id(), None, &remote_config)
             .unwrap();
 
         let supervisor_builder = expect_build_supervisor_with(TestAgent::valid_config_value());
@@ -1935,7 +1939,7 @@ deployment:
             state: ConfigState::Applying,
         };
         config_repository
-            .store_remote(&TestAgent::id(), &remote_config)
+            .store_remote(&TestAgent::id(), None, &remote_config)
             .unwrap();
 
         let supervisor_builder = expect_build_supervisor_with(TestAgent::valid_config_value());
@@ -1968,7 +1972,7 @@ deployment:
             state: ConfigState::Applying,
         };
         config_repository
-            .store_remote(&TestAgent::id(), &remote_config)
+            .store_remote(&TestAgent::id(), None, &remote_config)
             .unwrap();
 
         let supervisor_builder = expect_fail_to_build_supervisor();
@@ -2010,7 +2014,7 @@ deployment:
             state,
         };
         config_repository
-            .store_remote(&TestAgent::id(), &input_remote_config)
+            .store_remote(&TestAgent::id(), None, &input_remote_config)
             .unwrap();
 
         let supervisor_builder = expect_build_supervisor_with(TestAgent::valid_config_value());

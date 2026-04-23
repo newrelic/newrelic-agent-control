@@ -64,7 +64,7 @@ where
         debug!("storer: setting Instance ID of agent_id: {}", agent_id);
 
         self.opamp_data_store
-            .set_remote_data(agent_id, STORE_KEY_INSTANCE_ID, data)?;
+            .set_remote_data(agent_id, None, STORE_KEY_INSTANCE_ID, data)?;
 
         Ok(())
     }

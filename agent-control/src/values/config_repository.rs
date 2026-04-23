@@ -1,4 +1,5 @@
 use crate::agent_control::agent_id::AgentID;
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::values::config::{Config, RemoteConfig};
 
 use crate::opamp::remote_config::hash::ConfigState;
@@ -47,6 +48,7 @@ pub trait ConfigRepository: Send + Sync + 'static {
     fn store_remote(
         &self,
         agent_id: &AgentID,
+        agent_type_id: Option<AgentTypeID>,
         remote_config: &RemoteConfig,
     ) -> Result<(), ConfigRepositoryError>;
 
@@ -70,6 +72,7 @@ pub mod tests {
     use std::sync::Mutex;
 
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::remote_config::hash::ConfigState;
     use crate::values::config::{Config, RemoteConfig};
     use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
@@ -107,6 +110,7 @@ pub mod tests {
         fn store_remote(
             &self,
             agent_id: &AgentID,
+            _agent_type_id: Option<AgentTypeID>,
             remote_config: &RemoteConfig,
         ) -> Result<(), ConfigRepositoryError> {
             self.remote_config.lock().unwrap().insert(
@@ -203,6 +207,7 @@ pub mod tests {
             fn store_remote(
                 &self,
                 agent_id: &AgentID,
+                agent_type_id: Option<AgentTypeID>,
                 remote_config: &RemoteConfig,
             ) -> Result<(), ConfigRepositoryError>;
 
