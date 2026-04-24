@@ -263,17 +263,16 @@ impl DynamicObjectManagers {
 /// * `from_manifest` - DynamicObject representing manifest that can be applied to the cluster.
 /// * `from_cluster` - DynamicObject representing an object read from the cluster.
 fn object_contents_are_equal(from_manifest: &DynamicObject, from_cluster: &DynamicObject) -> bool {
-    // Compare Secrets data
-    if from_manifest
+    match from_manifest
         .types
         .as_ref()
-        .is_some_and(|t| t.api_version == "v1" && t.kind == "Secret")
+        .map(|t| (t.api_version.as_str(), t.kind.as_str()))
     {
-        return secrets_data_are_equal(from_manifest, from_cluster);
+        Some(("v1", "Secret")) => secrets_data_are_equal(from_manifest, from_cluster),
+        Some(("v1", "ConfigMap")) => configmap_data_are_equal(from_manifest, from_cluster),
+        // TODO: consider support for particular objects only and validate object type meta when agent-types are defined.
+        _ => from_manifest.data["spec"] == from_cluster.data["spec"],
     }
-    // Compare any other object
-    // TODO: consider support for particular objects only and validate object type meta when agent-types are defined.
-    from_manifest.data["spec"] == from_cluster.data["spec"]
 }
 
 /// This function checks if the data of the two DynamicObjects with underlying secrets are the same.
@@ -309,10 +308,18 @@ fn secrets_data_are_equal(from_manifest: &DynamicObject, from_cluster: &DynamicO
     }
 }
 
+/// Checks if the data of two DynamicObjects representing ConfigMaps are equal, comparing
+/// both the `data` (plain string key-value pairs) and `binaryData` fields.
+fn configmap_data_are_equal(from_manifest: &DynamicObject, from_cluster: &DynamicObject) -> bool {
+    from_manifest.data["data"] == from_cluster.data["data"]
+        && from_manifest.data["binaryData"] == from_cluster.data["binaryData"]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use kube::api::ObjectMeta;
+    use rstest::rstest;
     use serde_json::json;
 
     #[test]
@@ -430,5 +437,38 @@ mod tests {
         ];
 
         test_cases.into_iter().for_each(|tc| tc.run());
+    }
+
+    #[rstest]
+    #[case::both_empty(json!({}), json!({}), json!({}), json!({}), true)]
+    #[case::matching_data(json!({"key": "value"}), json!({}), json!({"key": "value"}), json!({}), true)]
+    #[case::matching_binary_data(json!({}), json!({"key": "dmFsdWU="}), json!({}), json!({"key": "dmFsdWU="}), true)]
+    #[case::data_value_differs(json!({"key": "value"}), json!({}), json!({"key": "other"}), json!({}), false)]
+    #[case::data_key_missing_in_cluster(json!({"key": "value"}), json!({}), json!({}), json!({}), false)]
+    #[case::binary_data_differs(json!({}), json!({"key": "dmFsdWU="}), json!({}), json!({"key": "b3RoZXI="}), false)]
+    fn test_configmap_data_are_equal(
+        #[case] manifest_data: serde_json::Value,
+        #[case] manifest_binary_data: serde_json::Value,
+        #[case] cluster_data: serde_json::Value,
+        #[case] cluster_binary_data: serde_json::Value,
+        #[case] expected: bool,
+    ) {
+        let make_configmap =
+            |data: serde_json::Value, binary_data: serde_json::Value| DynamicObject {
+                types: Some(TypeMeta {
+                    api_version: "v1".into(),
+                    kind: "ConfigMap".into(),
+                }),
+                metadata: ObjectMeta::default(),
+                data: json!({"data": data, "binaryData": binary_data}),
+            };
+
+        assert_eq!(
+            configmap_data_are_equal(
+                &make_configmap(manifest_data, manifest_binary_data),
+                &make_configmap(cluster_data, cluster_binary_data),
+            ),
+            expected
+        );
     }
 }
