@@ -207,7 +207,9 @@ impl K8sGarbageCollectorMode<'_> {
                     // Objects without the annotation (e.g. fleet-data ConfigMaps) are not
                     // supervisor-created resources and should not be deleted here.
                     match Self::retrieve_annotated_agent_type_id(obj_meta) {
-                        Ok(annotated_agent_type_id) => Ok(&annotated_agent_type_id != agent_type_id),
+                        Ok(annotated_agent_type_id) => {
+                            Ok(&annotated_agent_type_id != agent_type_id)
+                        }
                         Err(K8sGarbageCollectorError::MissingAnnotations) => Ok(false),
                         Err(e) => Err(e),
                     }
@@ -222,7 +224,9 @@ impl K8sGarbageCollectorMode<'_> {
                     // Objects without the annotation (e.g. fleet-data ConfigMaps) are not
                     // supervisor-created resources and should not be deleted here.
                     match Self::retrieve_annotated_agent_type_id(obj_meta) {
-                        Ok(annotated_agent_type_id) => Ok(annotated_agent_type_id == **agent_type_id),
+                        Ok(annotated_agent_type_id) => {
+                            Ok(annotated_agent_type_id == **agent_type_id)
+                        }
                         Err(K8sGarbageCollectorError::MissingAnnotations) => Ok(false),
                         Err(e) => Err(e),
                     }
@@ -373,7 +377,10 @@ mod tests {
         })
     }
 
-    fn dynamic_object_without_annotation(agent_id: &AgentID, namespace: &str) -> Arc<DynamicObject> {
+    fn dynamic_object_without_annotation(
+        agent_id: &AgentID,
+        namespace: &str,
+    ) -> Arc<DynamicObject> {
         Arc::new(DynamicObject {
             types: None,
             metadata: ObjectMeta {
