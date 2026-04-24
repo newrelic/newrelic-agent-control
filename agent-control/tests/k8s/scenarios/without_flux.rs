@@ -112,6 +112,18 @@ chart_values:
         "deployment-config.yaml should contain the configured values"
     );
 
+    // Wait for the annotation to be written
+    println!("Waiting for agent-type-id annotation on fleet-data ConfigMap...");
+    retry(120, Duration::from_secs(1), || {
+        block_on(check_config_map_has_annotation(
+            k8s.client.clone(),
+            expected_configmap_name,
+            &namespace,
+            "newrelic.io/agent-type-id",
+        ))
+    });
+    println!("Annotation present.");
+
     // Test removal: remove the agent and verify the ConfigMap is deleted
     server.set_config_response(
         instance_id.clone(),
