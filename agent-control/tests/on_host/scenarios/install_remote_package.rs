@@ -373,7 +373,7 @@ fn push_testing_package_platform(
                 LINUX_TEMPLATE.replace("{VERSION}", version).as_str(),
                 FILE_LINUX,
             );
-            let (_, reference) = push_agent_package(
+            let (_, reference, _) = push_agent_package(
                 &path,
                 OCI_TEST_REGISTRY_URL,
                 PackageMediaType::AgentPackageLayerTarGz,
@@ -389,7 +389,7 @@ fn push_testing_package_platform(
                 WINDOWS_TEMPLATE.replace("{VERSION}", version).as_str(),
                 FILE_WINDOWS,
             );
-            let (_, reference) = push_agent_package(
+            let (_, reference, _) = push_agent_package(
                 &path,
                 OCI_TEST_REGISTRY_URL,
                 PackageMediaType::AgentPackageLayerZip,

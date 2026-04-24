@@ -5,6 +5,7 @@ use httpmock::{MockServer, When};
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::http::config::ProxyConfig;
 use newrelic_agent_control::oci;
+use newrelic_agent_control::package::manager::PackageData;
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::downloader::{OCIAgentDownloader, OCIArtifactDownloader};
 use oci_client::client::{ClientConfig, ClientProtocol};
@@ -36,7 +37,7 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
         "file1.txt",
     );
 
-    let (artifact_digest, reference) = push_agent_package(
+    let (artifact_digest, _reference, oci) = push_agent_package(
         &file_to_push,
         OCI_TEST_REGISTRY_URL,
         PackageMediaType::AgentPackageLayerTarGz,
@@ -54,8 +55,14 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
         false,
     );
 
+    let package_data = PackageData {
+        id: "test-package".to_string(),
+        repository: oci.repository,
+        version: oci.version,
+        public_key_url: None,
+    };
     let _ = downloader
-        .download(&reference, &None, local_agent_data_dir)
+        .download(&package_data, local_agent_data_dir)
         .unwrap();
 
     // Verify that the expected files were created by digest and media type
@@ -76,7 +83,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
         "file1.txt",
     );
 
-    let (artifact_digest, reference) = push_agent_package(
+    let (artifact_digest, _reference, oci) = push_agent_package(
         &file_to_push,
         OCI_TEST_REGISTRY_URL,
         PackageMediaType::AgentPackageLayerTarGz,
@@ -121,7 +128,13 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
     )
     .with_retries(4, Duration::from_millis(100));
 
-    let result = downloader.download(&reference, &None, local_agent_data_dir);
+    let package_data = PackageData {
+        id: "test-package".to_string(),
+        repository: oci.repository,
+        version: oci.version,
+        public_key_url: None,
+    };
+    let result = downloader.download(&package_data, local_agent_data_dir);
     assert!(result.is_ok());
 
     // Verify that the expected files were created by digest and media type

@@ -1,6 +1,7 @@
 use crate::common::oci::{hex_bytes, push_platform_config_descriptor};
 use crate::common::runtime::block_on;
 use aws_lc_rs::digest::{SHA256, digest};
+use newrelic_agent_control::agent_type::runtime_config::on_host::package::rendered::Oci;
 use newrelic_agent_control::oci::reference_parser::ReferenceParser;
 use newrelic_agent_control::package::oci::artifact_definitions::{
     LayerMediaType, ManifestArtifactType, PackageMediaType,
@@ -28,7 +29,7 @@ pub fn push_agent_package(
     file_to_push: &PathBuf,
     registry_url: &str,
     media_type: PackageMediaType,
-) -> (String, Reference) {
+) -> (String, Reference, Oci) {
     block_on(async {
         let tag = testing_unique_tag();
         let index_reference = Reference::from(
@@ -61,7 +62,13 @@ pub fn push_agent_package(
         )
         .await;
 
-        (blob_digest, index_reference)
+        let oci = Oci {
+            repository: index_reference.repository().to_string(),
+            version: tag,
+            public_key_url: None,
+        };
+
+        (blob_digest, index_reference, oci)
     })
 }
 

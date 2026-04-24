@@ -388,7 +388,7 @@ fn push_ac_package(build: fn() -> (TempDir, PathBuf), signer: Option<&OCISigner>
         (path, PackageMediaType::AgentPackageLayerZip)
     };
 
-    let (_, reference) = push_agent_package(&path, OCI_TEST_REGISTRY_URL, media_type);
+    let (_, reference, _) = push_agent_package(&path, OCI_TEST_REGISTRY_URL, media_type);
     if let Some(signer) = signer {
         signer.sign_artifact(&reference);
     }

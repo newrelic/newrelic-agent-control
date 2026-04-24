@@ -1,4 +1,3 @@
-use oci_client::Reference;
 use url::Url;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -15,6 +14,7 @@ pub struct Download {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Oci {
-    pub reference: Reference,
+    pub repository: String,
+    pub version: String,
     pub public_key_url: Option<Url>,
 }

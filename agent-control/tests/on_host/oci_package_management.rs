@@ -24,7 +24,7 @@ fn test_install_and_uninstall_with_oci_registry() {
         FILENAME,
     );
 
-    let (_artifact_digest, reference) = push_agent_package(
+    let (_artifact_digest, _reference, oci) = push_agent_package(
         &file_to_push,
         OCI_TEST_REGISTRY_URL,
         PackageMediaType::AgentPackageLayerTarGz,
@@ -42,10 +42,11 @@ fn test_install_and_uninstall_with_oci_registry() {
     // Install
     let package_data = PackageData {
         id: pkg_id.clone(),
-        oci_reference: reference.clone(),
+        repository: oci.repository,
+        version: oci.version,
         public_key_url: None,
     };
-    let installed_package_result = package_manager.install(&agent_id, package_data);
+    let installed_package_result = package_manager.install(&agent_id, package_data.clone());
 
     assert!(
         installed_package_result.is_ok(),
@@ -60,7 +61,7 @@ fn test_install_and_uninstall_with_oci_registry() {
     );
     // Verify location
     // The path should be base_path/agent_id/oci_registry__port__repo_tag
-    let expected_path = get_package_path(&base_path, &agent_id, &pkg_id, &reference).unwrap();
+    let expected_path = get_package_path(&base_path, &agent_id, &package_data).unwrap();
 
     assert_eq!(installed_package.installation_path, expected_path);
 
@@ -89,7 +90,7 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
         FILENAME,
     );
 
-    let (_artifact_digest, reference) = push_agent_package(
+    let (_artifact_digest, _reference, oci) = push_agent_package(
         &file_to_push,
         OCI_TEST_REGISTRY_URL,
         PackageMediaType::AgentPackageLayerTarGz,
@@ -105,7 +106,8 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
 
     let package_data = PackageData {
         id: pkg_id.to_string(),
-        oci_reference: reference.clone(),
+        repository: oci.repository,
+        version: oci.version,
         public_key_url: None,
     };
 
