@@ -125,7 +125,7 @@ impl AgentControlRunner {
             build_ac_onhost_agent_description(&agent_identity, &identifiers, RunningMode::Normal);
 
         self.agent_control_publisher
-            .broadcast(AgentControlEvent::AgentDescriptionSet(
+            .broadcast(AgentControlEvent::AgentDescriptionUpdated(
                 agent_description.clone(),
             ));
 

@@ -7,12 +7,12 @@ use crate::event::channel::{EventConsumer, EventPublisher};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::{get_name, get_namespace, get_type_meta};
-use crate::opamp::attributes::{
-    Attribute, AttributeType, UpdateAttributesMessage, publish_update_attributes_event,
-};
+use crate::opamp::attributes::{UpdatedAttributesMessage, publish_update_attributes_event};
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use kube::api::DynamicObject;
+use opamp_client::operation::settings::AgentDescription;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::thread::sleep;
@@ -73,7 +73,7 @@ pub(crate) fn spawn_guid_checker<S, T, F>(
 where
     S: GuidChecker + Send + Sync + 'static,
     T: Debug + Send + Sync + 'static,
-    F: Fn(UpdateAttributesMessage) -> T + Send + Sync + 'static,
+    F: Fn(UpdatedAttributesMessage) -> T + Send + Sync + 'static,
 {
     let thread_name = format!("{guid_checker_id}_{GUID_CHECKER_THREAD_NAME}");
     let mut last_guid: Option<EntityGuid> = None;
@@ -99,11 +99,13 @@ where
                     info!("Agent guid changed to: {}", current_guid.guid);
                     publish_update_attributes_event(
                         &guid_event_publisher,
-                        guid_event_generator(vec![Attribute::from((
-                            AttributeType::Identifying,
-                            current_guid.opamp_field.clone(),
-                            current_guid.guid.clone(),
-                        ))]),
+                        guid_event_generator(AgentDescription {
+                            identifying_attributes: HashMap::from([(
+                                current_guid.opamp_field.clone(),
+                                current_guid.guid.clone().into(),
+                            )]),
+                            ..Default::default()
+                        }),
                     );
                     last_guid = Some(current_guid);
                 }

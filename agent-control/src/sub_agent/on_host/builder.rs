@@ -83,7 +83,7 @@ where
         )
         .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?;
         self.sub_agent_publisher
-            .broadcast(SubAgentEvent::AgentDescriptionSet(
+            .broadcast(SubAgentEvent::AgentDescriptionUpdated(
                 agent_identity.clone(),
                 opamp_start_settings.agent_description.clone(),
             ));
