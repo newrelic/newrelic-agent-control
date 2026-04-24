@@ -121,11 +121,7 @@ where
         package: AgentControlPackage,
     ) -> Result<Self, BuildError> {
         let base_reference = Reference::from(ReferenceParser::from_str(
-            format!(
-                "{}/{}",
-                package.download.oci.registry, package.download.oci.repository
-            )
-            .as_str(),
+            format!("base.io/{}", package.download.oci.repository).as_str(),
         )?);
         Ok(Self {
             ac_remote_update_enabled,
@@ -213,8 +209,7 @@ mod tests {
         let package = AgentControlPackage {
             download: Download {
                 oci: Oci {
-                    registry: "invalid registry with spaces".to_string(),
-                    repository: "repo".to_string(),
+                    repository: "wrongrepo?".to_string(),
                     public_key_url: Url::parse("https://newrelic.com/keys").unwrap(),
                 },
             },
