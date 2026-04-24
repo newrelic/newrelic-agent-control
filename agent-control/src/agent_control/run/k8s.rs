@@ -52,7 +52,7 @@ use resource_detection::system::hostname::get_hostname;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 pub const NAMESPACE_VARIABLE_NAME: &str = "namespace";
 pub const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
@@ -203,7 +203,7 @@ impl AgentControlRunner {
             k8s_client: k8s_client.clone(),
             namespace: k8s_config.namespace.clone(),
             namespace_agents: k8s_config.namespace_agents.clone(),
-            cr_type_meta: k8s_config.cr_type_meta,
+            cr_type_meta: k8s_config.cr_type_meta.clone(),
         };
 
         info!("Initiating cleanup of outdated resources from previous Agent Control executions");
@@ -220,8 +220,8 @@ impl AgentControlRunner {
 
         let dynamic_config_validator = K8sReleaseNamesConfigValidator::new(
             registry_config_validator,
-            k8s_config.ac_release_name.to_string(),
-            k8s_config.cd_release_name.to_string(),
+            k8s_config.ac_release_name.clone(),
+            k8s_config.cd_release_name.clone(),
         );
 
         // The http server stops on Drop. We need to keep it while the agent control is running.
@@ -231,15 +231,11 @@ impl AgentControlRunner {
             .transpose()
             .map_err(|err| RunError(format!("failed to start HTTP server: {err}")))?;
 
-        let cd_remote_updates_enabled =
-            k8s_config.cd_remote_update && !k8s_config.cd_release_name.is_empty();
-        let ac_release_name_exists = !k8s_config.ac_release_name.is_empty();
-
         let health_checker_builder = agent_control_health_checker_builder(
             k8s_client.clone(),
             k8s_config.namespace.to_string(),
-            ac_release_name_exists.then(|| k8s_config.ac_release_name.clone()),
-            cd_remote_updates_enabled.then(|| k8s_config.cd_release_name.clone()),
+            k8s_config.clone().ac_release_name,
+            k8s_config.clone().cd_release_name,
         );
 
         let k8s_ac_updater = K8sACUpdater::new(
@@ -248,19 +244,24 @@ impl AgentControlRunner {
             k8s_client.clone(),
             k8s_config.namespace.clone(),
             k8s_config.current_chart_version.clone(),
-            k8s_config.ac_release_name,
-            k8s_config.cd_release_name.clone(),
+            k8s_config.clone().ac_release_name,
+            k8s_config.clone().cd_release_name,
         );
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
 
-        let _cd_version_checker = cd_remote_updates_enabled.then(|| {
-            start_cd_version_checker(
+        let _cd_version_checker = if let Some(cd_release_name) = k8s_config.clone().cd_release_name
+            && k8s_config.cd_remote_update
+        {
+            Some(start_cd_version_checker(
                 k8s_client,
                 k8s_config.namespace.clone(),
-                k8s_config.cd_release_name.clone(),
+                cd_release_name,
                 agent_control_internal_publisher.clone(),
-            )
-        });
+            ))
+        } else {
+            debug!("Skipping CD version checker thread startup");
+            None
+        };
 
         AgentControl::new(
             maybe_client,
@@ -344,7 +345,7 @@ pub fn agent_control_opamp_non_identifying_attributes(
         ),
         (
             CD_EXTERNAL_ENABLED_ATTRIBUTE_KEY.to_string(),
-            (k8s_config.cd_release_name.is_empty()).into(),
+            (k8s_config.cd_release_name.is_none()).into(),
         ),
         (
             CD_REMOTE_UPDATE_ENABLED_ATTRIBUTE_KEY.to_string(),

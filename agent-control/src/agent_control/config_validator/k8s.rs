@@ -6,8 +6,8 @@ use super::{DynamicConfigValidator, DynamicConfigValidatorError};
 /// to avoid modification of agent CRs during AC self-update
 pub struct K8sReleaseNamesConfigValidator<V: DynamicConfigValidator> {
     inner: V,
-    ac_release_name: String,
-    cd_release_name: String,
+    ac_release_name: Option<String>,
+    cd_release_name: Option<String>,
 }
 
 impl<V: DynamicConfigValidator> DynamicConfigValidator for K8sReleaseNamesConfigValidator<V> {
@@ -17,25 +17,34 @@ impl<V: DynamicConfigValidator> DynamicConfigValidator for K8sReleaseNamesConfig
     ) -> Result<(), DynamicConfigValidatorError> {
         self.inner.validate(dynamic_config)?;
 
-        dynamic_config
-            .agents
-            .keys()
-            .try_for_each(|agent_id| match agent_id.as_str() {
-                agent_id if agent_id == self.ac_release_name => Err(validation_error(
-                    agent_id,
+        dynamic_config.agents.keys().try_for_each(|agent_id| {
+            if self
+                .ac_release_name
+                .clone()
+                .is_some_and(|name| agent_id.as_str() == name)
+            {
+                return Err(validation_error(
+                    agent_id.as_str(),
                     "Agent Control itself (agent-control-deployment)",
-                )),
-                agent_id if agent_id == self.cd_release_name => Err(validation_error(
-                    agent_id,
+                ));
+            }
+            if self
+                .cd_release_name
+                .clone()
+                .is_some_and(|name| agent_id.as_str() == name)
+            {
+                return Err(validation_error(
+                    agent_id.as_str(),
                     "Agent Control CD (agent-control-cd)",
-                )),
-                _ => Ok(()),
-            })
+                ));
+            }
+            Ok(())
+        })
     }
 }
 
 impl<V: DynamicConfigValidator> K8sReleaseNamesConfigValidator<V> {
-    pub fn new(inner: V, ac_release_name: String, cd_release_name: String) -> Self {
+    pub fn new(inner: V, ac_release_name: Option<String>, cd_release_name: Option<String>) -> Self {
         Self {
             inner,
             ac_release_name,
@@ -66,8 +75,8 @@ mod tests {
 
         let validator = K8sReleaseNamesConfigValidator {
             inner,
-            ac_release_name: "agent-control-deployment".to_string(),
-            cd_release_name: "agent-control-cd".to_string(),
+            ac_release_name: Some("agent-control-deployment".to_string()),
+            cd_release_name: Some("agent-control-cd".to_string()),
         };
 
         let dynamic_config = AgentControlDynamicConfig {
@@ -89,8 +98,8 @@ mod tests {
 
         let validator = K8sReleaseNamesConfigValidator {
             inner,
-            ac_release_name: "agent-control-deployment".to_string(),
-            cd_release_name: "agent-control-cd".to_string(),
+            ac_release_name: Some("agent-control-deployment".to_string()),
+            cd_release_name: Some("agent-control-cd".to_string()),
         };
 
         let dynamic_config = AgentControlDynamicConfig {
@@ -111,8 +120,8 @@ mod tests {
 
         let validator = K8sReleaseNamesConfigValidator {
             inner,
-            ac_release_name: "nrdot".to_string(),
-            cd_release_name: "agent-control-cd".to_string(),
+            ac_release_name: Some("nrdot".to_string()),
+            cd_release_name: Some("agent-control-cd".to_string()),
         };
 
         let dynamic_config = AgentControlDynamicConfig {
@@ -133,8 +142,8 @@ mod tests {
 
         let validator = K8sReleaseNamesConfigValidator {
             inner,
-            ac_release_name: "random-release-name".to_string(),
-            cd_release_name: "infra-agent".to_string(),
+            ac_release_name: Some("random-release-name".to_string()),
+            cd_release_name: Some("infra-agent".to_string()),
         };
 
         let dynamic_config = AgentControlDynamicConfig {
