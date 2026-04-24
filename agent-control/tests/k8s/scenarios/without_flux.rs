@@ -4,7 +4,7 @@
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::start_agent_control_with_testdata_config;
-use crate::k8s::tools::k8s_api::check_config_map_exist;
+use crate::k8s::tools::k8s_api::{check_config_map_exist, check_config_map_has_annotation};
 use crate::k8s::tools::k8s_env::K8sEnv;
 use crate::k8s::tools::{agent_control, instance_id};
 use fake_opamp_server::FakeServer;
@@ -129,21 +129,21 @@ agents: {}
     });
 }
 
-/// This test exposes a GC labelling bug: when ConfigMap is included in `cr_type_meta`,
-/// the `retain` function at AC startup fails because fleet-data ConfigMaps (created by
-/// the ConfigMapStore with managed-by + agent-id labels but no agent-type-id annotation)
-/// are listed by `garbage_collection_dynamic_object`. When the agent is still active,
-/// `should_delete_agent_id` tries to read the missing annotation and returns a
-/// MissingAnnotations error, crashing AC on startup.
+/// This test verifies that GC handles the fleet-data ConfigMap correctly on AC restart.
+///
+/// When ConfigMap is included in `cr_type_meta`, the `retain` function at AC startup
+/// lists fleet-data ConfigMaps via `garbage_collection_dynamic_object`. Each fleet-data
+/// ConfigMap must carry the `newrelic.io/agent-type-id` annotation so that GC can decide
+/// whether to retain or delete it.
 ///
 /// The test:
-/// 1. Starts AC and deploys the config-map-type agent via remote config, which causes AC
-///    to create a fleet-data ConfigMap for that agent.
-/// 2. Stops and restarts AC while the agent is still active.
-/// 3. On restart, `retain` is called with the active agent in the config. The fleet-data
-///    ConfigMap (which has no agent-type-id annotation) triggers the bug.
-/// 4. The test passes only if AC starts successfully, meaning GC handled the fleet-data
-///    ConfigMap correctly without erroring on the missing annotation.
+/// 1. Starts AC and deploys the config-map-type agent via OpAMP remote config.
+/// 2. Sends a remote config to the sub-agent, which causes AC to store the remote config
+///    and write the agent-type-id annotation onto the fleet-data ConfigMap.
+/// 3. Waits for the annotation to be present, then stops and restarts AC.
+/// 4. On restart, `retain` finds the annotated fleet-data ConfigMap, reads the annotation,
+///    verifies the type matches the active agent, and correctly retains it.
+/// 5. The test passes only if AC starts successfully.
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_config_map_type_gc_does_not_fail_on_restart() {
@@ -175,8 +175,7 @@ fn k8s_config_map_type_gc_does_not_fail_on_restart() {
     let instance_id =
         instance_id::get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
 
-    // Deploy the config-map-type agent. This causes AC to create a fleet-data ConfigMap
-    // for the agent (with managed-by + agent-id labels but no agent-type-id annotation).
+    // Deploy the config-map-type agent via the fleet-level config.
     server.set_config_response(
         instance_id.clone(),
         r#"
@@ -186,8 +185,7 @@ agents:
     "#,
     );
 
-    // Wait for the fleet-data ConfigMap to be created, confirming the agent is running
-    // and the fleet-data ConfigMap (without agent-type-id annotation) now exists.
+    // Wait for the fleet-data ConfigMap to be created (instance-ID written by the storer).
     let fleet_data_cm_name = "fleet-data-test-config-map";
     println!("Waiting for fleet-data ConfigMap to be created...");
     retry(120, Duration::from_secs(1), || {
@@ -197,15 +195,41 @@ agents:
             &namespace,
         ))
     });
-    println!("fleet-data ConfigMap exists — stopping AC to simulate a restart.");
 
-    // Stop AC while the agent is still active. The fleet-data ConfigMap persists.
+    // Send a remote config to the sub-agent. This causes AC to call `store_remote` for the
+    // sub-agent, which writes the agent-type-id annotation onto the fleet-data ConfigMap.
+    let subagent_instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &namespace,
+        &AgentID::try_from("test-config-map").unwrap(),
+    );
+    server.set_config_response(
+        subagent_instance_id,
+        r#"
+chart_values:
+  cm_content: {}
+    "#,
+    );
+
+    // Wait for the annotation to be written
+    println!("Waiting for agent-type-id annotation on fleet-data ConfigMap...");
+    retry(120, Duration::from_secs(1), || {
+        block_on(check_config_map_has_annotation(
+            k8s.client.clone(),
+            fleet_data_cm_name,
+            &namespace,
+            "newrelic.io/agent-type-id",
+        ))
+    });
+    println!("Annotation present — stopping AC to simulate a restart.");
+
+    // Stop AC while the agent is still active. The annotated fleet-data ConfigMap persists.
     drop(_ac);
 
     // Restart AC with the same configuration. On startup, `retain` is called with the
-    // active agent ({test-config-map: ...}) and cr_type_meta includes ConfigMap.
-    // Without the fix, `garbage_collection_dynamic_object` finds the fleet-data ConfigMap,
-    // tries to read its missing agent-type-id annotation, and crashes with MissingAnnotations.
+    // active agent ({test-config-map: newrelic/com.newrelic.test_config_map:0.1.0}) and
+    // cr_type_meta includes ConfigMap. GC finds the fleet-data ConfigMap, reads the
+    // agent-type-id annotation, and correctly retains it.
     let _ac = start_agent_control_with_testdata_config(
         test_name,
         CONFIG_AGENT_TYPE_PATH,
@@ -218,8 +242,9 @@ agents:
         tmp_dir.path(),
     );
 
-    // If GC correctly handles fleet-data ConfigMaps on restart, AC starts successfully.
-    // If not, this will time out because AC crashes before creating fleet-data-agent-control.
+    // If GC correctly handles the annotated fleet-data ConfigMap on restart, AC starts
+    // successfully. If not, this will time out because AC crashes before creating
+    // fleet-data-agent-control.
     agent_control::wait_until_agent_control_with_opamp_is_started(
         k8s.client.clone(),
         namespace.as_str(),
