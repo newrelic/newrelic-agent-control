@@ -202,11 +202,16 @@ impl K8sGarbageCollectorMode<'_> {
         match self {
             K8sGarbageCollectorMode::RetainConfig(agent_identities) => {
                 if let Some(agent_type_id) = agent_identities.get(agent_id) {
-                    let annotated_agent_type_id = Self::retrieve_annotated_agent_type_id(obj_meta)?;
                     // Check if the agent type is different from the one in the config.
                     // This is to support the case where the agent id exists in the config,
                     // but it's a different agent type. See PR#655 for some details.
-                    Ok(&annotated_agent_type_id != agent_type_id)
+                    // Objects without the annotation (e.g. fleet-data ConfigMaps) are not
+                    // supervisor-created resources and should not be deleted here.
+                    match Self::retrieve_annotated_agent_type_id(obj_meta) {
+                        Ok(annotated_agent_type_id) => Ok(&annotated_agent_type_id != agent_type_id),
+                        Err(K8sGarbageCollectorError::MissingAnnotations) => Ok(false),
+                        Err(e) => Err(e),
+                    }
                 } else {
                     // Delete if the agent id does not exist in the passed config
                     Ok(true)
@@ -215,8 +220,13 @@ impl K8sGarbageCollectorMode<'_> {
 
             K8sGarbageCollectorMode::Collect(id, agent_type_id) => {
                 if agent_id == *id {
-                    let annotated_agent_type_id = Self::retrieve_annotated_agent_type_id(obj_meta)?;
-                    Ok(annotated_agent_type_id == **agent_type_id)
+                    // Objects without the annotation (e.g. fleet-data ConfigMaps) are not
+                    // supervisor-created resources and should not be deleted here.
+                    match Self::retrieve_annotated_agent_type_id(obj_meta) {
+                        Ok(annotated_agent_type_id) => Ok(annotated_agent_type_id == **agent_type_id),
+                        Err(K8sGarbageCollectorError::MissingAnnotations) => Ok(false),
+                        Err(e) => Err(e),
+                    }
                 } else {
                     Ok(false)
                 }
@@ -365,6 +375,20 @@ mod tests {
         })
     }
 
+    fn dynamic_object_without_annotation(agent_id: &AgentID, namespace: &str) -> Arc<DynamicObject> {
+        Arc::new(DynamicObject {
+            types: None,
+            metadata: ObjectMeta {
+                name: Some(format!("fleet-data-{agent_id}")),
+                namespace: Some(namespace.to_string()),
+                labels: Some(Labels::new(agent_id).get()),
+                annotations: None,
+                ..Default::default()
+            },
+            data: serde_json::Value::Null,
+        })
+    }
+
     // RetainConfig mode: object with a matching annotation for an active agent is retained.
     #[test]
     fn retain_skips_dynamic_object_with_matching_annotation() {
@@ -448,6 +472,134 @@ mod tests {
             namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
         };
         assert!(gc.collect(&agent_id, &agent_type_id).is_ok());
+    }
+
+    // RetainConfig mode: object for active agent with NO annotation (fleet-data CM) is skipped.
+    #[test]
+    fn retain_skips_dynamic_object_without_annotation() {
+        let type_meta = TypeMeta::default();
+        let agent_id = AgentID::try_from("foo-agent").unwrap();
+        let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
+        let cm = dynamic_object_without_annotation(&agent_id, TEST_NAMESPACE);
+
+        let active_agents = HashMap::from([(agent_id, agent_type_id)]);
+
+        let mut k8s_client = SyncK8sClient::default();
+        k8s_client
+            .expect_delete_configmap_collection()
+            .once()
+            .returning(|_, _| Ok(()));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE_AGENTS),
+            )
+            .returning(|_, _| Ok(vec![]));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE),
+            )
+            .return_once(move |_, _| Ok(vec![cm]));
+        k8s_client.expect_delete_dynamic_object().never();
+
+        let gc = K8sGarbageCollector {
+            k8s_client: Arc::new(k8s_client),
+            cr_type_meta: vec![type_meta],
+            namespace: TEST_NAMESPACE.to_string(),
+            namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
+        };
+        assert!(gc.retain(active_agents).is_ok());
+    }
+
+    // Collect mode: object for matching agent with NO annotation (fleet-data CM) is skipped.
+    #[test]
+    fn collect_skips_dynamic_object_without_annotation() {
+        let type_meta = TypeMeta::default();
+        let agent_id = AgentID::try_from("foo-agent").unwrap();
+        let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
+        let cm = dynamic_object_without_annotation(&agent_id, TEST_NAMESPACE);
+
+        let mut k8s_client = SyncK8sClient::default();
+        k8s_client
+            .expect_delete_configmap_collection()
+            .once()
+            .returning(|_, _| Ok(()));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE_AGENTS),
+            )
+            .returning(|_, _| Ok(vec![]));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE),
+            )
+            .return_once(move |_, _| Ok(vec![cm]));
+        k8s_client.expect_delete_dynamic_object().never();
+
+        let gc = K8sGarbageCollector {
+            k8s_client: Arc::new(k8s_client),
+            cr_type_meta: vec![type_meta],
+            namespace: TEST_NAMESPACE.to_string(),
+            namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
+        };
+        assert!(gc.collect(&agent_id, &agent_type_id).is_ok());
+    }
+
+    // RetainConfig mode: object for INACTIVE agent with NO annotation is deleted.
+    // The inactive-agent branch (else { Ok(true) }) never reads annotations, so absence of
+    // the annotation must not prevent deletion.
+    #[test]
+    fn retain_deletes_dynamic_object_for_inactive_agent_without_annotation() {
+        let type_meta = TypeMeta::default();
+        let agent_id = AgentID::try_from("foo-agent").unwrap();
+        let cm = dynamic_object_without_annotation(&agent_id, TEST_NAMESPACE);
+
+        let active_agents: HashMap<AgentID, AgentTypeID> = HashMap::new();
+
+        let mut k8s_client = SyncK8sClient::default();
+        k8s_client
+            .expect_delete_configmap_collection()
+            .once()
+            .returning(|_, _| Ok(()));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE_AGENTS),
+            )
+            .returning(|_, _| Ok(vec![]));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE),
+            )
+            .return_once(move |_, _| Ok(vec![cm]));
+        k8s_client
+            .expect_delete_dynamic_object()
+            .once()
+            .returning(|_, _| Ok(either::Either::Right(kube::core::Status::default())));
+
+        let gc = K8sGarbageCollector {
+            k8s_client: Arc::new(k8s_client),
+            cr_type_meta: vec![type_meta],
+            namespace: TEST_NAMESPACE.to_string(),
+            namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
+        };
+        assert!(gc.retain(active_agents).is_ok());
     }
 
     // RetainConfig mode: object whose annotation names a different type than the active one
