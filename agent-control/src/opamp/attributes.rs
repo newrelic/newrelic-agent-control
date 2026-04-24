@@ -12,22 +12,24 @@ pub type UpdatedAttributesMessage = AgentDescription;
 
 /// Updates the attributes of the OpAMP agent
 ///
-/// If an attribute already exists, it will be updated. If it doesn't, it will be added.
+/// The provided `agent_description` is expected to contain the attributes to be updated only.
+/// If an attribute already exists, it will be updated. If it doesn't, it will be added. No
+/// attribute is removed in any case.
 pub fn update_opamp_attributes<C>(
     opamp_client: &C,
-    new_attributes: AgentDescription,
+    agent_description: AgentDescription,
 ) -> Result<(), ClientError>
 where
     C: StartedClient,
 {
-    let agent_description = opamp_client.get_agent_description()?;
+    let current_agent_description = opamp_client.get_agent_description()?;
     let updated_agent_description =
-        update_agent_description_attributes(agent_description, new_attributes);
+        merge_agent_description(current_agent_description, agent_description);
 
     opamp_client.set_agent_description(updated_agent_description)
 }
 
-fn update_agent_description_attributes(
+fn merge_agent_description(
     old_agent_description: ProtoAgentDescription,
     new_attributes: AgentDescription,
 ) -> ProtoAgentDescription {
@@ -104,7 +106,7 @@ mod tests {
             non_identifying_attributes: vec![new_key_value("non_identifying1", "value1")],
         };
 
-        let updated_description = update_agent_description_attributes(
+        let updated_description = merge_agent_description(
             agent_description.clone(),
             AgentDescription {
                 identifying_attributes: HashMap::from([
