@@ -94,13 +94,13 @@ pub enum K8sHealthResourceKind {
     Deployment,
     DaemonSet,
     StatefulSet,
-    HelmRelease,
     Instrumentation,
+    HelmReleaseWorkload,
 }
 
 /// A single Kubernetes resource to include in health checking.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct K8sHealthResource {
+pub struct K8sHealthCheckDefinition {
     pub(crate) name: String,
     pub(crate) namespace: String,
     pub(crate) kind: K8sHealthResourceKind,
@@ -109,7 +109,7 @@ pub struct K8sHealthResource {
     pub(crate) target_namespace: Option<String>,
 }
 
-impl Templateable for K8sHealthResource {
+impl Templateable for K8sHealthCheckDefinition {
     type Output = Self;
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
@@ -132,9 +132,9 @@ pub struct K8sHealthConfig {
     /// The initial delay before the first health check is performed.
     #[serde(default)]
     pub(crate) initial_delay: InitialDelay,
-    /// Explicit list of Kubernetes resources to health-check.
+    /// Explicit list of Kubernetes check definitions
     #[serde(default)]
-    pub(crate) resources: Vec<K8sHealthResource>,
+    pub(crate) checks: Vec<K8sHealthCheckDefinition>,
 }
 
 impl Templateable for K8sHealthConfig {
@@ -143,8 +143,8 @@ impl Templateable for K8sHealthConfig {
         Ok(Self {
             interval: self.interval,
             initial_delay: self.initial_delay,
-            resources: self
-                .resources
+            checks: self
+                .checks
                 .into_iter()
                 .map(|r| r.template_with(variables))
                 .collect::<Result<Vec<_>, _>>()?,
@@ -177,7 +177,9 @@ mod tests {
     use std::time::Duration;
 
     use crate::agent_type::definition::Variables;
-    use crate::agent_type::runtime_config::k8s::{K8s, K8sHealthResource, K8sHealthResourceKind};
+    use crate::agent_type::runtime_config::k8s::{
+        K8s, K8sHealthCheckDefinition, K8sHealthResourceKind,
+    };
     use crate::agent_type::templates::Templateable;
     use crate::agent_type::variable::Variable;
     use crate::agent_type::version_config::{VersionCheckerInitialDelay, VersionCheckerInterval};
@@ -321,10 +323,10 @@ objects: {}
 health:
   interval: 30s
   initial_delay: 10s
-  resources:
+  checks:
     - namespace: ${nr-ac:namespace}
       name: ${nr-sub:agent_id}
-      kind: HelmRelease
+      kind: HelmReleaseWorkload
       target_namespace: ${nr-ac:namespace_agents}
     - namespace: ${nr-ac:namespace_agents}
       name: ${nr-sub:agent_id}
@@ -352,22 +354,22 @@ health:
         ]);
 
         let k8s = k8s_template.template_with(&variables).unwrap();
-        let resources = k8s.health.unwrap().resources;
+        let resources = k8s.health.unwrap().checks;
 
         let expected = vec![
-            K8sHealthResource {
+            K8sHealthCheckDefinition {
                 name: "my-agent".to_string(),
                 namespace: "newrelic".to_string(),
-                kind: K8sHealthResourceKind::HelmRelease,
+                kind: K8sHealthResourceKind::HelmReleaseWorkload,
                 target_namespace: Some("newrelic-agents".to_string()),
             },
-            K8sHealthResource {
+            K8sHealthCheckDefinition {
                 name: "my-agent".to_string(),
                 namespace: "newrelic-agents".to_string(),
                 kind: K8sHealthResourceKind::Instrumentation,
                 target_namespace: None,
             },
-            K8sHealthResource {
+            K8sHealthCheckDefinition {
                 name: "my-agent".to_string(),
                 namespace: "newrelic-agents".to_string(),
                 kind: K8sHealthResourceKind::Deployment,
