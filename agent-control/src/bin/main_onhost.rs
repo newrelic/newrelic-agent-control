@@ -86,5 +86,7 @@ fn _main(context: Context) -> Result<(), Box<dyn Error>> {
         }
     }
 
-    run_result
+    // Shutdown reason is not used passed to this point.
+    run_result?;
+    Ok(())
 }

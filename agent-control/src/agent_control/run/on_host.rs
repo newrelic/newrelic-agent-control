@@ -10,7 +10,8 @@ use crate::agent_control::defaults::{
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
 use crate::agent_control::run::{
-    AgentControlRunner, Environment, RunError, RunningMode, setup_config_repository_and_store,
+    AgentControlRunner, Environment, GracefulShutdownReason, RunError, RunningMode,
+    setup_config_repository_and_store,
 };
 use crate::agent_control::version_updater::on_host::OnHostACUpdater;
 use crate::agent_control::version_updater::on_host::verify::ProcessVerifyExecutor;
@@ -82,7 +83,7 @@ type OnHostOpAMPClient = StartedHttpClient<
 type OnHostOpAMPConsumer = EventConsumer<OpAMPEvent>;
 
 impl AgentControlRunner {
-    pub fn run_onhost(self) -> Result<(), RunError> {
+    pub fn run_onhost(self) -> Result<GracefulShutdownReason, RunError> {
         let local_dir = self.base_paths.local_dir;
         let remote_dir = self.base_paths.remote_dir;
         let file_store = Arc::new(FileStore::new_local_fs(

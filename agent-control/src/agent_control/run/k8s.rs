@@ -13,7 +13,8 @@ use crate::agent_control::health_checker::k8s::agent_control_health_checker_buil
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
 use crate::agent_control::run::{
-    AgentControlRunner, Environment, RunError, setup_config_repository_and_store,
+    AgentControlRunner, Environment, GracefulShutdownReason, RunError,
+    setup_config_repository_and_store,
 };
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::TemplateRenderer;
@@ -59,7 +60,7 @@ pub const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
 pub const AGENT_CONTROL_MODE_K8S: Environment = Environment::K8s;
 
 impl AgentControlRunner {
-    pub fn run_k8s(self) -> Result<(), RunError> {
+    pub fn run_k8s(self) -> Result<GracefulShutdownReason, RunError> {
         let k8s_config = self.bootstrap_config.k8s.clone().ok_or(RunError(
             "k8s config missing while running on k8s".to_string(),
         ))?;

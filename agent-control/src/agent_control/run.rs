@@ -23,6 +23,15 @@ use tracing::debug;
 #[error("{0}")]
 pub struct RunError(String);
 
+/// The reason Agent Control stopped gracefully.
+#[derive(Debug, PartialEq)]
+pub enum GracefulShutdownReason {
+    /// A stop was requested externally (SIGTERM, SCM stop).
+    ExternalRequested,
+    /// A successful self-update occurred, and the process needs to be restarted to apply the update.
+    SelfUpdate,
+}
+
 // k8s and on_host need to be public to allow integration tests to access the fn run_agent_control.
 
 pub mod k8s;

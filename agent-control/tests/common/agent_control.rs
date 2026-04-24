@@ -4,7 +4,7 @@ use newrelic_agent_control::agent_control::config_repository::repository::AgentC
 use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
 use newrelic_agent_control::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
 use newrelic_agent_control::agent_control::run::{
-    AgentControlRunner, BasePaths, Environment, RunError,
+    AgentControlRunner, BasePaths, Environment, GracefulShutdownReason, RunError,
 };
 use newrelic_agent_control::command::RunnerContext;
 use newrelic_agent_control::event::ApplicationEvent;
@@ -64,7 +64,7 @@ pub fn start_agent_control_with_custom_config(
 pub struct StartedAgentControl {
     application_event_publisher: EventPublisher<ApplicationEvent>,
 
-    handle: Option<std::thread::JoinHandle<Result<(), RunError>>>,
+    handle: Option<std::thread::JoinHandle<Result<GracefulShutdownReason, RunError>>>,
 }
 impl StartedAgentControl {
     pub fn has_gracefully_stopped(&mut self) -> bool {

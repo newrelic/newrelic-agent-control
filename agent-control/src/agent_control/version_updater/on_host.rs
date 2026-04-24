@@ -101,7 +101,7 @@ where
 
         debug!("Agent Control binary replaced, stopping to allow the new version to start");
         self.agent_control_internal_publisher
-            .publish(AgentControlInternalEvent::StopRequested())
+            .publish(AgentControlInternalEvent::SelfUpdateRestartRequested())
             .map_err(|e| UpdaterError::UpdateFailed(format!("publishing stop request: {e}")))?;
 
         Ok(())
