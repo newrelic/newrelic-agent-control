@@ -2,6 +2,7 @@ use super::{ResourceCleaner, ResourceCleanerError};
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::SubAgentsMap;
 use crate::agent_control::defaults::AGENT_CONTROL_ID;
+use crate::agent_control::{agent_id::AgentIDError, config::AgentControlConfigError};
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::k8s::annotations;
 use crate::k8s::client::K8sObjectKey;
@@ -10,10 +11,6 @@ use crate::k8s::client::SyncK8sClient;
 use crate::k8s::error::K8sError;
 use crate::k8s::labels::{self, AGENT_ID_LABEL_KEY, Labels};
 use crate::k8s::utils::{get_name, get_namespace};
-use crate::{
-    agent_control::{agent_id::AgentIDError, config::AgentControlConfigError},
-    agent_type::agent_type_id::AgentTypeIDError,
-};
 use kube::api::{ObjectMeta, TypeMeta};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -146,14 +143,16 @@ impl K8sGarbageCollector {
             .ok_or(K8sGarbageCollectorError::MissingLabels)?
             .as_str();
 
-        let agent_id_from_labels = match AgentID::try_from(agent_id_from_labels) {
-            Ok(id) => id,
+        match AgentID::try_from(agent_id_from_labels) {
+            Ok(id) => mode.should_delete_agent_id(&id, obj_meta),
             // We must not delete anything with reserved AgentIDs (currently only Agent Control)
-            Err(AgentIDError::Reserved(_)) => return Ok(false),
-            Err(e) => return Err(e.into()),
-        };
-
-        mode.should_delete_agent_id(&agent_id_from_labels, obj_meta)
+            Err(AgentIDError::Reserved(_)) => Ok(false),
+            // We should also be conservative, so we do not delete an object if we cannot retrieve a valid AgentID from it
+            Err(e) => {
+                warn!("invalid agent id: {e}");
+                Ok(false)
+            }
+        }
     }
 }
 
@@ -208,9 +207,12 @@ impl K8sGarbageCollectorMode<'_> {
                     // supervisor-created resources and should not be deleted here.
                     match Self::retrieve_annotated_agent_type_id(obj_meta) {
                         Ok(annotated_agent_type_id) => {
-                            Ok(&annotated_agent_type_id != agent_type_id)
+                            Ok(annotated_agent_type_id != agent_type_id.to_string())
                         }
-                        Err(K8sGarbageCollectorError::MissingAnnotations) => Ok(false),
+                        Err(K8sGarbageCollectorError::MissingAnnotations) => {
+                            warn!("object missing agent type id annotations, skipping");
+                            Ok(false)
+                        }
                         Err(e) => Err(e),
                     }
                 } else {
@@ -225,9 +227,12 @@ impl K8sGarbageCollectorMode<'_> {
                     // supervisor-created resources and should not be deleted here.
                     match Self::retrieve_annotated_agent_type_id(obj_meta) {
                         Ok(annotated_agent_type_id) => {
-                            Ok(annotated_agent_type_id == **agent_type_id)
+                            Ok(annotated_agent_type_id == agent_type_id.to_string())
                         }
-                        Err(K8sGarbageCollectorError::MissingAnnotations) => Ok(false),
+                        Err(K8sGarbageCollectorError::MissingAnnotations) => {
+                            warn!("object missing agent type id annotations, skipping");
+                            Ok(false)
+                        }
                         Err(e) => Err(e),
                     }
                 } else {
@@ -239,14 +244,12 @@ impl K8sGarbageCollectorMode<'_> {
 
     fn retrieve_annotated_agent_type_id(
         obj_meta: &ObjectMeta,
-    ) -> Result<AgentTypeID, K8sGarbageCollectorError> {
+    ) -> Result<String, K8sGarbageCollectorError> {
         let empty_map = BTreeMap::new();
         let annotations = obj_meta.annotations.as_ref().unwrap_or(&empty_map);
-        let annotated_agent_type_id = AgentTypeID::try_from(
-            annotations::get_agent_type_id_value(annotations)
-                .ok_or(K8sGarbageCollectorError::MissingAnnotations)?
-                .as_str(),
-        )?;
+        let annotated_agent_type_id = annotations::get_agent_type_id_value(annotations)
+            .ok_or(K8sGarbageCollectorError::MissingAnnotations)?
+            .to_owned();
         Ok(annotated_agent_type_id)
     }
 }
@@ -264,12 +267,6 @@ pub enum K8sGarbageCollectorError {
 
     #[error("garbage collector fetched resources without required annotations")]
     MissingAnnotations,
-
-    #[error("unable to parse AgentTypeID: {0}")]
-    ParsingAgentType(#[from] AgentTypeIDError),
-
-    #[error("unable to parse AgentID: {0}")]
-    ParsingAgentId(#[from] AgentIDError),
 
     #[error("attempted to clean up resources for Agent Control")]
     AgentControlId,
