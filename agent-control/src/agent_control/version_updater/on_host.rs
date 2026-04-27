@@ -4,6 +4,7 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{AgentControlDynamicConfig, AgentControlPackage};
 use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
+use crate::agent_type::runtime_config::on_host::package::OCI_REGISTRY_PLACEHOLDER;
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;
 use crate::oci::reference_parser::ReferenceParser;
@@ -123,7 +124,7 @@ where
         let base_reference = Reference::from(ReferenceParser::from_str(
             format!(
                 "{}/{}",
-                package.download.oci.registry, package.download.oci.repository
+                OCI_REGISTRY_PLACEHOLDER, package.download.oci.repository
             )
             .as_str(),
         )?);
@@ -213,8 +214,7 @@ mod tests {
         let package = AgentControlPackage {
             download: Download {
                 oci: Oci {
-                    registry: "invalid registry with spaces".to_string(),
-                    repository: "repo".to_string(),
+                    repository: "wrongrepo?".to_string(),
                     public_key_url: Url::parse("https://newrelic.com/keys").unwrap(),
                 },
             },

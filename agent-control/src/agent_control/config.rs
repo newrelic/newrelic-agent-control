@@ -117,7 +117,7 @@ impl Default for OciConfig {
 
 impl OciConfig {
     fn default_registry() -> String {
-        "docker.io".to_string()
+        AC_OCI_PACKAGE_DEFAULT_REGISTRY.to_string()
     }
 }
 
@@ -418,7 +418,6 @@ impl Default for AgentControlPackage {
         AgentControlPackage {
             download: Download {
                 oci: Oci {
-                    registry: AC_OCI_PACKAGE_DEFAULT_REGISTRY.to_string(),
                     repository: AC_OCI_PACKAGE_DEFAULT_REPOSITORY.to_string(),
                     public_key_url: Url::parse(AC_OCI_PACKAGE_PUBLIC_KEY_URL)
                         .expect("valid default url"),
@@ -435,8 +434,6 @@ pub struct Download {
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct Oci {
-    /// OCI registry url.
-    pub registry: String,
     /// Repository name.
     pub repository: String,
     /// Public key url is expected to be a jwks.
