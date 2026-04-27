@@ -280,6 +280,8 @@ impl From<K8sGarbageCollectorError> for ResourceCleanerError {
 
 #[cfg(test)]
 mod tests {
+    use crate::k8s::annotations::Annotations;
+
     use super::*;
     use kube::api::{DynamicObject, ObjectMeta};
     use mockall::predicate;
@@ -351,9 +353,9 @@ mod tests {
         assert!(garbage_collector.collect(ac_id, agent_type_id).is_ok());
     }
 
-    fn dynamic_object_with_annotation(
+    fn new_dynamic_object(
         agent_id: &AgentID,
-        agent_type_id: &AgentTypeID,
+        agent_type_id: Option<&AgentTypeID>,
         namespace: &str,
     ) -> Arc<DynamicObject> {
         Arc::new(DynamicObject {
@@ -362,29 +364,9 @@ mod tests {
                 name: Some(format!("fleet-data-{agent_id}")),
                 namespace: Some(namespace.to_string()),
                 labels: Some(Labels::new(agent_id).get()),
-                annotations: Some(
-                    crate::k8s::annotations::Annotations::new_agent_type_id_annotation(
-                        agent_type_id,
-                    )
-                    .get(),
-                ),
-                ..Default::default()
-            },
-            data: serde_json::Value::Null,
-        })
-    }
-
-    fn dynamic_object_without_annotation(
-        agent_id: &AgentID,
-        namespace: &str,
-    ) -> Arc<DynamicObject> {
-        Arc::new(DynamicObject {
-            types: None,
-            metadata: ObjectMeta {
-                name: Some(format!("fleet-data-{agent_id}")),
-                namespace: Some(namespace.to_string()),
-                labels: Some(Labels::new(agent_id).get()),
-                annotations: None,
+                annotations: agent_type_id
+                    .map(Annotations::new_agent_type_id_annotation)
+                    .map(|anns| anns.get()),
                 ..Default::default()
             },
             data: serde_json::Value::Null,
@@ -397,7 +379,7 @@ mod tests {
         let type_meta = TypeMeta::default();
         let agent_id = AgentID::try_from("foo-agent").unwrap();
         let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
-        let cm = dynamic_object_with_annotation(&agent_id, &agent_type_id, TEST_NAMESPACE);
+        let cm = new_dynamic_object(&agent_id, Some(&agent_type_id), TEST_NAMESPACE);
 
         let active_agents = HashMap::from([(agent_id, agent_type_id)]);
 
@@ -439,7 +421,7 @@ mod tests {
         let type_meta = TypeMeta::default();
         let agent_id = AgentID::try_from("foo-agent").unwrap();
         let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
-        let cm = dynamic_object_with_annotation(&agent_id, &agent_type_id, TEST_NAMESPACE);
+        let cm = new_dynamic_object(&agent_id, Some(&agent_type_id), TEST_NAMESPACE);
 
         let mut k8s_client = SyncK8sClient::default();
         k8s_client
@@ -482,7 +464,7 @@ mod tests {
         let type_meta = TypeMeta::default();
         let agent_id = AgentID::try_from("foo-agent").unwrap();
         let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
-        let cm = dynamic_object_without_annotation(&agent_id, TEST_NAMESPACE);
+        let cm = new_dynamic_object(&agent_id, None, TEST_NAMESPACE);
 
         let active_agents = HashMap::from([(agent_id, agent_type_id)]);
 
@@ -524,7 +506,7 @@ mod tests {
         let type_meta = TypeMeta::default();
         let agent_id = AgentID::try_from("foo-agent").unwrap();
         let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
-        let cm = dynamic_object_without_annotation(&agent_id, TEST_NAMESPACE);
+        let cm = new_dynamic_object(&agent_id, None, TEST_NAMESPACE);
 
         let mut k8s_client = SyncK8sClient::default();
         k8s_client
@@ -565,7 +547,7 @@ mod tests {
     fn retain_deletes_dynamic_object_for_inactive_agent_without_annotation() {
         let type_meta = TypeMeta::default();
         let agent_id = AgentID::try_from("foo-agent").unwrap();
-        let cm = dynamic_object_without_annotation(&agent_id, TEST_NAMESPACE);
+        let cm = new_dynamic_object(&agent_id, None, TEST_NAMESPACE);
 
         let active_agents: HashMap<AgentID, AgentTypeID> = HashMap::new();
 
@@ -614,7 +596,7 @@ mod tests {
         let old_type = AgentTypeID::try_from("newrelic/com.example.bar:0.0.1").unwrap();
 
         // The object on the cluster carries the OLD type annotation.
-        let cm = dynamic_object_with_annotation(&agent_id, &old_type, TEST_NAMESPACE);
+        let cm = new_dynamic_object(&agent_id, Some(&old_type), TEST_NAMESPACE);
 
         let active_agents = HashMap::from([(agent_id, active_type)]);
 
