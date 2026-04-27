@@ -152,6 +152,12 @@ pub mod tests {
 
     const TEST_DAEMON_SET_NAME: &str = "test";
 
+    impl<C: K8sClient> K8sHealthDaemonSet<C> {
+        pub(crate) fn namespace(&self) -> &str {
+            &self.namespace
+        }
+    }
+
     #[test]
     fn test_daemon_set_spec_errors() {
         struct TestCase {

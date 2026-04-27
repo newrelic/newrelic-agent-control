@@ -252,6 +252,7 @@ pub mod tests {
     use crate::checkers::health::with_start_time::StartTime;
     use crate::k8s::client::tests::MockK8sClient;
     use assert_matches::assert_matches;
+    use rstest::rstest;
     use std::sync::Arc;
 
     impl<HC: HealthChecker> K8sHealthChecker<HC> {
@@ -278,34 +279,58 @@ pub mod tests {
         )
     }
 
-    #[test]
-    fn helmrelease_workload_creates_four_checkers() {
-        let mock_client = MockK8sClient::default();
+    #[rstest]
+    #[case::no_target_namespace(vec![K8sHealthCheckDefinition {
+            name: "test-resource".to_string(),
+            namespace: "test-namespace".to_string(),
+            kind: K8sHealthResourceKind::HelmReleaseWorkload,
+            target_namespace: None,
+        }], "test-namespace", "test-namespace")]
+    #[case::some_target_namespace(vec![K8sHealthCheckDefinition {
+            name: "test-resource".to_string(),
+            namespace: "test-namespace".to_string(),
+            kind: K8sHealthResourceKind::HelmReleaseWorkload,
+            target_namespace: Some("test-target-namespace".to_string()),
+        }], "test-namespace", "test-target-namespace")]
+    fn helmrelease_workload_creates_four_checkers(
+        #[case] check_definitions: Vec<K8sHealthCheckDefinition>,
+        #[case] expected_namespace: &str,
+        #[case] expected_target_namespace: &str,
+    ) {
+        let mock_client = MockK8sClient::new();
         let start_time = StartTime::now();
 
         let health_checker = K8sHealthChecker::from_checks_definition(
             Arc::new(mock_client),
-            &[check(K8sHealthResourceKind::HelmReleaseWorkload)],
+            &check_definitions,
             start_time,
         )
         .expect("health checker should not be empty");
 
         assert_eq!(health_checker.health_checkers.len(), 4);
         assert_matches!(
-            health_checker.health_checkers[0],
-            K8sResourceHealthChecker::HelmRelease(_)
+            &health_checker.health_checkers[0],
+            K8sResourceHealthChecker::HelmRelease(h) => {
+                assert_eq!(h.namespace(), expected_namespace);
+            }
         );
         assert_matches!(
-            health_checker.health_checkers[1],
-            K8sResourceHealthChecker::StatefulSet(_)
+            &health_checker.health_checkers[1],
+            K8sResourceHealthChecker::StatefulSet(s) => {
+                assert_eq!(s.namespace(), expected_target_namespace);
+            }
         );
         assert_matches!(
-            health_checker.health_checkers[2],
-            K8sResourceHealthChecker::DaemonSet(_)
+            &health_checker.health_checkers[2],
+            K8sResourceHealthChecker::DaemonSet(d) => {
+                assert_eq!(d.namespace(), expected_target_namespace);
+            }
         );
         assert_matches!(
-            health_checker.health_checkers[3],
-            K8sResourceHealthChecker::Deployment(_)
+            &health_checker.health_checkers[3],
+            K8sResourceHealthChecker::Deployment(d) => {
+                assert_eq!(d.namespace(), expected_target_namespace)
+            }
         );
     }
 
