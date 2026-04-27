@@ -15,7 +15,10 @@ use crate::command::on_host_checks::config::check_config;
 use crate::command::on_host_checks::opamp::check_connectivity;
 use crate::event::ApplicationEvent;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
-use crate::instrumentation::tracing::{TracingConfig, TracingGuardBox, try_init_tracing};
+use crate::instrumentation::config::logs::config::LoggingConfig;
+use crate::instrumentation::tracing::{
+    TracingConfig, TracingGuardBox, try_init_stderr_tracing, try_init_tracing,
+};
 use crate::on_host::file_store::FileStore;
 use crate::utils::binary_metadata::binary_metadata;
 use crate::utils::env_var::load_env_yaml_file;
@@ -104,6 +107,14 @@ pub struct Args {
     logs_dir: Option<std::path::PathBuf>,
 }
 
+/// Minimal context shared by all commands
+pub struct BootstrapContext {
+    /// Agent Control bootstrap configuration (built with runtime information but with no remote)
+    pub bootstrap_config: AgentControlConfig,
+    /// Agent Control directories where configuration and logs are stored
+    pub base_paths: BasePaths,
+}
+
 /// Context passed to the main loop, containing all initialized components.
 pub struct Context {
     /// Context used to build and start [crate::agent_control::AgentControl]
@@ -142,7 +153,7 @@ impl Command {
         match parsed.subcommand {
             Some(SubCommand::Version) => Command::print_version(running_mode),
             Some(SubCommand::Verify) => {
-                let (exit_code, message) = match Command::verify(running_mode, &parsed.args) {
+                let (exit_code, message) = match Command::verify(&parsed.args) {
                     Ok(_) => (ExitCode::SUCCESS, "Verification succeeded".to_string()),
                     Err(err) => (ExitCode::FAILURE, err.to_string()),
                 };
@@ -207,30 +218,11 @@ impl Command {
         }
     }
 
-    /// Builds the complete context required to execute the application
-    fn build_context(
-        running_mode: Environment,
-        args: &Args,
-        #[cfg(target_os = "windows")] as_windows_service: bool,
-    ) -> Result<Context, Box<dyn Error>> {
+    fn build_bootstrap_context(args: &Args) -> Result<BootstrapContext, Box<dyn Error>> {
         let base_paths = BasePaths::default();
 
-        // Initialize debug directories (if set)
         #[cfg(debug_assertions)]
         let base_paths = set_debug_dirs(base_paths, args);
-
-        // We need to create the pub_sub here so the Windows Service Stop handler is capable
-        // of publishing a stop signal to the application for a Graceful Shutdown.
-        let (application_event_publisher, application_event_consumer) = pub_sub();
-
-        create_shutdown_signal_handler(application_event_publisher.clone())
-            .map_err(|e| format!("Failed to create shutdown signal handler: {e}"))?;
-
-        #[cfg(target_family = "windows")]
-        let stop_handler = as_windows_service
-            .then(|| windows::setup_windows_service(application_event_publisher))
-            .transpose()
-            .map_err(|e| format!("Failed to setup Windows service: {e}"))?;
 
         let env_file_path = base_paths.local_dir.join(ENVIRONMENT_VARIABLES_FILE_NAME);
         if env_file_path.exists() {
@@ -238,8 +230,39 @@ impl Command {
                 .map_err(|e| format!("Failed to load environment: {e}"))?;
         }
 
-        let config_folder_name = base_paths.local_dir.display().to_string();
         let bootstrap_config = Self::build_bootstrap_config(&base_paths)?;
+
+        Ok(BootstrapContext {
+            bootstrap_config,
+            base_paths,
+        })
+    }
+
+    /// Builds the complete context required to execute the application
+    fn build_context(
+        running_mode: Environment,
+        args: &Args,
+        #[cfg(target_os = "windows")] as_windows_service: bool,
+    ) -> Result<Context, Box<dyn Error>> {
+        // We need to create the pub_sub here so the Windows Service Stop handler is capable
+        // of publishing a stop signal to the application for a Graceful Shutdown.
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+
+        #[cfg(target_family = "windows")]
+        let stop_handler = as_windows_service
+            .then(|| windows::setup_windows_service(application_event_publisher.clone()))
+            .transpose()
+            .map_err(|e| format!("Failed to setup Windows service: {e}"))?;
+
+        create_shutdown_signal_handler(application_event_publisher)
+            .map_err(|e| format!("Failed to create shutdown signal handler: {e}"))?;
+
+        let BootstrapContext {
+            base_paths,
+            bootstrap_config,
+        } = Self::build_bootstrap_context(args)?;
+
+        let config_folder_name = base_paths.local_dir.display().to_string();
 
         let tracing_config = TracingConfig::from_logging_path(base_paths.log_dir.clone())
             .with_logging_config(bootstrap_config.log.clone())
@@ -302,9 +325,12 @@ impl Command {
         Ok(agent_control_config)
     }
 
-    fn verify(running_mode: Environment, args: &Args) -> Result<(), Box<dyn std::error::Error>> {
-        let verified_config = check_config(running_mode, args)
-            .map_err(|err| format!("Configuration check failed: {err}"))?;
+    fn verify(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
+        try_init_stderr_tracing(&LoggingConfig::default())
+            .map_err(|e| format!("failed to initialize tracing: {e}"))?;
+
+        let verified_config =
+            check_config(args).map_err(|err| format!("configuration check failed: {err}"))?;
 
         if verified_config.maybe_opamp.is_some() {
             check_connectivity(verified_config)
