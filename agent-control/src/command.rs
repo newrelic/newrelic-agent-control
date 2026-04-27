@@ -244,23 +244,23 @@ impl Command {
         args: &Args,
         #[cfg(target_os = "windows")] as_windows_service: bool,
     ) -> Result<Context, Box<dyn Error>> {
-        let BootstrapContext {
-            base_paths,
-            bootstrap_config,
-        } = Self::build_bootstrap_context(args)?;
-
         // We need to create the pub_sub here so the Windows Service Stop handler is capable
         // of publishing a stop signal to the application for a Graceful Shutdown.
         let (application_event_publisher, application_event_consumer) = pub_sub();
 
-        create_shutdown_signal_handler(application_event_publisher.clone())
-            .map_err(|e| format!("Failed to create shutdown signal handler: {e}"))?;
-
         #[cfg(target_family = "windows")]
         let stop_handler = as_windows_service
-            .then(|| windows::setup_windows_service(application_event_publisher))
+            .then(|| windows::setup_windows_service(application_event_publisher.clone()))
             .transpose()
             .map_err(|e| format!("Failed to setup Windows service: {e}"))?;
+
+        create_shutdown_signal_handler(application_event_publisher)
+            .map_err(|e| format!("Failed to create shutdown signal handler: {e}"))?;
+
+        let BootstrapContext {
+            base_paths,
+            bootstrap_config,
+        } = Self::build_bootstrap_context(args)?;
 
         let config_folder_name = base_paths.local_dir.display().to_string();
 
