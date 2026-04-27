@@ -10,6 +10,12 @@ use url::Url;
 
 pub mod rendered;
 
+// Placeholder used to construct references at render time. This allows the package configuration
+// to omit the registry while still being able to construct valid OCI references.
+// The actual registry is patched in the oci client.
+// TODO: Rework internal structures and remove this placeholder.
+pub const OCI_REGISTRY_PLACEHOLDER: &str = "newrelic.io";
+
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub(super) struct Package {
     /// Download defines the supported repository sources for the packages.
@@ -56,7 +62,6 @@ impl Templateable for Download {
 impl Templateable for Oci {
     type Output = rendered::Oci;
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let registry = "base.io";
         let repository = self.repository.template_with(variables)?;
         let mut version = self.version.template_with(variables)?;
 
@@ -76,7 +81,7 @@ impl Templateable for Oci {
             version = format!(":{}", version);
         }
 
-        let string_reference = format!("{}/{}{}", registry, repository, version);
+        let string_reference = format!("{}/{}{}", OCI_REGISTRY_PLACEHOLDER, repository, version);
         let reference = Reference::from(
             ReferenceParser::from_str(string_reference.as_str()).map_err(|err| {
                 AgentTypeError::OCIReferenceParsingError(format!(
@@ -156,7 +161,7 @@ mod tests {
         let rendered_oci = oci.template_with(&variables);
         let rendered_oci = rendered_oci.unwrap();
 
-        assert_eq!(rendered_oci.reference.registry(), "base.io");
+        assert_eq!(rendered_oci.reference.registry(), OCI_REGISTRY_PLACEHOLDER);
         assert_eq!(rendered_oci.reference.repository(), "repo");
         assert_eq!(rendered_oci.reference.tag(), expected_tag);
         assert_eq!(rendered_oci.reference.digest(), expected_digest);
