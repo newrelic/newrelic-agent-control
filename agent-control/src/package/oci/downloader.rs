@@ -214,13 +214,25 @@ pub mod tests {
         }
     }
 
+    const REPOSITORY: &str = "test-repo";
+    const VERSION: &str = "v1.0.0";
+
+    fn test_package_data(public_key_url: Option<Url>) -> PackageData {
+        PackageData {
+            id: "test-package".to_string(),
+            repository: REPOSITORY.to_string(),
+            version: VERSION.to_string(),
+            public_key_url,
+        }
+    }
+
     #[test]
     fn test_download_agent_package_success() {
         let key_pair = TestKeyPair::new(0);
         let jwks_server = JwksMockServer::new(vec![
             serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
         ]);
-        let server = FakeOciServer::new("test-repo", "v1.0.0")
+        let server = FakeOciServer::new(REPOSITORY, VERSION)
             .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
             .with_layer(
                 b"test agent package content",
@@ -230,12 +242,7 @@ pub mod tests {
             .build();
 
         let downloader = create_downloader(server.registry(), true);
-        let package_data = PackageData {
-            id: "test-package".to_string(),
-            repository: "test-repo".to_string(),
-            version: "v1.0.0".to_string(),
-            public_key_url: Some(jwks_server.url),
-        };
+        let package_data = test_package_data(Some(jwks_server.url));
         let dest_dir = tempdir().unwrap();
         let local_agent_package = downloader.download(&package_data, dest_dir.path()).unwrap();
 
@@ -251,7 +258,7 @@ pub mod tests {
         let jwks_server = JwksMockServer::new(vec![
             serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
         ]);
-        let server = FakeOciServer::new("test-repo", "v1.0.0")
+        let server = FakeOciServer::new(REPOSITORY, VERSION)
             .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
             .with_layer(
                 b"test agent package content",
@@ -260,12 +267,7 @@ pub mod tests {
             .build();
 
         let downloader = create_downloader(server.registry(), false);
-        let package_data = PackageData {
-            id: "test-package".to_string(),
-            repository: "test-repo".to_string(),
-            version: "v1.0.0".to_string(),
-            public_key_url: Some(jwks_server.url),
-        };
+        let package_data = test_package_data(Some(jwks_server.url));
         let dest_dir = tempdir().unwrap();
         let local_agent_package = downloader.download(&package_data, dest_dir.path()).unwrap();
 
@@ -278,7 +280,7 @@ pub mod tests {
     #[test]
     fn test_download_agent_package_success_signature_verification_enabled_but_no_public_key_informed()
      {
-        let server = FakeOciServer::new("test-repo", "v1.0.0")
+        let server = FakeOciServer::new(REPOSITORY, VERSION)
             .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
             .with_layer(
                 b"test agent package content",
@@ -288,12 +290,7 @@ pub mod tests {
 
         let downloader = create_downloader(server.registry(), true);
         let dest_dir = tempdir().unwrap();
-        let package_data = PackageData {
-            id: "test-package".to_string(),
-            repository: "test-repo".to_string(),
-            version: "v1.0.0".to_string(),
-            public_key_url: None,
-        };
+        let package_data = test_package_data(None);
         let local_agent_package = downloader.download(&package_data, dest_dir.path()).unwrap();
 
         assert_eq!(
@@ -304,7 +301,7 @@ pub mod tests {
 
     #[test]
     fn test_download_with_multiple_layers() {
-        let server = FakeOciServer::new("test-repo", "v1.0.0")
+        let server = FakeOciServer::new(REPOSITORY, VERSION)
             .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
             .with_layer(
                 b"layer 1 content",
@@ -316,12 +313,7 @@ pub mod tests {
             )
             .build();
 
-        let package_data = PackageData {
-            id: "test-package".to_string(),
-            repository: "test-repo".to_string(),
-            version: "v1.0.0".to_string(),
-            public_key_url: None,
-        };
+        let package_data = test_package_data(None);
         let downloader = create_downloader(server.registry(), false);
         let dest_dir = tempdir().unwrap();
         let local_agent_package = downloader.download(&package_data, dest_dir.path()).unwrap();
@@ -334,7 +326,7 @@ pub mod tests {
 
     #[test]
     fn test_download_with_invalid_package() {
-        let server = FakeOciServer::new("test-repo", "v1.0.0")
+        let server = FakeOciServer::new(REPOSITORY, VERSION)
             .with_layer(
                 b"test content",
                 &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
@@ -344,12 +336,7 @@ pub mod tests {
 
         let downloader = create_downloader(server.registry(), false);
         let dest_dir = tempdir().unwrap();
-        let package_data = PackageData {
-            id: "test-package".to_string(),
-            repository: "test-repo".to_string(),
-            version: "v1.0.0".to_string(),
-            public_key_url: None,
-        };
+        let package_data = test_package_data(None);
         let err = downloader
             .download(&package_data, dest_dir.path())
             .unwrap_err();
@@ -368,12 +355,7 @@ pub mod tests {
 
         let downloader = create_downloader(server.address().to_string(), false);
         let dest_dir = tempdir().unwrap();
-        let package_data = PackageData {
-            id: "test-package".to_string(),
-            repository: "test-repo".to_string(),
-            version: "v1.0.0".to_string(),
-            public_key_url: None,
-        };
+        let package_data = test_package_data(None);
         let err = downloader
             .download(&package_data, dest_dir.path())
             .unwrap_err();
@@ -389,7 +371,7 @@ pub mod tests {
         let jwks_server = JwksMockServer::new(vec![
             serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
         ]);
-        let server = FakeOciServer::new("test-repo", "v1.0.0")
+        let server = FakeOciServer::new(REPOSITORY, VERSION)
             .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
             .with_layer(
                 b"test agent package content",
@@ -399,12 +381,7 @@ pub mod tests {
 
         let downloader = create_downloader(server.registry(), true);
         let dest_dir = tempdir().unwrap();
-        let package_data = PackageData {
-            id: "test-package".to_string(),
-            repository: "test-repo".to_string(),
-            version: "v1.0.0".to_string(),
-            public_key_url: Some(jwks_server.url.clone()),
-        };
+        let package_data = test_package_data(Some(jwks_server.url.clone()));
         let err = downloader
             .download(&package_data, dest_dir.path())
             .unwrap_err();
@@ -421,7 +398,7 @@ pub mod tests {
         let jwks_server = JwksMockServer::new(vec![
             serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
         ]);
-        let oci_mock_a = FakeOciServer::new("test-repo", "v1.0.0")
+        let oci_mock_a = FakeOciServer::new(REPOSITORY, VERSION)
             .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
             .with_layer(
                 ORIGINAL_CONTENT,
@@ -439,7 +416,7 @@ pub mod tests {
             .expect("Signature should be verified successfully");
 
         // Move tag v1.0.0 after signature is verified (TOCTOU attack)
-        let oci_mock_b = FakeOciServer::new("test-repo", "v1.0.0")
+        let oci_mock_b = FakeOciServer::new(REPOSITORY, VERSION)
             .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
             .with_layer(
                 MALICIOUS_CONTENT,
@@ -472,7 +449,7 @@ pub mod tests {
 
     #[test]
     fn test_download_man_in_the_middle_attack() {
-        let oci_mock = FakeOciServer::new("test-repo", "v1.0.0")
+        let oci_mock = FakeOciServer::new(REPOSITORY, VERSION)
             .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
             .with_layer(
                 b"some content",
@@ -502,19 +479,14 @@ pub mod tests {
 
     #[test]
     fn test_none_auth_defaults_to_anonymous() {
-        let server = FakeOciServer::new("test-repo", "v1.0.0")
+        let server = FakeOciServer::new(REPOSITORY, VERSION)
             .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
             .with_layer(
                 b"content",
                 &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
             )
             .build();
-        let package_data = PackageData {
-            id: "test-package".to_string(),
-            repository: "test-repo".to_string(),
-            version: "v1.0.0".to_string(),
-            public_key_url: None,
-        };
+        let package_data = test_package_data(None);
 
         let client = Client::try_new(
             ClientConfig {

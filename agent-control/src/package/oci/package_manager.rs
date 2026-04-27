@@ -436,17 +436,8 @@ mod tests {
             PathBuf::from(root_dir.path()),
         );
 
-        let untracked_package_path = get_package_path(
-            root_dir.path(),
-            &agent_id,
-            &PackageData {
-                id: TEST_PACKAGE_ID.to_string(),
-                repository: "newrelic/fake-agent".to_string(),
-                version: "v0".to_string(),
-                public_key_url: None,
-            },
-        )
-        .unwrap();
+        let untracked_package_path =
+            get_package_path(root_dir.path(), &agent_id, &new_package_version("v0")).unwrap();
         DirectoryManagerFs.create(&untracked_package_path).unwrap();
 
         assert!(untracked_package_path.exists());
@@ -478,12 +469,7 @@ mod tests {
         let other_agent_package = get_package_path(
             root_dir.path(),
             &AgentID::try_from("other-agent-id").unwrap(),
-            &PackageData {
-                id: TEST_PACKAGE_ID.to_string(),
-                repository: "newrelic/fake-agent".to_string(),
-                version: "v0".to_string(),
-                public_key_url: None,
-            },
+            &new_package_version("v0"),
         )
         .unwrap();
         DirectoryManagerFs.create(&other_agent_package).unwrap();
