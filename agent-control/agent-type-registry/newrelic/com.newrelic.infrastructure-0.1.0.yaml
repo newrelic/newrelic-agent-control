@@ -287,6 +287,11 @@ deployment:
     health:
       interval: 30s
       initial_delay: 30s
+      checks:
+        - namespace: ${nr-ac:namespace}
+          name: ${nr-sub:agent_id}
+          kind: HelmReleaseWorkload
+          target_namespace: ${nr-ac:namespace_agents}
     objects:
       # Flux [HelmRepository](https://fluxcd.io/flux/components/source/helmrepositories/).
       repository:
