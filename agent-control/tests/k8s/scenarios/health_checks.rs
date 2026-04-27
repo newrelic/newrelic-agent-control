@@ -47,7 +47,7 @@ fn k8s_direct_workload_health_checks() {
         0,
     ));
 
-    let _sa = start_agent_control_with_testdata_config(
+    let _ac = start_agent_control_with_testdata_config(
         test_name,
         CUSTOM_AGENT_TYPE_DIRECT_CHECKS_PATH,
         k8s.client.clone(),
@@ -96,7 +96,7 @@ fn k8s_direct_workload_health_checks_unhealthy() {
         1,
     ));
 
-    let _sa = start_agent_control_with_testdata_config(
+    let _ac = start_agent_control_with_testdata_config(
         test_name,
         CUSTOM_AGENT_TYPE_DIRECT_CHECKS_PATH,
         k8s.client.clone(),
