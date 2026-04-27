@@ -446,6 +446,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## cmov <https://crates.io/crates/cmov>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
+
 ## colorchoice <https://crates.io/crates/colorchoice>
 
 Distributed under the following license(s):
@@ -553,6 +560,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## cpubits <https://crates.io/crates/cpubits>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## cpufeatures <https://crates.io/crates/cpufeatures>
 
 Distributed under the following license(s):
@@ -628,6 +642,13 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## ctutils <https://crates.io/crates/ctutils>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
 
 ## darling <https://crates.io/crates/darling>
 
