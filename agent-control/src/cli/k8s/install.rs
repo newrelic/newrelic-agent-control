@@ -8,6 +8,7 @@ use kube::api::{DynamicObject, ObjectMeta};
 use tracing::{debug, info};
 
 use super::{errors::K8sCliError, utils::try_new_k8s_client};
+use crate::agent_type::runtime_config::k8s::{K8sHealthCheckDefinition, K8sHealthResourceKind};
 use crate::checkers::health::{
     health_checker::HealthChecker, k8s::health_checker::K8sHealthChecker,
     with_start_time::StartTime,
@@ -342,14 +343,28 @@ fn check_installation(
     initial_delay: Duration,
     objects: Vec<DynamicObject>,
 ) -> Result<(), K8sCliError> {
+    let checks: Vec<K8sHealthCheckDefinition> = objects
+        .into_iter()
+        .filter(|obj| {
+            obj.types
+                .as_ref()
+                .is_some_and(|tm| *tm == helmrelease_v2_type_meta())
+        })
+        .filter_map(|obj| {
+            Some(K8sHealthCheckDefinition {
+                name: obj.metadata.name?,
+                namespace: obj.metadata.namespace?,
+                kind: K8sHealthResourceKind::HelmReleaseWorkload,
+                target_namespace: None,
+            })
+        })
+        .collect();
+
     let health_checker =
-        K8sHealthChecker::try_new(Arc::new(k8s_client), Arc::new(objects), StartTime::now())
-            .map_err(|err| {
-                K8sCliError::InstallationCheck(format!("could not build health-checker: {err}"))
-            })?
-            .ok_or(K8sCliError::InstallationCheck(
-                "no resources to check health were found".to_string(),
-            ))?;
+        K8sHealthChecker::from_checks_definition(Arc::new(k8s_client), &checks, StartTime::now())
+            .ok_or_else(|| {
+            K8sCliError::InstallationCheck("no resources to check health were found".to_string())
+        })?;
 
     let max_retries = timeout.as_secs() / INSTALLATION_CHECK_DEFAULT_RETRY_INTERVAL.as_secs();
 
