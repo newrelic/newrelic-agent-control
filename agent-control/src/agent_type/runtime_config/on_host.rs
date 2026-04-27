@@ -219,7 +219,7 @@ packages:
                 .join("agent-id")
                 .join("stored_packages")
                 .join("my-pkg")
-                .join("oci_base_io__my__repo_latest")
+                .join("oci_newrelic_io__my__repo_latest")
                 .to_string_lossy()
                 .to_string(),
         );
