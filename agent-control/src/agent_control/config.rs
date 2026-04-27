@@ -6,6 +6,7 @@ use crate::agent_control::defaults::{
     AC_OCI_PACKAGE_PUBLIC_KEY_URL,
 };
 use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
+use crate::agent_type::runtime_config::on_host::package::rendered::{Repository, Version};
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
@@ -23,6 +24,8 @@ use kube::api::TypeMeta;
 use oci_client::secrets::RegistryAuth;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
+use std::fmt::Display;
+use std::str::FromStr;
 use thiserror::Error;
 use url::Url;
 use wrapper_with_default::WrapperWithDefault;
@@ -99,25 +102,42 @@ pub struct PackagesConfig {
     pub signature_verification_enabled: SignatureVerificationEnabled,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq)]
 pub struct OciConfig {
-    #[serde(default = "OciConfig::default_registry")]
-    pub registry: String,
+    #[serde(default)]
+    pub registry: Registry,
     pub auth: Option<OciAuth>,
 }
 
-impl Default for OciConfig {
+#[derive(thiserror::Error, Debug)]
+#[error("{0}")]
+pub struct InvalidRegistry(String);
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct Registry(String);
+
+impl Default for Registry {
     fn default() -> Self {
-        OciConfig {
-            registry: Self::default_registry(),
-            auth: None,
-        }
+        Registry(AC_OCI_PACKAGE_DEFAULT_REGISTRY.to_string())
     }
 }
 
-impl OciConfig {
-    fn default_registry() -> String {
-        AC_OCI_PACKAGE_DEFAULT_REGISTRY.to_string()
+impl Display for Registry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl FromStr for Registry {
+    type Err = InvalidRegistry;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            return Err(InvalidRegistry("registry cannot be empty".to_string()));
+        }
+
+        // Note: we are not validating the registry string since it can be a url or just a hostname, and the rules for both are quite complex.
+        Ok(Registry(s.to_string()))
     }
 }
 
@@ -200,7 +220,7 @@ pub struct AgentControlDynamicConfig {
     pub agents: SubAgentsMap,
     /// version represent the AC version that needs to be executed.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub version: Option<String>,
+    pub version: Option<Version>,
     /// chart_version represent the AC chart version that needs to be executed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chart_version: Option<String>,
@@ -457,7 +477,8 @@ impl Default for AgentControlPackage {
         AgentControlPackage {
             download: Download {
                 oci: Oci {
-                    repository: AC_OCI_PACKAGE_DEFAULT_REPOSITORY.to_string(),
+                    repository: Repository::from_str(AC_OCI_PACKAGE_DEFAULT_REPOSITORY)
+                        .expect("valid default repository"),
                     public_key_url: Url::parse(AC_OCI_PACKAGE_PUBLIC_KEY_URL)
                         .expect("valid default url"),
                 },
@@ -474,7 +495,7 @@ pub struct Download {
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct Oci {
     /// Repository name.
-    pub repository: String,
+    pub repository: Repository,
     /// Public key url is expected to be a jwks.
     pub public_key_url: Url,
 }
@@ -1156,7 +1177,7 @@ k8s:
     fn test_deserialize_oci_config() {
         let config_input = r#"agents: {}"#;
         let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
-        assert_eq!("docker.io".to_string(), config.oci.registry);
+        assert_eq!("docker.io".to_string(), config.oci.registry.0);
 
         let config_input = r#"
 agents: {}
@@ -1166,7 +1187,7 @@ oci:
       token: "token"
 "#;
         let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
-        assert_eq!("docker.io".to_string(), config.oci.registry);
+        assert_eq!("docker.io".to_string(), config.oci.registry.0);
 
         let config_input = r#"
 agents: {}
@@ -1174,7 +1195,7 @@ oci:
   registry: "custom-registry.io"
 "#;
         let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
-        assert_eq!("custom-registry.io".to_string(), config.oci.registry);
+        assert_eq!("custom-registry.io".to_string(), config.oci.registry.0);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////

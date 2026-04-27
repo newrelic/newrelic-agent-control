@@ -15,8 +15,12 @@ use std::str::FromStr;
 
 use oci_client::{ParseError, Reference};
 
+use crate::{
+    agent_control::config::Registry,
+    agent_type::runtime_config::on_host::package::rendered::{Repository, Version},
+};
+
 /// NAME_TOTAL_LENGTH_MAX is the maximum total number of characters in a repository name.
-const NAME_TOTAL_LENGTH_MAX: usize = 255;
 const DOCKER_HUB_DOMAIN_LEGACY: &str = "index.docker.io";
 const DOCKER_HUB_DOMAIN: &str = "docker.io";
 const DOCKER_HUB_OFFICIAL_REPO_NAME: &str = "library";
@@ -24,6 +28,27 @@ const DEFAULT_TAG: &str = "latest";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReferenceParser(Reference);
+
+impl From<(&Registry, &Repository, &Version)> for ReferenceParser {
+    fn from((registry, repository, version): (&Registry, &Repository, &Version)) -> Self {
+        let registry = registry.to_string();
+        let repository = repository.to_string();
+        let reference = match version.tag_and_digest() {
+            (Some(tag), Some(digest)) => {
+                Reference::with_tag_and_digest(registry, repository, tag, digest)
+            }
+            (Some(tag), None) => Reference::with_tag(registry.clone(), repository.clone(), tag),
+            (None, Some(digest)) => {
+                Reference::with_digest(registry.clone(), repository.clone(), digest)
+            }
+            (None, None) => {
+                Reference::with_tag(registry.clone(), repository.clone(), DEFAULT_TAG.to_owned())
+            }
+        };
+
+        Self(reference)
+    }
+}
 
 impl FromStr for ReferenceParser {
     type Err = ParseError;
@@ -57,26 +82,21 @@ impl TryFrom<&str> for ReferenceParser {
         // Get registry / repository.
         let (registry, repository) = split_domain(name);
 
-        // Length check (repository only).
-        if repository.len() > NAME_TOTAL_LENGTH_MAX {
-            return Err(ParseError::NameTooLong);
-        }
+        let registry =
+            Registry::from_str(&registry).map_err(|_| ParseError::ReferenceInvalidFormat)?;
+        let repository =
+            Repository::from_str(&repository).map_err(|_| ParseError::ReferenceInvalidFormat)?;
 
-        // Character validation.
-        validate_repository(&repository)?;
-        if let Some(d) = digest {
-            validate_digest(d)?;
-        }
-
-        let reference = match (tag, digest) {
-            (Some(t), Some(d)) => {
-                Reference::with_tag_and_digest(registry, repository, t.to_owned(), d.to_owned())
-            }
-            (Some(t), None) => Reference::with_tag(registry, repository, t.to_owned()),
-            (None, Some(d)) => Reference::with_digest(registry, repository, d.to_owned()),
-            (None, None) => Reference::with_tag(registry, repository, DEFAULT_TAG.to_owned()),
+        let version = match (tag, digest) {
+            (Some(t), Some(d)) => format!("{}@{}", t, d),
+            (Some(t), None) => t.to_owned(),
+            (None, Some(d)) => format!("@{}", d),
+            (None, None) => DEFAULT_TAG.to_owned(),
         };
-        Ok(Self(reference))
+        let version =
+            Version::from_str(&version).map_err(|_| ParseError::ReferenceInvalidFormat)?;
+
+        Ok(Self::from((&registry, &repository, &version)))
     }
 }
 
@@ -143,40 +163,6 @@ fn split_name_tag(s: &str) -> (&str, Option<&str>) {
     }
 }
 
-/// Validate that every path component of the repository contains only `[a-z0-9._-]`.
-fn validate_repository(repo: &str) -> Result<(), ParseError> {
-    repo.split('/').try_for_each(|component| {
-        if !component.is_empty() {
-            component.chars().try_for_each(validate_component_char)
-        } else {
-            Err(ParseError::ReferenceInvalidFormat)
-        }
-    })
-}
-
-fn validate_component_char(c: char) -> Result<(), ParseError> {
-    if c.is_ascii_uppercase() {
-        Err(ParseError::NameContainsUppercase)
-    } else if !c.is_ascii_alphanumeric() && c != '.' && c != '_' && c != '-' {
-        Err(ParseError::ReferenceInvalidFormat)
-    } else {
-        Ok(())
-    }
-}
-
-/// Validate a digest string of the form `<algorithm>:<hex>`.
-fn validate_digest(digest: &str) -> Result<(), ParseError> {
-    use ParseError::*;
-    match digest.split_once(':') {
-        Some(("sha256", hex)) if hex.len() == 64 => Ok(()),
-        Some(("sha384", hex)) if hex.len() == 96 => Ok(()),
-        Some(("sha512", hex)) if hex.len() == 128 => Ok(()),
-        Some(("sha256", _)) | Some(("sha384", _)) | Some(("sha512", _)) => Err(DigestInvalidLength),
-        Some(_) => Err(DigestUnsupported),
-        None => Err(DigestInvalidFormat),
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -185,92 +171,108 @@ mod test {
         use super::*;
         use rstest::rstest;
 
-        #[rstest(input, registry, repository, tag, digest, whole,
-            case("busybox", "docker.io", "library/busybox", Some("latest"), None, "docker.io/library/busybox:latest"),
-            case("test.com:tag", "docker.io", "library/test.com", Some("tag"), None, "docker.io/library/test.com:tag"),
-            case("test.com:5000", "docker.io", "library/test.com", Some("5000"), None, "docker.io/library/test.com:5000"),
-            case("test.com/repo:tag", "test.com", "repo", Some("tag"), None, "test.com/repo:tag"),
-            case("test:5000/repo", "test:5000", "repo", Some("latest"), None, "test:5000/repo:latest"),
-            case("test:5000/repo:tag", "test:5000", "repo", Some("tag"), None, "test:5000/repo:tag"),
-            case("test:5000/repo@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "test:5000", "repo", None, Some("sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), "test:5000/repo@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-            case("test:5000/repo:tag@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "test:5000", "repo", Some("tag"), Some("sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), "test:5000/repo:tag@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-            case("lowercase:Uppercase", "docker.io", "library/lowercase", Some("Uppercase"), None, "docker.io/library/lowercase:Uppercase"),
-            case("sub-dom1.foo.com/bar/baz/quux", "sub-dom1.foo.com", "bar/baz/quux", Some("latest"), None, "sub-dom1.foo.com/bar/baz/quux:latest"),
-            case("sub-dom1.foo.com/bar/baz/quux:some-long-tag", "sub-dom1.foo.com", "bar/baz/quux", Some("some-long-tag"), None, "sub-dom1.foo.com/bar/baz/quux:some-long-tag"),
-            case("b.gcr.io/test.example.com/my-app:test.example.com", "b.gcr.io", "test.example.com/my-app", Some("test.example.com"), None, "b.gcr.io/test.example.com/my-app:test.example.com"),
-            // ☃.com in punycode
-            case("xn--n3h.com/myimage:xn--n3h.com", "xn--n3h.com", "myimage", Some("xn--n3h.com"), None, "xn--n3h.com/myimage:xn--n3h.com"),
-            // 🐳.com in punycode
-            case("xn--7o8h.com/myimage:xn--7o8h.com@sha512:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "xn--7o8h.com", "myimage", Some("xn--7o8h.com"), Some("sha512:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), "xn--7o8h.com/myimage:xn--7o8h.com@sha512:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-            case("foo_bar.com:8080", "docker.io", "library/foo_bar.com", Some("8080"), None, "docker.io/library/foo_bar.com:8080" ),
-            case("foo/foo_bar.com:8080", "docker.io", "foo/foo_bar.com", Some("8080"), None, "docker.io/foo/foo_bar.com:8080"),
-            case("opensuse/leap:15.3", "docker.io", "opensuse/leap", Some("15.3"), None, "docker.io/opensuse/leap:15.3"),
+        #[rstest]
+        #[case("busybox")]
+        #[case("test.com:tag")]
+        #[case("test.com:5000")]
+        #[case("test.com/repo:tag")]
+        #[case("test:5000/repo")]
+        #[case("test:5000/repo:tag")]
+        #[case(
+            "test:5000/repo@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         )]
-        fn parse_good_reference(
-            input: &str,
-            registry: &str,
-            repository: &str,
-            tag: Option<&str>,
-            digest: Option<&str>,
-            whole: &str,
-        ) {
-            println!("input: {}", input);
-            let reference = Reference::from(
+        #[case(
+            "test:5000/repo:tag@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        )]
+        #[case("lowercase:Uppercase")]
+        #[case("sub-dom1.foo.com/bar/baz/quux")]
+        #[case("sub-dom1.foo.com/bar/baz/quux:some-long-tag")]
+        #[case("b.gcr.io/test.example.com/my-app:test.example.com")]
+        // ☃.com in punycode
+        #[case("xn--n3h.com/myimage:xn--n3h.com")]
+        // 🐳.com in punycode
+        #[case(
+            "xn--7o8h.com/myimage:xn--7o8h.com@sha512:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        )]
+        #[case("foo_bar.com:8080")]
+        #[case("foo/foo_bar.com:8080")]
+        #[case("opensuse/leap:15.3")]
+        fn parse_good_reference(#[case] input: &str) {
+            let expected_reference = Reference::from_str(input).unwrap();
+            let actual_reference = Reference::from(
                 ReferenceParser::try_from(input).expect("could not parse reference"),
             );
-            println!("{} -> {:?}", input, reference);
-            assert_eq!(registry, reference.registry());
-            assert_eq!(repository, reference.repository());
-            assert_eq!(tag, reference.tag());
-            assert_eq!(digest, reference.digest());
+            assert_eq!(expected_reference, actual_reference);
+        }
+
+        #[rstest]
+        #[case::with_tag("docker.io", "nr/test", "v1.0.0", "docker.io/nr/test:v1.0.0")]
+        #[case::with_digest(
+            "docker.io",
+            "nr/test",
+            "@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "docker.io/nr/test@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        )]
+        #[case::with_tag_and_digest(
+            "docker.io",
+            "nr/test",
+            "v1.0.0@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "docker.io/nr/test:v1.0.0@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        )]
+        #[case::without_tag_or_digest("docker.io", "nr/test", "", "docker.io/nr/test:latest")]
+        fn parse_from_components(
+            #[case] registry: &str,
+            #[case] repository: &str,
+            #[case] version: &str,
+            #[case] whole: &str,
+        ) {
+            let registry = Registry::from_str(registry).unwrap();
+            let repository = Repository::from_str(repository).unwrap();
+            let version = Version::from_str(version).unwrap();
+            let reference =
+                Reference::from(ReferenceParser::from((&registry, &repository, &version)));
             assert_eq!(whole, reference.whole());
         }
 
-        #[rstest(input, err,
-            case("", ParseError::NameEmpty),
-            case(":justtag", ParseError::ReferenceInvalidFormat),
-            case("@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", ParseError::ReferenceInvalidFormat),
-            case("repo@sha256:ffffffffffffffffffffffffffffffffff", ParseError::DigestInvalidLength),
-            case("validname@invaliddigest:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", ParseError::DigestUnsupported),
-            case("Uppercase:tag", ParseError::NameContainsUppercase),
-            // FIXME: "Uppercase" is incorrectly handled as a domain-name here, and therefore passes.
-            // https://github.com/docker/distribution/blob/master/reference/reference_test.go#L104-L109
-            // case("Uppercase/lowercase:tag", ParseError::NameContainsUppercase),
-            case("test:5000/Uppercase/lowercase:tag", ParseError::NameContainsUppercase),
-            case("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ParseError::NameTooLong),
-            case("aa/asdf$$^/aa", ParseError::ReferenceInvalidFormat)
+        #[rstest]
+        #[case("", ParseError::NameEmpty)]
+        #[case(":justtag", ParseError::ReferenceInvalidFormat)]
+        #[case(
+            "@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            ParseError::ReferenceInvalidFormat
         )]
-        fn parse_bad_reference(input: &str, err: ParseError) {
+        #[case("aa/asdf$$^/aa", ParseError::ReferenceInvalidFormat)]
+        fn parse_bad_reference(#[case] input: &str, #[case] err: ParseError) {
             assert_eq!(ReferenceParser::try_from(input).unwrap_err(), err)
         }
 
-        #[rstest(
-            input,
-            registry,
-            resolved_registry,
-            whole,
-            case(
-                "busybox",
-                "docker.io",
-                "index.docker.io",
-                "docker.io/library/busybox:latest"
-            ),
-            case("test.com/repo:tag", "test.com", "test.com", "test.com/repo:tag"),
-            case("test:5000/repo", "test:5000", "test:5000", "test:5000/repo:latest"),
-            case(
-                "sub-dom1.foo.com/bar/baz/quux",
-                "sub-dom1.foo.com",
-                "sub-dom1.foo.com",
-                "sub-dom1.foo.com/bar/baz/quux:latest"
-            ),
-            case(
-                "b.gcr.io/test.example.com/my-app:test.example.com",
-                "b.gcr.io",
-                "b.gcr.io",
-                "b.gcr.io/test.example.com/my-app:test.example.com"
-            )
+        #[rstest]
+        #[case(
+            "busybox",
+            "docker.io",
+            "index.docker.io",
+            "docker.io/library/busybox:latest"
         )]
-        fn test_mirror_registry(input: &str, registry: &str, resolved_registry: &str, whole: &str) {
+        #[case("test.com/repo:tag", "test.com", "test.com", "test.com/repo:tag")]
+        #[case("test:5000/repo", "test:5000", "test:5000", "test:5000/repo:latest")]
+        #[case(
+            "sub-dom1.foo.com/bar/baz/quux",
+            "sub-dom1.foo.com",
+            "sub-dom1.foo.com",
+            "sub-dom1.foo.com/bar/baz/quux:latest"
+        )]
+        #[case(
+            "b.gcr.io/test.example.com/my-app:test.example.com",
+            "b.gcr.io",
+            "b.gcr.io",
+            "b.gcr.io/test.example.com/my-app:test.example.com"
+        )]
+        fn test_mirror_registry(
+            #[case] input: &str,
+            #[case] registry: &str,
+            #[case] resolved_registry: &str,
+            #[case] whole: &str,
+        ) {
             let mut reference = Reference::from(
                 ReferenceParser::try_from(input).expect("could not parse reference"),
             );
@@ -284,36 +286,6 @@ mod test {
             assert_eq!(registry, reference.registry());
             assert_eq!(Some(registry), reference.namespace());
             assert_eq!(whole, reference.whole());
-        }
-
-        #[rstest(
-            expected,
-            registry,
-            repository,
-            tag,
-            digest,
-            case(
-                "docker.io/foo/bar:1.2@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-                "docker.io",
-                "foo/bar",
-                "1.2",
-                "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-            )
-        )]
-        fn test_create_reference_from_tag_and_digest(
-            expected: &str,
-            registry: &str,
-            repository: &str,
-            tag: &str,
-            digest: &str,
-        ) {
-            let reference = Reference::with_tag_and_digest(
-                registry.to_string(),
-                repository.to_string(),
-                tag.to_string(),
-                digest.to_string(),
-            );
-            assert_eq!(expected, reference.to_string());
         }
     }
 }

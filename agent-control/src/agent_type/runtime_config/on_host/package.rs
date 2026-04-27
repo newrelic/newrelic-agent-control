@@ -1,5 +1,8 @@
+use std::str::FromStr;
+
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
+use crate::agent_type::runtime_config::on_host::package::rendered::{Repository, Version};
 use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
 use crate::agent_type::templates::Templateable;
 use serde::Deserialize;
@@ -53,6 +56,16 @@ impl Templateable for Download {
 impl Templateable for Oci {
     type Output = rendered::Oci;
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        let repository =
+            Repository::from_str(&self.repository.template_with(variables)?).map_err(|err| {
+                AgentTypeError::OCIReferenceParsingError(format!("invalid repository: {err}"))
+            })?;
+
+        let version =
+            Version::from_str(&self.version.template_with(variables)?).map_err(|err| {
+                AgentTypeError::OCIReferenceParsingError(format!("invalid version: {err}"))
+            })?;
+
         let public_key_url = self
             .public_key_url
             .map(|pk| pk.template_with(variables))
@@ -66,8 +79,8 @@ impl Templateable for Oci {
             })?;
 
         Ok(Self::Output {
-            repository: self.repository.template_with(variables)?,
-            version: self.version.template_with(variables)?,
+            repository,
+            version,
             public_key_url,
         })
     }
@@ -75,8 +88,11 @@ impl Templateable for Oci {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
     use crate::agent_type::definition::Variables;
+    use crate::agent_type::runtime_config::on_host::package::rendered::Repository;
     use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
     use crate::agent_type::variable::Variable;
     use rstest::rstest;
@@ -86,6 +102,8 @@ mod tests {
     #[case::with_public_key_url(Some("https://github.com/rust-lang/crates.io-index".parse().unwrap()))]
     #[case::without_public_key_url(None)]
     fn test_oci_template(#[case] public_key_url: Option<Url>) {
+        use crate::agent_type::runtime_config::on_host::package::rendered::Version;
+
         let version =
             "a-tag@sha256:ec5f08ee7be8b557cd1fc5ae1a0ac985e8538da7c93f51a51eff4b277509a723"
                 .to_string();
@@ -115,8 +133,11 @@ mod tests {
         };
 
         let rendered_oci = oci.template_with(&variables).unwrap();
-        assert_eq!(rendered_oci.repository, "repo");
-        assert_eq!(rendered_oci.version, version);
+        assert_eq!(
+            rendered_oci.repository,
+            Repository::from_str("repo").unwrap()
+        );
+        assert_eq!(rendered_oci.version, Version::from_str(&version).unwrap());
         assert_eq!(rendered_oci.public_key_url, public_key_url);
     }
 }

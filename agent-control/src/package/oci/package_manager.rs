@@ -372,8 +372,11 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
 
+    use crate::agent_type::runtime_config::on_host::package::rendered::{Repository, Version};
     use crate::package::oci::artifact_definitions::PackageMediaType;
     use crate::package::oci::downloader::tests::MockOCIDownloader;
     use crate::utils::extract::tests::TestDataHelper;
@@ -388,10 +391,11 @@ mod tests {
     fn test_package_data() -> PackageData {
         PackageData {
             id: TEST_PACKAGE_ID.to_string(),
-            repository: "library/busybox".to_string(),
-            version:
-                "latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-                    .to_string(),
+            repository: Repository::from_str("library/busybox").unwrap(),
+            version: Version::from_str(
+                "latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            )
+            .unwrap(),
             public_key_url: None,
         }
     }
@@ -403,8 +407,8 @@ mod tests {
     fn new_package_version(version: &str) -> PackageData {
         PackageData {
             id: TEST_PACKAGE_ID.to_string(),
-            repository: "newrelic/fake-agent".to_string(),
-            version: version.to_string(),
+            repository: Repository::from_str("newrelic/fake-agent").unwrap(),
+            version: Version::from_str(version).unwrap(),
             public_key_url: None,
         }
     }

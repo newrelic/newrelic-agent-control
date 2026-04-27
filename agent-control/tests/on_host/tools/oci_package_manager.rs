@@ -3,14 +3,15 @@ use flate2::Compression;
 use flate2::write::GzEncoder;
 use fs::directory_manager::DirectoryManagerFs;
 use newrelic_agent_control::{
+    agent_control::config::Registry,
     http::config::ProxyConfig,
     oci,
     package::oci::{downloader::OCIArtifactDownloader, package_manager::OCIPackageManager},
 };
 use oci_client::client::{ClientConfig, ClientProtocol};
-use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
+use std::{fs::File, str::FromStr};
 
 pub fn new_testing_oci_package_manager(
     base_path: PathBuf,
@@ -25,7 +26,12 @@ pub fn new_testing_oci_package_manager(
         tokio_runtime(),
     )
     .unwrap();
-    let downloader = OCIArtifactDownloader::new(client, registry, Default::default(), false);
+    let downloader = OCIArtifactDownloader::new(
+        client,
+        Registry::from_str(&registry).unwrap(),
+        Default::default(),
+        false,
+    );
 
     OCIPackageManager::new(downloader, DirectoryManagerFs, base_path)
 }
