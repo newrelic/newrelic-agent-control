@@ -288,6 +288,10 @@ jobs:
         shell: bash
         run: make -C agent-control test/onhost/oci-registry/integration
 
+      - name: Run onHost oci-registry integration-tests with basic auth
+        shell: bash
+        run: make -C agent-control test/onhost/oci-auth-registry/integration
+
       - name: Show zot logs
         run: cat ~/.zot/zot.log
 
