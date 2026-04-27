@@ -20,7 +20,7 @@ use crate::{
         Error as K8sError,
         client::K8sObjectKey,
         labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL},
-        utils::{get_name, get_type_meta},
+        utils::{get_name, get_target_namespace, get_type_meta},
     },
 };
 
@@ -351,11 +351,12 @@ fn check_installation(
                 .is_some_and(|tm| *tm == helmrelease_v2_type_meta())
         })
         .filter_map(|obj| {
+            let target_namespace = get_target_namespace(&obj);
             Some(K8sHealthCheckDefinition {
                 name: obj.metadata.name?,
                 namespace: obj.metadata.namespace?,
                 kind: K8sHealthResourceKind::HelmReleaseWorkload,
-                target_namespace: None,
+                target_namespace,
             })
         })
         .collect();
