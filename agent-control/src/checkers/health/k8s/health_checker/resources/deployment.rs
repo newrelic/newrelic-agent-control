@@ -1,4 +1,6 @@
-use super::{check_health_for_items, flux_release_filter, missing_field_error};
+use super::{
+    ResourceFilter, check_health_for_items, flux_release_filter, missing_field_error, name_filter,
+};
 use crate::checkers::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
@@ -12,7 +14,7 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub struct K8sHealthDeployment {
     k8s_client: Arc<SyncK8sClient>,
-    release_name: String,
+    filter: ResourceFilter,
     start_time: StartTime,
     namespace: String,
 }
@@ -21,11 +23,18 @@ impl HealthChecker for K8sHealthDeployment {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         let deployments = self.k8s_client.list_deployment(&self.namespace)?;
 
-        let target_deployments = deployments
-            .into_iter()
-            .filter(flux_release_filter(self.release_name.clone()));
-
-        let health = check_health_for_items(target_deployments, Self::check_deployment_health)?;
+        let health = match &self.filter {
+            ResourceFilter::ByName(name) => check_health_for_items(
+                deployments.into_iter().filter(name_filter(name.clone())),
+                Self::check_deployment_health,
+            )?,
+            ResourceFilter::ByFluxLabel(release) => check_health_for_items(
+                deployments
+                    .into_iter()
+                    .filter(flux_release_filter(release.clone())),
+                Self::check_deployment_health,
+            )?,
+        };
 
         Ok(HealthWithStartTime::new(health, self.start_time))
     }
@@ -34,13 +43,13 @@ impl HealthChecker for K8sHealthDeployment {
 impl K8sHealthDeployment {
     pub fn new(
         k8s_client: Arc<SyncK8sClient>,
-        release_name: String,
+        filter: ResourceFilter,
         start_time: StartTime,
         namespace: String,
     ) -> Self {
         Self {
             k8s_client,
-            release_name,
+            filter,
             start_time,
             namespace,
         }
@@ -90,7 +99,6 @@ impl K8sHealthDeployment {
 mod tests {
     use super::*;
     use crate::checkers::health::health_checker::Healthy;
-    use crate::checkers::health::k8s::health_checker::LABEL_RELEASE_FLUX;
     use crate::checkers::health::k8s::health_checker::resources::daemon_set::tests::TEST_NAMESPACE;
     use crate::k8s::client::MockSyncK8sClient;
     use k8s_openapi::api::apps::v1::{
@@ -318,20 +326,47 @@ mod tests {
     }
 
     #[test]
-    fn test_health_check_unhealthy() {
-        let healthy_deployment = Deployment {
-            metadata: ObjectMeta {
-                labels: Some([(LABEL_RELEASE_FLUX.to_string(), "flux-release".to_string())].into()),
-                ..test_util_create_metadata("healthy_deployment")
-            },
+    fn test_check_health() {
+        struct TestCase {
+            name: &'static str,
+            deployments: Vec<Arc<Deployment>>,
+            expected_health: Health,
+        }
+
+        impl TestCase {
+            fn run(self) {
+                let mut k8s_client = MockSyncK8sClient::new();
+                k8s_client
+                    .expect_list_deployment()
+                    .times(1)
+                    .returning(move |_| Ok(self.deployments.clone()));
+
+                let start_time = StartTime::now();
+                let health_checker = K8sHealthDeployment::new(
+                    Arc::new(k8s_client),
+                    ResourceFilter::ByName("target-deployment".to_string()),
+                    start_time,
+                    TEST_NAMESPACE.to_string(),
+                );
+                let health = health_checker.check_health().unwrap_or_else(|_| {
+                    panic!("Unexpected error getting health for test - {}", self.name)
+                });
+                assert_eq!(
+                    health,
+                    HealthWithStartTime::new(self.expected_health, start_time),
+                    "{} failed",
+                    self.name
+                );
+            }
+        }
+
+        let matching_healthy = Deployment {
+            metadata: test_util_create_metadata("target-deployment"),
             spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
             status: Some(test_util_create_deployment_status(10)),
         };
-        let unhealthy_deployment_foo = Deployment {
-            metadata: ObjectMeta {
-                labels: Some([(LABEL_RELEASE_FLUX.to_string(), "flux-release".to_string())].into()),
-                ..test_util_create_metadata("unhealthy_deployment_foo")
-            },
+        let matching_unhealthy = Deployment {
+            metadata: test_util_create_metadata("target-deployment"),
             spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
             status: Some(DeploymentStatus {
                 available_replicas: Some(9),
@@ -339,28 +374,39 @@ mod tests {
                 ..Default::default()
             }),
         };
-        let unhealthy_foo = Health::Unhealthy(Unhealthy {
-            last_error: "Deployment `unhealthy_deployment_foo`: has 1 unavailable replicas"
-                .to_string(),
+        // Would fail if checked — must be skipped because name doesn't match.
+        let non_matching = Deployment {
+            metadata: test_util_create_metadata("other-deployment"),
             ..Default::default()
-        });
-        let unhealthy_deployment_bar = Deployment {
-            metadata: ObjectMeta {
-                labels: Some([(LABEL_RELEASE_FLUX.to_string(), "flux-release".to_string())].into()),
-                ..test_util_create_metadata("unhealthy_deployment_bar")
-            },
-            spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
-            status: Some(DeploymentStatus {
-                available_replicas: Some(9),
-                unavailable_replicas: Some(1),
-                ..Default::default()
-            }),
         };
-        let unhealthy_bar = Health::Unhealthy(Unhealthy {
-            last_error: "Deployment `unhealthy_deployment_bar`: has 1 unavailable replicas"
-                .to_string(),
-            ..Default::default()
-        });
+
+        let test_cases = [
+            TestCase {
+                name: "Matching healthy deployment",
+                deployments: vec![Arc::new(matching_healthy.clone())],
+                expected_health: Healthy::new().into(),
+            },
+            TestCase {
+                name: "Matching unhealthy deployment",
+                deployments: vec![Arc::new(matching_unhealthy.clone())],
+                expected_health: Unhealthy::new(
+                    "Deployment `target-deployment`: has 1 unavailable replicas".into(),
+                )
+                .into(),
+            },
+            TestCase {
+                name: "Non-matching deployment is skipped",
+                deployments: vec![Arc::new(non_matching.clone())],
+                expected_health: Healthy::new().into(),
+            },
+        ];
+
+        test_cases.into_iter().for_each(|tc| tc.run());
+    }
+
+    #[test]
+    fn test_check_health_for_helm_release() {
+        use crate::checkers::health::k8s::health_checker::LABEL_RELEASE_FLUX;
 
         struct TestCase {
             name: &'static str,
@@ -379,7 +425,7 @@ mod tests {
                 let start_time = StartTime::now();
                 let health_checker = K8sHealthDeployment::new(
                     Arc::new(k8s_client),
-                    "flux-release".to_string(),
+                    ResourceFilter::ByFluxLabel("flux-release".to_string()),
                     start_time,
                     TEST_NAMESPACE.to_string(),
                 );
@@ -395,47 +441,81 @@ mod tests {
             }
         }
 
+        let flux_label =
+            || Some([(LABEL_RELEASE_FLUX.to_string(), "flux-release".to_string())].into());
+
+        let healthy = Deployment {
+            metadata: ObjectMeta {
+                labels: flux_label(),
+                ..test_util_create_metadata("chart-deployment-a")
+            },
+            spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
+            status: Some(test_util_create_deployment_status(10)),
+        };
+        let unhealthy_foo = Deployment {
+            metadata: ObjectMeta {
+                labels: flux_label(),
+                ..test_util_create_metadata("chart-deployment-foo")
+            },
+            spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
+            status: Some(DeploymentStatus {
+                available_replicas: Some(9),
+                unavailable_replicas: Some(1),
+                ..Default::default()
+            }),
+        };
+        let unhealthy_bar = Deployment {
+            metadata: ObjectMeta {
+                labels: flux_label(),
+                ..test_util_create_metadata("chart-deployment-bar")
+            },
+            spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
+            status: Some(DeploymentStatus {
+                available_replicas: Some(9),
+                unavailable_replicas: Some(1),
+                ..Default::default()
+            }),
+        };
+        // Does not carry the Flux label — must be skipped.
+        let non_matching = Deployment {
+            metadata: test_util_create_metadata("other-deployment"),
+            ..Default::default()
+        };
+
         let test_cases = [
             TestCase {
                 name: "Healthy deployments",
-                deployments: vec![
-                    Arc::new(healthy_deployment.clone()),
-                    Arc::new(healthy_deployment.clone()),
-                ],
+                deployments: vec![Arc::new(healthy.clone()), Arc::new(healthy.clone())],
                 expected_health: Healthy::new().into(),
             },
             TestCase {
-                name: "One unhealthy deployment",
-                deployments: vec![
-                    Arc::new(healthy_deployment.clone()),
-                    Arc::new(healthy_deployment.clone()),
-                    Arc::new(unhealthy_deployment_foo.clone()),
-                    Arc::new(healthy_deployment.clone()),
-                    Arc::new(healthy_deployment.clone()),
-                ],
-                expected_health: unhealthy_foo.clone(),
+                name: "Non-matching deployment is skipped",
+                deployments: vec![Arc::new(non_matching.clone()), Arc::new(healthy.clone())],
+                expected_health: Healthy::new().into(),
             },
             TestCase {
-                name: "First unhealthy deployment is reported foo",
+                name: "First unhealthy reported (foo before bar)",
                 deployments: vec![
-                    Arc::new(healthy_deployment.clone()),
-                    Arc::new(healthy_deployment.clone()),
-                    Arc::new(unhealthy_deployment_foo.clone()),
-                    Arc::new(unhealthy_deployment_bar.clone()),
-                    Arc::new(unhealthy_deployment_bar.clone()),
+                    Arc::new(healthy.clone()),
+                    Arc::new(unhealthy_foo.clone()),
+                    Arc::new(unhealthy_bar.clone()),
                 ],
-                expected_health: unhealthy_foo.clone(),
+                expected_health: Unhealthy::new(
+                    "Deployment `chart-deployment-foo`: has 1 unavailable replicas".into(),
+                )
+                .into(),
             },
             TestCase {
-                name: "First unhealthy deployment is reported bar",
+                name: "First unhealthy reported (bar before foo)",
                 deployments: vec![
-                    Arc::new(healthy_deployment.clone()),
-                    Arc::new(healthy_deployment.clone()),
-                    Arc::new(unhealthy_deployment_bar.clone()),
-                    Arc::new(unhealthy_deployment_foo.clone()),
-                    Arc::new(unhealthy_deployment_foo.clone()),
+                    Arc::new(healthy.clone()),
+                    Arc::new(unhealthy_bar.clone()),
+                    Arc::new(unhealthy_foo.clone()),
                 ],
-                expected_health: unhealthy_bar.clone(),
+                expected_health: Unhealthy::new(
+                    "Deployment `chart-deployment-bar`: has 1 unavailable replicas".into(),
+                )
+                .into(),
             },
         ];
 

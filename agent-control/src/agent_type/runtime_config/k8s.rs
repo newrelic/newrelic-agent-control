@@ -21,7 +21,6 @@ pub struct K8s {
 }
 
 /// A K8s object, usually a CR, to be managed by the agent-control.
-// TODO: at lest, the spec should be templatable.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct K8sObject {
     #[serde(rename = "apiVersion")]
@@ -50,7 +49,10 @@ impl Templateable for K8s {
                 .into_iter()
                 .map(|(k, v)| Ok((k, v.template_with(variables)?)))
                 .collect::<Result<HashMap<String, K8sObject>, AgentTypeError>>()?,
-            health: self.health,
+            health: self
+                .health
+                .map(|h| h.template_with(variables))
+                .transpose()?,
             version: self.version,
             guid_checker: self.guid_checker,
         })
@@ -85,6 +87,43 @@ impl Templateable for K8sObjectMeta {
     }
 }
 
+/// The kind of Kubernetes resource to health-check.
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+pub enum K8sHealthResourceKind {
+    Deployment,
+    DaemonSet,
+    StatefulSet,
+    Instrumentation,
+    HelmReleaseWorkload,
+}
+
+/// A single Kubernetes resource to include in health checking.
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub struct K8sHealthCheckDefinition {
+    pub(crate) name: String,
+    pub(crate) namespace: String,
+    pub(crate) kind: K8sHealthResourceKind,
+    /// This field allows referencing related resources in a different namespace. Eg:
+    /// `HelmRelease -> Deployment`, defaults to `namespace`.
+    pub(crate) target_namespace: Option<String>,
+}
+
+impl Templateable for K8sHealthCheckDefinition {
+    type Output = Self;
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        Ok(Self {
+            name: self.name.template_with(variables)?,
+            namespace: self.namespace.template_with(variables)?,
+            kind: self.kind,
+            target_namespace: self
+                .target_namespace
+                .map(|ns| ns.template_with(variables))
+                .transpose()?,
+        })
+    }
+}
+
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct K8sHealthConfig {
     /// The duration to wait between health checks.
@@ -93,6 +132,24 @@ pub struct K8sHealthConfig {
     /// The initial delay before the first health check is performed.
     #[serde(default)]
     pub(crate) initial_delay: InitialDelay,
+    /// Explicit list of Kubernetes check definitions
+    #[serde(default)]
+    pub(crate) checks: Vec<K8sHealthCheckDefinition>,
+}
+
+impl Templateable for K8sHealthConfig {
+    type Output = Self;
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        Ok(Self {
+            interval: self.interval,
+            initial_delay: self.initial_delay,
+            checks: self
+                .checks
+                .into_iter()
+                .map(|r| r.template_with(variables))
+                .collect::<Result<Vec<_>, _>>()?,
+        })
+    }
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
@@ -120,7 +177,9 @@ mod tests {
     use std::time::Duration;
 
     use crate::agent_type::definition::Variables;
-    use crate::agent_type::runtime_config::k8s::K8s;
+    use crate::agent_type::runtime_config::k8s::{
+        K8s, K8sHealthCheckDefinition, K8sHealthResourceKind,
+    };
     use crate::agent_type::templates::Templateable;
     use crate::agent_type::variable::Variable;
     use crate::agent_type::version_config::{VersionCheckerInitialDelay, VersionCheckerInterval};
@@ -254,6 +313,71 @@ objects:
         let labels = cr1.metadata.labels;
         assert_eq!(labels.get("foo").unwrap(), value);
         assert_eq!(labels.get(value).unwrap(), "bar");
+    }
+
+    #[test]
+    fn test_template_k8s_health_resources() {
+        let k8s_template: K8s = serde_yaml::from_str(
+            r#"
+objects: {}
+health:
+  interval: 30s
+  initial_delay: 10s
+  checks:
+    - namespace: ${nr-ac:namespace}
+      name: ${nr-sub:agent_id}
+      kind: HelmReleaseWorkload
+      target_namespace: ${nr-ac:namespace_agents}
+    - namespace: ${nr-ac:namespace_agents}
+      name: ${nr-sub:agent_id}
+      kind: Instrumentation
+    - namespace: ${nr-ac:namespace_agents}
+      name: ${nr-sub:agent_id}
+      kind: Deployment
+"#,
+        )
+        .unwrap();
+
+        let variables = Variables::from([
+            (
+                "nr-sub:agent_id".to_string(),
+                Variable::new_final_string_variable("my-agent".to_string()),
+            ),
+            (
+                "nr-ac:namespace".to_string(),
+                Variable::new_final_string_variable("newrelic".to_string()),
+            ),
+            (
+                "nr-ac:namespace_agents".to_string(),
+                Variable::new_final_string_variable("newrelic-agents".to_string()),
+            ),
+        ]);
+
+        let k8s = k8s_template.template_with(&variables).unwrap();
+        let resources = k8s.health.unwrap().checks;
+
+        let expected = vec![
+            K8sHealthCheckDefinition {
+                name: "my-agent".to_string(),
+                namespace: "newrelic".to_string(),
+                kind: K8sHealthResourceKind::HelmReleaseWorkload,
+                target_namespace: Some("newrelic-agents".to_string()),
+            },
+            K8sHealthCheckDefinition {
+                name: "my-agent".to_string(),
+                namespace: "newrelic-agents".to_string(),
+                kind: K8sHealthResourceKind::Instrumentation,
+                target_namespace: None,
+            },
+            K8sHealthCheckDefinition {
+                name: "my-agent".to_string(),
+                namespace: "newrelic-agents".to_string(),
+                kind: K8sHealthResourceKind::Deployment,
+                target_namespace: None,
+            },
+        ];
+
+        assert_eq!(resources, expected);
     }
 
     #[test]

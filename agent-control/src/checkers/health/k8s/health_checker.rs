@@ -6,7 +6,7 @@ use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::{get_name, get_namespace, get_target_namespace, get_type_meta};
 use kube::api::{DynamicObject, TypeMeta};
 use resources::{
-    daemon_set::K8sHealthDaemonSet, deployment::K8sHealthDeployment,
+    ResourceFilter, daemon_set::K8sHealthDaemonSet, deployment::K8sHealthDeployment,
     helm_release::K8sHealthHelmRelease, instrumentation::K8sHealthNRInstrumentation,
     stateful_set::K8sHealthStatefulSet,
 };
@@ -66,19 +66,19 @@ pub fn health_checkers_for_type_meta(
             )),
             K8sResourceHealthChecker::StatefulSet(K8sHealthStatefulSet::new(
                 k8s_client.clone(),
-                name.clone(),
+                ResourceFilter::ByFluxLabel(name.clone()),
                 start_time,
                 target_namespace.clone(),
             )),
             K8sResourceHealthChecker::DaemonSet(K8sHealthDaemonSet::new(
                 k8s_client.clone(),
-                name.clone(),
+                ResourceFilter::ByFluxLabel(name.clone()),
                 start_time,
                 target_namespace.clone(),
             )),
             K8sResourceHealthChecker::Deployment(K8sHealthDeployment::new(
                 k8s_client.clone(),
-                name,
+                ResourceFilter::ByFluxLabel(name),
                 start_time,
                 target_namespace,
             )),
