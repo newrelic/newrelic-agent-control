@@ -4,6 +4,7 @@ mod config_signature;
 mod cr_based_agents;
 mod fail_remote_config;
 mod garbage_collector;
+mod health_checks;
 mod http_status_server;
 mod no_opamp;
 mod opamp;
