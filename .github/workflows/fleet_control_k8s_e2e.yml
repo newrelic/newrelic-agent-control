@@ -25,7 +25,7 @@ on:
         default: "MTIyMTA0NzV8TkdFUHxGTEVFVHwwMTliZTAzZC03MDYwLTcxMDctOTUwYS04YTFiODc3YjJiN2Q"
   schedule:
     # Scheduled to run at 5 a.m on every day-of-week from Monday through Friday.
-    - cron: "0 4 * * 1-5"
+    - cron: "0 18 * * 1-5"
 
 permissions:
   contents: read
