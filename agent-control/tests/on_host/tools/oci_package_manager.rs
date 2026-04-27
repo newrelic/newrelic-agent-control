@@ -25,7 +25,7 @@ pub fn new_testing_oci_package_manager(
         tokio_runtime(),
     )
     .unwrap();
-    let downloader = OCIArtifactDownloader::new(client, registry, false);
+    let downloader = OCIArtifactDownloader::new(client, registry, Default::default(), false);
 
     OCIPackageManager::new(downloader, DirectoryManagerFs, base_path)
 }

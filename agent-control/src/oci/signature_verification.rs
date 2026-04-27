@@ -7,7 +7,7 @@ use crate::{
     signature::{public_key::PublicKey, public_key_fetcher::PublicKeyFetcher},
 };
 use base64::Engine;
-use oci_client::{Reference, manifest::OciDescriptor};
+use oci_client::{Reference, manifest::OciDescriptor, secrets::RegistryAuth};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, time::Duration};
 use tracing::debug;
@@ -77,6 +77,7 @@ impl Client {
         &self,
         reference: &Reference,
         public_keys: &[PublicKey],
+        auth: &RegistryAuth,
     ) -> Result<Reference, OciClientError> {
         // Resolve manifest digest
         let digest = match reference.digest() {
@@ -90,7 +91,7 @@ impl Client {
                 // instead.
                 let digest = self
                     .client
-                    .fetch_manifest_digest(reference, &self.auth)
+                    .fetch_manifest_digest(reference, auth)
                     .await
                     .map_err(|err| {
                         OciClientError::Verify(format!("could not fetch manifest: {err}"))
@@ -107,7 +108,7 @@ impl Client {
         // Get the corresponding manifest
         let (signature_manifest, _) = self
             .client
-            .pull_image_manifest(&signature_ref, &self.auth)
+            .pull_image_manifest(&signature_ref, auth)
             .await
             .map_err(|err| {
                 OciClientError::Verify(format!("could not fetch signature manifest: {err}"))
@@ -415,9 +416,12 @@ mod tests {
 
         let reference = ref_fn(&mock_server);
 
-        let result = tokio_runtime().block_on(
-            create_test_client().verify_signature_with_public_keys(&reference, &[kp.public_key()]),
-        );
+        let result =
+            tokio_runtime().block_on(create_test_client().verify_signature_with_public_keys(
+                &reference,
+                &[kp.public_key()],
+                &RegistryAuth::Anonymous,
+            ));
 
         let expected_digest = mock_server.manifest_digest();
         let verified_ref = result.expect("verification should succeed");
@@ -435,9 +439,12 @@ mod tests {
             .with_signature(&kp)
             .build();
 
-        let result = tokio_runtime().block_on(
-            create_test_client().verify_signature_with_public_keys(&mock_server.reference(), &[]),
-        );
+        let result =
+            tokio_runtime().block_on(create_test_client().verify_signature_with_public_keys(
+                &mock_server.reference(),
+                &[],
+                &RegistryAuth::Anonymous,
+            ));
         assert_matches!(result, Err(OciClientError::Verify(_)));
     }
 
@@ -459,10 +466,12 @@ mod tests {
             expected_digest.clone(),
         );
 
-        let result = tokio_runtime().block_on(
-            create_test_client()
-                .verify_signature_with_public_keys(&ref_with_digest, &[kp.public_key()]),
-        );
+        let result =
+            tokio_runtime().block_on(create_test_client().verify_signature_with_public_keys(
+                &ref_with_digest,
+                &[kp.public_key()],
+                &RegistryAuth::Anonymous,
+            ));
 
         assert_matches!(result, Err(OciClientError::Verify(_)));
     }

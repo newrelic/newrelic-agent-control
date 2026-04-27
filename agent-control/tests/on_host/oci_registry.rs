@@ -47,7 +47,12 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
 
     let client = create_client_with_proxy(ProxyConfig::default());
 
-    let downloader = OCIArtifactDownloader::new(client, OCI_TEST_REGISTRY_URL.to_string(), false);
+    let downloader = OCIArtifactDownloader::new(
+        client,
+        OCI_TEST_REGISTRY_URL.to_string(),
+        Default::default(),
+        false,
+    );
 
     let _ = downloader
         .download(&reference, &None, local_agent_data_dir)
@@ -108,8 +113,13 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
 
     let client = create_client_with_proxy(proxy_config);
 
-    let downloader = OCIArtifactDownloader::new(client, OCI_TEST_REGISTRY_URL.to_string(), false)
-        .with_retries(4, Duration::from_millis(100));
+    let downloader = OCIArtifactDownloader::new(
+        client,
+        OCI_TEST_REGISTRY_URL.to_string(),
+        Default::default(),
+        false,
+    )
+    .with_retries(4, Duration::from_millis(100));
 
     let result = downloader.download(&reference, &None, local_agent_data_dir);
     assert!(result.is_ok());

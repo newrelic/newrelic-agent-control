@@ -20,6 +20,7 @@ use crate::{
 };
 use http::HeaderMap;
 use kube::api::TypeMeta;
+use oci_client::secrets::RegistryAuth;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -121,12 +122,30 @@ impl OciConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
+#[derive(Debug, Serialize, Default, Clone, PartialEq)]
 pub struct OciAuth {
-    #[serde(default)]
-    pub basic: BasicAuth,
-    #[serde(default)]
-    pub bearer: BearerAuth,
+    pub basic: Option<BasicAuth>,
+    pub bearer: Option<BearerAuth>,
+}
+
+impl<'de> Deserialize<'de> for OciAuth {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct OciAuthRaw {
+            basic: Option<BasicAuth>,
+            bearer: Option<BearerAuth>,
+        }
+        let raw = OciAuthRaw::deserialize(deserializer)?;
+        if raw.basic.is_some() && raw.bearer.is_some() {
+            return Err(serde::de::Error::custom(
+                "oci.auth: cannot specify both 'basic' and 'bearer' authentication",
+            ));
+        }
+        Ok(OciAuth {
+            basic: raw.basic,
+            bearer: raw.bearer,
+        })
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
@@ -138,6 +157,18 @@ pub struct BasicAuth {
 #[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct BearerAuth {
     pub token: String,
+}
+
+impl From<&OciAuth> for RegistryAuth {
+    fn from(auth: &OciAuth) -> Self {
+        if let Some(bearer) = &auth.bearer {
+            RegistryAuth::Bearer(bearer.token.clone())
+        } else if let Some(basic) = &auth.basic {
+            RegistryAuth::Basic(basic.username.clone(), basic.password.clone())
+        } else {
+            RegistryAuth::Anonymous
+        }
+    }
 }
 
 const DEFAULT_SIGNATURE_VERIFICATION_ENABLED: bool = true;
@@ -1155,5 +1186,32 @@ oci:
         agents.extend(infra());
         agents.extend(nrdot());
         agents
+    }
+
+    #[rstest]
+    #[case::anonymous_when_empty(OciAuth::default(), RegistryAuth::Anonymous)]
+    #[case::basic_when_set(
+        OciAuth { basic: Some(BasicAuth { username: "user".to_string(), password: "pass".to_string() }), bearer: None },
+        RegistryAuth::Basic("user".to_string(), "pass".to_string())
+    )]
+    #[case::bearer_when_set(
+        OciAuth { basic: None, bearer: Some(BearerAuth { token: "my-token".to_string() }) },
+        RegistryAuth::Bearer("my-token".to_string())
+    )]
+    fn test_oci_auth_into_registry_auth(#[case] auth: OciAuth, #[case] expected: RegistryAuth) {
+        assert_eq!(RegistryAuth::from(&auth), expected);
+    }
+
+    #[test]
+    fn test_oci_auth_rejects_both_basic_and_bearer() {
+        let yaml = "basic:\n  username: user\n  password: pass\nbearer:\n  token: my-token";
+        let result = serde_yaml::from_str::<OciAuth>(yaml);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("cannot specify both")
+        );
     }
 }

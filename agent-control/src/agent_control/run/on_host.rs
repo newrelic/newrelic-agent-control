@@ -177,6 +177,7 @@ impl AgentControlRunner {
             OCIArtifactDownloader::new(
                 oci_client.clone(),
                 self.bootstrap_config.oci.registry.clone(),
+                self.bootstrap_config.oci.auth.clone(),
                 agent_control_config
                     .agent_packages
                     .signature_verification_enabled
@@ -228,6 +229,7 @@ impl AgentControlRunner {
             OCIArtifactDownloader::new(
                 oci_client.clone(),
                 self.bootstrap_config.oci.registry.clone(),
+                self.bootstrap_config.oci.auth.clone(),
                 agent_control_config
                     .self_update
                     .signature_verification_enabled
