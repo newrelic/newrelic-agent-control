@@ -446,6 +446,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## cmov <https://crates.io/crates/cmov>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
+
 ## colorchoice <https://crates.io/crates/colorchoice>
 
 Distributed under the following license(s):
@@ -492,20 +499,6 @@ Distributed under the following license(s):
 * Apache-2.0
 * MIT
 
-## const-random <https://crates.io/crates/const-random>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## const-random-macro <https://crates.io/crates/const-random-macro>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## const_format <https://crates.io/crates/const_format>
 
 Distributed under the following license(s):
@@ -547,6 +540,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## core-foundation-sys <https://crates.io/crates/core-foundation-sys>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## cpubits <https://crates.io/crates/cpubits>
 
 Distributed under the following license(s):
 
@@ -609,12 +609,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## crunchy <https://crates.io/crates/crunchy>
-
-Distributed under the following license(s):
-
-* MIT
-
 ## crypto-common <https://crates.io/crates/crypto-common>
 
 Distributed under the following license(s):
@@ -628,6 +622,13 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## ctutils <https://crates.io/crates/ctutils>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
 
 ## darling <https://crates.io/crates/darling>
 
@@ -735,13 +736,6 @@ Distributed under the following license(s):
 * MIT
 
 ## displaydoc <https://crates.io/crates/displaydoc>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## dlv-list <https://crates.io/crates/dlv-list>
 
 Distributed under the following license(s):
 
@@ -1737,12 +1731,6 @@ Distributed under the following license(s):
 
 * MIT
 
-## ordered-multimap <https://crates.io/crates/ordered-multimap>
-
-Distributed under the following license(s):
-
-* MIT
-
 ## parking <https://crates.io/crates/parking>
 
 Distributed under the following license(s):
@@ -2093,12 +2081,6 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
-
-## rust-ini <https://crates.io/crates/rust-ini>
-
-Distributed under the following license(s):
-
-* MIT
 
 ## rust_decimal <https://crates.io/crates/rust_decimal>
 
@@ -2533,12 +2515,6 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
-
-## tiny-keccak <https://crates.io/crates/tiny-keccak>
-
-Distributed under the following license(s):
-
-* CC0-1.0
 
 ## tinystr <https://crates.io/crates/tinystr>
 
