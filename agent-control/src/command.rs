@@ -6,6 +6,7 @@
 use crate::agent_control::config::AgentControlConfig;
 use crate::agent_control::defaults::ENVIRONMENT_VARIABLES_FILE_NAME;
 use crate::agent_control::run::Environment;
+use crate::agent_control::run::GracefulShutdownReason;
 use crate::agent_control::version_updater::on_host::verify::CommandResult;
 use crate::agent_control::{
     config_repository::{repository::AgentControlConfigLoader, store::AgentControlConfigStore},
@@ -26,6 +27,36 @@ use std::fmt::{Display, Formatter};
 use std::process::ExitCode;
 use std::sync::Arc;
 use tracing::{error, info};
+
+/// Converts the result of the main function into a process [`ExitCode`].
+///
+/// Implementations map specific outcomes (e.g. [`GracefulShutdownReason::SelfUpdate`])
+/// to non-zero exit codes that the process supervisor (e.g. systemd) can act on,
+/// while preserving the error message for logging.
+pub trait IntoExitCode {
+    /// Returns `Ok(exit_code)` on success or `Err(message)` when the process should exit
+    /// with a failure code and the message should be logged.
+    fn into_exit_code(self) -> Result<ExitCode, String>;
+}
+
+impl IntoExitCode for Result<(), Box<dyn Error>> {
+    fn into_exit_code(self) -> Result<ExitCode, String> {
+        self.map(|_| ExitCode::SUCCESS).map_err(|e| e.to_string())
+    }
+}
+
+impl IntoExitCode for Result<GracefulShutdownReason, Box<dyn Error>> {
+    fn into_exit_code(self) -> Result<ExitCode, String> {
+        match self {
+            // On Linux/Unix, exit with TEMPFAIL (75) for self-update so systemd's
+            // RestartForceExitStatus=75 triggers a restart of the newly installed binary.
+            #[cfg(target_family = "unix")]
+            Ok(GracefulShutdownReason::SelfUpdate) => Ok(ExitCode::from(75)),
+            Ok(_) => Ok(ExitCode::SUCCESS),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+}
 
 mod on_host_checks;
 
@@ -129,13 +160,14 @@ pub struct RunnerContext {
 
 impl Command {
     /// Runs the provided main function or shows the binary information according to commands
-    pub fn execute<F>(
+    pub fn execute<F, R>(
         running_mode: Environment,
         main_fn: F,
         #[cfg(target_os = "windows")] as_windows_service: bool,
     ) -> ExitCode
     where
-        F: FnOnce(Context) -> Result<(), Box<dyn Error>>,
+        F: FnOnce(Context) -> R,
+        R: IntoExitCode,
     {
         let parsed = Command::parse();
 
@@ -173,14 +205,15 @@ impl Command {
     }
 
     /// Handles the run command
-    fn run<F>(
+    fn run<F, R>(
         running_mode: Environment,
         main_fn: F,
         args: &Args,
         #[cfg(target_os = "windows")] as_windows_service: bool,
     ) -> ExitCode
     where
-        F: FnOnce(Context) -> Result<(), Box<dyn Error>>,
+        F: FnOnce(Context) -> R,
+        R: IntoExitCode,
     {
         match Command::build_context(
             running_mode,
@@ -194,10 +227,10 @@ impl Command {
                 eprintln!("Failed building the run context {}", err);
                 ExitCode::FAILURE
             }
-            Ok(run_context) => match main_fn(run_context) {
-                Ok(_) => {
+            Ok(run_context) => match main_fn(run_context).into_exit_code() {
+                Ok(exit_code) => {
                     info!("The agent control main process exited successfully");
-                    ExitCode::SUCCESS
+                    exit_code
                 }
                 Err(err) => {
                     error!("The agent control main process exited with an error: {err}");
