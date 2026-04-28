@@ -75,12 +75,15 @@ impl OCIArtifactDownloader {
     pub fn new(
         client: Client,
         registry: String,
-        auth: OciAuth,
+        auth: Option<OciAuth>,
         signature_verification_enabled: bool,
     ) -> Self {
         OCIArtifactDownloader {
             client,
-            auth: RegistryAuth::from(&auth),
+            auth: auth
+                .as_ref()
+                .map(RegistryAuth::from)
+                .unwrap_or(RegistryAuth::Anonymous),
             signature_verification_enabled,
             max_retries: DEFAULT_RETRIES,
             retry_interval: Duration::default(),
@@ -173,7 +176,6 @@ pub mod tests {
     use crate::utils::test_runtime::tokio_runtime;
 
     use super::*;
-    use crate::agent_control::config::OciAuth;
     use assert_matches::assert_matches;
     use httpmock::prelude::*;
     use mockall::mock;
@@ -459,6 +461,34 @@ pub mod tests {
         assert_eq!(reference_with_registry.registry(), registry);
     }
 
+    #[test]
+    fn test_none_auth_defaults_to_anonymous() {
+        let server = FakeOciServer::new("test-repo", "v1.0.0")
+            .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
+            .with_layer(
+                b"content",
+                &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
+            )
+            .build();
+
+        let client = Client::try_new(
+            ClientConfig {
+                protocol: ClientProtocol::Http,
+                ..Default::default()
+            },
+            ProxyConfig::default(),
+            tokio_runtime(),
+        )
+        .unwrap();
+        let downloader = OCIArtifactDownloader::new(client, server.registry(), None, false);
+        let dest_dir = tempdir().unwrap();
+        assert!(
+            downloader
+                .download(&server.reference(), &None, dest_dir.path())
+                .is_ok()
+        );
+    }
+
     fn create_downloader(
         registry: String,
         signature_verification_enabled: bool,
@@ -472,11 +502,6 @@ pub mod tests {
             tokio_runtime(),
         )
         .unwrap();
-        OCIArtifactDownloader::new(
-            client,
-            registry,
-            OciAuth::default(),
-            signature_verification_enabled,
-        )
+        OCIArtifactDownloader::new(client, registry, None, signature_verification_enabled)
     }
 }
