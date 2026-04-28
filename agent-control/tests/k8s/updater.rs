@@ -36,8 +36,8 @@ fn k8s_run_updater_for_cd_and_ac() {
         k8s_client.clone(),
         test_ns.clone(),
         CURRENT_AC_VERSION.to_string(),
-        TEST_AC_RELEASE_NAME.to_string(),
-        TEST_CD_RELEASE_NAME.to_string(),
+        Some(TEST_AC_RELEASE_NAME.to_string()),
+        Some(TEST_CD_RELEASE_NAME.to_string()),
     );
 
     let config_to_update = &AgentControlDynamicConfig {

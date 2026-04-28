@@ -26,7 +26,7 @@ use url::Url;
 
 const POLL_INTERVAL: u64 = 5;
 
-const SECRET_NAME: &str = "ac-values";
+const AC_VALUES_SECRET_NAME: &str = "ac-values";
 const VALUES_KEY: &str = "values.yaml";
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -367,7 +367,7 @@ fn bootstrap_ac(
     create_values_secret(
         client.clone(),
         namespace,
-        SECRET_NAME,
+        AC_VALUES_SECRET_NAME,
         VALUES_KEY,
         ac_chart_values(opamp_endpoint, namespace),
     );
@@ -393,7 +393,7 @@ fn install_ac_with_cli(namespace: &str, chart_version: &str, release_name: &str)
     cmd.arg("--release-name").arg(release_name);
     cmd.arg("--namespace").arg(namespace);
     cmd.arg("--secrets")
-        .arg(format!("{SECRET_NAME}={VALUES_KEY}"));
+        .arg(format!("{AC_VALUES_SECRET_NAME}={VALUES_KEY}"));
     cmd.arg("--skip-installation-check");
     cmd.assert().success();
 }
@@ -411,6 +411,9 @@ fn ac_chart_values(opamp_endpoint: Url, name_override: &str) -> String {
             },
             "acRemoteUpdate": true,
             "cdRemoteUpdate": false,
+            // This is needed since the chart has a default cdReleaseName defined that is different from the one specified in the tiltfile.
+            // We do not want to monitor on control that, therefore we are unsetting it.
+            "cdReleaseName": "",
             "authSecret": {
                 "secretName": K8S_PRIVATE_KEY_SECRET,
                 "secretKeyName": K8S_KEY_SECRET,

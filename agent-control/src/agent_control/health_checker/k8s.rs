@@ -16,7 +16,7 @@ pub fn agent_control_health_checker_builder(
 ) -> impl Fn(SystemTime) -> Option<K8sHealthChecker> {
     move |start_time: SystemTime| {
         let releases = [
-            // ac_release_name existing means AC is enable
+            // ac_release_name existing means AC is enabled
             ac_release_name.as_ref(),
             // cd_release_name existing means flux is enabled
             cd_release_name.as_ref(),

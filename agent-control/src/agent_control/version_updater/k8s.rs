@@ -32,31 +32,42 @@ pub struct K8sACUpdater {
     // It is loaded at startup, and it is populated by the HelmChart.
     current_chart_version: String,
     // release name for agent control deployment loaded from config
-    ac_release_name: String,
+    ac_release_name: Option<String>,
     // release name for agent control cd loaded from config
-    cd_release_name: String,
+    cd_release_name: Option<String>,
 }
 
 impl VersionUpdater for K8sACUpdater {
     fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError> {
         if self.ac_remote_update_enabled {
-            self.update_helm_release_version(
-                Component::AgentControl,
-                config.chart_version.as_ref(),
-                &self.ac_release_name,
-                || Ok(self.current_chart_version.clone()),
-            )?;
+            if let Some(release_name) = &self.ac_release_name {
+                self.update_helm_release_version(
+                    Component::AgentControl,
+                    config.chart_version.as_ref(),
+                    release_name,
+                    || Ok(self.current_chart_version.clone()),
+                )?;
+            } else {
+                debug!("Agent Control release name is not set. Skipping AC update.");
+            }
         } else {
             debug!("Remote updates for Agent Control are disabled. Nothing to do.");
         }
 
         if self.cd_remote_update_enabled {
-            self.update_helm_release_version(
-                Component::FluxCD,
-                config.cd_chart_version.as_ref(),
-                self.cd_release_name.as_str(),
-                || self.get_cd_helm_release_version(),
-            )?;
+            if let Some(release_name) = &self.cd_release_name {
+                self.update_helm_release_version(
+                    Component::FluxCD,
+                    config.cd_chart_version.as_ref(),
+                    release_name,
+                    || self.get_cd_helm_release_version(release_name),
+                )?;
+            } else {
+                debug!(
+                    "Agent Control CD release name is not set. Skipping Agent Control CD update."
+                );
+                return Ok(());
+            };
         } else {
             debug!("Remote updates for Agent Control cd are disabled. Nothing to do.");
         }
@@ -72,8 +83,8 @@ impl K8sACUpdater {
         k8s_client: Arc<SyncK8sClient>,
         namespace: String,
         current_chart_version: String,
-        ac_release_name: String,
-        cd_release_name: String,
+        ac_release_name: Option<String>,
+        cd_release_name: Option<String>,
     ) -> Self {
         Self {
             ac_remote_update_enabled: ac_remote_update,
@@ -174,27 +185,24 @@ impl K8sACUpdater {
         Ok(())
     }
 
-    fn get_cd_helm_release_version(&self) -> Result<String, UpdaterError> {
+    fn get_cd_helm_release_version(&self, release_name: &str) -> Result<String, UpdaterError> {
         let helm_release = self
             .k8s_client
             .get_dynamic_object(
                 &helmrelease_v2_type_meta(),
                 K8sObjectKey {
-                    name: &self.cd_release_name,
+                    name: release_name,
                     namespace: &self.namespace,
                 },
             )
             .map_err(|k8s_err| {
                 UpdaterError::UpdateFailed(format!(
                     "Failed to fetch HelmRelease '{}': {}",
-                    &self.cd_release_name, k8s_err
+                    release_name, k8s_err
                 ))
             })?
             .ok_or_else(|| {
-                UpdaterError::UpdateFailed(format!(
-                    "HelmRelease '{}' not found",
-                    &self.cd_release_name
-                ))
+                UpdaterError::UpdateFailed(format!("HelmRelease '{}' not found", release_name))
             })?;
 
         let version = helm_release
@@ -208,7 +216,7 @@ impl K8sACUpdater {
             .ok_or_else(|| {
                 UpdaterError::UpdateFailed(format!(
                     "Could not find version at 'spec.chart.spec.version' in HelmRelease '{}'",
-                    &self.cd_release_name
+                    release_name
                 ))
             })?;
 
@@ -314,8 +322,8 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
-            TEST_AC_RELEASE_NAME.to_string(),
-            TEST_CD_RELEASE_NAME.to_string(),
+            Some(TEST_AC_RELEASE_NAME.to_string()),
+            Some(TEST_CD_RELEASE_NAME.to_string()),
         );
 
         let result = updater.update(&test_config(Some(NEW_AC_VERSION), None));
@@ -371,8 +379,8 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
-            TEST_AC_RELEASE_NAME.to_string(),
-            TEST_CD_RELEASE_NAME.to_string(),
+            Some(TEST_AC_RELEASE_NAME.to_string()),
+            Some(TEST_CD_RELEASE_NAME.to_string()),
         );
 
         let result = updater.update(&test_config(None, Some(NEW_CD_VERSION)));
@@ -421,8 +429,8 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
-            TEST_AC_RELEASE_NAME.to_string(),
-            TEST_CD_RELEASE_NAME.to_string(),
+            Some(TEST_AC_RELEASE_NAME.to_string()),
+            Some(TEST_CD_RELEASE_NAME.to_string()),
         );
 
         let result = updater.update(&test_config(Some(NEW_AC_VERSION), Some(NEW_CD_VERSION)));
@@ -440,8 +448,8 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
-            TEST_AC_RELEASE_NAME.to_string(),
-            TEST_CD_RELEASE_NAME.to_string(),
+            Some(TEST_AC_RELEASE_NAME.to_string()),
+            Some(TEST_CD_RELEASE_NAME.to_string()),
         );
 
         let result = updater.update(&test_config(Some(NEW_AC_VERSION), Some(NEW_CD_VERSION)));
@@ -459,8 +467,8 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
-            TEST_AC_RELEASE_NAME.to_string(),
-            TEST_CD_RELEASE_NAME.to_string(),
+            Some(TEST_AC_RELEASE_NAME.to_string()),
+            Some(TEST_CD_RELEASE_NAME.to_string()),
         );
 
         let result = updater.update(&test_config(None, None));
@@ -493,8 +501,8 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
-            TEST_AC_RELEASE_NAME.to_string(),
-            TEST_CD_RELEASE_NAME.to_string(),
+            Some(TEST_AC_RELEASE_NAME.to_string()),
+            Some(TEST_CD_RELEASE_NAME.to_string()),
         );
 
         // We pass the current versions, not the new ones
@@ -519,8 +527,8 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
-            TEST_AC_RELEASE_NAME.to_string(),
-            TEST_CD_RELEASE_NAME.to_string(),
+            Some(TEST_AC_RELEASE_NAME.to_string()),
+            Some(TEST_CD_RELEASE_NAME.to_string()),
         );
 
         let result = updater.update(&test_config(Some(NEW_AC_VERSION), None));

@@ -326,6 +326,15 @@ pub struct OpAMPClientConfig {
     pub signature_validation: SignatureValidatorConfig,
 }
 
+/// Deserializes an empty string as None, otherwise as Some(String)
+fn deserialize_empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let maybe_string = Option::<String>::deserialize(deserializer)?;
+    Ok(maybe_string.and_then(|s| if s.is_empty() { None } else { Some(s) }))
+}
+
 impl<'de> Deserialize<'de> for OpAMPClientConfig {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -395,14 +404,14 @@ pub struct K8sConfig {
     #[serde(default)]
     pub ac_remote_update: bool,
     /// agent_control_deployment release name
-    #[serde(default)]
-    pub ac_release_name: String,
+    #[serde(default, deserialize_with = "deserialize_empty_string_as_none")]
+    pub ac_release_name: Option<String>,
     /// cd_remote_update enables or disables remote update for the agent-control-cd chart
     #[serde(default)]
     pub cd_remote_update: bool,
     /// agent_control_cd release name
-    #[serde(default)]
-    pub cd_release_name: String,
+    #[serde(default, deserialize_with = "deserialize_empty_string_as_none")]
+    pub cd_release_name: Option<String>,
     /// Specifies the key name within the Kubernetes Secret
     /// used to retrieve the required secret for credentials.
     #[serde(default)]
@@ -880,6 +889,35 @@ k8s:
     #[test]
     fn test_default_package_compiles() {
         let _ = AgentControlPackage::default();
+    }
+
+    #[rstest]
+    #[case::empty_strings("", "", None, None)]
+    #[case::non_empty_strings("my-ac-release", "my-cd-release", Some("my-ac-release".to_string()), Some("my-cd-release".to_string()))]
+    fn test_release_names_deserialization(
+        #[case] ac_release_name: &str,
+        #[case] cd_release_name: &str,
+        #[case] expected_ac_release_name: Option<String>,
+        #[case] expected_cd_release_name: Option<String>,
+    ) {
+        let config_input = format!(
+            r#"
+agents: {{}}
+k8s:
+  namespace: some-namespace
+  namespace_agents: some-namespace-agents
+  cluster_name: some-cluster
+  ac_release_name: "{}"
+  cd_release_name: "{}"
+"#,
+            ac_release_name, cd_release_name
+        );
+
+        let config = serde_yaml::from_str::<AgentControlConfig>(&config_input).unwrap();
+        let k8s = config.k8s.unwrap();
+
+        assert_eq!(k8s.ac_release_name, expected_ac_release_name);
+        assert_eq!(k8s.cd_release_name, expected_cd_release_name);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
