@@ -78,7 +78,7 @@ impl K8sGarbageCollector {
     ) -> Result<(), K8sGarbageCollectorError> {
         // Delete configmaps depending on mode
         let label_selector_query = mode.label_selector_query();
-        debug!("Deleting configmaps using label selector: `{label_selector_query}`",);
+        debug!("deleting ConfigMaps using label selector: `{label_selector_query}`");
         self.k8s_client
             .delete_configmap_collection(&self.namespace, &label_selector_query)?;
 
