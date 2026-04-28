@@ -33,7 +33,7 @@ pub async fn check_config_map_exist(
 
     api.get(name)
         .await
-        .map_err(|err| format!("ConfigMap {name} not found: {err}"))?;
+        .map_err(|err| format!("resource ConfigMap {name} not found: {err}"))?;
 
     Ok(())
 }
@@ -48,7 +48,7 @@ pub async fn check_config_map_has_annotation(
     let cm = api
         .get(name)
         .await
-        .map_err(|err| format!("ConfigMap {name} not found: {err}"))?;
+        .map_err(|err| format!("resource ConfigMap {name} not found: {err}"))?;
     let has_annotation = cm
         .metadata
         .annotations
@@ -57,7 +57,7 @@ pub async fn check_config_map_has_annotation(
     if has_annotation {
         Ok(())
     } else {
-        Err(format!("ConfigMap {name} does not have annotation {annotation_key}").into())
+        Err(format!("resource ConfigMap {name} does not have annotation {annotation_key}").into())
     }
 }
 
