@@ -420,9 +420,9 @@ The health configuration for Kubernetes. See [Health status](#health-status) bel
   - `name`: The name of the Kubernetes object (supports template variables).
   - `namespace`: The namespace where the object lives (supports template variables).
   - `kind`: The kind of resource to check. One of:
-    - `Deployment`, `DaemonSet`, `StatefulSet`: checks the named workload directly.
-    - `Instrumentation`: checks a New Relic Instrumentation CR.
-    - `HelmReleaseWorkload`: checks the named HelmRelease CR **plus** the Deployment, DaemonSet, and StatefulSet workloads belonging to the release (discovered via the Flux label `helm.toolkit.fluxcd.io/name`).
+    - `Deployment`, `DaemonSet`, `StatefulSet`: checks the named workload directly. If the resource does not exist, the sub-agent is considered healthy (a missing workload is not treated as a failure). Health is computed considering the workload's status. Eg: desired vs. available replicas.
+    - `Instrumentation`: checks a New Relic Instrumentation CR. If the resource does not exist, the health check reports an error.
+    - `HelmReleaseWorkload`: checks the named HelmRelease CR **plus** the Deployment, DaemonSet, and StatefulSet workloads belonging to the release (discovered via the Flux label `helm.toolkit.fluxcd.io/name`). If the HelmRelease CR does not exist, the health check reports an error.
   - `target_namespace`: the namespace where the Helm-deployed workloads run. Defaults to `namespace`. Use this when the HelmRelease installs workloads into a different namespace than the one containing the HelmRelease CR itself.
 
 Example for a Helm-based agent deploying workloads into a separate namespace:
@@ -467,6 +467,10 @@ health:
       name: my-statefulset
       kind: StatefulSet
 ```
+
+> [!NOTE]
+> In the example above the agent will be considered **unhealthy** if any of the corresponding resources is found but
+> its status doesn't meet the workload criteria. This allows supporting agents with configurable workloads.
 
 ##### `objects`
 
