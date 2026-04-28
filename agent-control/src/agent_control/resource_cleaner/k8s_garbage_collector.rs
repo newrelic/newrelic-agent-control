@@ -115,7 +115,7 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
                         })
                 }
                 Err(K8sError::MissingAPIResource(e)) => {
-                    debug!(error = %e, "GC skipping for TypeMeta {}", tm.kind);
+                    debug!(error = %e, "skipping GC for TypeMeta {}", tm.kind);
                     Ok(())
                 }
                 Err(e) => Err(e.into()),
@@ -150,7 +150,11 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
             Err(AgentIDError::Reserved(_)) => Ok(false),
             // We should also be conservative, so we do not delete an object if we cannot retrieve a valid AgentID from it
             Err(e) => {
-                warn!("invalid agent id: {e}");
+                warn!(
+                    namespace = self.namespace,
+                    error = %e,
+                    "invalid agent id with name {agent_id_from_labels}"
+                );
                 Ok(false)
             }
         }
