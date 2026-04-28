@@ -326,15 +326,6 @@ pub struct OpAMPClientConfig {
     pub signature_validation: SignatureValidatorConfig,
 }
 
-/// Deserializes an empty string as None, otherwise as Some(String)
-fn deserialize_empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let maybe_string = Option::<String>::deserialize(deserializer)?;
-    Ok(maybe_string.and_then(|s| if s.is_empty() { None } else { Some(s) }))
-}
-
 impl<'de> Deserialize<'de> for OpAMPClientConfig {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -383,7 +374,7 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
 }
 
 /// K8sConfig represents the AgentControl configuration for K8s environments
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct K8sConfig {
     /// cluster_name is an attribute used to identify all monitored data in a particular kubernetes cluster. Required
     pub cluster_name: String,
@@ -395,27 +386,82 @@ pub struct K8sConfig {
     /// This value is passed to the agent control via Environment Variable to avoid race conditions.
     /// If set via config, after a failed upgrade we could have the "old" pod loading the new config
     /// and reading the new chart version, while the image is still the old one.
-    #[serde(default)]
     pub current_chart_version: String,
-    /// CRDs is a list of crds that AC should watch and be able to create/delete.
-    #[serde(default = "default_group_version_kinds")]
+    /// CRs is a list of resources that AC should watch and be able to create/delete.
     pub cr_type_meta: Vec<TypeMeta>,
     /// ac_remote_update enables or disables remote update for agent-control-deployment chart
-    #[serde(default)]
     pub ac_remote_update: bool,
     /// agent_control_deployment release name
-    #[serde(default, deserialize_with = "deserialize_empty_string_as_none")]
     pub ac_release_name: Option<String>,
     /// cd_remote_update enables or disables remote update for the agent-control-cd chart
-    #[serde(default)]
     pub cd_remote_update: bool,
-    /// agent_control_cd release name
-    #[serde(default, deserialize_with = "deserialize_empty_string_as_none")]
+    /// agent_control_cd release name. If not set and cd_enabled is true, AC expect an externally managed CD
     pub cd_release_name: Option<String>,
+    /// cd_enabled indicates whether the CD utility is enabled or not.
+    pub cd_enabled: bool,
     /// Specifies the key name within the Kubernetes Secret
     /// used to retrieve the required secret for credentials.
-    #[serde(default)]
     pub auth_secret: AuthSecret,
+}
+
+impl<'de> Deserialize<'de> for K8sConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Debug, Deserialize)]
+        struct IntermediateK8sConfig {
+            cluster_name: String,
+            namespace: String,
+            namespace_agents: String,
+            current_chart_version: Option<String>,
+            cr_type_meta: Option<Vec<TypeMeta>>,
+            ac_remote_update: Option<bool>,
+            ac_release_name: Option<String>,
+            cd_remote_update: Option<bool>,
+            cd_release_name: Option<String>,
+            cd_enabled: Option<bool>,
+            auth_secret: Option<AuthSecret>,
+        }
+
+        let mut intermediate = IntermediateK8sConfig::deserialize(deserializer)?;
+
+        // If the release names are set to empty strings we leverage None instead
+        intermediate.cd_release_name = intermediate.cd_release_name.filter(|s| !s.is_empty());
+        intermediate.ac_release_name = intermediate.ac_release_name.filter(|s| !s.is_empty());
+
+        // if cd_enabled is false, we make sure that cd_release_name is None, cd_remote_update is false
+        // and we set the cr_type_meta to a default value without flux and instrumentation types (since flux won't be installed)
+        if let Some(cd_enabled) = intermediate.cd_enabled
+            && !cd_enabled
+        {
+            intermediate.cd_remote_update = Some(false);
+            intermediate.cd_release_name = None;
+            intermediate.cr_type_meta = Some(
+                intermediate
+                    .cr_type_meta
+                    .unwrap_or_else(default_group_version_kinds_no_flux),
+            );
+        } else {
+            intermediate.cd_enabled = Some(true);
+        }
+
+        Ok(K8sConfig {
+            cluster_name: intermediate.cluster_name,
+            namespace: intermediate.namespace,
+            namespace_agents: intermediate.namespace_agents,
+            current_chart_version: intermediate.current_chart_version.unwrap_or_default(),
+            cr_type_meta: intermediate
+                .cr_type_meta
+                .unwrap_or_else(default_group_version_kinds),
+            ac_remote_update: intermediate.ac_remote_update.unwrap_or_default(),
+            ac_release_name: intermediate.ac_release_name,
+            cd_remote_update: intermediate.cd_remote_update.unwrap_or_default(),
+            cd_release_name: intermediate.cd_release_name,
+            cd_enabled: intermediate.cd_enabled.unwrap_or(true),
+            auth_secret: intermediate.auth_secret.unwrap_or_default(),
+        })
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -512,12 +558,14 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     vec![
         // Agent Operator CRD
         instrumentation_v1beta3_type_meta(),
-        // This allows Secrets created as dynamic objects to be cleaned up by the GC
-        // This should not be needed anymore whenever the GC detection logic doesn't rely on this list.
         secret_type_meta(),
         helmrepository_type_meta(),
         helmrelease_v2_type_meta(),
     ]
+}
+
+pub fn default_group_version_kinds_no_flux() -> Vec<TypeMeta> {
+    vec![secret_type_meta()]
 }
 
 impl Default for K8sConfig {
@@ -532,6 +580,7 @@ impl Default for K8sConfig {
             ac_release_name: Default::default(),
             cd_remote_update: Default::default(),
             cd_release_name: Default::default(),
+            cd_enabled: true,
             auth_secret: AuthSecret {
                 secret_name: Default::default(),
                 secret_key_name: Default::default(),
@@ -918,6 +967,34 @@ k8s:
 
         assert_eq!(k8s.ac_release_name, expected_ac_release_name);
         assert_eq!(k8s.cd_release_name, expected_cd_release_name);
+    }
+
+    #[test]
+    fn test_cd_disabled_clears_cd_fields() {
+        let config_input = r#"
+agents: {}
+k8s:
+  namespace: some-namespace
+  namespace_agents: some-namespace-agents
+  cluster_name: some-cluster
+  cd_enabled: false
+  cd_release_name: "will-be-cleared"
+  cd_remote_update: true
+"#;
+
+        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        let k8s = config.k8s.unwrap();
+
+        assert!(!k8s.cd_enabled);
+        assert_eq!(k8s.cd_release_name, None);
+        assert!(!k8s.cd_remote_update);
+        assert!(
+            k8s.cr_type_meta
+                .iter()
+                .filter(|o| o.kind == "HelmRelease" || o.kind == "Instrumentation")
+                .collect::<Vec<_>>()
+                .is_empty()
+        );
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
