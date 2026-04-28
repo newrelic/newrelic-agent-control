@@ -262,7 +262,6 @@ mod tests {
     };
     use rstest::rstest;
     use std::collections::BTreeMap;
-    use std::str::FromStr;
 
     /// Layers are skipped (Ok(None)) before any blob fetch when the media_type or annotation
     /// conditions are not met.
@@ -279,7 +278,7 @@ mod tests {
     ) {
         let client = create_test_client();
         let reference =
-            Reference::from(ReferenceParser::from_str("localhost:1234/repo:tag").unwrap());
+            Reference::from(ReferenceParser::try_from(("localhost:1234", "repo", "tag")).unwrap());
         let annotations = annotation_key.map(|k| {
             let mut m = BTreeMap::new();
             m.insert(k.to_string(), "value".to_string());
@@ -313,8 +312,12 @@ mod tests {
 
         let layer = cosign_layer(blob_digest, &BASE64_STANDARD.encode(b"sig"));
         let reference = Reference::from(
-            ReferenceParser::from_str(&format!("{}/{repo}:sha256-abc.sig", server.address()))
-                .unwrap(),
+            ReferenceParser::try_from((
+                server.address().to_string().as_str(),
+                repo,
+                "sha256-abc.sig",
+            ))
+            .unwrap(),
         );
 
         let result = tokio_runtime().block_on(
@@ -351,8 +354,12 @@ mod tests {
 
         let layer = cosign_layer(blob_digest, sig_annotation);
         let reference = Reference::from(
-            ReferenceParser::from_str(&format!("{}/{repo}:sha256-expected.sig", server.address()))
-                .unwrap(),
+            ReferenceParser::try_from((
+                server.address().to_string().as_str(),
+                repo,
+                "sha256-expected.sig",
+            ))
+            .unwrap(),
         );
 
         let result =
@@ -382,8 +389,12 @@ mod tests {
 
         let layer = cosign_layer(blob_digest, &BASE64_STANDARD.encode(raw_sig));
         let reference = Reference::from(
-            ReferenceParser::from_str(&format!("{}/{repo}:sha256-expected.sig", server.address()))
-                .unwrap(),
+            ReferenceParser::try_from((
+                server.address().to_string().as_str(),
+                repo,
+                "sha256-expected.sig",
+            ))
+            .unwrap(),
         );
 
         let sig_data_result =
@@ -478,11 +489,13 @@ mod tests {
 
     #[test]
     fn test_triangulate_generates_correct_sig_tag() {
-        let repo = "my-registry.io/my-repo";
-        let digest = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-        let reference =
-            Reference::from(ReferenceParser::from_str(&format!("{}:latest", repo)).unwrap());
-        let result = triangulate(&reference, digest);
+        let reference = Reference::from(
+            ReferenceParser::try_from(("my-registry.io", "my-repo", "latest")).unwrap(),
+        );
+        let result = triangulate(
+            &reference,
+            "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        );
         assert!(result.tag().unwrap().ends_with(".sig"));
     }
 

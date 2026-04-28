@@ -128,7 +128,6 @@ pub mod tests {
     use httpmock::{Method::GET, MockServer};
     use oci_client::manifest::OciDescriptor;
     use std::collections::BTreeMap;
-    use std::str::FromStr;
     use tempfile::tempdir;
 
     use crate::oci::reference_parser::ReferenceParser;
@@ -376,9 +375,10 @@ pub mod tests {
         }
 
         pub fn reference_on_server(&self, server: &MockServer) -> Reference {
-            let addr = server.address();
+            let addr = server.address().to_string();
             Reference::from(
-                ReferenceParser::from_str(&format!("{}/{}:{}", addr, self.repo, self.tag)).unwrap(),
+                ReferenceParser::try_from((addr.as_str(), self.repo.as_str(), self.tag.as_str()))
+                    .unwrap(),
             )
         }
 

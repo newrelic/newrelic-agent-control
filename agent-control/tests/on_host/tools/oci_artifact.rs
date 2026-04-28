@@ -32,7 +32,7 @@ pub fn push_agent_package(
     block_on(async {
         let tag = testing_unique_tag();
         let index_reference = Reference::from(
-            ReferenceParser::try_from(format!("{registry_url}/test:{tag}")).unwrap(),
+            ReferenceParser::try_from((registry_url, "test", tag.as_str())).unwrap(),
         );
 
         let oci_client = Client::new(ClientConfig {
@@ -118,8 +118,19 @@ async fn push_package_manifest(
     // The manifest is pushed under a tagged reference because the client's local digest
     // calculation does not always match the registry's canonical JSON. The tag is not used in
     // production scenarios.
-    let manifest_reference =
-        Reference::from(ReferenceParser::try_from(format!("{index_reference}-manifest")).unwrap());
+    let registry = index_reference.registry();
+    let repository = index_reference.repository();
+    let tag = index_reference.tag().unwrap_or("latest");
+    let digest = index_reference.digest().unwrap_or_default();
+    let version = match (tag, digest) {
+        (t, "") => t.to_string(),
+        ("", d) => format!("@{d}"),
+        (t, d) => format!("{t}@{d}"),
+    };
+    let manifest_reference = Reference::from(
+        ReferenceParser::try_from((registry, repository, format!("{version}-manifest").as_str()))
+            .unwrap(),
+    );
 
     let mut title_annotation: BTreeMap<String, String> = BTreeMap::new();
     title_annotation.insert(
