@@ -20,6 +20,7 @@ use crate::{
 };
 use http::HeaderMap;
 use kube::api::TypeMeta;
+use oci_client::secrets::RegistryAuth;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -102,15 +103,14 @@ pub struct PackagesConfig {
 pub struct OciConfig {
     #[serde(default = "OciConfig::default_registry")]
     pub registry: String,
-    #[serde(default)]
-    pub auth: OciAuth,
+    pub auth: Option<OciAuth>,
 }
 
 impl Default for OciConfig {
     fn default() -> Self {
         OciConfig {
             registry: Self::default_registry(),
-            auth: OciAuth::default(),
+            auth: None,
         }
     }
 }
@@ -121,12 +121,31 @@ impl OciConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
-pub struct OciAuth {
-    #[serde(default)]
-    pub basic: BasicAuth,
-    #[serde(default)]
-    pub bearer: BearerAuth,
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub enum OciAuth {
+    Basic(BasicAuth),
+    Bearer(BearerAuth),
+}
+
+impl<'de> Deserialize<'de> for OciAuth {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct OciAuthRaw {
+            basic: Option<BasicAuth>,
+            bearer: Option<BearerAuth>,
+        }
+        let raw = OciAuthRaw::deserialize(deserializer)?;
+        match (raw.basic, raw.bearer) {
+            (Some(_), Some(_)) => Err(serde::de::Error::custom(
+                "oci.auth: cannot specify both 'basic' and 'bearer' authentication",
+            )),
+            (Some(basic), None) => Ok(OciAuth::Basic(basic)),
+            (None, Some(bearer)) => Ok(OciAuth::Bearer(bearer)),
+            (None, None) => Err(serde::de::Error::custom(
+                "oci.auth: must specify either 'basic' or 'bearer'",
+            )),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
@@ -138,6 +157,17 @@ pub struct BasicAuth {
 #[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct BearerAuth {
     pub token: String,
+}
+
+impl From<&OciAuth> for RegistryAuth {
+    fn from(auth: &OciAuth) -> Self {
+        match auth {
+            OciAuth::Bearer(bearer) => RegistryAuth::Bearer(bearer.token.clone()),
+            OciAuth::Basic(basic) => {
+                RegistryAuth::Basic(basic.username.clone(), basic.password.clone())
+            }
+        }
+    }
 }
 
 const DEFAULT_SIGNATURE_VERIFICATION_ENABLED: bool = true;
@@ -1190,5 +1220,43 @@ oci:
         agents.extend(infra());
         agents.extend(nrdot());
         agents
+    }
+
+    #[rstest]
+    #[case::basic_when_set(
+        OciAuth::Basic(BasicAuth { username: "user".to_string(), password: "pass".to_string() }),
+        RegistryAuth::Basic("user".to_string(), "pass".to_string())
+    )]
+    #[case::bearer_when_set(
+        OciAuth::Bearer(BearerAuth { token: "my-token".to_string() }),
+        RegistryAuth::Bearer("my-token".to_string())
+    )]
+    fn test_oci_auth_into_registry_auth(#[case] auth: OciAuth, #[case] expected: RegistryAuth) {
+        assert_eq!(RegistryAuth::from(&auth), expected);
+    }
+
+    #[test]
+    fn test_oci_auth_rejects_empty() {
+        let result = serde_yaml::from_str::<OciAuth>("{}");
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("must specify either 'basic' or 'bearer'")
+        );
+    }
+
+    #[test]
+    fn test_oci_auth_rejects_both_basic_and_bearer() {
+        let yaml = "basic:\n  username: user\n  password: pass\nbearer:\n  token: my-token";
+        let result = serde_yaml::from_str::<OciAuth>(yaml);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("cannot specify both")
+        );
     }
 }

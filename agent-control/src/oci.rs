@@ -26,7 +26,6 @@ pub use error::OciClientError;
 #[derive(Clone)]
 pub struct Client {
     client: oci_client::Client,
-    auth: RegistryAuth,
     runtime: Arc<Runtime>,
     public_key_fetcher: PublicKeyFetcher,
 }
@@ -41,7 +40,6 @@ impl Client {
         let public_key_fetcher = Self::try_build_public_key_fetcher(proxy_config)?;
         Ok(Self {
             client: oci_client::Client::new(client_config),
-            auth: RegistryAuth::Anonymous,
             public_key_fetcher,
             runtime,
         })
@@ -51,9 +49,10 @@ impl Client {
     pub fn pull_image_manifest(
         &self,
         reference: &Reference,
+        auth: &RegistryAuth,
     ) -> Result<(OciImageManifest, String), OciClientError> {
         self.runtime
-            .block_on(self.client.pull_image_manifest(reference, &self.auth))
+            .block_on(self.client.pull_image_manifest(reference, auth))
             .map_err(|err| OciClientError::PullManifest(err.into()))
     }
 
@@ -109,13 +108,14 @@ impl Client {
         &self,
         reference: &Reference,
         public_key_url: &Url,
+        auth: &RegistryAuth,
     ) -> Result<Reference, OciClientError> {
         let public_keys = self
             .public_key_fetcher
             .fetch(public_key_url)
             .map_err(|err| OciClientError::Verify(format!("could not fetch public keys: {err}")))?;
         self.runtime
-            .block_on(self.verify_signature_with_public_keys(reference, &public_keys))
+            .block_on(self.verify_signature_with_public_keys(reference, &public_keys, auth))
     }
 }
 
@@ -178,7 +178,8 @@ pub mod tests {
         let image_ref = mock_server.reference();
         assert!(image_ref.digest().is_none()); // The reference to be verified doesn't have digest
 
-        let result = client.verify_signature(&image_ref, &jwks_server.url);
+        let result =
+            client.verify_signature(&image_ref, &jwks_server.url, &RegistryAuth::Anonymous);
 
         if signer_position.is_some() {
             let verified_ref = result.expect("verification should succeed");
@@ -206,7 +207,8 @@ pub mod tests {
         let client = create_test_client();
         let image_ref = mock_server.reference();
 
-        let result = client.verify_signature(&image_ref, &jwks_server.url);
+        let result =
+            client.verify_signature(&image_ref, &jwks_server.url, &RegistryAuth::Anonymous);
 
         assert_matches!(result, Err(OciClientError::Verify(_)));
     }
@@ -219,7 +221,9 @@ pub mod tests {
 
         let client = create_test_client();
         let reference = &server.reference();
-        let (image_manifest, _) = client.pull_image_manifest(reference).unwrap();
+        let (image_manifest, _) = client
+            .pull_image_manifest(reference, &RegistryAuth::Anonymous)
+            .unwrap();
         let layer = &image_manifest.layers[0];
         assert_eq!(layer.media_type, "fake-media_type");
 

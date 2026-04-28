@@ -1,7 +1,9 @@
+use crate::agent_control::config::OciAuth;
 use crate::oci::{Client, reference_parser::ReferenceParser};
 use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::utils::retry::retry;
 use oci_client::Reference;
+use oci_client::secrets::RegistryAuth;
 use std::path::Path;
 use std::time::Duration;
 use thiserror::Error;
@@ -27,6 +29,7 @@ pub trait OCIAgentDownloader: Send + Sync {
 // This implementation avoids that since each download is expected to be done in a separate package directory.
 pub struct OCIArtifactDownloader {
     client: Client,
+    auth: RegistryAuth,
     signature_verification_enabled: bool,
     max_retries: usize,
     retry_interval: Duration,
@@ -69,9 +72,18 @@ const DEFAULT_RETRIES: usize = 0;
 
 impl OCIArtifactDownloader {
     /// Returns an artifact downloader with default retries setup.
-    pub fn new(client: Client, registry: String, signature_verification_enabled: bool) -> Self {
+    pub fn new(
+        client: Client,
+        registry: String,
+        auth: Option<OciAuth>,
+        signature_verification_enabled: bool,
+    ) -> Self {
         OCIArtifactDownloader {
             client,
+            auth: auth
+                .as_ref()
+                .map(RegistryAuth::from)
+                .unwrap_or(RegistryAuth::Anonymous),
             signature_verification_enabled,
             max_retries: DEFAULT_RETRIES,
             retry_interval: Duration::default(),
@@ -111,7 +123,7 @@ impl OCIArtifactDownloader {
     ) -> Result<Reference, OCIDownloaderError> {
         let reference = &reference_with_registry(reference, &self.registry);
         self.client
-            .verify_signature(reference, public_key_url)
+            .verify_signature(reference, public_key_url, &self.auth)
             .map_err(|err| OCIDownloaderError(err.to_string()))
     }
 
@@ -123,7 +135,7 @@ impl OCIArtifactDownloader {
         let reference = &reference_with_registry(reference, &self.registry);
         let (image_manifest, _) = self
             .client
-            .pull_image_manifest(reference)
+            .pull_image_manifest(reference, &self.auth)
             .map_err(|err| OCIDownloaderError(format!("pull artifact manifest failure: {err}")))?;
 
         let (layer, media_type) = LocalAgentPackage::get_layer(&image_manifest)
@@ -449,6 +461,34 @@ pub mod tests {
         assert_eq!(reference_with_registry.registry(), registry);
     }
 
+    #[test]
+    fn test_none_auth_defaults_to_anonymous() {
+        let server = FakeOciServer::new("test-repo", "v1.0.0")
+            .with_artifact_type(&ManifestArtifactType::AgentPackage.to_string())
+            .with_layer(
+                b"content",
+                &LayerMediaType::AgentPackage(PackageMediaType::AgentPackageLayerTarGz).to_string(),
+            )
+            .build();
+
+        let client = Client::try_new(
+            ClientConfig {
+                protocol: ClientProtocol::Http,
+                ..Default::default()
+            },
+            ProxyConfig::default(),
+            tokio_runtime(),
+        )
+        .unwrap();
+        let downloader = OCIArtifactDownloader::new(client, server.registry(), None, false);
+        let dest_dir = tempdir().unwrap();
+        assert!(
+            downloader
+                .download(&server.reference(), &None, dest_dir.path())
+                .is_ok()
+        );
+    }
+
     fn create_downloader(
         registry: String,
         signature_verification_enabled: bool,
@@ -462,6 +502,6 @@ pub mod tests {
             tokio_runtime(),
         )
         .unwrap();
-        OCIArtifactDownloader::new(client, registry, signature_verification_enabled)
+        OCIArtifactDownloader::new(client, registry, None, signature_verification_enabled)
     }
 }
