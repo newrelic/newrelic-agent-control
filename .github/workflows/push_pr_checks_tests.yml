@@ -90,7 +90,7 @@ jobs:
       - name: Fetch dependencies
         run: cargo fetch
 
-      - uses: newrelic/rust-licenses-noticer@dad311aea99fc619f7fdc7e09a5534f869e747ff # v1
+      - uses: newrelic/rust-licenses-noticer@785bfd244b06c3b36e313b308a76c4afaa50015c # v1
         with:
           template-file: THIRD_PARTY_NOTICES.md.tmpl
 
