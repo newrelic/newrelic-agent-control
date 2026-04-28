@@ -23,6 +23,7 @@ use kube::api::TypeMeta;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
+use tracing::info;
 use url::Url;
 use wrapper_with_default::WrapperWithDefault;
 
@@ -398,6 +399,9 @@ pub struct K8sConfig {
     /// agent_control_cd release name. If not set and cd_enabled is true, AC expect an externally managed CD
     pub cd_release_name: Option<String>,
     /// cd_enabled indicates whether the CD utility is enabled or not.
+    /// Agent control disables health checks and automatic upgrade for the CD chart when this field is set to false.
+    /// However, it will still try to install any Agent configured without ensuring compatibility.
+    /// This responsibility is left to the user and fleet control.
     pub cd_enabled: bool,
     /// Specifies the key name within the Kubernetes Secret
     /// used to retrieve the required secret for credentials.
@@ -435,6 +439,9 @@ impl<'de> Deserialize<'de> for K8sConfig {
         if let Some(cd_enabled) = intermediate.cd_enabled
             && !cd_enabled
         {
+            info!(
+                "CD is disabled, setting cd_release_name to None, cd_remote_update to false and removing flux and instrumentation types from cr_type_meta"
+            );
             intermediate.cd_remote_update = Some(false);
             intermediate.cd_release_name = None;
             intermediate.cr_type_meta = Some(

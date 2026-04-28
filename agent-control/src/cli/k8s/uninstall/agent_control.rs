@@ -81,6 +81,7 @@ fn delete_owned_objects(
 /// objects_to_delete retrieves the static list of object known by AC, ignoring any dynamic list.
 /// Moreover, it adds ConfigMap to the list since it is not part of the default_group_version_kinds().
 /// it also filters away object that are not available in the cluster.
+/// On top of it, in the fluxless scenarios
 fn objects_to_delete(kinds_available: &HashSet<TypeMeta>) -> Vec<TypeMeta> {
     let mut tm_to_delete = default_group_version_kinds();
 
