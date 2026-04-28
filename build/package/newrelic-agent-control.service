@@ -8,6 +8,7 @@ EnvironmentFile=/etc/newrelic-agent-control/systemd-env.conf
 ExecStart=/usr/bin/newrelic-agent-control
 KillMode=mixed
 Restart=on-failure
+RestartForceExitStatus=75
 Type=simple
 
 [Install]
