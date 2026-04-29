@@ -165,18 +165,18 @@ where
             opamp_client.update_effective_config()?
         }
 
-        let _health_checker_thread_context =
-            (self.health_checker_builder)(self.start_time).map(|health_checker| {
-                debug!("Starting Agent Control health-checker");
-                spawn_health_checker(
-                    AgentID::AgentControl,
-                    health_checker,
-                    self.agent_control_internal_publisher.clone(),
-                    self.initial_config.health_check.interval,
-                    self.initial_config.health_check.initial_delay,
-                    self.start_time,
-                )
-            });
+        let maybe_health_checker = (self.health_checker_builder)(self.start_time);
+        let _health_checker_thread_context = maybe_health_checker.map(|health_checker| {
+            debug!("Starting Agent Control health-checker");
+            spawn_health_checker(
+                AgentID::AgentControl,
+                health_checker,
+                self.agent_control_internal_publisher.clone(),
+                self.initial_config.health_check.interval,
+                self.initial_config.health_check.initial_delay,
+                self.start_time,
+            )
+        });
 
         // This update handles scenarios where applying a remote configuration containing an updated Agent Control (AC)
         // was initiated but did not complete successfully, leaving the remote configuration un-stored.
