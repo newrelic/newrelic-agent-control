@@ -239,14 +239,13 @@ impl AgentControlRunner {
             remote_dir.clone(),
         );
 
-        let self_updater = OnHostACUpdater::try_new(
+        let self_updater = OnHostACUpdater::new(
             agent_control_config.self_update.enabled,
             agent_control_internal_publisher.clone(),
             agent_control_package_manager,
             ProcessVerifyExecutor::default(),
             agent_control_config.self_update.package.clone(),
-        )
-        .map_err(|err| RunError(format!("failed to initialize self updater: {err}")))?;
+        );
 
         AgentControl::new(
             maybe_client,

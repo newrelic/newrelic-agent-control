@@ -407,8 +407,7 @@ fn install_packages<PM: PackageManager>(
                 agent_id,
                 PackageData {
                     id: id.clone(),
-                    oci_reference: package.download.oci.reference.clone(),
-                    public_key_url: package.download.oci.public_key_url.clone(),
+                    oci: package.download.oci.clone(),
                 },
             )
             .map_err(|err| InstallPackageError {

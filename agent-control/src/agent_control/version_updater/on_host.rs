@@ -4,14 +4,11 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{AgentControlDynamicConfig, AgentControlPackage};
 use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
-use crate::agent_type::runtime_config::on_host::package::OCI_REGISTRY_PLACEHOLDER;
+use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;
-use crate::oci::reference_parser::ReferenceParser;
 use crate::package::manager::{PackageData, PackageManager};
-use oci_client::Reference;
 use self_replacer::{BinarySelfReplacer, SelfReplacer};
-use std::str::FromStr;
 use thiserror::Error;
 use tracing::{debug, debug_span};
 use url::Url;
@@ -39,7 +36,7 @@ where
     agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
     package_manager: P,
     verify_executor: V,
-    base_reference: Reference,
+    repository: Repository,
     pub_key_url: Url,
 }
 
@@ -66,14 +63,14 @@ where
         )
         .entered();
 
-        if new_version == AGENT_CONTROL_VERSION {
+        if new_version.to_string() == AGENT_CONTROL_VERSION {
             debug!("Desired version is the same as current, skipping update");
             return Ok(());
         }
 
         debug!("Starting update process");
 
-        let package_data = self.get_package_data(new_version);
+        let package_data = self.get_package_data(new_version.clone());
 
         let new_binary_path = self
             .package_manager
@@ -114,40 +111,31 @@ where
     P: PackageManager,
     V: VerifyExecutor,
 {
-    pub fn try_new(
+    pub fn new(
         ac_remote_update_enabled: bool,
         agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
         package_manager: P,
         verify_executor: V,
         package: AgentControlPackage,
-    ) -> Result<Self, BuildError> {
-        let base_reference = Reference::from(ReferenceParser::from_str(
-            format!(
-                "{}/{}",
-                OCI_REGISTRY_PLACEHOLDER, package.download.oci.repository
-            )
-            .as_str(),
-        )?);
-        Ok(Self {
+    ) -> Self {
+        Self {
             ac_remote_update_enabled,
             agent_control_internal_publisher,
             package_manager,
             verify_executor,
-            base_reference,
-            pub_key_url: package.download.oci.public_key_url,
-        })
+            repository: package.download.oci.repository.clone(),
+            pub_key_url: package.download.oci.public_key_url.clone(),
+        }
     }
 
-    fn get_package_data(&self, new_version: &str) -> PackageData {
-        let reference = Reference::with_tag(
-            self.base_reference.registry().to_string(),
-            self.base_reference.repository().to_string(),
-            new_version.to_string(),
-        );
+    fn get_package_data(&self, new_version: Version) -> PackageData {
         PackageData {
             id: AGENT_CONTROL_BIN_PACKAGE_ID.to_string(),
-            oci_reference: reference,
-            public_key_url: Some(self.pub_key_url.clone()),
+            oci: Oci {
+                repository: self.repository.clone(),
+                version: new_version,
+                public_key_url: Some(self.pub_key_url.clone()),
+            },
         }
     }
 }
@@ -155,13 +143,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_control::config::{AgentControlPackage, Download, Oci};
+    use crate::agent_control::config::AgentControlPackage;
     use crate::event::channel::pub_sub;
     use crate::package::manager::tests::MockPackageManager;
-    use assert_matches::assert_matches;
     use mockall::mock;
     use std::path::Path;
-    use url::Url;
+    use std::str::FromStr;
 
     mock! {
         pub VerifyExecutorMock {}
@@ -174,14 +161,13 @@ mod tests {
 
     fn new_test_updater(ac_remote_update_enabled: bool) -> TestUpdater {
         let (publisher, _) = pub_sub();
-        OnHostACUpdater::try_new(
+        OnHostACUpdater::new(
             ac_remote_update_enabled,
             publisher,
             MockPackageManager::new(),
             MockVerifyExecutorMock::new(),
             AgentControlPackage::default(),
         )
-        .unwrap()
     }
 
     #[test]
@@ -202,34 +188,9 @@ mod tests {
     fn update_is_noop_when_version_matches_current() {
         let updater = new_test_updater(true);
         let config = AgentControlDynamicConfig {
-            version: Some(AGENT_CONTROL_VERSION.to_string()),
+            version: Some(Version::from_str(AGENT_CONTROL_VERSION).unwrap()),
             ..Default::default()
         };
         assert!(updater.update(&config).is_ok());
-    }
-
-    #[test]
-    fn try_new_fails_with_invalid_oci_reference() {
-        let (publisher, _) = pub_sub();
-        let package = AgentControlPackage {
-            download: Download {
-                oci: Oci {
-                    repository: "wrongrepo?".to_string(),
-                    public_key_url: Url::parse("https://newrelic.com/keys").unwrap(),
-                },
-            },
-        };
-        assert_matches!(
-            TestUpdater::try_new(
-                true,
-                publisher,
-                MockPackageManager::new(),
-                MockVerifyExecutorMock::new(),
-                package
-            )
-            .err()
-            .unwrap(),
-            BuildError::InvalidReference(_)
-        );
     }
 }

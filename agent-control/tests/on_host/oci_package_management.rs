@@ -1,9 +1,14 @@
+use std::str::FromStr;
+
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use crate::on_host::tools::{
     oci_artifact::push_agent_package, oci_package_manager::new_testing_oci_package_manager,
 };
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
+use newrelic_agent_control::agent_type::runtime_config::on_host::package::rendered::{
+    Oci, Repository, Version,
+};
 use newrelic_agent_control::package::manager::{PackageData, PackageManager};
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::package_manager::get_package_path;
@@ -42,10 +47,13 @@ fn test_install_and_uninstall_with_oci_registry() {
     // Install
     let package_data = PackageData {
         id: pkg_id.clone(),
-        oci_reference: reference.clone(),
-        public_key_url: None,
+        oci: Oci {
+            repository: Repository::from_str(reference.repository()).unwrap(),
+            version: Version::from_str(reference.tag().unwrap()).unwrap(),
+            public_key_url: None,
+        },
     };
-    let installed_package_result = package_manager.install(&agent_id, package_data);
+    let installed_package_result = package_manager.install(&agent_id, package_data.clone());
 
     assert!(
         installed_package_result.is_ok(),
@@ -60,7 +68,7 @@ fn test_install_and_uninstall_with_oci_registry() {
     );
     // Verify location
     // The path should be base_path/agent_id/oci_registry__port__repo_tag
-    let expected_path = get_package_path(&base_path, &agent_id, &pkg_id, &reference).unwrap();
+    let expected_path = get_package_path(&base_path, &agent_id, &package_data).unwrap();
 
     assert_eq!(installed_package.installation_path, expected_path);
 
@@ -105,8 +113,11 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
 
     let package_data = PackageData {
         id: pkg_id.to_string(),
-        oci_reference: reference.clone(),
-        public_key_url: None,
+        oci: Oci {
+            repository: Repository::from_str(reference.repository()).unwrap(),
+            version: Version::from_str(reference.tag().unwrap()).unwrap(),
+            public_key_url: None,
+        },
     };
 
     let installed_1 = package_manager
