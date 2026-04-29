@@ -1,6 +1,6 @@
 use crate::agent_control::config::OciAuth;
 use crate::agent_control::config::Registry;
-use crate::oci::{Client, reference_parser::ReferenceParser};
+use crate::oci::Client;
 use crate::package::manager::PackageData;
 use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::utils::retry::retry;
@@ -54,23 +54,19 @@ impl OCIAgentDownloader for OCIArtifactDownloader {
     ) -> Result<LocalAgentPackage, OCIDownloaderError> {
         debug!(
             "Downloading from repository '{}' with version '{}'",
-            package_data.repository, package_data.version
+            package_data.oci.repository, package_data.oci.version
         );
         retry(self.max_retries, self.retry_interval, || {
             // Verify signature when needed
-            let base_reference = ReferenceParser::from((
-                &self.registry,
-                &package_data.repository,
-                &package_data.version,
-            ))
-            .into();
+            let base_reference = package_data.oci.to_reference(&self.registry);
 
-            let reference =
-                if let Some(pk_url) = self.should_verify_signature(&package_data.public_key_url) {
-                    &self.verified_package_signature_reference(&base_reference, pk_url)?
-                } else {
-                    &base_reference
-                };
+            let reference = if let Some(pk_url) =
+                self.should_verify_signature(&package_data.oci.public_key_url)
+            {
+                &self.verified_package_signature_reference(&base_reference, pk_url)?
+            } else {
+                &base_reference
+            };
             // Download the package
             self.download_package_artifact(reference, package_dir)
                 .inspect_err(|e| debug!("Download '{reference}' failed with error: {e}"))
@@ -165,7 +161,7 @@ impl OCIArtifactDownloader {
 pub mod tests {
     use std::str::FromStr;
 
-    use crate::agent_type::runtime_config::on_host::package::rendered::{Repository, Version};
+    use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
     use crate::http::config::ProxyConfig;
 
     use crate::oci::tests::FakeOciServer;
@@ -203,9 +199,11 @@ pub mod tests {
     fn test_package_data(public_key_url: Option<Url>) -> PackageData {
         PackageData {
             id: "test-package".to_string(),
-            repository: Repository::from_str(REPOSITORY).unwrap(),
-            version: Version::from_str(VERSION).unwrap(),
-            public_key_url,
+            oci: Oci {
+                repository: Repository::from_str(REPOSITORY).unwrap(),
+                version: Version::from_str(VERSION).unwrap(),
+                public_key_url,
+            },
         }
     }
 
@@ -447,9 +445,12 @@ pub mod tests {
         );
         let package_data = PackageData {
             id: "test-package".to_string(),
-            repository: Repository::from_str("test-repo").unwrap(),
-            version: Version::from_str(&format!("v1.0.0@{}", oci_mock.manifest_digest())).unwrap(),
-            public_key_url: None,
+            oci: Oci {
+                repository: Repository::from_str("test-repo").unwrap(),
+                version: Version::from_str(&format!("v1.0.0@{}", oci_mock.manifest_digest()))
+                    .unwrap(),
+                public_key_url: None,
+            },
         };
 
         let downloader = create_downloader(server.address().to_string(), false);

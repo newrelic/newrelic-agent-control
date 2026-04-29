@@ -195,9 +195,7 @@ pub fn include_packages_variables(
     for (package_id, package) in packages {
         let package_data = PackageData {
             id: package_id.to_string(),
-            repository: package.download.oci.repository.clone(),
-            version: package.download.oci.version.clone(),
-            public_key_url: package.download.oci.public_key_url.clone(),
+            oci: package.download.oci.clone(),
         };
         let path =
             get_package_path(Path::new(remote_dir), &agent_id, &package_data).map_err(|e| {

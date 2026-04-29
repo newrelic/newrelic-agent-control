@@ -1,7 +1,10 @@
 use std::{fmt::Display, str::FromStr};
 
+use oci_client::Reference;
 use serde::{Deserialize, Serialize};
 use url::Url;
+
+use crate::agent_control::config::Registry;
 
 const REPOSITORY_TOTAL_LENGTH_MAX: usize = 255;
 const TAG_TOTAL_LENGTH_MAX: usize = 128;
@@ -23,6 +26,26 @@ pub struct Oci {
     pub repository: Repository,
     pub version: Version,
     pub public_key_url: Option<Url>,
+}
+
+const DEFAULT_TAG: &str = "latest";
+
+impl Oci {
+    pub fn to_reference(&self, registry: &Registry) -> Reference {
+        let registry_str = registry.to_string();
+        let repository_str = self.repository.to_string();
+
+        match self.version.tag_and_digest() {
+            (Some(tag), Some(digest)) => {
+                Reference::with_tag_and_digest(registry_str, repository_str, tag, digest)
+            }
+            (Some(tag), None) => Reference::with_tag(registry_str, repository_str, tag),
+            (None, Some(digest)) => Reference::with_digest(registry_str, repository_str, digest),
+            (None, None) => {
+                Reference::with_tag(registry_str, repository_str, DEFAULT_TAG.to_owned())
+            }
+        }
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -176,6 +199,7 @@ impl Version {
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
+    use std::str::FromStr;
 
     use super::*;
 
@@ -213,5 +237,40 @@ mod tests {
     #[case(String::from("a").repeat(REPOSITORY_TOTAL_LENGTH_MAX + 1))]
     fn test_invalid_repository(#[case] input: impl AsRef<str>) {
         assert!(Repository::from_str(input.as_ref()).is_err());
+    }
+
+    mod to_reference {
+        use super::*;
+
+        #[rstest]
+        #[case::with_tag("docker.io", "nr/test", "v1.0.0", "docker.io/nr/test:v1.0.0")]
+        #[case::with_digest(
+            "docker.io",
+            "nr/test",
+            "@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "docker.io/nr/test@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        )]
+        #[case::with_tag_and_digest(
+            "docker.io",
+            "nr/test",
+            "v1.0.0@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "docker.io/nr/test:v1.0.0@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        )]
+        #[case::without_tag_or_digest("docker.io", "nr/test", "", "docker.io/nr/test:latest")]
+        fn test_to_reference(
+            #[case] registry: &str,
+            #[case] repository: &str,
+            #[case] version: &str,
+            #[case] expected_whole: &str,
+        ) {
+            let registry = Registry::from_str(registry).unwrap();
+            let oci = Oci {
+                repository: Repository::from_str(repository).unwrap(),
+                version: Version::from_str(version).unwrap(),
+                public_key_url: None,
+            };
+            let reference = oci.to_reference(&registry);
+            assert_eq!(expected_whole, reference.whole());
+        }
     }
 }

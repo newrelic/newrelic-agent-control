@@ -278,7 +278,10 @@ fn get_generic_package_location_path(
 /// 2. Replaces directory separators (`/`, `\`) with `__`.
 /// 3. Replaces any other character that is not alphanumeric, `.`, `-`, `_`, `@`, etc with `_`.
 fn compute_path_suffix(package_data: &PackageData) -> Result<PathBuf, OCIPackageManagerError> {
-    let package_full_reference = format!("{}:{}", package_data.repository, package_data.version);
+    let package_full_reference = format!(
+        "{}:{}",
+        package_data.oci.repository, package_data.oci.version
+    );
     let mut safe_name = String::with_capacity(package_full_reference.len() + 4);
     safe_name.push_str("oci_");
     for c in package_full_reference.chars() {
@@ -376,7 +379,7 @@ mod tests {
 
     use super::*;
 
-    use crate::agent_type::runtime_config::on_host::package::rendered::{Repository, Version};
+    use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
     use crate::package::oci::artifact_definitions::PackageMediaType;
     use crate::package::oci::downloader::tests::MockOCIDownloader;
     use crate::utils::extract::tests::TestDataHelper;
@@ -391,12 +394,14 @@ mod tests {
     fn test_package_data() -> PackageData {
         PackageData {
             id: TEST_PACKAGE_ID.to_string(),
-            repository: Repository::from_str("library/busybox").unwrap(),
-            version: Version::from_str(
-                "latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-            )
-            .unwrap(),
-            public_key_url: None,
+            oci: Oci {
+                repository: Repository::from_str("library/busybox").unwrap(),
+                version: Version::from_str(
+                    "latest@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                )
+                .unwrap(),
+                public_key_url: None,
+            },
         }
     }
 
@@ -407,9 +412,11 @@ mod tests {
     fn new_package_version(version: &str) -> PackageData {
         PackageData {
             id: TEST_PACKAGE_ID.to_string(),
-            repository: Repository::from_str("newrelic/fake-agent").unwrap(),
-            version: Version::from_str(version).unwrap(),
-            public_key_url: None,
+            oci: Oci {
+                repository: Repository::from_str("newrelic/fake-agent").unwrap(),
+                version: Version::from_str(version).unwrap(),
+                public_key_url: None,
+            },
         }
     }
 

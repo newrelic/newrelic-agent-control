@@ -4,7 +4,7 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{AgentControlDynamicConfig, AgentControlPackage};
 use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
-use crate::agent_type::runtime_config::on_host::package::rendered::{Repository, Version};
+use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;
 use crate::package::manager::{PackageData, PackageManager};
@@ -131,9 +131,11 @@ where
     fn get_package_data(&self, new_version: Version) -> PackageData {
         PackageData {
             id: AGENT_CONTROL_BIN_PACKAGE_ID.to_string(),
-            repository: self.repository.clone(),
-            version: new_version,
-            public_key_url: Some(self.pub_key_url.clone()),
+            oci: Oci {
+                repository: self.repository.clone(),
+                version: new_version,
+                public_key_url: Some(self.pub_key_url.clone()),
+            },
         }
     }
 }

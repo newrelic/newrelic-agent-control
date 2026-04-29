@@ -5,7 +5,7 @@ use httpmock::{MockServer, When};
 use newrelic_agent_control::agent_control::config::Registry;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::agent_type::runtime_config::on_host::package::rendered::{
-    Repository, Version,
+    Oci, Repository, Version,
 };
 use newrelic_agent_control::http::config::ProxyConfig;
 use newrelic_agent_control::oci;
@@ -62,9 +62,11 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
 
     let package_data = PackageData {
         id: "test-package".to_string(),
-        repository: Repository::from_str(reference.repository()).unwrap(),
-        version: Version::from_str(reference.tag().unwrap()).unwrap(),
-        public_key_url: None,
+        oci: Oci {
+            repository: Repository::from_str(reference.repository()).unwrap(),
+            version: Version::from_str(reference.tag().unwrap()).unwrap(),
+            public_key_url: None,
+        },
     };
     let _ = downloader
         .download(&package_data, local_agent_data_dir)
@@ -135,9 +137,11 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
 
     let package_data = PackageData {
         id: "test-package".to_string(),
-        repository: Repository::from_str(reference.repository()).unwrap(),
-        version: Version::from_str(reference.tag().unwrap()).unwrap(),
-        public_key_url: None,
+        oci: Oci {
+            repository: Repository::from_str(reference.repository()).unwrap(),
+            version: Version::from_str(reference.tag().unwrap()).unwrap(),
+            public_key_url: None,
+        },
     };
     let result = downloader.download(&package_data, local_agent_data_dir);
     assert!(result.is_ok());
