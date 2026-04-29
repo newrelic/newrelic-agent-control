@@ -19,18 +19,24 @@ impl Annotations {
         )]))
     }
 
-    pub fn new_agent_control_owned(agent_type_id: Option<&AgentTypeID>) -> Self {
-        let mut map = BTreeMap::from([(
+    pub fn new_agent_control_owned() -> Self {
+        Self(BTreeMap::from([(
             OWNED_BY_ANNOTATION_KEY.to_string(),
             OWNED_BY_AGENT_CONTROL.to_string(),
-        )]);
-        agent_type_id.inspect(|agent_type_id| {
-            map.insert(
+        )]))
+    }
+
+    pub fn new_agent_control_owned_with_type(agent_type_id: &AgentTypeID) -> Self {
+        let base = Self::new_agent_control_owned().0;
+        let with_agent_type_id = std::iter::chain(
+            base,
+            [(
                 AGENT_TYPE_ID_ANNOTATION_KEY.to_string(),
                 agent_type_id.to_string(),
-            );
-        });
-        Self(map)
+            )],
+        )
+        .collect();
+        Self(with_agent_type_id)
     }
 
     pub fn new_sub_agent_owned(agent_type_id: &AgentTypeID) -> Self {
