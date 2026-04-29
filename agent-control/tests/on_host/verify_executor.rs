@@ -11,9 +11,10 @@ use opamp_client::opamp::proto::any_value::Value;
 use tempfile::tempdir;
 
 use crate::{
-    common::opamp::FakeServer, on_host::tools::config::create_agent_control_config,
+    common::runtime::tokio_runtime, on_host::tools::config::create_agent_control_config,
     on_host::tools::instance_id::get_instance_id,
 };
+use fake_opamp_server::FakeServer;
 
 /// Returns the path to the newrelic-agent-control binary under test
 fn binary_path() -> &'static Path {
@@ -25,7 +26,7 @@ fn test_verify_executor() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
     let agents = "{}".to_string();
 
     create_agent_control_config(
@@ -61,7 +62,7 @@ fn test_verify_executor() {
     // Verify that execution.mode attribute was sent to OpAMP server
     let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, base_paths);
     let attributes = opamp_server
-        .get_attributes(&agent_control_instance_id)
+        .get_attributes(agent_control_instance_id.clone())
         .expect("Agent Control attributes not found in OpAMP server");
 
     let execution_mode_attr = attributes

@@ -1,13 +1,13 @@
 //! Integration tests for k8s without Flux
 //! These tests use a simplified environment with just agent-control binary and image.
 
-use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
-use crate::common::runtime::block_on;
+use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::start_agent_control_with_testdata_config;
 use crate::k8s::tools::k8s_api::check_config_map_exist;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use crate::k8s::tools::{agent_control, instance_id};
+use fake_opamp_server::FakeServer;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -23,7 +23,7 @@ const CONFIG_AGENT_TYPE_PATH: &str = "tests/k8s/data/config_map_type.yml";
 fn k8s_config_map_type_creates_configmap() {
     let test_name = "k8s_config_map_type_creates_configmap";
 
-    let mut server = FakeServer::start_new();
+    let mut server = FakeServer::start(tokio_runtime().handle());
 
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());

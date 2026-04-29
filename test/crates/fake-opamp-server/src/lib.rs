@@ -1,16 +1,9 @@
-use super::runtime::tokio_runtime;
 use actix_web::{App, HttpResponse, HttpServer, web};
 use aws_lc_rs::digest;
 use aws_lc_rs::rand::SystemRandom;
 use aws_lc_rs::signature::{Ed25519KeyPair, KeyPair as _};
 use base64::Engine;
 use base64::prelude::{BASE64_STANDARD, BASE64_URL_SAFE_NO_PAD};
-use newrelic_agent_control::opamp::instance_id::InstanceID;
-use newrelic_agent_control::opamp::remote_config::AGENT_CONFIG_PREFIX;
-use newrelic_agent_control::opamp::remote_config::signature::{
-    SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE, SignatureFields,
-};
-use newrelic_agent_control::signature::public_key::SigningAlgorithm::ED25519;
 use opamp_client::opamp::proto::{
     AgentConfigFile, AgentConfigMap, AgentDescription, AgentRemoteConfig, AgentToServer,
     ComponentHealth, CustomMessage, EffectiveConfig, RemoteConfigStatus, ServerToAgent,
@@ -18,20 +11,26 @@ use opamp_client::opamp::proto::{
 };
 use opamp_client::operation::instance_uid::InstanceUid;
 use prost::Message;
+use serde::Serialize;
 use serde_json::json;
+use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::sync::Mutex;
-use std::{collections::HashMap, net, sync::Arc};
+use std::net;
+use std::sync::{Arc, Mutex};
 use tokio::task::JoinHandle;
+
+pub use opamp_client::operation::instance_uid::InstanceUid as InstanceID;
 
 const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
 const JWKS_SERVER_PATH: &str = "/jwks";
 const JWKS_PUBLIC_KEY_ID: &str = "fakeKeyName/0";
+const AGENT_CONFIG_PREFIX: &str = "agentConfig";
+const SIGNATURE_CUSTOM_CAPABILITY: &str = "com.newrelic.security.configSignature";
+const SIGNATURE_CUSTOM_MESSAGE_TYPE: &str = "newrelicRemoteConfigSignature";
+const ED25519_ALG: &str = "ED25519";
 
-/// Represents the state of the FakeServer.
 struct ServerState {
-    agent_state: HashMap<InstanceID, AgentState>,
-    // Key pair to sign remote configuration
+    agent_state: HashMap<InstanceUid, AgentState>,
     key_pair: Ed25519KeyPair,
 }
 
@@ -54,13 +53,12 @@ impl ServerState {
     }
 }
 
-#[derive(Clone, Debug, Default)]
 /// Represents a remote configuration that can be sent to the agent.
+#[derive(Clone, Debug, Default)]
 pub struct RemoteConfig(AgentRemoteConfig);
 
 impl RemoteConfig {
     pub fn new(config_map: HashMap<String, String>) -> Self {
-        // Build an AgentConfigMap from raw entries (keys and YAML bodies as &str)
         let built_map: HashMap<String, AgentConfigFile> = config_map
             .into_iter()
             .map(|(key, body)| {
@@ -84,7 +82,7 @@ impl RemoteConfig {
         })
     }
 
-    // Do not assume this replicate FC hashing.
+    // Do not assume this replicates FC hashing.
     fn compute_hash(map: &HashMap<String, AgentConfigFile>) -> Vec<u8> {
         let mut hasher = DefaultHasher::new();
         for agent_config_file in map.values() {
@@ -94,20 +92,26 @@ impl RemoteConfig {
     }
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SignatureFields {
+    signature: String,
+    signing_algorithm: String,
+    key_id: String,
+}
+
+/// Represents a remote configuration signature custom message.
 #[derive(Clone, Debug, Default)]
-/// Represents a remote configuration signature custom message
 pub struct RemoteConfigSignature(CustomMessage);
+
 impl RemoteConfigSignature {
     pub fn new(key_pair: &Ed25519KeyPair, remote_config: RemoteConfig) -> Self {
-        let mut custom_message_data = HashMap::new();
+        let mut custom_message_data: HashMap<String, Vec<SignatureFields>> = HashMap::new();
 
         let config_map = remote_config.0.config.unwrap_or_default().config_map;
 
         for (cfg_key, cfg_content) in config_map {
-            // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
-            // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
-            // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
-            // the signature against that.
+            // FC signs the Base64 representation of the SHA256 digest of the message body.
             let digest = digest::digest(&digest::SHA256, &cfg_content.body);
             let msg = BASE64_STANDARD.encode(digest);
             let signature = key_pair.sign(msg.as_bytes());
@@ -116,11 +120,12 @@ impl RemoteConfigSignature {
                 cfg_key,
                 vec![SignatureFields {
                     signature: BASE64_STANDARD.encode(signature),
-                    signing_algorithm: ED25519.as_ref().to_string(),
+                    signing_algorithm: ED25519_ALG.to_string(),
                     key_id: JWKS_PUBLIC_KEY_ID.to_string(),
                 }],
             );
         }
+
         Self(CustomMessage {
             capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
             r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
@@ -129,8 +134,7 @@ impl RemoteConfigSignature {
     }
 }
 
-/// FakeServer represents a OpAMP mock server that can be used for testing purposed.
-/// The underlying http server will be aborted when the object is dropped.
+/// OpAMP mock server for testing. The underlying HTTP server is aborted when dropped.
 pub struct FakeServer {
     handle: JoinHandle<()>,
     state: Arc<Mutex<ServerState>>,
@@ -139,31 +143,27 @@ pub struct FakeServer {
 }
 
 impl FakeServer {
-    /// Gets the endpoint to be used in the Super-Agent static configuration.
+    /// Starts the server on a random port, spawning the HTTP task on the provided runtime handle.
+    pub fn start(handle: &tokio::runtime::Handle) -> Self {
+        let listener = net::TcpListener::bind("0.0.0.0:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let state = Arc::new(Mutex::new(ServerState::generate()));
+        let join_handle = handle.spawn(Self::run_http_server(listener, state.clone()));
+
+        Self {
+            handle: join_handle,
+            state,
+            port,
+            path: FAKE_SERVER_PATH.to_string(),
+        }
+    }
+
     pub fn endpoint(&self) -> String {
         format!("http://localhost:{}{}", self.port, self.path)
     }
 
     pub fn jwks_endpoint(&self) -> String {
         format!("http://localhost:{}{}", self.port, JWKS_SERVER_PATH)
-    }
-
-    /// Starts and returns new FakeServer in a random port.
-    pub fn start_new() -> Self {
-        // While binding to port 0, the kernel gives you a free ephemeral port.
-        let listener = net::TcpListener::bind("0.0.0.0:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-
-        let state = Arc::new(Mutex::new(ServerState::generate()));
-
-        let handle = tokio_runtime().spawn(Self::run_http_server(listener, state.clone()));
-
-        Self {
-            handle,
-            state,
-            port,
-            path: FAKE_SERVER_PATH.to_string(),
-        }
     }
 
     async fn run_http_server(listener: net::TcpListener, state: Arc<Mutex<ServerState>>) {
@@ -180,15 +180,17 @@ impl FakeServer {
         .unwrap_or_else(|err| panic!("Failed to run the HTTP server: {err}"))
     }
 
-    /// Sets a response for the provided identifier. If a response already existed, it is overwritten.
-    /// It will be returned by the server until the agent informs that the remote configuration has been applied,
-    /// then the server will return a `None` (no-changes) configuration in following requests.
-    /// The identifier should be a valid UUID.
-    pub fn set_config_response(&mut self, identifier: InstanceID, response: impl AsRef<str>) {
+    /// Sets the remote config for the given agent. Overwrites any existing config.
+    /// The server stops sending it once the agent acknowledges the hash.
+    pub fn set_config_response(
+        &mut self,
+        identifier: impl Into<InstanceUid>,
+        response: impl AsRef<str>,
+    ) {
         let mut state = self.state.lock().unwrap();
         state
             .agent_state
-            .entry(identifier)
+            .entry(identifier.into())
             .or_default()
             .remote_config = Some(RemoteConfig::new(HashMap::from([(
             AGENT_CONFIG_PREFIX.to_string(),
@@ -196,67 +198,68 @@ impl FakeServer {
         )])));
     }
 
-    /// Same as `set_config_response` but accepts multiple configurations.
+    /// Same as `set_config_response` but accepts multiple config keys.
     pub fn set_multi_config_response(
         &mut self,
-        identifier: &InstanceID,
+        identifier: impl Into<InstanceUid>,
         config_map: HashMap<String, String>,
     ) {
         let mut state = self.state.lock().unwrap();
         state
             .agent_state
-            .entry(identifier.clone())
+            .entry(identifier.into())
             .or_default()
             .remote_config = Some(RemoteConfig::new(config_map));
     }
 
-    pub fn get_health_status(&self, identifier: &InstanceID) -> Option<ComponentHealth> {
+    pub fn get_health_status(&self, identifier: impl Into<InstanceUid>) -> Option<ComponentHealth> {
         let state = self.state.lock().unwrap();
         state
             .agent_state
-            .get(identifier)
+            .get(&identifier.into())
             .and_then(|s| s.health_status.clone())
     }
-    pub fn get_attributes(&self, identifier: &InstanceID) -> Option<AgentDescription> {
+
+    pub fn get_attributes(&self, identifier: impl Into<InstanceUid>) -> Option<AgentDescription> {
         let state = self.state.lock().unwrap();
         state
             .agent_state
-            .get(identifier)
+            .get(&identifier.into())
             .map(|s| s.attributes.clone())
     }
 
-    pub fn get_effective_config(&self, identifier: InstanceID) -> Option<EffectiveConfig> {
+    pub fn get_effective_config(
+        &self,
+        identifier: impl Into<InstanceUid>,
+    ) -> Option<EffectiveConfig> {
         let state = self.state.lock().unwrap();
         state
             .agent_state
-            .get(&identifier)
+            .get(&identifier.into())
             .map(|s| s.effective_config.clone())
     }
 
-    pub fn get_remote_config_status(&self, identifier: InstanceID) -> Option<RemoteConfigStatus> {
+    pub fn get_remote_config_status(
+        &self,
+        identifier: impl Into<InstanceUid>,
+    ) -> Option<RemoteConfigStatus> {
         let state = self.state.lock().unwrap();
         state
             .agent_state
-            .get(&identifier)
+            .get(&identifier.into())
             .map(|s| s.config_status.clone())
-    }
-
-    fn stop(&self) {
-        self.handle.abort();
     }
 }
 
 impl Drop for FakeServer {
     fn drop(&mut self) {
-        self.stop();
+        self.handle.abort();
     }
 }
 
 async fn opamp_handler(state: web::Data<Arc<Mutex<ServerState>>>, req: web::Bytes) -> HttpResponse {
     let message = AgentToServer::decode(req).unwrap();
-    let identifier: InstanceID = InstanceUid::try_from(message.clone().instance_uid)
-        .unwrap()
-        .into();
+    let identifier = InstanceUid::try_from(message.clone().instance_uid).unwrap();
 
     let mut server_state = state.lock().unwrap();
 
@@ -265,16 +268,11 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<ServerState>>>, req: web::Byte
         .entry(identifier.clone())
         .or_default();
 
-    // Check sequence number
     let mut flags = ServerToAgentFlags::Unspecified as u64;
     if message.sequence_num == (agent_state.sequence_number + 1) {
-        // case 1: first opamp connection start with seq number 1
-        // case 2: Any valid new sequence number
         agent_state.sequence_number += 1;
     } else {
         flags = ServerToAgentFlags::ReportFullState as u64;
-        // upon report full state the opamp client will send a new AgentToServer
-        // increasing the seq number so current should be the valid
         agent_state.sequence_number = message.sequence_num;
     }
 
@@ -290,9 +288,6 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<ServerState>>>, req: web::Byte
         agent_state.effective_config = effective_cfg;
     }
 
-    // Process config status:
-    // Stop sending the RemoteConfig once we got a RemoteConfigStatus response associated with the hash.
-    // emulating what FC currently does.
     if let Some(cfg_status) = message.remote_config_status {
         if agent_state
             .remote_config
@@ -308,7 +303,7 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<ServerState>>>, req: web::Byte
 
     let remote_config = agent_state.remote_config.clone();
 
-    let _ = agent_state; // We need to get rid of the mutable reference before leveraging another immutable.
+    let _ = agent_state; // drop mutable ref before taking immutable one
 
     let server_to_agent = build_response(identifier, remote_config, &server_state.key_pair, flags);
     HttpResponse::Ok().body(server_to_agent)
@@ -328,7 +323,7 @@ async fn jwks_handler(state: web::Data<Arc<Mutex<ServerState>>>, _req: web::Byte
                 "n": null,
                 "x": enc_public_key,
                 "y": null,
-                "crv": ED25519.as_ref(),
+                "crv": ED25519_ALG,
             }
         ]
     });
@@ -336,7 +331,7 @@ async fn jwks_handler(state: web::Data<Arc<Mutex<ServerState>>>, _req: web::Byte
 }
 
 fn build_response(
-    instance_id: InstanceID,
+    instance_id: InstanceUid,
     maybe_remote_config: Option<RemoteConfig>,
     key_pair: &Ed25519KeyPair,
     flags: u64,
@@ -348,8 +343,9 @@ fn build_response(
         maybe_custom_message = Some(RemoteConfigSignature::new(key_pair, remote_config.clone()).0);
         maybe_agent_remote_config = Some(remote_config.0);
     }
+
     ServerToAgent {
-        instance_uid: instance_id.into(),
+        instance_uid: Vec::<u8>::from(instance_id),
         remote_config: maybe_agent_remote_config,
         custom_message: maybe_custom_message,
         flags,

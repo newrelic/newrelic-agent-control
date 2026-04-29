@@ -1,12 +1,12 @@
 use crate::{
     common::{
         health::{check_latest_health_status, check_latest_health_status_was_healthy},
-        opamp::FakeServer,
         retry::retry,
-        runtime::block_on,
+        runtime::{block_on, tokio_runtime},
     },
     k8s::tools::agent_control::CUSTOM_AGENT_TYPE_DIRECT_CHECKS_PATH,
 };
+use fake_opamp_server::FakeServer;
 
 use crate::k8s::tools::{
     agent_control::start_agent_control_with_testdata_config, instance_id, k8s_env::K8sEnv,
@@ -30,7 +30,7 @@ use tempfile::tempdir;
 fn k8s_direct_workload_health_checks() {
     let test_name = "k8s_direct_workload_health_checks";
 
-    let server = FakeServer::start_new();
+    let server = FakeServer::start(tokio_runtime().handle());
 
     let mut k8s = block_on(K8sEnv::new());
     let ac_ns = block_on(k8s.test_namespace());
@@ -80,7 +80,7 @@ fn k8s_direct_workload_health_checks() {
 fn k8s_direct_workload_health_checks_unhealthy() {
     let test_name = "k8s_direct_workload_health_checks";
 
-    let server = FakeServer::start_new();
+    let server = FakeServer::start(tokio_runtime().handle());
 
     let mut k8s = block_on(K8sEnv::new());
     let ac_ns = block_on(k8s.test_namespace());

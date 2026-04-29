@@ -5,7 +5,10 @@ use newrelic_agent_control::{agent_control::agent_id::AgentID, k8s::labels::Labe
 use tempfile::tempdir;
 
 use crate::{
-    common::{opamp::FakeServer, retry::retry, runtime::block_on},
+    common::{
+        retry::retry,
+        runtime::{block_on, tokio_runtime},
+    },
     k8s::tools::{
         agent_control::{
             CUSTOM_AGENT_TYPE_PATH, start_agent_control_with_testdata_config,
@@ -15,6 +18,7 @@ use crate::{
         test_crd::{Foo, create_foo_cr},
     },
 };
+use fake_opamp_server::FakeServer;
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -36,7 +40,7 @@ fn k8s_garbage_collector_triggers_on_ac_startup() {
 
     // start Agent Control, so the objects above should be removed by the GC.
     let tmp_dir = tempdir().expect("failed to create local temp dir");
-    let server = FakeServer::start_new();
+    let server = FakeServer::start(tokio_runtime().handle());
     let _sa = start_agent_control_with_testdata_config(
         test_name,
         CUSTOM_AGENT_TYPE_PATH,

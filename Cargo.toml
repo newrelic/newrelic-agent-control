@@ -3,6 +3,7 @@ resolver = "3"
 
 members = [
   "agent-control",
+  "test/crates/fake-opamp-server",
   "resource-detection",
   "fs",
   "wrapper_with_default",
@@ -44,6 +45,10 @@ reqwest = { version = "0.13.3", features = ["blocking", "socks"] }
 rstest = "0.26.1"
 windows = "0.62.2"
 windows-sys = "0.61.2"
+aws-lc-rs = "1.16.3"
+base64 = "0.22.1"
+opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.37" }
+tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros"] }
 
 [profile.release-debug]
 inherits = "release"

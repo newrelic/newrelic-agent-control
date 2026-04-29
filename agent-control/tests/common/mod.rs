@@ -6,7 +6,6 @@ pub(super) mod global_logger;
 pub(super) mod health;
 pub(super) mod http_port;
 pub(super) mod oci;
-pub(super) mod opamp;
 pub(super) mod process_finder;
 pub(super) mod remote_config_status;
 pub(super) mod retry;

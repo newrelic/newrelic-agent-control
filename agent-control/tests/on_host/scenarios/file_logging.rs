@@ -2,7 +2,7 @@ use std::{fs, io, path::Path, time::Duration};
 
 use crate::{
     common::{
-        agent_control::start_agent_control_with_custom_config, opamp::FakeServer, retry::retry,
+        agent_control::start_agent_control_with_custom_config, retry::retry, runtime::tokio_runtime,
     },
     on_host::tools::{
         config::{create_agent_control_config, create_file, create_local_config},
@@ -10,6 +10,7 @@ use crate::{
         instance_id::get_instance_id,
     },
 };
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::{
@@ -103,7 +104,7 @@ fn run_file_logging_scenario(
     reload_file_logging: bool,
     reload_message: &str,
 ) -> (tempfile::TempDir, String) {
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let tempdir = tempdir().expect("failed to create temp dir");
     let local_dir = tempdir.path().join("local");

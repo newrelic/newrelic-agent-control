@@ -8,10 +8,9 @@ use crate::common::attributes::{
 /// special setup that differs from other integration tests and is managed by
 /// the Makefile and Tiltfile for CI environments.
 use crate::common::health::{check_latest_health_status, check_latest_health_status_was_healthy};
-use crate::common::opamp::FakeServer;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::retry::{DeferredCommand, retry};
-use crate::common::runtime::block_on;
+use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::{
     CUSTOM_AGENT_TYPE_SPLIT_NS_PATH, start_agent_control_with_testdata_config,
 };
@@ -24,6 +23,7 @@ use crate::k8s::tools::local_chart::agent_control_cd::{
     CHART_VERSION_UPSTREAM_1, CHART_VERSION_UPSTREAM_1_PKG, CHART_VERSION_UPSTREAM_2,
 };
 use crate::k8s::tools::local_chart::agent_control_deploymet::MISSING_VERSION;
+use fake_opamp_server::FakeServer;
 use k8s_openapi::api::rbac::v1::{Role, RoleBinding};
 use kube::api::PostParams;
 use kube::{Api, Client};
@@ -68,7 +68,7 @@ fn k8s_cli_install_and_update_flux_resources_success() {
 #[ignore = "needs k8s cluster"]
 fn k8s_remote_flux_update() {
     let test_name = "k8s_remote_flux_update";
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
 
@@ -152,7 +152,7 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
 #[ignore = "needs k8s cluster"]
 fn k8s_remote_flux_update_with_wrong_version_causes_unhealthy() {
     let test_name = "k8s_remote_flux_update";
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
 

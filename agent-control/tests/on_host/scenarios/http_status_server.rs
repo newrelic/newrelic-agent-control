@@ -1,12 +1,13 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::http_port::{available_port, status_server_url};
-use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
+use crate::common::runtime::tokio_runtime;
 use crate::on_host::consts::NO_CONFIG;
 use crate::on_host::tools::config::{
     create_agent_control_config_with_status_server, create_local_config,
 };
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
     HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
@@ -28,7 +29,7 @@ fn test_http_status_endpoint_response() {
     const AGENT_ID: &str = "nr-sleep-agent";
     const HOST_ID: &str = "integration-test";
 
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 

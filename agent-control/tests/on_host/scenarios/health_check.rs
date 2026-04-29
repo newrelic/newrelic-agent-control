@@ -1,12 +1,13 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
-use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
+use crate::common::runtime::tokio_runtime;
 use crate::on_host::consts::NO_CONFIG;
 use crate::on_host::tools::config::{
     create_agent_control_config, create_file, create_local_config,
 };
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
+use fake_opamp_server::FakeServer;
 use httpmock::Method::GET;
 use httpmock::MockServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -19,7 +20,7 @@ use tempfile::tempdir;
 /// read the health status from the file and send it to the opamp server.
 #[test]
 fn test_file_health_without_supervisor() {
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -84,7 +85,8 @@ status_time_unix_nano: 1725444200
     retry(30, Duration::from_secs(1), || {
         // health_status.start_time_unix_nano and health_status.status_time_unix_nano are not going
         // to match the ones from the file because they will be the ones from the aggregated checker
-        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id)
+        if let Some(health_status) =
+            opamp_server.get_health_status(agent_control_instance_id.clone())
             && health_status.healthy
             && health_status.status == "healthy-message"
         {
@@ -106,7 +108,8 @@ status_time_unix_nano: 1725444500
     );
 
     retry(30, Duration::from_secs(1), || {
-        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id)
+        if let Some(health_status) =
+            opamp_server.get_health_status(agent_control_instance_id.clone())
             && !health_status.healthy
             && health_status.status == "unhealthy-message"
             && health_status.last_error == "error-message"
@@ -123,7 +126,7 @@ status_time_unix_nano: 1725444500
 /// read the health status from http endpoint and send it to the opamp server.
 #[test]
 fn test_http_health_without_supervisor() {
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let health_server = MockServer::start();
 
@@ -184,7 +187,8 @@ http:
     let agent_control_instance_id = get_instance_id(&sub_agent_id, base_paths);
 
     retry(30, Duration::from_secs(1), || {
-        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id)
+        if let Some(health_status) =
+            opamp_server.get_health_status(agent_control_instance_id.clone())
             && health_status.healthy
             && health_status.status == "healthy-message"
         {
@@ -201,7 +205,8 @@ http:
     });
 
     retry(30, Duration::from_secs(1), || {
-        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id)
+        if let Some(health_status) =
+            opamp_server.get_health_status(agent_control_instance_id.clone())
             && !health_status.healthy
             && health_status.status == "unhealthy-message"
         {

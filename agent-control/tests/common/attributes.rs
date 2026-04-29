@@ -1,4 +1,4 @@
-use crate::common::opamp::FakeServer;
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 
 use opamp_client::opamp::proto::any_value::Value;
@@ -10,7 +10,7 @@ pub fn check_latest_identifying_attributes_match_expected(
     expected_identifying_attributes: Vec<KeyValue>,
 ) -> Result<(), String> {
     let current_attributes = opamp_server
-        .get_attributes(instance_id)
+        .get_attributes(instance_id.clone())
         .ok_or_else(|| "Identifying attributes not found".to_string())?;
 
     check_opamp_attributes(
@@ -26,7 +26,7 @@ pub fn check_latest_non_identifying_attributes_match_expected(
     expected_non_identifying_attributes: Vec<KeyValue>,
 ) -> Result<(), String> {
     let current_attributes = opamp_server
-        .get_attributes(instance_id)
+        .get_attributes(instance_id.clone())
         .ok_or_else(|| "Non identifying attributes not found".to_string())?;
 
     check_opamp_attributes(
@@ -42,7 +42,7 @@ pub fn check_identifying_attributes_contains_expected(
     expected_subset: Vec<KeyValue>,
 ) -> Result<(), String> {
     let current_attributes = opamp_server
-        .get_attributes(instance_id)
+        .get_attributes(instance_id.clone())
         .ok_or_else(|| "Identifying attributes not found".to_string())?;
 
     check_opamp_attributes_contains(

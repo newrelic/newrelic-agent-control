@@ -2,8 +2,8 @@ use crate::on_host::tools::config::create_remote_config;
 use crate::{
     common::{
         agent_control::start_agent_control_with_custom_config,
-        effective_config::check_latest_effective_config_is_expected, opamp::FakeServer,
-        retry::retry,
+        effective_config::check_latest_effective_config_is_expected, retry::retry,
+        runtime::tokio_runtime,
     },
     on_host::tools::{
         config::{create_agent_control_config, create_local_config},
@@ -11,6 +11,7 @@ use crate::{
         instance_id::get_instance_id,
     },
 };
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::{agent_id::AgentID, run::BasePaths};
 use opamp_client::opamp::proto::RemoteConfigStatuses;
@@ -23,7 +24,7 @@ use tempfile::tempdir;
 #[test]
 fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -100,7 +101,7 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
 #[test]
 fn onhost_opamp_sub_agent_with_no_local_config() {
     // Given a agent-control with a custom-agent with opamp configured.
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -141,7 +142,7 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
     retry(60, Duration::from_secs(1), || {
         // The agent attributes should be informed even if there is no supervisor
         let _ = opamp_server
-            .get_attributes(&sub_agent_instance_id.clone())
+            .get_attributes(sub_agent_instance_id.clone())
             .ok_or("no attributes informed")?;
         Ok(())
     });

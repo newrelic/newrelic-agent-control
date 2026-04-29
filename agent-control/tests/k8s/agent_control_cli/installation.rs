@@ -1,5 +1,4 @@
-use crate::common::opamp::FakeServer;
-use crate::common::runtime::block_on;
+use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::{DUMMY_PRIVATE_KEY, K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET};
 use crate::k8s::tools::cmd::{assert_stderr_contains, print_cli_output};
 use crate::k8s::tools::k8s_api::create_values_secret;
@@ -11,6 +10,7 @@ use crate::k8s::tools::local_chart::{
 use crate::k8s::tools::opamp::get_minikube_opamp_url_from_fake_server;
 use assert_cmd::Command;
 use assert_cmd::cargo::cargo_bin_cmd;
+use fake_opamp_server::FakeServer;
 use kube::Client;
 use std::time::Duration;
 // NOTE: The tests below are using the latest '*' chart version, and they will likely fail
@@ -26,7 +26,7 @@ fn k8s_cli_install_agent_control_installation_with_invalid_chart_version() {
     let mut k8s_env = block_on(K8sEnv::new());
     let ac_namespace = block_on(k8s_env.test_namespace());
     let subagents_namespace = block_on(k8s_env.test_namespace());
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
 
     create_simple_values_secret(
         k8s_env.client.clone(),
@@ -96,7 +96,7 @@ fn k8s_cli_install_agent_control_installation_failed_upgrade() {
     let mut k8s_env = block_on(K8sEnv::new());
     let ac_namespace = block_on(k8s_env.test_namespace());
     let subagents_namespace = block_on(k8s_env.test_namespace());
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
 
     create_simple_values_secret(
         k8s_env.client.clone(),

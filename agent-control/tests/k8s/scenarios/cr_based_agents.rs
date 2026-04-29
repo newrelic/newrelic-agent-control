@@ -9,9 +9,13 @@ use crate::k8s::tools::{
     k8s_env::K8sEnv,
 };
 use crate::{
-    common::{opamp::FakeServer, retry::retry, runtime::block_on},
+    common::{
+        retry::retry,
+        runtime::{block_on, tokio_runtime},
+    },
     k8s::tools::agent_control::FOO_CR_AGENT_TYPE_PATH,
 };
+use fake_opamp_server::FakeServer;
 use kube::{Api, CustomResource, CustomResourceExt};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use schemars::JsonSchema;
@@ -27,7 +31,7 @@ fn k8s_opamp_foo_cr_subagent() {
     let test_name = "k8s_opamp_foo_cr_subagent";
 
     // setup the fake-opamp-server, with empty configuration for agents in local config local config should be used.
-    let mut server = FakeServer::start_new();
+    let mut server = FakeServer::start(tokio_runtime().handle());
 
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
@@ -100,7 +104,7 @@ fn k8s_opamp_cr_subagent_installed_before_crd() {
     let test_name = "k8s_opamp_cr_subagent_installed_before_crd";
 
     // setup the fake-opamp-server, with empty configuration for agents in local config local config should be used.
-    let mut server = FakeServer::start_new();
+    let mut server = FakeServer::start(tokio_runtime().handle());
 
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
