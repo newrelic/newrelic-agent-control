@@ -153,10 +153,18 @@ fn k8s_cli_install_agent_control_creates_resources() {
     assert_eq!(
         release.metadata.annotations,
         Some(
-            vec![("newrelic.io/agent-type-id", agent_identity.agent_type_id)]
-                .into_iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect()
+            [
+                (
+                    "newrelic.io/agent-type-id".to_string(),
+                    agent_identity.agent_type_id.to_string()
+                ),
+                (
+                    "newrelic.io/owned-by".to_string(),
+                    "agent-control".to_string()
+                ),
+            ]
+            .into_iter()
+            .collect()
         )
     );
 }

@@ -49,9 +49,9 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
         active_agents: HashMap<AgentID, AgentTypeID>,
     ) -> Result<(), K8sGarbageCollectorError> {
         let mode = K8sGarbageCollectorMode::RetainConfig(&active_agents);
-        self.garbage_collection_config_maps(&mode)?;
-        self.garbage_collection_dynamic_object(&mode, &self.namespace_agents)?;
-        self.garbage_collection_dynamic_object(&mode, &self.namespace)
+        self.garbage_collect_agent_control_resources(&mode)?;
+        self.garbage_collect_sub_agent_resources(&mode, &self.namespace_agents)?;
+        self.garbage_collect_sub_agent_resources(&mode, &self.namespace)
     }
 
     /// Garbage collect resources managed by AC associated to a certain
@@ -68,25 +68,56 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
         }
 
         let mode = K8sGarbageCollectorMode::Collect(id, agent_type_id);
-        self.garbage_collection_config_maps(&mode)?;
-        self.garbage_collection_dynamic_object(&mode, &self.namespace_agents)?;
-        self.garbage_collection_dynamic_object(&mode, &self.namespace)
+        self.garbage_collect_agent_control_resources(&mode)?;
+        self.garbage_collect_sub_agent_resources(&mode, &self.namespace_agents)?;
+        self.garbage_collect_sub_agent_resources(&mode, &self.namespace)
     }
 
-    fn garbage_collection_config_maps(
+    pub fn active_config_ids(active_config: &SubAgentsMap) -> HashMap<AgentID, AgentTypeID> {
+        active_config
+            .iter()
+            .map(|(id, config)| (id.clone(), config.agent_type.clone()))
+            .collect()
+    }
+
+    fn garbage_collect_agent_control_resources(
         &self,
         mode: &K8sGarbageCollectorMode,
     ) -> Result<(), K8sGarbageCollectorError> {
-        // Delete configmaps depending on mode
+        // List ConfigMaps by label selector and delete only those owned by Agent Control
         let label_selector_query = mode.label_selector_query();
-        debug!("deleting ConfigMaps using label selector: `{label_selector_query}`");
+        debug!("listing ConfigMaps using label selector: `{label_selector_query}`");
         self.k8s_client
-            .delete_configmap_collection(&self.namespace, &label_selector_query)?;
+            .list_configmaps(&self.namespace, &label_selector_query)?
+            .into_iter()
+            .filter(|cm| {
+                let empty_map = BTreeMap::new();
+                let annotations = cm.metadata.annotations.as_ref().unwrap_or(&empty_map);
+                annotations::is_owned_by_agent_control(annotations) // should we log the skips?
+            })
+            .try_for_each(|cm| {
+                let name = cm.metadata.name.as_deref().unwrap_or("unknown");
+                debug!("deleting agent-control ConfigMap: `{name}`");
+                self.k8s_client.delete_configmap(&self.namespace, name)?;
+                Ok(())
+            })
 
-        Ok(())
+        // for cm in configmaps {
+        //     let empty_map = BTreeMap::new();
+        //     let annotations = cm.metadata.annotations.as_ref().unwrap_or(&empty_map);
+        //     if annotations::is_owned_by_agent_control(annotations) {
+        //         let name = cm.metadata.name.as_deref().unwrap_or("unknown");
+        //         debug!("deleting agent-control ConfigMap: `{name}`");
+        //         self.k8s_client.delete_configmap(&self.namespace, name)?;
+        //     } else {
+        //         warn!("skipping ConfigMap without owned-by=agent-control annotation");
+        //     }
+        // }
+
+        // Ok(())
     }
 
-    fn garbage_collection_dynamic_object(
+    fn garbage_collect_sub_agent_resources(
         &self,
         mode: &K8sGarbageCollectorMode,
         namespace: &str,
@@ -102,7 +133,7 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
                                 let name = get_name(&d)?;
                                 let namespace = get_namespace(&d)?;
 
-                                debug!("deleting dynamic_resource: `{}/{}`", tm.kind, name);
+                                debug!("deleting sub-agent resource: `{}/{}`", tm.kind, name);
                                 self.k8s_client.delete_dynamic_object(
                                     tm,
                                     K8sObjectKey {
@@ -134,9 +165,18 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
         // in case any of them are None.
         let empty_map = BTreeMap::new();
         let labels = obj_meta.labels.as_ref().unwrap_or(&empty_map);
+        let annotations = obj_meta.annotations.as_ref().unwrap_or(&empty_map);
 
         // We delete resources only if they are managed by Agent Control
         if !labels::is_managed_by_agent_control(labels) {
+            return Ok(false);
+        }
+
+        // We only delete dynamic objects that are owned by a sub-agent.
+        // Agent Control internal resources (e.g. fleet-data ConfigMaps) are handled
+        // by garbage_collect_agent_control_resources.
+        if !annotations::is_owned_by_sub_agent(annotations) {
+            warn!("dynamic object missing owned-by=sub-agent annotation, skipping");
             return Ok(false);
         }
 
@@ -299,7 +339,7 @@ mod tests {
     fn errors_if_ac_id() {
         let mut k8s_client = MockK8sClient::default();
         // collect should return immediately on AC ID, and return with an error
-        k8s_client.expect_delete_configmap_collection().never();
+        k8s_client.expect_list_configmaps().never();
         k8s_client.expect_list_dynamic_objects().never();
         k8s_client.expect_delete_dynamic_object().never();
 
@@ -325,10 +365,10 @@ mod tests {
         let mut k8s_client = MockK8sClient::default();
         // collect should return immediately on AC ID, and return with an error
         k8s_client
-            .expect_delete_configmap_collection()
+            .expect_list_configmaps()
             .once()
             .with(predicate::eq(TEST_NAMESPACE), predicate::eq("app.kubernetes.io/managed-by==newrelic-agent-control, newrelic.io/agent-id in (foo-agent)"))
-            .returning(|_, _| Ok(()));
+            .returning(|_, _| Ok(vec![]));
         k8s_client
             .expect_list_dynamic_objects()
             .once()
@@ -364,15 +404,34 @@ mod tests {
         agent_type_id: Option<&AgentTypeID>,
         namespace: &str,
     ) -> Arc<DynamicObject> {
+        let annotations = agent_type_id.map(|id| Annotations::new_sub_agent_owned(id).get());
         Arc::new(DynamicObject {
             types: None,
             metadata: ObjectMeta {
                 name: Some(format!("fleet-data-{agent_id}")),
                 namespace: Some(namespace.to_string()),
                 labels: Some(Labels::new(agent_id).get()),
-                annotations: agent_type_id
-                    .map(Annotations::new_agent_type_id_annotation)
-                    .map(|anns| anns.get()),
+                annotations,
+                ..Default::default()
+            },
+            data: serde_json::Value::Null,
+        })
+    }
+
+    fn new_dynamic_object_without_owned_by(
+        agent_id: &AgentID,
+        agent_type_id: Option<&AgentTypeID>,
+        namespace: &str,
+    ) -> Arc<DynamicObject> {
+        let annotations =
+            agent_type_id.map(|id| Annotations::new_agent_type_id_annotation(id).get());
+        Arc::new(DynamicObject {
+            types: None,
+            metadata: ObjectMeta {
+                name: Some(format!("fleet-data-{agent_id}")),
+                namespace: Some(namespace.to_string()),
+                labels: Some(Labels::new(agent_id).get()),
+                annotations,
                 ..Default::default()
             },
             data: serde_json::Value::Null,
@@ -391,9 +450,9 @@ mod tests {
 
         let mut k8s_client = MockK8sClient::default();
         k8s_client
-            .expect_delete_configmap_collection()
+            .expect_list_configmaps()
             .once()
-            .returning(|_, _| Ok(()));
+            .returning(|_, _| Ok(vec![]));
         k8s_client
             .expect_list_dynamic_objects()
             .once()
@@ -431,9 +490,9 @@ mod tests {
 
         let mut k8s_client = MockK8sClient::default();
         k8s_client
-            .expect_delete_configmap_collection()
+            .expect_list_configmaps()
             .once()
-            .returning(|_, _| Ok(()));
+            .returning(|_, _| Ok(vec![]));
         k8s_client
             .expect_list_dynamic_objects()
             .once()
@@ -470,15 +529,15 @@ mod tests {
         let type_meta = TypeMeta::default();
         let agent_id = AgentID::try_from("foo-agent").unwrap();
         let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
-        let cm = new_dynamic_object(&agent_id, None, TEST_NAMESPACE);
+        let cm = new_dynamic_object_without_owned_by(&agent_id, None, TEST_NAMESPACE);
 
         let active_agents = HashMap::from([(agent_id, agent_type_id)]);
 
         let mut k8s_client = SyncK8sClient::default();
         k8s_client
-            .expect_delete_configmap_collection()
+            .expect_list_configmaps()
             .once()
-            .returning(|_, _| Ok(()));
+            .returning(|_, _| Ok(vec![]));
         k8s_client
             .expect_list_dynamic_objects()
             .once()
@@ -512,13 +571,13 @@ mod tests {
         let type_meta = TypeMeta::default();
         let agent_id = AgentID::try_from("foo-agent").unwrap();
         let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
-        let cm = new_dynamic_object(&agent_id, None, TEST_NAMESPACE);
+        let cm = new_dynamic_object_without_owned_by(&agent_id, None, TEST_NAMESPACE);
 
         let mut k8s_client = SyncK8sClient::default();
         k8s_client
-            .expect_delete_configmap_collection()
+            .expect_list_configmaps()
             .once()
-            .returning(|_, _| Ok(()));
+            .returning(|_, _| Ok(vec![]));
         k8s_client
             .expect_list_dynamic_objects()
             .once()
@@ -546,22 +605,63 @@ mod tests {
         assert!(gc.collect(&agent_id, &agent_type_id).is_ok());
     }
 
-    // RetainConfig mode: object for INACTIVE agent with NO annotation is deleted.
-    // The inactive-agent branch (else { Ok(true) }) never reads annotations, so absence of
-    // the annotation must not prevent deletion.
+    // RetainConfig mode: object for INACTIVE agent without owned-by annotation is skipped.
+    // We are conservative: objects without owned-by=sub-agent are not sub-agent resources.
     #[test]
-    fn retain_deletes_dynamic_object_for_inactive_agent_without_annotation() {
+    fn retain_skips_dynamic_object_for_inactive_agent_without_owned_by() {
         let type_meta = TypeMeta::default();
         let agent_id = AgentID::try_from("foo-agent").unwrap();
-        let cm = new_dynamic_object(&agent_id, None, TEST_NAMESPACE);
+        let cm = new_dynamic_object_without_owned_by(&agent_id, None, TEST_NAMESPACE);
 
         let active_agents: HashMap<AgentID, AgentTypeID> = HashMap::new();
 
         let mut k8s_client = SyncK8sClient::default();
         k8s_client
-            .expect_delete_configmap_collection()
+            .expect_list_configmaps()
             .once()
-            .returning(|_, _| Ok(()));
+            .returning(|_, _| Ok(vec![]));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE_AGENTS),
+            )
+            .returning(|_, _| Ok(vec![]));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE),
+            )
+            .return_once(move |_, _| Ok(vec![cm]));
+        k8s_client.expect_delete_dynamic_object().never();
+
+        let gc = K8sGarbageCollector {
+            k8s_client: Arc::new(k8s_client),
+            cr_type_meta: vec![type_meta],
+            namespace: TEST_NAMESPACE.to_string(),
+            namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
+        };
+        assert!(gc.retain(active_agents).is_ok());
+    }
+
+    // RetainConfig mode: object for INACTIVE agent with owned-by=sub-agent is deleted.
+    #[test]
+    fn retain_deletes_dynamic_object_for_inactive_agent_with_sub_agent_owned_by() {
+        let type_meta = TypeMeta::default();
+        let agent_id = AgentID::try_from("foo-agent").unwrap();
+        let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
+        let cm = new_dynamic_object(&agent_id, Some(&agent_type_id), TEST_NAMESPACE);
+
+        let active_agents: HashMap<AgentID, AgentTypeID> = HashMap::new();
+
+        let mut k8s_client = SyncK8sClient::default();
+        k8s_client
+            .expect_list_configmaps()
+            .once()
+            .returning(|_, _| Ok(vec![]));
         k8s_client
             .expect_list_dynamic_objects()
             .once()
@@ -608,9 +708,9 @@ mod tests {
 
         let mut k8s_client = MockK8sClient::default();
         k8s_client
-            .expect_delete_configmap_collection()
+            .expect_list_configmaps()
             .once()
-            .returning(|_, _| Ok(()));
+            .returning(|_, _| Ok(vec![]));
         k8s_client
             .expect_list_dynamic_objects()
             .once()

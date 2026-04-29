@@ -9,7 +9,7 @@ use crate::k8s::tools::test_crd::{
 };
 use assert_matches::assert_matches;
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
-use k8s_openapi::api::core::v1::{ConfigMap, PodTemplateSpec};
+use k8s_openapi::api::core::v1::{ConfigMap, Container, PodSpec, PodTemplateSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, ObjectMeta};
 use kube::api::PostParams;
 use kube::core::DynamicObject;
@@ -59,7 +59,14 @@ fn k8s_create_statefulset_retrieve_dynamic_via_reflector_and_trasform_it_back() 
                         labels: Some([("app".to_string(), "test".to_string())].into()),
                         ..Default::default()
                     }),
-                    spec: None,
+                    spec: Some(PodSpec {
+                        containers: vec![Container {
+                            name: "test-container".to_string(),
+                            image: Some("busybox:latest".to_string()),
+                            ..Default::default()
+                        }],
+                        ..Default::default()
+                    }),
                 },
                 ..Default::default()
             }),

@@ -211,6 +211,24 @@ impl SyncK8sClient {
         )
     }
 
+    pub fn list_configmaps(
+        &self,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Vec<Arc<ConfigMap>>, K8sError> {
+        self.runtime
+            .block_on(self.async_client.list_configmaps(namespace, label_selector))
+    }
+
+    pub fn delete_configmap(
+        &self,
+        namespace: &str,
+        name: &str,
+    ) -> Result<Either<ConfigMap, Status>, K8sError> {
+        self.runtime
+            .block_on(self.async_client.delete_configmap(namespace, name))
+    }
+
     pub fn get_configmap_key(
         &self,
         name: &str,
@@ -487,6 +505,30 @@ impl AsyncK8sClient {
 
         delete_collection(&api, label_selector).await?;
         Ok(())
+    }
+
+    pub async fn list_configmaps(
+        &self,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Vec<Arc<ConfigMap>>, K8sError> {
+        let api: Api<ConfigMap> = Api::<ConfigMap>::namespaced(self.client.clone(), namespace);
+        let list = api
+            .list(&ListParams {
+                label_selector: Some(label_selector.to_string()),
+                ..Default::default()
+            })
+            .await?;
+        Ok(list.iter().map(|cm| Arc::new(cm.clone())).collect())
+    }
+
+    pub async fn delete_configmap(
+        &self,
+        namespace: &str,
+        name: &str,
+    ) -> Result<Either<ConfigMap, Status>, K8sError> {
+        let api: Api<ConfigMap> = Api::<ConfigMap>::namespaced(self.client.clone(), namespace);
+        Ok(api.delete(name, &DeleteParams::default()).await?)
     }
 
     pub async fn get_configmap_key(

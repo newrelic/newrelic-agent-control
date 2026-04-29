@@ -230,7 +230,10 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
         test_ns.as_str(),
         removed_agent_id,
         Some(Labels::new(&AgentID::try_from(removed_agent_id.to_string()).unwrap()).get()),
-        None,
+        Some(
+            Annotations::new_sub_agent_owned(&AgentTypeID::try_from("ns/removed:1.0.0").unwrap())
+                .get(),
+        ),
     ));
 
     // This kind is not present in the cluster.
@@ -262,13 +265,13 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
 
-    let sa_id = &AgentID::AgentControl;
+    let ac_id = &AgentID::AgentControl;
     block_on(create_foo_cr(
         test.client.to_owned(),
         test_ns.as_str(),
-        sa_id.as_str(),
-        Some(Labels::new(sa_id).get()),
-        None,
+        ac_id.as_str(),
+        Some(Labels::new(ac_id).get()),
+        Some(Annotations::new_agent_control_owned(None).get()),
     ));
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
@@ -278,7 +281,7 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
     let instance_id_getter =
         InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
 
-    let sa_instance_id = instance_id_getter.get(sa_id).unwrap();
+    let ac_instance_id = instance_id_getter.get(ac_id).unwrap();
 
     let gc = K8sGarbageCollector {
         k8s_client,
@@ -296,8 +299,8 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     block_on(api.get(AGENT_CONTROL_ID)).expect("CR should exist");
     assert_eq!(
-        sa_instance_id,
-        instance_id_getter.get(sa_id).unwrap(),
+        ac_instance_id,
+        instance_id_getter.get(ac_id).unwrap(),
         "Expects the Instance ID keeps the same since is get from the CM"
     );
 }
@@ -317,7 +320,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test_ns.as_str(),
         "not-deleted",
         Some(Labels::new(agent_id).get()),
-        Some(Annotations::new_agent_type_id_annotation(fqn).get()),
+        Some(Annotations::new_sub_agent_owned(fqn).get()),
     ));
 
     block_on(create_foo_cr(
@@ -325,7 +328,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test_ns.as_str(),
         "sa-id",
         Some(Labels::new(&AgentID::AgentControl).get()),
-        None,
+        Some(Annotations::new_agent_control_owned(None).get()),
     ));
 
     block_on(create_foo_cr(
@@ -341,7 +344,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test_ns.as_str(),
         "old-fqn",
         Some(Labels::new(agent_id).get()),
-        Some(Annotations::new_agent_type_id_annotation(fqn_old).get()),
+        Some(Annotations::new_sub_agent_owned(fqn_old).get()),
     ));
 
     block_on(create_foo_cr(
@@ -349,7 +352,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test_ns.as_str(),
         "id-unknown",
         Some(Labels::new(agent_id_unknonw).get()),
-        Some(Annotations::new_agent_type_id_annotation(fqn).get()),
+        Some(Annotations::new_sub_agent_owned(fqn).get()),
     ));
 
     let config = format!(

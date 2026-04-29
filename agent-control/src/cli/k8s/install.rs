@@ -452,10 +452,16 @@ mod tests {
                         agent_identity.id.to_string(),
                     ),
                 ])),
-                annotations: Some(BTreeMap::from_iter(vec![(
-                    "newrelic.io/agent-type-id".to_string(),
-                    agent_identity.agent_type_id.to_string(),
-                )])),
+                annotations: Some(BTreeMap::from_iter(vec![
+                    (
+                        "newrelic.io/agent-type-id".to_string(),
+                        agent_identity.agent_type_id.to_string(),
+                    ),
+                    (
+                        "newrelic.io/owned-by".to_string(),
+                        "agent-control".to_string(),
+                    ),
+                ])),
                 ..ObjectMeta::default()
             },
             data: serde_json::json!({
@@ -492,10 +498,16 @@ mod tests {
                         source.to_string(),
                     ),
                 ])),
-                annotations: Some(BTreeMap::from_iter(vec![(
-                    "newrelic.io/agent-type-id".to_string(),
-                    agent_identity.agent_type_id.to_string(),
-                )])),
+                annotations: Some(BTreeMap::from_iter(vec![
+                    (
+                        "newrelic.io/agent-type-id".to_string(),
+                        agent_identity.agent_type_id.to_string(),
+                    ),
+                    (
+                        "newrelic.io/owned-by".to_string(),
+                        "agent-control".to_string(),
+                    ),
+                ])),
                 ..Default::default()
             },
             data: serde_json::json!({
@@ -720,10 +732,16 @@ mod tests {
         .collect();
 
         let annotations = Some(
-            vec![(
-                "newrelic.io/agent-type-id".to_string(),
-                agent_identity.agent_type_id.to_string(),
-            )]
+            [
+                (
+                    "newrelic.io/agent-type-id".to_string(),
+                    agent_identity.agent_type_id.to_string(),
+                ),
+                (
+                    "newrelic.io/owned-by".to_string(),
+                    "agent-control".to_string(),
+                ),
+            ]
             .into_iter()
             .collect(),
         );
