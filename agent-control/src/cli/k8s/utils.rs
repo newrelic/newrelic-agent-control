@@ -1,5 +1,4 @@
 use super::errors::K8sCliError;
-#[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use kube::api::TypeMeta;
 use std::collections::{BTreeMap, HashSet};

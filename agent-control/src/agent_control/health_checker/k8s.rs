@@ -2,18 +2,17 @@ use std::{sync::Arc, time::SystemTime};
 
 use crate::agent_control::config::helmrelease_v2_type_meta;
 use crate::checkers::health::k8s::health_checker::{
-    K8sHealthChecker, health_checkers_for_type_meta,
+    K8sHealthChecker, K8sResourceHealthChecker, health_checkers_for_type_meta,
 };
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::K8sClient;
 
 /// Returns the builder function for the health-checker of Agent Control in Kubernetes.
-pub fn agent_control_health_checker_builder(
-    k8s_client: Arc<SyncK8sClient>,
+pub fn agent_control_health_checker_builder<C: K8sClient>(
+    k8s_client: Arc<C>,
     namespace: String,
     ac_release_name: Option<String>,
     cd_release_name: Option<String>,
-) -> impl Fn(SystemTime) -> Option<K8sHealthChecker> {
+) -> impl Fn(SystemTime) -> Option<K8sHealthChecker<K8sResourceHealthChecker<C>>> {
     move |start_time: SystemTime| {
         let releases = [
             // ac_release_name existing means AC is enabled
@@ -23,7 +22,7 @@ pub fn agent_control_health_checker_builder(
         ]
         .into_iter()
         .flatten();
-        let checkers = releases
+        let checkers: Vec<K8sResourceHealthChecker<C>> = releases
             .flat_map(|release_name| {
                 health_checkers_for_type_meta(
                     helmrelease_v2_type_meta(),
@@ -43,13 +42,13 @@ pub fn agent_control_health_checker_builder(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::k8s::client::MockSyncK8sClient;
+    use crate::k8s::client::tests::MockK8sClient;
     use std::sync::Arc;
     use std::time::SystemTime;
 
     #[test]
     fn test_builder_includes_flux_when_enabled() {
-        let mock_k8s_client = Arc::new(MockSyncK8sClient::new());
+        let mock_k8s_client = Arc::new(MockK8sClient::new());
         let namespace = "test-ns".to_string();
         let agent_control_release_name = "ac-deployment".to_string();
         let cd_release_name = "flux-cd".to_string();
@@ -72,7 +71,7 @@ mod tests {
 
     #[test]
     fn test_builder_excludes_flux_when_disabled() {
-        let mock_k8s_client = Arc::new(MockSyncK8sClient::new());
+        let mock_k8s_client = Arc::new(MockK8sClient::new());
         let namespace = "test-ns".to_string();
         let agent_control_release_name = "ac-deployment".to_string();
 

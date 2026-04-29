@@ -3,8 +3,7 @@ use serde::de::DeserializeOwned;
 use tracing::debug;
 
 use super::Error;
-#[cfg_attr(test, mockall_double::double)]
-use super::client::SyncK8sClient;
+use super::client::{K8sClient, SyncK8sClient};
 use super::labels::Labels;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
@@ -14,24 +13,26 @@ use std::sync::{Arc, RwLock};
 
 /// Represents a Kubernetes persistent store of Agents data such as instance id and configs.
 /// The store is implemented using one ConfigMap per Agent with all the data.
-pub struct ConfigMapStore {
-    k8s_client: Arc<SyncK8sClient>,
+pub struct ConfigMapStore<C: K8sClient = SyncK8sClient> {
+    k8s_client: Arc<C>,
     namespace: String,
     rw_lock: RwLock<()>,
 }
 
 impl ConfigMapStore {
+    pub fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
+        format!("{prefix}-{agent_id}")
+    }
+}
+
+impl<C: K8sClient> ConfigMapStore<C> {
     /// Creates a new K8sStore.
-    pub fn new(k8s_client: Arc<SyncK8sClient>, namespace: String) -> Self {
+    pub fn new(k8s_client: Arc<C>, namespace: String) -> Self {
         Self {
             k8s_client,
             namespace,
             rw_lock: RwLock::new(()),
         }
-    }
-
-    pub fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
-        format!("{prefix}-{agent_id}")
     }
 
     /// Retrieves data from an Agent store.
@@ -56,7 +57,7 @@ impl ConfigMapStore {
     }
 }
 
-impl DataStore for ConfigMapStore {
+impl<C: K8sClient> DataStore for ConfigMapStore<C> {
     type Error = k8s::Error;
     /// Returns data related with opamp, if it exists.
     ///
@@ -130,7 +131,7 @@ pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
-    use crate::k8s::client::MockSyncK8sClient;
+    use crate::k8s::client::tests::MockK8sClient;
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::Labels;
     use mockall::predicate;
@@ -152,7 +153,7 @@ pub mod tests {
     fn test_opamp_set_delete_input_parameters_dependencies() {
         // In this test we are checking that the parameters are passed as expected and that cm names are built in the proper way
         // The output of the commands are checked in following tests.
-        let mut k8s_client = MockSyncK8sClient::default();
+        let mut k8s_client = MockK8sClient::default();
         let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
 
         k8s_client
@@ -198,7 +199,7 @@ pub mod tests {
     #[test]
     fn test_get_input_parameters_dependencies() {
         // remote
-        let mut k8s_client = MockSyncK8sClient::default();
+        let mut k8s_client = MockK8sClient::default();
         let agent_id = &AgentID::try_from(AGENT_NAME).unwrap();
 
         k8s_client
@@ -217,7 +218,7 @@ pub mod tests {
             .get_remote_data::<DataToBeStored>(agent_id, STORE_KEY_TEST);
 
         // local
-        let mut k8s_client = MockSyncK8sClient::default();
+        let mut k8s_client = MockK8sClient::default();
         k8s_client
             .expect_get_configmap_key()
             .with(
@@ -239,7 +240,7 @@ pub mod tests {
 
     #[test]
     fn test_get_error() {
-        let mut k8s_client = MockSyncK8sClient::default();
+        let mut k8s_client = MockK8sClient::default();
         k8s_client
             .expect_get_configmap_key()
             .once()
@@ -258,7 +259,7 @@ pub mod tests {
 
     #[test]
     fn test_get_not_found() {
-        let mut k8s_client = MockSyncK8sClient::default();
+        let mut k8s_client = MockK8sClient::default();
         k8s_client
             .expect_get_configmap_key()
             .once()
@@ -278,7 +279,7 @@ pub mod tests {
 
     #[test]
     fn test_get_found_data() {
-        let mut k8s_client = MockSyncK8sClient::default();
+        let mut k8s_client = MockK8sClient::default();
         k8s_client
             .expect_get_configmap_key()
             .once()
@@ -302,7 +303,7 @@ pub mod tests {
 
     #[test]
     fn test_set_error() {
-        let mut k8s_client = MockSyncK8sClient::default();
+        let mut k8s_client = MockK8sClient::default();
         k8s_client
             .expect_set_configmap_key()
             .once()
@@ -321,7 +322,7 @@ pub mod tests {
 
     #[test]
     fn test_set_succeeded() {
-        let mut k8s_client = MockSyncK8sClient::default();
+        let mut k8s_client = MockK8sClient::default();
         k8s_client
             .expect_set_configmap_key()
             .once()

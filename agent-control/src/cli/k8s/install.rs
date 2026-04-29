@@ -12,7 +12,6 @@ use crate::checkers::health::{
     health_checker::HealthChecker, k8s::health_checker::K8sHealthChecker,
     with_start_time::StartTime,
 };
-#[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::{
     agent_control::config::{helmrelease_v2_type_meta, helmrepository_type_meta},

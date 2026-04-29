@@ -31,6 +31,69 @@ pub struct K8sObjectKey<'a> {
     pub namespace: &'a str,
 }
 
+pub trait K8sClient: Debug + Send + Sync + 'static {
+    fn list_api_resources(&self) -> Result<Vec<APIResourceList>, K8sError>;
+    fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError>;
+    fn apply_dynamic_object_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError>;
+    fn patch_dynamic_object<'a>(
+        &self,
+        tm: &TypeMeta,
+        key: K8sObjectKey<'a>,
+        patch: serde_json::Value,
+    ) -> Result<DynamicObject, K8sError>;
+    fn get_dynamic_object<'a>(
+        &self,
+        tm: &TypeMeta,
+        key: K8sObjectKey<'a>,
+    ) -> Result<Option<Arc<DynamicObject>>, K8sError>;
+    fn delete_dynamic_object<'a>(
+        &self,
+        tm: &TypeMeta,
+        key: K8sObjectKey<'a>,
+    ) -> Result<Either<DynamicObject, Status>, K8sError>;
+    fn delete_dynamic_object_collection(
+        &self,
+        tm: &TypeMeta,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError>;
+    fn list_dynamic_objects(
+        &self,
+        tm: &TypeMeta,
+        ns: &str,
+    ) -> Result<Vec<Arc<DynamicObject>>, K8sError>;
+    fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError>;
+    fn delete_configmap_collection(
+        &self,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<(), K8sError>;
+    fn get_configmap_key(
+        &self,
+        name: &str,
+        namespace: &str,
+        key: &str,
+    ) -> Result<Option<String>, K8sError>;
+    fn get_secret_key(
+        &self,
+        name: &str,
+        namespace: &str,
+        key: &str,
+    ) -> Result<Option<String>, K8sError>;
+    fn set_configmap_key(
+        &self,
+        name: &str,
+        namespace: &str,
+        labels: BTreeMap<String, String>,
+        key: &str,
+        value: &str,
+    ) -> Result<(), K8sError>;
+    fn delete_configmap_key(&self, name: &str, namespace: &str, key: &str) -> Result<(), K8sError>;
+    fn list_stateful_set(&self, ns: &str) -> Result<Vec<Arc<StatefulSet>>, K8sError>;
+    fn list_daemon_set(&self, ns: &str) -> Result<Vec<Arc<DaemonSet>>, K8sError>;
+    fn list_deployment(&self, ns: &str) -> Result<Vec<Arc<Deployment>>, K8sError>;
+}
+
 /// Provides a _sync_ implementation of [AsyncK8sClient].
 ///
 /// It offers a sync version of each async method implemented in the [AsyncK8sClient]. To do so,
@@ -58,7 +121,6 @@ impl Debug for SyncK8sClient {
     }
 }
 
-#[cfg_attr(test, mockall::automock)]
 impl SyncK8sClient {
     pub fn try_new(runtime: Arc<Runtime>) -> Result<Self, K8sError> {
         Ok(Self {
@@ -205,6 +267,119 @@ impl SyncK8sClient {
 
     pub fn list_deployment(&self, ns: &str) -> Result<Vec<Arc<Deployment>>, K8sError> {
         self.runtime.block_on(self.async_client.list_deployment(ns))
+    }
+}
+
+impl K8sClient for SyncK8sClient {
+    fn list_api_resources(&self) -> Result<Vec<APIResourceList>, K8sError> {
+        self.list_api_resources()
+    }
+
+    fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
+        self.apply_dynamic_object(obj)
+    }
+
+    fn apply_dynamic_object_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError> {
+        self.apply_dynamic_object_if_changed(obj)
+    }
+
+    fn patch_dynamic_object<'a>(
+        &self,
+        tm: &TypeMeta,
+        key: K8sObjectKey<'a>,
+        patch: serde_json::Value,
+    ) -> Result<DynamicObject, K8sError> {
+        self.patch_dynamic_object(tm, key, patch)
+    }
+
+    fn get_dynamic_object<'a>(
+        &self,
+        tm: &TypeMeta,
+        key: K8sObjectKey<'a>,
+    ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
+        self.get_dynamic_object(tm, key)
+    }
+
+    fn delete_dynamic_object<'a>(
+        &self,
+        tm: &TypeMeta,
+        key: K8sObjectKey<'a>,
+    ) -> Result<Either<DynamicObject, Status>, K8sError> {
+        self.delete_dynamic_object(tm, key)
+    }
+
+    fn delete_dynamic_object_collection(
+        &self,
+        tm: &TypeMeta,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError> {
+        self.delete_dynamic_object_collection(tm, namespace, label_selector)
+    }
+
+    fn list_dynamic_objects(
+        &self,
+        tm: &TypeMeta,
+        ns: &str,
+    ) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
+        self.list_dynamic_objects(tm, ns)
+    }
+
+    fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
+        self.has_dynamic_object_changed(obj)
+    }
+
+    fn delete_configmap_collection(
+        &self,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<(), K8sError> {
+        self.delete_configmap_collection(namespace, label_selector)
+    }
+
+    fn get_configmap_key(
+        &self,
+        name: &str,
+        namespace: &str,
+        key: &str,
+    ) -> Result<Option<String>, K8sError> {
+        self.get_configmap_key(name, namespace, key)
+    }
+
+    fn get_secret_key(
+        &self,
+        name: &str,
+        namespace: &str,
+        key: &str,
+    ) -> Result<Option<String>, K8sError> {
+        self.get_secret_key(name, namespace, key)
+    }
+
+    fn set_configmap_key(
+        &self,
+        name: &str,
+        namespace: &str,
+        labels: BTreeMap<String, String>,
+        key: &str,
+        value: &str,
+    ) -> Result<(), K8sError> {
+        self.set_configmap_key(name, namespace, labels, key, value)
+    }
+
+    fn delete_configmap_key(&self, name: &str, namespace: &str, key: &str) -> Result<(), K8sError> {
+        self.delete_configmap_key(name, namespace, key)
+    }
+
+    fn list_stateful_set(&self, ns: &str) -> Result<Vec<Arc<StatefulSet>>, K8sError> {
+        self.list_stateful_set(ns)
+    }
+
+    fn list_daemon_set(&self, ns: &str) -> Result<Vec<Arc<DaemonSet>>, K8sError> {
+        self.list_daemon_set(ns)
+    }
+
+    fn list_deployment(&self, ns: &str) -> Result<Vec<Arc<Deployment>>, K8sError> {
+        self.list_deployment(ns)
     }
 }
 
@@ -574,7 +749,85 @@ pub(crate) mod tests {
     use crate::k8s::utils::{get_name, get_target_namespace};
     use k8s_openapi::serde_json;
     use kube::Client;
+    use mockall::mock;
     use tower_test::mock;
+
+    mock! {
+        pub K8sClient {}
+        impl K8sClient for K8sClient {
+            fn list_api_resources(&self) -> Result<Vec<APIResourceList>, K8sError>;
+            fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError>;
+            fn apply_dynamic_object_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError>;
+            fn patch_dynamic_object<'a>(
+                &self,
+                tm: &TypeMeta,
+                key: K8sObjectKey<'a>,
+                patch: serde_json::Value,
+            ) -> Result<DynamicObject, K8sError>;
+            fn get_dynamic_object<'a>(
+                &self,
+                tm: &TypeMeta,
+                key: K8sObjectKey<'a>,
+            ) -> Result<Option<Arc<DynamicObject>>, K8sError>;
+            fn delete_dynamic_object<'a>(
+                &self,
+                tm: &TypeMeta,
+                key: K8sObjectKey<'a>,
+            ) -> Result<Either<DynamicObject, Status>, K8sError>;
+            fn delete_dynamic_object_collection(
+                &self,
+                tm: &TypeMeta,
+                namespace: &str,
+                label_selector: &str,
+            ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError>;
+            fn list_dynamic_objects(
+                &self,
+                tm: &TypeMeta,
+                ns: &str,
+            ) -> Result<Vec<Arc<DynamicObject>>, K8sError>;
+            fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError>;
+            fn delete_configmap_collection(
+                &self,
+                namespace: &str,
+                label_selector: &str,
+            ) -> Result<(), K8sError>;
+            fn get_configmap_key(
+                &self,
+                name: &str,
+                namespace: &str,
+                key: &str,
+            ) -> Result<Option<String>, K8sError>;
+            fn get_secret_key(
+                &self,
+                name: &str,
+                namespace: &str,
+                key: &str,
+            ) -> Result<Option<String>, K8sError>;
+            fn set_configmap_key(
+                &self,
+                name: &str,
+                namespace: &str,
+                labels: BTreeMap<String, String>,
+                key: &str,
+                value: &str,
+            ) -> Result<(), K8sError>;
+            fn delete_configmap_key(
+                &self,
+                name: &str,
+                namespace: &str,
+                key: &str,
+            ) -> Result<(), K8sError>;
+            fn list_stateful_set(&self, ns: &str) -> Result<Vec<Arc<StatefulSet>>, K8sError>;
+            fn list_daemon_set(&self, ns: &str) -> Result<Vec<Arc<DaemonSet>>, K8sError>;
+            fn list_deployment(&self, ns: &str) -> Result<Vec<Arc<Deployment>>, K8sError>;
+        }
+    }
+
+    impl std::fmt::Debug for MockK8sClient {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("MockK8sClient").finish()
+        }
+    }
 
     // This test checks that an unexpected api-server error response when building reflectors doesn't
     // make the k8s client creation fail.

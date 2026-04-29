@@ -1,8 +1,7 @@
 use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta3_type_meta};
 use crate::checkers::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::utils::{get_name, get_namespace, get_target_namespace, get_type_meta};
 use kube::api::{DynamicObject, TypeMeta};
 use resources::{
@@ -21,15 +20,15 @@ pub const LABEL_RELEASE_FLUX: &str = "helm.toolkit.fluxcd.io/name";
 
 /// This enum wraps all the health check implementations related to a Kubernetes resource.
 #[derive(Debug)]
-pub enum K8sResourceHealthChecker {
-    HelmRelease(K8sHealthHelmRelease),
-    NewRelic(K8sHealthNRInstrumentation),
-    StatefulSet(K8sHealthStatefulSet),
-    DaemonSet(K8sHealthDaemonSet),
-    Deployment(K8sHealthDeployment),
+pub enum K8sResourceHealthChecker<C: K8sClient = SyncK8sClient> {
+    HelmRelease(K8sHealthHelmRelease<C>),
+    NewRelic(K8sHealthNRInstrumentation<C>),
+    StatefulSet(K8sHealthStatefulSet<C>),
+    DaemonSet(K8sHealthDaemonSet<C>),
+    Deployment(K8sHealthDeployment<C>),
 }
 
-impl HealthChecker for K8sResourceHealthChecker {
+impl<C: K8sClient> HealthChecker for K8sResourceHealthChecker<C> {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         match self {
             K8sResourceHealthChecker::HelmRelease(helm_release) => helm_release.check_health(),
@@ -44,14 +43,14 @@ impl HealthChecker for K8sResourceHealthChecker {
 }
 
 /// Returns the health-checks corresponding to a type_meta
-pub fn health_checkers_for_type_meta(
+pub fn health_checkers_for_type_meta<C: K8sClient>(
     type_meta: TypeMeta,
-    k8s_client: Arc<SyncK8sClient>,
+    k8s_client: Arc<C>,
     name: String,
     namespace: String,
     target_namespace: Option<String>,
     start_time: StartTime,
-) -> Vec<K8sResourceHealthChecker> {
+) -> Vec<K8sResourceHealthChecker<C>> {
     // HelmRelease (Flux CR)
     if type_meta == helmrelease_v2_type_meta() {
         let target_namespace = target_namespace.unwrap_or(namespace.clone());
@@ -105,9 +104,9 @@ where
     start_time: StartTime,
 }
 
-impl K8sHealthChecker<K8sResourceHealthChecker> {
+impl<C: K8sClient> K8sHealthChecker<K8sResourceHealthChecker<C>> {
     pub fn try_new(
-        k8s_client: Arc<SyncK8sClient>,
+        k8s_client: Arc<C>,
         resources: Arc<Vec<DynamicObject>>,
         start_time: StartTime,
     ) -> Result<Option<Self>, HealthCheckerError> {
@@ -139,7 +138,7 @@ impl K8sHealthChecker<K8sResourceHealthChecker> {
         }))
     }
 
-    pub fn new(health_checkers: Vec<K8sResourceHealthChecker>, start_time: StartTime) -> Self {
+    pub fn new(health_checkers: Vec<K8sResourceHealthChecker<C>>, start_time: StartTime) -> Self {
         Self {
             health_checkers,
             start_time,
@@ -177,12 +176,12 @@ pub mod tests {
         K8sHealthChecker, K8sResourceHealthChecker,
     };
     use crate::checkers::health::with_start_time::StartTime;
-    use crate::k8s::client::MockSyncK8sClient;
+    use crate::k8s::client::tests::MockK8sClient;
     use assert_matches::assert_matches;
     use kube::api::{DynamicObject, TypeMeta};
     use std::sync::Arc;
 
-    impl K8sHealthChecker<K8sResourceHealthChecker> {
+    impl<HC: HealthChecker> K8sHealthChecker<HC> {
         pub fn checkers_count(&self) -> usize {
             self.health_checkers.len()
         }
@@ -190,7 +189,7 @@ pub mod tests {
 
     #[test]
     fn no_resource_set() {
-        let mock_client = MockSyncK8sClient::default();
+        let mock_client = MockK8sClient::default();
         assert!(
             K8sHealthChecker::try_new(Arc::new(mock_client), Arc::new(vec![]), StartTime::now())
                 .unwrap()
@@ -199,7 +198,7 @@ pub mod tests {
     }
     #[test]
     fn failing_build_health_check_resource_with_no_type() {
-        let mock_client = MockSyncK8sClient::default();
+        let mock_client = MockK8sClient::default();
 
         assert_matches!(
             K8sHealthChecker::try_new(
@@ -223,7 +222,7 @@ pub mod tests {
 
     #[test]
     fn failing_build_health_check_resource_with_no_name() {
-        let mock_client = MockSyncK8sClient::default();
+        let mock_client = MockK8sClient::default();
 
         assert_matches!(
             K8sHealthChecker::try_new(
@@ -247,7 +246,7 @@ pub mod tests {
 
     #[test]
     fn successful_build_health_check_with_unsupported_type_meta() {
-        let mock_client = MockSyncK8sClient::default();
+        let mock_client = MockK8sClient::default();
 
         // Create a TypeMeta that is not supported by health_checkers_for_type_meta
         let unsupported_type_meta = TypeMeta {
@@ -277,7 +276,7 @@ pub mod tests {
 
     #[test]
     fn successful_build_health_check_with_helmrelease_v2() {
-        let mock_client = MockSyncK8sClient::default();
+        let mock_client = MockK8sClient::default();
         let start_time = StartTime::now();
 
         let test_object = DynamicObject {
@@ -319,7 +318,7 @@ pub mod tests {
 
     #[test]
     fn successful_build_health_check_with_instrumentation_v1beta1() {
-        let mock_client = MockSyncK8sClient::default();
+        let mock_client = MockK8sClient::default();
         let start_time = StartTime::now();
 
         let test_object = DynamicObject {

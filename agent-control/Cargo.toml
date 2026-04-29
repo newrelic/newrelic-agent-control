@@ -108,7 +108,6 @@ mockall = { workspace = true }
 schemars = { workspace = true }
 serde_json = { workspace = true }
 assert_matches = { workspace = true }
-mockall_double = { workspace = true }
 tracing-test = { workspace = true }
 jsonwebtoken = { workspace = true }
 fs = { path = "../fs", features = ["mocks"] }

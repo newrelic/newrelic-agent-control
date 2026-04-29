@@ -2,8 +2,7 @@ use crate::checkers::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::utils as client_utils;
 use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus};
 use std::sync::Arc;
@@ -15,27 +14,27 @@ use super::{
 const ROLLING_UPDATE_UPDATE_STRATEGY: &str = "RollingUpdate";
 
 #[derive(Debug)]
-pub struct K8sHealthDaemonSet {
-    k8s_client: Arc<SyncK8sClient>,
+pub struct K8sHealthDaemonSet<C: K8sClient = SyncK8sClient> {
+    k8s_client: Arc<C>,
     filter: ResourceFilter,
     start_time: StartTime,
     namespace: String,
 }
 
-impl HealthChecker for K8sHealthDaemonSet {
+impl<C: K8sClient> HealthChecker for K8sHealthDaemonSet<C> {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         let daemon_sets = self.k8s_client.list_daemon_set(&self.namespace)?;
 
         let health = match &self.filter {
             ResourceFilter::ByName(name) => check_health_for_items(
                 daemon_sets.into_iter().filter(name_filter(name.clone())),
-                Self::check_health_single_daemon_set,
+                K8sHealthDaemonSet::check_health_single_daemon_set,
             )?,
             ResourceFilter::ByFluxLabel(release) => check_health_for_items(
                 daemon_sets
                     .into_iter()
                     .filter(flux_release_filter(release.clone())),
-                Self::check_health_single_daemon_set,
+                K8sHealthDaemonSet::check_health_single_daemon_set,
             )?,
         };
 
@@ -44,20 +43,6 @@ impl HealthChecker for K8sHealthDaemonSet {
 }
 
 impl K8sHealthDaemonSet {
-    pub fn new(
-        k8s_client: Arc<SyncK8sClient>,
-        filter: ResourceFilter,
-        start_time: StartTime,
-        namespace: String,
-    ) -> Self {
-        Self {
-            k8s_client,
-            filter,
-            start_time,
-            namespace,
-        }
-    }
-
     // A DS is unHealthy if the number of ready replicas is < expected replicas ignoring rolling_update.max_unavailable
     // or if number_unavailable>0
     // We decided to ignore max_unavailable and therefore consider unhealthy a DaemonSet during a rolling update
@@ -119,6 +104,22 @@ impl K8sHealthDaemonSet {
     }
 }
 
+impl<C: K8sClient> K8sHealthDaemonSet<C> {
+    pub fn new(
+        k8s_client: Arc<C>,
+        filter: ResourceFilter,
+        start_time: StartTime,
+        namespace: String,
+    ) -> Self {
+        Self {
+            k8s_client,
+            filter,
+            start_time,
+            namespace,
+        }
+    }
+}
+
 fn is_daemon_set_update_strategy_rolling_update(
     name: &str,
     daemon_set: &DaemonSet,
@@ -139,7 +140,7 @@ fn is_daemon_set_update_strategy_rolling_update(
 pub mod tests {
     use super::*;
     use crate::checkers::health::health_checker::{Healthy, Unhealthy};
-    use crate::k8s::client::MockSyncK8sClient;
+    use crate::k8s::client::tests::MockK8sClient;
     use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
     use k8s_openapi::api::apps::v1::DaemonSetUpdateStrategy;
     use k8s_openapi::{
@@ -380,7 +381,7 @@ pub mod tests {
 
     #[test]
     fn test_check_health() {
-        let mut k8s_client = MockSyncK8sClient::new();
+        let mut k8s_client = MockK8sClient::new();
         let name = "target-daemon-set";
 
         // Matches by name — unhealthy (2 ready out of 5 desired).
@@ -444,7 +445,7 @@ pub mod tests {
 
     #[test]
     fn test_check_health_for_helm_release() {
-        let mut k8s_client = MockSyncK8sClient::new();
+        let mut k8s_client = MockK8sClient::new();
         use crate::checkers::health::k8s::health_checker::LABEL_RELEASE_FLUX;
         let release_name = "flux-release";
 

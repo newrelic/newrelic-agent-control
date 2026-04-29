@@ -1,8 +1,7 @@
 use crate::agent_control::config::{AgentControlDynamicConfig, helmrelease_v2_type_meta};
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
 use crate::k8s::client::K8sObjectKey;
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, REMOTE_VAL};
 use std::collections::BTreeMap;
 use std::fmt;
@@ -23,10 +22,10 @@ impl fmt::Display for Component {
         }
     }
 }
-pub struct K8sACUpdater {
+pub struct K8sACUpdater<C: K8sClient = SyncK8sClient> {
     ac_remote_update_enabled: bool,
     cd_remote_update_enabled: bool,
-    k8s_client: Arc<SyncK8sClient>,
+    k8s_client: Arc<C>,
     namespace: String,
     // current_chart_version is the version of the agent control that is currently running.
     // It is loaded at startup, and it is populated by the HelmChart.
@@ -37,7 +36,7 @@ pub struct K8sACUpdater {
     cd_release_name: Option<String>,
 }
 
-impl VersionUpdater for K8sACUpdater {
+impl<C: K8sClient> VersionUpdater for K8sACUpdater<C> {
     fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError> {
         if self.ac_remote_update_enabled {
             if let Some(release_name) = &self.ac_release_name {
@@ -76,11 +75,11 @@ impl VersionUpdater for K8sACUpdater {
     }
 }
 
-impl K8sACUpdater {
+impl<C: K8sClient> K8sACUpdater<C> {
     pub fn new(
         ac_remote_update: bool,
         cd_remote_update: bool,
-        k8s_client: Arc<SyncK8sClient>,
+        k8s_client: Arc<C>,
         namespace: String,
         current_chart_version: String,
         ac_release_name: Option<String>,
@@ -228,7 +227,7 @@ impl K8sACUpdater {
 mod tests {
     use super::*;
     use crate::k8s::Error as K8sError;
-    use crate::k8s::client::MockSyncK8sClient;
+    use crate::k8s::client::tests::MockK8sClient;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::core::DynamicObject;
     use mockall::predicate::*;
@@ -276,7 +275,7 @@ mod tests {
 
     #[test]
     fn test_update_only_agent_control_when_enabled() {
-        let mut mock_client = MockSyncK8sClient::new();
+        let mut mock_client = MockK8sClient::new();
 
         // Expect AC labels to be fetched
         mock_client
@@ -333,7 +332,7 @@ mod tests {
 
     #[test]
     fn test_update_only_flux_when_enabled() {
-        let mut mock_client = MockSyncK8sClient::new();
+        let mut mock_client = MockK8sClient::new();
 
         // Expect CD version and labels to be fetched
         mock_client
@@ -389,7 +388,7 @@ mod tests {
     }
     #[test]
     fn test_update_both_when_both_enabled() {
-        let mut mock_client = MockSyncK8sClient::new();
+        let mut mock_client = MockK8sClient::new();
 
         // Expect calls for both: AC and CD
         mock_client.expect_get_dynamic_object().returning(|_, key| {
@@ -440,7 +439,7 @@ mod tests {
 
     #[test]
     fn test_does_nothing_when_both_disabled() {
-        let mut mock_client = MockSyncK8sClient::new();
+        let mut mock_client = MockK8sClient::new();
         mock_client.expect_get_dynamic_object().never();
         let updater = K8sACUpdater::new(
             false,
@@ -459,7 +458,7 @@ mod tests {
 
     #[test]
     fn test_does_nothing_version_is_not_informed() {
-        let mut mock_client = MockSyncK8sClient::new();
+        let mut mock_client = MockK8sClient::new();
         mock_client.expect_get_dynamic_object().never();
         let updater = K8sACUpdater::new(
             true,
@@ -478,7 +477,7 @@ mod tests {
 
     #[test]
     fn test_does_not_patch_if_version_is_the_same() {
-        let mut mock_client = MockSyncK8sClient::new();
+        let mut mock_client = MockK8sClient::new();
         // Expect the call to get the CD version, but not to patch
         mock_client
             .expect_get_dynamic_object()
@@ -516,7 +515,7 @@ mod tests {
 
     #[test]
     fn test_returns_error_if_get_helm_release_fails() {
-        let mut mock_client = MockSyncK8sClient::new();
+        let mut mock_client = MockK8sClient::new();
         mock_client
             .expect_get_dynamic_object()
             .returning(|_, _| Err(K8sError::GetDynamic("API server is down".to_string())));

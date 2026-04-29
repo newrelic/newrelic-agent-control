@@ -11,8 +11,7 @@ use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::k8s::annotations::Annotations;
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::labels::Labels;
 use crate::k8s::utils::retain_not_null;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssemblerError};
@@ -52,15 +51,15 @@ pub enum SupervisorError {
 }
 
 #[derive(Debug, Clone)]
-pub struct NotStartedSupervisorK8s {
+pub struct NotStartedSupervisorK8s<C: K8sClient = SyncK8sClient> {
     pub(super) agent_identity: AgentIdentity,
-    pub(super) k8s_client: Arc<SyncK8sClient>,
+    pub(super) k8s_client: Arc<C>,
     pub(super) k8s_config: K8s,
     pub(super) interval: Duration,
 }
 
-impl SupervisorStarter for NotStartedSupervisorK8s {
-    type Supervisor = StartedSupervisorK8s;
+impl<C: K8sClient> SupervisorStarter for NotStartedSupervisorK8s<C> {
+    type Supervisor = StartedSupervisorK8s<C>;
     type Error = SupervisorError;
 
     fn start(
@@ -99,12 +98,8 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
     }
 }
 
-impl NotStartedSupervisorK8s {
-    pub fn new(
-        agent_identity: AgentIdentity,
-        k8s_client: Arc<SyncK8sClient>,
-        k8s_config: K8s,
-    ) -> Self {
+impl<C: K8sClient> NotStartedSupervisorK8s<C> {
+    pub fn new(agent_identity: AgentIdentity, k8s_client: Arc<C>, k8s_config: K8s) -> Self {
         Self {
             agent_identity,
             k8s_client,
@@ -266,7 +261,7 @@ impl NotStartedSupervisorK8s {
     /// It applies each of the provided k8s resources to the cluster if it has changed.
     pub(super) fn apply_resources<'a>(
         resources: impl Iterator<Item = &'a DynamicObject>,
-        k8s_client: &SyncK8sClient,
+        k8s_client: &C,
     ) -> Result<(), SupervisorError> {
         debug!("Applying k8s objects if changed");
         for res in resources {
@@ -278,15 +273,15 @@ impl NotStartedSupervisorK8s {
     }
 }
 
-pub struct StartedSupervisorK8s {
+pub struct StartedSupervisorK8s<C: K8sClient = SyncK8sClient> {
     pub(super) thread_contexts: Vec<StartedThreadContext>,
     pub(super) agent_identity: AgentIdentity,
-    pub(super) k8s_client: Arc<SyncK8sClient>,
+    pub(super) k8s_client: Arc<C>,
     pub(super) sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     pub(super) k8s_config: K8s,
 }
 
-impl Supervisor for StartedSupervisorK8s {
+impl<C: K8sClient> Supervisor for StartedSupervisorK8s<C> {
     type ApplyError = SupervisorError;
     type StopError = ThreadContextStopperError;
 
@@ -356,7 +351,7 @@ pub mod tests {
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
     use crate::event::channel::pub_sub;
     use crate::k8s::annotations::Annotations;
-    use crate::k8s::client::MockSyncK8sClient;
+    use crate::k8s::client::tests::MockK8sClient;
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
     use crate::k8s::labels::Labels;
@@ -387,7 +382,7 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let mock_k8s_client = MockSyncK8sClient::default();
+        let mock_k8s_client = MockK8sClient::default();
 
         let mut labels = Labels::new(&agent_identity.id);
         labels.append_extra_labels(&k8s_object().metadata.labels);
@@ -435,7 +430,7 @@ pub mod tests {
 
         // The first apply call is OK, the second fails
         let mut seq = mockall::Sequence::new();
-        let mut mock_client = MockSyncK8sClient::default();
+        let mut mock_client = MockK8sClient::default();
         mock_client
             .expect_apply_dynamic_object_if_changed()
             .times(1)
@@ -597,14 +592,14 @@ pub mod tests {
 
     fn not_started_supervisor(
         config: K8s,
-        additional_expectations_fn: Option<fn(&mut MockSyncK8sClient)>,
-    ) -> NotStartedSupervisorK8s {
+        additional_expectations_fn: Option<fn(&mut MockK8sClient)>,
+    ) -> NotStartedSupervisorK8s<MockK8sClient> {
         let agent_identity = AgentIdentity::from((
             AgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
         ));
 
-        let mut mock_client = MockSyncK8sClient::default();
+        let mut mock_client = MockK8sClient::default();
         mock_client
             .expect_apply_dynamic_object_if_changed()
             .returning(|_| Ok(()));
@@ -612,6 +607,6 @@ pub mod tests {
             f(&mut mock_client)
         }
 
-        NotStartedSupervisorK8s::new(agent_identity, Arc::new(mock_client), config)
+        NotStartedSupervisorK8s::<MockK8sClient>::new(agent_identity, Arc::new(mock_client), config)
     }
 }

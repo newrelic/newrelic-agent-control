@@ -1,8 +1,7 @@
 use crate::checkers::version::AgentVersion;
 use crate::checkers::version::{VersionCheckError, VersionChecker};
 use crate::k8s::client::K8sObjectKey;
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use chrono::NaiveDateTime;
 use kube::api::TypeMeta;
 use serde_json::{Map, Value};
@@ -11,8 +10,9 @@ use tracing::debug;
 
 const LATEST_REVISION: &str = "*";
 
-pub struct HelmReleaseVersionChecker {
-    k8s_client: Arc<SyncK8sClient>,
+#[derive(Debug)]
+pub struct HelmReleaseVersionChecker<C: K8sClient = SyncK8sClient> {
+    k8s_client: Arc<C>,
     type_meta: TypeMeta,
     namespace: String,
     name: String,
@@ -22,9 +22,9 @@ pub struct HelmReleaseVersionChecker {
     opamp_field: String,
 }
 
-impl HelmReleaseVersionChecker {
+impl<C: K8sClient> HelmReleaseVersionChecker<C> {
     pub fn new(
-        k8s_client: Arc<SyncK8sClient>,
+        k8s_client: Arc<C>,
         type_meta: TypeMeta,
         namespace: String,
         release_name: String,
@@ -59,7 +59,7 @@ impl HelmReleaseVersionChecker {
     }
 }
 
-impl VersionChecker for HelmReleaseVersionChecker {
+impl<C: K8sClient> VersionChecker for HelmReleaseVersionChecker<C> {
     fn check_agent_version(&self) -> Result<AgentVersion, VersionCheckError> {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
@@ -152,16 +152,10 @@ pub mod tests {
     use super::*;
     use crate::agent_control::config::helmrelease_v2_type_meta;
     use crate::agent_control::defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY;
-    use crate::k8s::client::MockSyncK8sClient;
+    use crate::k8s::client::tests::MockK8sClient;
     use kube::api::DynamicObject;
     use serde_json::{Value, json};
     use std::sync::Arc;
-
-    impl std::fmt::Debug for HelmReleaseVersionChecker {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "HelmReleaseVersionChecker{{agent_id: {}}}", self.name)
-        }
-    }
 
     #[test]
     fn test_k8s_check_agent_version() {
@@ -172,7 +166,7 @@ pub mod tests {
         }
         impl TestCase {
             fn run(self) {
-                let mut k8s_client = MockSyncK8sClient::new();
+                let mut k8s_client = MockK8sClient::new();
                 setup_default_mock(&mut k8s_client, self.mock_return);
                 let check = HelmReleaseVersionChecker::new(
                     Arc::new(k8s_client),
@@ -284,7 +278,7 @@ pub mod tests {
         }
     }
 
-    fn setup_default_mock(mock: &mut MockSyncK8sClient, json_data: String) {
+    fn setup_default_mock(mock: &mut MockK8sClient, json_data: String) {
         mock.expect_get_dynamic_object()
             .withf(|type_meta, key| {
                 type_meta == &helmrelease_v2_type_meta()
