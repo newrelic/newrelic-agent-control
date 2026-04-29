@@ -4,7 +4,6 @@
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
 use newrelic_agent_control::agent_control::run::AgentControlRunner;
-use newrelic_agent_control::agent_control::run::GracefulShutdownReason;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::command::{Command, Context};
 use newrelic_agent_control::utils::is_elevated::is_elevated;
@@ -57,7 +56,7 @@ fn main() -> ExitCode {
 /// could not read Agent Control config from /invalid/path: error loading the agent control config: \`error retrieving config: \`missing field \`agents\`\`\`
 /// Error: ConfigRead(LoadConfigError(ConfigError(missing field \`agents\`)))
 /// ```
-fn _main(context: Context) -> Result<GracefulShutdownReason, Box<dyn Error>> {
+fn _main(context: Context) -> Result<(), Box<dyn Error>> {
     #[cfg(not(feature = "disable-asroot"))]
     if !is_elevated()? {
         return Err("Program must run with elevated permissions".into());
@@ -87,5 +86,7 @@ fn _main(context: Context) -> Result<GracefulShutdownReason, Box<dyn Error>> {
         }
     }
 
-    run_result
+    // Shutdown reason is not used passed to this point.
+    run_result?;
+    Ok(())
 }
