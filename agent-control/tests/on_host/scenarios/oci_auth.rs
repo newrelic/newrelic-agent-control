@@ -17,6 +17,8 @@ use newrelic_agent_control::agent_control::run::on_host::{
     AGENT_CONTROL_MODE_ON_HOST, OCI_TEST_REGISTRY_URL,
 };
 use newrelic_agent_control::agent_control::version_updater::on_host::AGENT_CONTROL_BIN_PACKAGE_ID;
+use newrelic_agent_control::agent_type::runtime_config::on_host::package::rendered::Oci;
+use newrelic_agent_control::package::manager::PackageData;
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::package_manager::get_package_path;
 use oci_client::Reference;
@@ -55,7 +57,8 @@ fn test_agent_remote_package_with_auth_oci_registry() {
         ))
         .build(local_dir.path().to_path_buf());
 
-    let package_tag = push_fake_package_with_basic_auth(&signer);
+    let package_reference = push_fake_package_with_basic_auth(&signer);
+    let package_tag = package_reference.tag().unwrap().to_string();
 
     let agent_id = AgentID::try_from(AGENT_ID).unwrap();
 
@@ -80,7 +83,7 @@ fn test_agent_remote_package_with_auth_oci_registry() {
         start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
     retry(60, Duration::from_secs(1), || {
-        verify_fake_agent_has_been_pulled(remote_dir.path(), &package_tag)
+        verify_fake_agent_has_been_pulled(remote_dir.path(), &package_reference)
     });
 }
 
@@ -93,7 +96,8 @@ fn test_ac_self_update_with_auth_oci_registry() {
     let signer = OCISigner::start();
     let mut opamp_server = FakeServer::start_new();
 
-    let package_tag = push_fake_package_with_basic_auth(&signer);
+    let package_reference = push_fake_package_with_basic_auth(&signer);
+    let package_tag = package_reference.tag().unwrap().to_string();
 
     create_ac_local_config(&opamp_server, &signer, local_dir.path(), "{}");
 
@@ -118,13 +122,13 @@ agents: {{}}
 
     // We just verify the package has been pulled, other scenarios are covered in ac_self_update.rs
     retry(60, Duration::from_secs(1), || {
-        verify_fake_ac_has_been_pulled(remote_dir.path(), &package_tag)
+        verify_fake_ac_has_been_pulled(remote_dir.path(), &package_reference)
     });
 }
 
 const FAKE_ARTIFACT_NAME: &str = "fake-artifact-name";
 
-fn push_fake_package_with_basic_auth(signer: &OCISigner) -> String {
+fn push_fake_package_with_basic_auth(signer: &OCISigner) -> Reference {
     let dir = tempdir().unwrap();
     let tmp_dir_to_compress = tempdir().unwrap();
 
@@ -132,7 +136,9 @@ fn push_fake_package_with_basic_auth(signer: &OCISigner) -> String {
     TestDataHelper::compress_tar_gz(
         tmp_dir_to_compress.path(),
         &path,
-        "fake content",
+        // force different digests for each test to avoid race conditions
+        // as the OCISigner wipes out old signatures.
+        format!("fake random data: {}", &dir.path().display()).as_str(),
         FAKE_ARTIFACT_NAME,
     );
     let (_, reference) = push_agent_package_with_basic_auth(
@@ -149,41 +155,49 @@ fn push_fake_package_with_basic_auth(signer: &OCISigner) -> String {
         ),
     );
 
-    reference.tag().unwrap().to_string()
+    reference
 }
 
 fn verify_fake_agent_has_been_pulled(
     remote_dir: &Path,
-    tag: impl Into<String>,
+    reference: &Reference,
 ) -> Result<(), Box<dyn Error>> {
     verify_fake_artifact_has_been_pulled(
         remote_dir,
         &AgentID::try_from(AGENT_ID).unwrap(),
-        AGENT_PACKAGE_ID,
-        tag,
+        &PackageData {
+            id: AGENT_PACKAGE_ID.to_string(),
+            oci: Oci {
+                repository: reference.repository().parse().unwrap(),
+                version: reference.tag().unwrap().parse().unwrap(),
+                public_key_url: None,
+            },
+        },
     )
 }
 fn verify_fake_ac_has_been_pulled(
     remote_dir: &Path,
-    tag: impl Into<String>,
+    reference: &Reference,
 ) -> Result<(), Box<dyn Error>> {
     verify_fake_artifact_has_been_pulled(
         remote_dir,
         &AgentID::AgentControl,
-        AGENT_CONTROL_BIN_PACKAGE_ID,
-        tag,
+        &PackageData {
+            id: AGENT_CONTROL_BIN_PACKAGE_ID.to_string(),
+            oci: Oci {
+                repository: reference.repository().parse().unwrap(),
+                version: reference.tag().unwrap().parse().unwrap(),
+                public_key_url: None,
+            },
+        },
     )
 }
 fn verify_fake_artifact_has_been_pulled(
     remote_dir: &Path,
     agent_id: &AgentID,
-    package_id: impl Into<String>,
-    tag: impl Into<String>,
+    package_data: &PackageData,
 ) -> Result<(), Box<dyn Error>> {
-    // TODO bug workaround , remove when rebasing to master
-    let ref_fix = Reference::with_tag("base.io".to_string(), "test".to_string(), tag.into());
-    let package_path =
-        get_package_path(remote_dir, agent_id, &package_id.into(), &ref_fix).unwrap();
+    let package_path = get_package_path(remote_dir, agent_id, package_data).unwrap();
 
     dbg!("### Expected Package path: {:?}", &package_path);
 
@@ -221,8 +235,6 @@ self_update:
   package:
     download:
       oci:
-        # TODO remove this when rebased to master!!!!!
-        registry: {OCI_TEST_REGISTRY_URL}
         repository: test
         public_key_url: {}
 "#,
