@@ -47,7 +47,8 @@ impl DynamicObjectListBuilder for InstallAgentControl {
         let labels = labels.get();
         debug!("Parsed labels: {:?}", labels);
 
-        let annotations = Annotations::new_agent_control_owned_with_type(&agent_identity.agent_type_id);
+        let annotations =
+            Annotations::new_agent_control_owned_with_type(&agent_identity.agent_type_id);
         let annotations = annotations.get();
 
         let helm_repository_obj_meta_data = obj_meta_data(

@@ -108,7 +108,9 @@ impl<C: K8sClient> DataStore for ConfigMapStore<C> {
         let data_as_string = serde_yaml::to_string(data)?;
         let configmap_name = ConfigMapStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
         let annotations = match agent_type_id {
-            Some(agent_type_id) => Annotations::new_agent_control_owned_with_type(&agent_type_id).get(),
+            Some(agent_type_id) => {
+                Annotations::new_agent_control_owned_with_type(&agent_type_id).get()
+            }
             None => Annotations::new_agent_control_owned().get(),
         };
         self.k8s_client.set_configmap_key(
@@ -354,7 +356,8 @@ pub mod tests {
         let mut k8s_client = MockK8sClient::default();
         let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
         let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
-        let expected_annotations = Annotations::new_agent_control_owned_with_type(&agent_type_id).get();
+        let expected_annotations =
+            Annotations::new_agent_control_owned_with_type(&agent_type_id).get();
 
         k8s_client
             .expect_set_configmap_key()
