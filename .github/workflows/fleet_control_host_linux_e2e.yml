@@ -45,7 +45,7 @@ jobs:
 
   on-host-linux-fleet-control-e2e:
     name: OnHost Linux Fleet Control E2E
-    needs: [build-packages]
+    needs: [ build-packages ]
     runs-on: linux-4-core-nr-control
     steps:
       - name: Record job start time
@@ -141,7 +141,7 @@ jobs:
       - name: Send result to Slack
         if: always()
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.AC_FLEET_COMMON_SLACK_WEBHOOK }}
+          SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           E2E_REPORT_TITLE: "OnHost Fleet Control E2E Test with Running AC"
         run: |

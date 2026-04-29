@@ -190,7 +190,7 @@ jobs:
 
       - name: Send e2e summary to Slack
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.AC_FLEET_COMMON_SLACK_WEBHOOK }}
+          SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bash .github/workflows/scripts/slack_e2e_summary.sh
 
