@@ -4,6 +4,7 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{AgentControlDynamicConfig, AgentControlPackage};
 use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
+use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;
 use crate::package::manager::{PackageData, PackageManager};
@@ -35,7 +36,7 @@ where
     agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
     package_manager: P,
     verify_executor: V,
-    repository: String,
+    repository: Repository,
     pub_key_url: Url,
 }
 
@@ -62,14 +63,14 @@ where
         )
         .entered();
 
-        if new_version == AGENT_CONTROL_VERSION {
+        if new_version.to_string() == AGENT_CONTROL_VERSION {
             debug!("Desired version is the same as current, skipping update");
             return Ok(());
         }
 
         debug!("Starting update process");
 
-        let package_data = self.get_package_data(new_version);
+        let package_data = self.get_package_data(new_version.clone());
 
         let new_binary_path = self
             .package_manager
@@ -127,12 +128,14 @@ where
         }
     }
 
-    fn get_package_data(&self, new_version: &str) -> PackageData {
+    fn get_package_data(&self, new_version: Version) -> PackageData {
         PackageData {
             id: AGENT_CONTROL_BIN_PACKAGE_ID.to_string(),
-            repository: self.repository.clone(),
-            version: new_version.to_string(),
-            public_key_url: Some(self.pub_key_url.clone()),
+            oci: Oci {
+                repository: self.repository.clone(),
+                version: new_version,
+                public_key_url: Some(self.pub_key_url.clone()),
+            },
         }
     }
 }
@@ -145,6 +148,7 @@ mod tests {
     use crate::package::manager::tests::MockPackageManager;
     use mockall::mock;
     use std::path::Path;
+    use std::str::FromStr;
 
     mock! {
         pub VerifyExecutorMock {}
@@ -184,7 +188,7 @@ mod tests {
     fn update_is_noop_when_version_matches_current() {
         let updater = new_test_updater(true);
         let config = AgentControlDynamicConfig {
-            version: Some(AGENT_CONTROL_VERSION.to_string()),
+            version: Some(Version::from_str(AGENT_CONTROL_VERSION).unwrap()),
             ..Default::default()
         };
         assert!(updater.update(&config).is_ok());

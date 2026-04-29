@@ -2,13 +2,18 @@ use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::oci_artifact::push_agent_package;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use httpmock::{MockServer, When};
+use newrelic_agent_control::agent_control::config::Registry;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
+use newrelic_agent_control::agent_type::runtime_config::on_host::package::rendered::{
+    Oci, Repository, Version,
+};
 use newrelic_agent_control::http::config::ProxyConfig;
 use newrelic_agent_control::oci;
 use newrelic_agent_control::package::manager::PackageData;
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::downloader::{OCIAgentDownloader, OCIArtifactDownloader};
 use oci_client::client::{ClientConfig, ClientProtocol};
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tempfile::tempdir;
@@ -50,16 +55,18 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
 
     let downloader = OCIArtifactDownloader::new(
         client,
-        OCI_TEST_REGISTRY_URL.to_string(),
+        Registry::from_str(OCI_TEST_REGISTRY_URL).unwrap(),
         Default::default(),
         false,
     );
 
     let package_data = PackageData {
         id: "test-package".to_string(),
-        repository: reference.repository().to_string(),
-        version: reference.tag().unwrap().to_string(),
-        public_key_url: None,
+        oci: Oci {
+            repository: Repository::from_str(reference.repository()).unwrap(),
+            version: Version::from_str(reference.tag().unwrap()).unwrap(),
+            public_key_url: None,
+        },
     };
     let _ = downloader
         .download(&package_data, local_agent_data_dir)
@@ -122,7 +129,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
 
     let downloader = OCIArtifactDownloader::new(
         client,
-        OCI_TEST_REGISTRY_URL.to_string(),
+        Registry::from_str(OCI_TEST_REGISTRY_URL).unwrap(),
         Default::default(),
         false,
     )
@@ -130,9 +137,11 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
 
     let package_data = PackageData {
         id: "test-package".to_string(),
-        repository: reference.repository().to_string(),
-        version: reference.tag().unwrap().to_string(),
-        public_key_url: None,
+        oci: Oci {
+            repository: Repository::from_str(reference.repository()).unwrap(),
+            version: Version::from_str(reference.tag().unwrap()).unwrap(),
+            public_key_url: None,
+        },
     };
     let result = downloader.download(&package_data, local_agent_data_dir);
     assert!(result.is_ok());

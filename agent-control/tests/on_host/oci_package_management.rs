@@ -1,9 +1,14 @@
+use std::str::FromStr;
+
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use crate::on_host::tools::{
     oci_artifact::push_agent_package, oci_package_manager::new_testing_oci_package_manager,
 };
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
+use newrelic_agent_control::agent_type::runtime_config::on_host::package::rendered::{
+    Oci, Repository, Version,
+};
 use newrelic_agent_control::package::manager::{PackageData, PackageManager};
 use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::package_manager::get_package_path;
@@ -42,9 +47,11 @@ fn test_install_and_uninstall_with_oci_registry() {
     // Install
     let package_data = PackageData {
         id: pkg_id.clone(),
-        repository: reference.repository().to_string(),
-        version: reference.tag().unwrap().to_string(),
-        public_key_url: None,
+        oci: Oci {
+            repository: Repository::from_str(reference.repository()).unwrap(),
+            version: Version::from_str(reference.tag().unwrap()).unwrap(),
+            public_key_url: None,
+        },
     };
     let installed_package_result = package_manager.install(&agent_id, package_data.clone());
 
@@ -106,9 +113,11 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
 
     let package_data = PackageData {
         id: pkg_id.to_string(),
-        repository: reference.repository().to_string(),
-        version: reference.tag().unwrap().to_string(),
-        public_key_url: None,
+        oci: Oci {
+            repository: Repository::from_str(reference.repository()).unwrap(),
+            version: Version::from_str(reference.tag().unwrap()).unwrap(),
+            public_key_url: None,
+        },
     };
 
     let installed_1 = package_manager

@@ -1,12 +1,12 @@
 use crate::agent_control::config::OciAuth;
-use crate::oci::{Client, reference_parser::ReferenceParser};
+use crate::agent_control::config::Registry;
+use crate::oci::Client;
 use crate::package::manager::PackageData;
 use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::utils::retry::retry;
 use oci_client::Reference;
 use oci_client::secrets::RegistryAuth;
 use std::path::Path;
-use std::str::FromStr;
 use std::time::Duration;
 use thiserror::Error;
 use tracing::{debug, warn};
@@ -34,7 +34,7 @@ pub struct OCIArtifactDownloader {
     signature_verification_enabled: bool,
     max_retries: usize,
     retry_interval: Duration,
-    registry: String,
+    registry: Registry,
 }
 
 impl OCIAgentDownloader for OCIArtifactDownloader {
@@ -54,22 +54,19 @@ impl OCIAgentDownloader for OCIArtifactDownloader {
     ) -> Result<LocalAgentPackage, OCIDownloaderError> {
         debug!(
             "Downloading from repository '{}' with version '{}'",
-            package_data.repository, package_data.version
+            package_data.oci.repository, package_data.oci.version
         );
         retry(self.max_retries, self.retry_interval, || {
             // Verify signature when needed
-            let base_reference = build_reference(
-                &self.registry,
-                &package_data.repository,
-                &package_data.version,
-            )?;
+            let base_reference = package_data.oci.to_reference(&self.registry);
 
-            let reference =
-                if let Some(pk_url) = self.should_verify_signature(&package_data.public_key_url) {
-                    &self.verified_package_signature_reference(&base_reference, pk_url)?
-                } else {
-                    &base_reference
-                };
+            let reference = if let Some(pk_url) =
+                self.should_verify_signature(&package_data.oci.public_key_url)
+            {
+                &self.verified_package_signature_reference(&base_reference, pk_url)?
+            } else {
+                &base_reference
+            };
             // Download the package
             self.download_package_artifact(reference, package_dir)
                 .inspect_err(|e| debug!("Download '{reference}' failed with error: {e}"))
@@ -78,33 +75,13 @@ impl OCIAgentDownloader for OCIArtifactDownloader {
     }
 }
 
-fn build_reference(
-    registry: &str,
-    repository: &str,
-    version: &str,
-) -> Result<Reference, OCIDownloaderError> {
-    let mut version = version.to_string();
-    if !version.is_empty() && !version.starts_with('@') {
-        version = format!(":{}", version);
-    }
-    let string_reference = format!("{}/{}{}", registry, repository, version);
-
-    ReferenceParser::from_str(string_reference.as_str())
-        .map(Into::into)
-        .map_err(|err| {
-            OCIDownloaderError(format!(
-                "building OCI reference `{string_reference}`: {err}"
-            ))
-        })
-}
-
 const DEFAULT_RETRIES: usize = 0;
 
 impl OCIArtifactDownloader {
     /// Returns an artifact downloader with default retries setup.
     pub fn new(
         client: Client,
-        registry: String,
+        registry: Registry,
         auth: Option<OciAuth>,
         signature_verification_enabled: bool,
     ) -> Self {
@@ -182,6 +159,9 @@ impl OCIArtifactDownloader {
 
 #[cfg(test)]
 pub mod tests {
+    use std::str::FromStr;
+
+    use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
     use crate::http::config::ProxyConfig;
 
     use crate::oci::tests::FakeOciServer;
@@ -198,7 +178,6 @@ pub mod tests {
     use mockall::mock;
 
     use oci_client::client::{ClientConfig, ClientProtocol};
-    use rstest::rstest;
     use serde_json::json;
 
     use tempfile::tempdir;
@@ -220,9 +199,11 @@ pub mod tests {
     fn test_package_data(public_key_url: Option<Url>) -> PackageData {
         PackageData {
             id: "test-package".to_string(),
-            repository: REPOSITORY.to_string(),
-            version: VERSION.to_string(),
-            public_key_url,
+            oci: Oci {
+                repository: Repository::from_str(REPOSITORY).unwrap(),
+                version: Version::from_str(VERSION).unwrap(),
+                public_key_url,
+            },
         }
     }
 
@@ -464,9 +445,12 @@ pub mod tests {
         );
         let package_data = PackageData {
             id: "test-package".to_string(),
-            repository: "test-repo".to_string(),
-            version: format!("v1.0.0@{}", oci_mock.manifest_digest()),
-            public_key_url: None,
+            oci: Oci {
+                repository: Repository::from_str("test-repo").unwrap(),
+                version: Version::from_str(&format!("v1.0.0@{}", oci_mock.manifest_digest()))
+                    .unwrap(),
+                public_key_url: None,
+            },
         };
 
         let downloader = create_downloader(server.address().to_string(), false);
@@ -497,7 +481,12 @@ pub mod tests {
             tokio_runtime(),
         )
         .unwrap();
-        let downloader = OCIArtifactDownloader::new(client, server.registry(), None, false);
+        let downloader = OCIArtifactDownloader::new(
+            client,
+            Registry::from_str(&server.registry()).unwrap(),
+            None,
+            false,
+        );
         let dest_dir = tempdir().unwrap();
         assert!(downloader.download(&package_data, dest_dir.path()).is_ok());
     }
@@ -515,30 +504,11 @@ pub mod tests {
             tokio_runtime(),
         )
         .unwrap();
-        OCIArtifactDownloader::new(client, registry, None, signature_verification_enabled)
-    }
-
-    #[rstest]
-    #[case::digest("@sha256:ec5f08ee7be8b557cd1fc5ae1a0ac985e8538da7c93f51a51eff4b277509a723")]
-    #[case::tag("a-tag")]
-    #[case::full_version(
-        "a-tag@sha256:ec5f08ee7be8b557cd1fc5ae1a0ac985e8538da7c93f51a51eff4b277509a723"
-    )]
-    #[case::empty_version("")]
-    fn test_reference_parser(#[case] version: &str) {
-        let parts: Vec<&str> = version.splitn(2, '@').collect();
-        let (expected_tag, expected_digest) = match parts.as_slice() {
-            [""] => (Some("latest"), None),               // Case: empty version
-            [tag] => (Some(*tag), None),                  // Case: tag
-            ["", digest] => (None, Some(*digest)),        // Case: @digest
-            [tag, digest] => (Some(*tag), Some(*digest)), // Case: tag@digest
-            _ => unreachable!(),
-        };
-
-        let reference = build_reference("test.com", "repo", version).unwrap();
-        assert_eq!("test.com", reference.registry());
-        assert_eq!("repo", reference.repository());
-        assert_eq!(expected_tag, reference.tag());
-        assert_eq!(expected_digest, reference.digest());
+        OCIArtifactDownloader::new(
+            client,
+            Registry::from_str(&registry).unwrap(),
+            None,
+            signature_verification_enabled,
+        )
     }
 }

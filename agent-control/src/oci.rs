@@ -15,7 +15,6 @@ use url::Url;
 
 mod error;
 mod proxy;
-pub mod reference_parser;
 mod signature_verification;
 
 pub use error::OciClientError;
@@ -128,10 +127,8 @@ pub mod tests {
     use httpmock::{Method::GET, MockServer};
     use oci_client::manifest::OciDescriptor;
     use std::collections::BTreeMap;
-    use std::str::FromStr;
     use tempfile::tempdir;
 
-    use crate::oci::reference_parser::ReferenceParser;
     use crate::signature::public_key::tests::TestKeyPair;
     use crate::signature::public_key_fetcher::tests::JwksMockServer;
     use crate::utils::test_runtime::tokio_runtime;
@@ -376,10 +373,8 @@ pub mod tests {
         }
 
         pub fn reference_on_server(&self, server: &MockServer) -> Reference {
-            let addr = server.address();
-            Reference::from(
-                ReferenceParser::from_str(&format!("{}/{}:{}", addr, self.repo, self.tag)).unwrap(),
-            )
+            let addr = server.address().to_string();
+            Reference::with_tag(addr, self.repo.clone(), self.tag.clone())
         }
 
         /// Returns the `digest` for the MockServer's manifest.
