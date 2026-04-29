@@ -37,7 +37,7 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
         "file1.txt",
     );
 
-    let (artifact_digest, _reference, oci) = push_agent_package(
+    let (artifact_digest, reference) = push_agent_package(
         &file_to_push,
         OCI_TEST_REGISTRY_URL,
         PackageMediaType::AgentPackageLayerTarGz,
@@ -57,8 +57,8 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
 
     let package_data = PackageData {
         id: "test-package".to_string(),
-        repository: oci.repository,
-        version: oci.version,
+        repository: reference.repository().to_string(),
+        version: reference.tag().unwrap().to_string(),
         public_key_url: None,
     };
     let _ = downloader
@@ -83,7 +83,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
         "file1.txt",
     );
 
-    let (artifact_digest, _reference, oci) = push_agent_package(
+    let (artifact_digest, reference) = push_agent_package(
         &file_to_push,
         OCI_TEST_REGISTRY_URL,
         PackageMediaType::AgentPackageLayerTarGz,
@@ -130,8 +130,8 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
 
     let package_data = PackageData {
         id: "test-package".to_string(),
-        repository: oci.repository,
-        version: oci.version,
+        repository: reference.repository().to_string(),
+        version: reference.tag().unwrap().to_string(),
         public_key_url: None,
     };
     let result = downloader.download(&package_data, local_agent_data_dir);

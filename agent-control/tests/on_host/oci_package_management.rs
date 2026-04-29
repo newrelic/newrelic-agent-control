@@ -24,7 +24,7 @@ fn test_install_and_uninstall_with_oci_registry() {
         FILENAME,
     );
 
-    let (_artifact_digest, _reference, oci) = push_agent_package(
+    let (_artifact_digest, reference) = push_agent_package(
         &file_to_push,
         OCI_TEST_REGISTRY_URL,
         PackageMediaType::AgentPackageLayerTarGz,
@@ -42,8 +42,8 @@ fn test_install_and_uninstall_with_oci_registry() {
     // Install
     let package_data = PackageData {
         id: pkg_id.clone(),
-        repository: oci.repository,
-        version: oci.version,
+        repository: reference.repository().to_string(),
+        version: reference.tag().unwrap().to_string(),
         public_key_url: None,
     };
     let installed_package_result = package_manager.install(&agent_id, package_data.clone());
@@ -90,7 +90,7 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
         FILENAME,
     );
 
-    let (_artifact_digest, _reference, oci) = push_agent_package(
+    let (_artifact_digest, reference) = push_agent_package(
         &file_to_push,
         OCI_TEST_REGISTRY_URL,
         PackageMediaType::AgentPackageLayerTarGz,
@@ -106,8 +106,8 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
 
     let package_data = PackageData {
         id: pkg_id.to_string(),
-        repository: oci.repository,
-        version: oci.version,
+        repository: reference.repository().to_string(),
+        version: reference.tag().unwrap().to_string(),
         public_key_url: None,
     };
 
