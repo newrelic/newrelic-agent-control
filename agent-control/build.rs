@@ -24,8 +24,12 @@ const LOGGING_ENABLED_CRATES: &[&str] = &[
 // Workspace crates whose logs are explicitly disabled.
 // Every workspace member must appear in exactly one of the two lists — the build
 // fails otherwise, forcing an explicit decision when a new crate is added.
-const LOGGING_DISABLED_CRATES: &[&str] =
-    &["wrapper_with_default", "e2e_runner", "fake_opamp_server"];
+const LOGGING_DISABLED_CRATES: &[&str] = &[
+    "wrapper_with_default",
+    "e2e_runner",
+    "fake_opamp_server",
+    "oci_test_utils",
+];
 
 fn main() {
     generate_agent_type_registry();

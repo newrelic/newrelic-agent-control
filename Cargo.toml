@@ -9,6 +9,7 @@ members = [
   "wrapper_with_default",
   "self-replacer",
   "test/e2e-runner",
+  "test/crates/oci-test-utils",
 ]
 
 [workspace.package]
@@ -46,9 +47,11 @@ rstest = "0.26.1"
 windows = "0.62.2"
 windows-sys = "0.61.2"
 aws-lc-rs = "1.16.3"
-base64 = "0.22.1"
 opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.37" }
-tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros"] }
+oci-client = { version = "0.16.1", default-features = false }
+tokio = "1.52.2"
+base64 = "0.22.1"
+actix-web = "4.13.0"
 
 [profile.release-debug]
 inherits = "release"

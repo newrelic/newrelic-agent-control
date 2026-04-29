@@ -1,12 +1,9 @@
-use crate::common::oci::{hex_bytes, push_empty_config_descriptor};
-use crate::common::runtime::{block_on, tokio_runtime};
+use crate::hex_bytes;
 use actix_web::{App, HttpResponse, HttpServer, web};
-use aws_lc_rs::digest::SHA256;
-use aws_lc_rs::digest::digest;
+use aws_lc_rs::digest::{SHA256, digest};
 use aws_lc_rs::rand::SystemRandom;
 use aws_lc_rs::signature::{Ed25519KeyPair, KeyPair as _};
-use base64::prelude::BASE64_STANDARD;
-use base64::prelude::{BASE64_URL_SAFE_NO_PAD, Engine};
+use base64::prelude::{BASE64_STANDARD, BASE64_URL_SAFE_NO_PAD, Engine};
 use http::Uri;
 use oci_client::client::{ClientConfig, ClientProtocol::Http};
 use oci_client::manifest::{OciDescriptor, OciImageManifest, OciManifest::Image};
@@ -15,30 +12,30 @@ use oci_client::secrets::RegistryAuth::Anonymous;
 use oci_client::{Client, Reference};
 use serde_json::json;
 use std::collections::BTreeMap;
-use std::sync::Mutex;
-use std::{net, sync::Arc};
+use std::net;
+use std::sync::{Arc, Mutex};
+use tokio::runtime::Handle;
 use tokio::task::JoinHandle;
 
 const JWKS_SERVER_PATH: &str = "/jwks";
 const JWKS_PUBLIC_KEY_ID: &str = "fakeOCIKeyName/0";
 
-/// Represents the state of the OCISigner server.
 struct ServerState {
     key_pair: Ed25519KeyPair,
 }
 
-/// Fake OCI artifact signer and public key server
+/// Fake OCI artifact signer and public key server for testing signature verification.
 pub struct OCISigner {
-    handle: JoinHandle<()>,
+    server_handle: JoinHandle<()>,
     state: Arc<Mutex<ServerState>>,
     port: u16,
     oci_client: Client,
+    runtime_handle: Handle,
 }
 
 impl OCISigner {
     /// Generates the fake signing key and starts serving the jwks endpoint.
-    pub fn start() -> Self {
-        // While binding to port 0, the kernel gives you a free ephemeral port.
+    pub fn start(runtime_handle: Handle) -> Self {
         let listener = net::TcpListener::bind("0.0.0.0:0").unwrap();
         let port = listener.local_addr().unwrap().port();
 
@@ -48,7 +45,7 @@ impl OCISigner {
         };
         let state = Arc::new(Mutex::new(state));
 
-        let handle = tokio_runtime().spawn(Self::run_http_server(listener, state.clone()));
+        let server_handle = runtime_handle.spawn(Self::run_http_server(listener, state.clone()));
 
         let oci_client = Client::new(ClientConfig {
             protocol: Http,
@@ -56,33 +53,48 @@ impl OCISigner {
         });
 
         Self {
-            handle,
+            server_handle,
             state,
             port,
             oci_client,
+            runtime_handle,
         }
     }
 
-    /// Returns the url to the jwks path with the public key
+    /// Returns the url to the jwks path with the public key.
     pub fn jwks_url(&self) -> Uri {
         format!("http://localhost:{}{}", self.port, JWKS_SERVER_PATH)
             .parse()
             .unwrap()
     }
 
-    /// Generates and push a cosign signature artifact to the reference.
+    /// Generates and pushes a cosign signature artifact to the reference.
     pub fn sign_artifact(&self, reference: &Reference) {
-        block_on(self.sign_artifact_async(reference));
+        self.runtime_handle
+            .block_on(self.sign_artifact_async(reference));
     }
 
     pub fn sign_artifact_with_auth(&self, reference: &Reference, registry_auth: RegistryAuth) {
-        block_on(self.oci_client.auth(
-            reference,
-            &registry_auth,
-            oci_client::RegistryOperation::Push,
-        ))
-        .unwrap();
-        self.sign_artifact(reference);
+        self.runtime_handle.block_on(async {
+            self.sign_artifact_with_auth_async(reference, registry_auth)
+                .await
+        });
+    }
+
+    async fn sign_artifact_with_auth_async(
+        &self,
+        reference: &Reference,
+        registry_auth: RegistryAuth,
+    ) {
+        self.oci_client
+            .auth(
+                reference,
+                &registry_auth,
+                oci_client::RegistryOperation::Push,
+            )
+            .await
+            .unwrap();
+        self.sign_artifact_async(reference).await;
     }
 
     async fn sign_artifact_async(&self, reference: &Reference) {
@@ -109,7 +121,6 @@ impl OCISigner {
             .unwrap();
     }
 
-    /// Triangulate the reference to find the digest and build the cosign signature reference.
     async fn triangulate(&self, reference: &Reference) -> (Reference, String) {
         let digest = self
             .oci_client
@@ -124,7 +135,6 @@ impl OCISigner {
         (cosign_signature_image, digest)
     }
 
-    /// Generates the cosign signature payload for the given source digest and reference.
     fn signature_payload(&self, source_digest: &str, source_reference: &str) -> Vec<u8> {
         let payload = json!({
             "critical": {
@@ -141,7 +151,6 @@ impl OCISigner {
         payload.to_string().into_bytes()
     }
 
-    /// Pushes the signature layer to the registry and returns the corresponding descriptor.
     async fn push_signature_layer(
         &self,
         signature_ref: &Reference,
@@ -190,13 +199,30 @@ impl OCISigner {
     }
 
     fn stop(&self) {
-        self.handle.abort();
+        self.server_handle.abort();
     }
 }
 
 impl Drop for OCISigner {
     fn drop(&mut self) {
         self.stop();
+    }
+}
+
+async fn push_empty_config_descriptor(oci_client: &Client, reference: &Reference) -> OciDescriptor {
+    let empty_config = b"{}";
+    let digest = crate::blob_digest(empty_config);
+
+    oci_client
+        .push_blob(reference, empty_config.as_slice(), digest.as_str())
+        .await
+        .unwrap();
+
+    OciDescriptor {
+        media_type: "application/vnd.oci.empty.v1+json".to_string(),
+        digest,
+        size: empty_config.len() as i64,
+        ..Default::default()
     }
 }
 

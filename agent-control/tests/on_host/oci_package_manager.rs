@@ -1,17 +1,15 @@
 use std::str::FromStr;
 
-use crate::on_host::tools::oci_package_manager::TestDataHelper;
-use crate::on_host::tools::{
-    oci_artifact::push_agent_package, oci_package_manager::new_testing_oci_package_manager,
-};
+use crate::common::runtime::tokio_runtime;
+use crate::on_host::tools::oci_package_manager::{TestDataHelper, new_testing_oci_package_manager};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::agent_type::runtime_config::on_host::package::rendered::{
     Oci, Repository, Version,
 };
 use newrelic_agent_control::package::manager::{PackageData, PackageManager};
-use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::package_manager::get_package_path;
+use oci_test_utils::{PackageMediaType, PackagePublisher};
 use tempfile::tempdir;
 
 #[test]
@@ -29,11 +27,8 @@ fn test_install_and_uninstall_with_oci_registry() {
         FILENAME,
     );
 
-    let (_artifact_digest, reference) = push_agent_package(
-        &file_to_push,
-        OCI_TEST_REGISTRY_URL,
-        PackageMediaType::AgentPackageLayerTarGz,
-    );
+    let reference = PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
+        .push(&file_to_push, PackageMediaType::TarGz);
 
     let temp_dir = tempdir().unwrap();
     let base_path = temp_dir.path().to_path_buf();
@@ -97,11 +92,8 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
         FILENAME,
     );
 
-    let (_artifact_digest, reference) = push_agent_package(
-        &file_to_push,
-        OCI_TEST_REGISTRY_URL,
-        PackageMediaType::AgentPackageLayerTarGz,
-    );
+    let reference = PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
+        .push(&file_to_push, PackageMediaType::TarGz);
 
     let temp_dir = tempdir().unwrap();
     let base_path = temp_dir.path().to_path_buf();

@@ -1,5 +1,4 @@
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::oci_artifact::push_agent_package;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use httpmock::{MockServer, When};
 use newrelic_agent_control::agent_control::config::Registry;
@@ -10,9 +9,9 @@ use newrelic_agent_control::agent_type::runtime_config::on_host::package::render
 use newrelic_agent_control::http::config::ProxyConfig;
 use newrelic_agent_control::oci;
 use newrelic_agent_control::package::manager::PackageData;
-use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::downloader::{OCIAgentDownloader, OCIArtifactDownloader};
 use oci_client::client::{ClientConfig, ClientProtocol};
+use oci_test_utils::{PackageMediaType, PackagePublisher, blob_digest};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -42,11 +41,9 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
         "file1.txt",
     );
 
-    let (artifact_digest, reference) = push_agent_package(
-        &file_to_push,
-        OCI_TEST_REGISTRY_URL,
-        PackageMediaType::AgentPackageLayerTarGz,
-    );
+    let artifact_digest = blob_digest(&std::fs::read(&file_to_push).unwrap());
+    let reference = PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
+        .push(&file_to_push, PackageMediaType::TarGz);
 
     let temp_dir = tempdir().unwrap();
     let local_agent_data_dir = temp_dir.path();
@@ -90,11 +87,9 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
         "file1.txt",
     );
 
-    let (artifact_digest, reference) = push_agent_package(
-        &file_to_push,
-        OCI_TEST_REGISTRY_URL,
-        PackageMediaType::AgentPackageLayerTarGz,
-    );
+    let artifact_digest = blob_digest(&std::fs::read(&file_to_push).unwrap());
+    let reference = PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
+        .push(&file_to_push, PackageMediaType::TarGz);
 
     // Proxy server will request the target server, allowing requests to that host only
     let proxy_server = MockServer::start();
