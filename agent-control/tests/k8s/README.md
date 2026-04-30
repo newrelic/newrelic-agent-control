@@ -22,11 +22,11 @@ Notes:
   the test can be configured to use the `KUBECONFIG` environment.
 - Tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop, so
   `#[tokio::test(flavor = "multi_thread", worker_threads = 2)]` needs to be added
-- Any test requiring a running k8s cluster should be implemented this way: unit-tests in the agent-control create define
-  the k8s client as a mock using [mockall::double](https://docs.rs/mockall_double/latest/mockall_double/). Therefore,
-  using the _real_ implementation can be problematic. This also means that the mocks defined in the agent-control create
-  cannot be used in integration test (if a particular component mock is needed we need to either re-implement it in the
-  integration test module or expose them in the agent-control crate, outside the `test` feature flag).
+- Any test requiring a running k8s cluster should be implemented this way: unit-tests in the agent-control crate use
+  a generic `K8sClient` trait so the k8s client can be mocked with `MockK8sClient`. Therefore, using the _real_
+  implementation can be problematic. This also means that the mocks defined in the agent-control crate cannot be used
+  in integration tests (if a particular component mock is needed we need to either re-implement it in the integration
+  test module or expose them in the agent-control crate, outside the `test` feature flag).
 - You can run test manually dumping the minikube context to the dev kubecontext:
 
 ```bash

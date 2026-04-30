@@ -1,7 +1,6 @@
 use crate::checkers::guid::{EntityGuid, GuidCheckError, GuidChecker};
 use crate::k8s::client::K8sObjectKey;
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use kube::api::TypeMeta;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -14,8 +13,8 @@ pub struct InstrumentationGuid {
 }
 
 #[derive(Debug)]
-pub struct K8sGuidInstrumentation {
-    k8s_client: Arc<SyncK8sClient>,
+pub struct K8sGuidInstrumentation<C: K8sClient = SyncK8sClient> {
+    k8s_client: Arc<C>,
     type_meta: TypeMeta,
     name: String,
     namespace: String,
@@ -25,9 +24,9 @@ pub struct K8sGuidInstrumentation {
     opamp_field: String,
 }
 
-impl K8sGuidInstrumentation {
+impl<C: K8sClient> K8sGuidInstrumentation<C> {
     pub fn new(
-        k8s_client: Arc<SyncK8sClient>,
+        k8s_client: Arc<C>,
         type_meta: TypeMeta,
         name: String,
         namespace: String,
@@ -63,7 +62,7 @@ impl K8sGuidInstrumentation {
     }
 }
 
-impl GuidChecker for K8sGuidInstrumentation {
+impl<C: K8sClient> GuidChecker for K8sGuidInstrumentation<C> {
     fn check_guid(&self) -> Result<EntityGuid, GuidCheckError> {
         let obj_opt = self
             .k8s_client
@@ -105,8 +104,7 @@ impl GuidChecker for K8sGuidInstrumentation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg_attr(test, mockall_double::double)]
-    use crate::k8s::client::SyncK8sClient;
+    use crate::k8s::client::tests::MockK8sClient;
 
     use crate::agent_control::defaults::APM_APPLICATION_ID;
 
@@ -119,8 +117,8 @@ mod tests {
     fn setup_mock_client(
         status_payload: Option<serde_json::Value>,
         k8s_error: Option<String>,
-    ) -> SyncK8sClient {
-        let mut client = SyncK8sClient::new();
+    ) -> MockK8sClient {
+        let mut client = MockK8sClient::new();
 
         let tm = TypeMeta {
             api_version: "v1".into(),
@@ -166,8 +164,8 @@ mod tests {
         client
     }
 
-    fn get_checker(client: SyncK8sClient) -> K8sGuidInstrumentation {
-        K8sGuidInstrumentation::new(
+    fn get_checker(client: MockK8sClient) -> K8sGuidInstrumentation<MockK8sClient> {
+        K8sGuidInstrumentation::<MockK8sClient>::new(
             Arc::new(client),
             TypeMeta {
                 api_version: "v1".into(),

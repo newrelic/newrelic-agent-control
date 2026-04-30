@@ -6,8 +6,7 @@ use nr_auth::key::{
 use serde_json::json;
 use tracing::info;
 
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::K8sClient;
 use crate::{
     agent_control::{agent_id::AgentID, config::secret_type_meta},
     cli::{
@@ -84,10 +83,10 @@ pub fn register_system_identity(
 /// and `provide_identity_fn`.
 /// The function `provide_identity_fn` is expected to return the client_id of the registered System Identity.
 /// The generated private key is stored in a Kubernetes Secret alongside the client_id.
-fn provide_system_identity_secret<F>(
+fn provide_system_identity_secret<F, C: K8sClient>(
     namespace: &str,
     spec: IdentityRegistrationSpec,
-    k8s_client: &SyncK8sClient,
+    k8s_client: &C,
     create_identity: F,
 ) -> Result<(), K8sCliError>
 where
@@ -154,9 +153,9 @@ where
     Ok(())
 }
 
-fn secret_already_exists(
+fn secret_already_exists<C: K8sClient>(
     object_key: K8sObjectKey<'_>,
-    k8s_client: &SyncK8sClient,
+    k8s_client: &C,
 ) -> Result<bool, K8sCliError> {
     k8s_client
         .get_dynamic_object(&secret_type_meta(), object_key)
@@ -188,7 +187,7 @@ fn secret_dynamic_object(object_key: K8sObjectKey<'_>, data: serde_json::Value) 
 mod tests {
     use super::*;
     use crate::cli::common::system_identity::ParentAuthMethod;
-    use crate::k8s::client::MockSyncK8sClient;
+    use crate::k8s::client::tests::MockK8sClient;
     use assert_matches::assert_matches;
     use clap::{CommandFactory, FromArgMatches};
     use rstest::rstest;
@@ -256,8 +255,8 @@ mod tests {
         })
     }
 
-    fn mock_secret_not_found() -> MockSyncK8sClient {
-        let mut mock_client = MockSyncK8sClient::new();
+    fn mock_secret_not_found() -> MockK8sClient {
+        let mut mock_client = MockK8sClient::new();
         mock_client
             .expect_get_dynamic_object()
             .once()
@@ -267,7 +266,7 @@ mod tests {
 
     #[test]
     fn test_secret_already_exists_skips_creation() {
-        let mut mock_client = MockSyncK8sClient::new();
+        let mut mock_client = MockK8sClient::new();
 
         mock_client
             .expect_get_dynamic_object()
@@ -287,7 +286,7 @@ mod tests {
 
     #[test]
     fn test_creates_secret_when_not_present() {
-        let mut mock_client = MockSyncK8sClient::new();
+        let mut mock_client = MockK8sClient::new();
 
         mock_client
             .expect_get_dynamic_object()
@@ -319,7 +318,7 @@ mod tests {
 
     #[test]
     fn test_get_dynamic_object_error_returns_error() {
-        let mut mock_client = MockSyncK8sClient::new();
+        let mut mock_client = MockK8sClient::new();
         mock_client
             .expect_get_dynamic_object()
             .once()

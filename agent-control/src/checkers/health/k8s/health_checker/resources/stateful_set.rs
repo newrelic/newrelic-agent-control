@@ -2,8 +2,7 @@ use crate::checkers::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::utils as client_utils;
 use k8s_openapi::api::apps::v1::StatefulSet;
 use std::sync::Arc;
@@ -14,27 +13,27 @@ use super::{
 
 /// Represents a health checker for a StatefulSet resource.
 #[derive(Debug)]
-pub struct K8sHealthStatefulSet {
-    k8s_client: Arc<SyncK8sClient>,
+pub struct K8sHealthStatefulSet<C: K8sClient = SyncK8sClient> {
+    k8s_client: Arc<C>,
     filter: ResourceFilter,
     start_time: StartTime,
     namespace: String,
 }
 
-impl HealthChecker for K8sHealthStatefulSet {
+impl<C: K8sClient> HealthChecker for K8sHealthStatefulSet<C> {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         let stateful_sets = self.k8s_client.list_stateful_set(&self.namespace)?;
 
         let health = match &self.filter {
             ResourceFilter::ByName(name) => check_health_for_items(
                 stateful_sets.into_iter().filter(name_filter(name.clone())),
-                Self::stateful_set_health,
+                K8sHealthStatefulSet::stateful_set_health,
             )?,
             ResourceFilter::ByFluxLabel(release) => check_health_for_items(
                 stateful_sets
                     .into_iter()
                     .filter(flux_release_filter(release.clone())),
-                Self::stateful_set_health,
+                K8sHealthStatefulSet::stateful_set_health,
             )?,
         };
 
@@ -43,20 +42,6 @@ impl HealthChecker for K8sHealthStatefulSet {
 }
 
 impl K8sHealthStatefulSet {
-    pub fn new(
-        k8s_client: Arc<SyncK8sClient>,
-        filter: ResourceFilter,
-        start_time: StartTime,
-        namespace: String,
-    ) -> Self {
-        Self {
-            k8s_client,
-            filter,
-            start_time,
-            namespace,
-        }
-    }
-
     /// Returns the health for a single stateful_set.
     fn stateful_set_health(sts: &StatefulSet) -> Result<Health, HealthCheckerError> {
         let name = client_utils::get_metadata_name(sts)?;
@@ -86,12 +71,28 @@ impl K8sHealthStatefulSet {
     }
 }
 
+impl<C: K8sClient> K8sHealthStatefulSet<C> {
+    pub fn new(
+        k8s_client: Arc<C>,
+        filter: ResourceFilter,
+        start_time: StartTime,
+        namespace: String,
+    ) -> Self {
+        Self {
+            k8s_client,
+            filter,
+            start_time,
+            namespace,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::checkers::health::health_checker::Healthy;
     use crate::checkers::health::k8s::health_checker::resources::daemon_set::tests::TEST_NAMESPACE;
-    use crate::k8s::client::MockSyncK8sClient;
+    use crate::k8s::client::tests::MockK8sClient;
     use assert_matches::assert_matches;
     use k8s_openapi::api::apps::v1::{StatefulSetSpec, StatefulSetStatus};
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -257,7 +258,7 @@ mod tests {
 
     #[test]
     fn test_check_health() {
-        let mut k8s_client = MockSyncK8sClient::new();
+        let mut k8s_client = MockK8sClient::new();
         let name = "target-stateful-set";
 
         // Matches by name — healthy.
@@ -303,7 +304,7 @@ mod tests {
     #[test]
     fn test_check_health_for_helm_release() {
         use crate::checkers::health::k8s::health_checker::LABEL_RELEASE_FLUX;
-        let mut k8s_client = MockSyncK8sClient::new();
+        let mut k8s_client = MockK8sClient::new();
         let release_name = "flux-release";
 
         // Matches by Flux label — healthy.

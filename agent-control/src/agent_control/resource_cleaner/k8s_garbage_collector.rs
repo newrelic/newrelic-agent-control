@@ -5,8 +5,7 @@ use crate::agent_control::defaults::AGENT_CONTROL_ID;
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::k8s::annotations;
 use crate::k8s::client::K8sObjectKey;
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::error::K8sError;
 use crate::k8s::labels::{self, AGENT_ID_LABEL_KEY, Labels};
 use crate::k8s::utils::{get_name, get_namespace};
@@ -26,8 +25,8 @@ use tracing::{debug, instrument};
 ///
 /// It supports two modes of operation, with a public method for each:
 /// [`retain`](K8sGarbageCollector::retain) and [`collect`](K8sGarbageCollector::collect).
-pub struct K8sGarbageCollector {
-    pub k8s_client: Arc<SyncK8sClient>,
+pub struct K8sGarbageCollector<C: K8sClient = SyncK8sClient> {
+    pub k8s_client: Arc<C>,
     /// The namespace where the Agent Control stores data via configMaps.
     pub namespace: String,
     /// The namespace where agents are running. We are garbage collecting resources here only due to Instrumentation
@@ -36,6 +35,15 @@ pub struct K8sGarbageCollector {
 }
 
 impl K8sGarbageCollector {
+    pub fn active_config_ids(active_config: &SubAgentsMap) -> HashMap<AgentID, AgentTypeID> {
+        active_config
+            .iter()
+            .map(|(id, config)| (id.clone(), config.agent_type.clone()))
+            .collect()
+    }
+}
+
+impl<C: K8sClient> K8sGarbageCollector<C> {
     /// Remove all the Kubernetes resources managed by Agent Control that are not included in the
     /// map passed as parameter.
     #[instrument(skip_all, name = "k8s_garbage_collector_retain")]
@@ -66,13 +74,6 @@ impl K8sGarbageCollector {
         self.garbage_collection_config_maps(&mode)?;
         self.garbage_collection_dynamic_object(&mode, &self.namespace_agents)?;
         self.garbage_collection_dynamic_object(&mode, &self.namespace)
-    }
-
-    pub fn active_config_ids(active_config: &SubAgentsMap) -> HashMap<AgentID, AgentTypeID> {
-        active_config
-            .iter()
-            .map(|(id, config)| (id.clone(), config.agent_type.clone()))
-            .collect()
     }
 
     fn garbage_collection_config_maps(
@@ -270,6 +271,7 @@ impl From<K8sGarbageCollectorError> for ResourceCleanerError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::k8s::client::tests::MockK8sClient;
     use mockall::predicate;
 
     const TEST_NAMESPACE: &str = "test-namespace";
@@ -277,7 +279,7 @@ mod tests {
 
     #[test]
     fn errors_if_ac_id() {
-        let mut k8s_client = SyncK8sClient::default();
+        let mut k8s_client = MockK8sClient::default();
         // collect should return immediately on AC ID, and return with an error
         k8s_client.expect_delete_configmap_collection().never();
         k8s_client.expect_list_dynamic_objects().never();
@@ -302,7 +304,7 @@ mod tests {
     #[test]
     fn deletes_configmaps_but_not_dynamic_objects() {
         let type_meta = TypeMeta::default();
-        let mut k8s_client = SyncK8sClient::default();
+        let mut k8s_client = MockK8sClient::default();
         // collect should return immediately on AC ID, and return with an error
         k8s_client
             .expect_delete_configmap_collection()

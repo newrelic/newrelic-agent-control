@@ -6,8 +6,7 @@ use crate::checkers::version::k8s::instrumentation::NewrelicInstrumentationVersi
 use crate::checkers::version::{AgentVersion, VersionCheckError, VersionChecker};
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::utils::{get_namespace, get_type_meta};
 use crate::opamp::attributes::{UpdatedAttributesMessage, publish_update_attributes_event};
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
@@ -47,12 +46,12 @@ impl TryFrom<&TypeMeta> for SupportedResourceType {
 
 /// Represents all supported version checkers for k8s objects.
 #[cfg_attr(test, derive(Debug))]
-pub enum K8sAgentVersionChecker {
-    HelmRelease(HelmReleaseVersionChecker),
-    Instrumentation(NewrelicInstrumentationVersionChecker),
+pub enum K8sAgentVersionChecker<C: K8sClient = SyncK8sClient> {
+    HelmRelease(HelmReleaseVersionChecker<C>),
+    Instrumentation(NewrelicInstrumentationVersionChecker<C>),
 }
 
-impl VersionChecker for K8sAgentVersionChecker {
+impl<C: K8sClient> VersionChecker for K8sAgentVersionChecker<C> {
     fn check_agent_version(&self) -> Result<AgentVersion, VersionCheckError> {
         match self {
             K8sAgentVersionChecker::HelmRelease(vc) => vc.check_agent_version(),
@@ -61,11 +60,11 @@ impl VersionChecker for K8sAgentVersionChecker {
     }
 }
 
-impl K8sAgentVersionChecker {
+impl<C: K8sClient> K8sAgentVersionChecker<C> {
     /// Builds the VersionChecker corresponding to the first k8s object compatible with version check.
     /// It returns None if no object is compatible with version check.
     pub fn checked_new(
-        k8s_client: Arc<SyncK8sClient>,
+        k8s_client: Arc<C>,
         agent_id: &AgentID,
         k8s_objects: Arc<Vec<DynamicObject>>,
         opamp_field: String,
@@ -177,7 +176,7 @@ mod tests {
             defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
         },
         event::{SubAgentInternalEvent, channel::pub_sub},
-        k8s::client::MockSyncK8sClient,
+        k8s::client::tests::MockK8sClient,
     };
     use assert_matches::assert_matches;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -198,14 +197,14 @@ mod tests {
         struct TestCase {
             name: &'static str,
             k8s_objects: Vec<DynamicObject>,
-            check: fn(&'static str, Option<K8sAgentVersionChecker>),
+            check: fn(&'static str, Option<K8sAgentVersionChecker<MockK8sClient>>),
         }
 
         impl TestCase {
             fn run(self) {
                 let k8s_objects = Arc::new(self.k8s_objects);
                 let result = K8sAgentVersionChecker::checked_new(
-                    Arc::new(MockSyncK8sClient::new()),
+                    Arc::new(MockK8sClient::new()),
                     &AgentID::try_from("some-agent-id").unwrap(),
                     k8s_objects,
                     OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),

@@ -3,8 +3,7 @@ use crate::checkers::health::health_checker::{
 };
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::k8s::client::K8sObjectKey;
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use kube::api::TypeMeta;
 use serde::Deserialize;
 use std::fmt::Display;
@@ -150,17 +149,17 @@ impl Display for UnhealthyPodError {
 /// instances, each corresponding to a different instrumentation, allowing for
 /// health checks across several instrumentations within a Kubernetes cluster.
 #[derive(Debug)]
-pub struct K8sHealthNRInstrumentation {
-    k8s_client: Arc<SyncK8sClient>,
+pub struct K8sHealthNRInstrumentation<C: K8sClient = SyncK8sClient> {
+    k8s_client: Arc<C>,
     type_meta: TypeMeta,
     name: String,
     namespace: String,
     start_time: StartTime,
 }
 
-impl K8sHealthNRInstrumentation {
+impl<C: K8sClient> K8sHealthNRInstrumentation<C> {
     pub fn new(
-        k8s_client: Arc<SyncK8sClient>,
+        k8s_client: Arc<C>,
         type_meta: TypeMeta,
         name: String,
         namespace: String,
@@ -176,7 +175,7 @@ impl K8sHealthNRInstrumentation {
     }
 }
 
-impl HealthChecker for K8sHealthNRInstrumentation {
+impl<C: K8sClient> HealthChecker for K8sHealthNRInstrumentation<C> {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         // Attempt to get the Instrumentation from Kubernetes
         let instrumentation = self

@@ -17,9 +17,8 @@ use crate::cli::k8s::errors::K8sCliError;
 use crate::cli::k8s::install::flux::HELM_REPOSITORY_NAME;
 use crate::cli::k8s::uninstall::Deleter;
 use crate::cli::k8s::utils::{retrieve_api_resources, try_new_k8s_client};
+use crate::k8s::client::K8sClient;
 use crate::k8s::client::K8sObjectKey;
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
 use crate::utils::retry::retry;
 
 const SUSPEND_CHECK_MAX_RETRIES: usize = 30;
@@ -72,8 +71,8 @@ pub fn remove_flux_crs(namespace: &str, release_name: &str) -> Result<(), K8sCli
 
 /// Suspends the helm-release represented by the provided object and waits and verifies that the suspension
 /// is effectively applied.
-fn suspend_helmrelease(
-    k8s_client: &SyncK8sClient,
+fn suspend_helmrelease<C: K8sClient>(
+    k8s_client: &C,
     name: &str,
     namespace: &str,
     helmrelease_type_meta: &TypeMeta,
@@ -113,8 +112,8 @@ fn suspend_helmrelease(
 }
 
 /// Helper to handle errors and non-existence when obtaining a HelmRelease.
-fn get_helmrelease(
-    k8s_client: &SyncK8sClient,
+fn get_helmrelease<C: K8sClient>(
+    k8s_client: &C,
     tm: &TypeMeta,
     name: &str,
     namespace: &str,
@@ -150,8 +149,8 @@ fn is_helmrelease_updated_after_suspension(
 }
 
 /// Deletes the HelmChart referenced in the provided HelmRelease if any.
-fn delete_helmchart_object(
-    deleter: &Deleter,
+fn delete_helmchart_object<C: K8sClient>(
+    deleter: &Deleter<'_, C>,
     helmrelease_name: &str,
     helmrelease: &DynamicObject,
 ) -> Result<(), K8sCliError> {
@@ -174,7 +173,7 @@ fn delete_helmchart_object(
 
 #[cfg(test)]
 mod tests {
-    use crate::k8s::client::MockSyncK8sClient;
+    use crate::k8s::client::tests::MockK8sClient;
     use either::Either;
     use kube::{
         api::{DynamicObject, ObjectMeta},
@@ -211,7 +210,7 @@ mod tests {
 
     #[test]
     fn test_suspend_helmrelease() {
-        let mut mock_k8s_client = MockSyncK8sClient::new();
+        let mut mock_k8s_client = MockK8sClient::new();
         let helmrelease_type_meta = helmrelease_v2_type_meta();
         let namespace = "test-namespace";
 
@@ -297,7 +296,7 @@ mod tests {
             json!({"helmChart": "helm-chart-namespace/helm-chart-name"}),
         );
 
-        let mut mock_k8s_client = MockSyncK8sClient::new();
+        let mut mock_k8s_client = MockK8sClient::new();
         mock_k8s_client
             .expect_delete_dynamic_object()
             .withf(|tm_arg, key_arg| {

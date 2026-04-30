@@ -2,21 +2,21 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 use crate::checkers::version::{AgentVersion, VersionCheckError, VersionChecker};
 use crate::k8s::client::K8sObjectKey;
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use kube::api::{DynamicObject, TypeMeta};
 use std::sync::Arc;
 
-pub struct NewrelicInstrumentationVersionChecker {
-    k8s_client: Arc<SyncK8sClient>,
+#[derive(Debug)]
+pub struct NewrelicInstrumentationVersionChecker<C: K8sClient = SyncK8sClient> {
+    k8s_client: Arc<C>,
     type_meta: TypeMeta,
     namespace: String,
     agent_id: AgentID,
 }
 
-impl NewrelicInstrumentationVersionChecker {
+impl<C: K8sClient> NewrelicInstrumentationVersionChecker<C> {
     pub fn new(
-        k8s_client: Arc<SyncK8sClient>,
+        k8s_client: Arc<C>,
         type_meta: TypeMeta,
         namespace: String,
         agent_id: &AgentID,
@@ -53,7 +53,7 @@ impl NewrelicInstrumentationVersionChecker {
     }
 }
 
-impl VersionChecker for NewrelicInstrumentationVersionChecker {
+impl<C: K8sClient> VersionChecker for NewrelicInstrumentationVersionChecker<C> {
     fn check_agent_version(&self) -> Result<AgentVersion, VersionCheckError> {
         let instrumentation = self.get_instrumentation()?;
 
@@ -97,16 +97,6 @@ fn version_from_newrelic_instrumentation_image(
 mod tests {
     use super::*;
     use serde_json::json;
-
-    impl std::fmt::Debug for NewrelicInstrumentationVersionChecker {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(
-                f,
-                "NewrelicInstrumentationVersionChecker{{agent_id: {}}}",
-                self.agent_id,
-            )
-        }
-    }
 
     #[test]
     fn test_version_from_newrelic_instrumentation_image() {

@@ -9,8 +9,7 @@ use tracing::info;
 
 use super::errors::K8sCliError;
 use crate::k8s::client::K8sObjectKey;
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::utils::retry::retry;
 
 pub mod agent_control;
@@ -20,14 +19,14 @@ const DELETER_DEFAULT_MAX_ATTEMPTS: usize = 30;
 const DELETER_DEFAULT_INTERVAL: Duration = Duration::from_secs(10);
 
 // Helper to remove k8s objects and collections.
-struct Deleter<'a> {
-    k8s_client: &'a SyncK8sClient,
+struct Deleter<'a, C: K8sClient = SyncK8sClient> {
+    k8s_client: &'a C,
     max_attempts: usize,
     interval: Duration,
 }
 
-impl<'a> Deleter<'a> {
-    fn with_default_retry_setup(k8s_client: &'a SyncK8sClient) -> Self {
+impl<'a, C: K8sClient> Deleter<'a, C> {
+    fn with_default_retry_setup(k8s_client: &'a C) -> Self {
         Self {
             k8s_client,
             max_attempts: DELETER_DEFAULT_MAX_ATTEMPTS,

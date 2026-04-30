@@ -3,8 +3,7 @@ use crate::checkers::health::health_checker::{
 };
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::k8s::client::K8sObjectKey;
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use k8s_openapi::serde_json::{Map, Value};
 use kube::api::TypeMeta;
 use std::sync::Arc;
@@ -35,17 +34,17 @@ impl From<&str> for ConditionStatus {
 /// instances, each corresponding to a different HelmRelease, allowing for
 /// health checks across several Helm releases within a Kubernetes cluster.
 #[derive(Debug)]
-pub struct K8sHealthHelmRelease {
-    k8s_client: Arc<SyncK8sClient>,
+pub struct K8sHealthHelmRelease<C: K8sClient = SyncK8sClient> {
+    k8s_client: Arc<C>,
     type_meta: TypeMeta,
     name: String,
     namespace: String,
     start_time: StartTime,
 }
 
-impl K8sHealthHelmRelease {
+impl<C: K8sClient> K8sHealthHelmRelease<C> {
     pub fn new(
-        k8s_client: Arc<SyncK8sClient>,
+        k8s_client: Arc<C>,
         type_meta: TypeMeta,
         name: String,
         namespace: String,
@@ -146,7 +145,7 @@ impl K8sHealthHelmRelease {
     }
 }
 
-impl HealthChecker for K8sHealthHelmRelease {
+impl<C: K8sClient> HealthChecker for K8sHealthHelmRelease<C> {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
@@ -195,7 +194,7 @@ pub mod tests {
     use super::*;
     use crate::agent_control::config::helmrelease_v2_type_meta;
     use crate::checkers::health::health_checker::Health;
-    use crate::k8s::{Error, client::MockSyncK8sClient};
+    use crate::k8s::{Error, client::tests::MockK8sClient};
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::core::DynamicObject;
     use serde_json::json;
@@ -207,13 +206,13 @@ pub mod tests {
         type TestCase = (
             &'static str,
             Result<Health, HealthCheckerError>,
-            fn(&mut MockSyncK8sClient),
+            fn(&mut MockK8sClient),
         );
         let test_cases : Vec<TestCase> = vec![
             (
                 "Helm release healthy when ready and status true",
                 Ok(Healthy::new().into()),
-                |mock: &mut MockSyncK8sClient| {
+                |mock: &mut MockK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
                             {"type": "Ready", "status": "True", "lastTransitionTime": "2021-01-01T12:00:00Z"},
@@ -225,7 +224,7 @@ pub mod tests {
             (
                 "Helm release unhealthy when ready and status false",
                 Ok(Unhealthy::new("HelmRelease not ready: test error".to_string()).into()),
-                |mock: &mut MockSyncK8sClient| {
+                |mock: &mut MockK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
                             {"type": "Ready", "status": "False", "lastTransitionTime": "2021-01-01T12:00:00Z","message":"test error"},
@@ -237,7 +236,7 @@ pub mod tests {
             (
                 "Helm release unhealthy when not ready conditions",
                 Ok(Unhealthy::new("No 'Ready' condition was found".to_string()).into()),
-                |mock: &mut MockSyncK8sClient| {
+                |mock: &mut MockK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
                             {"type": "Reconciling", "status": "True", "lastTransitionTime": "2021-01-02T12:00:00Z"}
@@ -249,7 +248,7 @@ pub mod tests {
             (
                 "Helm release unhealthy when not ready and other true condition types",
                 Ok(Unhealthy::new("HelmRelease not ready: No specific message found".to_string()).into()),
-                |mock: &mut MockSyncK8sClient| {
+                |mock: &mut MockK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
                             {"type": "Ready", "status": "False", "lastTransitionTime": "2021-01-01T12:00:00Z"},
@@ -262,7 +261,7 @@ pub mod tests {
             (
                 "Helm release unhealthy when ready but status Unknown",
                 Ok(Unhealthy::new("HelmRelease status unknown: No specific message found".to_string()).into()),
-                |mock: &mut MockSyncK8sClient| {
+                |mock: &mut MockK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
                             {"type": "Ready", "status": "Unknown", "lastTransitionTime": "2021-01-01T12:00:00Z"},
@@ -274,7 +273,7 @@ pub mod tests {
             (
                 "Helm release unhealthy when no conditions",
                 Ok(Unhealthy::new("No 'Ready' condition was found".to_string()).into()),
-                |mock: &mut MockSyncK8sClient| {
+                |mock: &mut MockK8sClient| {
                     let status_conditions = json!({"conditions": []});
                     setup_mock_client_with_conditions(mock, status_conditions);
                 },
@@ -284,7 +283,7 @@ pub mod tests {
                 Err(HealthCheckerError::Generic(
                     "Error fetching HelmRelease 'example-release': while getting dynamic resource: Error".to_string(),
                 )),
-                |mock: &mut MockSyncK8sClient| {
+                |mock: &mut MockK8sClient| {
                     mock.expect_get_dynamic_object()
                         .returning(|_, _| Err(Error::GetDynamic("Error".to_string())));
                 },
@@ -292,7 +291,7 @@ pub mod tests {
         ];
 
         for (name, expected, setup_mock) in test_cases {
-            let mut mock_client = MockSyncK8sClient::new();
+            let mut mock_client = MockK8sClient::new();
             setup_mock(&mut mock_client);
             let start_time = StartTime::now();
             let checker = K8sHealthHelmRelease::new(
@@ -321,7 +320,7 @@ pub mod tests {
     }
 
     fn setup_mock_client_with_conditions(
-        mock: &mut MockSyncK8sClient,
+        mock: &mut MockK8sClient,
         status_conditions: serde_json::Value,
     ) {
         mock.expect_get_dynamic_object()

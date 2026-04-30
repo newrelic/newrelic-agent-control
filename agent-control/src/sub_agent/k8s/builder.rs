@@ -4,8 +4,7 @@ use crate::agent_control::run::Environment;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::sub_agent_start_settings;
 use crate::sub_agent::SubAgent;
@@ -111,13 +110,13 @@ where
     }
 }
 
-pub struct SupervisorBuilderK8s {
-    pub(super) k8s_client: Arc<SyncK8sClient>,
+pub struct SupervisorBuilderK8s<C: K8sClient = SyncK8sClient> {
+    pub(super) k8s_client: Arc<C>,
     pub(super) k8s_config: K8sConfig,
 }
 
-impl SupervisorBuilderK8s {
-    pub fn new(k8s_client: Arc<SyncK8sClient>, k8s_config: K8sConfig) -> Self {
+impl<C: K8sClient> SupervisorBuilderK8s<C> {
+    pub fn new(k8s_client: Arc<C>, k8s_config: K8sConfig) -> Self {
         Self {
             k8s_client,
             k8s_config,
@@ -125,8 +124,8 @@ impl SupervisorBuilderK8s {
     }
 }
 
-impl SupervisorBuilder for SupervisorBuilderK8s {
-    type Starter = NotStartedSupervisorK8s;
+impl<C: K8sClient> SupervisorBuilder for SupervisorBuilderK8s<C> {
+    type Starter = NotStartedSupervisorK8s<C>;
     type Error = SupervisorError;
 
     fn build_supervisor(
@@ -188,7 +187,7 @@ pub mod tests {
     use crate::sub_agent::supervisor::tests::{MockSupervisor, MockSupervisorBuilder};
     use crate::values::config_repository::tests::MockConfigRepository;
     use crate::{
-        k8s::client::MockSyncK8sClient, opamp::client_builder::tests::MockOpAMPClientBuilder,
+        k8s::client::tests::MockK8sClient, opamp::client_builder::tests::MockOpAMPClientBuilder,
     };
     use assert_matches::assert_matches;
     use mockall::predicate;
@@ -411,8 +410,8 @@ pub mod tests {
         (opamp_builder, instance_id_getter)
     }
 
-    fn testing_supervisor_builder() -> SupervisorBuilderK8s {
-        let mock_client = MockSyncK8sClient::default();
+    fn testing_supervisor_builder() -> SupervisorBuilderK8s<MockK8sClient> {
+        let mock_client = MockK8sClient::default();
 
         let k8s_config = K8sConfig {
             cluster_name: TEST_CLUSTER_NAME.to_string(),

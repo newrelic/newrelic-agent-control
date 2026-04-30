@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use thiserror::Error;
 
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::secrets_provider::SecretsProvider;
 
 #[derive(Debug, Error)]
@@ -11,15 +10,11 @@ use crate::secrets_provider::SecretsProvider;
 pub struct K8sSecretProviderError(String);
 
 /// A secrets provider that retrieves secrets from Kubernetes.
-pub struct K8sSecretProvider {
-    k8s_client: Arc<SyncK8sClient>,
+pub struct K8sSecretProvider<C: K8sClient = SyncK8sClient> {
+    k8s_client: Arc<C>,
 }
 
 impl K8sSecretProvider {
-    pub fn new(k8s_client: Arc<SyncK8sClient>) -> Self {
-        K8sSecretProvider { k8s_client }
-    }
-
     /// Helper to construct the secret path string expected by get_secret.
     /// Format: namespace:name:key
     pub fn build_secret_path(namespace: &str, name: &str, key: &str) -> String {
@@ -27,7 +22,13 @@ impl K8sSecretProvider {
     }
 }
 
-impl SecretsProvider for K8sSecretProvider {
+impl<C: K8sClient> K8sSecretProvider<C> {
+    pub fn new(k8s_client: Arc<C>) -> Self {
+        K8sSecretProvider { k8s_client }
+    }
+}
+
+impl<C: K8sClient> SecretsProvider for K8sSecretProvider<C> {
     type Error = K8sSecretProviderError;
 
     fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {

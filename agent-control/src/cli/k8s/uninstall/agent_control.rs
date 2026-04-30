@@ -6,7 +6,6 @@ use crate::cli::k8s::errors::K8sCliError;
 use crate::cli::k8s::install::agent_control::REPOSITORY_NAME;
 use crate::cli::k8s::uninstall::Deleter;
 use crate::cli::k8s::utils::{retrieve_api_resources, try_new_k8s_client};
-#[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
 use clap::Parser;

@@ -5,34 +5,33 @@ use crate::checkers::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::utils as client_utils;
 use k8s_openapi::api::apps::v1::Deployment;
 use std::sync::Arc;
 
 #[derive(Debug)]
-pub struct K8sHealthDeployment {
-    k8s_client: Arc<SyncK8sClient>,
+pub struct K8sHealthDeployment<C: K8sClient = SyncK8sClient> {
+    k8s_client: Arc<C>,
     filter: ResourceFilter,
     start_time: StartTime,
     namespace: String,
 }
 
-impl HealthChecker for K8sHealthDeployment {
+impl<C: K8sClient> HealthChecker for K8sHealthDeployment<C> {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         let deployments = self.k8s_client.list_deployment(&self.namespace)?;
 
         let health = match &self.filter {
             ResourceFilter::ByName(name) => check_health_for_items(
                 deployments.into_iter().filter(name_filter(name.clone())),
-                Self::check_deployment_health,
+                K8sHealthDeployment::check_deployment_health,
             )?,
             ResourceFilter::ByFluxLabel(release) => check_health_for_items(
                 deployments
                     .into_iter()
                     .filter(flux_release_filter(release.clone())),
-                Self::check_deployment_health,
+                K8sHealthDeployment::check_deployment_health,
             )?,
         };
 
@@ -41,20 +40,6 @@ impl HealthChecker for K8sHealthDeployment {
 }
 
 impl K8sHealthDeployment {
-    pub fn new(
-        k8s_client: Arc<SyncK8sClient>,
-        filter: ResourceFilter,
-        start_time: StartTime,
-        namespace: String,
-    ) -> Self {
-        Self {
-            k8s_client,
-            filter,
-            start_time,
-            namespace,
-        }
-    }
-
     /// Checks the health of a specific Deployment.
     pub fn check_deployment_health(deployment: &Deployment) -> Result<Health, HealthCheckerError> {
         let name = client_utils::get_metadata_name(deployment)?;
@@ -95,12 +80,28 @@ impl K8sHealthDeployment {
     }
 }
 
+impl<C: K8sClient> K8sHealthDeployment<C> {
+    pub fn new(
+        k8s_client: Arc<C>,
+        filter: ResourceFilter,
+        start_time: StartTime,
+        namespace: String,
+    ) -> Self {
+        Self {
+            k8s_client,
+            filter,
+            start_time,
+            namespace,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::checkers::health::health_checker::Healthy;
     use crate::checkers::health::k8s::health_checker::resources::daemon_set::tests::TEST_NAMESPACE;
-    use crate::k8s::client::MockSyncK8sClient;
+    use crate::k8s::client::tests::MockK8sClient;
     use k8s_openapi::api::apps::v1::{
         Deployment, DeploymentSpec, DeploymentStatus, DeploymentStrategy, RollingUpdateDeployment,
     };
@@ -335,7 +336,7 @@ mod tests {
 
         impl TestCase {
             fn run(self) {
-                let mut k8s_client = MockSyncK8sClient::new();
+                let mut k8s_client = MockK8sClient::new();
                 k8s_client
                     .expect_list_deployment()
                     .times(1)
@@ -416,7 +417,7 @@ mod tests {
 
         impl TestCase {
             fn run(self) {
-                let mut k8s_client = MockSyncK8sClient::new();
+                let mut k8s_client = MockK8sClient::new();
                 k8s_client
                     .expect_list_deployment()
                     .times(1)

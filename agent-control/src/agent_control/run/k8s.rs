@@ -26,7 +26,6 @@ use crate::checkers::version::k8s::checkers::spawn_version_checker;
 use crate::checkers::version::k8s::helmrelease::HelmReleaseVersionChecker;
 use crate::event::channel::{EventPublisher, pub_sub};
 use crate::event::{AgentControlEvent, AgentControlInternalEvent};
-#[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::client_builder::OpAMPClientBuilder;

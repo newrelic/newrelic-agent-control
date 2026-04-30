@@ -4,8 +4,7 @@ use crate::checkers::guid::k8s::resources::instrumentation::K8sGuidInstrumentati
 use crate::checkers::guid::{EntityGuid, GuidCheckError, GuidChecker};
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::utils::{get_name, get_namespace, get_type_meta};
 use crate::opamp::attributes::{UpdatedAttributesMessage, publish_update_attributes_event};
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
@@ -20,13 +19,13 @@ use tracing::{debug, info, info_span, warn};
 
 pub const GUID_CHECKER_THREAD_NAME: &str = "guid_checker";
 
-pub struct K8sGuidChecker {
-    instrumentation_checker: K8sGuidInstrumentation,
+pub struct K8sGuidChecker<C: K8sClient = SyncK8sClient> {
+    instrumentation_checker: K8sGuidInstrumentation<C>,
 }
 
-impl K8sGuidChecker {
+impl<C: K8sClient> K8sGuidChecker<C> {
     pub fn new(
-        k8s_client: Arc<SyncK8sClient>,
+        k8s_client: Arc<C>,
         resources: Arc<Vec<DynamicObject>>,
         opamp_field: String,
     ) -> Result<Option<Self>, GuidCheckError> {
@@ -56,7 +55,7 @@ impl K8sGuidChecker {
     }
 }
 
-impl GuidChecker for K8sGuidChecker {
+impl<C: K8sClient> GuidChecker for K8sGuidChecker<C> {
     fn check_guid(&self) -> Result<EntityGuid, GuidCheckError> {
         self.instrumentation_checker.check_guid()
     }
@@ -128,8 +127,7 @@ mod tests {
     use super::*;
     use crate::agent_control::config::instrumentation_v1beta3_type_meta;
 
-    #[mockall_double::double]
-    use crate::k8s::client::SyncK8sClient;
+    use crate::k8s::client::tests::MockK8sClient;
 
     use crate::agent_control::defaults::APM_APPLICATION_ID;
 
@@ -139,8 +137,8 @@ mod tests {
     use serde_json::json;
     use std::sync::Arc;
 
-    fn mock_client(guid_json: serde_json::Value) -> SyncK8sClient {
-        let mut client = SyncK8sClient::new();
+    fn mock_client(guid_json: serde_json::Value) -> MockK8sClient {
+        let mut client = MockK8sClient::new();
         let tm = instrumentation_v1beta3_type_meta();
 
         let obj = DynamicObject {

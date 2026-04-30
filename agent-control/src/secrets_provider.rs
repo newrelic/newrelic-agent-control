@@ -4,8 +4,7 @@ pub mod k8s_secret;
 pub mod vault;
 
 use crate::agent_type::variable::namespace::Namespace;
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
+use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::secrets_provider::env::{Env, EnvError};
 use crate::secrets_provider::file::{FileSecretProvider, FileSecretProviderError};
 use crate::secrets_provider::k8s_secret::{K8sSecretProvider, K8sSecretProviderError};
@@ -74,14 +73,14 @@ pub trait SecretsProvider {
 /// The structure is flexible enough to support multiple sources from the same provider.
 /// This is a decision the implementer of the provider must make. This entails creating a variant
 /// represented as a [HashMap].
-pub enum SecretsProviderType {
+pub enum SecretsProviderType<C: K8sClient = SyncK8sClient> {
     Vault(Vault),
-    K8sSecret(K8sSecretProvider),
+    K8sSecret(K8sSecretProvider<C>),
     File(FileSecretProvider),
     Env(Env),
 }
 
-impl SecretsProvider for SecretsProviderType {
+impl<C: K8sClient> SecretsProvider for SecretsProviderType<C> {
     type Error = SecretsProvidersError;
 
     fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
@@ -95,7 +94,7 @@ impl SecretsProvider for SecretsProviderType {
 }
 
 /// Collection of [SecretsProviderType]s.
-pub type SecretsProviders = Registry<SecretsProviderType>;
+pub type SecretsProviders<C = SyncK8sClient> = Registry<SecretsProviderType<C>>;
 
 pub struct Registry<S: SecretsProvider>(HashMap<Namespace, S>);
 
