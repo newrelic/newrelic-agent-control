@@ -7,9 +7,9 @@ use super::client::{K8sClient, SyncK8sClient};
 use super::labels::Labels;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
-use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::data_store::{DataStore, StoreKey};
 use crate::k8s::{self, annotations::Annotations};
+use crate::resource_ownership::ResourceOwnership;
 use std::sync::{Arc, RwLock};
 
 /// Represents a Kubernetes persistent store of Agents data such as instance id and configs.
@@ -94,7 +94,7 @@ impl<C: K8sClient> DataStore for ConfigMapStore<C> {
     fn set_remote_data<T>(
         &self,
         agent_id: &AgentID,
-        agent_type_id: Option<AgentTypeID>,
+        ownership: ResourceOwnership,
         key: &StoreKey,
         data: &T,
     ) -> Result<(), Self::Error>
@@ -107,11 +107,11 @@ impl<C: K8sClient> DataStore for ConfigMapStore<C> {
 
         let data_as_string = serde_yaml::to_string(data)?;
         let configmap_name = ConfigMapStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
-        let annotations = match agent_type_id {
-            Some(agent_type_id) => {
-                Annotations::new_agent_control_owned_with_type(&agent_type_id).get()
+        let annotations = match ownership {
+            ResourceOwnership::SubAgent(agent_type_id) => {
+                Annotations::new_sub_agent_owned(&agent_type_id).get()
             }
-            None => Annotations::new_agent_control_owned().get(),
+            ResourceOwnership::AgentControl => Annotations::new_agent_control_owned().get(),
         };
         self.k8s_client.set_configmap_key(
             &configmap_name,
@@ -166,7 +166,7 @@ pub mod tests {
         let mut k8s_client = MockK8sClient::default();
         let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
 
-        let expected_annotations_no_type = Annotations::new_agent_control_owned().get();
+        let expected_annotations = Annotations::new_agent_control_owned().get();
         k8s_client
             .expect_set_configmap_key()
             .once()
@@ -177,7 +177,7 @@ pub mod tests {
                 )),
                 predicate::eq(TEST_NAMESPACE),
                 predicate::eq(Labels::new(&AgentID::try_from(AGENT_NAME).unwrap()).get()),
-                predicate::eq(expected_annotations_no_type),
+                predicate::eq(expected_annotations),
                 predicate::eq(STORE_KEY_TEST),
                 predicate::eq(DATA_STORED),
             )
@@ -199,7 +199,7 @@ pub mod tests {
 
         let _ = k8s_store.set_remote_data(
             &agent_id,
-            None,
+            ResourceOwnership::AgentControl,
             STORE_KEY_TEST,
             &DataToBeStored {
                 test: "foo".to_string(),
@@ -327,7 +327,7 @@ pub mod tests {
 
         let id = k8s_store.set_remote_data(
             &AgentID::try_from(AGENT_NAME).unwrap(),
-            None,
+            ResourceOwnership::AgentControl,
             STORE_KEY_TEST,
             &DataToBeStored::default(),
         );
@@ -344,7 +344,7 @@ pub mod tests {
         let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
         let id = k8s_store.set_remote_data(
             &AgentID::try_from(AGENT_NAME).unwrap(),
-            None,
+            ResourceOwnership::AgentControl,
             STORE_KEY_TEST,
             &DataToBeStored::default(),
         );
@@ -356,8 +356,7 @@ pub mod tests {
         let mut k8s_client = MockK8sClient::default();
         let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
         let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
-        let expected_annotations =
-            Annotations::new_agent_control_owned_with_type(&agent_type_id).get();
+        let expected_annotations = Annotations::new_sub_agent_owned(&agent_type_id).get();
 
         k8s_client
             .expect_set_configmap_key()
@@ -377,7 +376,7 @@ pub mod tests {
         let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
         let result = k8s_store.set_remote_data(
             &agent_id,
-            Some(agent_type_id),
+            ResourceOwnership::SubAgent(agent_type_id.clone()),
             STORE_KEY_TEST,
             &DataToBeStored {
                 test: "foo".to_string(),

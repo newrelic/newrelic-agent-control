@@ -4,8 +4,10 @@ use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     FOLDER_NAME_FLEET_DATA, STORE_KEY_OPAMP_DATA_CONFIG,
 };
+use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
 use newrelic_agent_control::on_host::file_store::{FileStore, build_config_name};
 use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
+use newrelic_agent_control::resource_ownership::ResourceOwnership;
 use newrelic_agent_control::values::ConfigRepo;
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
@@ -47,7 +49,13 @@ fn test_store_remote_no_mocks() {
     };
 
     values_repo
-        .store_remote(&agent_id.clone(), None, &agent_values)
+        .store_remote(
+            &agent_id.clone(),
+            ResourceOwnership::SubAgent(
+                AgentTypeID::try_from("test/test-agent-type:0.0.1").unwrap(),
+            ),
+            &agent_values,
+        )
         .unwrap();
 
     assert_eq!(

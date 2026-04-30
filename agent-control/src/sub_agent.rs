@@ -24,6 +24,7 @@ use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::hash::{ConfigState, Hash};
 use crate::opamp::remote_config::report::report_state;
+use crate::resource_ownership::ResourceOwnership;
 use crate::utils::threads::spawn_named_thread;
 use crate::values::config::{Config, RemoteConfig};
 use crate::values::config_repository::ConfigRepository;
@@ -464,7 +465,7 @@ where
                         .config_repository
                         .store_remote(
                             &self.identity.id,
-                            Some(self.identity.agent_type_id.clone()),
+                            ResourceOwnership::SubAgent(self.identity.agent_type_id.clone()),
                             remote_config,
                         )
                         .inspect_err(|err| {
@@ -702,7 +703,11 @@ where
         self.report_state(state.clone(), hash);
         let _ = self
             .config_repository
-            .update_state(&self.identity.id, state)
+            .update_state(
+                &self.identity.id,
+                ResourceOwnership::SubAgent(self.identity.agent_type_id.clone()),
+                state,
+            )
             .inspect_err(|err| {
                 warn!("Could not update the config state: {err}");
             });
@@ -1536,7 +1541,11 @@ deployment:
             state: ConfigState::Applied,
         };
         config_repository
-            .store_remote(&TestAgent::id(), None, &old_remote_config)
+            .store_remote(
+                &TestAgent::id(),
+                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                &old_remote_config,
+            )
             .unwrap();
 
         let supervisor_builder = expect_build_supervisor_with(TestAgent::valid_config_value());
@@ -1587,7 +1596,11 @@ deployment:
             state: ConfigState::Applied,
         };
         config_repository
-            .store_remote(&TestAgent::id(), None, &old_remote_config)
+            .store_remote(
+                &TestAgent::id(),
+                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                &old_remote_config,
+            )
             .unwrap();
 
         let supervisor_builder = MockSupervisorBuilder::new();
@@ -1637,7 +1650,11 @@ deployment:
             state: ConfigState::Applying,
         };
         config_repository
-            .store_remote(&TestAgent::id(), None, &remote_config)
+            .store_remote(
+                &TestAgent::id(),
+                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                &remote_config,
+            )
             .unwrap();
 
         let supervisor_builder = expect_supervisor_do_not_build();
@@ -1689,7 +1706,11 @@ deployment:
             state: ConfigState::Applied,
         };
         config_repository
-            .store_remote(&TestAgent::id(), None, &old_remote_config)
+            .store_remote(
+                &TestAgent::id(),
+                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                &old_remote_config,
+            )
             .unwrap();
 
         let supervisor_builder = MockSupervisorBuilder::new();
@@ -1742,7 +1763,11 @@ deployment:
             state: ConfigState::Applying,
         };
         config_repository
-            .store_remote(&TestAgent::id(), None, &old_remote_config)
+            .store_remote(
+                &TestAgent::id(),
+                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                &old_remote_config,
+            )
             .unwrap();
 
         let supervisor_builder = MockSupervisorBuilder::new();
@@ -1793,7 +1818,11 @@ deployment:
         };
 
         config_repository
-            .store_remote(&TestAgent::id(), None, &old_remote_config)
+            .store_remote(
+                &TestAgent::id(),
+                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                &old_remote_config,
+            )
             .unwrap();
 
         let supervisor_builder = expect_supervisor_do_not_build();
@@ -1906,7 +1935,11 @@ deployment:
             state: ConfigState::Applied,
         };
         config_repository
-            .store_remote(&TestAgent::id(), None, &remote_config)
+            .store_remote(
+                &TestAgent::id(),
+                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                &remote_config,
+            )
             .unwrap();
 
         let supervisor_builder = expect_build_supervisor_with(TestAgent::valid_config_value());
@@ -1939,7 +1972,11 @@ deployment:
             state: ConfigState::Applying,
         };
         config_repository
-            .store_remote(&TestAgent::id(), None, &remote_config)
+            .store_remote(
+                &TestAgent::id(),
+                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                &remote_config,
+            )
             .unwrap();
 
         let supervisor_builder = expect_build_supervisor_with(TestAgent::valid_config_value());
@@ -1972,7 +2009,11 @@ deployment:
             state: ConfigState::Applying,
         };
         config_repository
-            .store_remote(&TestAgent::id(), None, &remote_config)
+            .store_remote(
+                &TestAgent::id(),
+                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                &remote_config,
+            )
             .unwrap();
 
         let supervisor_builder = expect_fail_to_build_supervisor();
@@ -2014,7 +2055,11 @@ deployment:
             state,
         };
         config_repository
-            .store_remote(&TestAgent::id(), None, &input_remote_config)
+            .store_remote(
+                &TestAgent::id(),
+                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                &input_remote_config,
+            )
             .unwrap();
 
         let supervisor_builder = expect_build_supervisor_with(TestAgent::valid_config_value());

@@ -18,8 +18,8 @@ use crate::{
         agent_id::AgentID,
         defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA},
     },
-    agent_type::agent_type_id::AgentTypeID,
     data_store::{DataStore, StoreKey},
+    resource_ownership::ResourceOwnership,
 };
 
 pub struct FileStore<F, D>
@@ -162,7 +162,7 @@ where
     fn set_remote_data<T>(
         &self,
         agent_id: &AgentID,
-        _agent_type_id: Option<AgentTypeID>,
+        _ownership: ResourceOwnership,
         key: &str,
         data: &T,
     ) -> Result<(), Self::Error>
@@ -664,7 +664,9 @@ state: applied
             hash: Hash::from("a-hash"),
             state: ConfigState::Applying,
         };
-        repo.store_remote(&agent_id, None, &remote_config).unwrap();
+        // using agent control as ownership but this test does not care
+        repo.store_remote(&agent_id, ResourceOwnership::AgentControl, &remote_config)
+            .unwrap();
     }
 
     #[rstest]
@@ -692,7 +694,8 @@ state: applied
             hash: Hash::from("a-hash"),
             state: ConfigState::Applying,
         };
-        let result = repo.store_remote(&agent_id, None, &remote_config);
+        // using agent control as ownership but this test does not care
+        let result = repo.store_remote(&agent_id, ResourceOwnership::AgentControl, &remote_config);
         assert_matches!(result, Err(ConfigRepositoryError::StoreError(_)));
     }
 
@@ -725,7 +728,8 @@ state: applied
             hash: Hash::from("a-hash"),
             state: ConfigState::Applying,
         };
-        let result = repo.store_remote(&agent_id, None, &remote_config);
+        // using agent control as ownership but this test does not care
+        let result = repo.store_remote(&agent_id, ResourceOwnership::AgentControl, &remote_config);
         assert_matches!(result, Err(ConfigRepositoryError::StoreError(_)));
     }
 

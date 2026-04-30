@@ -8,9 +8,9 @@ use crate::{
         agent_id::AgentID,
         defaults::{STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG},
     },
-    agent_type::agent_type_id::AgentTypeID,
     data_store::DataStore,
     opamp::remote_config::hash::ConfigState,
+    resource_ownership::ResourceOwnership,
     values::{
         config::{Config, RemoteConfig},
         config_repository::{ConfigRepository, ConfigRepositoryError},
@@ -77,7 +77,7 @@ where
     fn store_remote(
         &self,
         agent_id: &AgentID,
-        agent_type_id: Option<AgentTypeID>,
+        ownership: ResourceOwnership,
         remote_config: &RemoteConfig,
     ) -> Result<(), ConfigRepositoryError> {
         debug!(agent_id = agent_id.to_string(), "saving remote config");
@@ -85,7 +85,7 @@ where
         self.opamp_data_store
             .set_remote_data(
                 agent_id,
-                agent_type_id,
+                ownership,
                 STORE_KEY_OPAMP_DATA_CONFIG,
                 remote_config,
             )
@@ -106,6 +106,7 @@ where
     fn update_state(
         &self,
         agent_id: &AgentID,
+        ownership: ResourceOwnership,
         state: ConfigState,
     ) -> Result<(), ConfigRepositoryError> {
         debug!(
@@ -125,7 +126,7 @@ where
                 .opamp_data_store
                 .set_remote_data(
                     agent_id,
-                    None,
+                    ownership,
                     STORE_KEY_OPAMP_DATA_CONFIG,
                     &remote_config.with_state(state),
                 )

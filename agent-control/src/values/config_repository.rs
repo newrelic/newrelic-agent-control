@@ -1,5 +1,5 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_type::agent_type_id::AgentTypeID;
+use crate::resource_ownership::ResourceOwnership;
 use crate::values::config::{Config, RemoteConfig};
 
 use crate::opamp::remote_config::hash::ConfigState;
@@ -48,7 +48,7 @@ pub trait ConfigRepository: Send + Sync + 'static {
     fn store_remote(
         &self,
         agent_id: &AgentID,
-        agent_type_id: Option<AgentTypeID>,
+        ownership: ResourceOwnership,
         remote_config: &RemoteConfig,
     ) -> Result<(), ConfigRepositoryError>;
 
@@ -60,6 +60,7 @@ pub trait ConfigRepository: Send + Sync + 'static {
     fn update_state(
         &self,
         agent_id: &AgentID,
+        ownership: ResourceOwnership,
         state: ConfigState,
     ) -> Result<(), ConfigRepositoryError>;
 
@@ -72,8 +73,8 @@ pub mod tests {
     use std::sync::Mutex;
 
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::remote_config::hash::ConfigState;
+    use crate::resource_ownership::ResourceOwnership;
     use crate::values::config::{Config, RemoteConfig};
     use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
     use crate::values::yaml_config::YAMLConfig;
@@ -110,7 +111,7 @@ pub mod tests {
         fn store_remote(
             &self,
             agent_id: &AgentID,
-            _agent_type_id: Option<AgentTypeID>,
+            _ownership: ResourceOwnership,
             remote_config: &RemoteConfig,
         ) -> Result<(), ConfigRepositoryError> {
             self.remote_config.lock().unwrap().insert(
@@ -157,6 +158,7 @@ pub mod tests {
         fn update_state(
             &self,
             agent_id: &AgentID,
+            _ownership: ResourceOwnership,
             state: ConfigState,
         ) -> Result<(), ConfigRepositoryError> {
             let updated_remote_config =
@@ -207,7 +209,7 @@ pub mod tests {
             fn store_remote(
                 &self,
                 agent_id: &AgentID,
-                agent_type_id: Option<AgentTypeID>,
+                ownership: ResourceOwnership,
                 remote_config: &RemoteConfig,
             ) -> Result<(), ConfigRepositoryError>;
 
@@ -219,6 +221,7 @@ pub mod tests {
             fn update_state(
                 &self,
                 agent_id: &AgentID,
+                ownership: ResourceOwnership,
                 state: ConfigState,
             ) -> Result<(), ConfigRepositoryError>;
 
