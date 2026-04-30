@@ -1,5 +1,6 @@
 use super::runtime::tokio_runtime;
 use crate::common::oci::{hex_bytes, push_empty_config_descriptor};
+use crate::common::runtime::block_on;
 use actix_web::{App, HttpResponse, HttpServer, web};
 use aws_lc_rs::digest::SHA256;
 use aws_lc_rs::digest::digest;
@@ -10,6 +11,7 @@ use base64::prelude::{BASE64_URL_SAFE_NO_PAD, Engine};
 use http::Uri;
 use oci_client::client::{ClientConfig, ClientProtocol::Http};
 use oci_client::manifest::{OciDescriptor, OciImageManifest, OciManifest::Image};
+use oci_client::secrets::RegistryAuth;
 use oci_client::secrets::RegistryAuth::Anonymous;
 use oci_client::{Client, Reference};
 use serde_json::json;
@@ -71,7 +73,17 @@ impl OCISigner {
 
     /// Generates and push a cosign signature artifact to the reference.
     pub fn sign_artifact(&self, reference: &Reference) {
-        tokio_runtime().block_on(async { self.sign_artifact_async(reference).await });
+        block_on(self.sign_artifact_async(reference));
+    }
+
+    pub fn sign_artifact_with_auth(&self, reference: &Reference, registry_auth: RegistryAuth) {
+        block_on(self.oci_client.auth(
+            reference,
+            &registry_auth,
+            oci_client::RegistryOperation::Push,
+        ))
+        .unwrap();
+        self.sign_artifact(reference);
     }
 
     async fn sign_artifact_async(&self, reference: &Reference) {

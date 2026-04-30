@@ -34,6 +34,14 @@ test/onhost/oci-registry/integration:
 	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=multiple-instances --test integration_tests _with_oci_registry -- --ignored
 	@../tools/oci-registry.sh killall
 
+.PHONY: test/onhost/oci-auth-registry/integration
+test/onhost/oci-auth-registry/integration:
+	@echo "testing-machine-id" > /tmp/machine-id
+	@../tools/oci-registry.sh install --basic-auth
+	@../tools/oci-registry.sh run --basic-auth > /dev/null 2>&1 &
+	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=multiple-instances --test integration_tests _with_auth_oci_registry -- --ignored
+	@../tools/oci-registry.sh killall
+
 # K8S
 
 .PHONY: test/k8s

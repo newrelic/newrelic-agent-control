@@ -34,32 +34,54 @@ readonly CONFIG_FOLDER="$HOME/.zot"
 readonly CONFIG_FILE="$CONFIG_FOLDER/config.json"
 readonly BINARY="$CONFIG_FOLDER/zot"
 
+# FOR LOCAL TEST ENVIRONMENTS ONLY
+readonly LOCAL_TEST_ONLY_USERNAME="fake-user"
+readonly LOCAL_TEST_ONLY_PASSWORD="fake-password"
+# Pre-computed regenerate with: htpasswd -nbB $LOCAL_TEST_ONLY_USERNAME $LOCAL_TEST_ONLY_PASSWORD
+readonly LOCAL_TEST_ONLY_HTPASSWD_ENTRY='fake-user:$2y$05$WLvLO1ojdi2NtziBhbb5ge8fQK.aNz2sjCwQ.aS7WpZo1ujmmnIQW'
+
 if [ "$OS" = "windows" ]; then
     STORAGE_PATH=$(cygpath -m "$CONFIG_FOLDER/storage")
     readonly STORAGE_PATH
     LOG_FILE=$(cygpath -m "$CONFIG_FOLDER/zot.log")
     readonly LOG_FILE
+    HTPASSWD_FILE=$(cygpath -m "$CONFIG_FOLDER/htpasswd")
+    readonly HTPASSWD_FILE
 else
     readonly STORAGE_PATH="$CONFIG_FOLDER/storage"
     readonly LOG_FILE="$CONFIG_FOLDER/zot.log"
+    readonly HTPASSWD_FILE="$CONFIG_FOLDER/htpasswd"
 fi
+
+
+# ----- HELPER FUNCTIONS -----
+function print_usage() {
+  echo "Usage: $0 [install|run|uninstall|killall|help] [--basic-auth]"
+  echo "  install    - Download and install zot registry"
+  echo "  run        - Run zot registry"
+  echo "  uninstall  - Remove zot registry and all associated files"
+  echo "  killall    - Kill all running zot processes"
+  echo "  help       - Display this help message"
+  echo ""
+  echo "Flags:"
+  echo "  --basic-auth  Enable basic authentication with fake credentials ($LOCAL_TEST_ONLY_USERNAME:$LOCAL_TEST_ONLY_PASSWORD)."
+}
 
 
 # ----- ARGUMENTS -----
 OPTION="${1:-empty}"
 VERSION="${VERSION:-v2.1.11}"
 PORT="${PORT:-5001}"
+BASIC_AUTH="${BASIC_AUTH:-false}"
 
-
-# ----- HELPER FUNCTIONS -----
-function print_usage() {
-  echo "Usage: $0 [install|run|uninstall|killall|help]"
-  echo "  install    - Download and install zot registry"
-  echo "  run        - Run zot registry"
-  echo "  uninstall  - Remove zot registry and all associated files"
-  echo "  killall    - Kill all running zot processes"
-  echo "  help       - Display this help message"
-}
+# Parse flags from remaining arguments
+shift || true
+for arg in "$@"; do
+    case "$arg" in
+        --basic-auth) BASIC_AUTH="true";;
+        *) echo "Unknown flag: $arg"; print_usage; exit 1;;
+    esac
+done
 
 function install() {
     if [[ ! -d ~/.zot ]]; then
@@ -79,9 +101,28 @@ function install() {
     fi
 }
 
+function create_htpasswd_file() {
+    echo "Creating htpasswd file for local-test-only credentials..."
+    echo "$LOCAL_TEST_ONLY_HTPASSWD_ENTRY" > "$HTPASSWD_FILE"
+}
+
 function create_zot_configuration() {
     echo "Creating zot configuration at $CONFIG_FILE..."
     touch "$LOG_FILE"
+
+    local http_auth_block=""
+    if [ "$BASIC_AUTH" = "true" ]; then
+        http_auth_block=$(cat << EOF
+,
+        "auth": {
+            "htpasswd": {
+                "path": "$HTPASSWD_FILE"
+            }
+        }
+EOF
+)
+    fi
+
     cat > "$CONFIG_FILE" << EOF
 {
     "distSpecVersion": "1.0.1",
@@ -90,7 +131,7 @@ function create_zot_configuration() {
     },
     "http": {
         "address": "0.0.0.0",
-        "port": "$PORT"
+        "port": "$PORT"${http_auth_block}
     },
     "log": {
         "level": "debug",
@@ -149,8 +190,14 @@ echo "Detected architecture: $ARCH"
 
 if [[ $OPTION == "install" ]]; then
     install
+    if [ "$BASIC_AUTH" = "true" ]; then
+        create_htpasswd_file
+    fi
     create_zot_configuration
 elif [[ $OPTION == "run" ]]; then
+    if [ "$BASIC_AUTH" = "true" ]; then
+        create_htpasswd_file
+    fi
     create_zot_configuration
     run
 fi

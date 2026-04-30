@@ -12,7 +12,7 @@ use oci_client::manifest::{
     OciImageIndex, OciImageManifest, Platform,
 };
 use oci_client::secrets::RegistryAuth;
-use oci_client::{Client, annotations, manifest};
+use oci_client::{Client, RegistryOperation, annotations, manifest};
 use std::backtrace::Backtrace;
 use std::collections::BTreeMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -21,6 +21,9 @@ use std::str::FromStr;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
+pub const OCI_TEST_REGISTRY_BASIC_AUTH_USERNAME: &str = "fake-user";
+pub const OCI_TEST_REGISTRY_BASIC_AUTH_PASSWORD: &str = "fake-password";
+
 /// Pushes the provided artifact to the OCI registry and returns the blob digest and the reference
 /// to the pushed index manifest. The structure is a manifest index (multiarch) with a single entry
 /// for the current platform.
@@ -28,6 +31,38 @@ pub fn push_agent_package(
     file_to_push: &PathBuf,
     registry_url: &str,
     media_type: PackageMediaType,
+) -> (String, Reference) {
+    push_to_registry(
+        file_to_push,
+        registry_url,
+        media_type,
+        RegistryAuth::Anonymous,
+    )
+}
+
+/// Same as [`push_agent_package`] but authenticates with HTTP basic auth before pushing.
+/// Use this when the registry is configured to require basic authentication.
+pub fn push_agent_package_with_basic_auth(
+    file_to_push: &PathBuf,
+    registry_url: &str,
+    media_type: PackageMediaType,
+) -> (String, Reference) {
+    push_to_registry(
+        file_to_push,
+        registry_url,
+        media_type,
+        RegistryAuth::Basic(
+            OCI_TEST_REGISTRY_BASIC_AUTH_USERNAME.to_string(),
+            OCI_TEST_REGISTRY_BASIC_AUTH_PASSWORD.to_string(),
+        ),
+    )
+}
+
+fn push_to_registry(
+    file_to_push: &PathBuf,
+    registry_url: &str,
+    media_type: PackageMediaType,
+    auth: RegistryAuth,
 ) -> (String, Reference) {
     block_on(async {
         let tag = testing_unique_tag();
@@ -39,6 +74,11 @@ pub fn push_agent_package(
             ..Default::default()
         });
 
+        oci_client
+            .auth(&index_reference, &auth, RegistryOperation::Push)
+            .await
+            .unwrap();
+
         let file_name = file_to_push
             .file_name()
             .unwrap()
@@ -49,8 +89,14 @@ pub fn push_agent_package(
             push_package_blob(&oci_client, &index_reference, file_to_push, media_type).await;
         let blob_digest = blob_descriptor.digest.clone();
 
-        let (manifest_digest, manifest_size) =
-            push_package_manifest(&oci_client, &index_reference, blob_descriptor, file_name).await;
+        let (manifest_digest, manifest_size) = push_package_manifest(
+            &oci_client,
+            &index_reference,
+            blob_descriptor,
+            file_name,
+            &auth,
+        )
+        .await;
 
         push_package_index(
             &oci_client,
@@ -113,6 +159,7 @@ async fn push_package_manifest(
     index_reference: &Reference,
     blob_descriptor: OciDescriptor,
     file_name: String,
+    auth: &RegistryAuth,
 ) -> (String, i64) {
     // The manifest is pushed under a tagged reference because the client's local digest
     // calculation does not always match the registry's canonical JSON. The tag is not used in
@@ -148,7 +195,7 @@ async fn push_package_manifest(
 
     // Fetch the digest as stored by the registry (canonical JSON may differ from local serialization).
     let manifest_digest = oci_client
-        .fetch_manifest_digest(&manifest_reference, &RegistryAuth::Anonymous)
+        .fetch_manifest_digest(&manifest_reference, auth)
         .await
         .unwrap();
 

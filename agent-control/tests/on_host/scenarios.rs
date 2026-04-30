@@ -11,5 +11,6 @@ mod memory_benchmark;
 mod multiple_executables;
 mod multiple_remote_config;
 mod no_orphan_processes;
+mod oci_auth;
 mod opamp;
 mod restarting_processes;
