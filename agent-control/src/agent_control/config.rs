@@ -434,8 +434,9 @@ impl<'de> Deserialize<'de> for K8sConfig {
         intermediate.cd_release_name = intermediate.cd_release_name.filter(|s| !s.is_empty());
         intermediate.ac_release_name = intermediate.ac_release_name.filter(|s| !s.is_empty());
 
+        let mut cr_type_meta: Vec<TypeMeta>;
         // if cd_enabled is false, we make sure that cd_release_name is None, cd_remote_update is false
-        // and we set the cr_type_meta to a default value without flux and instrumentation types (since flux won't be installed)
+        // and cr_type_meta is set to a default value without flux and instrumentation types (since flux won't be installed) unless it its set, in that case it is honored.
         if let Some(cd_enabled) = intermediate.cd_enabled
             && !cd_enabled
         {
@@ -444,13 +445,14 @@ impl<'de> Deserialize<'de> for K8sConfig {
             );
             intermediate.cd_remote_update = Some(false);
             intermediate.cd_release_name = None;
-            intermediate.cr_type_meta = Some(
-                intermediate
-                    .cr_type_meta
-                    .unwrap_or_else(default_group_version_kinds_no_flux),
-            );
+            cr_type_meta = intermediate
+                .cr_type_meta
+                .unwrap_or_else(default_group_version_kinds_no_flux);
         } else {
             intermediate.cd_enabled = Some(true);
+            cr_type_meta = intermediate
+                .cr_type_meta
+                .unwrap_or_else(default_group_version_kinds);
         }
 
         Ok(K8sConfig {
@@ -458,9 +460,7 @@ impl<'de> Deserialize<'de> for K8sConfig {
             namespace: intermediate.namespace,
             namespace_agents: intermediate.namespace_agents,
             current_chart_version: intermediate.current_chart_version.unwrap_or_default(),
-            cr_type_meta: intermediate
-                .cr_type_meta
-                .unwrap_or_else(default_group_version_kinds),
+            cr_type_meta,
             ac_remote_update: intermediate.ac_remote_update.unwrap_or_default(),
             ac_release_name: intermediate.ac_release_name,
             cd_remote_update: intermediate.cd_remote_update.unwrap_or_default(),
@@ -575,29 +575,8 @@ pub fn default_group_version_kinds_no_flux() -> Vec<TypeMeta> {
     vec![secret_type_meta()]
 }
 
-impl Default for K8sConfig {
-    fn default() -> Self {
-        Self {
-            cluster_name: Default::default(),
-            namespace: Default::default(),
-            namespace_agents: Default::default(),
-            current_chart_version: Default::default(),
-            cr_type_meta: default_group_version_kinds(),
-            ac_remote_update: Default::default(),
-            ac_release_name: Default::default(),
-            cd_remote_update: Default::default(),
-            cd_release_name: Default::default(),
-            cd_enabled: true,
-            auth_secret: AuthSecret {
-                secret_name: Default::default(),
-                secret_key_name: Default::default(),
-            },
-        }
-    }
-}
-
 #[cfg(test)]
-pub(crate) mod tests {
+pub mod tests {
     use super::*;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::{AGENT_CONFIG_PREFIX, ConfigurationMap, OpampRemoteConfig};
@@ -611,6 +590,27 @@ pub(crate) mod tests {
     use assert_matches::assert_matches;
     use rstest::rstest;
     use std::path::PathBuf;
+
+    impl Default for K8sConfig {
+        fn default() -> Self {
+            Self {
+                cluster_name: Default::default(),
+                namespace: Default::default(),
+                namespace_agents: Default::default(),
+                current_chart_version: Default::default(),
+                cr_type_meta: default_group_version_kinds(),
+                ac_remote_update: Default::default(),
+                ac_release_name: Default::default(),
+                cd_remote_update: Default::default(),
+                cd_release_name: Default::default(),
+                cd_enabled: true,
+                auth_secret: AuthSecret {
+                    secret_name: Default::default(),
+                    secret_key_name: Default::default(),
+                },
+            }
+        }
+    }
 
     impl TryFrom<&str> for AgentControlDynamicConfig {
         type Error = AgentControlConfigError;
@@ -996,11 +996,9 @@ k8s:
         assert_eq!(k8s.cd_release_name, None);
         assert!(!k8s.cd_remote_update);
         assert!(
-            k8s.cr_type_meta
+            !k8s.cr_type_meta
                 .iter()
-                .filter(|o| o.kind == "HelmRelease" || o.kind == "Instrumentation")
-                .collect::<Vec<_>>()
-                .is_empty()
+                .any(|o| o.kind == "HelmRelease" || o.kind == "Instrumentation")
         );
     }
 
