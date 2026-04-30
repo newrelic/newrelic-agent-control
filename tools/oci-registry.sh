@@ -33,7 +33,6 @@ readonly ARCH
 readonly CONFIG_FOLDER="$HOME/.zot"
 readonly CONFIG_FILE="$CONFIG_FOLDER/config.json"
 readonly BINARY="$CONFIG_FOLDER/zot"
-readonly HTPASSWD_FILE="$CONFIG_FOLDER/htpasswd"
 
 # FOR LOCAL TEST ENVIRONMENTS ONLY
 readonly LOCAL_TEST_ONLY_USERNAME="fake-user"
@@ -46,9 +45,12 @@ if [ "$OS" = "windows" ]; then
     readonly STORAGE_PATH
     LOG_FILE=$(cygpath -m "$CONFIG_FOLDER/zot.log")
     readonly LOG_FILE
+    HTPASSWD_FILE=$(cygpath -m "$CONFIG_FOLDER/htpasswd")
+    readonly HTPASSWD_FILE
 else
     readonly STORAGE_PATH="$CONFIG_FOLDER/storage"
     readonly LOG_FILE="$CONFIG_FOLDER/zot.log"
+    readonly HTPASSWD_FILE="$CONFIG_FOLDER/htpasswd"
 fi
 
 
