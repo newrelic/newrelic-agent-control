@@ -434,7 +434,7 @@ impl<'de> Deserialize<'de> for K8sConfig {
         intermediate.cd_release_name = intermediate.cd_release_name.filter(|s| !s.is_empty());
         intermediate.ac_release_name = intermediate.ac_release_name.filter(|s| !s.is_empty());
 
-        let mut cr_type_meta: Vec<TypeMeta>;
+        let cr_type_meta: Vec<TypeMeta>;
         // if cd_enabled is false, we make sure that cd_release_name is None, cd_remote_update is false
         // and cr_type_meta is set to a default value without flux and instrumentation types (since flux won't be installed) unless it its set, in that case it is honored.
         if let Some(cd_enabled) = intermediate.cd_enabled
