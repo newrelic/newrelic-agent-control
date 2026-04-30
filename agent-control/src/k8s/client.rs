@@ -68,6 +68,16 @@ pub trait K8sClient: Debug + Send + Sync + 'static {
         namespace: &str,
         label_selector: &str,
     ) -> Result<(), K8sError>;
+    fn list_configmaps(
+        &self,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Vec<Arc<ConfigMap>>, K8sError>;
+    fn delete_configmap(
+        &self,
+        namespace: &str,
+        name: &str,
+    ) -> Result<Either<ConfigMap, Status>, K8sError>;
     fn get_configmap_key(
         &self,
         name: &str,
@@ -85,6 +95,7 @@ pub trait K8sClient: Debug + Send + Sync + 'static {
         name: &str,
         namespace: &str,
         labels: BTreeMap<String, String>,
+        annotations: BTreeMap<String, String>,
         key: &str,
         value: &str,
     ) -> Result<(), K8sError>;
@@ -383,10 +394,11 @@ impl K8sClient for SyncK8sClient {
         name: &str,
         namespace: &str,
         labels: BTreeMap<String, String>,
+        annotations: BTreeMap<String, String>,
         key: &str,
         value: &str,
     ) -> Result<(), K8sError> {
-        self.set_configmap_key(name, namespace, labels, key, value)
+        self.set_configmap_key(name, namespace, labels, annotations, key, value)
     }
 
     fn delete_configmap_key(&self, name: &str, namespace: &str, key: &str) -> Result<(), K8sError> {
@@ -403,6 +415,22 @@ impl K8sClient for SyncK8sClient {
 
     fn list_deployment(&self, ns: &str) -> Result<Vec<Arc<Deployment>>, K8sError> {
         self.list_deployment(ns)
+    }
+
+    fn list_configmaps(
+        &self,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Vec<Arc<ConfigMap>>, K8sError> {
+        self.list_configmaps(namespace, label_selector)
+    }
+
+    fn delete_configmap(
+        &self,
+        namespace: &str,
+        name: &str,
+    ) -> Result<Either<ConfigMap, Status>, K8sError> {
+        self.delete_configmap(namespace, name)
     }
 }
 
@@ -843,6 +871,16 @@ pub(crate) mod tests {
                 namespace: &str,
                 label_selector: &str,
             ) -> Result<(), K8sError>;
+            fn list_configmaps(
+                &self,
+                namespace: &str,
+                label_selector: &str,
+            ) -> Result<Vec<Arc<ConfigMap>>, K8sError>;
+            fn delete_configmap(
+                &self,
+                namespace: &str,
+                name: &str,
+            ) -> Result<Either<ConfigMap, Status>, K8sError>;
             fn get_configmap_key(
                 &self,
                 name: &str,
@@ -860,6 +898,7 @@ pub(crate) mod tests {
                 name: &str,
                 namespace: &str,
                 labels: BTreeMap<String, String>,
+                 annotations: BTreeMap<String, String>,
                 key: &str,
                 value: &str,
             ) -> Result<(), K8sError>;

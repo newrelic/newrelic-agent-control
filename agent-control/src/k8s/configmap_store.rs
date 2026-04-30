@@ -117,6 +117,7 @@ impl<C: K8sClient> DataStore for ConfigMapStore<C> {
             &configmap_name,
             self.namespace.as_str(),
             Labels::new(agent_id).get(),
+            annotations,
             key,
             &data_as_string,
         )
@@ -181,7 +182,7 @@ pub mod tests {
                 predicate::eq(STORE_KEY_TEST),
                 predicate::eq(DATA_STORED),
             )
-            .returning(move |_, _, _, _, _| Ok(()));
+            .returning(move |_, _, _, _, _, _| Ok(()));
         k8s_client
             .expect_delete_configmap_key()
             .once()
@@ -320,7 +321,7 @@ pub mod tests {
         k8s_client
             .expect_set_configmap_key()
             .once()
-            .returning(move |_, _, _, _, _| {
+            .returning(move |_, _, _, _, _, _| {
                 Err(K8sError::KubeRs(Box::new(kube::Error::TlsRequired)))
             });
         let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
@@ -340,7 +341,7 @@ pub mod tests {
         k8s_client
             .expect_set_configmap_key()
             .once()
-            .returning(move |_, _, _, _, _| Ok(()));
+            .returning(move |_, _, _, _, _, _| Ok(()));
         let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
         let id = k8s_store.set_remote_data(
             &AgentID::try_from(AGENT_NAME).unwrap(),
@@ -368,10 +369,11 @@ pub mod tests {
                 )),
                 predicate::eq(TEST_NAMESPACE),
                 predicate::eq(Labels::new(&agent_id).get()),
+                predicate::eq(expected_annotations),
                 predicate::eq(STORE_KEY_TEST),
                 predicate::eq(DATA_STORED),
             )
-            .returning(move |_, _, _, _, _| Ok(()));
+            .returning(move |_, _, _, _, _, _| Ok(()));
 
         let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
         let result = k8s_store.set_remote_data(

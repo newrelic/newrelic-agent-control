@@ -31,15 +31,6 @@ pub struct K8sGarbageCollector<C: K8sClient = SyncK8sClient> {
     pub cr_type_meta: Vec<TypeMeta>,
 }
 
-impl K8sGarbageCollector {
-    pub fn active_config_ids(active_config: &SubAgentsMap) -> HashMap<AgentID, AgentTypeID> {
-        active_config
-            .iter()
-            .map(|(id, config)| (id.clone(), config.agent_type.clone()))
-            .collect()
-    }
-}
-
 impl<C: K8sClient> K8sGarbageCollector<C> {
     /// Remove all the Kubernetes resources managed by Agent Control that are not included in the
     /// map passed as parameter.
@@ -519,7 +510,7 @@ mod tests {
 
         let active_agents = HashMap::from([(agent_id, agent_type_id)]);
 
-        let mut k8s_client = SyncK8sClient::default();
+        let mut k8s_client = MockK8sClient::default();
         k8s_client
             .expect_list_configmaps()
             .once()
@@ -559,7 +550,7 @@ mod tests {
         let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
         let cm = new_dynamic_object_without_owned_by(&agent_id, None, TEST_NAMESPACE);
 
-        let mut k8s_client = SyncK8sClient::default();
+        let mut k8s_client = MockK8sClient::default();
         k8s_client
             .expect_list_configmaps()
             .once()
@@ -601,7 +592,7 @@ mod tests {
 
         let active_agents: HashMap<AgentID, AgentTypeID> = HashMap::new();
 
-        let mut k8s_client = SyncK8sClient::default();
+        let mut k8s_client = MockK8sClient::default();
         k8s_client
             .expect_list_configmaps()
             .once()
@@ -643,7 +634,7 @@ mod tests {
 
         let active_agents: HashMap<AgentID, AgentTypeID> = HashMap::new();
 
-        let mut k8s_client = SyncK8sClient::default();
+        let mut k8s_client = MockK8sClient::default();
         k8s_client
             .expect_list_configmaps()
             .once()
