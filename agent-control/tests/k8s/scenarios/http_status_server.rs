@@ -1,8 +1,7 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::http_port::{available_port, status_server_url};
-use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
-use crate::common::runtime::block_on;
+use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::{
     CUSTOM_AGENT_TYPE_PATH, DUMMY_PRIVATE_KEY, DYNAMIC_AGENT_TYPE_FILENAME, K8S_KEY_SECRET,
     K8S_PRIVATE_KEY_SECRET, TEST_CLUSTER_NAME, create_config_map,
@@ -10,6 +9,7 @@ use crate::k8s::tools::agent_control::{
 };
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
     CLUSTER_NAME_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
@@ -31,7 +31,7 @@ fn test_k8s_http_status_endpoint_response() {
     const AGENT_ID: &str = "hello-world";
     const AGENT_TYPE: &str = "newrelic/com.newrelic.custom_agent:0.0.1";
 
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");

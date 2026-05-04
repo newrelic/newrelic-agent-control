@@ -1,11 +1,13 @@
 use crate::common::{
-    effective_config::check_latest_effective_config_is_expected, opamp::FakeServer,
-    remote_config_status::check_latest_remote_config_status_is_expected, retry::retry,
-    runtime::block_on,
+    effective_config::check_latest_effective_config_is_expected,
+    remote_config_status::check_latest_remote_config_status_is_expected,
+    retry::retry,
+    runtime::{block_on, tokio_runtime},
 };
 use crate::k8s::tools::{
     agent_control::start_agent_control_with_testdata_config, instance_id, k8s_env::K8sEnv,
 };
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;
@@ -16,7 +18,7 @@ use tempfile::tempdir;
 fn k8s_fail_remote_config_missing_required_values() {
     let test_name = "k8s_fail_remote_config_missing_required_values";
 
-    let mut server = FakeServer::start_new();
+    let mut server = FakeServer::start(tokio_runtime().handle());
 
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());

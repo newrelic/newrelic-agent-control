@@ -1,8 +1,9 @@
 #![cfg(target_family = "unix")]
+use fake_opamp_server::FakeServer;
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
-use crate::common::{opamp::FakeServer, retry::retry};
+use crate::common::{runtime::tokio_runtime, retry::retry};
 use crate::on_host::tools::config::create_agent_control_config_with_proxy;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -27,7 +28,7 @@ use tempfile::tempdir;
 fn proxy_onhost_opamp_agent_control_local_effective_config() {
     // Given a agent-control without agents and opamp configured.
 
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");

@@ -3,13 +3,14 @@ use std::time::Duration;
 use crate::{
     common::{
         agent_control::start_agent_control_with_custom_config, health::check_latest_health_status,
-        opamp::FakeServer, retry::retry,
+        retry::retry, runtime::tokio_runtime,
     },
     on_host::tools::{
         config::create_agent_control_config, custom_agent_type::CustomAgentType,
         instance_id::get_instance_id,
     },
 };
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::{
     agent_id::AgentID,
     run::{BasePaths, on_host::AGENT_CONTROL_MODE_ON_HOST},
@@ -18,7 +19,7 @@ use tempfile::tempdir;
 
 #[test]
 fn onhost_subagent_multiple_executables_some_failed_launching() {
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -74,7 +75,7 @@ agents:
 
 #[test]
 fn onhost_subagent_multiple_executables_some_commands_failed_after_max_retries() {
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");

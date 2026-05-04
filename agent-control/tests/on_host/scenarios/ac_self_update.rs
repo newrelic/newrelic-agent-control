@@ -1,10 +1,10 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::oci_signer::OCISigner;
-use crate::common::opamp::FakeServer;
 use crate::common::remote_config_status::check_latest_remote_config_status;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::retry::retry;
 use crate::common::retry::retry_never;
+use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::create_local_config;
 use crate::on_host::tools::fake_binary::assert_is_fake_binary;
 use crate::on_host::tools::fake_binary::build_fake_ac_binary;
@@ -12,6 +12,7 @@ use crate::on_host::tools::fake_binary::build_invalid_fake_ac_binary;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_artifact::push_agent_package;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_ID;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_VERSION;
@@ -33,7 +34,7 @@ use tempfile::{TempDir, tempdir};
 /// should be executed sequentially.
 fn test_ac_self_update_with_oci_registry() {
     let signer = OCISigner::start();
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -91,7 +92,7 @@ agents: {{}}
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
 fn test_ac_self_update_fails_for_unsigned_package_with_oci_registry() {
     let signer = OCISigner::start();
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -154,7 +155,7 @@ agents: {{}}
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
 fn test_ac_self_update_does_nothing_for_same_version_with_oci_registry() {
     let signer = OCISigner::start();
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -204,7 +205,7 @@ agents: {{}}
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
 fn test_ac_self_update_fails_for_missing_version_with_oci_registry() {
     let signer = OCISigner::start();
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -265,7 +266,7 @@ agents: {}
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
 fn test_ac_self_update_fails_when_binary_verification_fails_with_oci_registry() {
     let signer = OCISigner::start();
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");

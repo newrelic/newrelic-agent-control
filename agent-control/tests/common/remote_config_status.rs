@@ -1,4 +1,4 @@
-use crate::common::opamp::FakeServer;
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 use opamp_client::opamp::proto::RemoteConfigStatus;
 use std::error::Error;

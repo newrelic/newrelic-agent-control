@@ -2,7 +2,7 @@ use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
-use crate::common::{opamp::FakeServer, retry::retry};
+use crate::common::{retry::retry, runtime::tokio_runtime};
 use crate::on_host::consts::NO_CONFIG;
 use crate::on_host::tools::config::{
     create_agent_control_config, create_file, create_local_config,
@@ -10,6 +10,7 @@ use crate::on_host::tools::config::{
 use crate::on_host::tools::config::{create_remote_config, load_remote_config_content};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, AGENT_FILESYSTEM_FOLDER_NAME, FOLDER_NAME_FLEET_DATA,
@@ -33,7 +34,7 @@ use tempfile::tempdir;
 #[test]
 fn onhost_opamp_agent_control_local_effective_config() {
     // Given a agent-control without agents and opamp configured.
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -80,7 +81,7 @@ fn onhost_opamp_agent_control_local_effective_config() {
 fn onhost_opamp_agent_control_remote_effective_config() {
     // Given a agent-control without agents and opamp configured.
 
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -171,7 +172,7 @@ agents:
 fn onhost_opamp_agent_control_accepts_unknown_fields_on_remote_config() {
     // Given a agent-control without agents and opamp configured.
 
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -233,7 +234,7 @@ non-existing: {}
 fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
 
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -305,7 +306,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 fn onhost_opamp_sub_agent_remote_effective_config() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
 
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -374,7 +375,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
 fn onhost_opamp_sub_agent_empty_local_effective_config() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
 
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -440,7 +441,7 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 fn onhost_executable_less_reports_local_effective_config() {
     // Given a agent-control without agents and opamp configured.
 
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -553,7 +554,7 @@ status_time_unix_nano: 1725444001
 fn onhost_opamp_agent_control_remote_config_add_remove_add_agent() {
     // Given a agent-control without agents and opamp configured.
 
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");

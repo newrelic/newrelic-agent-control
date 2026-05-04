@@ -1,11 +1,12 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
-use crate::common::{opamp::FakeServer, retry::retry};
+use crate::common::{retry::retry, runtime::tokio_runtime};
 use crate::on_host::tools::config::load_remote_config_content;
 use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::STORE_KEY_OPAMP_DATA_CONFIG;
 use newrelic_agent_control::agent_control::run::BasePaths;
@@ -24,7 +25,7 @@ use tempfile::tempdir;
 fn onhost_opamp_sub_agent_invalid_remote_config() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
 
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -104,7 +105,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 /// - That latest effective configuration reported is the local one (which is valid).
 #[test]
 fn test_invalid_config_executable_less_supervisor() {
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -188,7 +189,7 @@ fn test_invalid_config_executable_less_supervisor() {
 fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
 
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");

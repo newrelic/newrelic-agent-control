@@ -1,6 +1,5 @@
-use super::runtime::tokio_runtime;
 use crate::common::oci::{hex_bytes, push_empty_config_descriptor};
-use crate::common::runtime::block_on;
+use crate::common::runtime::{block_on, tokio_runtime};
 use actix_web::{App, HttpResponse, HttpServer, web};
 use aws_lc_rs::digest::SHA256;
 use aws_lc_rs::digest::digest;

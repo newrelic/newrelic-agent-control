@@ -1,5 +1,9 @@
-use crate::common::{opamp::FakeServer, retry::retry, runtime::block_on};
+use crate::common::{
+    retry::retry,
+    runtime::{block_on, tokio_runtime},
+};
 use crate::k8s::tools::agent_control::CUSTOM_AGENT_TYPE_PATH;
+use fake_opamp_server::FakeServer;
 
 use crate::k8s::tools::{
     agent_control::start_agent_control_with_testdata_config, instance_id,
@@ -18,7 +22,7 @@ use tempfile::tempdir;
 fn k8s_signature_disabled() {
     let test_name = "k8s_signature_disabled";
 
-    let mut server = FakeServer::start_new();
+    let mut server = FakeServer::start(tokio_runtime().handle());
 
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());

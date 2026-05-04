@@ -1,8 +1,7 @@
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
-use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
-use crate::common::runtime::block_on;
+use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::{
     CUSTOM_AGENT_TYPE_PATH, start_agent_control_with_testdata_config,
     wait_until_agent_control_with_opamp_is_started,
@@ -10,6 +9,7 @@ use crate::k8s::tools::agent_control::{
 use crate::k8s::tools::instance_id;
 use crate::k8s::tools::k8s_api::check_helmrelease_spec_values;
 use crate::k8s::tools::k8s_env::K8sEnv;
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use std::time::Duration;
 use tempfile::tempdir;
@@ -26,7 +26,7 @@ use tempfile::tempdir;
 fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
     let test_name = "k8s_opamp_subagent_configuration_change_after_ac_restarts";
 
-    let mut server = FakeServer::start_new();
+    let mut server = FakeServer::start(tokio_runtime().handle());
 
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());

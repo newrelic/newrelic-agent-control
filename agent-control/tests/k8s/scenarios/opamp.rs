@@ -1,11 +1,13 @@
 use crate::{
     common::{
         effective_config::check_latest_effective_config_is_expected,
-        health::check_latest_health_status_was_healthy, opamp::FakeServer, retry::retry,
-        runtime::block_on,
+        health::check_latest_health_status_was_healthy,
+        retry::retry,
+        runtime::{block_on, tokio_runtime},
     },
     k8s::tools::agent_control::CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
 };
+use fake_opamp_server::FakeServer;
 
 use crate::k8s::tools::k8s_api::{check_helmrelease_exists, delete_helm_release};
 use crate::k8s::tools::{
@@ -27,7 +29,7 @@ use tempfile::tempdir;
 fn k8s_opamp_remove_subagent() {
     let test_name = "k8s_opamp_remove_subagent";
 
-    let mut server = FakeServer::start_new();
+    let mut server = FakeServer::start(tokio_runtime().handle());
 
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
@@ -132,7 +134,7 @@ fn k8s_opamp_add_subagent() {
     let test_name = "k8s_opamp_add_sub_agent";
 
     // setup the fake-opamp-server, with empty configuration for agents in local config local config should be used.
-    let mut server = FakeServer::start_new();
+    let mut server = FakeServer::start(tokio_runtime().handle());
 
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
@@ -194,7 +196,7 @@ agents:
 fn k8s_opamp_modify_subagent_config() {
     let test_name = "k8s_opamp_modify_subagent_config";
 
-    let mut server = FakeServer::start_new();
+    let mut server = FakeServer::start(tokio_runtime().handle());
 
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());

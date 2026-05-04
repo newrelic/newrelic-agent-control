@@ -3,12 +3,13 @@ use crate::common::attributes::{
     check_latest_identifying_attributes_match_expected,
     check_latest_non_identifying_attributes_match_expected, convert_to_vec_key_value,
 };
-use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
+use crate::common::runtime::tokio_runtime;
 use crate::on_host::consts::NO_CONFIG;
 use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_NAMESPACE, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
@@ -33,7 +34,7 @@ const DEFAULT_NAME: &str = "name";
 /// identifying and non identifying attributes are what we expect.
 #[test]
 fn test_attributes_from_non_existing_agent_type() {
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
     let agent_id = "test-agent";
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -122,7 +123,7 @@ fn test_attributes_from_non_existing_agent_type() {
 #[cfg_attr(target_family = "unix", case::without_regex(|local_dir| {CustomAgentType::default().with_version(Some(r#"{"path": "echo", "args": ["-n","1.0.0"]}"#)).build(local_dir)}))]
 #[cfg_attr(target_family = "windows", case::without_regex(|local_dir| {CustomAgentType::default().with_version(Some(r#"{"path": "cmd", "args": ["/C","set","/p=1.0.0<nul"]}"#)).build(local_dir)}))]
 fn test_attributes_from_an_existing_agent_type(#[case] get_agent_type: impl Fn(PathBuf) -> String) {
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 

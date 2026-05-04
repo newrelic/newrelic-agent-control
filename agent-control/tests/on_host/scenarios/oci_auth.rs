@@ -1,7 +1,7 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::oci_signer::OCISigner;
-use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
+use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::create_local_config;
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
@@ -10,6 +10,7 @@ use crate::on_host::tools::oci_artifact::{
     OCI_TEST_REGISTRY_BASIC_AUTH_PASSWORD, OCI_TEST_REGISTRY_BASIC_AUTH_USERNAME,
 };
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_ID;
 use newrelic_agent_control::agent_control::run::BasePaths;
@@ -38,7 +39,7 @@ fn test_agent_remote_package_with_auth_oci_registry() {
     let remote_dir = tempdir().unwrap();
 
     let signer = OCISigner::start();
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let agent_type = CustomAgentType::default()
         .with_packages(Some(
@@ -94,7 +95,7 @@ fn test_ac_self_update_with_auth_oci_registry() {
     let remote_dir = tempdir().unwrap();
 
     let signer = OCISigner::start();
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let package_reference = push_fake_package_with_basic_auth(&signer);
     let package_tag = package_reference.tag().unwrap().to_string();

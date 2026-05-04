@@ -1,4 +1,3 @@
-use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::agent_control_cli::installation::{ac_install_cmd, create_simple_values_secret};
@@ -11,6 +10,7 @@ use crate::k8s::tools::local_chart::agent_control_deploymet::{
     CHART_VERSION_DEV_1, CHART_VERSION_DEV_2, CHART_VERSION_LATEST_RELEASE,
 };
 use crate::k8s::tools::logs::print_pod_logs;
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use newrelic_agent_control::checkers::version::VersionCheckError;
@@ -29,7 +29,7 @@ const CLI_AC_LABEL_SELECTOR: &str = "app.kubernetes.io/name=agent-control-deploy
 // a similar workaround than the one we use in the tiltfile.
 // The test is checking how local and remote upgrade are interacting
 fn k8s_cli_local_and_remote_updates() {
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let mut k8s_env = block_on(K8sEnv::new());
     let ac_namespace = block_on(k8s_env.test_namespace());
     let subagents_namespace = block_on(k8s_env.test_namespace());

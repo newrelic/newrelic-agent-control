@@ -3,13 +3,14 @@ use std::{fs::read_to_string, path::Path, time::Duration};
 use crate::on_host::consts::NO_CONFIG;
 use crate::{
     common::{
-        agent_control::start_agent_control_with_custom_config, opamp::FakeServer, retry::retry,
+        agent_control::start_agent_control_with_custom_config, retry::retry, runtime::tokio_runtime,
     },
     on_host::tools::{
         config::{create_agent_control_config, create_file, create_local_config},
         custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME,
     },
 };
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::{
     defaults::AGENT_FILESYSTEM_FOLDER_NAME, run::BasePaths,
@@ -20,7 +21,7 @@ use tempfile::tempdir;
 /// created in the appropriate location under the remote directory.
 #[test]
 fn writes_filesystem_entries() {
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let tempdir = tempdir().expect("failed to create temp dir");
     let local_dir = tempdir.path().join("local");
@@ -97,7 +98,7 @@ deployment:
 /// rendered from the defined variables.
 #[test]
 fn complete_render_and_and_write_files_and_dirs() {
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let tempdir = tempdir().expect("failed to create temp dir");
     let local_dir = tempdir.path().join("local");
@@ -289,7 +290,7 @@ some_mapstringyaml:
 /// are not deleted when agent control restarts, ensuring persistent storage across restarts.
 #[test]
 fn filesystem_persists_across_restarts() {
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let tempdir = tempdir().expect("failed to create temp dir");
     let local_dir = tempdir.path().join("local");

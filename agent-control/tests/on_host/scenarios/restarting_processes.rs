@@ -1,9 +1,10 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
-use crate::common::opamp::FakeServer;
 use crate::common::process_finder::find_processes_by_pattern;
 use crate::common::retry::retry;
+use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use std::thread;
@@ -20,7 +21,7 @@ use nix::{
 /// a process gets restarted as expected when killing it externally.
 #[test]
 fn killing_subprocess_with_signal_restarts() -> Result<(), Box<dyn std::error::Error>> {
-    let opamp_server = FakeServer::start_new();
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
     let local_dir = tempdir()?;
     let remote_dir = tempdir()?;
 

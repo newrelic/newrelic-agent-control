@@ -1561,6 +1561,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "fake-opamp-server"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "aws-lc-rs",
+ "base64 0.22.1",
+ "opamp-client",
+ "prost",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2933,6 +2947,7 @@ dependencies = [
  "duration-str",
  "either",
  "fake",
+ "fake-opamp-server",
  "flate2",
  "fs",
  "futures",
@@ -2956,7 +2971,6 @@ dependencies = [
  "opentelemetry-semantic-conventions",
  "opentelemetry_sdk",
  "predicates",
- "prost",
  "rcgen",
  "regex",
  "reqwest 0.13.3",

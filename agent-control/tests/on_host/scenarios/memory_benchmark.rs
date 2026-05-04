@@ -1,10 +1,11 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::health::check_latest_health_status;
-use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
+use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::create_agent_control_config_with_oci_registry;
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
+use fake_opamp_server::FakeServer;
 use memory_stats::memory_stats;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::run::BasePaths;
@@ -44,7 +45,7 @@ fn test_memory_on_agent_substitution_and_version_update() {
         .with_packages(Some(&packages_config))
         .build(local_dir.path().to_path_buf());
 
-    let mut opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
     create_agent_control_config_with_oci_registry(

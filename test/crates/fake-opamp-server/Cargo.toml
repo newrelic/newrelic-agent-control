@@ -1,0 +1,19 @@
+[package]
+name = "fake-opamp-server"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+repository.workspace = true
+
+[dependencies]
+actix-web = "4.13.0"
+aws-lc-rs = { workspace = true }
+base64 = { workspace = true }
+opamp-client = { workspace = true }
+prost = "0.14.3"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true }
