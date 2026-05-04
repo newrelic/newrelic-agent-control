@@ -864,11 +864,6 @@ Distributed under the following license(s):
 * Apache-2.0
 * MIT
 
-## fake-opamp-server <file:///home/runner/work/newrelic-agent-control/newrelic-agent-control/test/crates/fake-opamp-server>
-
-Distributed under the following license(s):
-
-
 ## fastrand <https://crates.io/crates/fastrand>
 
 Distributed under the following license(s):
