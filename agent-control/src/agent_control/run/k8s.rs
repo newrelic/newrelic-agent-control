@@ -232,12 +232,8 @@ impl AgentControlRunner {
             .transpose()
             .map_err(|err| RunError(format!("failed to start HTTP server: {err}")))?;
 
-        let health_checker_builder = agent_control_health_checker_builder(
-            k8s_client.clone(),
-            k8s_config.namespace.to_string(),
-            k8s_config.clone().ac_release_name,
-            k8s_config.clone().cd_release_name,
-        );
+        let health_checker_builder =
+            agent_control_health_checker_builder(k8s_client.clone(), &k8s_config);
 
         let k8s_ac_updater = K8sACUpdater::new(
             k8s_config.ac_remote_update,
