@@ -57,6 +57,7 @@ pub const NAMESPACE_VARIABLE_NAME: &str = "namespace";
 pub const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
 
 pub const AGENT_CONTROL_MODE_K8S: Environment = Environment::K8s;
+pub const K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY: &str = "com.newrelic.k8s_config_only_agents";
 
 impl AgentControlRunner {
     pub fn run_k8s(self) -> Result<GracefulShutdownReason, RunError> {
@@ -132,6 +133,7 @@ impl AgentControlRunner {
                     &instance_id_getter,
                     &agent_identity,
                     agent_description,
+                    &k8s_config,
                 )?;
                 builder
                     .build_and_start(agent_identity, opamp_start_settings)
@@ -311,16 +313,26 @@ fn start_cd_version_checker(
 }
 
 /// Builds the OpAMP [StartSettings] for Agent Control on Kubernetes.
+/// When `k8s_config.cd_remote_update` is false, the `k8s_config_only_agents` custom capability
+/// is added to signal that this agent is not managed by an agent-control-cd deployment.
 pub fn build_ac_opamp_start_settings(
     instance_id_getter: &impl InstanceIDGetter,
     agent_identity: &AgentIdentity,
     agent_description: AgentDescription,
+    k8s_config: &K8sConfig,
 ) -> Result<StartSettings, RunError> {
     let instance_id = instance_id_getter
         .get(&agent_identity.id)
         .map_err(|err| RunError(format!("error getting instance id: {err}")))?;
 
-    Ok(start_settings(instance_id, agent_description))
+    let mut settings = start_settings(instance_id, agent_description);
+    if !k8s_config.cd_remote_update
+        && let Some(ref mut caps) = settings.custom_capabilities
+    {
+        caps.capabilities
+            .push(K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY.to_string());
+    }
+    Ok(settings)
 }
 
 pub fn agent_control_opamp_non_identifying_attributes(
@@ -381,6 +393,73 @@ fn agent_control_additional_opamp_identifying_attributes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::opamp::instance_id::InstanceID;
+    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
+
+    fn agent_description() -> AgentDescription {
+        AgentDescription {
+            identifying_attributes: Default::default(),
+            non_identifying_attributes: Default::default(),
+        }
+    }
+
+    fn instance_id_getter() -> MockInstanceIDGetter {
+        let instance_id = InstanceID::create();
+        let mut getter = MockInstanceIDGetter::new();
+        getter.should_get(&AgentIdentity::new_agent_control_identity().id, instance_id);
+        getter
+    }
+
+    #[test]
+    fn test_start_settings_cd_remote_update_false_adds_k8s_config_only_capability() {
+        let k8s_config = K8sConfig {
+            cd_remote_update: false,
+            ..Default::default()
+        };
+        let agent_identity = AgentIdentity::new_agent_control_identity();
+        let getter = instance_id_getter();
+
+        let settings = build_ac_opamp_start_settings(
+            &getter,
+            &agent_identity,
+            agent_description(),
+            &k8s_config,
+        )
+        .unwrap();
+
+        let caps = settings.custom_capabilities.unwrap();
+        assert!(
+            caps.capabilities
+                .contains(&K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY.to_string()),
+            "expected k8s_config_only_agents capability when cd_remote_update=false"
+        );
+    }
+
+    #[test]
+    fn test_start_settings_cd_remote_update_true_does_not_add_k8s_config_only_capability() {
+        let k8s_config = K8sConfig {
+            cd_remote_update: true,
+            ..Default::default()
+        };
+        let agent_identity = AgentIdentity::new_agent_control_identity();
+        let getter = instance_id_getter();
+
+        let settings = build_ac_opamp_start_settings(
+            &getter,
+            &agent_identity,
+            agent_description(),
+            &k8s_config,
+        )
+        .unwrap();
+
+        let caps = settings.custom_capabilities.unwrap();
+        assert!(
+            !caps
+                .capabilities
+                .contains(&K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY.to_string()),
+            "expected no k8s_config_only_agents capability when cd_remote_update=true"
+        );
+    }
 
     #[test]
     fn test_agent_control_additional_opamp_identifying_attributes_chart_version_unset() {
