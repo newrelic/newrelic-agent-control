@@ -32,7 +32,7 @@ semver = { workspace = true, features = ["serde"] }
 chrono = { workspace = true }
 base64 = { version = "0.22.1" }
 # New Relic dependencies (external repos)
-nr-auth = { git = "https://github.com/newrelic/newrelic-auth-rs.git", tag = "0.4.1" }
+nr-auth = { git = "https://github.com/newrelic/newrelic-auth-rs.git", tag = "0.4.2" }
 opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.37" }
 # local dependencies
 fs = { path = "../fs" }
