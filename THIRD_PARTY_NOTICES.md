@@ -370,13 +370,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## cesu8 <https://crates.io/crates/cesu8>
-
-Distributed under the following license(s):
-
-* Apache-2.0
-* MIT
-
 ## cfg-if <https://crates.io/crates/cfg-if>
 
 Distributed under the following license(s):
@@ -1310,6 +1303,13 @@ Distributed under the following license(s):
 * MIT
 
 ## jni <https://crates.io/crates/jni>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## jni-macros <https://crates.io/crates/jni-macros>
 
 Distributed under the following license(s):
 
@@ -2388,6 +2388,20 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
+
+## simd_cesu8 <https://crates.io/crates/simd_cesu8>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
+
+## simdutf8 <https://crates.io/crates/simdutf8>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
 
 ## simple_asn1 <https://crates.io/crates/simple_asn1>
 
