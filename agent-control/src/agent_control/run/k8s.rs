@@ -343,8 +343,10 @@ pub fn agent_control_opamp_non_identifying_attributes(
             identifiers.cluster_name.clone().into(),
         ),
         (
+            // Notice that for the external flux use case there is not a specific flag for it.
+            // We rely on the fact that if there is not a CD release name and CD is enabled, then it must be the external flux use case.
             CD_EXTERNAL_ENABLED_ATTRIBUTE_KEY.to_string(),
-            (k8s_config.cd_release_name.is_none()).into(),
+            (k8s_config.cd_release_name.is_none() && k8s_config.cd_enabled).into(),
         ),
         (
             CD_REMOTE_UPDATE_ENABLED_ATTRIBUTE_KEY.to_string(),
