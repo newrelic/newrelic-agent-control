@@ -1,14 +1,9 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
-use crate::common::oci_signer::OCISigner;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::create_local_config;
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
-use crate::on_host::tools::oci_artifact::push_agent_package_with_basic_auth;
-use crate::on_host::tools::oci_artifact::{
-    OCI_TEST_REGISTRY_BASIC_AUTH_PASSWORD, OCI_TEST_REGISTRY_BASIC_AUTH_USERNAME,
-};
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -20,10 +15,10 @@ use newrelic_agent_control::agent_control::run::on_host::{
 use newrelic_agent_control::agent_control::version_updater::on_host::AGENT_CONTROL_BIN_PACKAGE_ID;
 use newrelic_agent_control::agent_type::runtime_config::on_host::package::rendered::Oci;
 use newrelic_agent_control::package::manager::PackageData;
-use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
 use newrelic_agent_control::package::oci::package_manager::get_package_path;
 use oci_client::Reference;
 use oci_client::secrets::RegistryAuth;
+use oci_test_utils::{OCISigner, PackagePublisher};
 use std::error::Error;
 use std::path::Path;
 use std::time::Duration;
@@ -31,6 +26,8 @@ use tempfile::tempdir;
 
 const AGENT_ID: &str = "fake-agent";
 const AGENT_PACKAGE_ID: &str = "test-package-id";
+const OCI_TEST_REGISTRY_BASIC_AUTH_USERNAME: &str = "fake-user";
+const OCI_TEST_REGISTRY_BASIC_AUTH_PASSWORD: &str = "fake-password";
 
 #[test]
 #[ignore = "needs oci registry with basic auth (use *with_auth_oci_registry suffix)"]
@@ -38,8 +35,8 @@ fn test_agent_remote_package_with_auth_oci_registry() {
     let local_dir = tempdir().unwrap();
     let remote_dir = tempdir().unwrap();
 
-    let signer = OCISigner::start();
     let opamp_server = FakeServer::start(tokio_runtime().handle());
+    let signer = OCISigner::start(tokio_runtime().handle().clone());
 
     let agent_type = CustomAgentType::default()
         .with_packages(Some(
@@ -94,8 +91,8 @@ fn test_ac_self_update_with_auth_oci_registry() {
     let local_dir = tempdir().unwrap();
     let remote_dir = tempdir().unwrap();
 
-    let signer = OCISigner::start();
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
+    let signer = OCISigner::start(tokio_runtime().handle().clone());
 
     let package_reference = push_fake_package_with_basic_auth(&signer);
     let package_tag = package_reference.tag().unwrap().to_string();
@@ -142,11 +139,12 @@ fn push_fake_package_with_basic_auth(signer: &OCISigner) -> Reference {
         format!("fake random data: {}", &dir.path().display()).as_str(),
         FAKE_ARTIFACT_NAME,
     );
-    let (_, reference) = push_agent_package_with_basic_auth(
-        &path,
-        OCI_TEST_REGISTRY_URL,
-        PackageMediaType::AgentPackageLayerTarGz,
-    );
+    let reference = PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
+        .with_basic_auth(
+            OCI_TEST_REGISTRY_BASIC_AUTH_USERNAME,
+            OCI_TEST_REGISTRY_BASIC_AUTH_PASSWORD,
+        )
+        .push(&path, oci_test_utils::PackageMediaType::TarGz);
 
     signer.sign_artifact_with_auth(
         &reference,

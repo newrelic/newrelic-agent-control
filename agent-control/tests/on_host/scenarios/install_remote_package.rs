@@ -3,14 +3,12 @@ use crate::common::attributes::{
     check_identifying_attributes_contains_expected, convert_to_vec_key_value,
 };
 use crate::common::health::check_latest_health_status_was_healthy;
-use crate::common::oci_signer::OCISigner;
 use crate::common::remote_config_status::check_latest_remote_config_status;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
-use crate::on_host::tools::oci_artifact::push_agent_package;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -18,7 +16,8 @@ use newrelic_agent_control::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBU
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
-use newrelic_agent_control::package::oci::artifact_definitions::PackageMediaType;
+use oci_test_utils::OCISigner;
+use oci_test_utils::{PackageMediaType, PackagePublisher};
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use opamp_client::opamp::proto::any_value::Value;
 use std::time::Duration;
@@ -52,7 +51,7 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
     pub const PCK_VERSION_1: &str = "1.0.0";
     pub const PCK_VERSION_2: &str = "2.0.0";
 
-    let signer = OCISigner::start();
+    let signer = OCISigner::start(tokio_runtime().handle().clone());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let agent_id = "nr-sleep-agent";
@@ -164,7 +163,7 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
 fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
     pub const VERSION: &str = "1.2.3";
 
-    let signer = OCISigner::start();
+    let signer = OCISigner::start(tokio_runtime().handle().clone());
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let agent_id = "nr-sleep-agent";
@@ -374,12 +373,8 @@ fn push_testing_package_platform(
                 LINUX_TEMPLATE.replace("{VERSION}", version).as_str(),
                 FILE_LINUX,
             );
-            let (_, reference) = push_agent_package(
-                &path,
-                OCI_TEST_REGISTRY_URL,
-                PackageMediaType::AgentPackageLayerTarGz,
-            );
-            reference
+            PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
+                .push(&path, PackageMediaType::TarGz)
         }
         #[cfg(target_os = "windows")]
         Platform::Windows => {
@@ -390,12 +385,8 @@ fn push_testing_package_platform(
                 WINDOWS_TEMPLATE.replace("{VERSION}", version).as_str(),
                 FILE_WINDOWS,
             );
-            let (_, reference) = push_agent_package(
-                &path,
-                OCI_TEST_REGISTRY_URL,
-                PackageMediaType::AgentPackageLayerZip,
-            );
-            reference
+            PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
+                .push(&path, PackageMediaType::Zip)
         }
     };
 
