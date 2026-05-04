@@ -256,6 +256,11 @@ deployment:
     health:
       interval: 30s
       initial_delay: 30s
+      checks:
+        - namespace: ${nr-ac:namespace}
+          name: ${nr-sub:agent_id}
+          kind: HelmReleaseWorkload
+          target_namespace: ${nr-ac:namespace_agents}
     objects:
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2
@@ -409,8 +414,63 @@ The following fields are used for configuring the Kubernetes deployment of a sub
 
 The health configuration for Kubernetes. See [Health status](#health-status) below for more details. Accepts the following values:
 
-- `interval`: Periodicity of the check. A duration string. Default to 60s
+- `interval`: Periodicity of the check. A duration string. Default to 60s.
 - `initial_delay`: Initial delay before the first health check is performed. A duration string. Default to zero.
+- `checks`: An optional list of Kubernetes resources to health-check. If omitted or empty, health checking is disabled for this sub-agent. Each entry accepts:
+  - `name`: The name of the Kubernetes object (supports template variables).
+  - `namespace`: The namespace where the object lives (supports template variables).
+  - `kind`: The kind of resource to check. One of:
+    - `Deployment`, `DaemonSet`, `StatefulSet`: checks the named workload directly. If the resource does not exist, the sub-agent is considered healthy (a missing workload is not treated as a failure). Health is computed considering the workload's status. Eg: desired vs. available replicas.
+    - `Instrumentation`: checks a New Relic Instrumentation CR. If the resource does not exist, the health check reports an error.
+    - `HelmReleaseWorkload`: checks the named HelmRelease CR **plus** the Deployment, DaemonSet, and StatefulSet workloads belonging to the release (discovered via the Flux label `helm.toolkit.fluxcd.io/name`). If the HelmRelease CR does not exist, the health check reports an error.
+  - `target_namespace`: the namespace where the Helm-deployed workloads run. Defaults to `namespace`. Use this when the HelmRelease installs workloads into a different namespace than the one containing the HelmRelease CR itself.
+
+Example for a Helm-based agent deploying workloads into a separate namespace:
+
+```yaml
+health:
+  interval: 30s
+  initial_delay: 30s
+  checks:
+    - namespace: ${nr-ac:namespace}
+      name: ${nr-sub:agent_id}
+      kind: HelmReleaseWorkload
+      target_namespace: ${nr-ac:namespace_agents}
+```
+
+Example for an APM agent using an Instrumentation CR:
+
+```yaml
+health:
+  interval: 30s
+  initial_delay: 30s
+  checks:
+    - namespace: ${nr-ac:namespace_agents}
+      name: ${nr-sub:agent_id}
+      kind: Instrumentation
+```
+
+Example checking individual workload kinds explicitly:
+
+```yaml
+health:
+  interval: 30s
+  initial_delay: 30s
+  checks:
+    - namespace: ${nr-ac:namespace_agents}
+      name: my-deployment
+      kind: Deployment
+    - namespace: ${nr-ac:namespace_agents}
+      name: my-daemonset
+      kind: DaemonSet
+    - namespace: ${nr-ac:namespace_agents}
+      name: my-statefulset
+      kind: StatefulSet
+```
+
+> [!NOTE]
+> In the example above the agent will be considered **unhealthy** if any of the corresponding resources is found but
+> its status doesn't meet the workload criteria. This allows supporting agents with configurable workloads.
 
 ##### `objects`
 
@@ -536,11 +596,11 @@ The workload is responsible for keeping this file updated over time, as AC will 
 
 The file-based health check is implemented for the New Relic APM agents, and is leveraged internally when running on Kubernetes. See [Instrumentation CR](#instrumentation-cr) and [APM](#apm) for details.
 
-### Health on Kubernetess
+### Health on Kubernetes
 
 The approaches followed by on-host are not trivial to implement for Kubernetes, and Kubernetes already provides built-in mechanisms to inspect the health of its resources, so AC leverages these built-ins.
 
-The health check will perform several operations depending on whether the Kubernetes resources created by the agent type instance are Helm releases or [Custom Resources (CR)](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) defined by New Relic called Instrumentations. It is also possible to have these two kinds of resources created, in that case the health checks will perform the operations for both.
+Health checking for Kubernetes is driven by the `checks` entries declared in the agent type's `health` configuration (see [`health` (Kubernetes)](#health-kubernetes) above). Each check targets one resource by name, namespace, and kind, and the operations performed depend on the kind. If no `checks` are declared, health checking is disabled for the sub-agent.
 
 The nature of all these checks is all in all very similar. It involves mostly querying the Kubernetes API server for a certain resource, looking up specific fields of its object representation (like its `status` or its `metadata`), and performing an evaluation of the values contained within them. The only difference is that the structure of the Instrumentation objects is defined by New Relic, while the remaining ones are defined by Kubernetes itself or by well-known tooling of the Kubernetes ecosystem such as Helm.
 

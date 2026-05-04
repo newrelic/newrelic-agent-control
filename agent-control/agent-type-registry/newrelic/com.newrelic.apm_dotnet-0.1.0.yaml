@@ -75,6 +75,10 @@ deployment:
     health:
       interval: 30s
       initial_delay: 30s
+      checks:
+        - namespace: ${nr-ac:namespace_agents}
+          name: ${nr-sub:agent_id}
+          kind: Instrumentation
     objects:
       instrumentation:
         apiVersion: newrelic.com/v1beta3

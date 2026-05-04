@@ -3,7 +3,7 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
 use crate::checkers::guid::k8s::checker::{K8sGuidChecker, spawn_guid_checker};
-use crate::checkers::health::health_checker::{HealthCheckerError, spawn_health_checker};
+use crate::checkers::health::health_checker::spawn_health_checker;
 use crate::checkers::health::k8s::health_checker::K8sHealthChecker;
 use crate::checkers::health::with_start_time::StartTime;
 use crate::checkers::version::k8s::checkers::{K8sAgentVersionChecker, spawn_version_checker};
@@ -38,8 +38,6 @@ pub enum SupervisorError {
     K8s(#[from] crate::k8s::error::K8sError),
     #[error("building k8s resources: {0}")]
     K8sConfig(String),
-    #[error("building health checkers: {0}")]
-    HealthChecker(#[from] HealthCheckerError),
     #[error("the incoming configuration has errors: {0}")]
     IncomingConfig(EffectiveAgentsAssemblerError),
     #[error("error stopping previous supervisor: {0}")]
@@ -71,7 +69,7 @@ impl<C: K8sClient> SupervisorStarter for NotStartedSupervisorK8s<C> {
 
         let thread_contexts = [
             Some(self.start_k8s_objects_supervisor(resources.clone())),
-            self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?,
+            self.start_health_check(sub_agent_internal_publisher.clone()),
             self.start_version_checker(sub_agent_internal_publisher.clone(), resources.clone()),
             self.start_guid_checker(sub_agent_internal_publisher.clone(), resources),
         ]
@@ -185,32 +183,31 @@ impl<C: K8sClient> NotStartedSupervisorK8s<C> {
     pub fn start_health_check(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-        resources: Arc<Vec<DynamicObject>>,
-    ) -> Result<Option<StartedThreadContext>, SupervisorError> {
+    ) -> Option<StartedThreadContext> {
         let start_time = StartTime::now();
 
         let Some(health_config) = &self.k8s_config.health else {
             debug!("Health checks are disabled for this agent");
-            return Ok(None);
+            return None;
         };
 
-        let Some(k8s_health_checker) =
-            K8sHealthChecker::try_new(self.k8s_client.clone(), resources, start_time)?
-        else {
-            warn!("Health checks disabled, there aren't compatible k8s resources to check");
-            return Ok(None);
+        let Some(k8s_health_checker) = K8sHealthChecker::from_checks_definition(
+            self.k8s_client.clone(),
+            &health_config.checks,
+            start_time,
+        ) else {
+            warn!("Health checks disabled, no compatible k8s health checks are configured");
+            return None;
         };
 
-        let started_thread_context = spawn_health_checker(
+        Some(spawn_health_checker(
             self.agent_identity.id.clone(),
             k8s_health_checker,
             sub_agent_internal_publisher,
             health_config.interval,
             health_config.initial_delay,
             start_time,
-        );
-
-        Ok(Some(started_thread_context))
+        ))
     }
 
     pub fn start_version_checker(
@@ -344,7 +341,6 @@ impl<C: K8sClient> Supervisor for StartedSupervisorK8s<C> {
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::helmrelease_v2_type_meta;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::k8s::K8sObjectMeta;
     use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
@@ -358,7 +354,6 @@ pub mod tests {
     use crate::sub_agent::identity::AgentIdentity;
     use crate::sub_agent::supervisor::Supervisor;
     use crate::sub_agent::supervisor::SupervisorStarter;
-    use assert_matches::assert_matches;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::api::DynamicObject;
     use kube::core::TypeMeta;
@@ -453,30 +448,6 @@ pub mod tests {
             supervisor.start_k8s_objects_supervisor(Arc::new(vec![dynamic_object()]));
         thread::sleep(Duration::from_millis(300)); // Sleep a bit more than one interval, two apply calls should be executed.
         started_thread_context.stop_blocking().unwrap()
-    }
-
-    #[test]
-    fn test_start_health_check_fails() {
-        let (sub_agent_internal_publisher, _) = pub_sub();
-        let config = K8s {
-            objects: HashMap::from([("obj".to_string(), k8s_object())]),
-            health: Some(Default::default()),
-            ..K8s::default()
-        };
-
-        let supervisor = not_started_supervisor(config, None);
-        let err = supervisor
-            .start_health_check(
-                sub_agent_internal_publisher,
-                Arc::new(vec![DynamicObject {
-                    types: Some(helmrelease_v2_type_meta()),
-                    metadata: Default::default(), // missing name
-                    data: Default::default(),
-                }]),
-            )
-            .err()
-            .unwrap(); // cannot use unwrap_err because the  underlying EventPublisher doesn't implement Debug
-        assert_matches!(err, SupervisorError::HealthChecker(_))
     }
 
     #[test]

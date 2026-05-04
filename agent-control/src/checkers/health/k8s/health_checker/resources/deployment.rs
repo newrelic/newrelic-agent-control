@@ -108,6 +108,12 @@ mod tests {
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 
+    impl<C: K8sClient> K8sHealthDeployment<C> {
+        pub(crate) fn namespace(&self) -> &str {
+            &self.namespace
+        }
+    }
+
     #[test]
     fn test_deployment_check_health() {
         struct TestCase {

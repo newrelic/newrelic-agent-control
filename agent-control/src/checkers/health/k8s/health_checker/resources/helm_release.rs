@@ -201,6 +201,12 @@ pub mod tests {
 
     const TEST_NAMESPACE: &str = "test-namespace";
 
+    impl<C: K8sClient> K8sHealthHelmRelease<C> {
+        pub(crate) fn namespace(&self) -> &str {
+            &self.namespace
+        }
+    }
+
     #[test]
     fn test_helm_release() {
         type TestCase = (

@@ -97,6 +97,12 @@ mod tests {
     use k8s_openapi::api::apps::v1::{StatefulSetSpec, StatefulSetStatus};
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 
+    impl<C: K8sClient> K8sHealthStatefulSet<C> {
+        pub(crate) fn namespace(&self) -> &str {
+            &self.namespace
+        }
+    }
+
     /// Returns a [ObjectMeta] valid for for health-check
     fn stateful_set_meta(name: &str) -> ObjectMeta {
         ObjectMeta {
