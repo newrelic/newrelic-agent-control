@@ -16,6 +16,7 @@ agentControlDeployment:
         enabled: false
       log:
         level: debug
+        insecure_fine_grained_level: "newrelic_agent_control=debug,kube=debug"
       override:
         k8s:
           cr_type_meta:
