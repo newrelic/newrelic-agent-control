@@ -34,3 +34,4 @@ jobs:
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+      SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
