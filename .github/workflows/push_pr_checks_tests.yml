@@ -90,7 +90,7 @@ jobs:
       - name: Fetch dependencies
         run: cargo fetch
 
-      - uses: newrelic/rust-licenses-noticer@785bfd244b06c3b36e313b308a76c4afaa50015c # v1
+      - uses: newrelic/rust-licenses-noticer@dad311aea99fc619f7fdc7e09a5534f869e747ff # v1
         with:
           template-file: THIRD_PARTY_NOTICES.md.tmpl
 
@@ -103,7 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: taiki-e/install-action@cf525cb33f51aca27cd6fa02034117ab963ff9f1 # v2.75.22
+      - uses: taiki-e/install-action@db5fb34fa772531a3ece57ca434f579eb334e0fb # v2.75.30
         with:
           tool: cargo-shear@1.7.2
 
@@ -186,7 +186,7 @@ jobs:
       - name: Install Zig
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
 
-      - uses: taiki-e/install-action@cf525cb33f51aca27cd6fa02034117ab963ff9f1 # v2.75.22
+      - uses: taiki-e/install-action@db5fb34fa772531a3ece57ca434f579eb334e0fb # v2.75.30
         with:
           tool: cargo-zigbuild@0.20.1
 
@@ -337,7 +337,7 @@ jobs:
       - name: Install Zig
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
 
-      - uses: taiki-e/install-action@cf525cb33f51aca27cd6fa02034117ab963ff9f1 # v2.75.22
+      - uses: taiki-e/install-action@db5fb34fa772531a3ece57ca434f579eb334e0fb # v2.75.30
         with:
           tool: cargo-zigbuild@0.20.1
 
