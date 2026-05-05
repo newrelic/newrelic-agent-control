@@ -87,9 +87,12 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
                 annotations::is_owned_by_agent_control(annotations)
             })
             .try_for_each(|cm| {
-                let name = cm.metadata.name.as_deref().unwrap_or("unknown");
-                debug!("deleting agent-control ConfigMap: `{name}`");
-                self.k8s_client.delete_configmap(&self.namespace, name)?;
+                if let Some(name) = cm.metadata.name.as_deref() {
+                    debug!("deleting agent-control ConfigMap: `{name}`");
+                    self.k8s_client.delete_configmap(&self.namespace, name)?;
+                } else {
+                    warn!("found ConfigMap without name. Skipping deletion.");
+                }
                 Ok(())
             })
     }
