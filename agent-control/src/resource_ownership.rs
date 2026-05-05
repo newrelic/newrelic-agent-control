@@ -19,23 +19,3 @@ pub enum ResourceOwnership {
     /// Resource is owned by a sub-agent (e.g., sub-agent's fleet-data ConfigMap, supervisor-created objects)
     SubAgent(AgentTypeID),
 }
-
-impl ResourceOwnership {
-    /// Returns the agent type ID if this is a sub-agent-owned resource
-    pub fn agent_type_id(&self) -> Option<&AgentTypeID> {
-        match self {
-            ResourceOwnership::AgentControl => None,
-            ResourceOwnership::SubAgent(agent_type_id) => Some(agent_type_id),
-        }
-    }
-
-    /// Returns true if this resource is owned by Agent Control
-    pub fn is_agent_control(&self) -> bool {
-        matches!(self, ResourceOwnership::AgentControl)
-    }
-
-    /// Returns true if this resource is owned by a sub-agent
-    pub fn is_sub_agent(&self) -> bool {
-        matches!(self, ResourceOwnership::SubAgent(_))
-    }
-}
