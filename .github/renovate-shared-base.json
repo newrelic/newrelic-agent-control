@@ -78,7 +78,8 @@
         "prost",
         "nix",
         "oci-client",
-        "crossbeam"
+        "crossbeam",
+        "tokio"
       ],
       "automerge": false
     },

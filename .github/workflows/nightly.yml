@@ -33,6 +33,7 @@ jobs:
       image-tag: nightly
       ac-version: nightly
       push: true
+      enable-diagnostics: true
     secrets: inherit
 
   security-image:

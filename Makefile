@@ -24,10 +24,11 @@ help:
 
 ARCH ?= arm64
 BUILD_MODE ?= release
+CARGO_FEATURES ?=
 
 build-%:
 	@echo "Building $* with mode: $(BUILD_MODE), bin $(*) and arch: $(ARCH)"
-	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="newrelic-$(*)" PKG="newrelic_agent_control" ./build/scripts/build_binary.sh
+	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) CARGO_FEATURES="$(CARGO_FEATURES)" BIN="newrelic-$(*)" PKG="newrelic_agent_control" ./build/scripts/build_binary.sh
 
 .PHONY: tilt-up
 tilt-up:

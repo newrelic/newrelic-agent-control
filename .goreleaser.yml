@@ -17,6 +17,7 @@ builds:
       - --release
       - --package=newrelic_agent_control
       - --bin=newrelic-agent-control
+      - --features=diagnostics
     env:
       - AGENT_CONTROL_VERSION={{ .Version }}
       - NEWRELIC_INFRA_AGENT_VERSION={{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}
@@ -34,6 +35,7 @@ builds:
       - --release
       - --package=newrelic_agent_control
       - --bin=newrelic-agent-control
+      - --features=diagnostics
     env:
       - AGENT_CONTROL_VERSION={{ .Version }}
       - NEWRELIC_INFRA_AGENT_VERSION={{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}

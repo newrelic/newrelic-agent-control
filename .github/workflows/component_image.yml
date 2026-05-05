@@ -18,6 +18,11 @@ on:
         description: 'Push image'
         type: boolean
         required: true
+      enable-diagnostics:
+        description: 'Enable diagnostics features (pprof, dhat, tokio-console, memory-stats)'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -61,10 +66,11 @@ jobs:
       - name: Build Agent Control for K8s
         env:
           AGENT_CONTROL_VERSION: ${{ inputs.ac-version }}
+          CARGO_FEATURES: ${{ inputs.enable-diagnostics && 'diagnostics' || '' }}
         run: |
           make build-agent-control-k8s ARCH=arm64 PKG=newrelic_agent_control
           make build-agent-control-k8s ARCH=amd64 PKG=newrelic_agent_control
-          
+
           # We do not do it in parallel because most of the dependencies are shared
           make build-agent-control-k8s-cli ARCH=arm64 PKG=newrelic_agent_control
           make build-agent-control-k8s-cli ARCH=amd64 PKG=newrelic_agent_control

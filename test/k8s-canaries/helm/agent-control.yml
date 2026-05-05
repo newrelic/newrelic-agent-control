@@ -13,7 +13,11 @@ agentControlDeployment:
         self_instrumentation:
           opentelemetry:
             traces:
-              enabled: true
+              enabled: false
+            logs:
+              enabled: false
+            metrics:
+              enabled: false
       agents:
         infra:
           agent_type: newrelic/com.newrelic.infrastructure:0.1.0
