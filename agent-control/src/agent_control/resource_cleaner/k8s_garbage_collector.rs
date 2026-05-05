@@ -84,7 +84,7 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
             .filter(|cm| {
                 let empty_map = BTreeMap::new();
                 let annotations = cm.metadata.annotations.as_ref().unwrap_or(&empty_map);
-                annotations::is_owned_by_agent_control(annotations) // should we log the skips?
+                annotations::is_owned_by_agent_control(annotations)
             })
             .try_for_each(|cm| {
                 let name = cm.metadata.name.as_deref().unwrap_or("unknown");
