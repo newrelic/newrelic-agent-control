@@ -309,6 +309,7 @@ mod tests {
 
     use super::*;
     use crate::k8s::client::tests::MockK8sClient;
+    use k8s_openapi::api::core::v1::ConfigMap;
     use kube::api::{DynamicObject, ObjectMeta};
     use mockall::predicate;
 
@@ -418,6 +419,30 @@ mod tests {
         })
     }
 
+    fn mock_k8s_client_listing_objects(
+        configmaps: Vec<Arc<ConfigMap>>,
+        namespace_agents_objects: Vec<Arc<DynamicObject>>,
+        namespace_objects: Vec<Arc<DynamicObject>>,
+    ) -> MockK8sClient {
+        let type_meta = TypeMeta::default();
+        let mut mock = MockK8sClient::default();
+        mock.expect_list_configmaps()
+            .once()
+            .return_once(move |_, _| Ok(configmaps));
+        mock.expect_list_dynamic_objects()
+            .once()
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE_AGENTS),
+            )
+            .return_once(move |_, _| Ok(namespace_agents_objects));
+        mock.expect_list_dynamic_objects()
+            .once()
+            .with(predicate::eq(type_meta), predicate::eq(TEST_NAMESPACE))
+            .return_once(move |_, _| Ok(namespace_objects));
+        mock
+    }
+
     // RetainConfig mode: object with a matching annotation for an active agent is retained.
     #[test]
     fn retain_skips_dynamic_object_with_matching_annotation() {
@@ -428,27 +453,7 @@ mod tests {
 
         let active_agents = HashMap::from([(agent_id, agent_type_id)]);
 
-        let mut k8s_client = MockK8sClient::default();
-        k8s_client
-            .expect_list_configmaps()
-            .once()
-            .returning(|_, _| Ok(vec![]));
-        k8s_client
-            .expect_list_dynamic_objects()
-            .once()
-            .with(
-                predicate::eq(type_meta.clone()),
-                predicate::eq(TEST_NAMESPACE_AGENTS),
-            )
-            .returning(|_, _| Ok(vec![]));
-        k8s_client
-            .expect_list_dynamic_objects()
-            .once()
-            .with(
-                predicate::eq(type_meta.clone()),
-                predicate::eq(TEST_NAMESPACE),
-            )
-            .return_once(move |_, _| Ok(vec![cm]));
+        let mut k8s_client = mock_k8s_client_listing_objects(vec![], vec![], vec![cm]);
         k8s_client.expect_delete_dynamic_object().never();
 
         let gc = K8sGarbageCollector {
@@ -468,27 +473,7 @@ mod tests {
         let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
         let cm = new_dynamic_object(&agent_id, Some(&agent_type_id), TEST_NAMESPACE);
 
-        let mut k8s_client = MockK8sClient::default();
-        k8s_client
-            .expect_list_configmaps()
-            .once()
-            .returning(|_, _| Ok(vec![]));
-        k8s_client
-            .expect_list_dynamic_objects()
-            .once()
-            .with(
-                predicate::eq(type_meta.clone()),
-                predicate::eq(TEST_NAMESPACE_AGENTS),
-            )
-            .returning(|_, _| Ok(vec![]));
-        k8s_client
-            .expect_list_dynamic_objects()
-            .once()
-            .with(
-                predicate::eq(type_meta.clone()),
-                predicate::eq(TEST_NAMESPACE),
-            )
-            .return_once(move |_, _| Ok(vec![cm]));
+        let mut k8s_client = mock_k8s_client_listing_objects(vec![], vec![], vec![cm]);
         k8s_client
             .expect_delete_dynamic_object()
             .once()
@@ -513,27 +498,7 @@ mod tests {
 
         let active_agents = HashMap::from([(agent_id, agent_type_id)]);
 
-        let mut k8s_client = MockK8sClient::default();
-        k8s_client
-            .expect_list_configmaps()
-            .once()
-            .returning(|_, _| Ok(vec![]));
-        k8s_client
-            .expect_list_dynamic_objects()
-            .once()
-            .with(
-                predicate::eq(type_meta.clone()),
-                predicate::eq(TEST_NAMESPACE_AGENTS),
-            )
-            .returning(|_, _| Ok(vec![]));
-        k8s_client
-            .expect_list_dynamic_objects()
-            .once()
-            .with(
-                predicate::eq(type_meta.clone()),
-                predicate::eq(TEST_NAMESPACE),
-            )
-            .return_once(move |_, _| Ok(vec![cm]));
+        let mut k8s_client = mock_k8s_client_listing_objects(vec![], vec![], vec![cm]);
         k8s_client.expect_delete_dynamic_object().never();
 
         let gc = K8sGarbageCollector {
@@ -553,27 +518,7 @@ mod tests {
         let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
         let cm = new_dynamic_object_without_owned_by(&agent_id, None, TEST_NAMESPACE);
 
-        let mut k8s_client = MockK8sClient::default();
-        k8s_client
-            .expect_list_configmaps()
-            .once()
-            .returning(|_, _| Ok(vec![]));
-        k8s_client
-            .expect_list_dynamic_objects()
-            .once()
-            .with(
-                predicate::eq(type_meta.clone()),
-                predicate::eq(TEST_NAMESPACE_AGENTS),
-            )
-            .returning(|_, _| Ok(vec![]));
-        k8s_client
-            .expect_list_dynamic_objects()
-            .once()
-            .with(
-                predicate::eq(type_meta.clone()),
-                predicate::eq(TEST_NAMESPACE),
-            )
-            .return_once(move |_, _| Ok(vec![cm]));
+        let mut k8s_client = mock_k8s_client_listing_objects(vec![], vec![], vec![cm]);
         k8s_client.expect_delete_dynamic_object().never();
 
         let gc = K8sGarbageCollector {
@@ -595,27 +540,7 @@ mod tests {
 
         let active_agents: HashMap<AgentID, AgentTypeID> = HashMap::new();
 
-        let mut k8s_client = MockK8sClient::default();
-        k8s_client
-            .expect_list_configmaps()
-            .once()
-            .returning(|_, _| Ok(vec![]));
-        k8s_client
-            .expect_list_dynamic_objects()
-            .once()
-            .with(
-                predicate::eq(type_meta.clone()),
-                predicate::eq(TEST_NAMESPACE_AGENTS),
-            )
-            .returning(|_, _| Ok(vec![]));
-        k8s_client
-            .expect_list_dynamic_objects()
-            .once()
-            .with(
-                predicate::eq(type_meta.clone()),
-                predicate::eq(TEST_NAMESPACE),
-            )
-            .return_once(move |_, _| Ok(vec![cm]));
+        let mut k8s_client = mock_k8s_client_listing_objects(vec![], vec![], vec![cm]);
         k8s_client.expect_delete_dynamic_object().never();
 
         let gc = K8sGarbageCollector {
@@ -637,27 +562,7 @@ mod tests {
 
         let active_agents: HashMap<AgentID, AgentTypeID> = HashMap::new();
 
-        let mut k8s_client = MockK8sClient::default();
-        k8s_client
-            .expect_list_configmaps()
-            .once()
-            .returning(|_, _| Ok(vec![]));
-        k8s_client
-            .expect_list_dynamic_objects()
-            .once()
-            .with(
-                predicate::eq(type_meta.clone()),
-                predicate::eq(TEST_NAMESPACE_AGENTS),
-            )
-            .returning(|_, _| Ok(vec![]));
-        k8s_client
-            .expect_list_dynamic_objects()
-            .once()
-            .with(
-                predicate::eq(type_meta.clone()),
-                predicate::eq(TEST_NAMESPACE),
-            )
-            .return_once(move |_, _| Ok(vec![cm]));
+        let mut k8s_client = mock_k8s_client_listing_objects(vec![], vec![], vec![cm]);
         k8s_client
             .expect_delete_dynamic_object()
             .once()
@@ -686,27 +591,7 @@ mod tests {
 
         let active_agents = HashMap::from([(agent_id, active_type)]);
 
-        let mut k8s_client = MockK8sClient::default();
-        k8s_client
-            .expect_list_configmaps()
-            .once()
-            .returning(|_, _| Ok(vec![]));
-        k8s_client
-            .expect_list_dynamic_objects()
-            .once()
-            .with(
-                predicate::eq(type_meta.clone()),
-                predicate::eq(TEST_NAMESPACE_AGENTS),
-            )
-            .returning(|_, _| Ok(vec![]));
-        k8s_client
-            .expect_list_dynamic_objects()
-            .once()
-            .with(
-                predicate::eq(type_meta.clone()),
-                predicate::eq(TEST_NAMESPACE),
-            )
-            .return_once(move |_, _| Ok(vec![cm]));
+        let mut k8s_client = mock_k8s_client_listing_objects(vec![], vec![], vec![cm]);
         k8s_client
             .expect_delete_dynamic_object()
             .once()
