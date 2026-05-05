@@ -109,15 +109,16 @@ impl<C: K8sClient> DataStore for ConfigMapStore<C> {
         let configmap_name = ConfigMapStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
         let annotations = match ownership {
             ResourceOwnership::SubAgent(agent_type_id) => {
-                Annotations::new_sub_agent_owned_with_type(&agent_type_id).get()
+                Annotations::new_sub_agent_owned_with_type(&agent_type_id)
             }
-            ResourceOwnership::AgentControl => Annotations::new_agent_control_owned().get(),
+            ResourceOwnership::AgentControl => Annotations::new_agent_control_owned(),
         };
+
         self.k8s_client.set_configmap_key(
             &configmap_name,
             self.namespace.as_str(),
             Labels::new(agent_id).get(),
-            annotations,
+            annotations.get(),
             key,
             &data_as_string,
         )
