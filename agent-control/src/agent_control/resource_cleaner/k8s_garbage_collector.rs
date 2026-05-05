@@ -385,7 +385,8 @@ mod tests {
         agent_type_id: Option<&AgentTypeID>,
         namespace: &str,
     ) -> Arc<DynamicObject> {
-        let annotations = agent_type_id.map(|id| Annotations::new_sub_agent_owned(id).get());
+        let annotations =
+            agent_type_id.map(|id| Annotations::new_sub_agent_owned_with_type(id).get());
         Arc::new(DynamicObject {
             types: None,
             metadata: ObjectMeta {

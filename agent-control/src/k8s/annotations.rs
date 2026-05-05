@@ -26,30 +26,25 @@ impl Annotations {
         )]))
     }
 
-    pub fn new_agent_control_owned_with_type(agent_type_id: &AgentTypeID) -> Self {
-        let base = Self::new_agent_control_owned().0;
-        let with_agent_type_id = std::iter::chain(
-            base,
-            [(
-                AGENT_TYPE_ID_ANNOTATION_KEY.to_string(),
-                agent_type_id.to_string(),
-            )],
-        )
-        .collect();
-        Self(with_agent_type_id)
+    fn new_subagent_owned() -> Self {
+        Self(BTreeMap::from([(
+            OWNED_BY_ANNOTATION_KEY.to_string(),
+            OWNED_BY_SUB_AGENT.to_string(),
+        )]))
     }
 
-    pub fn new_sub_agent_owned(agent_type_id: &AgentTypeID) -> Self {
-        Self(BTreeMap::from([
-            (
-                OWNED_BY_ANNOTATION_KEY.to_string(),
-                OWNED_BY_SUB_AGENT.to_string(),
-            ),
-            (
-                AGENT_TYPE_ID_ANNOTATION_KEY.to_string(),
-                agent_type_id.to_string(),
-            ),
-        ]))
+    pub fn new_agent_control_owned_with_type(agent_type_id: &AgentTypeID) -> Self {
+        let base = Self::new_agent_control_owned().0;
+        let with_agent_id = Self::new_agent_type_id_annotation(agent_type_id).0;
+        let merged = std::iter::chain(base, with_agent_id).collect();
+        Self(merged)
+    }
+
+    pub fn new_sub_agent_owned_with_type(agent_type_id: &AgentTypeID) -> Self {
+        let base = Self::new_subagent_owned().0;
+        let with_agent_id = Self::new_agent_type_id_annotation(agent_type_id).0;
+        let merged = std::iter::chain(base, with_agent_id).collect();
+        Self(merged)
     }
 
     pub fn get(&self) -> BTreeMap<String, String> {

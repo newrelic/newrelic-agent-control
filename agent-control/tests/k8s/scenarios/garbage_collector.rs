@@ -40,7 +40,7 @@ fn k8s_garbage_collector_triggers_on_ac_startup() {
         removed_agent_id,
         Some(Labels::new(&AgentID::try_from(removed_agent_id.to_string()).unwrap()).get()),
         Some(
-            Annotations::new_sub_agent_owned(
+            Annotations::new_sub_agent_owned_with_type(
                 &AgentTypeID::try_from("newrelic/com.newrelic.removed:0.0.1").unwrap(),
             )
             .get(),

@@ -109,7 +109,7 @@ impl<C: K8sClient> DataStore for ConfigMapStore<C> {
         let configmap_name = ConfigMapStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
         let annotations = match ownership {
             ResourceOwnership::SubAgent(agent_type_id) => {
-                Annotations::new_sub_agent_owned(&agent_type_id).get()
+                Annotations::new_sub_agent_owned_with_type(&agent_type_id).get()
             }
             ResourceOwnership::AgentControl => Annotations::new_agent_control_owned().get(),
         };
@@ -357,7 +357,7 @@ pub mod tests {
         let mut k8s_client = MockK8sClient::default();
         let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
         let agent_type_id = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
-        let expected_annotations = Annotations::new_sub_agent_owned(&agent_type_id).get();
+        let expected_annotations = Annotations::new_sub_agent_owned_with_type(&agent_type_id).get();
 
         k8s_client
             .expect_set_configmap_key()

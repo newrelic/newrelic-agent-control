@@ -260,8 +260,10 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
         removed_agent_id,
         Some(Labels::new(&AgentID::try_from(removed_agent_id.to_string()).unwrap()).get()),
         Some(
-            Annotations::new_sub_agent_owned(&AgentTypeID::try_from("ns/removed:1.0.0").unwrap())
-                .get(),
+            Annotations::new_sub_agent_owned_with_type(
+                &AgentTypeID::try_from("ns/removed:1.0.0").unwrap(),
+            )
+            .get(),
         ),
     ));
 
@@ -353,7 +355,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test_ns.as_str(),
         "not-deleted",
         Some(Labels::new(agent_id).get()),
-        Some(Annotations::new_sub_agent_owned(fqn).get()),
+        Some(Annotations::new_sub_agent_owned_with_type(fqn).get()),
     ));
 
     block_on(create_foo_cr(
@@ -377,7 +379,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test_ns.as_str(),
         "old-fqn",
         Some(Labels::new(agent_id).get()),
-        Some(Annotations::new_sub_agent_owned(fqn_old).get()),
+        Some(Annotations::new_sub_agent_owned_with_type(fqn_old).get()),
     ));
 
     block_on(create_foo_cr(
@@ -385,7 +387,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test_ns.as_str(),
         "id-unknown",
         Some(Labels::new(agent_id_unknonw).get()),
-        Some(Annotations::new_sub_agent_owned(fqn).get()),
+        Some(Annotations::new_sub_agent_owned_with_type(fqn).get()),
     ));
 
     let config = format!(
