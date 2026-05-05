@@ -317,12 +317,9 @@ async fn jwks_handler(state: web::Data<Arc<Mutex<ServerState>>>, _req: web::Byte
         "keys": [
             {
                 "kty": "OKP",
-                "alg": null,
                 "use": "sig",
                 "kid": JWKS_PUBLIC_KEY_ID,
-                "n": null,
                 "x": enc_public_key,
-                "y": null,
                 "crv": ED25519_ALG,
             }
         ]

@@ -160,7 +160,7 @@ pub mod tests {
         // This payload was returned by a real staging endpoint
         let signature = BASE64_STANDARD.decode("6l3Jv23SUClwCRzWuFHkZn21laEJiNUu7GXwWK+kDaVCMenLJt9Us+r7LyIqEnfRq/Z5PPJoWaalta6mn/wrDw==").unwrap();
         let message = "my-message-to-be-signed this can be anything";
-        let payload = serde_json::from_value::<PubKeyPayload>(json!({"keys":[{"kty":"OKP","alg":null,"use":"sig","kid":"869003544/1","n":null,"e":null,"x":"TpT81pA8z0vYiSK2LLhXzkWYJwrL-kxoNt93lzAb1_Q","y":null,"crv":"Ed25519"}]}))
+        let payload = serde_json::from_value::<PubKeyPayload>(json!({"keys":[{"kty":"OKP","use":"sig","kid":"869003544/1","x":"TpT81pA8z0vYiSK2LLhXzkWYJwrL-kxoNt93lzAb1_Q","crv":"Ed25519"}]}))
             .unwrap();
 
         assert_eq!(payload.keys.len(), 1);

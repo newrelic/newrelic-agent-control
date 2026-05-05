@@ -170,24 +170,16 @@ Public keys **MUST** be in JWKS format.
   "keys": [
     {
       "kty": "OKP",
-      "alg": null,
       "use": "sig",
       "kid": "key/0",
-      "n": null,
-      "e": null,
       "x": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "y": null,
       "crv": "Ed25519"
     },
     {
       "kty": "OKP",
-      "alg": null,
       "use": "sig",
       "kid": "key/1",
-      "n": null,
-      "e": null,
       "x": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "y": null,
       "crv": "Ed25519"
     }
   ]
