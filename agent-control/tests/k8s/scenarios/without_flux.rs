@@ -166,7 +166,7 @@ agents: {}
 fn k8s_config_map_type_gc_does_not_fail_on_restart() {
     let test_name = "k8s_config_map_type_gc_does_not_fail_on_restart";
 
-    let mut server = FakeServer::start_new();
+    let mut server = FakeServer::start(tokio_runtime().handle());
 
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
