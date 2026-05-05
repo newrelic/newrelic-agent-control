@@ -410,7 +410,10 @@ mod tests {
     use super::*;
     use crate::{
         agent_control::config::helmrepository_type_meta,
-        k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL},
+        k8s::{
+            annotations::Annotations,
+            labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL},
+        },
         sub_agent::identity::AgentIdentity,
     };
 
@@ -732,18 +735,7 @@ mod tests {
         .collect();
 
         let annotations = Some(
-            [
-                (
-                    "newrelic.io/agent-type-id".to_string(),
-                    agent_identity.agent_type_id.to_string(),
-                ),
-                (
-                    "newrelic.io/owned-by".to_string(),
-                    "agent-control".to_string(),
-                ),
-            ]
-            .into_iter()
-            .collect(),
+            Annotations::new_agent_control_owned_with_type(&agent_identity.agent_type_id).get(),
         );
 
         let mut expected_repository_object = repository_object();
