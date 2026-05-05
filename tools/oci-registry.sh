@@ -123,6 +123,18 @@ EOF
 )
     fi
 
+    local http_tls_block=""
+    if [ -n "${TLS_CERT:-}" ] && [ -n "${TLS_KEY:-}" ]; then
+        http_tls_block=$(cat << EOF
+,
+        "tls": {
+            "cert": "$TLS_CERT",
+            "key": "$TLS_KEY"
+        }
+EOF
+)
+    fi
+
     cat > "$CONFIG_FILE" << EOF
 {
     "distSpecVersion": "1.0.1",
@@ -131,7 +143,7 @@ EOF
     },
     "http": {
         "address": "0.0.0.0",
-        "port": "$PORT"${http_auth_block}
+        "port": "$PORT"${http_auth_block}${http_tls_block}
     },
     "log": {
         "level": "debug",

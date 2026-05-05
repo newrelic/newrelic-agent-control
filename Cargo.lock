@@ -1444,12 +1444,16 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "clap",
+ "fake-opamp-server",
  "glob",
+ "oci-client",
+ "oci-test-utils",
  "reqwest 0.13.3",
  "serde",
  "serde_json",
  "serde_yaml",
  "tempfile",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]

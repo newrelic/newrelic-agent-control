@@ -14,8 +14,6 @@ use crate::{common::test::retry, windows::powershell::exec_ps};
 pub const SERVICE_NAME: &str = "newrelic-agent-control";
 
 /// Installs Agent Control using the recipe as configured in the provided [RecipeData].
-///
-///
 pub fn install_agent_control_from_recipe(data: &RecipeData) {
     info!("Installing Agent Control from recipe");
 
@@ -32,14 +30,7 @@ pub fn install_agent_control_from_recipe(data: &RecipeData) {
     let _ = exec_ps(&git_command)
         .unwrap_or_else(|err| panic!("could not checkout recipes repository: {err}"));
 
-    let install_newrelic_cli_command = r#"
-(New-Object System.Net.WebClient).DownloadFile("https://github.com/newrelic/newrelic-cli/releases/latest/download/NewRelicCLIInstaller.msi", "$env:TEMP\NewRelicCLIInstaller.msi"); `
-msiexec.exe /qn /i "$env:TEMP\NewRelicCLIInstaller.msi" | Out-Null;
-"#;
-    info!("Installing newrelic cli",);
-    debug!("Running command: \n{install_newrelic_cli_command}");
-    let _ = exec_ps(install_newrelic_cli_command)
-        .unwrap_or_else(|err| panic!("could not install New Relic CLI: {err}"));
+    install_newrelic_cli();
 
     // By default, the windows recipe will download the zip file from https://download.newrelic.com and put it
     // in "$env:TEMP\newrelic-agent-control-{version}.zip". If the zip file already exists, the recipe will skip the
@@ -105,11 +96,57 @@ $env:NEW_RELIC_AGENT_CONTROL_SKIP_BINARY_SIGNATURE_VALIDATION='true'; `
         data.recipe_list,
     );
 
-    // Create a temporary .ps1 file for the installation command
-    //
-    // There's an option that allows running commands directly. That is "-Command". The
-    // issue with that is that "-ExecutionPolicy" won't bypass all the checks. It seems
-    // to only work properly using a ps1 script. We are forced to create a temporary script file.
+    run_newrelic_install(install_command);
+}
+
+pub fn install_latest_agent_control(data: &RecipeData) {
+    install_newrelic_cli();
+
+    let install_command = format!(
+        r#"
+$env:NEW_RELIC_CLI_SKIP_CORE='1'; `
+$env:NEW_RELIC_LICENSE_KEY='{}'; `
+$env:NEW_RELIC_API_KEY='{}'; `
+$env:NEW_RELIC_ACCOUNT_ID='{}'; `
+$env:NEW_RELIC_AUTH_PROVISIONED_CLIENT_ID='{}'; `
+$env:NEW_RELIC_AUTH_PRIVATE_KEY_PATH='{}'; `
+$env:NEW_RELIC_REGION='{}'; `
+$env:NR_CLI_FLEET_ID='{}'; `
+$env:NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED='{}'; `
+$env:NEW_RELIC_AGENT_CONTROL='true'; `
+& "C:\Program Files\New Relic\New Relic CLI\newrelic.exe" install `
+-n {}
+"#,
+        data.args.nr_license_key,
+        data.args.nr_api_key,
+        data.args.nr_account_id,
+        data.args.system_identity_client_id,
+        data.args.agent_control_private_key,
+        data.args.nr_region,
+        data.fleet_id,
+        data.fleet_enabled,
+        data.recipe_list,
+    );
+
+    run_newrelic_install(install_command);
+}
+
+fn install_newrelic_cli() {
+    let command = r#"
+(New-Object System.Net.WebClient).DownloadFile("https://github.com/newrelic/newrelic-cli/releases/latest/download/NewRelicCLIInstaller.msi", "$env:TEMP\NewRelicCLIInstaller.msi"); `
+msiexec.exe /qn /i "$env:TEMP\NewRelicCLIInstaller.msi" | Out-Null;
+"#;
+    info!("Installing newrelic cli");
+    debug!("Running command: \n{command}");
+    let _ = exec_ps(command).unwrap_or_else(|err| panic!("could not install New Relic CLI: {err}"));
+}
+
+// Create a temporary .ps1 file for the installation command
+//
+// There's an option that allows running commands directly. That is "-Command". The
+// issue with that is that "-ExecutionPolicy" won't bypass all the checks. It seems
+// to only work properly using a ps1 script. We are forced to create a temporary script file.
+fn run_newrelic_install(install_command: String) {
     info!("Creating install script");
     info!("Install script content: \n{install_command}");
     let script_dir = tempdir().expect("failed to create temp dir for script");

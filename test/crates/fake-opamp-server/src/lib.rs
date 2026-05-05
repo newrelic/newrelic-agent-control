@@ -4,10 +4,11 @@ use aws_lc_rs::rand::SystemRandom;
 use aws_lc_rs::signature::{Ed25519KeyPair, KeyPair as _};
 use base64::Engine;
 use base64::prelude::{BASE64_STANDARD, BASE64_URL_SAFE_NO_PAD};
+use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::{
     AgentConfigFile, AgentConfigMap, AgentDescription, AgentRemoteConfig, AgentToServer,
-    ComponentHealth, CustomMessage, EffectiveConfig, RemoteConfigStatus, ServerToAgent,
-    ServerToAgentFlags,
+    ComponentHealth, CustomMessage, EffectiveConfig, RemoteConfigStatus, RemoteConfigStatuses,
+    ServerToAgent, ServerToAgentFlags,
 };
 use opamp_client::operation::instance_uid::InstanceUid;
 use prost::Message;
@@ -249,6 +250,38 @@ impl FakeServer {
             .get(&identifier.into())
             .map(|s| s.config_status.clone())
     }
+
+    /// Returns the instance IDs of all connected agents that have an identifying attribute
+    /// matching the given key–value pair. Matches string-typed attribute values only.
+    pub fn find_agents_with_identifying_attr(&self, key: &str, value: &str) -> Vec<InstanceID> {
+        let state = self.state.lock().unwrap();
+        state
+            .agent_state
+            .iter()
+            .filter(|(_, agent_state)| has_identifying_attr(&agent_state.attributes, key, value))
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
+    /// Returns the string value of an identifying attribute for the given agent, or `None` if the
+    /// agent is unknown or the attribute is absent or not a string.
+    pub fn get_identifying_attr_value(
+        &self,
+        identifier: impl Into<InstanceUid>,
+        key: &str,
+    ) -> Option<String> {
+        let state = self.state.lock().unwrap();
+        state
+            .agent_state
+            .get(&identifier.into())
+            .and_then(|s| find_string_identifying_attr(&s.attributes, key))
+    }
+
+    /// Returns `true` if the agent has reported a remote config status of `Applied`.
+    pub fn is_config_status_applied(&self, identifier: impl Into<InstanceUid>) -> bool {
+        self.get_remote_config_status(identifier)
+            .is_some_and(|s| s.status == RemoteConfigStatuses::Applied as i32)
+    }
 }
 
 impl Drop for FakeServer {
@@ -349,6 +382,30 @@ fn build_response(
         ..Default::default()
     }
     .encode_to_vec()
+}
+
+fn find_string_identifying_attr(description: &AgentDescription, key: &str) -> Option<String> {
+    description
+        .identifying_attributes
+        .iter()
+        .find(|kv| kv.key == key)
+        .and_then(|kv| {
+            kv.value.as_ref()?.value.as_ref().and_then(|v| match v {
+                Value::StringValue(s) => Some(s.clone()),
+                _ => None,
+            })
+        })
+}
+
+fn has_identifying_attr(description: &AgentDescription, key: &str, value: &str) -> bool {
+    description.identifying_attributes.iter().any(|kv| {
+        kv.key == key
+            && kv
+                .value
+                .as_ref()
+                .and_then(|av| av.value.as_ref())
+                .is_some_and(|v| matches!(v, Value::StringValue(s) if s == value))
+    })
 }
 
 fn generate_key_pair() -> Ed25519KeyPair {

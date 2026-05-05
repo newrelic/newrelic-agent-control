@@ -12,11 +12,15 @@ repository.workspace = true
 chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
 glob = "0.3"
+fake-opamp-server = { path = "../crates/fake-opamp-server" }
+oci-test-utils = { path = "../crates/oci-test-utils" }
+oci-client = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 serde_yaml.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 

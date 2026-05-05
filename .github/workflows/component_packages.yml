@@ -90,7 +90,7 @@ jobs:
             exit 1
           fi
 
-      - name: If not pre-release, set tag and SKIP_UPLOAD_RELEASE=true
+      - name: If not pre-release, set override the AC version with the tag and SKIP_UPLOAD_RELEASE=true
         if: ${{ ! inputs.pre-release }}
         run: |
           git tag ${{ inputs.tag_name }}
