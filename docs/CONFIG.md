@@ -224,3 +224,18 @@ This field configures packages behaviour.
 agent_packages:
   signature_verification_enabled: # Optional, enabled by default, sets whether packages signatures will be verified or not, when set to false a warning is logged
 ```
+
+### oci
+
+The `oci` configuration field sets the OCI registry used to pull packages.
+
+```yaml
+oci:
+  registry: "docker.io" # OCI registry hostname or URL. Defaults to "docker.io".
+  auth: # Optional authentication for the registry (defaults to Anonymous authentication). If set, specify exactly one of 'basic' or 'bearer'.
+    basic:
+      username: "my-user" # Username for basic authentication.
+      password: "my-pass" # Password for basic authentication.
+    # bearer:
+    #   token: "my-token" # Token for bearer authentication.
+```
