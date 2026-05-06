@@ -56,11 +56,9 @@ impl Runner {
         let (startup_publisher, startup_consumer) = std::sync::mpsc::channel();
 
         let dispatch = dispatcher::get_default(|d| d.clone());
-        let span = tracing::Span::current();
 
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
             let _guard = dispatcher::set_default(&dispatch);
-            let _enter = span.enter();
 
             self.spawn_server(stop_consumer, startup_publisher)
         };

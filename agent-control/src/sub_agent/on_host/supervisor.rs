@@ -314,11 +314,9 @@ where
         let logging_path = self.file_logging_path.clone();
 
         let dispatch = dispatcher::get_default(|d: &Dispatch| d.clone());
-        let span = tracing::Span::current();
 
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
             let _guard = dispatcher::set_default(&dispatch);
-            let _enter = span.enter();
 
             let exec_id = exec_data.id.clone();
 

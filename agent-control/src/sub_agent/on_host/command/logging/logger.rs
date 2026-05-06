@@ -16,12 +16,15 @@ impl Logger {
     where
         S: ToString + Send + 'static,
     {
+        // We clone the dispatcher so this thread keeps using the same subscriber,
+        // but we intentionally do NOT capture/enter the spawning thread's current
+        // span: it is long-lived (e.g. `start_agent`), and entering it here would
+        // keep it open for this thread's lifetime, causing tracing-opentelemetry to
+        // accumulate every emitted event as a span-event in memory without bound.
         let dispatch = dispatcher::get_default(|d| d.clone());
-        let span = tracing::Span::current();
 
         spawn_named_thread("OnHost logger", move || {
             let _dispatch_guard = dispatcher::set_default(&dispatch);
-            let _span_guard = span.enter();
 
             match self {
                 Self::File(file_logger, agent_id) => {

@@ -32,12 +32,10 @@ where
         .collect();
 
     let dispatch = dispatcher::get_default(|d| d.clone());
-    let span = tracing::Span::current();
 
     // In a separate thread, iterate over the handle to get the logs
     let sender_thread = spawn_named_thread("OnHost log sender", move || {
         let _guard = dispatcher::set_default(&dispatch);
-        let _enter = span.enter();
 
         let log_entries = BufReader::new(handle).lines();
         for line in log_entries {
