@@ -220,7 +220,7 @@ What happens during a key rotation? It depends on the specific use case. AC trie
 
 ## Registry mirror support
 
-A  OCI registry mirror is a copy of the New Relic registry where agent packages are stored. Its support is essential for:
+An OCI registry mirror is a copy of the New Relic registry where agent packages are stored. Its support is essential for:
 
 * Air-gapped environments: where production servers have no access to the public internet (the default registry is not reachable).
 * Local development: to speed up testing without needing to fetch packages remotely.
