@@ -218,33 +218,33 @@ sequenceDiagram
 
 What happens during a key rotation? It depends on the specific use case. AC tries to verify every signature in the signature-manifest layers with every public key published for that package, this approach avoids downtimes on key rotation. Note that a non-revoked key must exist on the list, otherwise signature verification will fail.
 
-## Local registry mirrors
+## Registry mirror support
 
-A local OCI registry mirror is a local copy of the New Relic registry where agent packages are stored. Its support is essential for:
+A  OCI registry mirror is a copy of the New Relic registry where agent packages are stored. Its support is essential for:
 
-* Air-gapped environments: where production servers have no access to the public internet.
+* Air-gapped environments: where production servers have no access to the public internet (the default registry is not reachable).
 * Local development: to speed up testing without needing to fetch packages remotely.
 * Network efficiency: to reduce bandwidth usage in large-scale deployments.
 
-Agent Control supports local registry mirrors by setting them up in the corresponding [configuration section](./CONFIG.md#oci).
+Agent Control supports registry mirrors by setting them up in the corresponding [configuration section](./CONFIG.md#oci).
 
-### Local registry mirrors and key rotation
+### Registry mirrors and key rotation
 
 Considering the [key rotation](#key-rotation) timeline:
 
 1. New Key is Added: When New Relic introduces a new signing key (Key B), the public part of it is added to the JWKS file. The old key (Key A) is not immediately removed. The JWKS now contains both Key A and Key B.
 
-2. New Packages are Signed: All new agent packages are now signed with Key B.
+2. New signatures are created: All agent packages are signed with Key B resulting in new artifacts.
 
 3. Seamless Verification:
-   - When verifying an old package (signed with Key A), Agent Control tries Key B (fails) and then tries Key A (succeeds). Verification passes.
-   - When verifying a new package (signed with Key B), Agent Control tries Key B and it succeeds immediately.
+   - When verifying a package (signed with Key A only), Agent Control tries Key B (fails) and then tries Key A (succeeds). Verification passes.
+   - When verifying a new package (signed with Key A and Key B), Agent Control tries Key B and it succeeds immediately.
 
 4. Old Key is Retired: After a safe transition period, the old Key A is removed from the public JWKS file.
 
 In order to ensure that Agent Control can always use packages from your local mirror, even after a public key rotation, your mirroring infrastructure must satisfy two fundamental requirements at the moment of verification.
 
-1. Availability of the public keys: The set of public keys available to the Agent Control must be a superset of all keys required to verify every package you intend to serve from your mirror (the public key urls are reachable by Agent Control).
+1. Availability of the public keys: the public key urls need to be reachable from the host where Agent Control is installed.
 
 2. Your mirror must store and serve the original, unaltered agent package and its corresponding signature artifact as they were published by New Relic.
    - This includes the new signatures published in the event of key rotation.
