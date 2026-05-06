@@ -55,4 +55,4 @@ actix-web = "4.13.0"
 
 [profile.release-debug]
 inherits = "release"
-debug = 1
+debug = 2
