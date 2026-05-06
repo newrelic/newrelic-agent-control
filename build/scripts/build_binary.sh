@@ -33,7 +33,7 @@ export AGENT_CONTROL_VERSION=${AGENT_CONTROL_VERSION}
 
 export RUSTFLAGS="-C target-feature=+crt-static"
 
-cargo zigbuild --target "${TARGET_TUPLE}" --profile "release-debug" --package "${PKG}" --bin "${BIN}" --features dhat-heap
+cargo zigbuild --target "${TARGET_TUPLE}" --profile "${BUILD_MODE}" --package "${PKG}" --bin "${BIN}" --features dhat-heap
 
 mkdir -p "bin"
 
@@ -47,4 +47,4 @@ if [ "$BIN" = "newrelic-agent-control-k8s" ]; then
 fi
 
 # Copy the generated binaries to the bin directory
-cp "./target/${TARGET_TUPLE}/release-debug/${BIN}" "./bin/${TRIMMED_BIN}-${ARCH}"
+cp "./target/${TARGET_TUPLE}/${BUILD_OUT_DIR}/${BIN}" "./bin/${TRIMMED_BIN}-${ARCH}"

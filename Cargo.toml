@@ -53,6 +53,5 @@ tokio = "1.52.2"
 base64 = "0.22.1"
 actix-web = "4.13.0"
 
-[profile.release-debug]
-inherits = "release"
+[profile.release]
 debug = 2
