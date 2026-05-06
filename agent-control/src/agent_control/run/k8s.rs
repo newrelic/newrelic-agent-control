@@ -65,6 +65,11 @@ impl AgentControlRunner {
             "k8s config missing while running on k8s".to_string(),
         ))?;
 
+        // Keep a runtime clone alive until after dhat_write() so the tokio worker threads
+        // remain idle (not in shutdown cleanup) when g.finish() resolves backtraces.
+        #[cfg(feature = "dhat-heap")]
+        let _runtime_keep_alive = self.runtime.clone();
+
         info!("Starting the k8s client");
         let maybe_opamp = self.bootstrap_config.fleet_control;
         let k8s_client = Arc::new(
@@ -250,7 +255,7 @@ impl AgentControlRunner {
             && k8s_config.cd_remote_update
         {
             Some(start_cd_version_checker(
-                k8s_client,
+                k8s_client.clone(),
                 k8s_config.namespace.clone(),
                 cd_release_name,
                 agent_control_internal_publisher.clone(),
@@ -260,7 +265,7 @@ impl AgentControlRunner {
             None
         };
 
-        AgentControl::new(
+        let result = AgentControl::new(
             maybe_client,
             sub_agent_builder,
             SystemTime::now(),
@@ -278,7 +283,21 @@ impl AgentControlRunner {
             agent_control_config,
         )
         .run()
-        .map_err(|err| RunError(err.to_string()))
+        .map_err(|err| RunError(err.to_string()));
+
+        // Tear down remaining structures before writing the heap profile so any transient
+        // allocations during their cleanup are captured. _runtime_keep_alive (declared first,
+        // drops last) keeps the tokio runtime alive through the write so worker threads stay
+        // idle and don't contend on the dhat spin lock during backtrace resolution.
+        #[cfg(feature = "dhat-heap")]
+        {
+            drop(_http_server);
+            drop(_cd_version_checker);
+            drop(k8s_client);
+            crate::command::dhat_write();
+        }
+
+        result
     }
 }
 

@@ -379,8 +379,6 @@ fn create_shutdown_signal_handler(
 ) -> Result<(), ctrlc::Error> {
     ctrlc::set_handler(move || {
         info!("Received SIGINT (Ctrl-C). Stopping agent control");
-        #[cfg(feature = "dhat-heap")]
-        dhat_write();
         let _ = publisher
             .publish(ApplicationEvent::StopRequested)
             .inspect_err(|e| error!("Could not send agent control stop request: {}", e));
