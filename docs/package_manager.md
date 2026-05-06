@@ -242,7 +242,7 @@ Considering the [key rotation](#key-rotation) timeline:
 
 4. Old Key is Retired: After a safe transition period, the old Key A is removed from the public JWKS file.
 
-In order to ensure that Agent Control can always use packages from your local mirror, even after a public key rotation, your mirroring infrastructure must satisfy two fundamental requirements at the moment of verification.
+In order to ensure that Agent Control can always use packages from your mirror, even after a key rotation, your mirroring infrastructure must satisfy two fundamental requirements at the moment of verification.
 
 1. Availability of the public keys: the public key urls need to be reachable from the host where Agent Control is installed.
 
