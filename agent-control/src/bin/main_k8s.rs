@@ -28,9 +28,18 @@ fn main() -> ExitCode {
     let _profiler = dhat::Profiler::new_ad_hoc();
 
     #[cfg(target_family = "unix")]
-    return Command::execute(AGENT_CONTROL_MODE_K8S, _main);
+    let result = Command::execute(AGENT_CONTROL_MODE_K8S, _main);
     #[cfg(target_family = "windows")]
-    Command::execute(AGENT_CONTROL_MODE_K8S, _main, false)
+    let result = Command::execute(AGENT_CONTROL_MODE_K8S, _main, false);
+
+    #[cfg(feature = "dhat-heap")]
+    eprintln!("DHAT: execute returned, dropping profiler");
+    #[cfg(feature = "dhat-heap")]
+    drop(_profiler);
+    #[cfg(feature = "dhat-heap")]
+    eprintln!("DHAT: profiler drop complete");
+
+    result
 }
 
 /// This is the actual main function.
