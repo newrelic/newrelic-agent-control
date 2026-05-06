@@ -8,7 +8,7 @@ use crate::agent_control::defaults::{
     OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
 use crate::agent_control::http_server::runner::Runner;
-use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
+use crate::agent_control::resource_cleaner::on_host::OnHostFilesystemCleaner;
 use crate::agent_control::run::{
     AgentControlRunner, Environment, GracefulShutdownReason, RunError, RunningMode,
     setup_config_repository_and_store,
@@ -259,7 +259,7 @@ impl AgentControlRunner {
             agent_control_internal_consumer,
             SupportedRemoteConfigValidator::Signature(signature_validator),
             dynamic_config_validator,
-            NoOpResourceCleaner,
+            OnHostFilesystemCleaner::new(remote_dir.clone()),
             self_updater,
             |t| Some(NoOpHealthChecker::new(t)),
             agent_control_config,
