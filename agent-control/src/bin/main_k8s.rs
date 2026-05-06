@@ -11,6 +11,7 @@ use std::error::Error;
 #[cfg(feature = "dhat-heap")]
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::time::Duration;
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]
@@ -38,6 +39,11 @@ fn main() -> ExitCode {
     drop(_profiler);
     #[cfg(feature = "dhat-heap")]
     eprintln!("DHAT: profiler drop complete");
+
+    for i in 1..=60 {
+        eprintln!("Counting before quitting... {i}");
+        std::thread::sleep(Duration::from_secs(1));
+    }
 
     result
 }
