@@ -8,6 +8,8 @@ use newrelic_agent_control::agent_control::run::AgentControlRunner;
 use newrelic_agent_control::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
 use newrelic_agent_control::command::{Command, Context};
 use std::error::Error;
+#[cfg(feature = "dhat-heap")]
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 #[cfg(feature = "dhat-heap")]
@@ -16,7 +18,10 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 
 fn main() -> ExitCode {
     #[cfg(feature = "dhat-heap")]
-    let _profiler = dhat::Profiler::new_heap();
+    let profiler_path = PathBuf::from(std::env::var("AC_PROFILING_PATH").unwrap());
+    #[cfg(feature = "dhat-heap")]
+    let _profiler = dhat::Profiler::builder().file_name(profiler_path).build();
+
     #[cfg(feature = "dhat-ad-hoc")]
     let _profiler = dhat::Profiler::new_ad_hoc();
 
