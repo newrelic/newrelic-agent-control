@@ -156,3 +156,6 @@ multiple-instances = []
 disable-asroot = []
 dhat-heap = ["dep:dhat"]   # to perform heap profiling
 dhat-ad-hoc = ["dep:dhat"] # to perform ad hoc profiling
+
+[profile.release]
+debug = 2
