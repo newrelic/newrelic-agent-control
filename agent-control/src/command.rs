@@ -166,13 +166,16 @@ impl Command {
             }
             None => {
                 // For backward compatibility, default to Run command using flattened args
-                Command::run(
+                let run_ac = Command::run(
                     running_mode,
                     main_fn,
                     &parsed.args,
                     #[cfg(target_os = "windows")]
                     as_windows_service,
-                )
+                );
+                #[cfg(feature = "dhat-heap")]
+                println!("DHAT PROFILING ACTIVE - FINISHED");
+                run_ac
             }
         }
     }
