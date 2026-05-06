@@ -3,6 +3,12 @@ name: Post-Release Agent Metadata Upload
 on:
   release:
     types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to upload (e.g. 1.13.0)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -16,15 +22,85 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+
+      - name: Download release artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+        run: |
+          echo "Downloading agent-control release artifacts for version ${VERSION}"
+          gh release download "${VERSION}" \
+            --repo newrelic/newrelic-agent-control \
+            --pattern "newrelic-agent-control_${VERSION}_linux_amd64.tar.gz" \
+            --pattern "newrelic-agent-control_${VERSION}_linux_arm64.tar.gz" \
+            --pattern "newrelic-agent-control_${VERSION}_windows_amd64.zip"
+          echo "Downloaded artifacts:"
+          ls -lh newrelic-agent-control_${VERSION}_*
+
+      - name: Repackage archives
+        env:
+          VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+        run: |
+          echo "Repackaging archives to keep only the binary"
+          mkdir -p /tmp/artifacts
+
+          echo "Processing linux_amd64..."
+          mkdir -p /tmp/extract_amd64
+          tar -xzf "newrelic-agent-control_${VERSION}_linux_amd64.tar.gz" -C /tmp/extract_amd64
+          tar -czf "/tmp/artifacts/linux_amd64.tar.gz" -C /tmp/extract_amd64 newrelic-agent-control
+          rm -rf /tmp/extract_amd64
+
+          echo "Processing linux_arm64..."
+          mkdir -p /tmp/extract_arm64
+          tar -xzf "newrelic-agent-control_${VERSION}_linux_arm64.tar.gz" -C /tmp/extract_arm64
+          tar -czf "/tmp/artifacts/linux_arm64.tar.gz" -C /tmp/extract_arm64 newrelic-agent-control
+          rm -rf /tmp/extract_arm64
+
+          echo "Processing windows_amd64..."
+          mkdir -p /tmp/extract_win
+          unzip -q "newrelic-agent-control_${VERSION}_windows_amd64.zip" -d /tmp/extract_win
+          cd /tmp/extract_win && zip -q "/tmp/artifacts/windows_amd64.zip" newrelic-agent-control.exe
+          cd -
+          rm -rf /tmp/extract_win
+
+          echo "Repackaged artifacts:"
+          ls -lh /tmp/artifacts/
 
       - name: Upload agent metadata to New Relic
         uses: newrelic/agent-metadata-action@35f8e4ce08e08eaa070ec7a7630ec065d0032694 #v1.0.8
         with:
           agent-type: NRAgentControl
-          version: ${{ github.event.release.tag_name }}
-          git-ref: ${{ github.event.release.tag_name }}
+          version: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+          git-ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
           newrelic-client-id: ${{ secrets.AC_NEWRELIC_CLIENT_ID }}
           newrelic-private-key: ${{ secrets.AC_NEWRELIC_PRIVATE_KEY }}
           # shared newrelic key to instrument the go binary used in the action
           apm-control-nr-license-key: ${{ secrets.APM_CONTROL_NR_LICENSE_KEY }}
+          oci-registry: ${{ secrets.OCI_REGISTRY }}
+          oci-username: ${{ secrets.OCI_USERNAME }}
+          oci-password: ${{ secrets.OCI_PASSWORD }}
+          binaries: |
+            [
+              {
+                "name": "newrelic-agent-control-linux-amd64",
+                "path": "/tmp/artifacts/linux_amd64.tar.gz",
+                "os": "linux",
+                "arch": "amd64",
+                "format": "tar+gzip"
+              },
+              {
+                "name": "newrelic-agent-control-linux-arm64",
+                "path": "/tmp/artifacts/linux_arm64.tar.gz",
+                "os": "linux",
+                "arch": "arm64",
+                "format": "tar+gzip"
+              },
+              {
+                "name": "newrelic-agent-control-windows-amd64",
+                "path": "/tmp/artifacts/windows_amd64.zip",
+                "os": "windows",
+                "arch": "amd64",
+                "format": "zip"
+              }
+            ]
