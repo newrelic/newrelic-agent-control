@@ -20,7 +20,7 @@ fn main() -> ExitCode {
     #[cfg(feature = "dhat-heap")]
     println!("DHAT PROFILING ACTIVE");
     #[cfg(feature = "dhat-heap")]
-    let profiler_path = PathBuf::from(std::env::var("AC_PROFILING_PATH").unwrap());
+    let profiler_path = std::env::var("AC_PROFILING_PATH").unwrap();
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::builder().file_name(profiler_path).build();
 
