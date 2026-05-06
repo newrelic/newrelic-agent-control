@@ -7,11 +7,10 @@
 use newrelic_agent_control::agent_control::run::AgentControlRunner;
 use newrelic_agent_control::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
 use newrelic_agent_control::command::{Command, Context};
-use std::error::Error;
 #[cfg(feature = "dhat-heap")]
-use std::path::PathBuf;
+use newrelic_agent_control::command::{dhat_init, dhat_write};
+use std::error::Error;
 use std::process::ExitCode;
-use std::time::Duration;
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]
@@ -21,9 +20,11 @@ fn main() -> ExitCode {
     #[cfg(feature = "dhat-heap")]
     println!("DHAT PROFILING ACTIVE");
     #[cfg(feature = "dhat-heap")]
-    let profiler_path = std::env::var("AC_PROFILING_PATH").unwrap();
-    #[cfg(feature = "dhat-heap")]
-    let _profiler = dhat::Profiler::builder().file_name(profiler_path).build();
+    {
+        let profiler_path = std::env::var("AC_PROFILING_PATH").unwrap();
+        let profiler = dhat::Profiler::builder().file_name(profiler_path).build();
+        dhat_init(profiler);
+    }
 
     #[cfg(feature = "dhat-ad-hoc")]
     let _profiler = dhat::Profiler::new_ad_hoc();
@@ -33,17 +34,9 @@ fn main() -> ExitCode {
     #[cfg(target_family = "windows")]
     let result = Command::execute(AGENT_CONTROL_MODE_K8S, _main, false);
 
+    // Fallback: write profile if SIGTERM handler didn't already (e.g. clean exit or SIGINT).
     #[cfg(feature = "dhat-heap")]
-    eprintln!("DHAT: execute returned, dropping profiler");
-    #[cfg(feature = "dhat-heap")]
-    drop(_profiler);
-    #[cfg(feature = "dhat-heap")]
-    eprintln!("DHAT: profiler drop complete");
-
-    for i in 1..=60 {
-        eprintln!("Counting before quitting... {i}");
-        std::thread::sleep(Duration::from_secs(1));
-    }
+    dhat_write();
 
     result
 }

@@ -346,6 +346,30 @@ impl Command {
     }
 }
 
+#[cfg(feature = "dhat-heap")]
+static DHAT_PROFILER: std::sync::OnceLock<std::sync::Mutex<Option<dhat::Profiler>>> =
+    std::sync::OnceLock::new();
+
+/// Stores the dhat profiler in a global so it can be dropped from the signal handler.
+#[cfg(feature = "dhat-heap")]
+pub fn dhat_init(profiler: dhat::Profiler) {
+    let _ = DHAT_PROFILER.set(std::sync::Mutex::new(Some(profiler)));
+}
+
+/// Writes the dhat heap profile by dropping the profiler. Idempotent via Option::take().
+#[cfg(feature = "dhat-heap")]
+pub fn dhat_write() {
+    if let Some(mutex) = DHAT_PROFILER.get() {
+        if let Ok(mut guard) = mutex.lock() {
+            if let Some(p) = guard.take() {
+                eprintln!("DHAT: writing profile");
+                drop(p);
+                eprintln!("DHAT: profile written");
+            }
+        }
+    }
+}
+
 /// Enables using the typical keypress (Ctrl-C) to stop the agent control process at any moment.
 ///
 /// This means sending [ApplicationEvent::StopRequested] to the agent control event processor
@@ -355,6 +379,8 @@ fn create_shutdown_signal_handler(
 ) -> Result<(), ctrlc::Error> {
     ctrlc::set_handler(move || {
         info!("Received SIGINT (Ctrl-C). Stopping agent control");
+        #[cfg(feature = "dhat-heap")]
+        dhat_write();
         let _ = publisher
             .publish(ApplicationEvent::StopRequested)
             .inspect_err(|e| error!("Could not send agent control stop request: {}", e));
