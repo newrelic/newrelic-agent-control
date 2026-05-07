@@ -172,8 +172,11 @@ jobs:
             fleet-control-api \
             --fleet-id "${FLEET_ID}" \
             --fleet-control-token "${{ steps.get-token.outputs.token }}" \
-            --fleet-type "k8s-fleet" \
-            --test-suite "DeploymentServicesTestSuite"
+            --include-test-tag "FLEET_DEPLOYMENT_REMOTE" \
+            --test-scenario "ManagedEntityIsConnectedRemote" \
+            --test-scenario "DeployValidConfigurationsRemote" \
+            --test-scenario "DeployInvalidConfigurationsRemote" \
+            --test-scenario "DeployMultipleConfigsRemote"
 
       - name: Collect logs on failure
         if: failure()
