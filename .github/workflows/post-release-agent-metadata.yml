@@ -30,41 +30,19 @@ jobs:
           VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
         run: |
           echo "Downloading agent-control release artifacts for version ${VERSION}"
+          
           gh release download "${VERSION}" \
             --repo newrelic/newrelic-agent-control \
-            --pattern "newrelic-agent-control_${VERSION}_linux_amd64.tar.gz" \
-            --pattern "newrelic-agent-control_${VERSION}_linux_arm64.tar.gz" \
-            --pattern "newrelic-agent-control_${VERSION}_windows_amd64.zip"
-          echo "Downloaded artifacts:"
-          ls -lh newrelic-agent-control_${VERSION}_*
+            --pattern "newrelic-agent-control_${VERSION}_linux_amd64_oci.tar.gz" \
+            --pattern "newrelic-agent-control_${VERSION}_linux_arm64_oci.tar.gz" \
+            --pattern "newrelic-agent-control_${VERSION}_windows_amd64_oci.zip"
 
-      - name: Repackage archives
-        env:
-          VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
-        run: |
-          echo "Repackaging archives to keep only the binary"
           mkdir -p /tmp/artifacts
-
-          echo "Processing linux_amd64..."
-          mkdir -p /tmp/extract_amd64
-          tar -xzf "newrelic-agent-control_${VERSION}_linux_amd64.tar.gz" -C /tmp/extract_amd64
-          tar -czf "/tmp/artifacts/linux_amd64.tar.gz" -C /tmp/extract_amd64 newrelic-agent-control
-          rm -rf /tmp/extract_amd64
-
-          echo "Processing linux_arm64..."
-          mkdir -p /tmp/extract_arm64
-          tar -xzf "newrelic-agent-control_${VERSION}_linux_arm64.tar.gz" -C /tmp/extract_arm64
-          tar -czf "/tmp/artifacts/linux_arm64.tar.gz" -C /tmp/extract_arm64 newrelic-agent-control
-          rm -rf /tmp/extract_arm64
-
-          echo "Processing windows_amd64..."
-          mkdir -p /tmp/extract_win
-          unzip -q "newrelic-agent-control_${VERSION}_windows_amd64.zip" -d /tmp/extract_win
-          cd /tmp/extract_win && zip -q "/tmp/artifacts/windows_amd64.zip" newrelic-agent-control.exe
-          cd -
-          rm -rf /tmp/extract_win
-
-          echo "Repackaged artifacts:"
+          mv "newrelic-agent-control_${VERSION}_linux_amd64_oci.tar.gz" "/tmp/artifacts/linux_amd64.tar.gz"
+          mv "newrelic-agent-control_${VERSION}_linux_arm64_oci.tar.gz" "/tmp/artifacts/linux_arm64.tar.gz"
+          mv "newrelic-agent-control_${VERSION}_windows_amd64_oci.zip" "/tmp/artifacts/windows_amd64.zip"
+          
+          echo "Downloaded artifacts:"
           ls -lh /tmp/artifacts/
 
       - name: Upload agent metadata to New Relic
