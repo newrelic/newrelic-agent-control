@@ -51,7 +51,7 @@ pub enum K8sError {
     #[error("failed to convert yaml value: {0}")]
     FailedToConvertValue(#[from] serde_json::Error),
     #[error("failed to serialize yaml: {0}")]
-    FailedToSerializeYaml(#[from] serde_saphyr::ser::Error),
+    FailedToSerializeYaml(#[from] serde_saphyr::ser::Error), // codespell:ignore ser
 
     #[error("reflectors not initialized")]
     ReflectorsNotInitialized,

@@ -29,7 +29,7 @@ pub enum MigratorError {
     #[error("converting configuration values: {0}")]
     ValueConversion(#[from] serde_json::Error),
     #[error("serialization error: {0}")]
-    Serialization(#[from] serde_saphyr::ser::Error),
+    Serialization(#[from] serde_saphyr::ser::Error), // codespell:ignore ser
 
     #[error("error persisting values file: {0}")]
     PersistError(io::Error),
