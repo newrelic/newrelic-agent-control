@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
-use tracing::{debug, error, info, warn};
+use tracing::{Level, debug, error, info, warn};
 
 /// Request body sent to the Fleet Control test runner to trigger a test suite.
 #[derive(Debug, Default, Serialize)]
@@ -172,6 +172,13 @@ fn trigger_fleet_control_tests(
     info!("Triggering Fleet Control tests for fleet ID: {}", fleet_id);
 
     debug!(payload = ?request_body, "Sending request");
+
+    if tracing::enabled!(Level::TRACE) {
+        let payload_json = serde_json::to_string_pretty(&request_body)
+            .unwrap_or("Failed to serialize payload into JSON".to_string());
+        tracing::trace!(payload_json);
+    }
+
     let response = client
         .post(url.as_ref())
         .bearer_auth(token)
