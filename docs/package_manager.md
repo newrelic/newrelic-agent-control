@@ -218,6 +218,39 @@ sequenceDiagram
 
 What happens during a key rotation? It depends on the specific use case. AC tries to verify every signature in the signature-manifest layers with every public key published for that package, this approach avoids downtimes on key rotation. Note that a non-revoked key must exist on the list, otherwise signature verification will fail.
 
+## Registry mirror support
+
+An OCI registry mirror is a copy of the New Relic registry where agent packages are stored. Its support is essential for:
+
+* Air-gapped environments: where production servers have no access to the public internet (the default registry is not reachable).
+* Local development: to speed up testing without needing to fetch packages remotely.
+* Network efficiency: to reduce bandwidth usage in large-scale deployments.
+
+Agent Control supports registry mirrors by setting them up in the corresponding [configuration section](./CONFIG.md#oci).
+
+### Registry mirrors and key rotation
+
+Considering the [key rotation](#key-rotation) timeline:
+
+1. New Key is Added: When New Relic introduces a new signing key (Key B), the public part of it is added to the JWKS file. The old key (Key A) is not immediately removed. The JWKS now contains both Key A and Key B.
+
+2. New signatures are created: All agent packages are signed with Key B resulting in new artifacts.
+
+3. Seamless Verification:
+   - When verifying a package (signed with Key A only), Agent Control tries Key B (fails) and then tries Key A (succeeds). Verification passes.
+   - When verifying a new package (signed with Key A and Key B), Agent Control tries Key B and it succeeds immediately.
+
+4. Old Key is Retired: After a safe transition period, the old Key A is removed from the public JWKS file.
+
+In order to ensure that Agent Control can always use packages from your mirror, even after a key rotation, your mirroring infrastructure must satisfy two fundamental requirements at the moment of verification.
+
+1. Availability of the public keys: the public key urls need to be reachable from the host where Agent Control is installed.
+
+2. Your mirror must store and serve the original, unaltered agent package and its corresponding signature artifact as they were published by New Relic.
+   - This includes the new signatures published in the event of key rotation.
+
+If these requirements cannot be met, it is possible (although not recommended) to disable signature verification for Agent Control through the corresponding [configuration field](CONFIG.md#agent_packages).
+
 ## Garbage collection
 
 AC keeps track of the latest installed package. Each install operation executes an old package purge operation, which retains the latest tracked package (i.e. package currently running) and the new installed package. You can think of it like a FIFO with size 2. 
