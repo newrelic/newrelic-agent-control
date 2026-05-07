@@ -185,16 +185,26 @@ fn trigger_fleet_control_tests(
         .json(&request_body)
         .send()?;
 
-    let status = response.status();
-    if status.is_success() {
-        let run_id = response.json::<TriggerTestResponse>()?.test_run_id;
-        info!("✅ Successfully triggered test suite (HTTP 200). Run ID: {run_id}");
-        Ok(run_id)
-    } else {
-        let error_body = response
-            .text()
-            .unwrap_or_else(|_| "Unable to read response".to_string());
-        Err(format!("❌ Failed with HTTP {status}. Response: {error_body}").into())
+    match response.status().as_u16() {
+        status @ 200 => {
+            let run_id = response.json::<TriggerTestResponse>()?.test_run_id;
+            info!("✅ Successfully triggered test suite (HTTP {status}). Run ID: {run_id}");
+            Ok(run_id)
+        }
+        status @ 450 => {
+            let error_body = response
+                .text()
+                .unwrap_or_else(|_| "Unable to read response".to_string());
+            let message = format!("⚠️ No tests triggered (HTTP {status}). Response: {error_body}");
+            warn!("{message}");
+            Err(message.into())
+        }
+        status => {
+            let error_body = response
+                .text()
+                .unwrap_or_else(|_| "Unable to read response".to_string());
+            Err(format!("❌ Failed with HTTP {status}. Response: {error_body}").into())
+        }
     }
 }
 
