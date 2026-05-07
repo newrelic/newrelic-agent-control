@@ -258,22 +258,25 @@ impl DynamicObjectManagers {
 /// object `from_manifest` can be different from the object `from_cluster` and still have equivalent
 /// content. Metadata is not considered.
 ///
+/// Supported object types:
+/// - `Secret`: compares `data` fields with secret-aware equality.
+/// - `ConfigMap`: compares `data` fields.
+/// - Any other object: compares `spec` fields.
+///
 /// # Arguments
 ///
 /// * `from_manifest` - DynamicObject representing manifest that can be applied to the cluster.
 /// * `from_cluster` - DynamicObject representing an object read from the cluster.
 fn object_contents_are_equal(from_manifest: &DynamicObject, from_cluster: &DynamicObject) -> bool {
-    // Compare Secrets data
-    if from_manifest
+    match from_manifest
         .types
         .as_ref()
-        .is_some_and(|t| t.api_version == "v1" && t.kind == "Secret")
+        .map(|t| (t.api_version.as_str(), t.kind.as_str()))
     {
-        return secrets_data_are_equal(from_manifest, from_cluster);
+        Some(("v1", "Secret")) => secrets_data_are_equal(from_manifest, from_cluster),
+        Some(("v1", "ConfigMap")) => configmaps_data_are_equal(from_manifest, from_cluster),
+        _ => from_manifest.data["spec"] == from_cluster.data["spec"],
     }
-    // Compare any other object
-    // TODO: consider support for particular objects only and validate object type meta when agent-types are defined.
-    from_manifest.data["spec"] == from_cluster.data["spec"]
 }
 
 /// This function checks if the data of the two DynamicObjects with underlying secrets are the same.
@@ -309,126 +312,87 @@ fn secrets_data_are_equal(from_manifest: &DynamicObject, from_cluster: &DynamicO
     }
 }
 
+/// Checks if the data of two DynamicObjects representing ConfigMaps are equal, comparing
+/// both the `data` (plain string key-value pairs) and `binaryData` fields.
+fn configmaps_data_are_equal(from_manifest: &DynamicObject, from_cluster: &DynamicObject) -> bool {
+    from_manifest.data["data"] == from_cluster.data["data"]
+        && from_manifest.data["binaryData"] == from_cluster.data["binaryData"]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use kube::api::ObjectMeta;
+    use rstest::rstest;
     use serde_json::json;
 
-    #[test]
-    fn test_secrets_data_are_equal() {
-        #[derive(Default)]
-        struct TestCase {
-            name: &'static str,
-            equal: bool,
-            manifest_string_data: serde_json::Value,
-            manifest_data: serde_json::Value,
-            cluster_data: serde_json::Value,
-        }
+    #[rstest]
+    #[case::empty(json!(null), json!(null), json!(null), true)]
+    #[case::empty_data(json!(null), json!(null), json!({"key": "dmFsdWU="}), false)]
+    #[case::string_data_empty(json!({"key": "value"}), json!(null), json!(null), false)]
+    #[case::data_empty(json!(null), json!({"key": "dmFsdWU="}), json!(null), false)]
+    #[case::both_empty(json!({"another key": "another value"}), json!({"key": "dmFsdWU="}), json!(null), false)]
+    #[case::extra_key_in_manifest(json!({"different key": "value", "key": "value"}), json!(null), json!({"key": "dmFsdWU="}), false)]
+    #[case::same_keys_different_content(json!({"key": "different value"}), json!(null), json!({"key": "dmFsdWU="}), false)]
+    #[case::equal_only_string_data(json!({"key": "value", "another key": "another value"}), json!(null), json!({"key": "dmFsdWU=", "another key": "YW5vdGhlciB2YWx1ZQ=="}), true)]
+    #[case::equal_only_data(json!(null), json!({"key": "dmFsdWU=", "another key": "YW5vdGhlciB2YWx1ZQ=="}), json!({"key": "dmFsdWU=", "another key": "YW5vdGhlciB2YWx1ZQ=="}), true)]
+    #[case::equal_combination(json!({"another key": "another value"}), json!({"key": "dmFsdWU="}), json!({"key": "dmFsdWU=", "another key": "YW5vdGhlciB2YWx1ZQ=="}), true)]
+    fn test_secrets_data_are_equal(
+        #[case] manifest_string_data: serde_json::Value,
+        #[case] manifest_data: serde_json::Value,
+        #[case] cluster_data: serde_json::Value,
+        #[case] expected: bool,
+    ) {
+        let type_meta = TypeMeta {
+            api_version: "v1".into(),
+            kind: "Secret".into(),
+        };
+        let from_manifest = DynamicObject {
+            types: Some(type_meta.clone()),
+            metadata: ObjectMeta::default(),
+            data: json!({"stringData": manifest_string_data, "data": manifest_data}),
+        };
+        let from_cluster = DynamicObject {
+            types: Some(type_meta),
+            metadata: ObjectMeta::default(),
+            data: json!({"data": cluster_data}),
+        };
+        assert_eq!(
+            secrets_data_are_equal(&from_manifest, &from_cluster),
+            expected
+        );
+    }
 
-        impl TestCase {
-            fn run(self) {
-                let type_meta = TypeMeta {
+    #[rstest]
+    #[case::both_empty(json!({}), json!({}), json!({}), json!({}), true)]
+    #[case::matching_data(json!({"key": "value"}), json!({}), json!({"key": "value"}), json!({}), true)]
+    #[case::matching_binary_data(json!({}), json!({"key": "dmFsdWU="}), json!({}), json!({"key": "dmFsdWU="}), true)]
+    #[case::data_value_differs(json!({"key": "value"}), json!({}), json!({"key": "other"}), json!({}), false)]
+    #[case::data_key_missing_in_cluster(json!({"key": "value"}), json!({}), json!({}), json!({}), false)]
+    #[case::binary_data_differs(json!({}), json!({"key": "dmFsdWU="}), json!({}), json!({"key": "b3RoZXI="}), false)]
+    fn test_configmap_data_are_equal(
+        #[case] manifest_data: serde_json::Value,
+        #[case] manifest_binary_data: serde_json::Value,
+        #[case] cluster_data: serde_json::Value,
+        #[case] cluster_binary_data: serde_json::Value,
+        #[case] expected: bool,
+    ) {
+        let make_configmap =
+            |data: serde_json::Value, binary_data: serde_json::Value| DynamicObject {
+                types: Some(TypeMeta {
                     api_version: "v1".into(),
-                    kind: "Secret".into(),
-                };
-                let from_manifest = DynamicObject {
-                    types: Some(type_meta.clone()),
-                    metadata: ObjectMeta {
-                        name: Some(self.name.to_string()),
-                        ..Default::default()
-                    },
-                    data: json!({"stringData": self.manifest_string_data, "data": self.manifest_data}),
-                };
-                let from_cluster = DynamicObject {
-                    types: Some(type_meta),
-                    metadata: ObjectMeta {
-                        name: Some(self.name.to_string()),
-                        ..Default::default()
-                    },
-                    data: json!({"data": self.cluster_data}),
-                };
-                assert_eq!(
-                    secrets_data_are_equal(&from_manifest, &from_cluster),
-                    self.equal,
-                    "Test '{}' failed (expected equal {})\n - From manifest: string_data: {:?}, data: {:?}\n - From cluster: {:?}",
-                    self.name,
-                    self.equal,
-                    self.manifest_string_data,
-                    self.manifest_data,
-                    self.cluster_data,
-                );
-            }
-        }
+                    kind: "ConfigMap".into(),
+                }),
+                metadata: ObjectMeta::default(),
+                data: json!({"data": data, "binaryData": binary_data}),
+            };
 
-        let test_cases = [
-            TestCase {
-                name: "Empty",
-                equal: true,
-                ..Default::default()
-            },
-            TestCase {
-                name: "empty - data",
-                equal: false,
-                cluster_data: json!({"key": "dmFsdWU="}), // "value" base64 encoded
-                ..Default::default()
-            },
-            TestCase {
-                name: "string_data - empty",
-                equal: false,
-                manifest_string_data: json!({"key": "value"}),
-                ..Default::default()
-            },
-            TestCase {
-                name: "data - empty",
-                equal: false,
-                manifest_data: json!({"key": "dmFsdWU="}), // "value" base64 encoded
-                ..Default::default()
-            },
-            TestCase {
-                name: "both - empty",
-                equal: false,
-                manifest_string_data: json!({"another key": "another value"}),
-                manifest_data: json!({"key": "dmFsdWU="}), // "value" base64 encoded
-                ..Default::default()
-            },
-            TestCase {
-                name: "Not equal: extra key in manifest",
-                equal: false,
-                manifest_string_data: json!({"different key": "value", "key": "value"}),
-                cluster_data: json!({"key": "dmFsdWU="}), // "value" base64 encoded
-                ..Default::default()
-            },
-            TestCase {
-                name: "Not equal: same keys different content",
-                equal: false,
-                manifest_string_data: json!({"key": "different value"}),
-                cluster_data: json!({"key": "dmFsdWU="}), // "value" base64 encoded
-                ..Default::default()
-            },
-            TestCase {
-                name: "Equal: only string data",
-                equal: true,
-                manifest_string_data: json!({"key": "value", "another key": "another value"}),
-                cluster_data: json!({"key": "dmFsdWU=", "another key": "YW5vdGhlciB2YWx1ZQ=="}), // "value" and "another value" base64 encoded
-                ..Default::default()
-            },
-            TestCase {
-                name: "Equal: only data",
-                equal: true,
-                manifest_data: json!({"key": "dmFsdWU=", "another key": "YW5vdGhlciB2YWx1ZQ=="}), // "value" and "another value" base64 encoded
-                cluster_data: json!({"key": "dmFsdWU=", "another key": "YW5vdGhlciB2YWx1ZQ=="}),
-                ..Default::default()
-            },
-            TestCase {
-                name: "Equal: combination",
-                equal: true,
-                manifest_data: json!({"key": "dmFsdWU="}),
-                manifest_string_data: json!({"another key": "another value"}),
-                cluster_data: json!({"key": "dmFsdWU=", "another key": "YW5vdGhlciB2YWx1ZQ=="}), // "value" and "another value" base64 encoded
-            },
-        ];
-
-        test_cases.into_iter().for_each(|tc| tc.run());
+        assert_eq!(
+            configmaps_data_are_equal(
+                &make_configmap(manifest_data, manifest_binary_data),
+                &make_configmap(cluster_data, cluster_binary_data),
+            ),
+            expected
+        );
     }
 }
