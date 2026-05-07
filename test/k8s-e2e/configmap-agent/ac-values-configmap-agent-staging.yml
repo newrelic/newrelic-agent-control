@@ -1,0 +1,3 @@
+# Region-specific overrides for Staging (infra scenario)
+global:
+  nrStaging: true

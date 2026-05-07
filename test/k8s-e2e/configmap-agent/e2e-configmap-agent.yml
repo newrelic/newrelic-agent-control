@@ -1,0 +1,39 @@
+description: E2E Test - PCG ConfigMap agent type
+
+custom_test_key: cluster_name
+
+scenarios:
+  - description: Deploy PCG configmap agent and verify ConfigMap is created with provided config and PCG running
+    before:
+      - echo The cluster name of the test is ${SCENARIO_TAG}
+      # Build AC binary and load image directly into minikube's docker registry
+      - cd ../../../ && make BUILD_MODE=release ARCH=amd64 build-agent-control-k8s
+      - cd ../../../ && eval $(minikube docker-env) && docker build -f Dockerfiles/Dockerfile_agent_control -t agent-control-dev:e2e-test .
+      # Setup namespaces and auth secret
+      - kubectl create namespace newrelic --dry-run=client -o yaml | kubectl apply -f -
+      - kubectl create namespace newrelic-agents --dry-run=client -o yaml | kubectl apply -f -
+      - openssl genpkey -algorithm Ed25519 -out /tmp/ac-private-key.pem
+      - kubectl create secret generic agent-control-auth --from-file=private_key=/tmp/ac-private-key.pem -n newrelic
+      # Clone the helm-charts feature branch FEATURE_BRANCH that can be overridden at runtime; defaults to master.
+      - git clone --depth=1 https://github.com/newrelic/helm-charts --branch "${FEATURE_BRANCH:-master}" /tmp/helm-charts-tmp
+      # Install agent-control-deployment from the local clone
+      - cd ../../../ && helm install agent-control /tmp/helm-charts-tmp/charts/agent-control-deployment --namespace newrelic --set global.licenseKey=${LICENSE_KEY} --set global.cluster=${SCENARIO_TAG} --set image.repository=agent-control-dev --set image.tag=e2e-test --set image.pullPolicy=Never --values test/k8s-e2e/configmap-agent/ac-values-configmap-agent.yml --values test/k8s-e2e/configmap-agent/ac-values-configmap-agent-staging.yml --dependency-update --wait --timeout 5m
+      # Wait for AC to create the ConfigMap via the pipeline_control_gateway_config agent type
+      - timeout 120 bash -c 'until kubectl get configmap pcg-otel-config -n newrelic-agents 2>/dev/null; do sleep 5; done'
+      # Install pipeline-control-gateway from the public chart, pointing it at the ConfigMap AC created
+      - helm repo add newrelic https://helm-charts.newrelic.com && helm repo update
+      - helm install pcg newrelic/pipeline-control-gateway --namespace newrelic-agents --set global.licenseKey=${LICENSE_KEY} --set global.cluster=${SCENARIO_TAG} --set deployment.customConfigMap=pcg-otel-config --set autoscaling.minReplicas=1 --set autoscaling.maxReplicas=1 --set deployment.resources.requests.memory=256Mi --set deployment.resources.requests.cpu=100m --set deployment.resources.limits.memory=512Mi --set deployment.resources.limits.cpu=500m --wait --timeout 5m
+    after:
+      - kubectl logs --tail=-1 -l app.kubernetes.io/name=agent-control --all-containers --prefix=true -n newrelic
+      - kubectl get configmap -n newrelic-agents --show-labels
+      - kubectl get all -o wide --all-namespaces --show-labels
+      - helm uninstall pcg -n newrelic-agents || true
+      - helm uninstall agent-control -n newrelic || true
+    tests:
+      scripts:
+        # Check the config content was written under the expected key.
+        - kubectl get configmap pcg-otel-config -n newrelic-agents -o jsonpath='{.data.deployment-config\.yaml}' | grep "otlp"
+        # Check the pipeline-control-gateway deployment is running and all replicas are ready.
+        - kubectl rollout status deployment/pipeline-control-gateway -n newrelic-agents --timeout=60s
+        # Check the deployment is configured to use the pcg-otel-config ConfigMap as its config source.
+        - kubectl get deployment pipeline-control-gateway -n newrelic-agents -o yaml | grep pcg-otel-config
