@@ -45,7 +45,7 @@ struct AgentControlEffectiveConfig {
     // Using Option since local 'agents' config could be set from env vars,
     // and this should not be a failure scenario.
     #[serde(skip_serializing_if = "Option::is_none")]
-    agents: Option<serde_yaml::Value>,
+    agents: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     chart_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -69,7 +69,7 @@ impl TryFrom<YAMLConfig> for AgentControlEffectiveConfig {
             ))
         })?;
 
-        let effective_config = serde_yaml::from_str(&config_string).map_err(|err| {
+        let effective_config = serde_saphyr::from_str(&config_string).map_err(|err| {
             AgentControlEffectiveConfigError::Conversion(format!(
                 "converting effective config: {err}"
             ))
@@ -116,7 +116,7 @@ where
         let effective_config = ConfigurationMap::new(HashMap::from([(
             // OpAMP effective config expects an empty key whenever there is only one config for an agent.
             String::from(""),
-            serde_yaml::to_string(&dynamic_config).map_err(|err| {
+            serde_saphyr::to_string(&dynamic_config).map_err(|err| {
                 LoaderError::from(format!(
                     "serializing {} effective config: {}",
                     &self.agent_id, err
@@ -227,8 +227,8 @@ agents:
             },
             TestCase {
                 name: "effective config uses raw serialization",
-                yaml_config: "agents: any serde_yaml value could be here",
-                expected_config: "agents: any serde_yaml value could be here\n",
+                yaml_config: "agents: any serde_json value could be here",
+                expected_config: "agents: any serde_json value could be here\n",
             },
             TestCase {
                 name: "empty agets",

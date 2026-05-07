@@ -75,7 +75,7 @@ impl EmbeddedRegistry {
     fn definitions() -> impl Iterator<Item = AgentTypeDefinition> {
         AGENT_TYPE_REGISTRY_FILES.iter().map(|file_content_ref| {
             // Definitions in files are expected to be valid
-            serde_yaml::from_reader::<_, AgentTypeDefinition>(file_content_ref.to_owned())
+            serde_saphyr::from_reader::<_, AgentTypeDefinition>(file_content_ref.to_owned())
                 .expect("Invalid yaml in default agent types")
         })
     }
@@ -103,7 +103,7 @@ impl EmbeddedRegistry {
                     .ok()
                     .and_then(|content| {
                         debug!("Loading Dynamic Agent Type: {file:?}");
-                        serde_yaml::from_slice::<AgentTypeDefinition>(content.as_slice())
+                        serde_saphyr::from_slice::<AgentTypeDefinition>(content.as_slice())
                             .inspect_err(|e| error!(error = %e, "Could not parse Dynamic Agent Type: {file:?}"))
                             .ok()
                     })

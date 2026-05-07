@@ -47,7 +47,11 @@ pub enum K8sError {
     ParseDynamic(String, String),
 
     #[error("failed to parse yaml: {0}")]
-    FailedToParseYaml(#[from] serde_yaml::Error),
+    FailedToParseYaml(#[from] serde_saphyr::Error),
+    #[error("failed to convert yaml value: {0}")]
+    FailedToConvertValue(#[from] serde_json::Error),
+    #[error("failed to serialize yaml: {0}")]
+    FailedToSerializeYaml(#[from] serde_saphyr::ser::Error),
 
     #[error("reflectors not initialized")]
     ReflectorsNotInitialized,

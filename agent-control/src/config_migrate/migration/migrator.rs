@@ -24,8 +24,12 @@ pub enum MigratorError {
     #[error("{0}")]
     AgentControlConfigError(#[from] AgentControlConfigError),
 
-    #[error("configuration is not valid YAML: {0}")]
-    InvalidYamlConfiguration(#[from] serde_yaml::Error),
+    #[error("configuration is not valid: {0}")]
+    InvalidConfiguration(#[from] serde_saphyr::Error),
+    #[error("converting configuration values: {0}")]
+    ValueConversion(#[from] serde_json::Error),
+    #[error("serialization error: {0}")]
+    Serialization(#[from] serde_saphyr::ser::Error),
 
     #[error("error persisting values file: {0}")]
     PersistError(io::Error),
@@ -80,7 +84,7 @@ impl
             );
             match self.config_converter.convert(cfg) {
                 Ok(agent_variables) => {
-                    let values_content = serde_yaml::to_string(&agent_variables)?;
+                    let values_content = serde_saphyr::to_string(&agent_variables)?;
                     self.values_persister
                         .persist_values_file(&agent_id, values_content.as_str())
                         .map_err(MigratorError::PersistError)?;

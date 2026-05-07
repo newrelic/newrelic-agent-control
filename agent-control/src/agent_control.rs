@@ -1669,7 +1669,7 @@ chart_version: 0.0.2 # not actually used, we rely on a mock
 
         t.assert_stored_remote_config(|config| {
             assert_eq!(config.hash, opamp_remote_config.hash);
-            let expected_yaml_config = serde_yaml::from_str(remote_config).unwrap();
+            let expected_yaml_config = serde_saphyr::from_str(remote_config).unwrap();
             assert_eq!(config.config, expected_yaml_config);
             assert!(config.state.is_applied());
         });

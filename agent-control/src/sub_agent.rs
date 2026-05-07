@@ -945,7 +945,7 @@ pub mod tests {
         }
 
         fn agent_type_definition() -> AgentTypeDefinition {
-            serde_yaml::from_str(
+            serde_saphyr::from_str(
                 r#"
 name: default
 namespace: default
@@ -972,7 +972,7 @@ deployment:
         }
 
         fn agent_type_definition_with_required_var() -> AgentTypeDefinition {
-            serde_yaml::from_str(
+            serde_saphyr::from_str(
                 r#"
 name: default
 namespace: default

@@ -1,5 +1,5 @@
 //! This module provides the implementation of the `Templateable` trait for core and external types,
-//! such as `String` and `serde_yaml` structures. The `Templateable` trait enables templating by
+//! such as `String` and `serde_json` structures. The `Templateable` trait enables templating by
 //! replacing placeholders in content with values from a provided `Variables` map.
 //!
 //! The module also contains the logic for how these replacements are performed, including:
@@ -115,18 +115,16 @@ fn template_string(s: String, variables: &Variables) -> Result<String, AgentType
     Ok(render_result)
 }
 
-impl Templateable for serde_yaml::Value {
+impl Templateable for serde_json::Value {
     type Output = Self;
 
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_value = match self {
-            serde_yaml::Value::Mapping(m) => {
-                serde_yaml::Value::Mapping(m.template_with(variables)?)
+            serde_json::Value::Object(m) => serde_json::Value::Object(m.template_with(variables)?),
+            serde_json::Value::Array(seq) => {
+                serde_json::Value::Array(seq.template_with(variables)?)
             }
-            serde_yaml::Value::Sequence(seq) => {
-                serde_yaml::Value::Sequence(seq.template_with(variables)?)
-            }
-            serde_yaml::Value::String(st) => template_yaml_value_string(st, variables)?,
+            serde_json::Value::String(st) => template_yaml_value_string(st, variables)?,
             _ => self,
         };
 
@@ -134,7 +132,7 @@ impl Templateable for serde_yaml::Value {
     }
 }
 
-impl Templateable for serde_yaml::Mapping {
+impl Templateable for serde_json::Map<String, serde_json::Value> {
     type Output = Self;
 
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
@@ -144,7 +142,7 @@ impl Templateable for serde_yaml::Mapping {
     }
 }
 
-impl Templateable for serde_yaml::Sequence {
+impl Templateable for Vec<serde_json::Value> {
     type Output = Self;
 
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
@@ -154,7 +152,7 @@ impl Templateable for serde_yaml::Sequence {
     }
 }
 
-/// Templates yaml strings as [serde_yaml::Value].
+/// Templates yaml strings as [serde_json::Value].
 /// When all the string content is a variable template, the corresponding variable type is checked
 /// and the value is handled as needed. Otherwise, it is templated as a regular string. Example:
 ///
@@ -167,11 +165,11 @@ impl Templateable for serde_yaml::Sequence {
 fn template_yaml_value_string(
     s: String,
     variables: &Variables,
-) -> Result<serde_yaml::Value, AgentTypeError> {
+) -> Result<serde_json::Value, AgentTypeError> {
     // When there is more content than a variable template, template as a regular string.
     if !only_template_var_re().is_match(s.as_str()) {
         let templated = template_string(s, variables)?;
-        return Ok(serde_yaml::Value::String(templated));
+        return Ok(serde_json::Value::String(templated));
     }
     // Otherwise, template according to the variable type.
     let var_name = template_trim(s.as_str());
@@ -190,9 +188,10 @@ fn template_yaml_value_string(
                 ))
         }
         VariableType::Bool(_) | VariableType::Number(_) => {
-            serde_yaml::from_str(var_value.to_string().as_str()).map_err(AgentTypeError::SerdeYaml)
+            serde_saphyr::from_str(var_value.to_string().as_str())
+                .map_err(AgentTypeError::Serialization)
         }
-        _ => Ok(serde_yaml::Value::String(var_value.to_string())),
+        _ => Ok(serde_json::Value::String(var_value.to_string())),
     }
 }
 
@@ -202,7 +201,7 @@ mod tests {
     use crate::agent_type::variable::fields::Fields;
     use assert_matches::assert_matches;
     use rstest::rstest;
-    use serde_yaml::Number;
+    use serde_json::Number;
 
     #[rstest]
     #[case::multiline_indent_line("\nline1\nline2\n", "|indent 1", "\n line1\n line2\n ")]
@@ -280,7 +279,7 @@ mod tests {
                 Variable::new(String::default(), true, None, Some(Number::from(42))),
             ),
         ]);
-        let input: serde_yaml::Mapping = serde_yaml::from_str(
+        let input: serde_json::Map<String, serde_json::Value> = serde_saphyr::from_str(
             r#"
         a_string: "${nr-var:change.me.string}"
         a_boolean: "${nr-var:change.me.bool}"
@@ -292,7 +291,7 @@ mod tests {
         "#,
         )
         .unwrap();
-        let expected_output: serde_yaml::Mapping = serde_yaml::from_str(
+        let expected_output: serde_json::Map<String, serde_json::Value> = serde_saphyr::from_str(
             r#"
         a_string: "CHANGED-STRING ${UNTOUCHED}"
         a_boolean: true
@@ -330,7 +329,7 @@ mod tests {
                 Variable::new(String::default(), true, None, Some(Number::from(42))),
             ),
         ]);
-        let input: serde_yaml::Sequence = serde_yaml::from_str(
+        let input: Vec<serde_json::Value> = serde_saphyr::from_str(
             r#"
         - ${nr-var:change.me.string}
         - ${nr-var:change.me.bool}
@@ -340,7 +339,7 @@ mod tests {
         "#,
         )
         .unwrap();
-        let expected_output: serde_yaml::Sequence = serde_yaml::from_str(
+        let expected_output: Vec<serde_json::Value> = serde_saphyr::from_str(
             r#"
         - CHANGED-STRING ${UNTOUCHED}
         - true
@@ -381,9 +380,10 @@ mod tests {
                     String::default(),
                     true,
                     None,
-                    Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
-                        [("key".into(), "value".into())],
-                    ))),
+                    Some(serde_json::Value::Object(serde_json::Map::from_iter([(
+                        "key".into(),
+                        "value".into(),
+                    )]))),
                 ),
             ),
             (
@@ -392,12 +392,10 @@ mod tests {
                     String::default(),
                     true,
                     None,
-                    Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
-                        [(
-                            "map".into(),
-                            serde_yaml::Mapping::from_iter([("key".into(), "value".into())]).into(),
-                        )],
-                    ))),
+                    Some(serde_json::Value::Object(serde_json::Map::from_iter([(
+                        "map".into(),
+                        serde_json::Map::from_iter([("key".into(), "value".into())]).into(),
+                    )]))),
                 ),
             ),
             (
@@ -407,16 +405,14 @@ mod tests {
                     String::default(),
                     true,
                     None,
-                    Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
-                        [(
-                            "this.will.not.be.expanded".into(),
-                            "${nr-var:change.me.string}".into(),
-                        )],
-                    ))),
+                    Some(serde_json::Value::Object(serde_json::Map::from_iter([(
+                        "this.will.not.be.expanded".into(),
+                        "${nr-var:change.me.string}".into(),
+                    )]))),
                 ),
             ),
         ]);
-        let input: serde_yaml::Value = serde_yaml::from_str(
+        let input: serde_json::Value = serde_saphyr::from_str(
             r#"
         an_object:
             a_string: ${nr-var:change.me.string}
@@ -455,7 +451,7 @@ mod tests {
         "#,
         )
         .unwrap();
-        let expected_output: serde_yaml::Value = serde_yaml::from_str(
+        let expected_output: serde_json::Value = serde_saphyr::from_str(
             r#"
         an_object:
             a_string: "CHANGED-STRING ${UNTOUCHED}"
@@ -503,7 +499,7 @@ mod tests {
         )
         .unwrap();
 
-        let actual_output: serde_yaml::Value = input.template_with(&variables).unwrap();
+        let actual_output: serde_json::Value = input.template_with(&variables).unwrap();
         assert_eq!(actual_output, expected_output);
     }
 
@@ -534,7 +530,7 @@ mod tests {
                 name: "missing required value key",
                 variables: Variables::from([(
                     "nr-var:yaml".to_string(),
-                    Fields::<serde_yaml::Value>::new(true, None, None).into(),
+                    Fields::<serde_json::Value>::new(true, None, None).into(),
                 )]),
                 input: "${nr-var:yaml}",
                 assert_fn: |err| assert_matches!(err, AgentTypeError::MissingValue(_)),
@@ -543,7 +539,7 @@ mod tests {
                 name: "missing non-required key",
                 variables: Variables::from([(
                     "nr-var:yaml".to_string(),
-                    Fields::<serde_yaml::Value>::new(false, None, None).into(),
+                    Fields::<serde_json::Value>::new(false, None, None).into(),
                 )]),
                 input: "${nr-var:yaml}",
                 assert_fn: |err| assert_matches!(err, AgentTypeError::MissingValue(_)),
@@ -558,7 +554,7 @@ mod tests {
         struct TestCase {
             name: &'static str,
             variables: Variables,
-            expectations: Vec<(&'static str, serde_yaml::Value)>,
+            expectations: Vec<(&'static str, serde_json::Value)>,
         }
         impl TestCase {
             fn run(self) {
@@ -583,15 +579,15 @@ mod tests {
                 expectations: vec![
                     (
                         "${nr-var:simple.string.var}",
-                        serde_yaml::Value::String("Value".into()),
+                        serde_json::Value::String("Value".into()),
                     ),
                     (
                         "var=${nr-var:simple.string.var}",
-                        serde_yaml::Value::String("var=Value".into()),
+                        serde_json::Value::String("var=Value".into()),
                     ),
                     (
                         "${nr-var:simple.string.var}${nr-var:simple.string.var}",
-                        serde_yaml::Value::String("ValueValue".into()),
+                        serde_json::Value::String("ValueValue".into()),
                     ),
                 ],
             },
@@ -608,7 +604,7 @@ mod tests {
                 )]),
                 expectations: vec![(
                     "${nr-var:string.with.yaml.var}",
-                    serde_yaml::Value::String("[Value]".into()),
+                    serde_json::Value::String("[Value]".into()),
                 )],
             },
             TestCase {
@@ -618,10 +614,10 @@ mod tests {
                     Variable::new(String::default(), true, None, Some(true)),
                 )]),
                 expectations: vec![
-                    ("${nr-var:bool.var}", serde_yaml::Value::Bool(true)),
+                    ("${nr-var:bool.var}", serde_json::Value::Bool(true)),
                     (
                         "${nr-var:bool.var}${nr-var:bool.var}",
-                        serde_yaml::Value::String("truetrue".into()),
+                        serde_json::Value::String("truetrue".into()),
                     ),
                 ],
             },
@@ -633,7 +629,7 @@ mod tests {
                 )]),
                 expectations: vec![(
                     "${nr-var:number.var}",
-                    serde_yaml::Value::Number(serde_yaml::Number::from(42i32)),
+                    serde_json::Value::Number(serde_json::Number::from(42i32)),
                 )],
             },
             TestCase {
@@ -660,11 +656,11 @@ mod tests {
                 expectations: vec![
                     (
                         r#"${nr-var:bool.var}${nr-var:number.var}"#,
-                        serde_yaml::Value::String("true42".into()),
+                        serde_json::Value::String("true42".into()),
                     ),
                     (
                         r#"the ${nr-var:number.var} ${nr-var:simple.string.var} is ${nr-var:bool.var}"#,
-                        serde_yaml::Value::String("the 42 Value is true".into()),
+                        serde_json::Value::String("the 42 Value is true".into()),
                     ),
                 ],
             },
@@ -676,22 +672,23 @@ mod tests {
                         String::default(),
                         true,
                         None,
-                        Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
-                            [("key".into(), "value".into())],
-                        ))),
+                        Some(serde_json::Value::Object(serde_json::Map::from_iter([(
+                            "key".into(),
+                            "value".into(),
+                        )]))),
                     ),
                 )]),
                 expectations: vec![
                     (
                         "${nr-var:yaml.var}",
-                        serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter([(
+                        serde_json::Value::Object(serde_json::Map::from_iter([(
                             "key".into(),
                             "value".into(),
                         )])),
                     ),
                     (
                         "x: ${nr-var:yaml.var}",
-                        serde_yaml::Value::String("x: key: value\n".into()), // FIXME? Consder if this is ok.
+                        serde_json::Value::String("x: key: value\n".into()), // FIXME? Consder if this is ok.
                     ),
                 ],
             },
@@ -702,15 +699,16 @@ mod tests {
                     Variable::new(
                         String::default(),
                         false,
-                        Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
-                            [("key".into(), "value".into())],
-                        ))),
+                        Some(serde_json::Value::Object(serde_json::Map::from_iter([(
+                            "key".into(),
+                            "value".into(),
+                        )]))),
                         None,
                     ),
                 )]),
                 expectations: vec![(
                     "${nr-var:yaml.var}",
-                    serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter([(
+                    serde_json::Value::Object(serde_json::Map::from_iter([(
                         "key".into(),
                         "value".into(),
                     )])),

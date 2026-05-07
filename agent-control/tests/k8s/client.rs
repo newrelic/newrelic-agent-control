@@ -480,7 +480,7 @@ async fn k8s_update_dynamic_resource() {
 
     cr.spec.data = "updated".to_string();
     let obj: DynamicObject =
-        serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
+        serde_saphyr::from_str(serde_saphyr::to_string(&cr).unwrap().as_str()).unwrap();
 
     let k8s_client = AsyncK8sClient::try_new().await.unwrap();
     k8s_client
@@ -520,7 +520,7 @@ async fn k8s_update_dynamic_resource_metadata() {
     cr.metadata.deletion_grace_period_seconds = Some(99);
 
     let obj: DynamicObject =
-        serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
+        serde_saphyr::from_str(serde_saphyr::to_string(&cr).unwrap().as_str()).unwrap();
     let k8s_client = AsyncK8sClient::try_new().await.unwrap();
     k8s_client
         .apply_dynamic_object(&obj)
@@ -580,7 +580,7 @@ async fn k8s_patch_dynamic_resource() {
         },
     };
     let obj: DynamicObject =
-        serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
+        serde_saphyr::from_str(serde_saphyr::to_string(&cr).unwrap().as_str()).unwrap();
     k8s_client.apply_dynamic_object(&obj).await.unwrap();
 
     let api: Api<Foo> = Api::namespaced(test.client.to_owned(), test_ns.as_str());
@@ -721,7 +721,7 @@ fn k8s_remove_crd_after_dynamic_resource_initialized() {
         },
     };
 
-    let dynamic_object = serde_yaml::from_value(serde_yaml::to_value(cr).unwrap()).unwrap();
+    let dynamic_object = serde_json::from_value(serde_json::to_value(cr).unwrap()).unwrap();
 
     // Applying the CRD object to the cluster could take some time, so we retry a few times.
     retry(10, Duration::from_secs(1), || {
@@ -771,7 +771,7 @@ fn k8s_remove_crd_after_dynamic_resource_initialized() {
         },
     };
 
-    let new_dyn_object = serde_yaml::from_value(serde_yaml::to_value(new_cr).unwrap()).unwrap();
+    let new_dyn_object = serde_json::from_value(serde_json::to_value(new_cr).unwrap()).unwrap();
 
     k8s_client
         .apply_dynamic_object(&new_dyn_object)
@@ -832,7 +832,7 @@ async fn k8s_client_does_not_hang_in_case_of_incomplete_message() {
     };
 
     let obj: DynamicObject =
-        serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
+        serde_saphyr::from_str(serde_saphyr::to_string(&cr).unwrap().as_str()).unwrap();
 
     for i in 1..100 {
         println!(

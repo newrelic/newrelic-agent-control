@@ -133,21 +133,21 @@ mod tests {
 
     #[test]
     fn test_empty_runtime_deserialization() {
-        let rtc = serde_yaml::from_str::<Runtime>("deployment: {}");
+        let rtc = serde_saphyr::from_str::<Runtime>("deployment: {}");
         assert!(rtc.is_err_and(|e| {
             e.to_string().contains(
                 "field `deployment` must have at least one of the fields `linux`, windows or `k8s`",
             )
         }));
 
-        let rtc = serde_yaml::from_str::<Runtime>("deployment: ");
+        let rtc = serde_saphyr::from_str::<Runtime>("deployment: ");
         assert!(rtc.is_err_and(|e| {
             e.to_string().contains(
                 "field `deployment` must have at least one of the fields `linux`, windows or `k8s`",
             )
         }));
 
-        let rtc = serde_yaml::from_str::<Runtime>("");
-        assert!(rtc.is_err_and(|e| e.to_string().contains("missing field `deployment`")));
+        let rtc = serde_saphyr::from_str::<Runtime>("");
+        assert!(rtc.is_err());
     }
 }

@@ -361,7 +361,7 @@ client_timeout: 3s
             target_server.base_url()
         );
         let parsed_vault_config =
-            serde_yaml::from_str::<VaultConfig>(vault_config.as_str()).unwrap();
+            serde_saphyr::from_str::<VaultConfig>(vault_config.as_str()).unwrap();
 
         let vault_client = Vault::try_build(parsed_vault_config).unwrap();
 
@@ -468,7 +468,7 @@ sources:
             target_server.base_url(),
             target_server.base_url()
         );
-        let parsed_config = serde_yaml::from_str::<VaultConfig>(&vault_config).unwrap();
+        let parsed_config = serde_saphyr::from_str::<VaultConfig>(&vault_config).unwrap();
         let vault = Vault::try_build(parsed_config).unwrap();
 
         // 3. Define and run test cases

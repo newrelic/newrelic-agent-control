@@ -247,7 +247,7 @@ pub(crate) mod tests {
 
         impl TestCase {
             fn run(self) {
-                let actual = serde_yaml::from_str::<ProxyConfig>(self.content).unwrap();
+                let actual = serde_saphyr::from_str::<ProxyConfig>(self.content).unwrap();
                 assert_eq!(self.expected, actual, "Test Name: {}", self._name);
             }
         }

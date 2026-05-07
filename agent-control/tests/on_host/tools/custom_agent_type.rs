@@ -11,12 +11,12 @@ pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
 /// Helper to build a Custom Agent type with defaults ready to use in integration tests
 pub struct CustomAgentType {
     agent_type_id: AgentTypeID,
-    variables: Option<serde_yaml::Value>,
-    executables: Option<serde_yaml::Value>,
-    filesystem: Option<serde_yaml::Value>,
-    packages: Option<serde_yaml::Value>,
-    health: Option<serde_yaml::Value>,
-    version: Option<serde_yaml::Value>,
+    variables: Option<serde_json::Value>,
+    executables: Option<serde_json::Value>,
+    filesystem: Option<serde_json::Value>,
+    packages: Option<serde_json::Value>,
+    health: Option<serde_json::Value>,
+    version: Option<serde_json::Value>,
 }
 
 impl Default for CustomAgentType {
@@ -24,7 +24,7 @@ impl Default for CustomAgentType {
         Self {
             agent_type_id: Self::default_agent_type_id(),
             variables: Some(
-                serde_yaml::from_str(
+                serde_saphyr::from_str(
                     r#"
 fake_variable:
   description: "fake variable to verify remote config"
@@ -56,12 +56,13 @@ impl Display for CustomAgentType {
             self.agent_type_id.name(),
             self.agent_type_id.version()
         );
-        let mut content: serde_yaml::Mapping = serde_yaml::from_str(&content).unwrap();
-        let mut variables = serde_yaml::Mapping::new();
+        let mut content: serde_json::Map<String, serde_json::Value> =
+            serde_saphyr::from_str(&content).unwrap();
+        let mut variables = serde_json::Map::<String, serde_json::Value>::new();
         if let Some(v) = self.variables.as_ref() {
             variables.insert("common".into(), v.clone());
         }
-        let mut deployment_content = serde_yaml::Mapping::new();
+        let mut deployment_content = serde_json::Map::<String, serde_json::Value>::new();
         if let Some(executables) = self.executables.as_ref() {
             deployment_content.insert("executables".into(), executables.clone());
         }
@@ -77,16 +78,16 @@ impl Display for CustomAgentType {
         if let Some(packages) = self.packages.as_ref() {
             deployment_content.insert("packages".into(), packages.clone());
         }
-        let mut deployment = serde_yaml::Mapping::new();
+        let mut deployment = serde_json::Map::<String, serde_json::Value>::new();
         deployment.insert(
-            AGENT_CONTROL_MODE_ON_HOST.to_string().into(),
+            AGENT_CONTROL_MODE_ON_HOST.to_string(),
             deployment_content.into(),
         );
         content.insert("variables".into(), variables.into());
         content.insert("deployment".into(), deployment.into());
-        let content = serde_yaml::Value::from(content);
+        let content = serde_json::Value::from(content);
 
-        write!(f, "{}", serde_yaml::to_string(&content).unwrap())
+        write!(f, "{}", serde_saphyr::to_string(&content).unwrap())
     }
 }
 
@@ -96,8 +97,8 @@ impl CustomAgentType {
     }
 
     #[cfg(target_family = "unix")]
-    fn default_executables() -> serde_yaml::Value {
-        serde_yaml::from_str(
+    fn default_executables() -> serde_json::Value {
+        serde_saphyr::from_str(
             r#"
 - id: "trap-term-sleep"
   path: "sh"
@@ -109,8 +110,8 @@ impl CustomAgentType {
     }
 
     #[cfg(target_family = "windows")]
-    fn default_executables() -> serde_yaml::Value {
-        serde_yaml::from_str(
+    fn default_executables() -> serde_json::Value {
+        serde_saphyr::from_str(
             r#"
 - id: "trap-term-sleep"
   path: "powershell.exe"
@@ -126,8 +127,8 @@ impl CustomAgentType {
     }
 
     #[cfg(target_family = "unix")]
-    fn default_version_checker() -> serde_yaml::Value {
-        serde_yaml::from_str(
+    fn default_version_checker() -> serde_json::Value {
+        serde_saphyr::from_str(
             r#"
 path: "echo"
 args: ["Some","data","1.0.0","Some","data"]
@@ -138,8 +139,8 @@ regex: \d+\.\d+\.\d+
     }
 
     #[cfg(target_family = "windows")]
-    fn default_version_checker() -> serde_yaml::Value {
-        serde_yaml::from_str(
+    fn default_version_checker() -> serde_json::Value {
+        serde_saphyr::from_str(
             r#"
 path: "cmd"
 args: ["/C","echo","Some","data","1.0.0","Some","data"]
@@ -163,42 +164,42 @@ regex: \d+\.\d+\.\d+
 
     pub fn with_executables(self, executables: Option<&str>) -> Self {
         Self {
-            executables: executables.map(|e| serde_yaml::from_str(e).unwrap()),
+            executables: executables.map(|e| serde_saphyr::from_str(e).unwrap()),
             ..self
         }
     }
 
     pub fn with_health(self, health: Option<&str>) -> Self {
         Self {
-            health: health.map(|h| serde_yaml::from_str(h).unwrap()),
+            health: health.map(|h| serde_saphyr::from_str(h).unwrap()),
             ..self
         }
     }
 
     pub fn with_filesystem(self, filesystem: Option<&str>) -> Self {
         Self {
-            filesystem: filesystem.map(|f| serde_yaml::from_str(f).unwrap()),
+            filesystem: filesystem.map(|f| serde_saphyr::from_str(f).unwrap()),
             ..self
         }
     }
 
     pub fn with_packages(self, packages: Option<&str>) -> Self {
         Self {
-            packages: packages.map(|f| serde_yaml::from_str(f).unwrap()),
+            packages: packages.map(|f| serde_saphyr::from_str(f).unwrap()),
             ..self
         }
     }
 
     pub fn with_version(self, version: Option<&str>) -> Self {
         Self {
-            version: version.map(|v| serde_yaml::from_str(v).unwrap()),
+            version: version.map(|v| serde_saphyr::from_str(v).unwrap()),
             ..self
         }
     }
 
     pub fn with_variables(self, variables: &str) -> Self {
         Self {
-            variables: Some(serde_yaml::from_str(variables).unwrap()),
+            variables: Some(serde_saphyr::from_str(variables).unwrap()),
             ..self
         }
     }
@@ -218,13 +219,13 @@ regex: \d+\.\d+\.\d+
         let agent_type_file_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
 
         // Fail early in the test if Self cannot parse into an Agent Type definition or even YAML
-        let parsed_yaml = serde_yaml::from_str::<serde_yaml::Value>(&self.to_string());
+        let parsed_yaml = serde_saphyr::from_str::<serde_json::Value>(&self.to_string());
         assert!(
             parsed_yaml.is_ok(),
             "CustomAgentType did not produce valid YAML:\n{}",
             self
         );
-        let parsed_agent_type = serde_yaml::from_str::<AgentTypeDefinition>(&self.to_string());
+        let parsed_agent_type = serde_saphyr::from_str::<AgentTypeDefinition>(&self.to_string());
         assert!(
             parsed_agent_type.is_ok(),
             "CustomAgentType did not produce valid AgentTypeDefinition:\n{}",

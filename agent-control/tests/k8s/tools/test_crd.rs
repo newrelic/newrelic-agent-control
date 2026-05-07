@@ -92,7 +92,7 @@ pub async fn create_foo_cr(
 }
 
 pub fn get_foo_dynamic_object(name: String, namespace: String) -> DynamicObject {
-    let cr = serde_yaml::to_string(&Foo {
+    let cr = serde_saphyr::to_string(&Foo {
         metadata: ObjectMeta {
             name: Some(name.to_string()),
             namespace: Some(namespace.to_string()),
@@ -103,7 +103,7 @@ pub fn get_foo_dynamic_object(name: String, namespace: String) -> DynamicObject 
         },
     })
     .unwrap();
-    let obj: DynamicObject = serde_yaml::from_str(cr.as_str()).unwrap();
+    let obj: DynamicObject = serde_saphyr::from_str(cr.as_str()).unwrap();
     obj
 }
 

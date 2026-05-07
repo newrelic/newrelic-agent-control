@@ -290,10 +290,11 @@ logs:
     #[test]
     fn test_yaml_parsing() {
         assert!(
-            serde_yaml::from_str::<OtelConfig>(EXAMPLE_WITH_DEFAULTS_OPENTELEMETRY_CONFIG).is_ok()
+            serde_saphyr::from_str::<OtelConfig>(EXAMPLE_WITH_DEFAULTS_OPENTELEMETRY_CONFIG)
+                .is_ok()
         );
         assert!(
-            serde_yaml::from_str::<OtelConfig>(EXAMPLE_FULLY_POPULATED_OPENTELEMETRY_CONFIG)
+            serde_saphyr::from_str::<OtelConfig>(EXAMPLE_FULLY_POPULATED_OPENTELEMETRY_CONFIG)
                 .is_ok()
         );
     }

@@ -69,7 +69,7 @@ pub async fn check_helmrelease_spec_values(
     expected_values_as_yaml: &str,
 ) -> Result<(), Box<dyn Error>> {
     let expected_as_json: serde_json::Value =
-        serde_yaml::from_str(expected_values_as_yaml).unwrap();
+        serde_saphyr::from_str(expected_values_as_yaml).unwrap();
     let api = helmrelease_api(k8s_client, namespace).await;
 
     let obj = api.get(name).await?;

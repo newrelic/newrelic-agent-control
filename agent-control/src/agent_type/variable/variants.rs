@@ -87,7 +87,7 @@ mod tests {
         #[case] input: &str,
         #[case] expected: VariantsConfig<String>,
     ) {
-        let value: VariantsConfig<String> = serde_yaml::from_str(input).unwrap();
+        let value: VariantsConfig<String> = serde_saphyr::from_str(input).unwrap();
         assert_eq!(value, expected);
     }
 }

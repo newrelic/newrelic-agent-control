@@ -28,7 +28,7 @@ use newrelic_agent_control::values::ConfigRepo;
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
 use newrelic_agent_control::values::yaml_config::YAMLConfig;
-use serde_yaml::from_str;
+use serde_saphyr::from_str;
 use std::sync::Arc;
 
 const AGENT_ID_1: &str = "agent-id-test";

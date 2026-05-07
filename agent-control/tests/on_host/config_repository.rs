@@ -43,7 +43,7 @@ fn test_store_remote_no_mocks() {
     let agent_id = AgentID::try_from("some-agent-id").unwrap();
 
     let agent_values = RemoteConfig {
-        config: serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap(),
+        config: serde_saphyr::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap(),
         hash: Hash::from("hash-test"),
         state: ConfigState::Applying,
     };
@@ -80,10 +80,7 @@ const AGENT_VALUES_SINGLE_FILE: &str = r#"config_file: |
 "#;
 
 const AGENT_VALUES_SINGLE_FILE_STORED: &str = r#"config:
-  config_file: |
-    license_key: 1234567890987654321
-    log:
-      level: debug
+  config_file: "license_key: 1234567890987654321\nlog:\n  level: debug\n"
 hash: hash-test
 state: applying
 "#;

@@ -4,7 +4,7 @@ use k8s_openapi::{
     Metadata, NamespaceResourceScope, Resource, apimachinery::pkg::util::intstr::IntOrString,
 };
 use kube::api::{DynamicObject, ObjectMeta, TypeMeta};
-use serde_yaml::{Mapping, Value};
+use serde_json::{Map, Value};
 
 /// This is a helper to have the number of pods or percentages for update strategies.
 ///
@@ -166,10 +166,10 @@ pub fn get_target_namespace(obj: &DynamicObject) -> Option<String> {
 
 /// This function recursively traverses the mapping structure and removes any key-value
 /// pairs where the value is `Value::Null`.
-pub fn retain_not_null(mapping: &mut Mapping) {
+pub fn retain_not_null(mapping: &mut Map<String, Value>) {
     mapping.retain(|_, value| match value {
         Value::Null => false,
-        Value::Mapping(inner_mapping) => {
+        Value::Object(inner_mapping) => {
             retain_not_null(inner_mapping);
             true
         }
@@ -184,7 +184,7 @@ pub mod tests {
 
     #[test]
     fn test_retain_not_null() {
-        let mut input = serde_yaml::from_str::<Mapping>(
+        let mut input = serde_saphyr::from_str::<Map<String, Value>>(
             r#"
         should_retain_string: some
         should_retain_bool: true
@@ -198,7 +198,7 @@ pub mod tests {
         "#,
         )
         .unwrap();
-        let expected = serde_yaml::from_str::<Mapping>(
+        let expected = serde_saphyr::from_str::<Map<String, Value>>(
             r#"
         should_retain_string: some
         should_retain_bool: true

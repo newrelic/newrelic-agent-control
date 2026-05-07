@@ -27,7 +27,9 @@ pub enum EffectiveAgentsAssemblerError {
     #[error("error assembling agents: {0}")]
     RepositoryError(#[from] AgentRepositoryError),
     #[error("error assembling agents: {0}")]
-    SerdeYamlError(#[from] serde_yaml::Error),
+    SerializationError(#[from] serde_saphyr::Error),
+    #[error("error assembling agents: {0}")]
+    ValueConversionError(#[from] serde_json::Error),
     #[error("error assembling agents: {0}")]
     AgentTypeError(#[from] AgentTypeError),
     #[error("error assembling agents: {0}")]
@@ -352,7 +354,7 @@ pub(crate) mod tests {
     #[test]
     fn test_build_agent_type() {
         let definition =
-            serde_yaml::from_str::<AgentTypeDefinition>(AGENT_TYPE_DEFINITION).unwrap();
+            serde_saphyr::from_str::<AgentTypeDefinition>(AGENT_TYPE_DEFINITION).unwrap();
 
         let k8s_agent_type = build_agent_type(
             definition.clone(),
@@ -395,7 +397,8 @@ pub(crate) mod tests {
     #[test]
     fn test_build_agent_type_error() {
         let definition =
-            serde_yaml::from_str::<AgentTypeDefinition>(CONFLICTING_AGENT_TYPE_DEFINITION).unwrap();
+            serde_saphyr::from_str::<AgentTypeDefinition>(CONFLICTING_AGENT_TYPE_DEFINITION)
+                .unwrap();
 
         let expected_err = build_agent_type(
             definition,

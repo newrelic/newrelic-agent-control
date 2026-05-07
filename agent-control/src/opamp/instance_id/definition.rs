@@ -80,12 +80,12 @@ pub mod tests {
     #[test]
     fn test_instance_id_serialize_deserialize() {
         let id_as_str = "0190592A82877FB1A6D91ECAA57032BD";
-        let unserlialized: InstanceID = serde_yaml::from_str(id_as_str).unwrap();
+        let unserlialized: InstanceID = serde_saphyr::from_str(id_as_str).unwrap();
         assert_eq!(
             InstanceUid::from(unserlialized.clone()).to_string(),
             String::from(id_as_str)
         );
-        let serialized = serde_yaml::to_string(&unserlialized).unwrap();
+        let serialized = serde_saphyr::to_string(&unserlialized).unwrap();
         assert_eq!(serialized, format!("{}\n", String::from(id_as_str))) // string yaml serialization ends with \n
     }
 }

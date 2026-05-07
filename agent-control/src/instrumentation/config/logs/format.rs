@@ -49,7 +49,7 @@ mod tests {
     use super::*;
 
     use rstest::rstest;
-    use serde_yaml;
+    use serde_saphyr;
 
     #[rstest]
     #[case::with_defaults(
@@ -92,7 +92,7 @@ mod tests {
         #[case] yaml_data: &str,
         #[case] expected_logging_format: LoggingFormat,
     ) {
-        let logging_format: LoggingFormat = serde_yaml::from_str(yaml_data).unwrap();
+        let logging_format: LoggingFormat = serde_saphyr::from_str(yaml_data).unwrap();
 
         assert_eq!(logging_format, expected_logging_format);
     }

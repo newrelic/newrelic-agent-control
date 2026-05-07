@@ -31,7 +31,8 @@ pub fn get_instance_id(k8s_client: Client, namespace: &str, agent_id: &AgentID) 
             .cloned()
             .ok_or(err.clone())?;
 
-        let data_stored: DataStored<Identifiers> = serde_yaml::from_str(raw_identifiers.as_str())?;
+        let data_stored: DataStored<Identifiers> =
+            serde_saphyr::from_str(raw_identifiers.as_str())?;
 
         id = data_stored.instance_id;
 
