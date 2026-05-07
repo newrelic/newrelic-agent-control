@@ -35,26 +35,38 @@ impl SelfSignedCert {
 
 fn generate_cert(cert_path: &std::path::Path, key_path: &std::path::Path) {
     info!("Generating self-signed certificate for localhost");
-    let output = Command::new("openssl")
-        .args([
-            "req",
-            "-x509",
-            "-newkey",
-            "rsa:2048",
-            "-keyout",
-            &key_path.to_string_lossy(),
-            "-out",
-            &cert_path.to_string_lossy(),
-            "-days",
-            "1",
-            "-nodes",
-            "-subj",
-            "/CN=localhost",
-            "-addext",
-            "subjectAltName=DNS:localhost,IP:127.0.0.1",
-        ])
-        .output()
-        .expect("failed to run openssl");
+
+    let key_path_str = key_path.to_string_lossy();
+    let cert_path_str = cert_path.to_string_lossy();
+
+    let mut cmd = Command::new("openssl");
+    cmd.args([
+        "req",
+        "-x509",
+        "-newkey",
+        "rsa:2048",
+        "-keyout",
+        &key_path_str,
+        "-out",
+        &cert_path_str,
+        "-days",
+        "1",
+        "-nodes",
+        "-subj",
+        "/CN=localhost",
+        "-addext",
+        "subjectAltName=DNS:localhost,IP:127.0.0.1",
+    ]);
+
+    #[cfg(target_family = "unix")]
+    cmd.args([
+        "-addext",
+        "basicConstraints=critical,CA:FALSE",
+        "-addext",
+        "keyUsage=critical,digitalSignature,keyEncipherment",
+    ]);
+
+    let output = cmd.output().expect("failed to run openssl");
     assert!(
         output.status.success(),
         "openssl req failed: {}",
@@ -77,6 +89,37 @@ fn add_to_root_store(cert_path: &std::path::Path) {
 }
 
 #[cfg(target_family = "unix")]
-fn add_to_root_store(_cert_path: &std::path::Path) {
-    unimplemented!()
+fn add_to_root_store(cert_path: &std::path::Path) {
+    info!("Adding certificate to system root store (Linux)");
+
+    // Copy certificate to /usr/local/share/ca-certificates/
+    let system_cert_dir = std::path::Path::new("/usr/local/share/ca-certificates");
+    let system_cert_path = system_cert_dir.join("localhost-test.crt");
+
+    std::fs::copy(cert_path, &system_cert_path)
+        .expect("failed to copy certificate to /usr/local/share/ca-certificates");
+
+    // Update CA certificates
+    let output = Command::new("update-ca-certificates")
+        .output()
+        .expect("failed to run update-ca-certificates");
+
+    assert!(
+        output.status.success(),
+        "update-ca-certificates failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+impl Drop for SelfSignedCert {
+    fn drop(&mut self) {
+        #[cfg(target_family = "unix")]
+        {
+            // Remove certificate from system store on Linux
+            let system_cert_path =
+                std::path::Path::new("/usr/local/share/ca-certificates/localhost-test.crt");
+            let _ = std::fs::remove_file(system_cert_path);
+            let _ = Command::new("update-ca-certificates").output();
+        }
+    }
 }

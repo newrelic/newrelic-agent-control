@@ -107,6 +107,44 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
     info!("Output:\n{output}");
 }
 
+pub fn install_latest_agent_control(data: &RecipeData) {
+    let install_command = format!(
+        r#"
+curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | \
+  bash && sudo \
+  NEW_RELIC_CLI_SKIP_CORE=1 \
+  NEW_RELIC_LICENSE_KEY={} \
+  NEW_RELIC_API_KEY={} \
+  NEW_RELIC_ACCOUNT_ID={} \
+  NEW_RELIC_AUTH_PROVISIONED_CLIENT_ID={} \
+  NEW_RELIC_AUTH_PRIVATE_KEY_PATH={} \
+  NEW_RELIC_REGION={} \
+  NR_CLI_FLEET_ID={} \
+  NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED={} \
+  NEW_RELIC_AGENT_CONTROL=true \
+  NEW_RELIC_AGENT_VERSION=1.13.0 \
+  /usr/local/bin/newrelic install \
+  -n {}
+"#,
+        data.args.nr_license_key,
+        data.args.nr_api_key,
+        data.args.nr_account_id,
+        data.args.system_identity_client_id,
+        data.args.agent_control_private_key,
+        data.args.nr_region,
+        data.fleet_id,
+        data.fleet_enabled,
+        data.recipe_list,
+    );
+
+    info!("Executing recipe to install Agent Control version 1.13.0");
+    let output = retry(3, Duration::from_secs(30), "recipe installation", || {
+        exec_bash_command(&install_command)
+    })
+    .unwrap_or_else(|err| panic!("failure executing recipe after retries: {err}"));
+    info!("Output:\n{output}");
+}
+
 pub fn tear_down_test() {
     let _ = show_logs(DEFAULT_LOG_PATH);
 }
