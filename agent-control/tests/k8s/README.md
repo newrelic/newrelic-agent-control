@@ -3,10 +3,9 @@
 Requirements:
 
 - Docker
-- [Install minikube](https://minikube.sigs.k8s.io/docs/start/) 
+- [Install minikube](https://minikube.sigs.k8s.io/docs/start/)
   No external registry should be configured and docker driver must be used so Tilt uses minikube docker engine
   for image building.
-
 
 On the repo root directory Run:
 
@@ -29,8 +28,8 @@ Notes:
   test module or expose them in the agent-control crate, outside the `test` feature flag).
 - You can run test manually dumping the minikube context to the dev kubecontext:
 
-```bash
-$ KUBECONFIG='./.kubeconfig-dev' minikube update-context
+```sh
+KUBECONFIG='./.kubeconfig-dev' minikube update-context
 ```
 
 ## sync / async integration tests
@@ -39,7 +38,7 @@ Some tests use the `SyncK8sClient` which encapsulates calls to `runtime.block_on
 When this client is used, `#[tokio::test]` cannot be used because `runtime.block_on` would be executing in a tokio
 runtime context, leading to a panic:
 
-```
+```txt
 'Cannot start a runtime from within a runtime. This happens because a function (like `block_on`) attempted to block the current thread while the thread is being used to drive asynchronous tasks.'
 ```
 

@@ -410,7 +410,10 @@ mod tests {
     use super::*;
     use crate::{
         agent_control::config::helmrepository_type_meta,
-        k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL},
+        k8s::{
+            annotations::Annotations,
+            labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL},
+        },
         sub_agent::identity::AgentIdentity,
     };
 
@@ -452,10 +455,10 @@ mod tests {
                         agent_identity.id.to_string(),
                     ),
                 ])),
-                annotations: Some(BTreeMap::from_iter(vec![(
-                    "newrelic.io/agent-type-id".to_string(),
-                    agent_identity.agent_type_id.to_string(),
-                )])),
+                annotations: Some(
+                    Annotations::new_agent_control_owned_with_type(&agent_identity.agent_type_id)
+                        .get(),
+                ),
                 ..ObjectMeta::default()
             },
             data: serde_json::json!({
@@ -492,10 +495,10 @@ mod tests {
                         source.to_string(),
                     ),
                 ])),
-                annotations: Some(BTreeMap::from_iter(vec![(
-                    "newrelic.io/agent-type-id".to_string(),
-                    agent_identity.agent_type_id.to_string(),
-                )])),
+                annotations: Some(
+                    Annotations::new_agent_control_owned_with_type(&agent_identity.agent_type_id)
+                        .get(),
+                ),
                 ..Default::default()
             },
             data: serde_json::json!({
@@ -720,12 +723,7 @@ mod tests {
         .collect();
 
         let annotations = Some(
-            vec![(
-                "newrelic.io/agent-type-id".to_string(),
-                agent_identity.agent_type_id.to_string(),
-            )]
-            .into_iter()
-            .collect(),
+            Annotations::new_agent_control_owned_with_type(&agent_identity.agent_type_id).get(),
         );
 
         let mut expected_repository_object = repository_object();

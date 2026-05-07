@@ -9,6 +9,7 @@ use crate::{
     data_store::DataStore,
     k8s,
     opamp::instance_id::getter::DataStored,
+    resource_ownership::ResourceOwnership,
 };
 
 use super::definition::InstanceIdentifiers;
@@ -63,8 +64,12 @@ where
     fn set(&self, agent_id: &AgentID, data: &DataStored<I>) -> Result<(), StorerError> {
         debug!("storer: setting Instance ID of agent_id: {}", agent_id);
 
-        self.opamp_data_store
-            .set_remote_data(agent_id, STORE_KEY_INSTANCE_ID, data)?;
+        self.opamp_data_store.set_remote_data(
+            agent_id,
+            ResourceOwnership::AgentControl,
+            STORE_KEY_INSTANCE_ID,
+            data,
+        )?;
 
         Ok(())
     }

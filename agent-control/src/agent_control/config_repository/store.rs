@@ -7,6 +7,7 @@ use crate::agent_control::config_repository::repository::{
 };
 use crate::agent_control::defaults::{AGENT_CONTROL_CONFIG_ENV_VAR_PREFIX, default_capabilities};
 use crate::opamp::remote_config::hash::ConfigState;
+use crate::resource_ownership::ResourceOwnership;
 use crate::values::config::RemoteConfig;
 use crate::values::config_repository::ConfigRepository;
 use crate::values::yaml_config::YAMLConfigError;
@@ -45,13 +46,21 @@ where
 
     fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError> {
         self.values_repository
-            .store_remote(&self.agent_control_id, config)
+            .store_remote(
+                &self.agent_control_id,
+                ResourceOwnership::AgentControl,
+                config,
+            )
             .map_err(|e| AgentControlConfigError(format!("storing Agent Control config: {e}")))
     }
 
     fn update_state(&self, state: ConfigState) -> Result<(), AgentControlConfigError> {
         self.values_repository
-            .update_state(&self.agent_control_id, state)
+            .update_state(
+                &self.agent_control_id,
+                ResourceOwnership::AgentControl,
+                state,
+            )
             .map_err(|e| AgentControlConfigError(format!("updating Agent Control config: {e}")))
     }
 
@@ -166,6 +175,7 @@ pub(crate) mod tests {
     use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
     use crate::agent_control::config_repository::store::AgentControlConfigStore;
     use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::resource_ownership::ResourceOwnership;
     use crate::values::config_repository::ConfigRepository;
     use crate::values::config_repository::tests::InMemoryConfigRepository;
     use crate::values::yaml_config::YAMLConfig;
@@ -225,7 +235,11 @@ pub(crate) mod tests {
         .unwrap();
 
         config_repository
-            .store_remote(&AgentID::AgentControl, &remote_config.clone().into())
+            .store_remote(
+                &AgentID::AgentControl,
+                ResourceOwnership::AgentControl,
+                &remote_config.clone().into(),
+            )
             .unwrap();
 
         let store = AgentControlConfigStore::new(Arc::new(config_repository));

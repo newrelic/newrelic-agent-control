@@ -7,14 +7,15 @@ use super::tools::{
     k8s_env::K8sEnv,
     test_crd::{Foo, create_foo_cr, foo_type_meta},
 };
-use k8s_openapi::api::core::v1::Secret;
+use k8s_openapi::api::core::v1::{ConfigMap, Secret};
 use kube::{api::Api, core::TypeMeta};
 use mockall::mock;
 use newrelic_agent_control::opamp::remote_config::hash::ConfigState;
 use newrelic_agent_control::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::{
-    agent_control::config::default_group_version_kinds, agent_type::agent_type_id::AgentTypeID,
+    agent_control::config::{configmap_type_meta, default_group_version_kinds},
+    agent_type::agent_type_id::AgentTypeID,
 };
 use newrelic_agent_control::{
     agent_control::config_repository::repository::AgentControlDynamicConfigRepository,
@@ -85,6 +86,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
 
     let resource_name = "test-different-from-agent-id";
     let secret_name = "test-secret-name";
+    let configmap_name = "test-configmap-name";
 
     let s = NotStartedSupervisorK8s::new(
         agent_identity.clone(),
@@ -133,6 +135,26 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
                     )
                     .unwrap(),
                 ),
+                (
+                    "fooConfigMap".to_string(),
+                    serde_yaml::from_str::<K8sObject>(
+                        format!(
+                            r#"
+    apiVersion: {}
+    kind: {}
+    data:
+      values.yaml: |
+        nameOverride: "override-by-configmap"
+    metadata:
+      namespace: {}
+      name: {}
+            "#,
+                            "v1", "ConfigMap", test_ns, configmap_name,
+                        )
+                        .as_str(),
+                    )
+                    .unwrap(),
+                ),
             ]),
             ..K8s::default()
         },
@@ -173,42 +195,49 @@ agents:
                 api_version: "v1".to_string(),
                 kind: "Secret".to_string(),
             },
+            configmap_type_meta(),
         ],
     };
 
-    // Expects the GC to keep the agent cr and secret from the config, event if looking for multiple kinds or that
+    // Expects the GC to keep the agent cr, secret, and configmap from the config, even if looking for multiple kinds or that
     // are missing in the cluster.
     let first_agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>(config.as_str())
         .unwrap()
         .agents;
-    gc.retain(K8sGarbageCollector::active_config_ids(&first_agents_config))
-        .unwrap();
+    gc.retain(K8sGarbageCollector::<SyncK8sClient>::active_config_ids(
+        &first_agents_config,
+    ))
+    .unwrap();
     let api_foo: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     block_on(api_foo.get(resource_name)).expect("CR should exist");
     let api_secret: Api<Secret> = Api::namespaced(test.client.clone(), &test_ns);
     block_on(api_secret.get(secret_name)).expect("Secret should exist");
+    let api_configmap: Api<ConfigMap> = Api::namespaced(test.client.clone(), &test_ns);
+    block_on(api_configmap.get(configmap_name)).expect("ConfigMap should exist");
     assert_eq!(
         agent_instance_id,
         instance_id_getter.get(&agent_identity.id).unwrap(),
         "Expects the Instance ID keeps the same since is get from the CM"
     );
 
-    // Expect that the current_agent and secret to be removed on the second call.
+    // Expect that the current_agent, secret, and configmap to be removed on the second call.
     let second_agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}")
         .unwrap()
         .agents;
-    gc.retain(K8sGarbageCollector::active_config_ids(
+    gc.retain(K8sGarbageCollector::<SyncK8sClient>::active_config_ids(
         &second_agents_config,
     ))
     .unwrap();
     retry(120, Duration::from_secs(1), || {
         if block_on(api_foo.get(resource_name)).is_ok() {
-            return Err("CR should be removed".into());
-        };
-        if block_on(api_secret.get(secret_name)).is_ok() {
-            return Err("Secret should be removed".into());
-        };
-        Ok(())
+            Err("CR should be removed".into())
+        } else if block_on(api_secret.get(secret_name)).is_ok() {
+            Err("Secret should be removed".into())
+        } else if block_on(api_configmap.get(configmap_name)).is_ok() {
+            Err("ConfigMap should be removed".into())
+        } else {
+            Ok(())
+        }
     });
     assert_ne!(
         agent_instance_id,
@@ -230,7 +259,12 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
         test_ns.as_str(),
         removed_agent_id,
         Some(Labels::new(&AgentID::try_from(removed_agent_id.to_string()).unwrap()).get()),
-        None,
+        Some(
+            Annotations::new_sub_agent_owned_with_type(
+                &AgentTypeID::try_from("ns/removed:1.0.0").unwrap(),
+            )
+            .get(),
+        ),
     ));
 
     // This kind is not present in the cluster.
@@ -250,8 +284,10 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
         .unwrap()
         .agents;
     // Expects the GC to clean the "removed" agent CR.
-    gc.retain(K8sGarbageCollector::active_config_ids(&agents_config))
-        .unwrap();
+    gc.retain(K8sGarbageCollector::<SyncK8sClient>::active_config_ids(
+        &agents_config,
+    ))
+    .unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     block_on(api.get(removed_agent_id)).expect_err("fail garbage collecting removed agent");
 }
@@ -262,13 +298,13 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
 
-    let sa_id = &AgentID::AgentControl;
+    let ac_id = &AgentID::AgentControl;
     block_on(create_foo_cr(
         test.client.to_owned(),
         test_ns.as_str(),
-        sa_id.as_str(),
-        Some(Labels::new(sa_id).get()),
-        None,
+        ac_id.as_str(),
+        Some(Labels::new(ac_id).get()),
+        Some(Annotations::new_agent_control_owned().get()),
     ));
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
@@ -278,7 +314,7 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
     let instance_id_getter =
         InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
 
-    let sa_instance_id = instance_id_getter.get(sa_id).unwrap();
+    let ac_instance_id = instance_id_getter.get(ac_id).unwrap();
 
     let gc = K8sGarbageCollector {
         k8s_client,
@@ -291,13 +327,15 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
     let agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}")
         .unwrap()
         .agents;
-    gc.retain(K8sGarbageCollector::active_config_ids(&agents_config))
-        .unwrap();
+    gc.retain(K8sGarbageCollector::<SyncK8sClient>::active_config_ids(
+        &agents_config,
+    ))
+    .unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     block_on(api.get(AGENT_CONTROL_ID)).expect("CR should exist");
     assert_eq!(
-        sa_instance_id,
-        instance_id_getter.get(sa_id).unwrap(),
+        ac_instance_id,
+        instance_id_getter.get(ac_id).unwrap(),
         "Expects the Instance ID keeps the same since is get from the CM"
     );
 }
@@ -317,7 +355,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test_ns.as_str(),
         "not-deleted",
         Some(Labels::new(agent_id).get()),
-        Some(Annotations::new_agent_type_id_annotation(fqn).get()),
+        Some(Annotations::new_sub_agent_owned_with_type(fqn).get()),
     ));
 
     block_on(create_foo_cr(
@@ -325,7 +363,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test_ns.as_str(),
         "sa-id",
         Some(Labels::new(&AgentID::AgentControl).get()),
-        None,
+        Some(Annotations::new_agent_control_owned().get()),
     ));
 
     block_on(create_foo_cr(
@@ -341,7 +379,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test_ns.as_str(),
         "old-fqn",
         Some(Labels::new(agent_id).get()),
-        Some(Annotations::new_agent_type_id_annotation(fqn_old).get()),
+        Some(Annotations::new_sub_agent_owned_with_type(fqn_old).get()),
     ));
 
     block_on(create_foo_cr(
@@ -349,7 +387,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test_ns.as_str(),
         "id-unknown",
         Some(Labels::new(agent_id_unknonw).get()),
-        Some(Annotations::new_agent_type_id_annotation(fqn).get()),
+        Some(Annotations::new_sub_agent_owned_with_type(fqn).get()),
     ));
 
     let config = format!(
@@ -371,8 +409,10 @@ agents:
     let agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>(config.as_str())
         .unwrap()
         .agents;
-    gc.retain(K8sGarbageCollector::active_config_ids(&agents_config))
-        .unwrap();
+    gc.retain(K8sGarbageCollector::<SyncK8sClient>::active_config_ids(
+        &agents_config,
+    ))
+    .unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
 
     block_on(api.get("not-deleted")).expect("CR should exist");

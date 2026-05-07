@@ -211,7 +211,7 @@ impl AgentControlRunner {
         // Cleanup of the existing resources managed by Agent Control but not existing in the
         // config loaded from the first time, for example from previous executions.
         garbage_collector
-            .retain(K8sGarbageCollector::active_config_ids(
+            .retain(K8sGarbageCollector::<SyncK8sClient>::active_config_ids(
                 &agent_control_config.dynamic.agents,
             ))
             .map_err(|err| RunError(format!("failure on K8s garbage collector: {err}")))?;

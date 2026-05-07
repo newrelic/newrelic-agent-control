@@ -68,6 +68,16 @@ pub trait K8sClient: Debug + Send + Sync + 'static {
         namespace: &str,
         label_selector: &str,
     ) -> Result<(), K8sError>;
+    fn list_configmaps(
+        &self,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Vec<Arc<ConfigMap>>, K8sError>;
+    fn delete_configmap(
+        &self,
+        namespace: &str,
+        name: &str,
+    ) -> Result<Either<ConfigMap, Status>, K8sError>;
     fn get_configmap_key(
         &self,
         name: &str,
@@ -85,6 +95,7 @@ pub trait K8sClient: Debug + Send + Sync + 'static {
         name: &str,
         namespace: &str,
         labels: BTreeMap<String, String>,
+        annotations: BTreeMap<String, String>,
         key: &str,
         value: &str,
     ) -> Result<(), K8sError>;
@@ -211,6 +222,24 @@ impl SyncK8sClient {
         )
     }
 
+    pub fn list_configmaps(
+        &self,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Vec<Arc<ConfigMap>>, K8sError> {
+        self.runtime
+            .block_on(self.async_client.list_configmaps(namespace, label_selector))
+    }
+
+    pub fn delete_configmap(
+        &self,
+        namespace: &str,
+        name: &str,
+    ) -> Result<Either<ConfigMap, Status>, K8sError> {
+        self.runtime
+            .block_on(self.async_client.delete_configmap(namespace, name))
+    }
+
     pub fn get_configmap_key(
         &self,
         name: &str,
@@ -237,13 +266,18 @@ impl SyncK8sClient {
         name: &str,
         namespace: &str,
         labels: BTreeMap<String, String>,
+        annotations: BTreeMap<String, String>,
         key: &str,
         value: &str,
     ) -> Result<(), K8sError> {
-        self.runtime.block_on(
-            self.async_client
-                .set_configmap_key(name, namespace, labels, key, value),
-        )
+        self.runtime.block_on(self.async_client.set_configmap_key(
+            name,
+            namespace,
+            labels,
+            annotations,
+            key,
+            value,
+        ))
     }
 
     pub fn delete_configmap_key(
@@ -360,10 +394,11 @@ impl K8sClient for SyncK8sClient {
         name: &str,
         namespace: &str,
         labels: BTreeMap<String, String>,
+        annotations: BTreeMap<String, String>,
         key: &str,
         value: &str,
     ) -> Result<(), K8sError> {
-        self.set_configmap_key(name, namespace, labels, key, value)
+        self.set_configmap_key(name, namespace, labels, annotations, key, value)
     }
 
     fn delete_configmap_key(&self, name: &str, namespace: &str, key: &str) -> Result<(), K8sError> {
@@ -380,6 +415,22 @@ impl K8sClient for SyncK8sClient {
 
     fn list_deployment(&self, ns: &str) -> Result<Vec<Arc<Deployment>>, K8sError> {
         self.list_deployment(ns)
+    }
+
+    fn list_configmaps(
+        &self,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Vec<Arc<ConfigMap>>, K8sError> {
+        self.list_configmaps(namespace, label_selector)
+    }
+
+    fn delete_configmap(
+        &self,
+        namespace: &str,
+        name: &str,
+    ) -> Result<Either<ConfigMap, Status>, K8sError> {
+        self.delete_configmap(namespace, name)
     }
 }
 
@@ -484,6 +535,30 @@ impl AsyncK8sClient {
         Ok(())
     }
 
+    pub async fn list_configmaps(
+        &self,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Vec<Arc<ConfigMap>>, K8sError> {
+        let api: Api<ConfigMap> = Api::<ConfigMap>::namespaced(self.client.clone(), namespace);
+        let list = api
+            .list(&ListParams {
+                label_selector: Some(label_selector.to_string()),
+                ..Default::default()
+            })
+            .await?;
+        Ok(list.iter().map(|cm| Arc::new(cm.clone())).collect())
+    }
+
+    pub async fn delete_configmap(
+        &self,
+        namespace: &str,
+        name: &str,
+    ) -> Result<Either<ConfigMap, Status>, K8sError> {
+        let api: Api<ConfigMap> = Api::<ConfigMap>::namespaced(self.client.clone(), namespace);
+        Ok(api.delete(name, &DeleteParams::default()).await?)
+    }
+
     pub async fn get_configmap_key(
         &self,
         name: &str,
@@ -516,6 +591,7 @@ impl AsyncK8sClient {
         name: &str,
         namespace: &str,
         labels: BTreeMap<String, String>,
+        annotations: BTreeMap<String, String>,
         key: &str,
         value: &str,
     ) -> Result<(), K8sError> {
@@ -534,8 +610,12 @@ impl AsyncK8sClient {
             })
             .and_modify(|cm| {
                 cm.metadata.labels = Some(labels);
+                cm.metadata
+                    .annotations
+                    .get_or_insert_default()
+                    .extend(annotations);
                 cm.data
-                    .get_or_insert_with(BTreeMap::default)
+                    .get_or_insert_default()
                     .insert(key.to_string(), value.to_string());
             })
             .commit(&PostParams::default())
@@ -791,6 +871,16 @@ pub(crate) mod tests {
                 namespace: &str,
                 label_selector: &str,
             ) -> Result<(), K8sError>;
+            fn list_configmaps(
+                &self,
+                namespace: &str,
+                label_selector: &str,
+            ) -> Result<Vec<Arc<ConfigMap>>, K8sError>;
+            fn delete_configmap(
+                &self,
+                namespace: &str,
+                name: &str,
+            ) -> Result<Either<ConfigMap, Status>, K8sError>;
             fn get_configmap_key(
                 &self,
                 name: &str,
@@ -808,6 +898,7 @@ pub(crate) mod tests {
                 name: &str,
                 namespace: &str,
                 labels: BTreeMap<String, String>,
+                 annotations: BTreeMap<String, String>,
                 key: &str,
                 value: &str,
             ) -> Result<(), K8sError>;

@@ -33,9 +33,32 @@ pub async fn check_config_map_exist(
 
     api.get(name)
         .await
-        .map_err(|err| format!("ConfigMap {name} not found: {err}"))?;
+        .map_err(|err| format!("resource ConfigMap {name} not found: {err}"))?;
 
     Ok(())
+}
+
+pub async fn check_config_map_has_annotation(
+    k8s_client: Client,
+    name: &str,
+    namespace: &str,
+    annotation_key: &str,
+) -> Result<(), Box<dyn Error>> {
+    let api: Api<ConfigMap> = Api::namespaced(k8s_client.clone(), namespace);
+    let cm = api
+        .get(name)
+        .await
+        .map_err(|err| format!("resource ConfigMap {name} not found: {err}"))?;
+    let has_annotation = cm
+        .metadata
+        .annotations
+        .as_ref()
+        .is_some_and(|a| a.contains_key(annotation_key));
+    if has_annotation {
+        Ok(())
+    } else {
+        Err(format!("resource ConfigMap {name} does not have annotation {annotation_key}").into())
+    }
 }
 
 /// Check if the `HelmRelease` with the provided name has the the expected value in the `spec.values` field.

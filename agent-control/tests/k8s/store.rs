@@ -12,6 +12,7 @@ use newrelic_agent_control::agent_control::defaults::{
 use newrelic_agent_control::agent_control::defaults::{
     FOLDER_NAME_LOCAL_DATA, default_capabilities,
 };
+use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
 use newrelic_agent_control::data_store::StoreKey;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::configmap_store::ConfigMapStore;
@@ -22,6 +23,7 @@ use newrelic_agent_control::opamp::instance_id::getter::{
 use newrelic_agent_control::opamp::instance_id::k8s::identifiers::Identifiers;
 use newrelic_agent_control::opamp::instance_id::storer::Storer;
 use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
+use newrelic_agent_control::resource_ownership::ResourceOwnership;
 use newrelic_agent_control::values::ConfigRepo;
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
@@ -101,7 +103,13 @@ fn k8s_hash_in_config_map() {
         state: ConfigState::Applying,
     };
     config_repository
-        .store_remote(&agent_id_1, &remote_config_1)
+        .store_remote(
+            &agent_id_1,
+            ResourceOwnership::SubAgent(
+                AgentTypeID::try_from("test/test-agent-type:0.0.1").unwrap(),
+            ),
+            &remote_config_1,
+        )
         .unwrap();
     let loaded_hash_1 = config_repository
         .get_remote_config(&agent_id_1)
@@ -117,7 +125,13 @@ fn k8s_hash_in_config_map() {
         state: ConfigState::Applying,
     };
     config_repository
-        .store_remote(&agent_id_2, &remote_config_2)
+        .store_remote(
+            &agent_id_2,
+            ResourceOwnership::SubAgent(
+                AgentTypeID::try_from("test/test-agent-type:0.0.2").unwrap(),
+            ),
+            &remote_config_2,
+        )
         .unwrap();
     let loaded_hash_2 = config_repository
         .get_remote_config(&agent_id_2)
@@ -173,7 +187,13 @@ fn k8s_value_repository_config_map() {
         state: ConfigState::Applied,
     };
     value_repository
-        .store_remote(&agent_id_1, &remote_values)
+        .store_remote(
+            &agent_id_1,
+            ResourceOwnership::SubAgent(
+                AgentTypeID::try_from("test/test-agent-type:0.0.1").unwrap(),
+            ),
+            &remote_values,
+        )
         .unwrap();
     let res = value_repository.load_remote_fallback_local(&agent_id_1, &capabilities);
     assert_eq!(
@@ -207,7 +227,13 @@ fn k8s_value_repository_config_map() {
     };
 
     value_repository
-        .store_remote(&agent_id_2, &remote_values_agent_2)
+        .store_remote(
+            &agent_id_2,
+            ResourceOwnership::SubAgent(
+                AgentTypeID::try_from("test/test-agent-type:0.0.1").unwrap(),
+            ),
+            &remote_values_agent_2,
+        )
         .unwrap();
     let res = value_repository
         .load_remote_fallback_local(&agent_id_1, &capabilities)
@@ -314,7 +340,13 @@ fn k8s_multiple_store_entries() {
         state: ConfigState::Applying,
     };
     config_repository
-        .store_remote(&agent_id, &remote_config)
+        .store_remote(
+            &agent_id,
+            ResourceOwnership::SubAgent(
+                AgentTypeID::try_from("test/test-agent-type:0.0.1").unwrap(),
+            ),
+            &remote_config,
+        )
         .unwrap();
     let instance_id_created = instance_id_getter.get(&agent_id).unwrap();
 

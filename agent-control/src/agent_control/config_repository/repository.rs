@@ -34,6 +34,7 @@ pub(crate) mod tests {
     use super::{AgentControlConfigError, AgentControlDynamicConfigRepository};
     use crate::agent_control::agent_id::AgentID;
     use crate::opamp::remote_config::hash::ConfigState;
+    use crate::resource_ownership::ResourceOwnership;
     use crate::values::config::RemoteConfig;
     use crate::values::config_repository::ConfigRepository;
     use crate::{
@@ -82,13 +83,21 @@ pub(crate) mod tests {
 
         fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError> {
             self.values_repository
-                .store_remote(&AgentID::AgentControl, config)
+                .store_remote(
+                    &AgentID::AgentControl,
+                    ResourceOwnership::AgentControl,
+                    config,
+                )
                 .map_err(|e| AgentControlConfigError(e.to_string()))
         }
 
         fn update_state(&self, state: ConfigState) -> Result<(), AgentControlConfigError> {
             self.values_repository
-                .update_state(&AgentID::AgentControl, state)
+                .update_state(
+                    &AgentID::AgentControl,
+                    ResourceOwnership::AgentControl,
+                    state,
+                )
                 .map_err(|e| AgentControlConfigError(e.to_string()))
         }
 

@@ -609,6 +609,13 @@ pub fn secret_type_meta() -> TypeMeta {
     }
 }
 
+pub fn configmap_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "v1".to_string(),
+        kind: "ConfigMap".to_string(),
+    }
+}
+
 pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     // In flux health check we are currently supporting just a single helm_release_type_meta
     // Each time we support a new version we should decide if and how to support retrieving its health
@@ -617,6 +624,9 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
         // Agent Operator CRD
         instrumentation_v1beta3_type_meta(),
         secret_type_meta(),
+        // This allows ConfigMaps created by sub-agents to be cleaned up by the GC.
+        // AC internal ConfigMaps (e.g. fleet-data) are handled by garbage_collect_agent_control_resources.
+        configmap_type_meta(),
         helmrepository_type_meta(),
         helmrelease_v2_type_meta(),
     ]

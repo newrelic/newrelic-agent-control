@@ -1,7 +1,11 @@
 use std::time::Duration;
 
 use kube::Api;
-use newrelic_agent_control::{agent_control::agent_id::AgentID, k8s::labels::Labels};
+use newrelic_agent_control::{
+    agent_control::agent_id::AgentID,
+    agent_type::agent_type_id::AgentTypeID,
+    k8s::{annotations::Annotations, labels::Labels},
+};
 use tempfile::tempdir;
 
 use crate::{
@@ -35,7 +39,12 @@ fn k8s_garbage_collector_triggers_on_ac_startup() {
         &test_ns,
         removed_agent_id,
         Some(Labels::new(&AgentID::try_from(removed_agent_id.to_string()).unwrap()).get()),
-        None,
+        Some(
+            Annotations::new_sub_agent_owned_with_type(
+                &AgentTypeID::try_from("newrelic/com.newrelic.removed:0.0.1").unwrap(),
+            )
+            .get(),
+        ),
     ));
 
     // start Agent Control, so the objects above should be removed by the GC.
