@@ -200,11 +200,10 @@ impl TryFrom<YAMLConfig> for AgentControlConfig {
     type Error = AgentControlConfigError;
 
     fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
-        serde_json::from_value(
-            serde_json::to_value(value)
-                .map_err(|e| AgentControlConfigError(format!("converting config: {e}")))?,
-        )
-        .map_err(|e| AgentControlConfigError(format!("deserializing config: {e}")))
+        let value_string = serde_saphyr::to_string(&value)
+            .map_err(|e| AgentControlConfigError(format!("converting config: {e}")))?;
+        serde_saphyr::from_str(&value_string)
+            .map_err(|e| AgentControlConfigError(format!("deserializing config: {e}")))
     }
 }
 
@@ -327,11 +326,10 @@ impl TryFrom<YAMLConfig> for AgentControlDynamicConfig {
     type Error = AgentControlConfigError;
 
     fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
-        serde_json::from_value(
-            serde_json::to_value(value)
-                .map_err(|e| AgentControlConfigError(format!("deserializing: {e}")))?,
-        )
-        .map_err(|e| AgentControlConfigError(format!("serializing: {e}")))
+        let value_string = serde_saphyr::to_string(&value)
+            .map_err(|e| AgentControlConfigError(format!("deserializing: {e}")))?;
+        serde_saphyr::from_str(&value_string)
+            .map_err(|e| AgentControlConfigError(format!("serializing: {e}")))
     }
 }
 
