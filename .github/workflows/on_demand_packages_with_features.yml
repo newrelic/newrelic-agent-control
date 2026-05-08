@@ -1,0 +1,47 @@
+name: ⏯️ Build packages with custom cargo features
+
+# This workflow compiles agent-control binaries with optional cargo features enabled
+# and generates full packages (tar.gz, zip, deb, rpm) without publishing them to S3
+# or Docker Hub. Artifacts are available as workflow artifacts.
+#
+# Example usage:
+#   features: dhat-heap
+#   features: dhat-heap,dhat-ad-hoc
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for the packages (e.g. 1.13.0-profiled)'
+        type: string
+        required: true
+      features:
+        description: 'Comma-separated cargo features to enable (e.g. dhat-heap,dhat-ad-hoc)'
+        type: string
+        required: true
+      skip_sign:
+        description: 'Skip signing the packages'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-packages:
+    name: Build packages with features
+    uses: ./.github/workflows/component_packages.yml
+    permissions:
+      contents: write
+    with:
+      pre-release: false
+      tag_name: ${{ inputs.tag_name }}
+      features: ${{ inputs.features }}
+      skip_sign: ${{ inputs.skip_sign }}
+    secrets:
+      gh_token: ${{ secrets.GITHUB_TOKEN }}
+      gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
+      gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+      pfx_certificate_base64: ${{ secrets.OHAI_PFX_CERTIFICATE_BASE64 }}
+      pfx_passphrase: ${{ secrets.OHAI_PFX_PASSPHRASE }}

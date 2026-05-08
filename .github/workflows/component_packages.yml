@@ -36,6 +36,11 @@ on:
         description: 'tag name for the packages'
         type: string
         required: true
+      features:
+        description: 'comma-separated cargo features to enable (e.g. dhat-heap,dhat-ad-hoc)'
+        type: string
+        required: false
+        default: ''
 
 jobs:
   build:
@@ -116,6 +121,7 @@ jobs:
           NR_RELEASE_TAG: ${{ inputs.tag_name }}
           GORELEASER_CURRENT_TAG: ${{ inputs.tag_name }}
           SKIP_WINDOWS_SIGN: ${{ env.SKIP_WINDOWS_SIGN }}
+          CARGO_FEATURES: ${{ inputs.features }}
 
       - name: Upload assets to pipeline
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
