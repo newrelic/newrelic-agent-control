@@ -160,7 +160,7 @@ jobs:
       # Context:
       # We were using version 0.2.6, which downloaded the linux headers from an s3 bucket in staging.
       # This is no longer true and newer versions don't work out of the box.
-      scenarios: '["infra", "apm", "collector", "fleet-control", "dynamic", "custom-repo", "proxy"]'
+      scenarios: '["infra", "apm", "configmap-agent", "collector", "fleet-control", "dynamic", "custom-repo", "proxy"]'
       # Network policies needs calico installed, the others do not
       minikube_start_args: '--cni=calico'
       caller_workflow: prerelease

@@ -1,0 +1,70 @@
+subAgentsNamespace: "newrelic-agents"
+config:
+  cdEnabled: false
+  authSecret:
+    secretName: "agent-control-auth"
+    secretKeyName: "private_key"
+  fleet_control:
+    enabled: false
+  log:
+    level: debug
+  agents:
+    gateway:
+      agent_type: newrelic/com.newrelic.pipeline_control_gateway_config:0.1.0
+image:
+  repository: agent-control-dev
+  tag: e2e-test
+  pullPolicy: Never
+# TODO: On mac serde is not parsing well yaml values directly and only works well with strings we should check our templating system.
+agentsConfig:
+  gateway:
+    config:
+      exporters:
+        otlp/exporter:
+          endpoint: https://otlp.nr-data.net:443
+          headers:
+            api-key: ${env:NEW_RELIC_LICENSE_KEY}
+      extensions:
+        healthcheckv2:
+          component_health:
+            include_permanent_errors: false
+            include_recoverable_errors: true
+            recovery_duration: 5m
+          http:
+            config:
+              enabled: true
+              path: /health/config
+            endpoint: ${env:MY_POD_IP}:13133
+            status:
+              enabled: true
+              path: /health/status
+          use_v2: true
+        zpages: { }
+      processors:
+        filter/Metrics: null
+      receivers:
+        otlp/receiver:
+          protocols:
+            grpc:
+              endpoint: ${env:MY_POD_IP}:4317
+            http:
+              endpoint: ${env:MY_POD_IP}:4318
+      service:
+        extensions:
+          - healthcheckv2
+        pipelines:
+          metrics/otlp:
+            exporters:
+              - otlp/exporter
+            processors:
+              - filter/Metrics
+            receivers:
+              - otlp/receiver
+        telemetry:
+          logs:
+            level: info
+          metrics:
+            level: detailed
+    config_map_name: "pcg-otel-config"
+systemIdentity:
+  create: false

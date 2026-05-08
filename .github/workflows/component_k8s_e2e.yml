@@ -100,6 +100,7 @@ jobs:
           USE_LATEST_FLUX: ${{ inputs.use_latest_flux }}
           # Tilt configs
           ARCH: amd64
+          FEATURE_BRANCH: feat/cdEnabled
         with:
           retry_attempts: 40
           retry_seconds: 15
