@@ -633,7 +633,12 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
 }
 
 pub fn default_group_version_kinds_no_flux() -> Vec<TypeMeta> {
-    vec![secret_type_meta()]
+    vec![
+        secret_type_meta(),
+        // This allows ConfigMaps created by sub-agents to be cleaned up by the GC.
+        // AC internal ConfigMaps (e.g. fleet-data) are handled by garbage_collect_agent_control_resources.
+        configmap_type_meta(),
+    ]
 }
 
 #[cfg(test)]

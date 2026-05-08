@@ -24,7 +24,7 @@ deployment:
       interval: 30s
       initial_delay: 15s
       checks:
-        - namespace: ${nr-ac:namespace}
+        - namespace: ${nr-ac:namespace_agents}
           name: ${nr-var:deployment_name}
           kind: Deployment
           target_namespace: ${nr-ac:namespace_agents}
