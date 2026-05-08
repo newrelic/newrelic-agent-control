@@ -1,5 +1,4 @@
 subAgentsNamespace: "newrelic-agents"
-verboseLog: true
 config:
   authSecret:
     secretName: "agent-control-auth"
@@ -8,11 +7,10 @@ config:
     enabled: false
   log:
     level: debug
-  k8s:
-    cd_enabled: false
   agents:
     gateway:
       agent_type: newrelic/com.newrelic.pipeline_control_gateway_config:0.1.0
+# TODO: On mac serde is not parsing well yaml values directly and only works well with strings we should check our templating system.
 agentsConfig:
   gateway:
     config:
@@ -62,7 +60,6 @@ agentsConfig:
             level: info
           metrics:
             level: detailed
-
     config_map_name: "pcg-otel-config"
 systemIdentity:
   create: false
