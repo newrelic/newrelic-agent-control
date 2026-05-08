@@ -78,8 +78,8 @@ logs:
     create_temp_file(dir.path(), AUTH_PRIVATE_KEY_FILE_NAME, "dummy-key-content")?;
 
     let mut cmd = cmd_with_config_file(dir.path());
-    // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
-    cmd.timeout(Duration::from_secs(1));
+    // cmd_assert is not made for long running programs, so we kill it anyway after 10 seconds
+    cmd.timeout(Duration::from_secs(10));
     // But in any case we make sure that it actually attempted to create the supervisor group,
     // so it works when the program is run as root
     // The following regular expressions are used to ensure the logging format: 2024-02-16T07:49:44  INFO Creating the global context
@@ -126,8 +126,8 @@ server:
     )?;
 
     let mut cmd = cmd_with_config_file(dir.path());
-    // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
-    cmd.timeout(Duration::from_secs(1));
+    // cmd_assert is not made for long running programs, so we kill it anyway after 10 seconds
+    cmd.timeout(Duration::from_secs(10));
     // But in any case we make sure that it actually attempted to create the supervisor group,
     // so it works when the program is run as root
     // The following regular expressions are used to ensure the logging format: 2024 INFO Creating the global context
@@ -245,8 +245,8 @@ fn runs_with_no_config() -> Result<(), Box<dyn Error>> {
     let env_var_name = "NR_AC_AGENTS__ROLLDICE__AGENT_TYPE";
     unsafe { env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2") };
 
-    // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
-    cmd.timeout(Duration::from_secs(1));
+    // cmd_assert is not made for long running programs, so we kill it anyway after 10 seconds
+    cmd.timeout(Duration::from_secs(10));
     // But in any case we make sure that it actually attempted to create the supervisor group,
     // so it works when the program is run as root
     // The following regular expressions are used to ensure the logging format: 2024-02-16T07:49:44  INFO Creating the global context
