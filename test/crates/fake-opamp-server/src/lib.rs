@@ -277,10 +277,16 @@ impl FakeServer {
             .and_then(|s| find_string_identifying_attr(&s.attributes, key))
     }
 
-    /// Returns `true` if the agent has reported a remote config status of `Applied`.
-    pub fn is_config_status_applied(&self, identifier: impl Into<InstanceUid>) -> bool {
-        self.get_remote_config_status(identifier)
-            .is_some_and(|s| s.status == RemoteConfigStatuses::Applied as i32)
+    /// Returns `Ok(())` if the agent has reported a remote config status of `Applied`.
+    pub fn is_config_status_applied(
+        &self,
+        identifier: impl Into<InstanceUid>,
+    ) -> Result<(), String> {
+        match self.get_remote_config_status(identifier) {
+            Some(s) if s.status == RemoteConfigStatuses::Applied as i32 => Ok(()),
+            Some(_) => Err("Config status is not Applied".to_string()),
+            None => Err("Remote config status not found".to_string()),
+        }
     }
 }
 
@@ -385,27 +391,19 @@ fn build_response(
 }
 
 fn find_string_identifying_attr(description: &AgentDescription, key: &str) -> Option<String> {
-    description
+    let kv = description
         .identifying_attributes
         .iter()
-        .find(|kv| kv.key == key)
-        .and_then(|kv| {
-            kv.value.as_ref()?.value.as_ref().and_then(|v| match v {
-                Value::StringValue(s) => Some(s.clone()),
-                _ => None,
-            })
-        })
+        .find(|kv| kv.key == key)?;
+
+    match kv.value.as_ref()?.value.as_ref()? {
+        Value::StringValue(s) => Some(s.clone()),
+        _ => None,
+    }
 }
 
 fn has_identifying_attr(description: &AgentDescription, key: &str, value: &str) -> bool {
-    description.identifying_attributes.iter().any(|kv| {
-        kv.key == key
-            && kv
-                .value
-                .as_ref()
-                .and_then(|av| av.value.as_ref())
-                .is_some_and(|v| matches!(v, Value::StringValue(s) if s == value))
-    })
+    find_string_identifying_attr(description, key).is_some_and(|v| v == value)
 }
 
 fn generate_key_pair() -> Ed25519KeyPair {

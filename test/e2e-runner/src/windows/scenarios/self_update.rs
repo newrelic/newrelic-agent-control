@@ -100,11 +100,9 @@ self_update:
         Duration::from_secs(2),
         "waiting for remote config Applied status",
         || {
-            if opamp_server.is_config_status_applied(instance_id.clone()) {
-                Ok(())
-            } else {
-                Err("remote config status not yet Applied".into())
-            }
+            opamp_server
+                .is_config_status_applied(instance_id.clone())
+                .map_err(|e| e.into())
         },
     );
 
@@ -114,15 +112,15 @@ self_update:
         Duration::from_secs(2),
         "verifying updated agent.version attribute",
         || {
-            let Some(version) =
+            let Some(reported_version) =
                 opamp_server.get_identifying_attr_value(instance_id.clone(), AGENT_VERSION_ATTR)
             else {
                 return Err("agent.version attribute not set yet".into());
             };
-            if version == new_version {
-                Ok(version)
+            if reported_version == new_version {
+                Ok(())
             } else {
-                Err(format!("expected version {new_version}, got {version}").into())
+                Err(format!("expected version {new_version}, got {reported_version}").into())
             }
         },
     );

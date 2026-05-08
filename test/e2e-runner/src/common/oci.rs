@@ -1,11 +1,11 @@
 use crate::common::InstallationArgs;
 use crate::common::cert::SelfSignedCert;
 use crate::common::runtime::tokio_runtime;
+use crate::common::test::retry;
 use oci_client::Reference;
 use oci_test_utils::{OCISigner, PackageMediaType, PackagePublisher};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::thread;
 use std::time::Duration;
 use tracing::info;
 
@@ -94,17 +94,13 @@ fn script_command() -> Command {
 
 fn wait_for_registry() {
     let url = format!("https://localhost:{LOCAL_REGISTRY_PORT}/v2/");
-    for _ in 0..30 {
-        info!("Checking registry at {url}");
-        if reqwest::blocking::get(&url)
-            .map(|r| r.status().is_success())
-            .unwrap_or(false)
-        {
-            return;
-        }
-        thread::sleep(Duration::from_secs(1));
-    }
-    panic!("OCI registry did not become ready within 30 seconds");
+    info!("Checking registry at {url}");
+    retry(30, Duration::from_secs(1), "Checking registry", || {
+        reqwest::blocking::get(&url)
+            .and_then(|r| r.error_for_status())
+            .map_err(|e| e.into())
+    })
+    .expect("OCI registry did not become ready within 30 seconds");
 }
 
 /// Holds a pushed and signed AC package artifact for the duration of a test.
