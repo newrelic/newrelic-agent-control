@@ -115,6 +115,16 @@ test/onhost-canaries/ansible-install:
 	@terraform -chdir=$(ONHOST_TF_DIR) output -raw ansible_inventory_content > \
 		$(ONHOST_TF_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT)
 	@echo "✓ Inventory file generated from Terraform state"
+	@INVENTORY_FILE=$(ONHOST_TF_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT) && \
+	echo "Validating Ansible inventory contains the 2 canaries..." && \
+	HOST_COUNT=$$(ansible-inventory -i $$INVENTORY_FILE --list 2>/dev/null | jq '[.. | .hosts? // empty] | flatten | length') && \
+	if [ "$$HOST_COUNT" -ne 2 ]; then \
+		echo "ERROR: Inventory file has no hosts defined"; \
+		echo "Inventory content:"; \
+		cat $$INVENTORY_FILE; \
+		exit 1; \
+	fi && \
+	echo "✓ Inventory validation passed ($$HOST_COUNT hosts found)"
 	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ONHOST_ANSIBLE_FOLDER) ANSIBLE_ENV_SCRIPT=$(ONHOST_ANSIBLE_FOLDER)/set_ansible_env.sh
 	@echo "Running Ansible playbook for environment: $(ENVIRONMENT)"
 	@INVENTORY_FILE=$(ONHOST_TF_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT) && \

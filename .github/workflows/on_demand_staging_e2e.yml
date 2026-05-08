@@ -1,4 +1,4 @@
-name: 🍯 E2E pointing to staging
+name: ⏯️🍯 E2E pointing to staging
 
 on:
   workflow_dispatch:

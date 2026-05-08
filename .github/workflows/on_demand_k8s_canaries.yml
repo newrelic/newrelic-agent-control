@@ -1,0 +1,54 @@
+name: 🐤 On-Demand k8s canaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      canary_dir:
+        description: "Canary directory (staging/production)"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      image_tag:
+        description: "Image tag to deploy"
+        required: true
+        type: string
+        default: "nightly"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "on-demand-k8s-canaries-${{ inputs.canary_dir }}"
+  cancel-in-progress: false
+
+jobs:
+  k8s_canaries_infra:
+    name: Canaries infrastructure apply
+    uses: ./.github/workflows/component_k8s_canaries_infra.yml
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      canary_dir: ${{ inputs.canary_dir }}
+      apply: true
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+      SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
+
+  k8s_canaries:
+    name: Deploy Agent Control canaries
+    uses: ./.github/workflows/component_k8s_canaries.yml
+    needs: [ k8s_canaries_infra ]
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      image-tag: ${{ inputs.image_tag }}
+      cluster_name: Agent_Control_Canaries_Staging-Cluster
+      canary_dir: ${{ inputs.canary_dir }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
