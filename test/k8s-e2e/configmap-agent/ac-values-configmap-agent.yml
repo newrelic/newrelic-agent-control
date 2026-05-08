@@ -1,5 +1,6 @@
 subAgentsNamespace: "newrelic-agents"
 config:
+  cdEnabled: false
   authSecret:
     secretName: "agent-control-auth"
     secretKeyName: "private_key"
@@ -10,6 +11,10 @@ config:
   agents:
     gateway:
       agent_type: newrelic/com.newrelic.pipeline_control_gateway_config:0.1.0
+image:
+  repository: agent-control-dev
+  tag: e2e-test
+  pullPolicy: Never
 # TODO: On mac serde is not parsing well yaml values directly and only works well with strings we should check our templating system.
 agentsConfig:
   gateway:
