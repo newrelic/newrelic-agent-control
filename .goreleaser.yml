@@ -101,6 +101,17 @@ archives:
     ids:
       - newrelic-agent-control-linux
       - newrelic-agent-control-cli-linux
+    files:
+      - THIRD_PARTY_NOTICES.md
+      - LICENSE.md
+  - id: linux-oci
+    formats: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}_oci"
+    ids:
+      - newrelic-agent-control-linux
+    files:
+      - THIRD_PARTY_NOTICES.md
+      - LICENSE.md
   - id: windows
     formats: zip
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
@@ -112,6 +123,16 @@ archives:
         dst: install.ps1
       - src: build/package/windows/uninstall.ps1
         dst: uninstall.ps1
+      - THIRD_PARTY_NOTICES.md
+      - LICENSE.md
+  - id: windows-oci
+    formats: zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}_oci"
+    ids:
+      - newrelic-agent-control-windows
+    files:
+      - THIRD_PARTY_NOTICES.md
+      - LICENSE.md
 
 nfpms: # deb and rpm are only built for linux targets
   - package_name: newrelic-agent-control
