@@ -20,13 +20,15 @@ pub struct FleetControlArgs {
     #[arg(long)]
     pub fleet_control_token: String,
 
-    /// Fleet type for Fleet Control API (e.g. linux-fleet or k8s-fleet)
-    #[arg(long)]
-    pub fleet_type: String,
+    /// Test tags to include when filtering which tests to run (e.g. FLEET_DEPLOYMENT_REMOTE),
+    /// can be specified multiple times
+    #[arg(long = "include-test-tag")]
+    pub include_test_tags: Vec<String>,
 
-    /// Name of the test suite to run (e.g. DeploymentServicesTestSuite)
-    #[arg(long)]
-    pub test_suite: String,
+    /// Test scenario names to run (e.g. ManagedEntityIsConnectedRemote),
+    /// can be specified multiple times
+    #[arg(long = "test-scenario")]
+    pub test_scenarios: Vec<String>,
 }
 
 /// Arguments for scenarios that require Agent Control installation

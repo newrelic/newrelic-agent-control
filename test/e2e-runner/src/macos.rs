@@ -10,7 +10,7 @@ pub fn run_macos_e2e() {
     // Run the requested test
     match cli.scenario {
         MacOSScenarios::FleetControlApi(args) => {
-            fleet_control_api::run_fleet_control_api(args.fleet_control);
+            fleet_control_api::run_fleet_control_api(&args.fleet_control);
         }
     };
 }
