@@ -24,10 +24,15 @@ help:
 
 ARCH ?= arm64
 BUILD_MODE ?= release
+FEATURES ?=
 
 build-%:
-	@echo "Building $* with mode: $(BUILD_MODE), bin $(*) and arch: $(ARCH)"
-	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="newrelic-$(*)" PKG="newrelic_agent_control" ./build/scripts/build_binary.sh
+	@echo "Building $* with mode: $(BUILD_MODE), bin $(*), arch: $(ARCH), features: $(FEATURES)"
+	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) FEATURES="$(FEATURES)" BIN="newrelic-$(*)" PKG="newrelic_agent_control" ./build/scripts/build_binary.sh
+
+build-profiled-%:
+	@echo "Building profiled $* with mode: $(BUILD_MODE), bin $(*), arch: $(ARCH), features: dhat-heap"
+	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) FEATURES="dhat-heap" BIN="newrelic-$(*)" PKG="newrelic_agent_control" ./build/scripts/build_binary.sh
 
 .PHONY: tilt-up
 tilt-up:

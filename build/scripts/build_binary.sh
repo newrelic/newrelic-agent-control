@@ -33,7 +33,12 @@ export AGENT_CONTROL_VERSION=${AGENT_CONTROL_VERSION}
 
 export RUSTFLAGS="-C target-feature=+crt-static"
 
-cargo zigbuild --target "${TARGET_TUPLE}" --profile "${BUILD_MODE}" --package "${PKG}" --bin "${BIN}"
+FEATURES_ARG=""
+if [ -n "${FEATURES}" ]; then
+  FEATURES_ARG="--features ${FEATURES}"
+fi
+
+cargo zigbuild --target "${TARGET_TUPLE}" --profile "${BUILD_MODE}" --package "${PKG}" --bin "${BIN}" ${FEATURES_ARG}
 
 mkdir -p "bin"
 
