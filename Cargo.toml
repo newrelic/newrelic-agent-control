@@ -49,7 +49,7 @@ windows-sys = "0.61.2"
 aws-lc-rs = "1.16.3"
 opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.37" }
 oci-client = { version = "0.16.1", default-features = false }
-tokio = "1.52.2"
+tokio = "1.52.3"
 base64 = "0.22.1"
 actix-web = "4.13.0"
 
