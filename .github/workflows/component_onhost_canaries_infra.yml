@@ -1,17 +1,6 @@
-name: 🏗️ Onhost canaries - Infrastructure
+name: 📞 Onhost canaries - Infrastructure
 
 on:
-  workflow_dispatch:
-    inputs:
-      environment:
-        required: true
-        type: string
-        description: "Environment (staging/production)"
-      operation:
-        required: true
-        type: string
-        description: "Operation (plan/apply)"
-
   workflow_call:
     secrets:
       AWS_ROLE_ARN:

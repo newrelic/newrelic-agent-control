@@ -1,22 +1,6 @@
 name: 📞 Onhost canaries operation
 
 on:
-  workflow_dispatch:
-    inputs:
-      environment:
-        required: true
-        type: string
-      fleet_id:
-        required: true
-        type: string
-      windows_fleet_id:
-        required: true
-        type: string
-      package_version:
-        required: false
-        type: string
-        default: ""
-
   workflow_call:
     secrets:
       AWS_ROLE_ARN:
@@ -26,12 +10,6 @@ on:
 
     inputs:
       environment:
-        required: true
-        type: string
-      fleet_id:
-        required: true
-        type: string
-      windows_fleet_id:
         required: true
         type: string
       package_version:
@@ -45,6 +23,14 @@ permissions:
 concurrency:
   group: onhost-canaries-${{ inputs.environment }}
   cancel-in-progress: false
+
+env:
+  # AC Staging Account `host-canaries-staging` fleet
+  FLEET_ID_STAGING: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlhZTNiNS01Yjg5LTdkNjYtYWU0MC1lNmZkOTY2ZDFhMDA"
+  WINDOWS_FLEET_ID_STAGING: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTljMjNjYy0yM2I2LTc1OTYtODBkNy0yMzAzYWIyYzcwMTA"
+  # AC US Production Account `host-canaries-production` fleet
+  FLEET_ID_PRODUCTION: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWFlM2EyLTA3OTctNzczYS05Y2JjLWMzNzZkMjAwMWFkZg"
+  WINDOWS_FLEET_ID_PRODUCTION: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWMyMjljLWVhYTQtN2JmNi04YWIyLTU2ZWI0YjE2ZWZjZQ"
 
 jobs:
   install-ac:
@@ -71,11 +57,21 @@ jobs:
           GIT_BRANCH="${GIT_BRANCH#refs/tags/}"
           echo "GIT_BRANCH=$GIT_BRANCH" >> "$GITHUB_ENV"
 
+      - name: Resolve fleet IDs for environment
+        run: |
+          if [ "${{ inputs.environment }}" = "production" ]; then
+            echo "FLEET_ID=${{ env.FLEET_ID_PRODUCTION }}" >> "$GITHUB_ENV"
+            echo "WINDOWS_FLEET_ID=${{ env.WINDOWS_FLEET_ID_PRODUCTION }}" >> "$GITHUB_ENV"
+          else
+            echo "FLEET_ID=${{ env.FLEET_ID_STAGING }}" >> "$GITHUB_ENV"
+            echo "WINDOWS_FLEET_ID=${{ env.WINDOWS_FLEET_ID_STAGING }}" >> "$GITHUB_ENV"
+          fi
+
       - name: Install/Upgrade Agent Control via Ansible
         uses: newrelic/fargate-runner-action@121b96de1a4d7135204fd8a510927b0463df1b6b # main
         with:
           aws_region: us-east-2
-          container_make_target: "FLEET_ID=${{ inputs.fleet_id }} WINDOWS_FLEET_ID=${{ inputs.windows_fleet_id }} ENVIRONMENT=${{ inputs.environment }} PACKAGE_VERSION=${{ inputs.package_version }} test/onhost-canaries/ansible-install"
+          container_make_target: "FLEET_ID=${{ env.FLEET_ID }} WINDOWS_FLEET_ID=${{ env.WINDOWS_FLEET_ID }} ENVIRONMENT=${{ inputs.environment }} PACKAGE_VERSION=${{ inputs.package_version }} test/onhost-canaries/ansible-install"
           ecs_cluster_name: agent_control
           task_definition_name: agent_control
           cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control

@@ -142,33 +142,57 @@ jobs:
       E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
       E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
 
+  k8s_canaries_infra:
+    uses: ./.github/workflows/component_k8s_canaries_infra.yml
+    needs: [ build-image ]
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      canary_dir: staging
+      apply: true
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+      SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
+
   k8s_canaries:
     uses: ./.github/workflows/component_k8s_canaries.yml
-    needs: [ build-image ]
+    needs: [ k8s_canaries_infra ]
     permissions:
       id-token: write
       contents: read
     with:
       image-tag: nightly
       cluster_name: Agent_Control_Canaries_Staging-Cluster
-      # AC Staging Account `k8s-canaries-staging-1` fleet
-      fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk1ZDE1NC1iNTI0LTdhMTYtYWExYS0wYzQ2Y2VhOGFiMzg"
-      canary_dir: "staging"
+      canary_dir: staging
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
 
-  onhost_canaries:
-    uses: ./.github/workflows/component_onhost_canaries.yml
-    needs: [ upload-packages-s3 ]
+  onhost_canaries_infra:
+    uses: ./.github/workflows/component_onhost_canaries_infra.yml
+    needs: [ upload-packages-s3]
     permissions:
       id-token: write
       contents: read
     with:
       environment: staging
-      # AC Staging Account `host-canaries-staging` fleet
-      fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlhZTNiNS01Yjg5LTdkNjYtYWU0MC1lNmZkOTY2ZDFhMDA"
-      windows_fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTljMjNjYy0yM2I2LTc1OTYtODBkNy0yMzAzYWIyYzcwMTA"
+      operation: apply
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+      AC_CANARY_WINDOWS_PASSWORD: ${{ secrets.AC_CANARY_WINDOWS_PASSWORD }}
+      SLACK_WEBHOOK_URL: ${{ secrets.AC_FLEET_COMMON_SLACK_WEBHOOK }}
+
+  onhost_canaries:
+    uses: ./.github/workflows/component_onhost_canaries.yml
+    needs: [ onhost_canaries_infra ]
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      environment: staging
       package_version: 0.100.${{ github.run_id }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
