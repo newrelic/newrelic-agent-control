@@ -123,9 +123,9 @@ impl<'de> Deserialize<'de> for AgentTypeID {
         // intermediate serialization type to validate `default` and `required` fields
         #[derive(Debug, Deserialize)]
         struct IntermediateAgentMetadata {
-            name: String,
-            namespace: String,
-            version: String,
+            name: Option<String>,
+            namespace: Option<String>,
+            version: Option<String>,
         }
 
         let IntermediateAgentMetadata {
@@ -134,14 +134,17 @@ impl<'de> Deserialize<'de> for AgentTypeID {
             version,
         } = IntermediateAgentMetadata::deserialize(deserializer)?;
 
+        let name = name.unwrap_or_default();
         if !Self::has_valid_format(name.as_str()) {
             return Err(Error::custom(AgentTypeIDError::InvalidName));
         }
+
+        let namespace = namespace.unwrap_or_default();
         if !Self::has_valid_format(namespace.as_str()) {
             return Err(Error::custom(AgentTypeIDError::InvalidNamespace));
         }
 
-        let version = Version::parse(version.as_str())
+        let version = Version::parse(version.unwrap_or_default().as_str())
             .map_err(|_| Error::custom(AgentTypeIDError::InvalidVersion))?;
 
         Ok(AgentTypeID {
