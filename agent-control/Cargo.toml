@@ -72,14 +72,14 @@ opentelemetry_sdk = { version = "0.32.0", features = ["trace"] }
 tracing-opentelemetry = "0.32.1"
 opentelemetry-otlp = { version = "0.32.0", features = ["reqwest-rustls"] }
 opentelemetry-http = { version = "0.32.0" }
-opentelemetry-appender-tracing = { version = "0.32.0", features = [
-  "experimental_use_tracing_span_context",
-] }
+opentelemetry-appender-tracing = { version = "0.32.0" }
 async-trait = "0.1.89"
 flate2 = "1.1.9"
 tar = "0.4.45"
 zip = "8.6.0"
-oci-client = { workspace = true, features = ["rustls-tls"], default-features = false }
+oci-client = { workspace = true, features = [
+  "rustls-tls",
+], default-features = false }
 rustls-pki-types = { version = "1.14.1", features = ["std"] }
 dhat = { version = "0.3.3", optional = true }
 
