@@ -1,5 +1,4 @@
 //! This module defines configuration related to region.
-use clap::builder::ValueParser;
 use http::Uri;
 use nr_auth::{
     parameters::Environments, system_identity::input_data::environment::NewRelicEnvironment,
@@ -7,16 +6,21 @@ use nr_auth::{
 
 const OPAMP_ENDPOINT_US: &str = "https://opamp.service.newrelic.com/v1/opamp";
 const OPAMP_ENDPOINT_EU: &str = "https://opamp.service.eu.newrelic.com/v1/opamp";
+const OPAMP_ENDPOINT_JP: &str = "https://opamp.service.jp.newrelic.com/v1/opamp";
+
 const OPAMP_ENDPOINT_STAGING: &str = "https://opamp.staging-service.newrelic.com/v1/opamp";
 
 const PUBLIC_KEY_ENDPOINT_US: &str =
     "https://publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json";
 const PUBLIC_KEY_ENDPOINT_EU: &str =
     "https://publickeys.eu.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json";
+const PUBLIC_KEY_ENDPOINT_JP: &str =
+    "https://publickeys.jp.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json";
 const PUBLIC_KEY_ENDPOINT_STAGING: &str =
     "https://staging-publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json";
 
 const OTLP_URL_STAGING: &str = "staging-otlp.nr-data.net";
+const OTLP_URL_JP: &str = "otlp.jp.nr-data.net";
 const OTLP_URL_EU: &str = "otlp.eu01.nr-data.net";
 const OTLP_URL_US: &str = "otlp.nr-data.net";
 
@@ -25,20 +29,14 @@ const OTLP_URL_US: &str = "otlp.nr-data.net";
 /// tool such as [clap::builder::TypedValueParser::map].
 #[derive(Debug, Copy, Clone, PartialEq, clap::ValueEnum)]
 pub enum Region {
+    #[value(name = "US", alias = "Us", alias = "us")]
     US,
+    #[value(name = "EU", alias = "Eu", alias = "eu")]
     EU,
+    #[value(name = "JP", alias = "Jp", alias = "jp")]
+    JP,
+    #[value(name = "STAGING", alias = "Staging", alias = "staging")]
     STAGING,
-}
-
-pub fn region_parser() -> ValueParser {
-    ValueParser::from(|s: &str| -> Result<Region, String> {
-        match s.to_lowercase() {
-            s if s == "us" => Ok(Region::US),
-            s if s == "eu" => Ok(Region::EU),
-            s if s == "staging" => Ok(Region::STAGING),
-            _ => Err(format!("{s} is not a supported region")),
-        }
-    })
 }
 
 impl From<Region> for Environments {
@@ -46,6 +44,7 @@ impl From<Region> for Environments {
         match value {
             Region::US => Environments::US,
             Region::EU => Environments::EU,
+            Region::JP => Environments::JP,
             Region::STAGING => Environments::STAGING,
         }
     }
@@ -62,6 +61,7 @@ impl Region {
         match &self {
             Self::US => OPAMP_ENDPOINT_US,
             Self::EU => OPAMP_ENDPOINT_EU,
+            Self::JP => OPAMP_ENDPOINT_JP,
             Self::STAGING => OPAMP_ENDPOINT_STAGING,
         }
         .parse()
@@ -72,6 +72,7 @@ impl Region {
         match &self {
             Self::US => PUBLIC_KEY_ENDPOINT_US,
             Self::EU => PUBLIC_KEY_ENDPOINT_EU,
+            Self::JP => PUBLIC_KEY_ENDPOINT_JP,
             Self::STAGING => PUBLIC_KEY_ENDPOINT_STAGING,
         }
         .parse()
@@ -82,6 +83,7 @@ impl Region {
         let host = match &self {
             Self::US => OTLP_URL_US,
             Self::EU => OTLP_URL_EU,
+            Self::JP => OTLP_URL_JP,
             Self::STAGING => OTLP_URL_STAGING,
         };
         let endpoint = format!("https://{}:4317", host);
@@ -167,38 +169,5 @@ mod tests {
             region.otel_endpoint().to_string(),
             expected_endpoint.to_string()
         );
-    }
-
-    #[rstest]
-    #[case("us", Region::US)]
-    #[case("US", Region::US)]
-    #[case("eu", Region::EU)]
-    #[case("EU", Region::EU)]
-    #[case("staging", Region::STAGING)]
-    #[case("STAGING", Region::STAGING)]
-    fn test_region_parser_ok(#[case] input: &str, #[case] expected: Region) {
-        let cmd = clap::Command::new("cmd").arg(
-            clap::Arg::new("flag")
-                .long("flag")
-                .value_parser(region_parser()),
-        );
-        let matches = cmd.try_get_matches_from(["cmd", "--flag", input]).unwrap();
-        let value = matches.get_one::<Region>("flag").cloned();
-        assert_eq!(value, Some(expected));
-    }
-
-    #[rstest]
-    #[case("invalid")]
-    #[case("")]
-    fn test_region_parser_error(#[case] input: &str) {
-        let cmd = clap::Command::new("cmd").arg(
-            clap::Arg::new("flag")
-                .long("flag")
-                .value_parser(region_parser()),
-        );
-        let err = cmd
-            .try_get_matches_from(["cmd", "--flag", input])
-            .unwrap_err();
-        assert!(err.to_string().contains(input))
     }
 }
