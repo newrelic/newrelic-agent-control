@@ -1267,13 +1267,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## iri-string <https://crates.io/crates/iri-string>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## is_terminal_polyfill <https://crates.io/crates/is_terminal_polyfill>
 
 Distributed under the following license(s):
@@ -1458,12 +1451,6 @@ Distributed under the following license(s):
 * MIT
 
 ## libflate_lz77 <https://crates.io/crates/libflate_lz77>
-
-Distributed under the following license(s):
-
-* MIT
-
-## libredox <https://crates.io/crates/libredox>
 
 Distributed under the following license(s):
 
@@ -1869,13 +1856,6 @@ Distributed under the following license(s):
 * MIT
 
 ## pkg-config <https://crates.io/crates/pkg-config>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## plain <https://crates.io/crates/plain>
 
 Distributed under the following license(s):
 
