@@ -2,6 +2,10 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr;
 use windows_sys::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE, GetLastError};
+
+// Standard Windows access right (winnt.h 0x00010000). Not exported from the windows_sys
+// Win32_Foundation feature set, so defined locally as a raw value.
+const DELETE: u32 = 0x0001_0000;
 use windows_sys::Win32::Security::Authorization::{
     EXPLICIT_ACCESS_W, SE_FILE_OBJECT, SET_ACCESS, SetEntriesInAclW, SetNamedSecurityInfoW,
     TRUSTEE_IS_SID, TRUSTEE_W,
@@ -40,7 +44,7 @@ fn get_administrator_sid() -> Result<Vec<u8>, PermissionError> {
 }
 
 /// set_file_permissions_for_administrator removes any other ACL from a file only granting
-/// read and write to Administrators.
+/// read, write, and delete to Administrators.
 pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), PermissionError> {
     // Conversion to UTF-16 format (native string representation in Windows OS)
     let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
@@ -55,9 +59,12 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
         ..Default::default()
     };
 
-    // Define the access entry to allow read and write for the trustee
+    // Define the access entry to allow read, write, and delete for the trustee.
+    // DELETE is required so that Agent Control can remove config files when an agent is
+    // removed from the configuration (see OnHostFilesystemCleaner) and when ephemeral
+    // directories are replaced on each config write.
     let access_entry = EXPLICIT_ACCESS_W {
-        grfAccessPermissions: GENERIC_READ | GENERIC_WRITE,
+        grfAccessPermissions: GENERIC_READ | GENERIC_WRITE | DELETE,
         grfAccessMode: SET_ACCESS,
         grfInheritance: NO_INHERITANCE,
         Trustee: trustee,
@@ -101,6 +108,7 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
 
 #[cfg(test)]
 pub mod tests {
+    use super::DELETE;
     use windows_sys::Win32::{
         Foundation::ERROR_SUCCESS,
         Security::{
@@ -112,12 +120,12 @@ pub mod tests {
 
     use super::*;
 
-    /// Asserts directory permissions are set to only allow Administrators read and write access on Windows.
+    /// Asserts directory permissions are set to only allow Administrators read, write, and delete access on Windows.
     ///
     /// This is a helper function that checks the following:
     /// 1. The DACL of the file contains exactly one ACE.
     /// 2. The ACE is for the Administrators SID.
-    /// 3. The ACE grants FILE_GENERIC_READ and FILE_GENERIC_WRITE permissions.
+    /// 3. The ACE grants FILE_GENERIC_READ, FILE_GENERIC_WRITE, and DELETE permissions.
     pub fn assert_windows_permissions(path: &Path) {
         let mut admin_sid_size = SECURITY_MAX_SID_SIZE;
         let mut admin_sid: Vec<u8> = vec![0; admin_sid_size as usize];
@@ -178,11 +186,11 @@ pub mod tests {
             let sids_equal = EqualSid(sid_in_ace, admin_sid.as_mut_ptr() as *mut _);
             assert_ne!(sids_equal, 0, "ACE SID should match Administrators SID");
 
-            // FILE_GENERIC_READ and FILE_GENERIC_WRITE are what GENERIC_READ/WRITE map to
-            let expected_mask = FILE_GENERIC_READ | FILE_GENERIC_WRITE;
+            // GENERIC_READ/WRITE map to FILE_GENERIC_READ/WRITE; DELETE is a standard right.
+            let expected_mask = FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE;
             assert_eq!(
                 ace.Mask, expected_mask,
-                "ACE should have FILE_GENERIC_READ and FILE_GENERIC_WRITE permissions"
+                "ACE should have FILE_GENERIC_READ, FILE_GENERIC_WRITE, and DELETE permissions"
             );
         }
     }

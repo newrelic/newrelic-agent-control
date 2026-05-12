@@ -219,11 +219,14 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
                     "check all value types are correct",
                     r#"
                 version: "some-version"
-                config_agent: "some file contents"
+                config_agent:
+                    debug: true
                 config_integrations:
-                    map_string: "some file contents"
+                    integration.yaml:
+                        type: apache
                 config_logging:
-                    map_string: "some file contents"
+                    logging.yaml:
+                        log_level: info
                 backoff_delay: "10s"
                 enable_file_logging: true
                 health_port: 12345
@@ -240,11 +243,14 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
                     "check all value types are correct",
                     r#"
                 version: "some-version"
-                config_agent: "some file contents"
+                config_agent:
+                    debug: true
                 config_integrations:
-                    map_string: "some file contents"
+                    integration.yaml:
+                        type: apache
                 config_logging:
-                    map_string: "some file contents"
+                    logging.yaml:
+                        log_level: info
                 backoff_delay: "10s"
                 enable_file_logging: true
                 health_port: 12345

@@ -3,6 +3,7 @@ use crate::{agent_control::agent_id::AgentID, agent_type::agent_type_id::AgentTy
 use super::{ResourceCleaner, ResourceCleanerError};
 
 /// Basic implementation of a no-op ResourceCleaner.
+#[allow(dead_code)]
 pub struct NoOpResourceCleaner;
 
 impl ResourceCleaner for NoOpResourceCleaner {
