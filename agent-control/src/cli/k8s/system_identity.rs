@@ -32,7 +32,7 @@ pub struct Args {
     secret_name: String,
 
     /// New Relic region
-    #[arg(long, required = true)]
+    #[arg(long, required = true, ignore_case = true)]
     region: Region,
 
     /// Identity configuration

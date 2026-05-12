@@ -29,13 +29,9 @@ const OTLP_URL_US: &str = "otlp.nr-data.net";
 /// tool such as [clap::builder::TypedValueParser::map].
 #[derive(Debug, Copy, Clone, PartialEq, clap::ValueEnum)]
 pub enum Region {
-    #[value(name = "US", alias = "Us", alias = "us")]
     US,
-    #[value(name = "EU", alias = "Eu", alias = "eu")]
     EU,
-    #[value(name = "JP", alias = "Jp", alias = "jp")]
     JP,
-    #[value(name = "STAGING", alias = "Staging", alias = "staging")]
     STAGING,
 }
 

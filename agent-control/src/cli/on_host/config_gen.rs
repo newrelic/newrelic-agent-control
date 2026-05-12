@@ -38,7 +38,7 @@ pub struct Args {
     fleet_disabled: bool,
 
     /// New Relic region
-    #[arg(long, required = true)]
+    #[arg(long, required = true, ignore_case = true)]
     region: Region,
 
     /// Fleet identifier

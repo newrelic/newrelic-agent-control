@@ -17,6 +17,7 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 enum Region {
     US,
     EU,
+    JP,
     Staging,
 }
 
@@ -27,6 +28,7 @@ impl TryFrom<&str> for Region {
         match value.to_lowercase().as_ref() {
             "us" => Ok(Self::US),
             "eu" => Ok(Self::EU),
+            "jp" => Ok(Self::JP),
             "staging" => Ok(Self::Staging),
             _ => Err(format!("Invalid region '{value}'")),
         }
@@ -38,6 +40,7 @@ impl Region {
         match self {
             Region::US => "https://api.newrelic.com".to_string(),
             Region::EU => "https://api.eu.newrelic.com".to_string(),
+            Region::JP => "https://api.jp.newrelic.com".to_string(),
             Region::Staging => "https://staging-api.newrelic.com".to_string(),
         }
     }
