@@ -32,6 +32,7 @@ pub enum Region {
     US,
     EU,
     JP,
+    #[value(alias = "stg")]
     STAGING,
 }
 

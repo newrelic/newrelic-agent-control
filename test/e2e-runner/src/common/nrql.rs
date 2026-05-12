@@ -18,6 +18,7 @@ enum Region {
     US,
     EU,
     JP,
+    #[value(alias = "stg")]
     Staging,
 }
 
