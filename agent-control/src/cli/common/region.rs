@@ -104,6 +104,7 @@ mod tests {
     #[rstest]
     #[case(Region::US, Environments::US)]
     #[case(Region::EU, Environments::EU)]
+    #[case(Region::JP, Environments::JP)]
     #[case(Region::STAGING, Environments::STAGING)]
     fn test_environments_conversion(#[case] region: Region, #[case] expected: Environments) {
         assert_eq!(Environments::from(region), expected);
@@ -112,6 +113,7 @@ mod tests {
     #[rstest]
     #[case(Region::US, "https://opamp.service.newrelic.com/v1/opamp")]
     #[case(Region::EU, "https://opamp.service.eu.newrelic.com/v1/opamp")]
+    #[case(Region::JP, "https://opamp.service.jp.newrelic.com/v1/opamp")]
     #[case(Region::STAGING, "https://opamp.staging-service.newrelic.com/v1/opamp")]
     fn test_opamp_endpoint(#[case] region: Region, #[case] expected_endpoint: &str) {
         assert_eq!(
@@ -128,6 +130,10 @@ mod tests {
     #[case(
         Region::EU,
         "https://publickeys.eu.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json"
+    )]
+    #[case(
+        Region::JP,
+        "https://publickeys.jp.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json"
     )]
     #[case(
         Region::STAGING,
@@ -150,6 +156,10 @@ mod tests {
         "https://system-identity-oauth.service.newrelic.com/oauth2/token"
     )]
     #[case(
+        Region::JP,
+        "https://system-identity-oauth.service.newrelic.com/oauth2/token"
+    )]
+    #[case(
         Region::STAGING,
         "https://system-identity-oauth.staging-service.newrelic.com/oauth2/token"
     )]
@@ -163,6 +173,7 @@ mod tests {
     #[rstest]
     #[case(Region::US, "https://otlp.nr-data.net:4317/")]
     #[case(Region::EU, "https://otlp.eu01.nr-data.net:4317/")]
+    #[case(Region::JP, "https://otlp.jp.nr-data.net:4317/")]
     #[case(Region::STAGING, "https://staging-otlp.nr-data.net:4317/")]
     fn test_otel_endpoint(#[case] region: Region, #[case] expected_endpoint: &str) {
         assert_eq!(
