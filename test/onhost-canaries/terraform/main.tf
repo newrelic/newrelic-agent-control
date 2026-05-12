@@ -43,6 +43,11 @@ variable "slack_webhook_url" {
   type        = string
 }
 
+variable "emails" {
+  description = "Comma-separated list of emails to receive alert notifications"
+  type        = string
+}
+
 locals {
   ec2_instances = {
     "amd64:ubuntu22.04" = {
@@ -365,11 +370,21 @@ resource "newrelic_notification_destination" "slack_webhook" {
   }
 }
 
+resource "newrelic_notification_destination" "email" {
+  name = "Email"
+  type = "EMAIL"
+
+  property {
+    key   = "email"
+    value = var.emails
+  }
+}
+
 # Create notification channel for each instance
-resource "newrelic_notification_channel" "channel" {
+resource "newrelic_notification_channel" "slack_channel" {
   for_each = local.instance_alerts
 
-  name           = each.key
+  name           = "${each.key}-slack"
   type           = "WEBHOOK"
   destination_id = newrelic_notification_destination.slack_webhook.id
   product        = "IINT"
@@ -377,6 +392,20 @@ resource "newrelic_notification_channel" "channel" {
   property {
     key   = "payload"
     value = "{\"text\": \":warning: ${each.key} Alert @hero\"}"
+  }
+}
+
+resource "newrelic_notification_channel" "email_channel" {
+  for_each = local.instance_alerts
+
+  name           = "${each.key}-email"
+  type           = "EMAIL"
+  destination_id = newrelic_notification_destination.email.id
+  product        = "IINT"
+
+  property {
+    key   = "subject"
+    value = "Alert: ${each.key}"
   }
 }
 
@@ -398,7 +427,11 @@ resource "newrelic_workflow" "workflow" {
   }
 
   destination {
-    channel_id = newrelic_notification_channel.channel[each.key].id
+    channel_id = newrelic_notification_channel.slack_channel[each.key].id
+  }
+
+  destination {
+    channel_id = newrelic_notification_channel.email_channel[each.key].id
   }
 }
 
