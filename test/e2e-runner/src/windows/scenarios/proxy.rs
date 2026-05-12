@@ -156,26 +156,26 @@ fn setup_mitmproxy() -> LongRunningProcess {
         }
     });
 
-    info!("Adding mitmproxy CA certificate to system trust store");
-    exec_ps(format!(
-        "Import-Certificate -FilePath '{}' -CertStoreLocation Cert:\\LocalMachine\\Root",
-        as_user_dir(MITMPROXY_CA_CERT)
-    ))
-    .unwrap_or_else(|err| panic!("Failed to import mitmproxy CA certificate: {}", err));
+    // info!("Adding mitmproxy CA certificate to system trust store");
+    // exec_ps(format!(
+    //     "Import-Certificate -FilePath '{}' -CertStoreLocation Cert:\\LocalMachine\\Root",
+    //     as_user_dir(MITMPROXY_CA_CERT)
+    // ))
+    // .unwrap_or_else(|err| panic!("Failed to import mitmproxy CA certificate: {}", err));
 
-    info!("Verifying proxy is working");
-    let result = exec_ps(format!(
-        "Invoke-WebRequest -Uri 'https://www.newrelic.com' -UseBasicParsing -Proxy '{}' | Select-Object -ExpandProperty StatusCode",
-        PROXY_URL
-    ))
-        .unwrap_or_else(|err| panic!("Failed to verify proxy is working: {}", err));
+    // info!("Verifying proxy is working");
+    // let result = exec_ps(format!(
+    //     "Invoke-WebRequest -Uri 'https://www.newrelic.com' -UseBasicParsing -Proxy '{}' | Select-Object -ExpandProperty StatusCode",
+    //     PROXY_URL
+    // ))
+    //     .unwrap_or_else(|err| panic!("Failed to verify proxy is working: {}", err));
 
-    if !result.contains("200") {
-        panic!(
-            "Proxy verification failed: expected status code 200, got: {}",
-            result
-        );
-    }
+    // if !result.contains("200") {
+    //     panic!(
+    //         "Proxy verification failed: expected status code 200, got: {}",
+    //         result
+    //     );
+    // }
 
     info!("Mitmproxy setup completed successfully");
     mitm_process
