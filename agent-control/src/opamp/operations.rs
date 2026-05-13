@@ -1,4 +1,3 @@
-use super::instance_id::InstanceID;
 use super::{client_builder::OpAMPClientBuilderError, instance_id::getter::InstanceIDGetter};
 use crate::agent_control::defaults::{
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
@@ -27,14 +26,16 @@ pub fn sub_agent_start_settings<IG: InstanceIDGetter>(
         DescriptionValueType::Bytes(parent_instance_id.into()),
     );
 
-    Ok(start_settings(
-        instance_id_getter.get(&agent_identity.id)?,
-        agent_description(
+    Ok(StartSettings {
+        instance_uid: instance_id_getter.get(&agent_identity.id)?.into(),
+        capabilities: default_capabilities(),
+        custom_capabilities: Some(default_custom_capabilities()),
+        agent_description: agent_description(
             agent_identity,
             additional_identifying_attributes,
             non_identifying_attributes,
         ),
-    ))
+    })
 }
 
 /// Builds [AgentDescription] from the provided [AgentIdentity] and additional attributes
@@ -63,19 +64,6 @@ pub fn agent_description(
     AgentDescription {
         identifying_attributes,
         non_identifying_attributes,
-    }
-}
-
-/// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent and agent control.
-pub fn start_settings(
-    instance_id: InstanceID,
-    agent_description: AgentDescription,
-) -> StartSettings {
-    StartSettings {
-        instance_uid: instance_id.into(),
-        capabilities: default_capabilities(),
-        custom_capabilities: Some(default_custom_capabilities()),
-        agent_description,
     }
 }
 
