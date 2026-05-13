@@ -15,6 +15,7 @@
         - xenial
         - bullseye
         - bookworm
+        - resolute
 
 #########################
   # UPLOAD CHECKSUMS #
