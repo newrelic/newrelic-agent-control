@@ -120,56 +120,26 @@ locals {
   // Platform-specific memory conditions.
   // Linux uses virtual size; Windows uses working set (physical memory committed to the process).
   memory_alert_condition_by_platform = {
-    linux = [
-      {
-        name          = "Memory usage (bytes)"
-        metric        = "max(memoryResidentSizeBytes) OR 0"
-        sample        = "ProcessSample"
-        threshold     = 42000000
-        duration      = 600
-        operator      = "above"
-        template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
-      },
-      {
-        name   = "Memory growth (bytes/hour)"
-        metric = "derivative(memoryResidentSizeBytes, 1 hour)"
-        sample = "ProcessSample"
-        # 3 hours in seconds
-        since = 10800
-        # 210KB/hour = ~5MB over 24 hours
-        threshold     = 210000
-        duration      = 3600
-        operator      = "above"
-        template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
-      }
-    ],
-    windows = [
-      {
-        name = "Memory usage (bytes)"
-        # For the purpose of leak detection using memoryVirtualSizeBytes reflects better the AC memory intent of usage,
-        # as memoryResidentSizeBytes gets heavily affected by the way windows manages memory.
-        metric        = "max(memoryVirtualSizeBytes) OR 0"
-        sample        = "ProcessSample"
-        threshold     = 35000000
-        duration      = 600
-        operator      = "above"
-        template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
-      },
-      {
-        name = "Memory growth (bytes/hour)"
-        # For the purpose of leak detection using memoryVirtualSizeBytes reflects better the AC memory intent of usage,
-        # as memoryResidentSizeBytes gets heavily affected by the way windows manages memory.
-        metric = "derivative(memoryVirtualSizeBytes, 1 hour)"
-        sample = "ProcessSample"
-        # 3 hours in seconds
-        since = 10800
-        # 210KB/hour = ~5MB over 24 hours
-        threshold     = 210000
-        duration      = 3600
-        operator      = "above"
-        template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
-      }
-    ]
+    linux = {
+      name          = "Memory usage (bytes)"
+      metric        = "max(memoryResidentSizeBytes) OR 0"
+      sample        = "ProcessSample"
+      threshold     = 42000000
+      duration      = 600
+      operator      = "above"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    }
+    windows = {
+      name          = "Memory usage (bytes)"
+      # For the purpose of leak detection using memoryVirtualSizeBytes reflects better the AC memory intent of usage,
+      # as memoryResidentSizeBytes gets heavily affected by the way windows manages memory.
+      metric        = "max(memoryVirtualSizeBytes) OR 0"
+      sample        = "ProcessSample"
+      threshold     = 35000000
+      duration      = 600
+      operator      = "above"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    }
   }
 
   // To setup the alerts, we need to know the hostnames of the instances.
@@ -186,7 +156,7 @@ locals {
       platform = v.platform
       conditions = concat(
         local.common_alert_conditions,
-        local.memory_alert_condition_by_platform[v.platform]
+        [local.memory_alert_condition_by_platform[v.platform]]
       )
     }
   }
@@ -195,10 +165,10 @@ locals {
   alert_conditions_flat = flatten([
     for instance_id, instance_data in local.instance_alerts : [
       for idx, condition in instance_data.conditions : {
-        instance_id = instance_id
-        condition   = condition
-        policy_id   = newrelic_alert_policy.alert_policy[instance_id].id
-        unique_key  = "${instance_id}-${idx}"
+        instance_id  = instance_id
+        condition    = condition
+        policy_id    = newrelic_alert_policy.alert_policy[instance_id].id
+        unique_key   = "${instance_id}-${idx}"
       }
     ]
   ])
@@ -396,8 +366,7 @@ resource "newrelic_nrql_alert_condition" "condition" {
         {
           "instance_id" : each.value.instance_id,
           "function" : null,
-          "wheres" : {},
-          "since" : ""
+          "wheres" : {}
         },
         each.value.condition
       )

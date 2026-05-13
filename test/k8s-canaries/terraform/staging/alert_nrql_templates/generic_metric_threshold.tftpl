@@ -7,6 +7,3 @@ WHERE (
   AND ${k}='${v}'
   %{ endfor }
 )
-%{ if since != "" }
-SINCE ${since} seconds ago
-%{ endif }

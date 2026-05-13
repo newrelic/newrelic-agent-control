@@ -74,8 +74,7 @@ resource "newrelic_nrql_alert_condition" "condition_nrql_canary" {
         {
           "instance_id" : "${local.policies_with_instance_id[count.index].instance_id}",
           "function" : null,
-          "wheres" : {},
-          "since" : ""
+          "wheres" : {}
         },
         local.policies_with_instance_id[count.index].condition
       )
