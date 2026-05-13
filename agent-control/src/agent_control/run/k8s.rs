@@ -322,7 +322,7 @@ pub fn build_ac_opamp_start_settings(
         .map_err(|err| RunError(format!("error getting instance id: {err}")))?;
 
     let mut settings = start_settings(instance_id, agent_description);
-    if !k8s_config.cd_remote_update
+    if !k8s_config.cd_enabled
         && let Some(ref mut caps) = settings.custom_capabilities
     {
         caps.capabilities
@@ -409,7 +409,7 @@ mod tests {
     #[test]
     fn test_start_settings_cd_remote_update_false_adds_k8s_config_only_capability() {
         let k8s_config = K8sConfig {
-            cd_remote_update: false,
+            cd_enabled: false,
             ..Default::default()
         };
         let agent_identity = AgentIdentity::new_agent_control_identity();
@@ -434,7 +434,7 @@ mod tests {
     #[test]
     fn test_start_settings_cd_remote_update_true_does_not_add_k8s_config_only_capability() {
         let k8s_config = K8sConfig {
-            cd_remote_update: true,
+            cd_enabled: true,
             ..Default::default()
         };
         let agent_identity = AgentIdentity::new_agent_control_identity();
