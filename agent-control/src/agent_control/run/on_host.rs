@@ -5,7 +5,7 @@ use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, EXECUTION_MODE_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
     HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-    OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
+    OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE, default_capabilities, default_custom_capabilities,
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
@@ -33,7 +33,7 @@ use crate::opamp::http::client::HttpOpAMPClient;
 use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
 use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
 use crate::opamp::instance_id::storer::Storer;
-use crate::opamp::operations::{agent_description, start_settings};
+use crate::opamp::operations::agent_description;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::package::oci::downloader::OCIArtifactDownloader;
@@ -318,7 +318,12 @@ pub fn build_ac_opamp_start_settings(
         .get(&agent_identity.id)
         .map_err(|err| RunError(format!("error getting instance id: {err}")))?;
 
-    Ok(start_settings(instance_id, agent_description))
+    Ok(StartSettings {
+        instance_uid: instance_id.into(),
+        capabilities: default_capabilities(),
+        custom_capabilities: Some(default_custom_capabilities()),
+        agent_description,
+    })
 }
 
 /// Builds the [AgentDescription] for Agent Control on-host.

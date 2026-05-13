@@ -7,7 +7,8 @@ use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, CD_EXTERNAL_ENABLED_ATTRIBUTE_KEY,
     CD_REMOTE_UPDATE_ENABLED_ATTRIBUTE_KEY, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
     HOST_NAME_ATTRIBUTE_KEY, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY, default_capabilities,
+    default_custom_capabilities,
 };
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
@@ -34,7 +35,7 @@ use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
 use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
 use crate::opamp::instance_id::storer::Storer;
-use crate::opamp::operations::{agent_description, start_settings};
+use crate::opamp::operations::agent_description;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::secret_retriever::k8s::retrieve::K8sSecretRetriever;
@@ -321,14 +322,19 @@ pub fn build_ac_opamp_start_settings(
         .get(&agent_identity.id)
         .map_err(|err| RunError(format!("error getting instance id: {err}")))?;
 
-    let mut settings = start_settings(instance_id, agent_description);
-    if !k8s_config.cd_enabled
-        && let Some(ref mut caps) = settings.custom_capabilities
-    {
-        caps.capabilities
+    let mut custom_capabilities = default_custom_capabilities();
+    if !k8s_config.cd_enabled {
+        custom_capabilities
+            .capabilities
             .push(K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY.to_string());
     }
-    Ok(settings)
+
+    Ok(StartSettings {
+        instance_uid: instance_id.into(),
+        capabilities: default_capabilities(),
+        custom_capabilities: Some(custom_capabilities),
+        agent_description,
+    })
 }
 
 pub fn agent_control_opamp_non_identifying_attributes(
