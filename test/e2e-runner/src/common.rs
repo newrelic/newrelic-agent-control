@@ -1,3 +1,4 @@
+use crate::common::nrql::Region;
 use std::path::PathBuf;
 
 pub mod config;
@@ -74,8 +75,8 @@ pub struct InstallationArgs {
     pub agent_control_version: String,
 
     /// New Relic region
-    #[arg(long, default_value = "US")]
-    pub nr_region: String,
+    #[arg(long, ignore_case = true)]
+    pub nr_region: Region,
 
     /// Version of the infrastructure agent OCI image to use in tests
     #[arg(long)]

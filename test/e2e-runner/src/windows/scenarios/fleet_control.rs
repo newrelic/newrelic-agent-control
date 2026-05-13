@@ -21,7 +21,7 @@ pub fn test_fleet_control(args: FleetControlInstallationArgs) {
     let test_scenarios = &args.fleet_control.test_scenarios;
 
     assert_eq!(
-        args.installation.nr_region.to_lowercase().as_str(),
+        format!("{:?}", args.installation.nr_region),
         "staging",
         "This test can only run on staging environment"
     );

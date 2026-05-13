@@ -1,4 +1,5 @@
 use crate::common::config::write_agent_local_config;
+use crate::common::nrql::Region;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{InstallationArgs, RecipeData};
@@ -57,10 +58,10 @@ pub fn test_agent_control_proxy(args: InstallationArgs) {
         .clone()
         .expect("--infra-agent-version is required for this scenario");
 
-    let staging = matches!(args.nr_region.to_lowercase().as_str(), "staging");
+    let staging = args.nr_region == Region::Staging;
 
-    let fleet_id = match args.nr_region.to_lowercase().as_str() {
-        "staging" => FLEET_ID_STAGING.to_string(),
+    let fleet_id = match args.nr_region {
+        Region::Staging => FLEET_ID_STAGING.to_string(),
         _ => FLEET_ID.to_string(),
     };
 
