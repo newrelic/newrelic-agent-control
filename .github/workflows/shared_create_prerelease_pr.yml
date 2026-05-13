@@ -4,8 +4,6 @@
 #   3. Commits CHANGELOG.md + Cargo.toml on a new branch `generate-release/<version>`.
 #   4. Opens a PR against the default branch with the `release` label.
 #
-# The PR merge is expected to trigger `shared_create_prerelease.yml`, which publishes the
-# GitHub pre-release. No release is created by this workflow.
 name: 📞 Create pre-release PR
 
 on:
@@ -140,8 +138,6 @@ jobs:
         run: |
           BODY=$(cat <<EOF
           Automated pre-release PR for version \`$VERSION\`.
-
-          Merging this PR publishes the GitHub pre-release.
           EOF
           )
           gh pr create \

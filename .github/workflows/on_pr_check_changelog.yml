@@ -1,0 +1,17 @@
+name: validates changelog
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - labeled
+      - unlabeled
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  check-changelog:
+    uses: ./.github/workflows/shared_check_changelog.yml
