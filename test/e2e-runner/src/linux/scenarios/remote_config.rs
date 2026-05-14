@@ -1,3 +1,4 @@
+use crate::common::nrql::Region;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{InstallationArgs, RecipeData};
@@ -21,8 +22,8 @@ const ENV_VARS_FILE: &str = "/etc/newrelic-agent-control/environment_variables.y
 const INFRA_AGENT_VERSION: &str = "1.72.1";
 
 pub fn test_remote_config_is_applied(args: InstallationArgs) {
-    let fleet_id = match args.nr_region.to_lowercase().as_str() {
-        "staging" => FLEET_ID_STAGING.to_string(),
+    let fleet_id = match args.nr_region {
+        Region::Staging => FLEET_ID_STAGING.to_string(),
         _ => FLEET_ID.to_string(),
     };
 

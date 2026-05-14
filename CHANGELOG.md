@@ -8,6 +8,9 @@ Unreleased section should follow [Release Toolkit](https://github.com/newrelic/r
 
 ## Unreleased
 
+### 🚀 Enhancements
+- Added support for JP endpoints
+
 ## 1.14.1 - 2026-05-13
 
 ### 🚀 Enhancements

@@ -13,24 +13,14 @@ struct GraphQLRequest {
 
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 
-#[derive(Clone, Copy)]
-enum Region {
+#[derive(Default, Debug, Copy, Clone, PartialEq, clap::ValueEnum)]
+pub enum Region {
+    #[default]
     US,
     EU,
+    JP,
+    #[value(alias = "stg")]
     Staging,
-}
-
-impl TryFrom<&str> for Region {
-    type Error = String;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value.to_lowercase().as_ref() {
-            "us" => Ok(Self::US),
-            "eu" => Ok(Self::EU),
-            "staging" => Ok(Self::Staging),
-            _ => Err(format!("Invalid region '{value}'")),
-        }
-    }
 }
 
 impl Region {
@@ -38,6 +28,7 @@ impl Region {
         match self {
             Region::US => "https://api.newrelic.com".to_string(),
             Region::EU => "https://api.eu.newrelic.com".to_string(),
+            Region::JP => "https://api.jp.newrelic.com".to_string(),
             Region::Staging => "https://staging-api.newrelic.com".to_string(),
         }
     }
@@ -95,7 +86,7 @@ fn check_query_results_with_client(
     client: Client,
     predicate: impl FnOnce(&Vec<Value>) -> bool,
 ) -> TestResult<Vec<Value>> {
-    let api_endpoint = Region::try_from(install_args.nr_region.as_str())?.api_endpoint();
+    let api_endpoint = install_args.nr_region.api_endpoint();
     let url = format!("{}/graphql", api_endpoint);
     let graphql_query = format!(
         r#"{{

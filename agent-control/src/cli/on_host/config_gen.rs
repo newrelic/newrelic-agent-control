@@ -3,7 +3,7 @@ use crate::cli::{
     common::{
         error::CliError,
         proxy_config::ProxyConfig,
-        region::{Region, region_parser},
+        region::Region,
         system_identity::{ParentAuthMethod, ProvisionIdentityArgs, create_identity},
     },
     on_host::config_gen::config::{
@@ -38,7 +38,7 @@ pub struct Args {
     fleet_disabled: bool,
 
     /// New Relic region
-    #[arg(long, value_parser = region_parser(), required = true)]
+    #[arg(long, required = true, ignore_case = true)]
     region: Region,
 
     /// Fleet identifier
