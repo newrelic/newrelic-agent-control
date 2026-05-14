@@ -114,6 +114,7 @@ jobs:
           - wrong-config
           - remote-config
           - switch-infra-agent-version
+          - self-update-from-latest
     steps:
       - name: Record job start time
         shell: bash

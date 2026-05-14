@@ -58,6 +58,9 @@ enum WindowsScenarios {
     /// Starts with a local-only installation of AC, then updates the installation to include fleet configuration that should
     /// trigger a sub-agent update.
     SwitchInfraAgentVersion(InstallationArgs),
+    /// Tests the self-update, install the latest released AC and tries to self update to compiled version that has locally
+    /// been pushed to a registry.
+    SelfUpdateFromLatest(InstallationArgs),
     /// Simple installation of Agent Control on Windows with update to wrong and correct config
     /// to test service stop and start.
     WrongConfig(InstallationArgs),

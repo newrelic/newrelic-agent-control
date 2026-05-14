@@ -1,11 +1,11 @@
-use crate::hex_bytes;
+use crate::{LOCAL_HTTP_REGISTRY_URL, hex_bytes};
 use actix_web::{App, HttpResponse, HttpServer, web};
 use aws_lc_rs::digest::{SHA256, digest};
 use aws_lc_rs::rand::SystemRandom;
 use aws_lc_rs::signature::{Ed25519KeyPair, KeyPair as _};
 use base64::prelude::{BASE64_STANDARD, BASE64_URL_SAFE_NO_PAD, Engine};
 use http::Uri;
-use oci_client::client::{ClientConfig, ClientProtocol::Http};
+use oci_client::client::{ClientConfig, ClientProtocol};
 use oci_client::manifest::{OciDescriptor, OciImageManifest, OciManifest::Image};
 use oci_client::secrets::RegistryAuth;
 use oci_client::secrets::RegistryAuth::Anonymous;
@@ -48,7 +48,7 @@ impl OCISigner {
         let server_handle = runtime_handle.spawn(Self::run_http_server(listener, state.clone()));
 
         let oci_client = Client::new(ClientConfig {
-            protocol: Http,
+            protocol: ClientProtocol::HttpsExcept(vec![LOCAL_HTTP_REGISTRY_URL.to_string()]),
             ..Default::default()
         });
 

@@ -10,7 +10,7 @@ pub const RESERVED_AGENT_IDS: [&str; 1] = [AGENT_CONTROL_ID];
 
 pub const AGENT_CONTROL_TYPE: &str = "com.newrelic.agent_control";
 pub const AGENT_CONTROL_NAMESPACE: &str = "newrelic";
-pub const AGENT_CONTROL_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const AGENT_CONTROL_VERSION: &str = env!("AGENT_CONTROL_VERSION");
 
 // Keys identifying attributes
 pub const OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY: &str = "chart.version";

@@ -39,6 +39,17 @@ fn main() {
     // re-run only if the registry has changed
     println!("cargo:rerun-if-changed={REGISTRY_PATH}");
     set_git_commit();
+    set_version();
+}
+
+fn set_version() {
+    // If present NR_RELEASE_TAG env var will define the AC version, if not it will be taken from
+    // the agent-contro/cargo.toml version.
+    // This is useful to build identify nightly releases and perform e2e testing.
+    println!("cargo:rerun-if-env-changed=NR_RELEASE_TAG");
+    let version = env::var("NR_RELEASE_TAG")
+        .unwrap_or_else(|_| env::var("CARGO_PKG_VERSION").expect("CARGO_PKG_VERSION not set"));
+    println!("cargo:rustc-env=AGENT_CONTROL_VERSION={version}");
 }
 
 fn set_git_commit() {
