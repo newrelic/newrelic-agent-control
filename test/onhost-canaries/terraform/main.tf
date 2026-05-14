@@ -137,7 +137,8 @@ locals {
         # We then smooth the curve by computing the slope every hour (slide_by) and check that the slope is
         # above 210KB/hour (threshold) for at least 6 hours (duration).
         #
-        # That roughly translates to +5MB over 24 hours.
+        # That roughly translates to +5MB over 24 hours. False positives should be unlikely with the current threshold,
+        # but we can adjust it.
         #
         # Bare in mind that we are using 3 hour windows. The duration must be computed as the multiplication of the
         # aggregation_window by the number of data points we want to be above the threshold to trigger the alert.
@@ -172,7 +173,8 @@ locals {
         # We then smooth the curve by computing the slope every hour (slide_by) and check that the slope is
         # above 210KB/hour (threshold) for at least 6 hours (duration).
         #
-        # That roughly translates to +5MB over 24 hours.
+        # That roughly translates to +5MB over 24 hours. False positives should be unlikely with the current threshold,
+        # but we can adjust it.
         #
         # Bare in mind that we are using 3 hour windows. The duration must be computed as the multiplication of the
         # aggregation_window by the number of data points we want to be above the threshold to trigger the alert.
