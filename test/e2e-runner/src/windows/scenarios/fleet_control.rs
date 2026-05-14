@@ -1,5 +1,6 @@
 use crate::common::RecipeData;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config};
+use crate::common::nrql::Region;
 use crate::common::on_drop::CleanUp;
 use crate::common::{FleetControlInstallationArgs, fleet_control_api};
 use crate::windows;
@@ -21,8 +22,8 @@ pub fn test_fleet_control(args: FleetControlInstallationArgs) {
     let test_scenarios = &args.fleet_control.test_scenarios;
 
     assert_eq!(
-        format!("{:?}", args.installation.nr_region),
-        "staging",
+        args.installation.nr_region,
+        Region::Staging,
         "This test can only run on staging environment"
     );
 
