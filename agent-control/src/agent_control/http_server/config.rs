@@ -77,7 +77,7 @@ mod tests {
         }
         impl Test {
             fn run(&self) {
-                let config: ConfigContainer = serde_yaml::from_str(&self.content).unwrap();
+                let config: ConfigContainer = serde_saphyr::from_str(&self.content).unwrap();
                 assert_eq!(self.expected, config);
             }
         }

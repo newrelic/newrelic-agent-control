@@ -167,5 +167,5 @@ pub fn load_remote_config_content(agent_id: &AgentID, base_paths: BasePaths) -> 
     yaml_config_repo
         .load_remote(agent_id, &default_capabilities())
         .unwrap()
-        .map(|rc| serde_yaml::to_string(&rc.get_yaml_config()).unwrap())
+        .map(|rc| serde_saphyr::to_string(&rc.get_yaml_config()).unwrap())
 }

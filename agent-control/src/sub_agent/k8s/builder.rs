@@ -358,7 +358,7 @@ pub mod tests {
         opamp_builder_fails: bool,
     ) -> (MockOpAMPClientBuilder, MockInstanceIDGetter) {
         let instance_id: InstanceID =
-            serde_yaml::from_str("018FCA0670A879689D04fABDDE189B8C").unwrap();
+            serde_saphyr::from_str("018FCA0670A879689D04fABDDE189B8C").unwrap();
 
         // opamp builder mock
         let started_client = MockStartedOpAMPClient::new();

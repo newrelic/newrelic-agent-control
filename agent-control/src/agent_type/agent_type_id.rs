@@ -123,26 +123,33 @@ impl<'de> Deserialize<'de> for AgentTypeID {
         // intermediate serialization type to validate `default` and `required` fields
         #[derive(Debug, Deserialize)]
         struct IntermediateAgentMetadata {
-            name: String,
-            namespace: String,
-            version: String,
+            name: Option<String>,
+            namespace: Option<String>,
+            version: Option<String>,
         }
 
-        let intermediate_spec = IntermediateAgentMetadata::deserialize(deserializer)?;
+        let IntermediateAgentMetadata {
+            name,
+            namespace,
+            version,
+        } = IntermediateAgentMetadata::deserialize(deserializer)?;
 
-        if !Self::has_valid_format(intermediate_spec.name.as_str()) {
+        let name = name.unwrap_or_default();
+        if !Self::has_valid_format(name.as_str()) {
             return Err(Error::custom(AgentTypeIDError::InvalidName));
         }
-        if !Self::has_valid_format(intermediate_spec.namespace.as_str()) {
+
+        let namespace = namespace.unwrap_or_default();
+        if !Self::has_valid_format(namespace.as_str()) {
             return Err(Error::custom(AgentTypeIDError::InvalidNamespace));
         }
 
-        let version = Version::parse(intermediate_spec.version.as_str())
+        let version = Version::parse(version.unwrap_or_default().as_str())
             .map_err(|_| Error::custom(AgentTypeIDError::InvalidVersion))?;
 
         Ok(AgentTypeID {
-            name: intermediate_spec.name,
-            namespace: intermediate_spec.namespace,
+            name,
+            namespace,
             version,
         })
     }
@@ -156,7 +163,7 @@ mod tests {
 
     #[test]
     fn test_correct_agent_type_metadata() {
-        let actual = serde_yaml::from_str::<AgentTypeID>(
+        let actual = serde_saphyr::from_str::<AgentTypeID>(
             r#"
 name: nrdot_special-with-all.characters
 namespace: newrelic_special-with-all.characters
@@ -180,7 +187,7 @@ version: 0.1.0-alpha.1
         impl TestCase {
             fn run(self) {
                 let actual_err =
-                    serde_yaml::from_str::<AgentTypeID>(self.metadata).expect_err(self.name);
+                    serde_saphyr::from_str::<AgentTypeID>(self.metadata).expect_err(self.name);
 
                 assert!(
                     actual_err
@@ -331,15 +338,15 @@ version: 0.1.0-alpha.1
 
         let fqn = "agent_type_id: ns/aa:1.0.0\n";
 
-        let foo: Foo = serde_yaml::from_str(fqn).unwrap();
+        let foo: Foo = serde_saphyr::from_str(fqn).unwrap();
 
         assert_eq!(foo.agent_type_id.name, "aa");
         assert_eq!(foo.agent_type_id.namespace, "ns");
         assert_eq!(foo.agent_type_id.version.to_string(), "1.0.0".to_string());
 
-        assert_eq!(serde_yaml::to_string(&foo).unwrap(), fqn);
+        assert_eq!(serde_saphyr::to_string(&foo).unwrap(), fqn);
 
-        let foo: Result<Foo, serde_yaml::Error> = serde_yaml::from_str(
+        let foo: Result<Foo, serde_saphyr::Error> = serde_saphyr::from_str(
             r#"
 agent_type_id: namespace/name:invalid_version
 "#,

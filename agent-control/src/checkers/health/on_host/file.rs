@@ -34,7 +34,7 @@ impl HealthChecker for FileHealthChecker {
             ))
         })?;
 
-        let health: FileHealthContent = serde_yaml::from_slice(&file_content).map_err(|e| {
+        let health: FileHealthContent = serde_saphyr::from_slice(&file_content).map_err(|e| {
             HealthCheckerError::Generic(format!(
                 "parsing health file '{}': {}",
                 self.file_path.display(),

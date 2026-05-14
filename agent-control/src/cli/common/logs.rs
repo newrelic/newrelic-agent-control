@@ -21,7 +21,7 @@ format:
     "#
     );
     let logging_config: LoggingConfig =
-        serde_yaml::from_str(&log_config).expect("Logging config should be valid");
+        serde_saphyr::from_str(&log_config).expect("Logging config should be valid");
     let tracing_config = TracingConfig::from_logging_path(PathBuf::from(AGENT_CONTROL_LOG_DIR))
         .with_logging_config(logging_config);
     try_init_tracing(tracing_config).map_err(CliError::from)

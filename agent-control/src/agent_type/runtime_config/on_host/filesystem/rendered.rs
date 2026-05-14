@@ -1,5 +1,5 @@
 use crate::agent_type::runtime_config::on_host::filesystem::{DirEntriesMap, SafePath};
-use ::fs::{directory_manager::DirectoryManager, file::writer::FileWriter};
+use fs::{directory_manager::DirectoryManager, file::writer::FileWriter};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;

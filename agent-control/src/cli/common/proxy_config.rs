@@ -79,7 +79,7 @@ mod tests {
             ignore_system_proxy: false,
         };
 
-        let serialized = serde_yaml::to_string(&proxy_config).unwrap();
+        let serialized = serde_saphyr::to_string(&proxy_config).unwrap();
         assert_eq!(serialized.trim(), "{}");
     }
 
@@ -92,7 +92,7 @@ mod tests {
             ignore_system_proxy: true,
         };
 
-        let serialized = serde_yaml::to_string(&proxy_config).unwrap();
+        let serialized = serde_saphyr::to_string(&proxy_config).unwrap();
         // Only ignore_system_proxy should be present
         assert_eq!(serialized.trim(), "ignore_system_proxy: true");
     }

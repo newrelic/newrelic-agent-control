@@ -749,7 +749,7 @@ fn iterate_test_cases(environment: &Environment) {
             let agent_type =
                 build_agent_type(definition, environment, &VariableConstraints::default()).unwrap();
             let attributes = testing_agent_attributes(&agent_id);
-            let variables = serde_yaml::from_str::<YAMLConfig>(yaml).unwrap();
+            let variables = serde_saphyr::from_str::<YAMLConfig>(yaml).unwrap();
 
             let result = renderer.render(
                 agent_type,

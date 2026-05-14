@@ -136,9 +136,9 @@ env:
   key: "value"
         "#;
 
-        let a: VarTree<String> = serde_yaml::from_str(a).unwrap();
-        let b: VarTree<String> = serde_yaml::from_str(b).unwrap();
-        let expected: VarTree<String> = serde_yaml::from_str(expected).unwrap();
+        let a: VarTree<String> = serde_saphyr::from_str(a).unwrap();
+        let b: VarTree<String> = serde_saphyr::from_str(b).unwrap();
+        let expected: VarTree<String> = serde_saphyr::from_str(expected).unwrap();
 
         assert_eq!(expected, a.merge(b).unwrap());
     }
@@ -195,8 +195,8 @@ var:
         #[case] b: &str,
         #[case] conflicting_key: &str,
     ) {
-        let a: VarTree<String> = serde_yaml::from_str(a).unwrap();
-        let b: VarTree<String> = serde_yaml::from_str(b).unwrap();
+        let a: VarTree<String> = serde_saphyr::from_str(a).unwrap();
+        let b: VarTree<String> = serde_saphyr::from_str(b).unwrap();
         let result = a.merge(b);
         assert_matches!(result, Err(AgentTypeError::ConflictingVariableDefinition(k)) => {
             assert_eq!(k, conflicting_key);

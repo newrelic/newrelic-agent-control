@@ -125,7 +125,14 @@ where
         trace!("Loading data from path '{}'", key.display());
         self.load_file_if_present(&key).and_then(|maybe_values| {
             maybe_values
-                .map(|s| serde_yaml::from_str(&s))
+                .map(|s| {
+                    serde_saphyr::from_str_with_options(
+                        &s,
+                        serde_saphyr::options! {
+                            duplicate_keys: serde_saphyr::DuplicateKeyPolicy::LastWins,
+                        },
+                    )
+                })
                 .transpose()
                 .map_err(|err| Error::new(ErrorKind::InvalidData, err))
         })
@@ -191,7 +198,7 @@ where
                 ))
             })?;
         let content =
-            serde_yaml::to_string(data).map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+            serde_saphyr::to_string(data).map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         trace!(%agent_id, "Writing remote data to path '{}'", remote_values_path.display());
         self.file_rw
@@ -244,7 +251,7 @@ mod tests {
     };
     use mockall::predicate;
     use rstest::{fixture, rstest};
-    use serde_yaml::Value;
+    use serde_json::Value;
 
     use crate::{
         agent_control::{

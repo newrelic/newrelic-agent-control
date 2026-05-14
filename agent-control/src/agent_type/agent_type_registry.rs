@@ -8,8 +8,10 @@ pub enum AgentRepositoryError {
     NotFound(String),
     #[error("agent {0} already exists")]
     AlreadyExists(String),
-    #[error("{0}")]
-    SerdeYaml(#[from] serde_yaml::Error),
+    #[error("serialization error: {0}")]
+    Serialization(#[from] serde_saphyr::Error),
+    #[error("value conversion error: {0}")]
+    ValueConversion(#[from] serde_json::Error),
 }
 
 /// AgentRegistry stores and loads Agent types.

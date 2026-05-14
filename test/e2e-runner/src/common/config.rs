@@ -1,6 +1,6 @@
 use std::{fs, io::Write, path::PathBuf};
 
-use serde_yaml::Value;
+use serde_json::Value;
 use tracing::info;
 
 use crate::common::file::write;
@@ -15,12 +15,12 @@ pub fn update_config(config_path: impl AsRef<str>, new_content: impl AsRef<str>)
     });
 
     // Parse the YAML configuration
-    let config: Value = serde_yaml::from_str(&content).unwrap_or_else(|e| {
+    let config: Value = serde_saphyr::from_str(&content).unwrap_or_else(|e| {
         panic!("failed to parse YAML configuration {config_path:?}: {e}");
     });
 
     // Parse the new content
-    let new_config: Value = serde_yaml::from_str(new_content).unwrap_or_else(|e| {
+    let new_config: Value = serde_saphyr::from_str(new_content).unwrap_or_else(|e| {
         panic!("failed to merge YAML configuration with content {new_content:?}: {e}");
     });
 
@@ -28,7 +28,7 @@ pub fn update_config(config_path: impl AsRef<str>, new_content: impl AsRef<str>)
     let merged = merge_yaml_mappings(config, new_config);
 
     // Write the updated config
-    let updated_content = serde_yaml::to_string(&merged).unwrap_or_else(|e| {
+    let updated_content = serde_saphyr::to_string(&merged).unwrap_or_else(|e| {
         panic!("failed to format the updated YAML configuration: {}", e);
     });
 
@@ -59,7 +59,7 @@ pub fn modify_agents_config(
 /// Merges two YAML values, with `new` taking precedence over `base`
 fn merge_yaml_mappings(base: Value, new: Value) -> Value {
     let mut merged = base;
-    if let (Value::Mapping(base_map), Value::Mapping(new_map)) = (&mut merged, new) {
+    if let (Value::Object(base_map), Value::Object(new_map)) = (&mut merged, new) {
         for (key, value) in new_map {
             base_map.insert(key, value);
         }

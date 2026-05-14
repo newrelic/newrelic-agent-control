@@ -127,7 +127,7 @@ agents:
 "#
     );
     let expected_config_parsed =
-        serde_yaml::from_str::<YAMLConfig>(expected_config.as_str()).unwrap();
+        serde_saphyr::from_str::<YAMLConfig>(expected_config.as_str()).unwrap();
 
     retry(60, Duration::from_secs(1), || {
         let remote_file = remote_dir
@@ -137,7 +137,8 @@ agents:
             .join(build_config_name(STORE_KEY_OPAMP_DATA_CONFIG));
         let remote_config = std::fs::read_to_string(remote_file.as_path())
             .unwrap_or("config: \nhash: a-hash\nstate: applying\n".to_string());
-        let content_parsed = serde_yaml::from_str::<RemoteConfig>(remote_config.as_str()).unwrap();
+        let content_parsed =
+            serde_saphyr::from_str::<RemoteConfig>(remote_config.as_str()).unwrap();
         if content_parsed.config != expected_config_parsed {
             return Err(format!(
                 "Agent Control config not as expected, Expected: {expected_config:?}, Found: {remote_config:?}",
@@ -148,7 +149,7 @@ agents:
         check_latest_effective_config_is_expected(
             &opamp_server,
             &agent_control_instance_id,
-            serde_yaml::to_string(&content_parsed.config).unwrap(),
+            serde_saphyr::to_string(&content_parsed.config).unwrap(),
         )?;
         check_latest_health_status_was_healthy(&opamp_server, &agent_control_instance_id)
     });

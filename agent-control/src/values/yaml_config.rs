@@ -5,14 +5,14 @@ use crate::agent_type::templates::Templateable;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
-use serde_yaml::Value;
+use serde_json::Value;
 use std::collections::HashMap;
 use thiserror::Error;
 
 /// The YAMLConfig represent any YAML config that the AgentControl can read and store.
 /// It enforces that the root of the tree is a hashmap and not an array or a single element.
 #[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
-pub struct YAMLConfig(HashMap<String, serde_yaml::Value>);
+pub struct YAMLConfig(HashMap<String, serde_json::Value>);
 
 impl YAMLConfig {
     /// Returns true if the YAMLConfig is empty.
@@ -74,7 +74,7 @@ impl Templateable for YAMLConfig {
     }
 }
 
-impl Templateable for HashMap<String, serde_yaml::Value> {
+impl Templateable for HashMap<String, serde_json::Value> {
     type Output = Self;
 
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
@@ -84,7 +84,7 @@ impl Templateable for HashMap<String, serde_yaml::Value> {
     }
 }
 
-impl From<YAMLConfig> for HashMap<String, serde_yaml::Value> {
+impl From<YAMLConfig> for HashMap<String, serde_json::Value> {
     fn from(values: YAMLConfig) -> Self {
         values.0
     }
@@ -94,19 +94,28 @@ impl TryFrom<&AgentControlDynamicConfig> for YAMLConfig {
     type Error = YAMLConfigError;
 
     fn try_from(value: &AgentControlDynamicConfig) -> Result<Self, Self::Error> {
-        serde_yaml::from_value(
-            serde_yaml::to_value(value)
+        serde_json::from_value(
+            serde_json::to_value(value)
                 .map_err(|e| YAMLConfigError(format!("serializing dynamic config: {e}")))?,
         )
         .map_err(|e| YAMLConfigError(format!("decoding config: {e}")))
     }
 }
 
+fn parse_yaml_config(value: &str) -> Result<YAMLConfig, serde_saphyr::Error> {
+    serde_saphyr::from_str_with_options(
+        value,
+        serde_saphyr::options! {
+            duplicate_keys: serde_saphyr::DuplicateKeyPolicy::LastWins,
+        },
+    )
+}
+
 impl TryFrom<String> for YAMLConfig {
     type Error = YAMLConfigError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        serde_yaml::from_str::<YAMLConfig>(value.as_str())
+        parse_yaml_config(value.as_str())
             .map_err(|e| YAMLConfigError(format!("decoding config: {e}")))
     }
 }
@@ -114,8 +123,7 @@ impl TryFrom<&str> for YAMLConfig {
     type Error = YAMLConfigError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        serde_yaml::from_str::<YAMLConfig>(value)
-            .map_err(|e| YAMLConfigError(format!("decoding config: {e}")))
+        parse_yaml_config(value).map_err(|e| YAMLConfigError(format!("decoding config: {e}")))
     }
 }
 
@@ -123,11 +131,12 @@ impl TryFrom<YAMLConfig> for String {
     type Error = YAMLConfigError;
 
     fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
-        //serde_yaml::to_string returns "{}\n" if value is empty
+        //serde_saphyr::to_string returns "{}\n" if value is empty
         if value.0.is_empty() {
             return Ok("".to_string());
         }
-        serde_yaml::to_string(&value).map_err(|e| YAMLConfigError(format!("decoding config: {e}")))
+        serde_saphyr::to_string(&value)
+            .map_err(|e| YAMLConfigError(format!("decoding config: {e}")))
     }
 }
 
@@ -147,7 +156,7 @@ mod tests {
     };
     use rstest::rstest;
     use serde_json::json;
-    use serde_yaml::{Mapping, Value};
+    use serde_json::{Map, Value};
 
     impl YAMLConfig {
         pub(crate) fn new(values: HashMap<String, Value>) -> Self {
@@ -179,59 +188,59 @@ verbose: true
 
     #[test]
     fn example_config() {
-        let actual = serde_yaml::from_str::<YAMLConfig>(EXAMPLE_CONFIG);
+        let actual = serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG);
 
         assert!(actual.is_ok());
     }
 
     #[test]
     fn test_yaml_config() {
-        let actual = serde_yaml::from_str::<YAMLConfig>(EXAMPLE_CONFIG).unwrap();
-        let expected = Value::Mapping(Mapping::from_iter([
+        let actual = serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG).unwrap();
+        let expected = Value::Object(Map::from_iter([
             (
-                Value::String("description".to_string()),
-                Value::Mapping(Mapping::from_iter([
+                "description".to_string(),
+                Value::Object(Map::from_iter([
                     (
-                        Value::String("name".to_string()),
+                        "name".to_string(),
                         Value::String("newrelic-infra".to_string()),
                     ),
                     (
-                        Value::String("float_val".to_string()),
-                        Value::Number(serde_yaml::Number::from(0.14_f64)),
+                        "float_val".to_string(),
+                        Value::Number(serde_json::Number::from_f64(0.14).unwrap()),
                     ),
                     (
-                        Value::String("logs".to_string()),
-                        Value::Number(serde_yaml::Number::from(-4_i64)),
+                        "logs".to_string(),
+                        Value::Number(serde_json::Number::from(-4_i64)),
                     ),
                 ])),
             ),
             (
-                Value::String("configuration".to_string()),
+                "configuration".to_string(),
                 Value::String(
                     "license: abc123\nstaging: true\nextra_list:\n  key: value\n  key2: value2\n"
                         .to_string(),
                 ),
             ),
             (
-                Value::String("config".to_string()),
-                Value::Mapping(Mapping::from_iter([(
-                    Value::String("envs".to_string()),
-                    Value::Mapping(Mapping::from_iter([
+                "config".to_string(),
+                Value::Object(Map::from_iter([(
+                    "envs".to_string(),
+                    Value::Object(Map::from_iter([
                         (
-                            Value::String("name".to_string()),
+                            "name".to_string(),
                             Value::String("newrelic-infra".to_string()),
                         ),
                         (
-                            Value::String("name2".to_string()),
+                            "name2".to_string(),
                             Value::String("newrelic-infra2".to_string()),
                         ),
                     ])),
                 )])),
             ),
-            (Value::String("verbose".to_string()), Value::Bool(true)),
+            ("verbose".to_string(), Value::Bool(true)),
         ]));
 
-        assert_eq!(actual.0, serde_yaml::from_value(expected).unwrap());
+        assert_eq!(actual.0, serde_json::from_value(expected).unwrap());
     }
 
     const EXAMPLE_CONFIG_REPLACE: &str = r#"
@@ -268,7 +277,7 @@ deployment:
 
     #[test]
     fn test_update_specs() {
-        let input_structure = serde_yaml::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
+        let input_structure = serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
         let agent_type =
             AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &AGENT_CONTROL_MODE_ON_HOST);
 
@@ -320,16 +329,16 @@ deployment:
     #[test]
     fn test_validate_with_agent_type_wrong_value_type() {
         let input_structure =
-            serde_yaml::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
+            serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
         let agent_type =
             AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &AGENT_CONTROL_MODE_ON_HOST);
 
         let result = agent_type.variables.fill_with_values(input_structure);
 
         assert!(result.is_err());
-        assert_eq!(
-            format!("{}", result.unwrap_err()),
-            "error while parsing: invalid type: boolean `true`, expected a string"
+        assert!(
+            format!("{}", result.unwrap_err())
+                .contains("invalid type: boolean `true`, expected a string")
         );
     }
 

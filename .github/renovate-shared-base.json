@@ -92,12 +92,6 @@
       ]
     },
     {
-      "enabled": false,
-      "matchPackageNames": [
-        "/serde_yaml/"
-      ]
-    },
-    {
       "groupName": "kubernetes crates",
       "matchManagers": [
         "cargo"

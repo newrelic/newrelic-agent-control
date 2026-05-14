@@ -15,8 +15,8 @@ pub fn check_latest_effective_config_is_expected(
         let cfg_body = agent_config_file.body.to_vec();
         let cfg_body_str = String::from_utf8(cfg_body).unwrap();
         // Avoid ordering and whitespace issues when comparing
-        let cfg_yaml: serde_yaml::Value = serde_yaml::from_str(&cfg_body_str).unwrap();
-        let expected_yaml: serde_yaml::Value = serde_yaml::from_str(&expected_config).unwrap();
+        let cfg_yaml: serde_json::Value = serde_saphyr::from_str(&cfg_body_str).unwrap();
+        let expected_yaml: serde_json::Value = serde_saphyr::from_str(&expected_config).unwrap();
         if cfg_yaml != expected_yaml {
             return Err(format!(
                 "Effective config not as expected, Expected: {expected_config:?}, Found: {cfg_body_str:?}",

@@ -370,7 +370,7 @@ pub mod tests {
         let handler = AgentRemoteConfigParser::new(vec![validator]);
 
         let expected = RemoteConfig {
-            config: serde_yaml::from_str(expected_yaml).unwrap(),
+            config: serde_saphyr::from_str(expected_yaml).unwrap(),
             hash,
             state,
         };

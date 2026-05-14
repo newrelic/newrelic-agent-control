@@ -264,7 +264,7 @@ pub mod tests {
     fn test_uuid() {
         let uuid_as_str = "018FF38D01B37796B2C81C8069BC6ADF";
         // Crete InstanceID from string
-        let id: InstanceID = serde_yaml::from_str(uuid_as_str).unwrap();
+        let id: InstanceID = serde_saphyr::from_str(uuid_as_str).unwrap();
         // Convert instanceID to OpAMP instanceUid
         let value = InstanceUid::from(id.clone());
         // Get the instanceID back from the corresponding bytes

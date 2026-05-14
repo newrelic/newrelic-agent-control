@@ -28,7 +28,7 @@ pub struct K8sObject {
     pub kind: String,
     pub metadata: K8sObjectMeta,
     #[serde(default, flatten)]
-    pub fields: serde_yaml::Mapping,
+    pub fields: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
@@ -221,14 +221,14 @@ objects:
 
     #[test]
     fn test_k8s_object() {
-        let k8s: K8s = serde_yaml::from_str(RUNTIME_WITH_K8S_DEPLOYMENT).unwrap();
+        let k8s: K8s = serde_saphyr::from_str(RUNTIME_WITH_K8S_DEPLOYMENT).unwrap();
         assert_eq!("Foo".to_string(), k8s.objects["cr1"].kind);
         assert_eq!(
             "agent_control.version/v0beta1".to_string(),
             k8s.objects["cr1"].api_version
         );
         assert_eq!(
-            &serde_yaml::Value::String("any-value".into()),
+            &serde_json::Value::String("any-value".into()),
             k8s.objects["cr1"]
                 .fields
                 .get("spec")
@@ -237,9 +237,9 @@ objects:
                 .unwrap()
         );
         assert_eq!("Foo2".to_string(), k8s.objects["cr2"].kind);
-        assert_eq!(serde_yaml::Mapping::default(), k8s.objects["cr2"].fields);
+        assert_eq!(serde_json::Map::default(), k8s.objects["cr2"].fields);
         assert_eq!(
-            &serde_yaml::Value::String("value".into()),
+            &serde_json::Value::String("value".into()),
             k8s.objects["cr3"].fields.get("key").unwrap()
         );
 
@@ -256,7 +256,7 @@ objects:
         let untouched_val = "${nr-var:any} no templated";
         let test_agent_id = "id";
         let test_namespace = "test-namespace";
-        let k8s_template: K8s = serde_yaml::from_str(
+        let k8s_template: K8s = serde_saphyr::from_str(
             format!(
                 r#"
 objects:
@@ -317,7 +317,7 @@ objects:
 
     #[test]
     fn test_template_k8s_health_resources() {
-        let k8s_template: K8s = serde_yaml::from_str(
+        let k8s_template: K8s = serde_saphyr::from_str(
             r#"
 objects: {}
 health:
@@ -382,7 +382,7 @@ health:
 
     #[test]
     fn test_k8s_runtime_config_defaults() {
-        let k8s: K8s = serde_yaml::from_str("objects: {}").unwrap();
+        let k8s: K8s = serde_saphyr::from_str("objects: {}").unwrap();
         assert!(k8s.objects.is_empty());
         assert!(k8s.health.is_none());
         assert_eq!(

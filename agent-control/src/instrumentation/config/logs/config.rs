@@ -302,7 +302,7 @@ mod tests {
         let l = LogLevel::default();
         assert_eq!(
             l,
-            serde_yaml::from_value(serde_yaml::to_value(l.clone()).unwrap()).unwrap()
+            serde_json::from_value(serde_json::to_value(l.clone()).unwrap()).unwrap()
         )
     }
 

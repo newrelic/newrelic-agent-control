@@ -197,10 +197,13 @@ const DEFAULT_SIGNATURE_VERIFICATION_ENABLED: bool = true;
 pub struct SignatureVerificationEnabled(bool);
 
 impl TryFrom<YAMLConfig> for AgentControlConfig {
-    type Error = serde_yaml::Error;
+    type Error = AgentControlConfigError;
 
     fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
-        serde_yaml::from_value(serde_yaml::to_value(value)?)
+        let value_string = serde_saphyr::to_string(&value)
+            .map_err(|e| AgentControlConfigError(format!("converting config: {e}")))?;
+        serde_saphyr::from_str(&value_string)
+            .map_err(|e| AgentControlConfigError(format!("deserializing config: {e}")))
     }
 }
 
@@ -297,9 +300,9 @@ impl TryFrom<&OpampRemoteConfig> for AgentControlDynamicConfig {
 /// Tries to append agents from a YAML value into the agents map, erroring on duplicates.
 fn try_append_agents(
     merged_agents: SubAgentsMap,
-    agents_value: serde_yaml::Value,
+    agents_value: serde_json::Value,
 ) -> Result<SubAgentsMap, AgentControlConfigError> {
-    let sub_agents_map: SubAgentsMap = serde_yaml::from_value(agents_value)
+    let sub_agents_map: SubAgentsMap = serde_json::from_value(agents_value)
         .map_err(|err| AgentControlConfigError(format!("invalid agents: {}", err)))?;
 
     let mut merged_agents = merged_agents;
@@ -323,11 +326,10 @@ impl TryFrom<YAMLConfig> for AgentControlDynamicConfig {
     type Error = AgentControlConfigError;
 
     fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
-        serde_yaml::from_value(
-            serde_yaml::to_value(value)
-                .map_err(|e| AgentControlConfigError(format!("deserializing: {e}")))?,
-        )
-        .map_err(|e| AgentControlConfigError(format!("serializing: {e}")))
+        let value_string = serde_saphyr::to_string(&value)
+            .map_err(|e| AgentControlConfigError(format!("deserializing: {e}")))?;
+        serde_saphyr::from_str(&value_string)
+            .map_err(|e| AgentControlConfigError(format!("serializing: {e}")))
     }
 }
 
@@ -681,7 +683,7 @@ pub mod tests {
     impl TryFrom<&str> for AgentControlDynamicConfig {
         type Error = AgentControlConfigError;
         fn try_from(value: &str) -> Result<Self, Self::Error> {
-            serde_yaml::from_str(value)
+            serde_saphyr::from_str(value)
                 .map_err(|e| AgentControlConfigError(format!("serializing: {e}")))
         }
     }
@@ -803,27 +805,27 @@ agents: {}
 
     #[test]
     fn basic_parse() {
-        assert!(serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG).is_ok());
+        assert!(serde_saphyr::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG).is_ok());
         assert!(
-            serde_yaml::from_str::<AgentControlDynamicConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok()
+            serde_saphyr::from_str::<AgentControlDynamicConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok()
         );
-        let k8s_config = serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_K8S_CONFIG);
+        let k8s_config = serde_saphyr::from_str::<AgentControlConfig>(EXAMPLE_K8S_CONFIG);
         assert!(k8s_config.is_ok());
         let k8s = k8s_config.unwrap().k8s.unwrap();
         assert_eq!(k8s.auth_secret.secret_name, "secret-name");
         assert_eq!(k8s.auth_secret.secret_key_name, "secret-key");
         assert!(
-            serde_yaml::from_str::<AgentControlDynamicConfig>(
+            serde_saphyr::from_str::<AgentControlDynamicConfig>(
                 EXAMPLE_AGENTCONTROL_CONFIG_EMPTY_AGENTS
             )
             .is_ok()
         );
         assert!(
-            serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG_NO_AGENTS)
+            serde_saphyr::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG_NO_AGENTS)
                 .is_err()
         );
         assert!(
-            serde_yaml::from_str::<AgentControlDynamicConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok()
+            serde_saphyr::from_str::<AgentControlDynamicConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok()
         );
     }
 
@@ -837,15 +839,16 @@ agents: {}
         .into_iter()
         .for_each(|cfg_lf| {
             let cfg_crlf = cfg_lf.replace("\n", "\r\n");
-            let from_lf: AgentControlConfig = serde_yaml::from_str(cfg_lf).unwrap();
-            let from_crlf: AgentControlConfig = serde_yaml::from_str(&cfg_crlf).unwrap();
+            let from_lf: AgentControlConfig = serde_saphyr::from_str(cfg_lf).unwrap();
+            let from_crlf: AgentControlConfig = serde_saphyr::from_str(&cfg_crlf).unwrap();
             assert_eq!(from_lf, from_crlf);
         });
     }
 
     #[test]
     fn parse_with_wrong_agent_id() {
-        let actual = serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_CONFIG_WRONG_AGENT_ID);
+        let actual =
+            serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_CONFIG_WRONG_AGENT_ID);
         assert!(actual.is_err());
         assert!(actual
             .unwrap_err()
@@ -856,22 +859,23 @@ agents: {}
     #[test]
     fn parse_with_reserved_agent_id() {
         let actual =
-            serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_CONFIG_RESERVED_AGENT_ID);
+            serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_CONFIG_RESERVED_AGENT_ID);
         assert!(actual.is_err());
         assert!(
             actual
                 .unwrap_err()
                 .to_string()
-                .contains("AgentID 'agent-control' is reserved at line")
+                .contains("AgentID 'agent-control' is reserved")
         )
     }
 
     #[test]
     fn test_logging_config() {
         let default_config =
-            serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG_EMPTY_AGENTS);
+            serde_saphyr::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG_EMPTY_AGENTS);
         assert!(default_config.is_ok());
-        let custom_config = serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG);
+        let custom_config =
+            serde_saphyr::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG);
         assert!(custom_config.is_ok());
         assert_eq!(default_config.unwrap().log, LoggingConfig::default());
         assert_eq!(
@@ -891,17 +895,19 @@ agents: {}
     #[test]
     fn log_path_but_not_enabled_should_error() {
         let config =
-            serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_BAD_FILE_LOGGING_CONFIG);
+            serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_BAD_FILE_LOGGING_CONFIG);
         assert!(config.is_err());
-        assert_eq!(
-            config.unwrap_err().to_string(),
-            "log.file: missing field `enabled` at line 4 column 5"
+        assert!(
+            config
+                .unwrap_err()
+                .to_string()
+                .contains("missing field `enabled`")
         );
     }
 
     #[test]
     fn good_file_logging_config() {
-        let config = serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_FILE_LOGGING_CONFIG);
+        let config = serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_FILE_LOGGING_CONFIG);
         assert!(config.is_ok());
         assert_eq!(
             config.unwrap().log.file,
@@ -914,13 +920,13 @@ agents: {}
 
     #[test]
     fn host_id_config() {
-        let config = serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_HOST_ID).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_HOST_ID).unwrap();
         assert_eq!(config.host_id, "123");
     }
 
     #[test]
     fn fleet_id_config() {
-        let config = serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_FLEET_ID).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_FLEET_ID).unwrap();
         assert_eq!(config.fleet_control.unwrap().fleet_id, "123");
     }
 
@@ -934,7 +940,7 @@ k8s:
   cluster_name: some-cluster
 "#;
 
-        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
 
         let k8s = config.k8s.unwrap();
 
@@ -952,10 +958,10 @@ k8s:
   cluster_name: some-cluster
 "#;
         assert!(
-            serde_yaml::from_str::<AgentControlConfig>(missing_namespace)
+            serde_saphyr::from_str::<AgentControlConfig>(missing_namespace)
                 .unwrap_err()
                 .to_string()
-                .contains("k8s: missing field `namespace`")
+                .contains("missing field `namespace`")
         );
 
         let missing_cluster_name = r#"
@@ -965,10 +971,10 @@ k8s:
   # missing cluster_name
 "#;
         assert!(
-            serde_yaml::from_str::<AgentControlConfig>(missing_cluster_name)
+            serde_saphyr::from_str::<AgentControlConfig>(missing_cluster_name)
                 .unwrap_err()
                 .to_string()
-                .contains("k8s: missing field `cluster_name`")
+                .contains("missing field `cluster_name`")
         );
     }
 
@@ -985,7 +991,7 @@ k8s:
       kind: "CustomKind"
 "#;
 
-        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
 
         let custom_type_meta = TypeMeta {
             api_version: "custom.io/v1".to_string(),
@@ -1001,7 +1007,7 @@ k8s:
 
     #[test]
     fn test_proxy_config() {
-        let config = serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_PROXY).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_PROXY).unwrap();
         assert_eq!(
             config.proxy.url_as_string(),
             "http://localhost:8080/".to_string()
@@ -1035,7 +1041,7 @@ k8s:
             ac_release_name, cd_release_name
         );
 
-        let config = serde_yaml::from_str::<AgentControlConfig>(&config_input).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(&config_input).unwrap();
         let k8s = config.k8s.unwrap();
 
         assert_eq!(k8s.ac_release_name, expected_ac_release_name);
@@ -1055,7 +1061,7 @@ k8s:
   cd_remote_update: true
 "#;
 
-        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
         let k8s = config.k8s.unwrap();
 
         assert!(!k8s.cd_enabled);
@@ -1273,7 +1279,7 @@ k8s:
     #[test]
     fn test_deserialize_oci_config() {
         let config_input = r#"agents: {}"#;
-        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
         assert_eq!("docker.io".to_string(), config.oci.registry.0);
 
         let config_input = r#"
@@ -1283,7 +1289,7 @@ oci:
     bearer:
       token: "token"
 "#;
-        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
         assert_eq!("docker.io".to_string(), config.oci.registry.0);
 
         let config_input = r#"
@@ -1291,7 +1297,7 @@ agents: {}
 oci:
   registry: "custom-registry.io"
 "#;
-        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
         assert_eq!("custom-registry.io".to_string(), config.oci.registry.0);
     }
 
@@ -1355,7 +1361,7 @@ oci:
 
     #[test]
     fn test_oci_auth_rejects_empty() {
-        let result = serde_yaml::from_str::<OciAuth>("{}");
+        let result = serde_saphyr::from_str::<OciAuth>("{}");
         assert!(result.is_err());
         assert!(
             result
@@ -1368,7 +1374,7 @@ oci:
     #[test]
     fn test_oci_auth_rejects_both_basic_and_bearer() {
         let yaml = "basic:\n  username: user\n  password: pass\nbearer:\n  token: my-token";
-        let result = serde_yaml::from_str::<OciAuth>(yaml);
+        let result = serde_saphyr::from_str::<OciAuth>(yaml);
         assert!(result.is_err());
         assert!(
             result

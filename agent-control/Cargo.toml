@@ -17,7 +17,7 @@ thiserror = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "chrono"] }
 tracing = { workspace = true, features = ["attributes"] }
 ctrlc = { version = "3.5.2", features = ["termination"] }
-serde_yaml = { workspace = true }
+serde-saphyr = { workspace = true }
 regex = { workspace = true }
 futures = { version = "0.3.32" }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync"] }

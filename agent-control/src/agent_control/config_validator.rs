@@ -99,7 +99,7 @@ pub mod tests {
         //Expectations
         registry.should_get("ns/name:0.0.1".to_string(), &agent_type_definition);
 
-        let dynamic_config = serde_yaml::from_str::<AgentControlDynamicConfig>(
+        let dynamic_config = serde_saphyr::from_str::<AgentControlDynamicConfig>(
             r#"
 agents:
   some-agent:
@@ -117,7 +117,7 @@ agents:
         let mut registry = MockAgentRegistry::new();
         registry.should_not_get("ns/another:0.0.1".to_string());
 
-        let dynamic_config = serde_yaml::from_str::<AgentControlDynamicConfig>(
+        let dynamic_config = serde_saphyr::from_str::<AgentControlDynamicConfig>(
             r#"
 agents:
   some-agent:

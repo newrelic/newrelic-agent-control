@@ -122,7 +122,7 @@ pub(crate) mod tests {
     use assert_matches::assert_matches;
 
     fn testing_values(yaml_values: &str) -> YAMLConfig {
-        serde_yaml::from_str(yaml_values).unwrap()
+        serde_saphyr::from_str(yaml_values).unwrap()
     }
 
     pub fn testing_agent_attributes(agent_id: &AgentID) -> AgentAttributes {
@@ -314,7 +314,7 @@ pub(crate) mod tests {
         ];
 
         for yaml in wrong_backoff_yamls.into_iter() {
-            let values = serde_yaml::from_str::<YAMLConfig>(yaml).unwrap();
+            let values = serde_saphyr::from_str::<YAMLConfig>(yaml).unwrap();
             assert!(
                 agent_type
                     .variables
@@ -346,8 +346,8 @@ from_sub_agent: some-agent-id
 text_values: "key: value\nkey2: ${UNTOUCHED}\n\n"
 collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 "#;
-        let expected_spec_value: serde_yaml::Value =
-            serde_yaml::from_str(expected_spec_yaml).unwrap();
+        let expected_spec_value: serde_json::Value =
+            serde_saphyr::from_str(expected_spec_yaml).unwrap();
 
         let renderer = TemplateRenderer::default();
         let runtime_config = renderer
@@ -406,8 +406,8 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 substituted_2: my-value-2
 "#;
 
-        let expected_spec_value: serde_yaml::Value =
-            serde_yaml::from_str(expected_spec_yaml).unwrap();
+        let expected_spec_value: serde_json::Value =
+            serde_saphyr::from_str(expected_spec_yaml).unwrap();
 
         let renderer = TemplateRenderer::default();
         let runtime_config =
@@ -461,8 +461,8 @@ text_values: "key: value\nkey2: ${UNTOUCHED}\n\n"
 collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 "#;
 
-        let expected_spec_value: serde_yaml::Value =
-            serde_yaml::from_str(expected_spec_yaml).unwrap();
+        let expected_spec_value: serde_json::Value =
+            serde_saphyr::from_str(expected_spec_yaml).unwrap();
 
         let renderer = TemplateRenderer::default();
         let runtime_config =

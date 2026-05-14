@@ -49,7 +49,7 @@ impl<C: K8sClient> ConfigMapStore<C> {
             self.k8s_client
                 .get_configmap_key(&configmap_name, self.namespace.as_str(), key)?
         {
-            let ds = serde_yaml::from_str::<T>(&data)?;
+            let ds = serde_saphyr::from_str::<T>(&data)?;
 
             return Ok(Some(ds));
         }
@@ -105,7 +105,7 @@ impl<C: K8sClient> DataStore for ConfigMapStore<C> {
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
-        let data_as_string = serde_yaml::to_string(data)?;
+        let data_as_string = serde_saphyr::to_string(data)?;
         let configmap_name = ConfigMapStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
         let annotations = match ownership {
             ResourceOwnership::SubAgent(agent_type_id) => {

@@ -110,7 +110,7 @@ impl VariableTree {
 }
 
 fn update_specs(
-    values: HashMap<String, serde_yaml::Value>,
+    values: HashMap<String, serde_json::Value>,
     agent_vars: &mut HashMap<String, Tree<Variable>>,
 ) -> Result<(), AgentTypeError> {
     for (ref key, value) in values.into_iter() {
@@ -122,7 +122,7 @@ fn update_specs(
         match spec {
             Tree::End(e) => e.merge_with_yaml_value(value)?,
             Tree::Mapping(m) => {
-                let v: HashMap<String, serde_yaml::Value> = serde_yaml::from_value(value)?;
+                let v: HashMap<String, serde_json::Value> = serde_json::from_value(value)?;
                 update_specs(v, m)?
             }
         }
@@ -237,7 +237,8 @@ pub mod tests {
         agent_type::trivial_value::TrivialValue,
         sub_agent::effective_agents_assembler::build_agent_type,
     };
-    use serde_yaml::{Error, Number};
+    use serde_json::Number;
+    use serde_saphyr::Error;
     use std::collections::HashMap as Map;
 
     impl AgentTypeDefinition {
@@ -269,7 +270,8 @@ pub mod tests {
         ///
         /// The function will panic if the definition is not valid or not compatible with the environment.
         pub fn build_for_testing(yaml_definition: &str, environment: &Environment) -> Self {
-            let definition = serde_yaml::from_str::<AgentTypeDefinition>(yaml_definition).unwrap();
+            let definition =
+                serde_saphyr::from_str::<AgentTypeDefinition>(yaml_definition).unwrap();
             build_agent_type(definition, environment, &VariableConstraints::default()).unwrap()
         }
 
@@ -284,7 +286,7 @@ pub mod tests {
         ///
         /// It will panic if the yaml values are not valid or there is any error filling the variables in.
         pub fn fill_variables(&self, yaml_values: &str) -> HashMap<String, Variable> {
-            let values = serde_yaml::from_str::<YAMLConfig>(yaml_values).unwrap();
+            let values = serde_saphyr::from_str::<YAMLConfig>(yaml_values).unwrap();
             self.variables
                 .clone()
                 .fill_with_values(values)
@@ -356,7 +358,7 @@ deployment:
   linux: {}
 "#;
 
-        let agent: AgentTypeDefinition = serde_yaml::from_str(basic_agent).unwrap();
+        let agent: AgentTypeDefinition = serde_saphyr::from_str(basic_agent).unwrap();
 
         assert_eq!("nrdot", agent.agent_type_id.name());
         assert_eq!("newrelic", agent.agent_type_id.namespace());
@@ -366,13 +368,14 @@ deployment:
     #[test]
     fn test_bad_parsing() {
         let raw_agent_err: Result<AgentTypeDefinition, Error> =
-            serde_yaml::from_str(AGENT_GIVEN_BAD_YAML);
+            serde_saphyr::from_str(AGENT_GIVEN_BAD_YAML);
 
         assert!(raw_agent_err.is_err());
-        println!("{raw_agent_err:?}");
-        assert_eq!(
-            raw_agent_err.unwrap_err().to_string(),
-            "missing field `variables` at line 2 column 1"
+        assert!(
+            raw_agent_err
+                .unwrap_err()
+                .to_string()
+                .contains("missing field `variables`")
         );
     }
 
@@ -549,7 +552,7 @@ restart_policy:
 
         // Invalid variant
         let invalid_values: YAMLConfig =
-            serde_yaml::from_str(VALUES_INVALID_VARIANT).expect("Failed to parse user config");
+            serde_saphyr::from_str(VALUES_INVALID_VARIANT).expect("Failed to parse user config");
         let filled_variables_result = agent_type
             .variables
             .clone()
