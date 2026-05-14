@@ -70,13 +70,16 @@ jobs:
           echo "No unreleased entries or dependencies updated found. Nothing to release."
           exit 1
 
-      - name: Bump version in Cargo.toml
+      - name: Bump version in Cargo.toml and refresh Cargo.lock
         env:
           VERSION: ${{ steps.release-data.outputs.next-version }}
           CARGO_TOML_PATH: ${{ inputs.cargo_toml_path }}
         run: |
           sed -i "s/^version = .*/version = \"$VERSION\"/" "$CARGO_TOML_PATH"
           grep -n '^version = ' "$CARGO_TOML_PATH"
+
+          # Refresh Cargo.lock (assumed at repo root) so it reflects the bumped version.
+          cargo update --workspace --manifest-path "$CARGO_TOML_PATH"
 
       # Commits are created via the GraphQL `createCommitOnBranch` mutation so GitHub signs them automatically.
       - name: Create release branch and commit files (signed via API)
@@ -95,14 +98,17 @@ jobs:
             -f ref="refs/heads/$BRANCH" \
             -f sha="$BASE_SHA"
 
+          # Write the mutation to a file and feed it to gh via --input <file>
+          # to avoid stdin buffering issues with large payloads.
           jq -n \
+            --rawfile changelog CHANGELOG.md \
+            --rawfile cargo "$CARGO_TOML_PATH" \
+            --rawfile lock Cargo.lock \
             --arg repo "$REPO" \
             --arg branch "$BRANCH" \
             --arg msg "chore(release): prepare $VERSION" \
             --arg oid "$BASE_SHA" \
-            --arg changelog_b64 "$(base64 -w0 CHANGELOG.md)" \
             --arg cargo_path "$CARGO_TOML_PATH" \
-            --arg cargo_b64 "$(base64 -w0 "$CARGO_TOML_PATH")" \
             '{
               query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }",
               variables: {
@@ -112,13 +118,16 @@ jobs:
                   expectedHeadOid: $oid,
                   fileChanges: {
                     additions: [
-                      {path: "CHANGELOG.md", contents: $changelog_b64},
-                      {path: $cargo_path, contents: $cargo_b64}
+                      {path: "CHANGELOG.md", contents: ($changelog | @base64)},
+                      {path: $cargo_path, contents: ($cargo | @base64)},
+                      {path: "Cargo.lock", contents: ($lock | @base64)}
                     ]
                   }
                 }
               }
-            }' | gh api graphql --input -
+            }' > "$RUNNER_TEMP/mutation.json"
+
+          gh api graphql --input "$RUNNER_TEMP/mutation.json"
 
       - name: Generate app token
         id: app-token
