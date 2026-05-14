@@ -72,7 +72,7 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
   NEW_RELIC_AUTH_PROVISIONED_CLIENT_ID={} \
   NEW_RELIC_AUTH_PRIVATE_KEY_PATH={} \
   NEW_RELIC_AGENT_VERSION={} \
-  NEW_RELIC_REGION={:?} \
+  NEW_RELIC_REGION={} \
   NEW_RELIC_AGENT_CONTROL_HOST_MONITORING_SOURCE={} \
   NR_CLI_FLEET_ID={} \
   NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED={} \

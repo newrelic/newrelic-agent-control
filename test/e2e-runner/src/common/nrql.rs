@@ -3,6 +3,7 @@ use crate::common::test::TestResult;
 use reqwest::blocking::Client;
 use serde::Serialize;
 use serde_json::Value;
+use std::fmt::Display;
 use std::time::Duration;
 use tracing::info;
 
@@ -23,13 +24,25 @@ pub enum Region {
     Staging,
 }
 
+impl Display for Region {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let region_str = match self {
+            Self::US => "US",
+            Self::EU => "EU",
+            Self::JP => "JP",
+            Self::Staging => "STAGING",
+        };
+        write!(f, "{region_str}")
+    }
+}
+
 impl Region {
-    fn api_endpoint(self) -> String {
+    fn as_api_endpoint(&self) -> &str {
         match self {
-            Region::US => "https://api.newrelic.com".to_string(),
-            Region::EU => "https://api.eu.newrelic.com".to_string(),
-            Region::JP => "https://api.jp.newrelic.com".to_string(),
-            Region::Staging => "https://staging-api.newrelic.com".to_string(),
+            Region::US => "https://api.newrelic.com",
+            Region::EU => "https://api.eu.newrelic.com",
+            Region::JP => "https://api.jp.newrelic.com",
+            Region::Staging => "https://staging-api.newrelic.com",
         }
     }
 }
@@ -86,7 +99,7 @@ fn check_query_results_with_client(
     client: Client,
     predicate: impl FnOnce(&Vec<Value>) -> bool,
 ) -> TestResult<Vec<Value>> {
-    let api_endpoint = install_args.nr_region.api_endpoint();
+    let api_endpoint = install_args.nr_region.as_api_endpoint();
     let url = format!("{}/graphql", api_endpoint);
     let graphql_query = format!(
         r#"{{
