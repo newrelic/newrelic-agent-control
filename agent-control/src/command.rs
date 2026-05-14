@@ -218,7 +218,9 @@ impl Command {
         }
     }
 
-    fn build_bootstrap_context(args: &Args) -> Result<BootstrapContext, Box<dyn Error>> {
+    fn build_bootstrap_context(
+        #[cfg_attr(not(debug_assertions), allow(unused_variables))] args: &Args,
+    ) -> Result<BootstrapContext, Box<dyn Error>> {
         let base_paths = BasePaths::default();
 
         #[cfg(debug_assertions)]
