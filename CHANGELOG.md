@@ -8,8 +8,13 @@ Unreleased section should follow [Release Toolkit](https://github.com/newrelic/r
 
 ## Unreleased
 
+## v1.15.0 - 2026-05-14
+
 ### 🚀 Enhancements
 - Added support for JP endpoints
+
+### ⛓️ Dependencies
+- Updated rust crate aws-lc-rs to 1.17.0
 
 ## 1.14.1 - 2026-05-13
 
