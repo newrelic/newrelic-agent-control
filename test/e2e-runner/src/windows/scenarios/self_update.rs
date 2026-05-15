@@ -6,13 +6,11 @@ use crate::common::{InstallationArgs, RecipeData, config};
 use crate::windows::install::{SERVICE_NAME, install_latest_agent_control, tear_down_test};
 use crate::windows::service::{STATUS_RUNNING, restart_service};
 use crate::windows::{self};
-use fake_opamp_server::{FakeServer, InstanceID};
+use fake_opamp_server::FakeServer;
 use std::time::Duration;
 use tracing::info;
 
 const AGENT_VERSION_ATTR: &str = "agent.version";
-const SUPERVISOR_KEY_ATTR: &str = "supervisor.key";
-const AGENT_CONTROL_SUPERVISOR_KEY: &str = "agent-control";
 
 pub fn test_self_update_from_latest(args: InstallationArgs) {
     info!("Starting self-update scenario");
@@ -65,7 +63,11 @@ self_update:
         20,
         Duration::from_secs(2),
         "AC connecting to OpAMP server",
-        || find_ac_instance_id(&opamp_server),
+        || {
+            opamp_server
+                .find_agent_control_instance()
+                .map_err(|e| e.into())
+        },
     );
     info!("AC connected to fake OpAMP server");
 
@@ -90,7 +92,12 @@ self_update:
         "initial and new version must differ for self-update to be meaningful"
     );
 
-    let update_config = format!("version: \"{new_version}\"\nagents: {{}}");
+    let update_config = format!(
+        r#"
+version: "{new_version}"
+agents: {{}}
+"#
+    );
     opamp_server.set_config_response(instance_id.clone(), update_config);
     info!(tag = new_version, "Sent self-update remote config");
 
@@ -127,14 +134,4 @@ self_update:
     info!(version = new_version, "AC version updated successfully");
 
     info!("Self-update test completed successfully");
-}
-
-fn find_ac_instance_id(server: &FakeServer) -> TestResult<InstanceID> {
-    let agents =
-        server.find_agents_with_identifying_attr(SUPERVISOR_KEY_ATTR, AGENT_CONTROL_SUPERVISOR_KEY);
-    match agents.len() {
-        0 => Err("no agent-control connected to OpAMP server yet".into()),
-        1 => Ok(agents.into_iter().next().unwrap()),
-        n => Err(format!("expected exactly one agent-control, found {n}").into()),
-    }
 }

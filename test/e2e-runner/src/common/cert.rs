@@ -56,10 +56,6 @@ fn generate_cert(cert_path: &std::path::Path, key_path: &std::path::Path) {
         "/CN=localhost",
         "-addext",
         "subjectAltName=DNS:localhost,IP:127.0.0.1",
-    ]);
-
-    #[cfg(target_family = "unix")]
-    cmd.args([
         "-addext",
         "basicConstraints=critical,CA:FALSE",
         "-addext",
@@ -109,17 +105,4 @@ fn add_to_root_store(cert_path: &std::path::Path) {
         "update-ca-certificates failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-}
-
-impl Drop for SelfSignedCert {
-    fn drop(&mut self) {
-        #[cfg(target_family = "unix")]
-        {
-            // Remove certificate from system store on Linux
-            let system_cert_path =
-                std::path::Path::new("/usr/local/share/ca-certificates/localhost-test.crt");
-            let _ = std::fs::remove_file(system_cert_path);
-            let _ = Command::new("update-ca-certificates").output();
-        }
-    }
 }

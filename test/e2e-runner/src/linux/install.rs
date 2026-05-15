@@ -122,7 +122,6 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
   NR_CLI_FLEET_ID={} \
   NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED={} \
   NEW_RELIC_AGENT_CONTROL=true \
-  NEW_RELIC_AGENT_VERSION=1.13.0 \
   /usr/local/bin/newrelic install \
   -n {}
 "#,
@@ -137,7 +136,7 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
         data.recipe_list,
     );
 
-    info!("Executing recipe to install Agent Control version 1.13.0");
+    info!("Executing recipe to install latest Agent Control");
     let output = retry(3, Duration::from_secs(30), "recipe installation", || {
         exec_bash_command(&install_command)
     })

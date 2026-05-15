@@ -1,3 +1,5 @@
+use std::thread::sleep;
+use std::time::Duration;
 use tracing::info;
 
 use crate::linux::bash::exec_bash_command;
@@ -20,9 +22,6 @@ pub fn restart_service_and_wait(service_name: &str, expected_status: &str) {
         .unwrap_or_else(|err| panic!("could not restart the '{service_name}' service: {err}"));
 
     // Wait for service to reach expected status
-    use std::thread::sleep;
-    use std::time::Duration;
-
     for i in 0..30 {
         let current_status = get_service_status(service_name);
         if current_status == expected_status {
@@ -43,7 +42,17 @@ pub fn restart_service_and_wait(service_name: &str, expected_status: &str) {
         }
         sleep(Duration::from_secs(1));
     }
+
+    // Final check in case the service reached expected status right after the loop
     let final_status = get_service_status(service_name);
+    if final_status == expected_status {
+        info!(
+            service = service_name,
+            status = expected_status,
+            "Service reached expected status on final check"
+        );
+        return;
+    }
 
     // Show service logs when it fails
     info!("Service failed to reach expected status, showing logs");

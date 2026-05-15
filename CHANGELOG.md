@@ -11,9 +11,6 @@ Unreleased section should follow [Release Toolkit](https://github.com/newrelic/r
 ### 🚀 Enhancements
 - Added support for JP endpoints
 
-### 🧪 Testing
-- Added e2e test for self-update functionality on Linux
-
 ## 1.14.1 - 2026-05-13
 
 ### 🚀 Enhancements

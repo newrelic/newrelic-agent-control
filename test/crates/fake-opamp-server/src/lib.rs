@@ -263,6 +263,17 @@ impl FakeServer {
             .collect()
     }
 
+    /// Finds the Agent Control instance ID connected to this OpAMP server.
+    /// Returns an error if no agent-control is connected or if more than one is found.
+    pub fn find_agent_control_instance(&self) -> Result<InstanceID, String> {
+        let agents = self.find_agents_with_identifying_attr("supervisor.key", "agent-control");
+        match agents.len() {
+            0 => Err("no agent-control connected to OpAMP server yet".to_string()),
+            1 => Ok(agents.into_iter().next().unwrap()),
+            n => Err(format!("expected exactly one agent-control, found {n}")),
+        }
+    }
+
     /// Returns the string value of an identifying attribute for the given agent, or `None` if the
     /// agent is unknown or the attribute is absent or not a string.
     pub fn get_identifying_attr_value(
