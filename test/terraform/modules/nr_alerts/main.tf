@@ -27,15 +27,19 @@ resource "newrelic_workflow" "workflow" {
   }
 
   destination {
-    channel_id = newrelic_notification_channel.channel.id
+    channel_id = newrelic_notification_channel.slack_channel.id
+  }
+
+  destination {
+    channel_id = newrelic_notification_channel.email_channel.id
   }
 }
 
 
-resource "newrelic_notification_channel" "channel" {
+resource "newrelic_notification_channel" "slack_channel" {
   name           = var.instance_id
   type           = "WEBHOOK"
-  destination_id = newrelic_notification_destination.destination.id
+  destination_id = newrelic_notification_destination.slack_webhook.id
   product        = "IINT"
 
   property {
@@ -44,13 +48,35 @@ resource "newrelic_notification_channel" "channel" {
   }
 }
 
-resource "newrelic_notification_destination" "destination" {
+resource "newrelic_notification_channel" "email_channel" {
+  name           = var.instance_id
+  type           = "EMAIL"
+  destination_id = newrelic_notification_destination.email.id
+  product        = "IINT"
+
+  property {
+    key   = "subject"
+    value = "Alert: ${var.instance_id}"
+  }
+}
+
+resource "newrelic_notification_destination" "slack_webhook" {
   name = "SlackWebhook"
   type = "WEBHOOK"
 
   property {
     key   = "url"
     value = var.slack_webhook_url
+  }
+}
+
+resource "newrelic_notification_destination" "email" {
+  name = "Email"
+  type = "EMAIL"
+
+  property {
+    key   = "recipients"
+    value = var.emails
   }
 }
 

@@ -56,6 +56,7 @@ define check_env_vars_infra
 	$(call check_env_vars_base)
 	$(call check_env_var,AC_CANARY_WINDOWS_PASSWORD)
 	$(call check_env_var,SLACK_WEBHOOK_URL)
+	$(call check_env_var,EMAILS)
 endef
 
 define check_env_vars_install
@@ -84,6 +85,7 @@ test/onhost-canaries/infra-plan:
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
+	TF_VAR_emails="${EMAILS}" \
 	terraform -chdir=$(ONHOST_TF_DIR) plan -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
 .PHONY: test/onhost-canaries/infra-apply
@@ -94,6 +96,7 @@ test/onhost-canaries/infra-apply:
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
+	TF_VAR_emails="${EMAILS}" \
 	terraform -chdir=$(ONHOST_TF_DIR) apply -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
 .PHONY: test/onhost-canaries/infra-destroy
@@ -104,6 +107,7 @@ test/onhost-canaries/infra-destroy:
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
+	TF_VAR_emails="${EMAILS}" \
 	terraform -chdir=$(ONHOST_TF_DIR) destroy -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
 .PHONY: test/onhost-canaries/ansible-install
