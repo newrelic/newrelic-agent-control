@@ -1,0 +1,60 @@
+name: 🐤 Apply onhost canaries (split infra + alerts)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - test/onhost-canaries/terraform/infra/**
+      - test/onhost-canaries/terraform/alerts/**
+      - .github/workflows/component_onhost_canaries_infra.yml
+      - .github/workflows/push_pr_onhost_canaries_split_apply.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.head_ref || github.run_id }}"
+  cancel-in-progress: false
+
+jobs:
+  infra_apply:
+    name: infra apply ${{ matrix.environment }}
+    uses: ./.github/workflows/component_onhost_canaries_infra.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [ staging, production ]
+    permissions:
+      # required to oidc AWS
+      id-token: write
+      contents: read
+    with:
+      environment: ${{ matrix.environment }}
+      operation: infra-only-apply
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+      AC_CANARY_WINDOWS_PASSWORD: ${{ secrets.AC_CANARY_WINDOWS_PASSWORD }}
+      SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
+
+  alerts_apply:
+    name: alerts apply ${{ matrix.environment }}
+    uses: ./.github/workflows/component_onhost_canaries_infra.yml
+    needs: [ infra_apply ]
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [ staging, production ]
+    permissions:
+      # required to oidc AWS
+      id-token: write
+      contents: read
+    with:
+      environment: ${{ matrix.environment }}
+      operation: alerts-apply
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+      AC_CANARY_WINDOWS_PASSWORD: ${{ secrets.AC_CANARY_WINDOWS_PASSWORD }}
+      SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}

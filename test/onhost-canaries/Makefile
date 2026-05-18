@@ -4,6 +4,8 @@
 CURR_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 ONHOST_TF_DIR := $(CURR_DIR)terraform
+ONHOST_TF_INFRA_DIR := $(CURR_DIR)terraform/infra
+ONHOST_TF_ALERTS_DIR := $(CURR_DIR)terraform/alerts
 ONHOST_ANSIBLE_FOLDER := $(CURR_DIR)ansible
 
 PACKAGE_VERSION ?=
@@ -77,6 +79,9 @@ define check_env_vars_install
     fi
 endef
 
+# ============================================================================
+# Legacy targets (monolithic terraform) - DEPRECATED, use split targets below
+# ============================================================================
 .PHONY: test/onhost-canaries/infra-plan
 test/onhost-canaries/infra-plan:
 	@$(call check_env_vars_infra)
@@ -110,16 +115,76 @@ test/onhost-canaries/infra-destroy:
 	TF_VAR_emails="${EMAILS}" \
 	terraform -chdir=$(ONHOST_TF_DIR) destroy -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
+# ============================================================================
+# Split terraform targets (infra module)
+# ============================================================================
+.PHONY: test/onhost-canaries/infra-only-plan
+test/onhost-canaries/infra-only-plan:
+	@$(call check_env_vars_base)
+	@$(call check_env_var,AC_CANARY_WINDOWS_PASSWORD)
+	terraform -chdir=$(ONHOST_TF_INFRA_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf && \
+	TF_VAR_windows_password="${AC_CANARY_WINDOWS_PASSWORD}" \
+	terraform -chdir=$(ONHOST_TF_INFRA_DIR) plan -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
+
+.PHONY: test/onhost-canaries/infra-only-apply
+test/onhost-canaries/infra-only-apply:
+	@$(call check_env_vars_base)
+	@$(call check_env_var,AC_CANARY_WINDOWS_PASSWORD)
+	terraform -chdir=$(ONHOST_TF_INFRA_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf && \
+	TF_VAR_windows_password="${AC_CANARY_WINDOWS_PASSWORD}" \
+	terraform -chdir=$(ONHOST_TF_INFRA_DIR) apply -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
+
+.PHONY: test/onhost-canaries/infra-only-destroy
+test/onhost-canaries/infra-only-destroy:
+	@$(call check_env_vars_base)
+	@$(call check_env_var,AC_CANARY_WINDOWS_PASSWORD)
+	terraform -chdir=$(ONHOST_TF_INFRA_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf && \
+	TF_VAR_windows_password="${AC_CANARY_WINDOWS_PASSWORD}" \
+	terraform -chdir=$(ONHOST_TF_INFRA_DIR) destroy -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
+
+# ============================================================================
+# Split terraform targets (alerts module)
+# ============================================================================
+.PHONY: test/onhost-canaries/alerts-plan
+test/onhost-canaries/alerts-plan:
+	@$(call check_env_vars_base)
+	@$(call check_env_var,SLACK_WEBHOOK_URL)
+	terraform -chdir=$(ONHOST_TF_ALERTS_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf && \
+	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
+	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
+	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
+	terraform -chdir=$(ONHOST_TF_ALERTS_DIR) plan -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
+
+.PHONY: test/onhost-canaries/alerts-apply
+test/onhost-canaries/alerts-apply:
+	@$(call check_env_vars_base)
+	@$(call check_env_var,SLACK_WEBHOOK_URL)
+	terraform -chdir=$(ONHOST_TF_ALERTS_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf && \
+	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
+	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
+	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
+	terraform -chdir=$(ONHOST_TF_ALERTS_DIR) apply -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
+
+.PHONY: test/onhost-canaries/alerts-destroy
+test/onhost-canaries/alerts-destroy:
+	@$(call check_env_vars_base)
+	@$(call check_env_var,SLACK_WEBHOOK_URL)
+	terraform -chdir=$(ONHOST_TF_ALERTS_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf && \
+	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
+	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
+	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
+	terraform -chdir=$(ONHOST_TF_ALERTS_DIR) destroy -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
+
 .PHONY: test/onhost-canaries/ansible-install
 test/onhost-canaries/ansible-install:
 	@$(call check_env_vars_install)
-	@echo "Generating inventory from Terraform state..."
-	@terraform -chdir=$(ONHOST_TF_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf
-	@mkdir -p $(ONHOST_TF_DIR)/environments/$(ENVIRONMENT)
-	@terraform -chdir=$(ONHOST_TF_DIR) output -raw ansible_inventory_content > \
-		$(ONHOST_TF_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT)
+	@echo "Generating inventory from Terraform state (infra module)..."
+	@terraform -chdir=$(ONHOST_TF_INFRA_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf
+	@mkdir -p $(ONHOST_TF_INFRA_DIR)/environments/$(ENVIRONMENT)
+	@terraform -chdir=$(ONHOST_TF_INFRA_DIR) output -raw ansible_inventory_content > \
+		$(ONHOST_TF_INFRA_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT)
 	@echo "✓ Inventory file generated from Terraform state"
-	@INVENTORY_FILE=$(ONHOST_TF_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT) && \
+	@INVENTORY_FILE=$(ONHOST_TF_INFRA_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT) && \
 	echo "Validating Ansible inventory contains the 2 canaries..." && \
 	HOST_COUNT=$$(ansible-inventory -i $$INVENTORY_FILE --list 2>/dev/null | jq '[.. | .hosts? // empty] | flatten | length') && \
 	if [ "$$HOST_COUNT" -ne 2 ]; then \
@@ -131,7 +196,7 @@ test/onhost-canaries/ansible-install:
 	echo "✓ Inventory validation passed ($$HOST_COUNT hosts found)"
 	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ONHOST_ANSIBLE_FOLDER) ANSIBLE_ENV_SCRIPT=$(ONHOST_ANSIBLE_FOLDER)/set_ansible_env.sh
 	@echo "Running Ansible playbook for environment: $(ENVIRONMENT)"
-	@INVENTORY_FILE=$(ONHOST_TF_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT) && \
+	@INVENTORY_FILE=$(ONHOST_TF_INFRA_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT) && \
 	echo "Using inventory: $$INVENTORY_FILE" && \
 	ANSIBLE_CONFIG=$(ONHOST_ANSIBLE_FOLDER)/ansible.cfg \
 	ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook \
