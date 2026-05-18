@@ -178,7 +178,22 @@ jobs:
       contents: read
     with:
       environment: staging
-      operation: apply
+      operation: infra-only-apply
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+      AC_CANARY_WINDOWS_PASSWORD: ${{ secrets.AC_CANARY_WINDOWS_PASSWORD }}
+      SLACK_WEBHOOK_URL: ${{ secrets.AC_FLEET_COMMON_SLACK_WEBHOOK }}
+
+  onhost_canaries_alerts:
+    uses: ./.github/workflows/component_onhost_canaries_infra.yml
+    needs: [ onhost_canaries_infra ]
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      environment: staging
+      operation: alerts-apply
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
@@ -187,7 +202,7 @@ jobs:
 
   onhost_canaries:
     uses: ./.github/workflows/component_onhost_canaries.yml
-    needs: [ onhost_canaries_infra ]
+    needs: [ onhost_canaries_alerts ]
     permissions:
       id-token: write
       contents: read
