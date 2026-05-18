@@ -59,7 +59,7 @@ jobs:
         run: bash .github/workflows/scripts/space_cleanup.sh
 
       - name: Setup Minikube
-        uses: manusa/actions-setup-minikube@96202dee4ae1c2f46a62fe197273aaf22b83f42d # v2.16.1
+        uses: manusa/actions-setup-minikube@285c4cc66c939eb2ca21ef94b444f4b430ede447 # v2.17.0
         with:
           minikube version: v1.35.0
           kubernetes version: "v1.30.14"
@@ -87,7 +87,7 @@ jobs:
         with:
           version: 0.15.2
 
-      - uses: taiki-e/install-action@fa0dd4cd0a40696e6f9766370614a5ce482e6aa8 # v2.77.5
+      - uses: taiki-e/install-action@7be9fd86bd1707236395105d6e9329dd1511a7e1 # v2.79.0
         with:
           tool: cargo-zigbuild@0.20.1
 
