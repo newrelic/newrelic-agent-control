@@ -8,10 +8,18 @@ Unreleased section should follow [Release Toolkit](https://github.com/newrelic/r
 
 ## Unreleased
 
+## v1.15.0 - 2026-05-19
+
 ### 🚀 Enhancements
-- Added support for JP endpoints
-### Bugfixes
 - bumping opamp-rs to fix custom_capabilities
+
+### ⛓️ Dependencies
+- Updated rust crate aws-lc-rs to 1.17.0
+- Updated rust crate config to 0.15.23
+- Updated alpine/helm to v4.2.0
+- Updated rust crate opamp-client to v0.0.39
+- Updated alpine/kubectl to v1.36.1
+- Updated rust crate tar to 0.4.46
 
 ## 1.14.1 - 2026-05-13
 
