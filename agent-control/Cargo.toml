@@ -69,7 +69,7 @@ aws-lc-rs = { workspace = true }
 bytes = "1.11.1"
 opentelemetry = { version = "0.31.0", features = ["trace"] }
 opentelemetry_sdk = { version = "0.31.0", features = ["trace"] }
-tracing-opentelemetry = "0.32.1"
+tracing-opentelemetry = "0.33.0"
 opentelemetry-otlp = { version = "0.31.1", features = ["reqwest-rustls"] }
 opentelemetry-http = { version = "0.31.0" }
 opentelemetry-appender-tracing = { version = "0.31.1", features = [
