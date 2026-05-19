@@ -16,11 +16,6 @@ resource "newrelic_workflow" "workflow" {
   name                  = var.instance_id
   muting_rules_handling = "NOTIFY_ALL_ISSUES"
 
-  // To avoid the `ENTITY_IN_USE` issue, we tell terraform to create the workflow before destroying the old one.
-  lifecycle {
-    create_before_destroy = true
-  }
-
   issues_filter {
     name = "Issue Filter"
     type = "FILTER"
