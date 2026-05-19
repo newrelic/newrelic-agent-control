@@ -92,7 +92,7 @@ module "alerts" {
       threshold          = 210000
       duration           = 21600
       operator           = "above"
-      template_name      = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+      template_name      = "./alert_nrql_templates/generic_metric_derivative.tftpl"
     },
     {
       name          = "Agent Control container"
