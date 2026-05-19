@@ -50,7 +50,7 @@ fn k8s_instance_id_store() {
 
     let instance_id_storer = Storer::from(k8s_store.clone());
     let instance_id_getter =
-        InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
+        InstanceIDWithIdentifiersGetter::new(Arc::new(instance_id_storer), Identifiers::default());
 
     let instance_id_created_1 = instance_id_getter.get(&agent_id_1).unwrap();
     let instance_id_1 = instance_id_getter.get(&agent_id_1).unwrap();
@@ -331,7 +331,7 @@ fn k8s_multiple_store_entries() {
     let config_repository = ConfigRepo::new(k8s_store.clone());
     let instance_id_storer = Storer::from(k8s_store.clone());
     let instance_id_getter =
-        InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
+        InstanceIDWithIdentifiersGetter::new(Arc::new(instance_id_storer), Identifiers::default());
 
     let hash = Hash::from("hash-test");
     let remote_config = RemoteConfig {

@@ -97,7 +97,7 @@ impl AgentControlRunner {
         let identifiers = get_identifiers(k8s_config.cluster_name.clone(), fleet_id);
         info!("Instance Identifiers: {}", identifiers);
 
-        let instance_id_storer = Storer::from(k8s_store.clone());
+        let instance_id_storer = Arc::new(Storer::from(k8s_store.clone()));
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers.clone());
 

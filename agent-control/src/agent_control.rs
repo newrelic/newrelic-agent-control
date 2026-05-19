@@ -519,6 +519,8 @@ where
                 Some(old_sub_agent_config) => {
                     info!(%agent_id, "Recreating SubAgent");
                     self.recreate_sub_agent(&agent_identity, running_sub_agents)?;
+                    // onhost: we are removing old sub agent fleet data
+                    // k8s: fleet data gets reused, only the CM annotation for agent_type_id is changed.
                     self.resource_cleaner
                         .clean(agent_id, &old_sub_agent_config.agent_type)?;
                     Ok(())

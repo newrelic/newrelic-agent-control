@@ -171,7 +171,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
 
     let instance_id_storer = Storer::from(k8s_store.clone());
     let instance_id_getter =
-        InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
+        InstanceIDWithIdentifiersGetter::new(Arc::new(instance_id_storer), Identifiers::default());
 
     // Creates Instance ID CM correctly tagged.
     let agent_instance_id = instance_id_getter.get(&agent_identity.id).unwrap();
@@ -312,7 +312,7 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
 
     let instance_id_storer = Storer::from(k8s_store.clone());
     let instance_id_getter =
-        InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
+        InstanceIDWithIdentifiersGetter::new(Arc::new(instance_id_storer), Identifiers::default());
 
     let ac_instance_id = instance_id_getter.get(ac_id).unwrap();
 
