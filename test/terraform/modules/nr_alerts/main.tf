@@ -75,7 +75,7 @@ resource "newrelic_notification_destination" "email" {
   type = "EMAIL"
 
   property {
-    key   = "recipients"
+    key   = "email"
     value = var.emails
   }
 }
