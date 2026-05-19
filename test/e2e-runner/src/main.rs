@@ -43,6 +43,9 @@ enum LinuxScenarios {
     /// This is useful when Agent Control is already deployed and you only need to trigger and monitor Fleet Control tests.
     /// Requires --fleet-id and --fleet-control-token arguments.
     FleetControlApi(FleetControlApiArgs),
+    /// Tests self-update functionality by installing Agent Control, pushing a new version to local OCI registry,
+    /// and verifying that AC updates itself when instructed via OpAMP.
+    SelfUpdateFromLatest(InstallationArgs),
 }
 
 #[derive(Debug, clap::Subcommand)]

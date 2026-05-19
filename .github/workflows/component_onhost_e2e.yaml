@@ -53,6 +53,7 @@ jobs:
           - infra-agent
           - nrdot-agent
           - proxy
+          - self-update-from-latest
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"

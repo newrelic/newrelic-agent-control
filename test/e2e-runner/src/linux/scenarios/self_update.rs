@@ -3,9 +3,9 @@ use crate::common::on_drop::CleanUp;
 use crate::common::runtime::tokio_runtime;
 use crate::common::test::{TestResult, retry_panic};
 use crate::common::{InstallationArgs, RecipeData, config};
-use crate::windows::install::{SERVICE_NAME, install_latest_agent_control, tear_down_test};
-use crate::windows::service::{STATUS_RUNNING, restart_service};
-use crate::windows::{self};
+use crate::linux;
+use crate::linux::install::{install_latest_agent_control, tear_down_test};
+use crate::linux::service::{STATUS_RUNNING, restart_service_and_wait};
 use fake_opamp_server::FakeServer;
 use std::time::Duration;
 use tracing::info;
@@ -30,6 +30,7 @@ pub fn test_self_update_from_latest(args: InstallationArgs) {
 
     let self_update_config = format!(
         r#"
+agents: {{}}
 fleet_control:
   endpoint: {}
   signature_validation:
@@ -37,7 +38,7 @@ fleet_control:
 oci:
   registry: {}
 log:
-  file: 
+  file:
     enabled: true
   level: debug
 self_update:
@@ -54,9 +55,9 @@ self_update:
         registry.url(),
         pushed_package.jwks_url,
     );
-    config::update_config(windows::DEFAULT_AC_CONFIG_PATH, &self_update_config);
+    config::update_config(linux::DEFAULT_AC_CONFIG_PATH, &self_update_config);
 
-    restart_service(SERVICE_NAME, STATUS_RUNNING);
+    restart_service_and_wait(linux::SERVICE_NAME, STATUS_RUNNING);
     info!("AC service restarted with fleet and self-update configuration");
 
     let instance_id = retry_panic(
