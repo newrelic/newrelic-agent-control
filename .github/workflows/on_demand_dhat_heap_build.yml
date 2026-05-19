@@ -1,0 +1,97 @@
+name: ⏯️ Build DHAT profiling binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name to associate with the build'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm64, amd64]
+    name: Build dhat-heap Linux binaries (${{ matrix.arch }})
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/install-rust-toolchain
+        with:
+          targets: >-
+            aarch64-unknown-linux-musl,
+            x86_64-unknown-linux-musl
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
+        with:
+          version: 0.15.2
+
+      - uses: taiki-e/install-action@7be9fd86bd1707236395105d6e9329dd1511a7e1 # v2.79.0
+        with:
+          tool: cargo-zigbuild@0.20.1
+
+      - name: Build dhat-heap binaries
+        env:
+          BUILD_MODE: release-debug
+          CARGO_FEATURES: dhat-heap
+          PKG: newrelic_agent_control
+          AGENT_CONTROL_VERSION: ${{ inputs.tag_name }}
+        run: |
+          ARCH=${{ matrix.arch }} BIN=newrelic-agent-control ./build/scripts/build_binary.sh
+          ARCH=${{ matrix.arch }} BIN=newrelic-agent-control-cli ./build/scripts/build_binary.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          retention-days: 7
+          name: dhat-heap-linux-${{ matrix.arch }}-${{ inputs.tag_name }}
+          path: ./bin/*
+
+  build-windows:
+    runs-on: ubuntu-latest
+    name: Build dhat-heap Windows binaries
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/install-rust-toolchain
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Windows cross-compilation dependencies
+        run: |
+          sudo apt-get install -y llvm
+
+      - name: Install cargo-xwin and go-winres
+        run: |
+          cargo install --locked cargo-xwin --force
+          go install github.com/tc-hib/go-winres@latest
+
+      - name: Build dhat-heap Windows binaries
+        env:
+          AGENT_CONTROL_VERSION: ${{ inputs.tag_name }}
+        run: |
+          cargo xwin build --target x86_64-pc-windows-msvc --profile release-debug --package newrelic_agent_control --bin newrelic-agent-control --features dhat-heap
+          cargo xwin build --target x86_64-pc-windows-msvc --profile release-debug --package newrelic_agent_control --bin newrelic-agent-control-cli --features dhat-heap
+
+      - name: Copy binaries
+        run: |
+          mkdir -p bin
+          cp target/x86_64-pc-windows-msvc/release-debug/newrelic-agent-control.exe bin/newrelic-agent-control-windows-amd64.exe
+          cp target/x86_64-pc-windows-msvc/release-debug/newrelic-agent-control-cli.exe bin/newrelic-agent-control-cli-windows-amd64.exe
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          retention-days: 7
+          name: dhat-heap-windows-amd64-${{ inputs.tag_name }}
+          path: ./bin/*

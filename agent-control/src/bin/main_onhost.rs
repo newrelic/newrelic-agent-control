@@ -16,9 +16,18 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 
 fn main() -> ExitCode {
     #[cfg(feature = "dhat-heap")]
-    let _profiler = dhat::Profiler::new_heap();
+    let _profiler = if let Ok(path) = std::env::var("DHAT_HEAP_OUTPUT_PATH") {
+        dhat::Profiler::builder().file_name(path).build()
+    } else {
+        dhat::Profiler::new_heap()
+    };
+
     #[cfg(feature = "dhat-ad-hoc")]
-    let _profiler = dhat::Profiler::new_ad_hoc();
+    let _profiler = if let Ok(path) = std::env::var("DHAT_AD_HOC_OUTPUT_PATH") {
+        dhat::Profiler::builder().ad_hoc().file_name(path).build()
+    } else {
+        dhat::Profiler::new_ad_hoc()
+    };
 
     #[cfg(target_family = "unix")]
     {
