@@ -375,17 +375,16 @@ static AGENT_TYPE_FLUENTBIT: LazyLock<AgentTypeValuesTestCase> =
 static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.1.0",
-        values_k8s: AgentTypeValues {
+        values_linux: AgentTypeValues {
             cases: HashMap::from([
-                ("mandatory fields only", r#"chart_version: "some-version""#),
+                ("mandatory fields only", r#"nr_account_id: "12345""#),
                 (
                     "check all value types are correct",
                     r#"
-                chart_version: "some-version"
-                chart_values.nr-k8s-otel-collector:
-                    yaml: object
-                chart_values.global:
-                    yaml: object
+                nr_account_id: "12345"
+                container_name: "ktranslate-test"
+                flow_port: 9996
+                backoff_delay: "10s"
                 "#,
                 ),
             ]),
@@ -394,75 +393,25 @@ static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
                     Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
                     Variable::new_final_string_variable("abcd1234".to_string()),
                 ),
-                (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_CLUSTER_NAME"),
-                    Variable::new_final_string_variable("my-test-cluster".to_string()),
-                ),
-                (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_STAGING"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LOW_DATA_MODE"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_VERBOSE_LOG"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
             ]),
         }
         .into(),
-        values_linux: AgentTypeValues {
-            cases: HashMap::from([
-                ("mandatory fields only", r#"version: "some-version""#),
-                (
-                    "check all value types are correct",
-                    r#"
-                version: "some-version"
-                config: "some file contents"
-                backoff_delay: "10s"
-                health_check.path: "/health"
-                health_check.port: 12345
-                "#,
-                ),
-            ]),
-            ..Default::default()
-        }
-        .into(),
-        values_windows: AgentTypeValues {
-            cases: HashMap::from([
-                ("mandatory fields only", r#"version: "some-version""#),
-                (
-                    "check all value types are correct",
-                    r#"
-                version: "some-version"
-                config: "some file contents"
-                backoff_delay: "10s"
-                health_check.path: "/health"
-                health_check.port: 12345
-                "#,
-                ),
-            ]),
-            ..Default::default()
-        }
-        .into(),
+        ..Default::default()
     });
 
 static AGENT_TYPE_OTEL_COLLECTOR_OLD: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/io.opentelemetry.collector:0.1.0",
-        values_k8s: AgentTypeValues {
+        values_linux: AgentTypeValues {
             cases: HashMap::from([
-                ("mandatory fields only", r#"chart_version: "some-version""#),
+                ("mandatory fields only", r#"nr_account_id: "12345""#),
                 (
                     "check all value types are correct",
                     r#"
-                chart_version: "some-version"
-                chart_values.nr-k8s-otel-collector:
-                    yaml: object
-                chart_values.global:
-                    yaml: object
+                nr_account_id: "12345"
+                container_name: "ktranslate-test"
+                flow_port: 9996
+                backoff_delay: "10s"
                 "#,
                 ),
             ]),
@@ -471,40 +420,7 @@ static AGENT_TYPE_OTEL_COLLECTOR_OLD: LazyLock<AgentTypeValuesTestCase> =
                     Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
                     Variable::new_final_string_variable("abcd1234".to_string()),
                 ),
-                (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_CLUSTER_NAME"),
-                    Variable::new_final_string_variable("my-test-cluster".to_string()),
-                ),
-                (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_STAGING"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LOW_DATA_MODE"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_VERBOSE_LOG"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
             ]),
-        }
-        .into(),
-        values_linux: AgentTypeValues {
-            cases: HashMap::from([
-                ("mandatory fields only", ""),
-                (
-                    "check all value types are correct",
-                    r#"
-                version: "some-version"
-                config: "some file contents"
-                backoff_delay: "10s"
-                health_check.path: "/health"
-                health_check.port: 12345
-                "#,
-                ),
-            ]),
-            ..Default::default()
         }
         .into(),
         ..Default::default()

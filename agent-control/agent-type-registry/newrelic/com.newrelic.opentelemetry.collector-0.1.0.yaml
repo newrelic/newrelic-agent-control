@@ -1,286 +1,66 @@
-namespace: newrelic
+how namespace: newrelic
 name: com.newrelic.opentelemetry.collector
 version: 0.1.0
 variables:
-  windows:
-    config:
-      description: "Newrelic otel collector configuration"
-      type: yaml
-      required: false
-      default: { }
-    backoff_delay:
-      description: "seconds until next retry if agent fails to start"
-      type: string
-      required: false
-      default: 20s
-    enable_file_logging:
-      description: "enable logging the on host executables' logs to files"
-      type: bool
-      required: false
-      default: true
-    health_check:
-      # Note the configs added here must align with the health check extension being used on the collector config variable.
-      # See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/healthcheckv2extension/README.md#configuration
-      # For more details
-      path:
-        description: "path to health check endpoint"
-        type: string
-        required: false
-        default: "/health/status" # Taken from example at: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/healthcheckv2extension/README.md#configuration
-      port:
-        description: "port to health check endpoint"
-        type: number
-        required: false
-        default: 13133
-    oci:
-      repository:
-        description: "Package repository name"
-        type: string
-        required: false
-        default: newrelic/nrdot-agent-artifacts
-        variants:
-          ac_config_field: "oci_nrdot_registry_repositories"
-          values: [ "newrelic/nrdot-agent-artifacts" ]
-    version:
-      description: "Agent version"
-      type: string
-      required: true
   linux:
-    config:
-      description: "Newrelic otel collector configuration"
-      type: yaml
+    nr_account_id:
+      description: "New Relic account ID for flow data ingestion"
+      type: string
+      required: true
+    container_name:
+      description: "Name of the Docker container running ktranslate"
+      type: string
       required: false
-      default: { }
+      default: "ktranslate-flow"
+    flow_port:
+      description: "UDP port to listen for network flow data (NetFlow/sFlow/IPFIX)"
+      type: number
+      required: false
+      default: 9995
     backoff_delay:
       description: "seconds until next retry if agent fails to start"
       type: string
       required: false
       default: 20s
-    health_check:
-      # Note the configs added here must align with the health check extension being used on the collector config variable.
-      # See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/healthcheckv2extension/README.md#configuration
-      # For more details
-      path:
-        description: "path to health check endpoint"
-        type: string
-        required: false
-        default: "/health/status" # Taken from example at: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/healthcheckv2extension/README.md#configuration
-      port:
-        description: "port to health check endpoint"
-        type: number
-        required: false
-        default: 13133
-    oci:
-      repository:
-        description: "Package repository name"
-        type: string
-        required: false
-        default: newrelic/nrdot-agent-artifacts
-        variants:
-          ac_config_field: "oci_nrdot_registry_repositories"
-          values: [ "newrelic/nrdot-agent-artifacts" ]
-    version:
-      description: "Agent version"
-      type: string
-      required: true
-  k8s:
-    chart_values:
-      nr-k8s-otel-collector:
-        description: "Newrelic otel collector chart values"
-        type: yaml
-        required: false
-        default: { }
-      global:
-        description: "Global values for the chart"
-        type: yaml
-        required: false
-        default: { }
-    chart_version:
-      description: "Newrelic otel collector chart version"
-      type: string
-      required: true
-    chart_name:
-      description: "nr-k8s-otel-collector chart name"
-      type: string
-      required: false
-      default: "nr-k8s-otel-collector"
-    chart_repository:
-      url:
-        description: "chart repository url"
-        type: string
-        required: false
-        default: "https://helm-charts.newrelic.com"
-        variants:
-          ac_config_field: "chart_repository_urls"
-          values: [ "https://helm-charts.newrelic.com" ]
-      secret_reference:
-        description: "HelmRepository secret reference (secretRef)"
-        type: yaml
-        required: false
-        default: null
-      certificate_secret_reference:
-        description: "HelmRepository certificate secret reference (certSecretRef)"
-        type: yaml
-        required: false
-        default: null
 deployment:
-  windows:
-    enable_file_logging: ${nr-var:enable_file_logging}
-    health:
-      interval: 30s
-      initial_delay: 90s
-      timeout: 5s
-      http:
-        path: "${nr-var:health_check.path}"
-        port: ${nr-var:health_check.port}
-    packages:
-      nrdot:
-        download:
-          oci:
-            repository: ${nr-var:oci.repository}
-            version: ${nr-var:version}
-            public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrdot/jwks.json
-    version:
-      path: ${nr-sub:packages.nrdot.dir}\\nrdot-collector.exe
-      args:
-        - -v
-      regex: \d+\.\d+\.\d+
-    filesystem:
-      otel-config:
-        config.yaml: |
-          ${nr-var:config}
-    executables:
-      - # Important to note the binary name is nrdot-collector matching the new nrdot binary
-        id: nrdot-collector
-        path: ${nr-sub:packages.nrdot.dir}\\nrdot-collector.exe
-        args:
-          - --config
-          - ${nr-sub:filesystem_agent_dir}\\otel-config\\config.yaml
-        env:
-          # sets the otel-collector "env" source resource detector
-          OTEL_RESOURCE_ATTRIBUTES: "host.id=${nr-ac:host_id}"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: ${nr-var:backoff_delay}
-
   linux:
-    packages:
-      nrdot:
-        download:
-          oci:
-            repository: ${nr-var:oci.repository}
-            version: ${nr-var:version}
-            public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrdot/jwks.json
     health:
       interval: 30s
-      initial_delay: 90s
-      timeout: 5s
-      http:
-        path: "${nr-var:health_check.path}"
-        port: ${nr-var:health_check.port}
+      initial_delay: 60s
+      timeout: 10s
+      cmd:
+        command: "docker inspect --format='{{.State.Running}}' ${nr-var:container_name}"
+        healthy_codes: [ 0 ]
     version:
-      path: ${nr-sub:packages.nrdot.dir}/nrdot-collector
+      path: /usr/bin/docker
       args:
-        - -v
-      regex: \d+\.\d+\.\d+
-    filesystem:
-      otel-config:
-        config.yaml: |
-          ${nr-var:config}
+        - inspect
+        - --format={{.Config.Image}}
+        - ${nr-var:container_name}
+      regex: v\d+
     executables:
-      - # Important to note the binary name is nrdot-collector matching the new nrdot binary
-        id: nrdot-collector
-        path: ${nr-sub:packages.nrdot.dir}/nrdot-collector
+      - id: ktranslate-flow
+        path: /usr/bin/docker
         args:
-          - --config
-          - ${nr-sub:filesystem_agent_dir}/otel-config/config.yaml
+          - run
+          - --name=${nr-var:container_name}
+          - --rm
+          - --net=host
+          - -e
+          - NEW_RELIC_API_KEY=${nr-env:NR_LICENSE_KEY}
+          - kentik/ktranslate:v2
+          - -snmp
+          - /snmp-base.yaml
+          - -nr_account_id=${nr-var:nr_account_id}
+          - -metrics=jchf
+          - -tee_logs=true
+          - -flow_only=true
+          - -listen_port=${nr-var:flow_port}
+          - -service_name=${nr-var:container_name}
+          - nr1.flow
         env:
-          # sets the otel-collector "env" source resource detector
           OTEL_RESOURCE_ATTRIBUTES: "host.id=${nr-ac:host_id}"
         restart_policy:
           backoff_strategy:
             type: fixed
             backoff_delay: ${nr-var:backoff_delay}
-  # See com.newrelic.infrastructure Agent type for description of fields.
-  k8s:
-    health:
-      interval: 30s
-      initial_delay: 30s
-      checks:
-        - namespace: ${nr-ac:namespace}
-          name: ${nr-sub:agent_id}
-          kind: HelmReleaseWorkload
-          target_namespace: ${nr-ac:namespace_agents}
-    objects:
-      repository:
-        apiVersion: source.toolkit.fluxcd.io/v1
-        kind: HelmRepository
-        metadata:
-          name: ${nr-sub:agent_id}
-          namespace: ${nr-ac:namespace}
-        spec:
-          interval: 30m
-          provider: generic
-          url: ${nr-var:chart_repository.url}
-          secretRef: ${nr-var:chart_repository.secret_reference}
-          certSecretRef: ${nr-var:chart_repository.certificate_secret_reference}
-      values:
-        apiVersion: v1
-        kind: Secret
-        metadata:
-          name: values-${nr-sub:agent_id}
-          namespace: ${nr-ac:namespace}
-        stringData:
-          default.yaml: |
-            global:
-              licenseKey: ${nr-env:NR_LICENSE_KEY}
-              cluster: ${nr-env:NR_CLUSTER_NAME}
-              nrStaging: ${nr-env:NR_STAGING}
-              lowDataMode: ${nr-env:NR_LOW_DATA_MODE}
-              verboseLog: ${nr-env:NR_VERBOSE_LOG}
-          values.yaml: |
-            ${nr-var:chart_values.nr-k8s-otel-collector}
-          global.yaml: |
-            global:
-              ${nr-var:chart_values.global | indent 2}
-      release:
-        apiVersion: helm.toolkit.fluxcd.io/v2
-        kind: HelmRelease
-        metadata:
-          name: ${nr-sub:agent_id}
-          namespace: ${nr-ac:namespace}
-        spec:
-          targetNamespace: ${nr-ac:namespace_agents}
-          releaseName: ${nr-sub:agent_id}
-          interval: 30s
-          chart:
-            spec:
-              chart: ${nr-var:chart_name}
-              version: ${nr-var:chart_version}
-              reconcileStrategy: ChartVersion
-              sourceRef:
-                kind: HelmRepository
-                name: ${nr-sub:agent_id}
-                namespace: ${nr-ac:namespace}
-              interval: 3m
-          install:
-            disableWait: true
-            disableWaitForJobs: true
-            disableTakeOwnership: true
-            createNamespace: true
-          upgrade:
-            disableWait: true
-            disableWaitForJobs: true
-            disableTakeOwnership: true
-            cleanupOnFail: true
-          valuesFrom:
-            - kind: Secret
-              name: values-${nr-sub:agent_id}
-              valuesKey: default.yaml
-            - kind: Secret
-              name: values-${nr-sub:agent_id}
-              valuesKey: values.yaml
-            - kind: Secret
-              name: values-${nr-sub:agent_id}
-              valuesKey: global.yaml

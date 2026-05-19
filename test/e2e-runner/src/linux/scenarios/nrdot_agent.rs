@@ -1,4 +1,3 @@
-use crate::common::config::nrdot_config;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
@@ -12,14 +11,9 @@ use std::time::Duration;
 use tracing::info;
 
 pub fn test_nrdot_agent(args: InstallationArgs) {
-    let nrdot_version = args
-        .nrdot_version
-        .clone()
-        .expect("--nrdot-version is required for this scenario");
-
     let recipe_data = RecipeData {
         args,
-        monitoring_source: "otel".to_string(),
+        monitoring_source: "network".to_string(),
         recipe_list: "agent-control".to_string(),
         ..Default::default()
     };
@@ -28,11 +22,11 @@ pub fn test_nrdot_agent(args: InstallationArgs) {
 
     install_agent_control_from_recipe(&recipe_data);
     let test_id = format!(
-        "onhost-e2e-infra-agent_{}",
+        "onhost-e2e-network-flow_{}",
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
-    info!("Setup Agent Control config with nr-dot");
+    info!("Setup Agent Control config with network flow monitoring agent");
     update_config(
         linux::DEFAULT_AC_CONFIG_PATH,
         format!(
@@ -48,13 +42,20 @@ agents:
 
     write_agent_local_config(
         &linux::local_config_path("nrdot"),
-        nrdot_config(&nrdot_version),
+        format!(
+            r#"
+nr_account_id: "{}"
+container_name: "ktranslate-flow-e2e"
+flow_port: 9995
+"#,
+            recipe_data.args.nr_account_id
+        ),
     );
 
     linux::service::restart_service(linux::SERVICE_NAME);
 
     let nrql_query = format!(
-        r#"SELECT `system.memory.utilization` FROM Metric WHERE `host.id` = '{test_id}' LIMIT 1"#
+        r#"SELECT count(*) FROM KFlow WHERE `host.id` = '{test_id}' LIMIT 1"#
     );
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
