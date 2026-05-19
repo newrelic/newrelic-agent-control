@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 pub mod cert;
 pub mod config;
+pub mod docker_hub;
 pub mod exec;
 pub mod file;
 pub mod fleet_control_api;
