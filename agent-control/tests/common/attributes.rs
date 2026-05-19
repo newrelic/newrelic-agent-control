@@ -52,6 +52,67 @@ pub fn check_identifying_attributes_contains_expected(
     .map_err(|e| format!("Identifying attributes missing required elements: {e}"))
 }
 
+#[allow(dead_code)] // helper used on unix only
+/// Asserts that the latest `CustomCapabilities` reported by `instance_id` to `opamp_server` contains every
+/// entry in `expected`.
+pub fn check_custom_capabilities_contains(
+    opamp_server: &FakeServer,
+    instance_id: &InstanceID,
+    expected: Vec<String>,
+) -> Result<(), String> {
+    let current = opamp_server
+        .get_custom_capabilities(instance_id.clone())
+        .ok_or_else(|| "Custom capabilities not reported yet".to_string())?;
+
+    if expected.iter().any(|c| !current.capabilities.contains(c)) {
+        return Err(format!(
+            "some capabilities are missing. Should contain: {:?} Found: {:?}",
+            expected, current.capabilities
+        ));
+    }
+    Ok(())
+}
+
+#[allow(dead_code)] // helper used on unix only
+/// Asserts that the latest `CustomCapabilities` reported by `instance_id` to `opamp_server`
+/// contains none of the entries in `forbidden`.
+pub fn check_custom_capabilities_does_not_contain(
+    opamp_server: &FakeServer,
+    instance_id: &InstanceID,
+    forbidden: Vec<String>,
+) -> Result<(), String> {
+    let current = opamp_server
+        .get_custom_capabilities(instance_id.clone())
+        .ok_or_else(|| "Custom capabilities not reported yet".to_string())?;
+
+    if forbidden.iter().any(|c| current.capabilities.contains(c)) {
+        return Err(format!(
+            "custom capabilities contains unexpected elements. Should not contain: {:?}. Found: {:?}",
+            forbidden, current.capabilities
+        ));
+    }
+    Ok(())
+}
+
+#[allow(dead_code)] // helper used on unix only
+/// Checks that the latest `Capabilities` match the `expected`
+pub fn check_capabilities_match_expected(
+    opamp_server: &FakeServer,
+    instance_id: &InstanceID,
+    expected: u64,
+) -> Result<(), String> {
+    let current = opamp_server
+        .get_capabilities(instance_id.clone())
+        .ok_or_else(|| "Capabilities not reported yet".to_string())?;
+
+    if current != expected {
+        return Err(format!(
+            "capabilities don't match. Expected: {expected:#b}, Found: {current:#b}"
+        ));
+    }
+    Ok(())
+}
+
 fn check_opamp_attributes(
     mut expected_vec: Vec<KeyValue>,
     mut current_vec: Vec<KeyValue>,

@@ -1,14 +1,15 @@
 #![cfg(target_family = "unix")]
 use crate::common::attributes::{
-    check_latest_identifying_attributes_match_expected,
+    check_capabilities_match_expected, check_custom_capabilities_contains,
+    check_custom_capabilities_does_not_contain, check_latest_identifying_attributes_match_expected,
     check_latest_non_identifying_attributes_match_expected, convert_to_vec_key_value,
 };
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
-use crate::k8s::tools::agent_control::CUSTOM_AGENT_TYPE_PATH;
-use crate::k8s::tools::{
-    agent_control::start_agent_control_with_testdata_config, instance_id, k8s_env::K8sEnv,
+use crate::k8s::tools::agent_control::{
+    CUSTOM_AGENT_TYPE_PATH, start_agent_control_with_testdata_config,
 };
+use crate::k8s::tools::{instance_id, k8s_env::K8sEnv};
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
@@ -16,8 +17,10 @@ use newrelic_agent_control::agent_control::defaults::{
     CD_REMOTE_UPDATE_ENABLED_ATTRIBUTE_KEY, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
     HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME,
     OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
-    OPAMP_SUPERVISOR_KEY, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    OPAMP_SUPERVISOR_KEY, PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities,
 };
+use newrelic_agent_control::agent_control::run::k8s::K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY;
+use newrelic_agent_control::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use nix::unistd::gethostname;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
@@ -105,7 +108,9 @@ agents:
         ),
     ]));
 
-    // Check attributes of Agent Control
+    // Check attributes and capabilities of Agent Control. With cd_release_name set and
+    // cd_enabled defaulting to true, the K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY must NOT
+    // be reported.
     retry(60, Duration::from_secs(5), || {
         check_latest_identifying_attributes_match_expected(
             &server,
@@ -116,6 +121,17 @@ agents:
             &server,
             &instance_id,
             ac_expected_non_identifying_attributes.clone(),
+        )?;
+        check_capabilities_match_expected(&server, &instance_id, default_capabilities().into())?;
+        check_custom_capabilities_contains(
+            &server,
+            &instance_id,
+            vec![SIGNATURE_CUSTOM_CAPABILITY.to_string()],
+        )?;
+        check_custom_capabilities_does_not_contain(
+            &server,
+            &instance_id,
+            vec![K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY.to_string()], // only when cd_enabled=false
         )?;
         Ok(())
     });
@@ -154,7 +170,8 @@ agents:
         ),
     ]));
 
-    // Check attributes of sub agent
+    // Check attributes and capabilities of sub agent. Sub-agents always advertise the default
+    // OpAMP capabilities and the signature custom capability.
     retry(90, Duration::from_secs(5), || {
         let instance_id_sub_agent = instance_id::get_instance_id(
             k8s.client.clone(),
@@ -170,6 +187,59 @@ agents:
             &server,
             &instance_id_sub_agent,
             sub_agent_expected_non_identifying_attributes.clone(),
+        )?;
+        check_capabilities_match_expected(
+            &server,
+            &instance_id_sub_agent,
+            default_capabilities().into(),
+        )?;
+        check_custom_capabilities_contains(
+            &server,
+            &instance_id_sub_agent,
+            vec![SIGNATURE_CUSTOM_CAPABILITY.to_string()],
+        )?;
+        Ok(())
+    })
+}
+
+/// When `cd_enabled` is set to `false` in the k8s config, Agent Control must report the
+/// `com.newrelic.k8s_config_only_agents` custom capability through OpAMP. This signals to
+/// Fleet Control that this AC is not paired with an agent-control-cd deployment.
+#[test]
+#[ignore = "needs a k8s cluster"]
+fn k8s_test_custom_capabilities_when_cd_disabled() {
+    let test_name = "k8s_custom_capabilities_cd_disabled";
+
+    let server = FakeServer::start(tokio_runtime().handle());
+
+    let mut k8s = block_on(K8sEnv::new());
+    let namespace = block_on(k8s.test_namespace());
+    let tmp_dir = tempdir().expect("failed to create local temp dir");
+
+    let _ac = start_agent_control_with_testdata_config(
+        test_name,
+        CUSTOM_AGENT_TYPE_PATH,
+        k8s.client.clone(),
+        &namespace,
+        &namespace,
+        Some(&server.endpoint()),
+        Some(&server.jwks_endpoint()),
+        Vec::new(),
+        tmp_dir.path(),
+    );
+
+    let instance_id =
+        instance_id::get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
+
+    retry(60, Duration::from_secs(5), || {
+        check_capabilities_match_expected(&server, &instance_id, default_capabilities().into())?;
+        check_custom_capabilities_contains(
+            &server,
+            &instance_id,
+            vec![
+                SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY.to_string(),
+            ],
         )?;
         Ok(())
     })

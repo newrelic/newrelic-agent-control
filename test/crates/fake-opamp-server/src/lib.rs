@@ -9,8 +9,8 @@ use base64::prelude::{BASE64_STANDARD, BASE64_URL_SAFE_NO_PAD};
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::{
     AgentConfigFile, AgentConfigMap, AgentDescription, AgentRemoteConfig, AgentToServer,
-    ComponentHealth, CustomMessage, EffectiveConfig, RemoteConfigStatus, RemoteConfigStatuses,
-    ServerToAgent, ServerToAgentFlags,
+    ComponentHealth, CustomCapabilities, CustomMessage, EffectiveConfig, RemoteConfigStatus,
+    RemoteConfigStatuses, ServerToAgent, ServerToAgentFlags,
 };
 use opamp_client::operation::instance_uid::InstanceUid;
 use prost::Message;
@@ -38,10 +38,12 @@ pub(crate) struct ServerState {
 }
 
 #[derive(Default)]
-pub(crate) struct AgentState {
+struct AgentState {
     pub(crate) sequence_number: u64,
     pub(crate) health_status: Option<ComponentHealth>,
     pub(crate) attributes: AgentDescription,
+    pub(crate) capabilities: u64, // Proto requires this field to be set in every message
+    pub(crate) custom_capabilities: Option<CustomCapabilities>,
     pub(crate) remote_config: Option<RemoteConfig>,
     pub(crate) effective_config: EffectiveConfig,
     pub(crate) config_status: RemoteConfigStatus,
@@ -254,6 +256,29 @@ impl FakeServer {
             .map(|s| s.attributes.clone())
     }
 
+    /// Returns the latest `CustomCapabilities` reported by the given agent, or `None` if the agent
+    /// is unknown or has not reported them yet.
+    pub fn get_custom_capabilities(
+        &self,
+        identifier: impl Into<InstanceUid>,
+    ) -> Option<CustomCapabilities> {
+        let state = self.state.lock().unwrap();
+        state
+            .agent_state
+            .get(&identifier.into())
+            .and_then(|s| s.custom_capabilities.clone())
+    }
+
+    /// Returns the latest standard OpAMP `capabilities` bitfield reported by the given agent,
+    /// or `None` if the agent has not connected yet.
+    pub fn get_capabilities(&self, identifier: impl Into<InstanceUid>) -> Option<u64> {
+        let state = self.state.lock().unwrap();
+        state
+            .agent_state
+            .get(&identifier.into())
+            .map(|s| s.capabilities)
+    }
+
     pub fn get_effective_config(
         &self,
         identifier: impl Into<InstanceUid>,
@@ -358,6 +383,14 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<ServerState>>>, req: web::Byte
     if let Some(attributes) = message.agent_description {
         agent_state.attributes = attributes;
     }
+
+    if let Some(custom_capabilities) = message.custom_capabilities {
+        agent_state.custom_capabilities = Some(custom_capabilities);
+    }
+
+    // `AgentToServer.capabilities` is required on every message per the OpAMP spec, so always
+    // record the latest value.
+    agent_state.capabilities = message.capabilities;
 
     if let Some(effective_cfg) = message.effective_config {
         agent_state.effective_config = effective_cfg;
