@@ -47,7 +47,7 @@ jobs:
       contents: read
     with:
       image-tag: ${{ inputs.image_tag }}
-      cluster_name: Agent_Control_Canaries_Staging-Cluster
+      cluster_name: ${{ fromJSON('{"staging":"Agent_Control_Canaries_Staging-Cluster","production":"Agent_Control_Canaries_Production-Cluster"}')[inputs.canary_dir] }}
       canary_dir: ${{ inputs.canary_dir }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
