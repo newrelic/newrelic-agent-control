@@ -351,6 +351,163 @@ for details on how to instrument your code.
 cargo build -p newrelic_agent_control --profile release-debug --features dhat-ad-hoc
 ```
 
+### Heap Profiling in Kubernetes
+
+You can run heap profiling inside a Kubernetes cluster by using pre-built container images that have the `dhat-heap`
+feature compiled in. A dedicated GitHub Actions workflow (`⏯️🚀 Build dhat-heap images to ghcr.io`) is available to
+build and push multi-arch (`linux/amd64`, `linux/arm64`) images to the GitHub Container Registry.
+
+#### 1. Build the profiling images
+
+Navigate to **Actions → ⏯️🚀 Build dhat-heap images to ghcr.io → Run workflow** and provide:
+
+- `image-tag`: a suffix for the image tag, e.g. `1.15.0-dhat`
+- `ac-version`: the Agent Control version to embed in the binary (defaults to `dev-build`)
+
+The workflow produces two images:
+
+- `ghcr.io/<org>/newrelic-agent-control-dev:dhat-heap-<image-tag>`
+- `ghcr.io/<org>/newrelic-agent-control-cli-dev:dhat-heap-<image-tag>`
+
+#### 2. Create a shared volume to store the report
+
+Because the container filesystem is ephemeral, the DHAT report must be written to a persistent volume so it can be
+retrieved after the pod exits. Below is an example using a `hostPath` PersistentVolume suitable for single-node
+clusters (adapt the storage class for production environments).
+
+```yaml
+# dhat-pv.yaml
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: dhat-heap-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: /var/dhat-heap
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dhat-heap-pvc
+  namespace: newrelic
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+Apply it:
+
+```sh
+kubectl apply -f dhat-pv.yaml
+```
+
+#### 3. Deploy a debug pod to retrieve the report
+
+Create a helper pod running a basic utility image so you can `kubectl exec` into it and access the shared volume.
+
+```yaml
+# dhat-debug-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dhat-debug
+  namespace: newrelic
+spec:
+  containers:
+    - name: debug
+      image: busybox:latest
+      command: ["sh", "-c", "sleep infinity"]
+      volumeMounts:
+        - name: dhat-vol
+          mountPath: /shared-vol
+  volumes:
+    - name: dhat-vol
+      persistentVolumeClaim:
+        claimName: dhat-heap-pvc
+```
+
+```sh
+kubectl apply -f dhat-debug-pod.yaml
+```
+
+#### 4. Configure the Agent Control Helm deployment
+
+Update your `agent-control-deployment` Helm values to use the dhat-heap image and mount the shared volume.
+
+```yaml
+# dhat-helm-values.yaml
+image:
+  repository: ghcr.io/<org>/newrelic-agent-control-dev
+  tag: dhat-heap-1.15.0-dhat
+  pullPolicy: Always
+
+toolkitImage:
+  repository: ghcr.io/<org>/newrelic-agent-control-cli-dev
+  tag: dhat-heap-1.15.0-dhat
+  pullPolicy: Always
+
+extraEnv:
+  - name: DHAT_HEAP_OUTPUT_PATH
+    value: /shared-vol/dhat-heap.json
+
+extraVolumes:
+  - name: dhat-vol
+    persistentVolumeClaim:
+      claimName: dhat-heap-pvc
+
+extraVolumeMounts:
+  - name: dhat-vol
+    mountPath: /shared-vol
+
+resources:
+  requests:
+    memory: "15Mi"
+  limits:
+    memory: "1Gi"
+```
+
+> **Note on memory limits:** DHAT serialises the entire heap profile into memory before writing it to disk. The memory
+> limit must be high enough to accommodate this spike. `1Gi` is a reasonable starting point; you may need to increase it
+> for long-running processes or workloads with heavy allocation.
+
+Upgrade your release:
+
+```sh
+helm upgrade --install agent-control newrelic/agent-control-deployment \
+  --namespace newrelic \
+  --values dhat-helm-values.yaml
+```
+
+#### 5. Retrieve the results
+
+Once Agent Control has been stopped or restarted (which triggers the DHAT profiler to write the file on `Drop`),
+retrieve the report from the debug pod:
+
+```sh
+kubectl exec -n newrelic dhat-debug -- ls -la /shared-vol/
+kubectl cp newrelic/dhat-debug:/shared-vol/dhat-heap.json ./dhat-heap.json
+```
+
+Open `dhat-heap.json` in the [DHAT Viewer](https://nnethercote.github.io/dh_view/dh_view.html) to inspect the results.
+
+#### 6. Clean up
+
+Remove the debug pod and the PersistentVolume when you are done:
+
+```sh
+kubectl delete -f dhat-debug-pod.yaml
+kubectl delete -f dhat-pv.yaml
+```
+
 ## Codeql
 
 Codeql is executed automatically in GitHub pipelines, in order to check the results locally you need to install the tool
