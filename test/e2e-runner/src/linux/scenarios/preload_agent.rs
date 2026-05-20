@@ -1,16 +1,14 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::on_drop::CleanUp;
-use crate::common::test::retry_panic;
 use crate::common::{InstallationArgs, RecipeData};
 use crate::{
-    common::nrql,
     linux::{
         self,
         install::{install_agent_control_from_recipe, tear_down_test},
+        bash::exec_bash_command
     },
 };
-use std::time::Duration;
-use tracing::info;
+use tracing::{debug, info};
 
 pub fn test_installation_with_preload_agent(args: InstallationArgs) {
     let preload_version = args
@@ -68,14 +66,20 @@ staging: {staging}
 version: {preload_version}"#},
     );
 
+
+    // ToDo update with actual path
+    let ld_preload_path = "path_to_ld_preload";
+    let install_command = format!(r#"echo "{ld_preload_path}" >> /ec/ld.so.preload"#);
+    let output = exec_bash_command(&install_command)
+        .unwrap_or_else(|err| panic!("Editing /ec/ld.so.preload failed: {err}"));
+    debug!("echo output:\n{output}");
+
     linux::service::restart_service(linux::SERVICE_NAME);
 
-    let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `host.id` = '{test_id}' LIMIT 1"#);
-    info!(nrql = nrql_query, "Checking results of NRQL to check logs");
-    let retries = 30;
-    retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
-        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
-    });
+    let ls_command = format!(r#"ls {ld_preload_path}"#);
+    let output = exec_bash_command(&ls_command)
+        .unwrap_or_else(|err| panic!("Installation failed: {err}"));
+    debug!("ls output:\n{output}");
 
     info!("Test completed successfully");
 }
