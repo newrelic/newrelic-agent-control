@@ -8,7 +8,7 @@ use crate::agent_control::defaults::{
     OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE, default_capabilities, default_custom_capabilities,
 };
 use crate::agent_control::http_server::runner::Runner;
-use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
+use crate::agent_control::resource_cleaner::on_host::OnHostCleaner;
 use crate::agent_control::run::{
     AgentControlRunner, Environment, GracefulShutdownReason, RunError, RunningMode,
     setup_config_repository_and_store,
@@ -106,9 +106,12 @@ impl AgentControlRunner {
             Variable::new_final_string_variable(identifiers.host_id.clone()),
         )]);
 
-        let instance_id_storer = Storer::from(file_store);
+        let instance_id_storer = Arc::new(Storer::from(file_store));
         let instance_id_getter =
-            InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers.clone());
+            InstanceIDWithIdentifiersGetter::new(instance_id_storer.clone(), identifiers.clone());
+
+        let resource_cleaner =
+            OnHostCleaner::new(instance_id_storer, yaml_config_repository.clone());
 
         let proxy = self.bootstrap_config.proxy;
         let opamp_client_builder = maybe_opamp.map(|config| {
@@ -259,7 +262,7 @@ impl AgentControlRunner {
             agent_control_internal_consumer,
             SupportedRemoteConfigValidator::Signature(signature_validator),
             dynamic_config_validator,
-            NoOpResourceCleaner,
+            resource_cleaner,
             self_updater,
             |t| Some(NoOpHealthChecker::new(t)),
             agent_control_config,

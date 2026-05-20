@@ -1,5 +1,5 @@
 pub mod k8s_garbage_collector;
-pub(super) mod no_op;
+pub mod on_host;
 
 use thiserror::Error;
 
