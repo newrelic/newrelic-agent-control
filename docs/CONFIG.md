@@ -131,7 +131,7 @@ health_check:
 
 ### self_instrumentation
 
-Agent Control can be configured to instrument itself and report traces, logs and metrics through OpenTelemetry. If proxy is configured globally it will also apply to self-instrumentation.
+Agent Control can be configured to instrument itself and report logs and metrics through OpenTelemetry. If proxy is configured globally it will also apply to self-instrumentation.
 
 ```yaml
 self_instrumentation:
@@ -140,15 +140,10 @@ self_instrumentation:
     endpoint: https://otlp.nr-data.net:4318 # HTTPS endpoint to report instrumentation to.
     headers: {} # Headers that will be included in any request to the endpoint
     client_timeout: 10s # Timeout for performing requests, defaults to 30s.
-    custom_attributes: {} # Attributes to be decorated in all metrics, traces and logs
+    custom_attributes: {} # Attributes to be decorated in all metrics and logs
     metrics:
       enabled: true # Defaults to false.
       interval: 120s # Interval to report metrics, it defaults to 60s.
-    traces:
-      enabled: true # Defaults to false.
-      batch_config:
-        scheduled_delay: 30s # Set the scheduled delay for batch export of traces. Defaults to 30s.
-        max_size: 512 # Se the maximum number of traces to process in a single batch. Defaults to 512.
     logs:
       enabled: true # Defaults to false.
       batch_config:

@@ -73,8 +73,6 @@
               endpoint: "{{ otlp_endpoint }}"
               headers:
                 api-key: "{{ nr_license_key }}"
-              traces:
-                enabled: true
               logs:
                 enabled: true
           agents:
