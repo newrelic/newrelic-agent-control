@@ -46,7 +46,6 @@ agents:
             r#"
 nr_account_id: "{}"
 container_name: "ktranslate-flow-e2e"
-flow_port: 9995
 "#,
             recipe_data.args.nr_account_id
         ),
@@ -54,9 +53,7 @@ flow_port: 9995
 
     linux::service::restart_service(linux::SERVICE_NAME);
 
-    let nrql_query = format!(
-        r#"SELECT count(*) FROM KFlow WHERE `host.id` = '{test_id}' LIMIT 1"#
-    );
+    let nrql_query = format!(r#"SELECT * FROM KFlow WHERE `host.id` = '{test_id}' LIMIT 1"#);
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
     retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {

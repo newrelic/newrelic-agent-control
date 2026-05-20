@@ -47,7 +47,7 @@ deployment:
           - --rm
           - --net=host
           - -e
-          - NEW_RELIC_API_KEY=${nr-env:NR_LICENSE_KEY}
+          - NEW_RELIC_API_KEY=${nr-env:NEW_RELIC_LICENSE_KEY}
           - kentik/ktranslate:v2
           - -snmp
           - /snmp-base.yaml
