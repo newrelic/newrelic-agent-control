@@ -88,14 +88,20 @@ pub struct AgentControlConfig {
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
+#[serde(default)]
 pub struct SelfUpdateConfig {
     /// Indicates whether the self remote update mechanism is enabled or not
-    pub enabled: bool,
+    pub enabled: SelfUpdateConfigEnabled,
     /// Indicates whether package signature verification is enabled or not
     pub signature_verification_enabled: SignatureVerificationEnabled,
     /// Package configuration for the self-update mechanism in on-host environments
     pub package: AgentControlPackage,
 }
+
+const DEFAULT_SELF_UPDATE_CONFIG_ENABLED: bool = false;
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_SELF_UPDATE_CONFIG_ENABLED)]
+pub struct SelfUpdateConfigEnabled(bool);
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
 pub struct PackagesConfig {
@@ -1017,6 +1023,22 @@ k8s:
     #[test]
     fn test_default_package_compiles() {
         let _ = AgentControlPackage::default();
+    }
+
+    #[test]
+    fn self_update_partial_config_uses_defaults_for_missing_fields() {
+        let config_input = r#"
+agents: {}
+self_update:
+  enabled: true
+"#;
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
+
+        assert_eq!(
+            config.self_update.signature_verification_enabled,
+            SignatureVerificationEnabled::default()
+        );
+        assert_eq!(config.self_update.package, AgentControlPackage::default());
     }
 
     #[rstest]

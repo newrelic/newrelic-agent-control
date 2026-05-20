@@ -166,6 +166,14 @@ log:
   level: debug
 self_update:
   enabled: true
+  # TODO remove below default config once AC >1.15.0 is released which will have
+  # the serde_default for these.
+  signature_verification_enabled: true
+  package:
+    download:
+      oci:
+        repository: "newrelic/agent-control-artifacts"
+        public_key_url: "https://publickeys.newrelic.com/g/agent-control-oci/global/agent-control-artifacts/jwks.json"
 "#,
         opamp_server.endpoint(),
         opamp_server.jwks_endpoint(),
