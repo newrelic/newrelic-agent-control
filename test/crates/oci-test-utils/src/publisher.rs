@@ -185,6 +185,7 @@ impl PackagePublisher {
             artifact_type: None,
             manifests: vec![ImageIndexEntry {
                 media_type: OCI_IMAGE_MEDIA_TYPE.to_string(),
+                artifact_type: None,
                 digest: manifest_digest,
                 size: manifest_size,
                 platform: Some(Platform {

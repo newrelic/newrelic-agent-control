@@ -1082,6 +1082,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## hex <https://crates.io/crates/hex>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## hmac <https://crates.io/crates/hmac>
 
 Distributed under the following license(s):
