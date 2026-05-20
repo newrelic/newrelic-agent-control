@@ -18,7 +18,7 @@ jobs:
       # Context:
       # We were using version 0.2.6, which downloaded the linux headers from an s3 bucket in staging.
       # This is no longer true and newer versions don't work out of the box.
-      scenarios: '["apm", "collector", "fleet-control", "dynamic"]'
+      scenarios: '[]'
       use_latest_flux: true
       caller_workflow: latest_flux_e2e
     secrets:
