@@ -55,7 +55,7 @@ deployment:
           - -metrics=jchf
           - -tee_logs=true
           - -flow_only=true
-          - -listen_port=${nr-var:flow_port}
+          - -nf.port=${nr-var:flow_port}
           - -service_name=${nr-var:container_name}
           - nr1.flow
         env:
