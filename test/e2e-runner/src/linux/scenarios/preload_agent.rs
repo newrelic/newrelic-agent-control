@@ -76,7 +76,7 @@ version: {preload_version}"#},
 
     linux::service::restart_service(linux::SERVICE_NAME);
 
-    let ls_command = format!(r#"ls {ld_preload_path}"#);
+    let ls_command = format!("ls {ld_preload_path}");
     let output = exec_bash_command(&ls_command)
         .unwrap_or_else(|err| panic!("Installation failed: {err}"));
     debug!("ls output:\n{output}");
