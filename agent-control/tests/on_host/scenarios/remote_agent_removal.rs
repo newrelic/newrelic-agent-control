@@ -14,8 +14,11 @@ use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;
 use tempfile::tempdir;
 
-/// Given a agent-control whose local configuration has no agents and then a valid remote configuration with an agent
-/// is set through OpAMP. Then the agent is removed via a new remote configuration. Finally, the agent is added again.
+/// Given
+/// 1. AC has no agents
+/// 2. One sub-agent is remotely added
+/// 3. The sub-agent is remotely removed
+/// 4. The sub-agent is remotely added back
 #[test]
 fn onhost_opamp_agent_control_remote_config_add_remove_add_agent() {
     // Given a agent-control without agents and opamp configured.
@@ -159,7 +162,7 @@ agents:
 
     assert_ne!(
         new_subagent_instance_id, subagent_instance_id,
-        "identifier should have been be recreated"
+        "identifier should have been recreated"
     );
 
     // Previous remote config should have been removed
