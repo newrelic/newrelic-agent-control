@@ -8,8 +8,14 @@ Unreleased section should follow [Release Toolkit](https://github.com/newrelic/r
 
 ## Unreleased
 
-### bugfix
+## v1.15.1 - 2026-05-21
+
+### 🐞 Bug fixes
 - On-host: clean the OpAMP instance id and remote config of an agent when it is removed, matching the k8s behavior (previously these files were left orphaned under `fleet-data/`).
+
+### ⛓️ Dependencies
+- Updated rust crate oci-client to 0.17.0
+- Updated rust crate either to 1.16.0
 
 ## v1.15.0 - 2026-05-19
 
