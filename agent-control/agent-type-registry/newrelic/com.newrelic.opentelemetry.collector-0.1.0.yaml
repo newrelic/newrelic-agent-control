@@ -49,8 +49,6 @@ deployment:
           - -e
           - NEW_RELIC_API_KEY=${nr-env:NEW_RELIC_LICENSE_KEY}
           - kentik/ktranslate:v2
-          - -snmp
-          - /snmp-base.yaml
           - -nr_account_id=${nr-var:nr_account_id}
           - -metrics=jchf
           - -tee_logs=true
