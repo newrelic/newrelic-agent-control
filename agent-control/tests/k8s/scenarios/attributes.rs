@@ -1,7 +1,7 @@
 #![cfg(target_family = "unix")]
 use crate::common::attributes::{
-    check_capabilities_match_expected, check_custom_capabilities_contains,
-    check_custom_capabilities_does_not_contain, check_latest_identifying_attributes_match_expected,
+    check_capabilities_match_expected, check_custom_capabilities_match,
+    check_latest_identifying_attributes_match_expected,
     check_latest_non_identifying_attributes_match_expected, convert_to_vec_key_value,
 };
 use crate::common::retry::retry;
@@ -123,15 +123,10 @@ agents:
             ac_expected_non_identifying_attributes.clone(),
         )?;
         check_capabilities_match_expected(&server, &instance_id, default_capabilities().into())?;
-        check_custom_capabilities_contains(
+        check_custom_capabilities_match(
             &server,
             &instance_id,
             vec![SIGNATURE_CUSTOM_CAPABILITY.to_string()],
-        )?;
-        check_custom_capabilities_does_not_contain(
-            &server,
-            &instance_id,
-            vec![K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY.to_string()], // only when cd_enabled=false
         )?;
         Ok(())
     });
@@ -193,7 +188,7 @@ agents:
             &instance_id_sub_agent,
             default_capabilities().into(),
         )?;
-        check_custom_capabilities_contains(
+        check_custom_capabilities_match(
             &server,
             &instance_id_sub_agent,
             vec![SIGNATURE_CUSTOM_CAPABILITY.to_string()],
@@ -233,7 +228,7 @@ fn k8s_test_custom_capabilities_when_cd_disabled() {
 
     retry(60, Duration::from_secs(5), || {
         check_capabilities_match_expected(&server, &instance_id, default_capabilities().into())?;
-        check_custom_capabilities_contains(
+        check_custom_capabilities_match(
             &server,
             &instance_id,
             vec![
