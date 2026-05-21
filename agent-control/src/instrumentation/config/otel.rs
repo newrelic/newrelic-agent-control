@@ -12,9 +12,9 @@ const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Default interval for exporting metrics.
 const DEFAULT_METRICS_EXPORT_INTERVAL: Duration = Duration::from_secs(60);
 /// Default maximum batch size [logs::BatchLogProcessor] for details.
-const DEFAULT_BATCH_MAX_SIZE: usize = 512;
+const DEFAULT_LOG_BATCH_MAX_SIZE: usize = 512;
 /// Default scheduled delay [logs::BatchLogProcessor] for details.
-const DEFAULT_BATCH_SCHEDULED_DELAY: Duration = Duration::from_secs(30);
+const DEFAULT_LOG_BATCH_SCHEDULED_DELAY: Duration = Duration::from_secs(30);
 /// Default insecure_level filter.
 const DEFAULT_FILTER: &str = "newrelic_agent_control=debug,opamp_client=debug,off";
 
@@ -139,8 +139,8 @@ pub(crate) struct BatchConfig {
 impl Default for BatchConfig {
     fn default() -> Self {
         Self {
-            scheduled_delay: DEFAULT_BATCH_SCHEDULED_DELAY,
-            max_size: DEFAULT_BATCH_MAX_SIZE,
+            scheduled_delay: DEFAULT_LOG_BATCH_SCHEDULED_DELAY,
+            max_size: DEFAULT_LOG_BATCH_MAX_SIZE,
         }
     }
 }
@@ -222,10 +222,10 @@ logs:
         let config = OtelConfig::default_with_endpoint("https://some.endpoint:4318");
         let default_batch_config = BatchConfig::default();
 
-        assert_eq!(default_batch_config.max_size, DEFAULT_BATCH_MAX_SIZE);
+        assert_eq!(default_batch_config.max_size, DEFAULT_LOG_BATCH_MAX_SIZE);
         assert_eq!(
             default_batch_config.scheduled_delay,
-            DEFAULT_BATCH_SCHEDULED_DELAY
+            DEFAULT_LOG_BATCH_SCHEDULED_DELAY
         );
 
         assert!(!config.metrics.enabled);
