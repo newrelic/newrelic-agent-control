@@ -49,8 +49,11 @@ pub fn run_windows_e2e() {
         WindowsScenarios::SwitchInfraAgentVersion(args) => {
             scenarios::switch_infra_agent_version::switch_infra_agent_version(args);
         }
-        WindowsScenarios::SelfUpdateFromLatest(args) => {
-            scenarios::self_update::test_self_update_from_latest(args);
+        WindowsScenarios::SelfUpdateLatestToCurrent(args) => {
+            scenarios::self_update::test_self_update_from_latest_to_current(args);
+        }
+        WindowsScenarios::SelfUpdateCurrentToLatest(args) => {
+            scenarios::self_update::test_self_update_from_current_to_latest(args);
         }
         WindowsScenarios::WrongConfig(args) => {
             scenarios::service_wrong_config::test_service_restart_depending_on_config_correctness(

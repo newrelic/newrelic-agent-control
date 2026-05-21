@@ -243,7 +243,7 @@ impl AgentControlRunner {
         );
 
         let self_updater = OnHostACUpdater::new(
-            agent_control_config.self_update.enabled,
+            agent_control_config.self_update.enabled.into(),
             agent_control_internal_publisher.clone(),
             agent_control_package_manager,
             ProcessVerifyExecutor::default(),

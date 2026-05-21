@@ -30,7 +30,7 @@ pub const ENVIRONMENT_VARIABLES_FILE_NAME: &str = "environment_variables.yaml";
 pub const AC_OCI_PACKAGE_DEFAULT_REGISTRY: &str = "docker.io";
 pub const AC_OCI_PACKAGE_DEFAULT_REPOSITORY: &str = "newrelic/agent-control-artifacts";
 pub const AC_OCI_PACKAGE_PUBLIC_KEY_URL: &str =
-    "https://publickeys.newrelic.com/g/agent-control-oci/global/agent-control/jwks.json";
+    "https://publickeys.newrelic.com/g/agent-control-oci/global/agent-control-artifacts/jwks.json";
 
 // Auth
 pub const AUTH_PRIVATE_KEY_FILE_NAME: &str = "auth_key";

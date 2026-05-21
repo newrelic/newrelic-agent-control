@@ -53,7 +53,8 @@ jobs:
           - infra-agent
           - nrdot-agent
           - proxy
-          - self-update-from-latest
+          - self-update-latest-to-current
+          - self-update-current-to-latest
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
@@ -115,7 +116,8 @@ jobs:
           - wrong-config
           - remote-config
           - switch-infra-agent-version
-          - self-update-from-latest
+          - self-update-latest-to-current
+          - self-update-current-to-latest
     steps:
       - name: Record job start time
         shell: bash

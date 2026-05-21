@@ -43,9 +43,12 @@ enum LinuxScenarios {
     /// This is useful when Agent Control is already deployed and you only need to trigger and monitor Fleet Control tests.
     /// Requires --fleet-id and --fleet-control-token arguments.
     FleetControlApi(FleetControlApiArgs),
-    /// Tests self-update functionality by installing Agent Control, pushing a new version to local OCI registry,
-    /// and verifying that AC updates itself when instructed via OpAMP.
-    SelfUpdateFromLatest(InstallationArgs),
+    /// Tests self-update functionality by installing latest released Agent Control, and verifying that AC updates itself,
+    /// when instructed via OpAMP, to the current compiled version (pushed to local registry).
+    SelfUpdateLatestToCurrent(InstallationArgs),
+    /// Tests self-update functionality by installing Agent Control from current branch and verifying that AC updates itself,
+    /// when instructed via OpAMP, to the latest published tag.
+    SelfUpdateCurrentToLatest(InstallationArgs),
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -61,9 +64,12 @@ enum WindowsScenarios {
     /// Starts with a local-only installation of AC, then updates the installation to include fleet configuration that should
     /// trigger a sub-agent update.
     SwitchInfraAgentVersion(InstallationArgs),
-    /// Tests the self-update, install the latest released AC and tries to self update to compiled version that has locally
-    /// been pushed to a registry.
-    SelfUpdateFromLatest(InstallationArgs),
+    /// Tests self-update functionality by installing latest released Agent Control, and verifying that AC updates itself,
+    /// when instructed via OpAMP, to the current compiled version (pushed to local registry).
+    SelfUpdateLatestToCurrent(InstallationArgs),
+    /// Tests self-update functionality by installing Agent Control from current branch and verifying that AC updates itself,
+    /// when instructed via OpAMP, to the latest published tag.
+    SelfUpdateCurrentToLatest(InstallationArgs),
     /// Simple installation of Agent Control on Windows with update to wrong and correct config
     /// to test service stop and start.
     WrongConfig(InstallationArgs),
