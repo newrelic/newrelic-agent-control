@@ -9,8 +9,18 @@ permissions:
   contents: read
 
 jobs:
+  third-party-notices-check:
+    name: Check third party licenses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: newrelic/rust-licenses-noticer@9d9bb4a5137f7c9d528b4ada1f505866947feccf # v1
+        with:
+          template-file: THIRD_PARTY_NOTICES.md.tmpl
+
   build-packages:
     name: Build packages
+    needs: [ third-party-notices-check ]
     uses: ./.github/workflows/component_packages.yml
     permissions:
       contents: write
@@ -26,6 +36,7 @@ jobs:
 
   build-image:
     name: Build and Push container image
+    needs: [ third-party-notices-check ]
     uses: ./.github/workflows/component_image.yml
     with:
       image-tag: ${{ github.event.release.tag_name }}-rc
@@ -142,6 +153,7 @@ jobs:
       REPO_ENDPOINT: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
 
   onhost-e2e:
+    needs: [ third-party-notices-check ]
     uses: ./.github/workflows/component_onhost_e2e.yaml
     with:
       caller_workflow: prerelease
@@ -153,6 +165,7 @@ jobs:
       E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
 
   k8s-e2e-tests:
+    needs: [ third-party-notices-check ]
     uses: ./.github/workflows/component_k8s_e2e.yml
     with:
       # TODO
