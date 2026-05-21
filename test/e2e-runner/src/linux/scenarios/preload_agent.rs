@@ -1,22 +1,31 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::on_drop::CleanUp;
+use crate::common::test::{retry_panic, TestResult};
 use crate::common::{InstallationArgs, RecipeData};
+use crate::common::file::write;
 use crate::{
     linux::{
         self,
         install::{install_agent_control_from_recipe, tear_down_test},
-        bash::exec_bash_command
+        bash::exec_bash_command,
     },
 };
+use std::time::Duration;
 use tracing::{debug, info};
+
+/// Directory where Agent Control loads dynamic (custom) agent type definitions.
+const DYNAMIC_AGENT_TYPES_DIR: &str = "/etc/newrelic-agent-control/dynamic-agent-types";
+
+/// Expected package installation directory for the preload agent.
+fn preload_package_dir() -> String {
+    format!("{}/packages/nr-preload/stored_packages/preload-agent", linux::AGENT_CONTROL_DATA_DIR)
+}
 
 pub fn test_installation_with_preload_agent(args: InstallationArgs) {
     let preload_version = args
         .preload_version
         .clone()
-        .expect("--preload-agent-version is required for this scenario");
-
-    let staging = matches!(args.nr_region.to_lowercase().as_str(), "staging");
+        .expect("--preload-version is required for this scenario");
 
     let recipe_data = RecipeData {
         args,
@@ -35,6 +44,42 @@ pub fn test_installation_with_preload_agent(args: InstallationArgs) {
 
     let preload_agent_id = "nr-preload";
 
+    info!("Writing custom preload agent type definition");
+    let custom_agent_type_path = format!("{DYNAMIC_AGENT_TYPES_DIR}/preload.yaml");
+    let custom_agent_type = format!(
+        r#"namespace: newrelic
+name: com.newrelic.preload
+version: 0.1.0
+variables:
+  linux:
+    oci:
+      repository:
+        description: "Package repository name"
+        type: string
+        required: false
+        default: newrelic/preload-agent-artifacts
+        variants:
+          ac_config_field: "oci_repository_urls"
+          values: ["newrelic/preload-agent-artifacts"]
+    version:
+      description: "Agent version"
+      type: string
+      required: true
+deployment:
+  linux:
+    packages:
+      preload-agent:
+        download:
+          oci:
+            repository: ${{nr-var:oci.repository}}
+            version: ${{nr-var:version}}
+            public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrpreloadagent/jwks.json
+"#
+    );
+    exec_bash_command(&format!("mkdir -p {DYNAMIC_AGENT_TYPES_DIR}"))
+        .unwrap_or_else(|err| panic!("Failed to create dynamic agent types directory: {err}"));
+    write(&custom_agent_type_path, custom_agent_type);
+
     info!("Setup Agent Control config");
     update_config(
         linux::DEFAULT_AC_CONFIG_PATH,
@@ -51,35 +96,59 @@ agents:
 
     write_agent_local_config(
         &linux::local_config_path(preload_agent_id),
-        // Correct Config?
         format! {r#"
-fleet_id: alphanumeric_id # needed anymore?
-apm_language: java
-agent_version: 8.13.0
-application_names:
-  - my-app
-  - functions
-  - lib
-  - bin
-new_relic_license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
-staging: {staging}
 version: {preload_version}"#},
     );
 
-
-    // ToDo update with actual path
-    let ld_preload_path = "path_to_ld_preload";
-    let install_command = format!(r#"echo "{ld_preload_path}" >> /ec/ld.so.preload"#);
-    let output = exec_bash_command(&install_command)
-        .unwrap_or_else(|err| panic!("Editing /ec/ld.so.preload failed: {err}"));
-    debug!("echo output:\n{output}");
-
     linux::service::restart_service(linux::SERVICE_NAME);
 
-    let ls_command = format!("ls {ld_preload_path}");
-    let output = exec_bash_command(&ls_command)
-        .unwrap_or_else(|err| panic!("Installation failed: {err}"));
-    debug!("ls output:\n{output}");
+    info!("Waiting for preload OCI package to be downloaded and extracted");
+    let package_dir = preload_package_dir();
+    let retries = 60;
+    retry_panic(
+        retries,
+        Duration::from_secs(10),
+        "preload package download assertion",
+        || assert_preload_package_downloaded(&package_dir),
+    );
+
+    info!("Searching for shared library inside extracted package");
+    let find_so_command = format!(
+        r#"find {package_dir} -type f -name "*.so" | head -n 1"#
+    );
+    let so_path = exec_bash_command(&find_so_command)
+        .unwrap_or_else(|err| panic!("Failed to find shared library in package: {err}"));
+    let so_path = so_path
+        .lines()
+        .last()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if so_path.is_empty() {
+        panic!(
+            "No .so file found in extracted preload package at {package_dir}"
+        );
+    }
+    info!("Found shared library: {so_path}");
+
+    info!("Installing shared library into /etc/ld.so.preload");
+    let install_command = format!(r#"echo "{so_path}" >> /etc/ld.so.preload"#);
+    let output = exec_bash_command(&install_command)
+        .unwrap_or_else(|err| panic!("Editing /etc/ld.so.preload failed: {err}"));
+    debug!("Install output:\n{output}");
 
     info!("Test completed successfully");
+}
+
+fn assert_preload_package_downloaded(package_dir: &str) -> TestResult<()> {
+    let output = exec_bash_command(&format!("ls -d {package_dir}"))?;
+    if output.contains("No such file") || output.contains("cannot access") {
+        return Err(format!(
+            "Preload package directory not found yet at {package_dir}"
+        )
+        .into());
+    }
+    let listing = exec_bash_command(&format!("ls -la {package_dir}"))?;
+    debug!("Package listing:\n{listing}");
+    Ok(())
 }

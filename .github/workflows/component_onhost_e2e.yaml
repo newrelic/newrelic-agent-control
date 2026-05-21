@@ -30,6 +30,7 @@ permissions:
 env:
   HOST_E2E_INFRA_AGENT_VERSION: "1.74.3"
   HOST_E2E_NRDOT_VERSION: "1.14.0"
+  HOST_E2E_PRELOAD_VERSION: "0.1.0"
 
 jobs:
   build-packages:
@@ -53,6 +54,7 @@ jobs:
           - infra-agent
           - nrdot-agent
           - proxy
+          - preload-agent
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
@@ -79,7 +81,8 @@ jobs:
             --agent-control-version "0.900.${{ github.run_id }}" \
             --recipes-repo-branch "main" \
             --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" \
-            --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}"
+            --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}" \
+            --preload-version "${{ env.HOST_E2E_PRELOAD_VERSION }}"
 
       - name: Report test result to New Relic
         if: always()

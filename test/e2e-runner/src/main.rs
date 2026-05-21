@@ -30,7 +30,8 @@ enum LinuxScenarios {
     EBPFAgent(InstallationArgs),
     /// Local installation of Agent Control with NRDot. It checks that nr-dot eventually reports data.
     NrdotAgent(InstallationArgs),
-    /// Local installation of Agent Control with Preload Agent. It checks that the preload-agent eventually reports data.
+    /// Local installation of Agent Control with a custom preload agent type. Verifies that the
+    /// OCI artifact is downloaded and present in the environment.
     PreloadAgent(InstallationArgs),
     /// Checks that remote configuration for a sub-agent has been applied.
     RemoteConfig(InstallationArgs),
