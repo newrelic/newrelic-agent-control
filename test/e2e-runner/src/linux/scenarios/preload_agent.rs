@@ -1,14 +1,12 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
-use crate::common::on_drop::CleanUp;
-use crate::common::test::{retry_panic, TestResult};
-use crate::common::{InstallationArgs, RecipeData};
 use crate::common::file::write;
-use crate::{
-    linux::{
-        self,
-        install::{install_agent_control_from_recipe, tear_down_test},
-        bash::exec_bash_command,
-    },
+use crate::common::on_drop::CleanUp;
+use crate::common::test::{TestResult, retry_panic};
+use crate::common::{InstallationArgs, RecipeData};
+use crate::linux::{
+    self,
+    bash::exec_bash_command,
+    install::{install_agent_control_from_recipe, tear_down_test},
 };
 use std::time::Duration;
 use tracing::{debug, info};
@@ -18,7 +16,10 @@ const DYNAMIC_AGENT_TYPES_DIR: &str = "/etc/newrelic-agent-control/dynamic-agent
 
 /// Expected package installation directory for the preload agent.
 fn preload_package_dir() -> String {
-    format!("{}/packages/nr-preload/stored_packages/preload-agent", linux::AGENT_CONTROL_DATA_DIR)
+    format!(
+        "{}/packages/nr-preload/stored_packages/preload-agent",
+        linux::AGENT_CONTROL_DATA_DIR
+    )
 }
 
 pub fn test_installation_with_preload_agent(args: InstallationArgs) {
@@ -97,7 +98,7 @@ agents:
     write_agent_local_config(
         &linux::local_config_path(preload_agent_id),
         format! {r#"
-version: {preload_version}"#},
+        version: {preload_version}"#},
     );
 
     linux::service::restart_service(linux::SERVICE_NAME);
@@ -113,21 +114,12 @@ version: {preload_version}"#},
     );
 
     info!("Searching for shared library inside extracted package");
-    let find_so_command = format!(
-        r#"find {package_dir} -type f -name "*.so" | head -n 1"#
-    );
+    let find_so_command = format!(r#"find {package_dir} -type f -name "*.so" | head -n 1"#);
     let so_path = exec_bash_command(&find_so_command)
         .unwrap_or_else(|err| panic!("Failed to find shared library in package: {err}"));
-    let so_path = so_path
-        .lines()
-        .last()
-        .unwrap_or("")
-        .trim()
-        .to_string();
+    let so_path = so_path.lines().last().unwrap_or("").trim().to_string();
     if so_path.is_empty() {
-        panic!(
-            "No .so file found in extracted preload package at {package_dir}"
-        );
+        panic!("No .so file found in extracted preload package at {package_dir}");
     }
     info!("Found shared library: {so_path}");
 
@@ -143,10 +135,7 @@ version: {preload_version}"#},
 fn assert_preload_package_downloaded(package_dir: &str) -> TestResult<()> {
     let output = exec_bash_command(&format!("ls -d {package_dir}"))?;
     if output.contains("No such file") || output.contains("cannot access") {
-        return Err(format!(
-            "Preload package directory not found yet at {package_dir}"
-        )
-        .into());
+        return Err(format!("Preload package directory not found yet at {package_dir}").into());
     }
     let listing = exec_bash_command(&format!("ls -la {package_dir}"))?;
     debug!("Package listing:\n{listing}");
