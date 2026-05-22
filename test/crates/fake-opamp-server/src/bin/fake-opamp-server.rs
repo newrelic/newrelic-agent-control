@@ -56,7 +56,9 @@ fn main() -> ExitCode {
     println!();
     println!("Press Ctrl+C to stop.");
 
-    // Park the main thread on the runtime; Ctrl+C will terminate the process.
-    runtime.block_on(std::future::pending::<()>());
+    runtime.block_on(async {
+        let _ = tokio::signal::ctrl_c().await;
+    });
+    println!("Shutting down...");
     ExitCode::SUCCESS
 }

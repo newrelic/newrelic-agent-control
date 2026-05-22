@@ -202,6 +202,7 @@ impl FakeServer {
                         .route(web::post().to(admin::set_config_handler)),
                 )
         })
+        .disable_signals()
         .listen(listener)
         .unwrap_or_else(|err| panic!("Could not bind the HTTP server to the listener: {err}"))
         .run()
