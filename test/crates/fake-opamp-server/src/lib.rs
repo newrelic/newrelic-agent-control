@@ -1,3 +1,7 @@
+mod admin;
+
+pub use admin::{AgentStateView, RemoteConfigView, ServerStateView};
+
 use actix_web::{App, HttpResponse, HttpServer, web};
 use aws_lc_rs::digest;
 use aws_lc_rs::rand::SystemRandom;
@@ -24,25 +28,25 @@ pub use opamp_client::operation::instance_uid::InstanceUid as InstanceID;
 
 pub const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
 pub const JWKS_SERVER_PATH: &str = "/jwks";
-const JWKS_PUBLIC_KEY_ID: &str = "fakeKeyName/0";
+pub(crate) const JWKS_PUBLIC_KEY_ID: &str = "fakeKeyName/0";
 const AGENT_CONFIG_PREFIX: &str = "agentConfig";
 const SIGNATURE_CUSTOM_CAPABILITY: &str = "com.newrelic.security.configSignature";
 const SIGNATURE_CUSTOM_MESSAGE_TYPE: &str = "newrelicRemoteConfigSignature";
 const ED25519_ALG: &str = "ED25519";
 
-struct ServerState {
-    agent_state: HashMap<InstanceUid, AgentState>,
-    key_pair: Ed25519KeyPair,
+pub(crate) struct ServerState {
+    pub(crate) agent_state: HashMap<InstanceUid, AgentState>,
+    pub(crate) key_pair: Ed25519KeyPair,
 }
 
 #[derive(Default)]
-struct AgentState {
-    sequence_number: u64,
-    health_status: Option<ComponentHealth>,
-    attributes: AgentDescription,
-    remote_config: Option<RemoteConfig>,
-    effective_config: EffectiveConfig,
-    config_status: RemoteConfigStatus,
+pub(crate) struct AgentState {
+    pub(crate) sequence_number: u64,
+    pub(crate) health_status: Option<ComponentHealth>,
+    pub(crate) attributes: AgentDescription,
+    pub(crate) remote_config: Option<RemoteConfig>,
+    pub(crate) effective_config: EffectiveConfig,
+    pub(crate) config_status: RemoteConfigStatus,
 }
 
 impl ServerState {
@@ -64,7 +68,7 @@ impl ServerState {
 
 /// Represents a remote configuration that can be sent to the agent.
 #[derive(Clone, Debug, Default)]
-pub struct RemoteConfig(AgentRemoteConfig);
+pub struct RemoteConfig(pub(crate) AgentRemoteConfig);
 
 impl RemoteConfig {
     pub fn new(config_map: HashMap<String, String>) -> Self {
