@@ -103,7 +103,7 @@ pub(crate) async fn set_config_handler(
 ) -> HttpResponse {
     let instance_uid = match InstanceUid::try_from(path.into_inner()) {
         Ok(uid) => uid,
-        Err(e) => return HttpResponse::BadRequest().body(format!("invalid instance_uid: {e}")),
+        Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
     };
     state
         .lock()

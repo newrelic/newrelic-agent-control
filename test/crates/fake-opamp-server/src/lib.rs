@@ -1,6 +1,4 @@
-mod admin;
-
-pub use admin::{AgentStateView, RemoteConfigView, ServerStateView};
+pub mod admin;
 
 use actix_web::{App, HttpResponse, HttpServer, web};
 use aws_lc_rs::digest;
