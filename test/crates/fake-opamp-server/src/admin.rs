@@ -1,11 +1,22 @@
-//! Admin-facing types and (later) HTTP handlers for the fake OpAMP server.
+//! Admin-facing types and HTTP handlers for the fake OpAMP server.
 //!
 //! These are intended for human inspection and manual driving of the server in tests/demos —
 //! not for any stable wire format. Proto-typed fields are rendered via their `Debug` impl.
 
 use crate::{AgentState, JWKS_PUBLIC_KEY_ID, RemoteConfig, ServerState};
+use actix_web::{HttpResponse, web};
+use opamp_client::operation::instance_uid::InstanceUid;
 use serde::Serialize;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+/// Path for the admin endpoint that returns a JSON snapshot of the server state.
+pub const ADMIN_STATE_PATH: &str = "/admin/state";
+
+/// Path template for the admin endpoint that sets the pending remote config for a given agent.
+/// `{instance_uid}` accepts the canonical UUIDv7 string (uppercase, no hyphens, as produced by
+/// `InstanceUid::Display`); both hyphenated and unhyphenated forms are valid.
+pub const ADMIN_CONFIG_PATH: &str = "/admin/agents/{instance_uid}/config";
 
 /// Human-readable, JSON-friendly snapshot of the server state.
 #[derive(Serialize)]
@@ -75,4 +86,28 @@ impl From<&RemoteConfig> for RemoteConfigView {
             config_map,
         }
     }
+}
+
+/// Returns a JSON snapshot of the current server state.
+pub(crate) async fn get_state_handler(state: web::Data<Arc<Mutex<ServerState>>>) -> HttpResponse {
+    let state = state.lock().unwrap();
+    HttpResponse::Ok().json(ServerStateView::from(&*state))
+}
+
+/// Sets the pending remote config for the agent identified by the path parameter, overwriting
+/// any previous config. The body is the raw `key -> yaml-body` map.
+pub(crate) async fn set_config_handler(
+    state: web::Data<Arc<Mutex<ServerState>>>,
+    path: web::Path<String>,
+    body: web::Json<HashMap<String, String>>,
+) -> HttpResponse {
+    let instance_uid = match InstanceUid::try_from(path.into_inner()) {
+        Ok(uid) => uid,
+        Err(e) => return HttpResponse::BadRequest().body(format!("invalid instance_uid: {e}")),
+    };
+    state
+        .lock()
+        .unwrap()
+        .set_multi_config(instance_uid, body.into_inner());
+    HttpResponse::NoContent().finish()
 }
