@@ -195,6 +195,14 @@ impl FakeServer {
                 .app_data(web::Data::new(state.clone()))
                 .service(web::resource(FAKE_SERVER_PATH).to(opamp_handler))
                 .service(web::resource(JWKS_SERVER_PATH).to(jwks_handler))
+                .service(
+                    web::resource(admin::ADMIN_STATE_PATH)
+                        .route(web::get().to(admin::get_state_handler)),
+                )
+                .service(
+                    web::resource(admin::ADMIN_CONFIG_PATH)
+                        .route(web::post().to(admin::set_config_handler)),
+                )
         })
         .listen(listener)
         .unwrap_or_else(|err| panic!("Could not bind the HTTP server to the listener: {err}"))

@@ -1,6 +1,6 @@
 //! Admin-facing types and HTTP handlers for the fake OpAMP server.
 //!
-//! These are intended for human inspection and manual driving of the server in tests/demos —
+//! These are intended for human inspection and manual driving of the server in tests/demos,
 //! not for any stable wire format. Proto-typed fields are rendered via their `Debug` impl.
 
 use crate::{AgentState, JWKS_PUBLIC_KEY_ID, RemoteConfig, ServerState};
