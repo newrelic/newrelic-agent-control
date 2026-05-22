@@ -359,15 +359,11 @@ build and push multi-arch (`linux/amd64`, `linux/arm64`) images to the GitHub Co
 
 #### 1. Build the profiling images
 
-Navigate to **Actions → ⏯️🚀 Build dhat-heap images to ghcr.io → Run workflow** and provide:
+Navigate to **Actions → ⏯️🚀 Build dhat-heap images to ghcr.io → Run workflow** and run it:
 
-- `image-tag`: a suffix for the image tag, e.g. `1.15.0-dhat`
-- `ac-version`: the Agent Control version to embed in the binary (defaults to `dev-build`)
-
-The workflow produces two images:
+The workflow produces a new image:
 
 - `ghcr.io/<org>/newrelic-agent-control-dev:dhat-heap-<image-tag>`
-- `ghcr.io/<org>/newrelic-agent-control-cli-dev:dhat-heap-<image-tag>`
 
 #### 2. Create a shared volume to store the report
 
@@ -381,24 +377,23 @@ clusters (adapt the storage class for production environments).
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: dhat-heap-pv
+  name: agent-control-profiles-pv
 spec:
   capacity:
     storage: 1Gi
   accessModes:
-    - ReadWriteMany
-  persistentVolumeReclaimPolicy: Retain
+    - ReadWriteOnce
   hostPath:
-    path: /var/dhat-heap
+    path: /data/agent-control-profiles
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: dhat-heap-pvc
-  namespace: newrelic
+  name: agent-control-profiles-pvc
+  namespace: newrelic-agent-control
 spec:
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   resources:
     requests:
       storage: 1Gi
@@ -419,20 +414,20 @@ Create a helper pod running a basic utility image so you can `kubectl exec` into
 apiVersion: v1
 kind: Pod
 metadata:
-  name: dhat-debug
-  namespace: newrelic
+  name: profile-accessor
+  namespace: newrelic-agent-control
 spec:
   containers:
-    - name: debug
-      image: busybox:latest
-      command: ["sh", "-c", "sleep infinity"]
-      volumeMounts:
-        - name: dhat-vol
-          mountPath: /shared-vol
+  - name: accessor
+    image: alpine:latest
+    command: ["sleep", "infinity"]
+    volumeMounts:
+    - name: profiles
+      mountPath: /var/profiles
   volumes:
-    - name: dhat-vol
-      persistentVolumeClaim:
-        claimName: dhat-heap-pvc
+  - name: profiles
+    persistentVolumeClaim:
+      claimName: agent-control-profiles-pvc
 ```
 
 ```sh
@@ -445,34 +440,32 @@ Update your `agent-control-deployment` Helm values to use the dhat-heap image an
 
 ```yaml
 # dhat-helm-values.yaml
-image:
-  repository: ghcr.io/<org>/newrelic-agent-control-dev
-  tag: dhat-heap-1.15.0-dhat
-  pullPolicy: Always
-
-toolkitImage:
-  repository: ghcr.io/<org>/newrelic-agent-control-cli-dev
-  tag: dhat-heap-1.15.0-dhat
-  pullPolicy: Always
-
-extraEnv:
-  - name: DHAT_HEAP_OUTPUT_PATH
-    value: /shared-vol/dhat-heap.json
-
-extraVolumes:
-  - name: dhat-vol
-    persistentVolumeClaim:
-      claimName: dhat-heap-pvc
-
-extraVolumeMounts:
-  - name: dhat-vol
-    mountPath: /shared-vol
-
-resources:
-  requests:
-    memory: "15Mi"
-  limits:
-    memory: "1Gi"
+# ... other values
+agentControlDeployment:
+  chartValues:
+    resources:
+      requests:
+        memory: "100Mi"
+      limits:
+        memory: "1Gi"
+    image:
+      registry: ghrc.io
+      repository: newrelic/newrelic-agent-control-dev
+      tag: dhat-heap-dev-1
+      pullPolicy: Always
+    extraEnv:
+      - name: DHAT_HEAP_OUTPUT_PATH
+        value: "/var/profiles/dhat-heap.json"
+    extraVolumes:
+      - name: profiles
+        persistentVolumeClaim:
+          claimName: agent-control-profiles-pvc
+    extraVolumeMounts:
+      - name: profiles
+        mountPath: /var/profiles
+    config:
+      # ... remaining AC config
+# ... other values
 ```
 
 > **Note on memory limits:** DHAT serialises the entire heap profile into memory before writing it to disk. The memory
@@ -493,8 +486,8 @@ Once Agent Control has been stopped or restarted (which triggers the DHAT profil
 retrieve the report from the debug pod:
 
 ```sh
-kubectl exec -n newrelic dhat-debug -- ls -la /shared-vol/
-kubectl cp newrelic/dhat-debug:/shared-vol/dhat-heap.json ./dhat-heap.json
+kubectl exec -n newrelic-agent-control profile-accessor -- ls -la /var/profiles
+kubectl cp newrelic-agent-control/profile-accessor:/var/profiles/dhat-heap.json ./dhat-heap.json
 ```
 
 Open `dhat-heap.json` in the [DHAT Viewer](https://nnethercote.github.io/dh_view/dh_view.html) to inspect the results.
