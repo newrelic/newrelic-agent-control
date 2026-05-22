@@ -47,8 +47,7 @@ pub fn test_installation_with_preload_agent(args: InstallationArgs) {
 
     info!("Writing custom preload agent type definition");
     let custom_agent_type_path = format!("{DYNAMIC_AGENT_TYPES_DIR}/preload.yaml");
-    let custom_agent_type = format!(
-        r#"namespace: newrelic
+    let custom_agent_type = r#"namespace: newrelic
 name: com.newrelic.preload
 version: 0.1.0
 variables:
@@ -75,8 +74,7 @@ deployment:
             repository: ${{nr-var:oci.repository}}
             version: ${{nr-var:version}}
             public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrpreloadagent/jwks.json
-"#
-    );
+"#;
     exec_bash_command(&format!("mkdir -p {DYNAMIC_AGENT_TYPES_DIR}"))
         .unwrap_or_else(|err| panic!("Failed to create dynamic agent types directory: {err}"));
     write(&custom_agent_type_path, custom_agent_type);
