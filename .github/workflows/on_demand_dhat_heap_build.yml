@@ -81,7 +81,7 @@ jobs:
           AGENT_CONTROL_VERSION: ${{ inputs.tag_name }}
         run: |
           cargo xwin build --target x86_64-pc-windows-msvc --profile release-debug --package newrelic_agent_control --bin newrelic-agent-control --features dhat-heap
-          cargo xwin build --target x86_64-pc-windows-msvc --profile release-debug --package newrelic_agent_control --bin newrelic-agent-control-cli --features dhat-heap
+          cargo xwin build --target x86_64-pc-windows-msvc --profile release-debug --package newrelic_agent_control --bin newrelic-agent-control-cli
 
       - name: Copy binaries
         run: |
