@@ -22,9 +22,19 @@ if [ "$BUILD_MODE" = "debug" ];then
 fi
 # compile release version if not specified
 : "${BUILD_MODE:=release}"
-: "${BUILD_OUT_DIR:=release}"
 
-echo "arch: ${ARCH}, target: ${TARGET_TUPLE}"
+# Determine the output directory based on the build mode if not explicitly set.
+if [ -z "$BUILD_OUT_DIR" ]; then
+  if [ "$BUILD_MODE" = "dev" ]; then
+    BUILD_OUT_DIR="debug"
+  elif [ "$BUILD_MODE" = "release" ]; then
+    BUILD_OUT_DIR="release"
+  else
+    BUILD_OUT_DIR="$BUILD_MODE"
+  fi
+fi
+
+echo "arch: ${ARCH}, target: ${TARGET_TUPLE}, profile: ${BUILD_MODE}, out_dir: ${BUILD_OUT_DIR}"
 
 # Binary metadata
 GIT_COMMIT=$( git rev-parse HEAD )
@@ -33,7 +43,12 @@ export AGENT_CONTROL_VERSION=${AGENT_CONTROL_VERSION}
 
 export RUSTFLAGS="-C target-feature=+crt-static"
 
-cargo zigbuild --target "${TARGET_TUPLE}" --profile "${BUILD_MODE}" --package "${PKG}" --bin "${BIN}"
+CARGO_ARGS=(zigbuild --target "${TARGET_TUPLE}" --profile "${BUILD_MODE}" --package "${PKG}" --bin "${BIN}")
+if [ -n "$CARGO_FEATURES" ]; then
+  CARGO_ARGS+=(--features "${CARGO_FEATURES}")
+fi
+
+cargo "${CARGO_ARGS[@]}"
 
 mkdir -p "bin"
 
