@@ -32,16 +32,8 @@ pub enum EffectiveAgentsAssemblerError {
     ValueConversionError(#[from] serde_json::Error),
     #[error("error assembling agents: {0}")]
     AgentTypeError(#[from] AgentTypeError),
-    #[error("error assembling agents: {0}")]
-    AgentTypeDefinitionError(#[from] AgentTypeDefinitionError),
     #[error("error loading secrets: {0}")]
     SecretVariablesError(#[from] SecretVariablesError),
-}
-
-#[derive(Error, Debug)]
-pub enum AgentTypeDefinitionError {
-    #[error("invalid agent-type for '{0}' environment: {1}")]
-    EnvironmentError(AgentTypeError, Environment),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -174,7 +166,7 @@ where
             agent_type_definition,
             environment,
             &self.variable_constraints,
-        )?;
+        );
 
         // Build the agent attributes
         let attributes =
@@ -202,7 +194,7 @@ pub fn build_agent_type(
     definition: AgentTypeDefinition,
     environment: &Environment,
     variable_constraints: &VariableConstraints,
-) -> Result<AgentType, AgentTypeDefinitionError> {
+) -> AgentType {
     // Select vars and runtime config according to the environment
     let (specific_vars, runtime_config) = match environment {
         Environment::K8s => (
@@ -236,20 +228,10 @@ pub fn build_agent_type(
             },
         ),
     };
-    // Merge common and specific variables
-    let merged_variables = definition
-        .variables
-        .common
-        .merge(specific_vars)
-        .map_err(|err| AgentTypeDefinitionError::EnvironmentError(err, *environment))?;
 
-    let agent_type_vars = merged_variables.with_config(variable_constraints);
+    let agent_type_vars = specific_vars.with_config(variable_constraints);
 
-    Ok(AgentType::new(
-        definition.agent_type_id,
-        agent_type_vars,
-        runtime_config,
-    ))
+    AgentType::new(definition.agent_type_id, agent_type_vars, runtime_config)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -265,7 +247,6 @@ pub(crate) mod tests {
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistry;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::values::yaml_config::YAMLConfig;
-    use assert_matches::assert_matches;
     use mockall::mock;
 
     mock! {
@@ -360,10 +341,8 @@ pub(crate) mod tests {
             definition.clone(),
             &Environment::K8s,
             &VariableConstraints::default(),
-        )
-        .unwrap();
+        );
         let k8s_vars = k8s_agent_type.variables.flatten();
-        assert!(k8s_vars.contains_key("config.really_common"));
         let var = k8s_vars.get("config.var").unwrap();
         assert_eq!("K8s var".to_string(), var.description);
         assert!(
@@ -379,10 +358,8 @@ pub(crate) mod tests {
             definition,
             &AGENT_CONTROL_MODE_ON_HOST,
             &VariableConstraints::default(),
-        )
-        .unwrap();
+        );
         let on_host_vars = on_host_agent_type.variables.flatten();
-        assert!(on_host_vars.contains_key("config.really_common"));
         let var = on_host_vars.get("config.var").unwrap();
         #[cfg(target_family = "unix")]
         assert_eq!("Linux var".to_string(), var.description);
@@ -394,38 +371,11 @@ pub(crate) mod tests {
         );
     }
 
-    #[test]
-    fn test_build_agent_type_error() {
-        let definition =
-            serde_saphyr::from_str::<AgentTypeDefinition>(CONFLICTING_AGENT_TYPE_DEFINITION)
-                .unwrap();
-
-        let expected_err = build_agent_type(
-            definition,
-            &Environment::K8s,
-            &VariableConstraints::default(),
-        )
-        .err()
-        .unwrap();
-        assert_matches!(expected_err, AgentTypeDefinitionError::EnvironmentError(err, env) => {
-            assert_matches!(err, AgentTypeError::ConflictingVariableDefinition(key) => {
-                assert_eq!("config.var".to_string(), key);
-            });
-            assert_matches!(env, Environment::K8s);
-        });
-    }
-
     const AGENT_TYPE_DEFINITION: &str = r#"
 name: common
 namespace: newrelic
 version: 0.0.1
 variables:
-  common:
-    config:
-      really_common:
-        description: "Common var"
-        type: string
-        required: true
   k8s:
     config:
       var:
@@ -449,15 +399,13 @@ deployment:
       executables:
         - id: my-exec
           path: /some/path
-          args: 
-            - ${nr-var:config.really_common} 
+          args:
             - ${config.var}
     windows:
       executables:
         - id: my-exec
           path: /some/path
-          args: 
-            - ${nr-var:config.really_common} 
+          args:
             - ${config.var}
     k8s:
       objects:
@@ -468,29 +416,6 @@ deployment:
             name: ${nr-sub:agent_id}
             namespace: ${nr-ac:namespace}
           spec:
-            some_key: ${nr-var:config.really_common}
             other: ${nr-avar:config.var}
-"#;
-
-    const CONFLICTING_AGENT_TYPE_DEFINITION: &str = r#"
-name: common
-namespace: newrelic
-version: 0.0.1
-variables:
-  common:
-    config:
-      var:
-        description: "Common variable"
-        type: string
-        required: true
-  k8s:
-    config:
-      var:
-        description: "K8s variable"
-        type: string
-        required: true
-deployment:
-    k8s:
-      objects: {}
 "#;
 }

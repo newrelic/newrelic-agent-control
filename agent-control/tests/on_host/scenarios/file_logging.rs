@@ -24,7 +24,16 @@ namespace: test
 name: file-logging-agent
 version: 0.0.0
 variables:
-  common:
+  linux:
+    message:
+      description: "Message to echo to stdout"
+      type: "string"
+      required: true
+    enable_file_logging:
+      description: "Whether to enable file logging"
+      type: "string"
+      required: true
+  windows:
     message:
       description: "Message to echo to stdout"
       type: "string"

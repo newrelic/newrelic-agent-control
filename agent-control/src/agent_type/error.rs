@@ -25,8 +25,6 @@ pub enum AgentTypeError {
     InvalidVariant(String),
     #[error("rendering template: {0}")]
     RenderingTemplate(String),
-    #[error("conflicting variable definition: {0}")]
-    ConflictingVariableDefinition(String),
     #[error("error parsing oci reference: {0}")]
     OCIReferenceParsingError(String),
 }

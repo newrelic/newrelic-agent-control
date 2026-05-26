@@ -751,7 +751,7 @@ fn iterate_test_cases(environment: &Environment) {
         values.cases.iter().for_each(|(scenario, yaml)| {
             let definition = registry.get(case.agent_type).unwrap();
             let agent_type =
-                build_agent_type(definition, environment, &VariableConstraints::default()).unwrap();
+                build_agent_type(definition, environment, &VariableConstraints::default());
             let attributes = testing_agent_attributes(&agent_id);
             let variables = serde_saphyr::from_str::<YAMLConfig>(yaml).unwrap();
 

@@ -259,7 +259,18 @@ name: nrdot
 namespace: newrelic
 version: 0.1.0
 variables:
-  common:
+  linux:
+    whatever:
+      test:
+        path:
+          description: "Path to the agent"
+          type: string
+          required: true
+        args:
+          description: "Args passed to the agent"
+          type: string
+          required: true
+  windows:
     whatever:
       test:
         path:

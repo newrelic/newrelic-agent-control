@@ -39,8 +39,6 @@ pub struct AgentTypeDefinition {
 #[derive(Debug, Clone, PartialEq, Default, Deserialize)]
 pub struct AgentTypeVariables {
     #[serde(default)]
-    pub common: VariableDefinitionTree,
-    #[serde(default)]
     pub k8s: VariableDefinitionTree,
     #[serde(default)]
     pub linux: VariableDefinitionTree,
@@ -146,7 +144,7 @@ fn update_specs(
 ///
 /// ```yaml
 /// variables:
-///   common:
+///   linux:
 ///     system:
 ///       logging:
 ///         level:
@@ -247,7 +245,6 @@ pub mod tests {
             Self {
                 agent_type_id: metadata,
                 variables: AgentTypeVariables {
-                    common: VariableDefinitionTree::default(),
                     k8s: VariableDefinitionTree::default(),
                     linux: VariableDefinitionTree::default(),
                     windows: VariableDefinitionTree::default(),
@@ -272,7 +269,7 @@ pub mod tests {
         pub fn build_for_testing(yaml_definition: &str, environment: &Environment) -> Self {
             let definition =
                 serde_saphyr::from_str::<AgentTypeDefinition>(yaml_definition).unwrap();
-            build_agent_type(definition, environment, &VariableConstraints::default()).unwrap()
+            build_agent_type(definition, environment, &VariableConstraints::default())
         }
 
         /// Retrieve the `variables` field of the agent type at the specified key, if any.
@@ -300,7 +297,14 @@ name: nrdot
 namespace: newrelic
 version: 0.0.1
 variables:
-  common:
+  linux:
+    description:
+      name:
+        description: "Name of the agent"
+        type: string
+        required: false
+        default: nrdot
+  windows:
     description:
       name:
         description: "Name of the agent"
@@ -418,7 +422,17 @@ name: newrelic-infra
 namespace: newrelic
 version: 1.39.1
 variables:
-  common:
+  linux:
+    config3:
+      description: "Newrelic infra configuration yaml"
+      type: map[string]yaml
+      required: true
+    status_server_port:
+      description: "Newrelic infra health status port"
+      type: number
+      required: false
+      default: 8003
+  windows:
     config3:
       description: "Newrelic infra configuration yaml"
       type: map[string]yaml
@@ -508,7 +522,16 @@ name: variant-values
 namespace: newrelic
 version: 0.0.1
 variables:
-  common:
+  linux:
+    restart_policy:
+      type:
+        description: "restart policy type"
+        type: string
+        required: false
+        variants:
+          values: [fixed, linear]
+        default: exponential
+  windows:
     restart_policy:
       type:
         description: "restart policy type"

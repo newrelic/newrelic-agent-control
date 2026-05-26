@@ -28,7 +28,7 @@ The `variables` section allows developers to define variables that end users can
 
 ```yaml
 variables:
-  common:
+  linux:
     config_agent:
       description: "Newrelic infra configuration"
       type: yaml
@@ -39,12 +39,11 @@ variables:
       type: map[string]yaml
       required: false
       default: {}
-  linux:
     backoff_delay:
       description: "seconds until next retry if agent fails to start"
       type: string
       required: false
-      variants: [5s, 10s, 20s, 30s] 
+      variants: [5s, 10s, 20s, 30s]
       default: 20s
     enable_file_logging:
       description: "enable logging the on host executables' logs to files"
@@ -55,18 +54,15 @@ variables:
      ...
 ```
 
-Variables can be classified based on their applicable environments:
+Variables are scoped to their applicable environments:
 
-* `on_host`: Refers to variables utilized in on host environments.
+* `linux` / `windows`: Refers to variables utilized in on-host environments.
 * `k8s`: Applies to variables used within Kubernetes clusters.
-* `common`: For variables that are environment-agnostic.
-
-Although a variable name can be concurrently specified under both the `k8s` and `on_host` sections, it's necessary to note an exception. If a variable is already defined in the `common` section, it cannot be duplicated under any other section. In other words, any variables named in the `common` section must be unique and not repeated in either the `k8s` or the `on_host` sections.
 
 Nested variable names are supported. For instance:
 
 ```yaml
-common:
+linux:
   log:
     level:
       description: "Log level with only info and error"
@@ -389,7 +385,7 @@ This guideline shows how to build a custom agent type and integrate it with the 
     version: 0.0.1
     
     # variables:
-    #   common | on_host | k8s:
+    #   linux | windows | k8s:
     #     my_var_1:
     #       description: "Variable description here"
     #       type: string

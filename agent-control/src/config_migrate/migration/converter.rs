@@ -4,7 +4,6 @@ use crate::config_migrate::migration::{
     agent_value_spec::AgentValueError,
     config::{DirInfo, MigrationAgentConfig},
 };
-use crate::sub_agent::effective_agents_assembler::AgentTypeDefinitionError;
 use fs::file::LocalFile;
 use fs::file::reader::FileReader;
 use regex::Regex;
@@ -22,8 +21,6 @@ pub enum ConversionError {
     FileSystem(io::Error),
     #[error("{0}")]
     AgentValue(#[from] AgentValueError),
-    #[error("{0}")]
-    AgentTypeDefinition(#[from] AgentTypeDefinitionError),
     #[error("cannot find required file map: {0}")]
     RequiredFileMappingNotFound(String),
     #[error("cannot find required dir map: {0}")]

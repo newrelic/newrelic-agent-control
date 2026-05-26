@@ -611,7 +611,17 @@ namespace: newrelic
 name: first
 version: 0.1.0
 variables:
-  common:
+  linux:
+    config_path:
+      description: "config file string"
+      type: string
+      required: true
+    config_argument:
+      description: "config argument"
+      type: string
+      required: false
+      default: bar
+  windows:
     config_path:
       description: "config file string"
       type: string
@@ -626,32 +636,32 @@ deployment:
     executables:
       - id: first
         path: /opt/first
-        args: 
+        args:
           - --config_path
-          - ${nr-var:config_path} 
+          - ${nr-var:config_path}
           - --foo
           - ${nr-var:config_argument}
       - id: second
         path: /opt/second
-        args: 
+        args:
         - --config_path
-        - ${nr-var:config_path} 
+        - ${nr-var:config_path}
         - --foo
         - ${nr-var:config_argument}
   windows:
     executables:
       - id: first
         path: /opt/first
-        args: 
+        args:
           - --config_path
-          - ${nr-var:config_path} 
+          - ${nr-var:config_path}
           - --foo
           - ${nr-var:config_argument}
       - id: second
         path: /opt/second
-        args: 
+        args:
         - --config_path
-        - ${nr-var:config_path} 
+        - ${nr-var:config_path}
         - --foo
         - ${nr-var:config_argument}
 "#;
@@ -669,7 +679,28 @@ name: nrdot
 namespace: newrelic
 version: 0.1.0
 variables:
-  common:
+  linux:
+    backoff:
+      delay:
+        description: "Backoff delay"
+        type: string
+        required: false
+        default: 1s
+      retries:
+        description: "Backoff retries"
+        type: number
+        required: false
+        default: 3
+      interval:
+        description: "Backoff interval"
+        type: string
+        required: false
+        default: 30s
+      type:
+        description: "Backoff strategy type"
+        type: string
+        required: true
+  windows:
     backoff:
       delay:
         description: "Backoff delay"
