@@ -15,3 +15,4 @@ mod oci_auth;
 mod opamp;
 mod remote_agent_removal;
 mod restarting_processes;
+mod self_instrumentation_otel;

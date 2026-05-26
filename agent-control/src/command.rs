@@ -119,7 +119,7 @@ pub struct BootstrapContext {
 pub struct Context {
     /// Context used to build and start [crate::agent_control::AgentControl]
     pub ac_runner_context: RunnerContext,
-    /// This must be kept alive for the duration of the program to ensure logs and traces are flushed.
+    /// This must be kept alive for the duration of the program to ensure logs are flushed.
     pub tracer: Vec<TracingGuardBox>,
     /// A handler used to signal the application to stop when running as a Windows Service
     #[cfg(target_family = "windows")]
