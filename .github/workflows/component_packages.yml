@@ -68,7 +68,7 @@ jobs:
         with:
           version: 0.15.2
 
-      - uses: taiki-e/install-action@7be9fd86bd1707236395105d6e9329dd1511a7e1 # v2.79.0
+      - uses: taiki-e/install-action@920ab1831fbf4fb3ef75c8ead83556c918bb7290 # v2.79.8
         with:
           tool: cargo-zigbuild@0.20.1
 
@@ -103,7 +103,7 @@ jobs:
           echo SKIP_WINDOWS_SIGN="true" >> $GITHUB_ENV
 
       - name: Release packages with GoReleaser
-        uses: goreleaser/goreleaser-action@1a80836c5c9d9e5755a25cb59ec6f45a3b5f41a8 # v7
+        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7
         with:
           args: release ${{ env.SKIP_UPLOAD_RELEASE }} ${{ env.SKIP_SIGN }} --clean --verbose --timeout 2h
         env:
