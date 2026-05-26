@@ -67,6 +67,6 @@ agentsConfig:
                 level: info
               metrics:
                 level: detailed
-        config_map_name: "pcg-otel-config"
+    config_map_name: "pcg-otel-config"
 systemIdentity:
   create: false

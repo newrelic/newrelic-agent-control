@@ -499,9 +499,10 @@ impl<'de> Deserialize<'de> for K8sConfig {
             && !cd_enabled
         {
             info!(
-                "CD is disabled, setting cd_release_name to None, cd_remote_update to false and removing flux and instrumentation types from cr_type_meta"
+                "CD is disabled, setting cd_release_name to None, cd_remote_update and ac_remote_update to false and removing flux and instrumentation types from cr_type_meta"
             );
             intermediate.cd_remote_update = Some(false);
+            intermediate.ac_remote_update = Some(false);
             intermediate.cd_release_name = None;
             cr_type_meta = intermediate
                 .cr_type_meta
@@ -1081,6 +1082,7 @@ k8s:
   cd_enabled: false
   cd_release_name: "will-be-cleared"
   cd_remote_update: true
+  ac_remote_update: true
 "#;
 
         let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
@@ -1089,6 +1091,7 @@ k8s:
         assert!(!k8s.cd_enabled);
         assert_eq!(k8s.cd_release_name, None);
         assert!(!k8s.cd_remote_update);
+        assert!(!k8s.ac_remote_update);
         assert!(
             !k8s.cr_type_meta
                 .iter()
