@@ -11,6 +11,8 @@ Unreleased section should follow [Release Toolkit](https://github.com/newrelic/r
 ### bugfix
 - On-host: clean the OpAMP instance id and remote config of an agent when it is removed, matching the k8s behavior (previously these files were left orphaned under `fleet-data/`).
 - self-instrumentation: dropped the internal traces exporter support for self-instrumentation.
+- pcg_config: the agentType variable structure should assume the same file structure
+- cd_enabled: when cd_enabled is false, we should set ac_remote_update to false as well
 
 ## v1.15.0 - 2026-05-19
 
