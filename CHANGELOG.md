@@ -8,11 +8,20 @@ Unreleased section should follow [Release Toolkit](https://github.com/newrelic/r
 
 ## Unreleased
 
-### bugfix
+## v1.15.1 - 2026-05-26
+
+### 🐞 Bug fixes
 - On-host: clean the OpAMP instance id and remote config of an agent when it is removed, matching the k8s behavior (previously these files were left orphaned under `fleet-data/`).
 - self-instrumentation: dropped the internal traces exporter support for self-instrumentation.
 - pcg_config: the agentType variable structure should assume the same file structure
 - cd_enabled: when cd_enabled is false, we should set ac_remote_update to false as well
+
+### ⛓️ Dependencies
+- Updated rust crate oci-client to 0.17.0
+- Updated rust crate either to 1.16.0
+- Updated rust crate serde_json to 1.0.150
+- Updated rust crate http to 1.4.1
+- Updated rust crate reqwest to 0.13.4
 
 ## v1.15.0 - 2026-05-19
 
