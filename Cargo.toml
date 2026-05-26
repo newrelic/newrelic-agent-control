@@ -42,7 +42,7 @@ predicates = "3.1.4"
 semver = "1.0.28"
 chrono = "0.4.44"
 jsonwebtoken = { version = "10.4.0", features = ["aws_lc_rs"] }
-reqwest = { version = "0.13.3", features = ["blocking", "socks"] }
+reqwest = { version = "0.13.4", features = ["blocking", "socks"] }
 rstest = "0.26.1"
 windows = "0.62.2"
 windows-sys = "0.61.2"
