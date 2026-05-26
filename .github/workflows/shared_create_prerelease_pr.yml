@@ -81,6 +81,25 @@ jobs:
           # Refresh Cargo.lock (assumed at repo root) so it reflects the bumped version.
           cargo update --workspace --manifest-path "$CARGO_TOML_PATH"
 
+      - name: Regenerate THIRD_PARTY_NOTICES.md
+        id: regen-notices
+        # The action fails the step whenever it regenerates the file with new content; the
+        # follow-up step distinguishes that expected case from a real error.
+        continue-on-error: true
+        uses: newrelic/rust-licenses-noticer@9d9bb4a5137f7c9d528b4ada1f505866947feccf # v1
+        with:
+          template-file: THIRD_PARTY_NOTICES.md.tmpl
+
+      - name: Fail if regeneration errored without producing changes
+        if: steps.regen-notices.outcome == 'failure'
+        run: |
+          if git diff --quiet -- THIRD_PARTY_NOTICES.md; then
+            echo "::error::THIRD_PARTY_NOTICES.md regeneration failed and the file did not change."
+            echo "::error::Likely a transient error (network, action upstream); please investigate."
+            exit 1
+          fi
+          echo "Action reported failure because THIRD_PARTY_NOTICES.md needed updating; the regenerated file is on disk and will be committed."
+
       # Commits are created via the GraphQL `createCommitOnBranch` mutation so GitHub signs them automatically.
       - name: Create release branch and commit files (signed via API)
         env:
@@ -104,6 +123,7 @@ jobs:
             --rawfile changelog CHANGELOG.md \
             --rawfile cargo "$CARGO_TOML_PATH" \
             --rawfile lock Cargo.lock \
+            --rawfile notices THIRD_PARTY_NOTICES.md \
             --arg repo "$REPO" \
             --arg branch "$BRANCH" \
             --arg msg "chore(release): prepare $VERSION" \
@@ -120,7 +140,8 @@ jobs:
                     additions: [
                       {path: "CHANGELOG.md", contents: ($changelog | @base64)},
                       {path: $cargo_path, contents: ($cargo | @base64)},
-                      {path: "Cargo.lock", contents: ($lock | @base64)}
+                      {path: "Cargo.lock", contents: ($lock | @base64)},
+                      {path: "THIRD_PARTY_NOTICES.md", contents: ($notices | @base64)}
                     ]
                   }
                 }
