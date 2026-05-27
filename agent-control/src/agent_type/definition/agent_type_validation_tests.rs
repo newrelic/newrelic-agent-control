@@ -660,7 +660,7 @@ fn all_agent_type_definitions_are_present() {
     let registry = EmbeddedRegistry::default();
     for case in get_agent_type_test_cases() {
         assert!(
-            registry.get(case.agent_type).is_ok(),
+            registry.contains(case.agent_type),
             "Agent type {} not found",
             case.agent_type
         );

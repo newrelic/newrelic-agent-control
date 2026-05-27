@@ -24,11 +24,15 @@ impl Default for EmbeddedRegistry {
 }
 
 impl AgentTypeRegistry for EmbeddedRegistry {
-    fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentTypeRegistryError> {
+    fn get(&self, agent_type_id: &str) -> Result<AgentTypeDefinition, AgentTypeRegistryError> {
         self.0
-            .get(name)
+            .get(agent_type_id)
             .cloned()
-            .ok_or(AgentTypeRegistryError::NotFound(name.to_string()))
+            .ok_or(AgentTypeRegistryError::NotFound(agent_type_id.to_string()))
+    }
+
+    fn contains(&self, agent_type_id: &str) -> bool {
+        self.0.contains_key(agent_type_id)
     }
 }
 
@@ -189,6 +193,18 @@ pub mod tests {
 
         let err = registry.get("not-existent").unwrap_err();
         assert_matches!(err, AgentTypeRegistryError::NotFound(_));
+    }
+
+    #[test]
+    fn test_contains() {
+        let definitions = vec![AgentTypeDefinition::empty_with_metadata(
+            AgentTypeID::try_from("ns/agent-1:0.0.0").unwrap(),
+        )];
+
+        let registry = EmbeddedRegistry::try_new(definitions).unwrap();
+
+        assert!(registry.contains("ns/agent-1:0.0.0"));
+        assert!(!registry.contains("ns/non-existent:0.0.0"));
     }
 
     #[test]

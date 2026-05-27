@@ -18,8 +18,11 @@ pub enum AgentTypeRegistryError {
 
 /// AgentTypeRegistry stores and loads Agent types.
 pub trait AgentTypeRegistry {
-    // Returns an Agent type given a definition.
-    fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentTypeRegistryError>;
+    /// Returns an Agent type given a definition.
+    fn get(&self, agent_type_id: &str) -> Result<AgentTypeDefinition, AgentTypeRegistryError>;
+
+    /// Returns true if the registry has an Agent type for the given id.
+    fn contains(&self, agent_type_id: &str) -> bool;
 }
 
 #[cfg(test)]
@@ -33,24 +36,39 @@ pub mod tests {
         pub AgentTypeRegistry {}
 
         impl AgentTypeRegistry for AgentTypeRegistry  {
-            fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentTypeRegistryError>;
+            fn get(&self, agent_type_id: &str) -> Result<AgentTypeDefinition, AgentTypeRegistryError>;
+            fn contains(&self, agent_type_id: &str) -> bool;
         }
     }
 
     impl MockAgentTypeRegistry {
-        pub fn should_get(&mut self, name: String, final_agent: &AgentTypeDefinition) {
+        pub fn should_get(&mut self, agent_type_id: String, final_agent: &AgentTypeDefinition) {
             let final_agent = final_agent.clone();
             self.expect_get()
-                .with(predicate::eq(name.clone()))
+                .with(predicate::eq(agent_type_id))
                 .once()
                 .returning(move |_| Ok(final_agent.clone()));
         }
 
-        pub fn should_not_get(&mut self, name: String) {
+        pub fn should_not_get(&mut self, agent_type_id: String) {
             self.expect_get()
-                .with(predicate::eq(name.clone()))
+                .with(predicate::eq(agent_type_id.clone()))
                 .once()
-                .returning(move |_| Err(AgentTypeRegistryError::NotFound(name.clone())));
+                .returning(move |_| Err(AgentTypeRegistryError::NotFound(agent_type_id.clone())));
+        }
+
+        pub fn should_contain(&mut self, agent_type_id: String) {
+            self.expect_contains()
+                .with(predicate::eq(agent_type_id))
+                .once()
+                .returning(|_| true);
+        }
+
+        pub fn should_not_contain(&mut self, agent_type_id: String) {
+            self.expect_contains()
+                .with(predicate::eq(agent_type_id))
+                .once()
+                .returning(|_| false);
         }
     }
 }

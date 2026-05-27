@@ -39,14 +39,12 @@ impl<R: AgentTypeRegistry> DynamicConfigValidator for RegistryDynamicConfigValid
             .agents
             .values()
             .try_for_each(|sub_agent_cfg| {
-                let _ = self
-                    .agent_type_registry
-                    .get(sub_agent_cfg.agent_type.to_string().as_str())
-                    .map_err(|err| {
-                        DynamicConfigValidatorError(format!(
-                            "AgentType registry check failed: {err}"
-                        ))
-                    })?;
+                let agent_type = sub_agent_cfg.agent_type.to_string();
+                if !self.agent_type_registry.contains(&agent_type) {
+                    return Err(DynamicConfigValidatorError(format!(
+                        "AgentType registry check failed: agent type {agent_type} not found"
+                    )));
+                }
                 Ok(())
             })
     }
@@ -55,7 +53,6 @@ impl<R: AgentTypeRegistry> DynamicConfigValidator for RegistryDynamicConfigValid
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::registry::tests::MockAgentTypeRegistry;
     use mockall::mock;
 
@@ -93,11 +90,8 @@ pub mod tests {
     fn test_existing_agent_type_validation() {
         let mut registry = MockAgentTypeRegistry::new();
 
-        let agent_type_definition =
-            AgentTypeDefinition::empty_with_metadata("ns/name:0.0.1".try_into().unwrap());
-
         //Expectations
-        registry.should_get("ns/name:0.0.1".to_string(), &agent_type_definition);
+        registry.should_contain("ns/name:0.0.1".to_string());
 
         let dynamic_config = serde_saphyr::from_str::<AgentControlDynamicConfig>(
             r#"
@@ -115,7 +109,7 @@ agents:
     #[test]
     fn test_non_existing_agent_type_validation() {
         let mut registry = MockAgentTypeRegistry::new();
-        registry.should_not_get("ns/another:0.0.1".to_string());
+        registry.should_not_contain("ns/another:0.0.1".to_string());
 
         let dynamic_config = serde_saphyr::from_str::<AgentControlDynamicConfig>(
             r#"
