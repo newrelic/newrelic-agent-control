@@ -8,6 +8,7 @@ use crate::linux::{
     bash::exec_bash_command,
     install::{install_agent_control_from_recipe, tear_down_test},
 };
+use glob::glob;
 use std::time::Duration;
 use tracing::{debug, info};
 
@@ -112,10 +113,11 @@ agents:
     );
 
     info!("Searching for shared library inside extracted package");
-    let find_so_command = format!(r#"find {package_dir} -type f -name "*.so" | head -n 1"#);
-    let so_path = exec_bash_command(&find_so_command)
-        .unwrap_or_else(|err| panic!("Failed to find shared library in package: {err}"));
-    let so_path = so_path.lines().last().unwrap_or("").trim().to_string();
+    let so_path = glob(&format!("{package_dir}/**/*.so"))
+        .expect("Failed to read glob pattern")
+        .find_map(|entry| entry.ok())
+        .map(|path| path.to_string_lossy().into_owned())
+        .unwrap_or_default();
     if so_path.is_empty() {
         panic!("No .so file found in extracted preload package at {package_dir}");
     }
