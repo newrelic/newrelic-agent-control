@@ -80,7 +80,10 @@ const AGENT_VALUES_SINGLE_FILE: &str = r#"config_file: |
 "#;
 
 const AGENT_VALUES_SINGLE_FILE_STORED: &str = r#"config:
-  config_file: "license_key: 1234567890987654321\nlog:\n  level: debug\n"
+  config_file: |
+    license_key: 1234567890987654321
+    log:
+      level: debug
 hash: hash-test
 state: applying
 "#;
