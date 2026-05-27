@@ -1,3 +1,4 @@
+#[cfg(unix)]
 use std::collections::HashSet;
 
 use fake_opamp_server::FakeServer;
@@ -53,6 +54,7 @@ pub fn check_identifying_attributes_contains_expected(
     )
     .map_err(|e| format!("Identifying attributes missing required elements: {e}"))
 }
+
 #[cfg(unix)]
 /// Checks that the latest `CustomCapabilities` match the `expected`
 pub fn check_custom_capabilities_match(
