@@ -1,8 +1,8 @@
 use crate::agent_control::run::Environment;
 use crate::agent_type::agent_attributes::AgentAttributes;
-use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::error::AgentTypeError;
+use crate::agent_type::registry::{AgentTypeRegistry, AgentTypeRegistryError};
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::rendered::OnHost;
@@ -25,7 +25,7 @@ pub enum EffectiveAgentsAssemblerError {
     #[error("error assembling agents: {0}")]
     EffectiveAgentsAssemblerError(String),
     #[error("error assembling agents: {0}")]
-    RepositoryError(#[from] AgentRepositoryError),
+    Registry(#[from] AgentTypeRegistryError),
     #[error("error assembling agents: {0}")]
     SerializationError(#[from] serde_saphyr::Error),
     #[error("error assembling agents: {0}")]
@@ -109,7 +109,7 @@ pub trait EffectiveAgentsAssembler {
 }
 
 /// Implements [EffectiveAgentsAssembler] and is responsible for:
-/// - Getting [AgentType] from [AgentRegistry]
+/// - Getting [AgentType] from [AgentTypeRegistry]
 /// - Getting Local or Remote configs from [ConfigRepository]
 /// - Rendering the [Runtime] configuration of an Agent
 ///
@@ -117,7 +117,7 @@ pub trait EffectiveAgentsAssembler {
 /// or removing configs when the Runtime is [Renderer].
 pub struct LocalEffectiveAgentsAssembler<R>
 where
-    R: AgentRegistry,
+    R: AgentTypeRegistry,
 {
     registry: Arc<R>,
     renderer: TemplateRenderer,
@@ -128,7 +128,7 @@ where
 
 impl<R> LocalEffectiveAgentsAssembler<R>
 where
-    R: AgentRegistry,
+    R: AgentTypeRegistry,
 {
     pub fn new(
         registry: Arc<R>,
@@ -149,7 +149,7 @@ where
 
 impl<R> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R>
 where
-    R: AgentRegistry,
+    R: AgentTypeRegistry,
 {
     fn assemble_agent(
         &self,
@@ -244,8 +244,8 @@ pub(crate) mod tests {
     use super::*;
     use crate::agent_control::{agent_id::AgentID, run::on_host::AGENT_CONTROL_MODE_ON_HOST};
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::agent_type_registry::tests::MockAgentRegistry;
     use crate::agent_type::definition::AgentTypeDefinition;
+    use crate::agent_type::registry::tests::MockAgentTypeRegistry;
     use crate::values::yaml_config::YAMLConfig;
     use mockall::mock;
 
@@ -265,7 +265,7 @@ pub(crate) mod tests {
 
     impl<R> LocalEffectiveAgentsAssembler<R>
     where
-        R: AgentRegistry,
+        R: AgentTypeRegistry,
     {
         pub fn new_for_testing(registry: R) -> Self {
             Self {
@@ -281,7 +281,7 @@ pub(crate) mod tests {
     #[test]
     fn test_assemble_agents() {
         // Mocks
-        let mut registry = MockAgentRegistry::new();
+        let mut registry = MockAgentTypeRegistry::new();
 
         // Objects
         let agent_identity = AgentIdentity::from((
@@ -307,7 +307,7 @@ pub(crate) mod tests {
     #[test]
     fn test_assemble_agents_error_on_registry() {
         //Mocks
-        let mut registry = MockAgentRegistry::new();
+        let mut registry = MockAgentTypeRegistry::new();
 
         // Objects
         let agent_identity = AgentIdentity::from((

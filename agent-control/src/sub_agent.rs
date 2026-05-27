@@ -810,7 +810,7 @@ pub mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::definition::AgentTypeDefinition;
-    use crate::agent_type::embedded_registry::EmbeddedRegistry;
+    use crate::agent_type::registry::embedded::EmbeddedRegistry;
     use crate::agent_type::render::TemplateRenderer;
     use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::checkers::health::health_checker::{Healthy, Unhealthy};

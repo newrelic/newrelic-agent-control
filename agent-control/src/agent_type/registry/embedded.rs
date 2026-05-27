@@ -1,7 +1,5 @@
-use super::{
-    agent_type_registry::{AgentRegistry, AgentRepositoryError},
-    definition::AgentTypeDefinition,
-};
+use super::{AgentTypeRegistry, AgentTypeRegistryError};
+use crate::agent_type::definition::AgentTypeDefinition;
 use std::{collections::HashMap, fs, path::PathBuf};
 use tracing::{debug, error};
 
@@ -12,7 +10,7 @@ include!(concat!(
     env!("GENERATED_REGISTRY_FILE"), // Set in the agent-control build script
 ));
 
-/// Defines an [AgentRegistry] by keeping AgentTypeDefinitions in memory.
+/// Defines an [AgentTypeRegistry] by keeping AgentTypeDefinitions in memory.
 ///
 /// Its default implementation, loads the AgentTypeDefinitions from yaml files which are embedded into the binary
 /// at compilation time. Check out the agent-control build script for details.
@@ -25,12 +23,12 @@ impl Default for EmbeddedRegistry {
     }
 }
 
-impl AgentRegistry for EmbeddedRegistry {
-    fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentRepositoryError> {
+impl AgentTypeRegistry for EmbeddedRegistry {
+    fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentTypeRegistryError> {
         self.0
             .get(name)
             .cloned()
-            .ok_or(AgentRepositoryError::NotFound(name.to_string()))
+            .ok_or(AgentTypeRegistryError::NotFound(name.to_string()))
     }
 }
 
@@ -54,7 +52,7 @@ impl EmbeddedRegistry {
 
     fn try_new<T: IntoIterator<Item = AgentTypeDefinition>>(
         definitions_iter: T,
-    ) -> Result<Self, AgentRepositoryError> {
+    ) -> Result<Self, AgentTypeRegistryError> {
         let mut registry = Self(HashMap::new());
         definitions_iter
             .into_iter()
@@ -62,10 +60,10 @@ impl EmbeddedRegistry {
         Ok(registry)
     }
 
-    fn insert(&mut self, definition: AgentTypeDefinition) -> Result<(), AgentRepositoryError> {
+    fn insert(&mut self, definition: AgentTypeDefinition) -> Result<(), AgentTypeRegistryError> {
         let metadata = definition.agent_type_id.to_string();
         if self.0.contains_key(&metadata) {
-            return Err(AgentRepositoryError::AlreadyExists(metadata));
+            return Err(AgentTypeRegistryError::AlreadyExists(metadata));
         }
         self.0.insert(metadata, definition);
         Ok(())
@@ -190,7 +188,7 @@ pub mod tests {
         assert_eq!(definitions[1], agent_2);
 
         let err = registry.get("not-existent").unwrap_err();
-        assert_matches!(err, AgentRepositoryError::NotFound(_));
+        assert_matches!(err, AgentTypeRegistryError::NotFound(_));
     }
 
     #[test]
@@ -205,7 +203,7 @@ pub mod tests {
         assert!(registry.insert(definition).is_ok());
 
         let err = registry.insert(duplicate).unwrap_err();
-        assert_matches!(err, AgentRepositoryError::AlreadyExists(name) => {
+        assert_matches!(err, AgentTypeRegistryError::AlreadyExists(name) => {
             assert_eq!("ns/agent:0.0.0", name);
         })
     }
