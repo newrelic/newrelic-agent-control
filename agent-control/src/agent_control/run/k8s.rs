@@ -413,7 +413,7 @@ mod tests {
     }
 
     #[test]
-    fn test_start_settings_cd_remote_update_false_adds_k8s_config_only_capability() {
+    fn test_start_settings_cd_enabled_false_adds_k8s_config_only_capability() {
         let k8s_config = K8sConfig {
             cd_enabled: false,
             ..Default::default()

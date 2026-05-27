@@ -1,3 +1,6 @@
+#[cfg(unix)]
+use std::collections::HashSet;
+
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 
@@ -50,6 +53,45 @@ pub fn check_identifying_attributes_contains_expected(
         current_attributes.identifying_attributes.clone(),
     )
     .map_err(|e| format!("Identifying attributes missing required elements: {e}"))
+}
+
+#[cfg(unix)]
+/// Checks that the latest `CustomCapabilities` match the `expected`
+pub fn check_custom_capabilities_match(
+    opamp_server: &FakeServer,
+    instance_id: &InstanceID,
+    expected: HashSet<String>,
+) -> Result<(), String> {
+    let current = opamp_server
+        .get_custom_capabilities(instance_id.clone())
+        .ok_or_else(|| "Custom capabilities not reported yet".to_string())?;
+    let current: HashSet<String> = HashSet::from_iter(current.capabilities.clone());
+    if current != expected {
+        return Err(format!(
+            "custom capabilities don't match expected.  Expected: {:?}. Found: {:?}",
+            expected, current
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+/// Checks that the latest `Capabilities` match the `expected`
+pub fn check_capabilities_match_expected(
+    opamp_server: &FakeServer,
+    instance_id: &InstanceID,
+    expected: u64,
+) -> Result<(), String> {
+    let current = opamp_server
+        .get_capabilities(instance_id.clone())
+        .ok_or_else(|| "Capabilities not reported yet".to_string())?;
+
+    if current != expected {
+        return Err(format!(
+            "capabilities don't match. Expected: {expected:#b}, Found: {current:#b}"
+        ));
+    }
+    Ok(())
 }
 
 fn check_opamp_attributes(
