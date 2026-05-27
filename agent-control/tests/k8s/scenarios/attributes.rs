@@ -24,6 +24,7 @@ use newrelic_agent_control::opamp::remote_config::signature::SIGNATURE_CUSTOM_CA
 use nix::unistd::gethostname;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
+use std::collections::HashSet;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -126,7 +127,7 @@ agents:
         check_custom_capabilities_match(
             &server,
             &instance_id,
-            vec![SIGNATURE_CUSTOM_CAPABILITY.to_string()],
+            HashSet::from([SIGNATURE_CUSTOM_CAPABILITY.to_string()]),
         )?;
         Ok(())
     });
@@ -191,7 +192,7 @@ agents:
         check_custom_capabilities_match(
             &server,
             &instance_id_sub_agent,
-            vec![SIGNATURE_CUSTOM_CAPABILITY.to_string()],
+            HashSet::from([SIGNATURE_CUSTOM_CAPABILITY.to_string()]),
         )?;
         Ok(())
     })
@@ -231,10 +232,10 @@ fn k8s_test_custom_capabilities_when_cd_disabled() {
         check_custom_capabilities_match(
             &server,
             &instance_id,
-            vec![
+            HashSet::from([
                 SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                 K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY.to_string(),
-            ],
+            ]),
         )?;
         Ok(())
     })
