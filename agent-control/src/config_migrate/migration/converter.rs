@@ -1,4 +1,4 @@
-use crate::agent_type::agent_type_registry::AgentRepositoryError;
+use crate::agent_type::registry::AgentTypeRegistryError;
 use crate::config_migrate::migration::config::{FileInfo, MappingType};
 use crate::config_migrate::migration::{
     agent_value_spec::AgentValueError,
@@ -17,7 +17,7 @@ use tracing::debug;
 #[derive(Error, Debug)]
 pub enum ConversionError {
     #[error("{0}")]
-    Repository(#[from] AgentRepositoryError),
+    Registry(#[from] AgentTypeRegistryError),
     #[error("{0}")]
     FileSystem(io::Error),
     #[error("{0}")]

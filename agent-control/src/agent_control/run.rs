@@ -5,7 +5,7 @@ use super::defaults::{
 use crate::agent_control::config::AgentControlConfig;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::http_server::runner::Runner;
-use crate::agent_type::embedded_registry::EmbeddedRegistry;
+use crate::agent_type::registry::embedded::EmbeddedRegistry;
 use crate::command::RunnerContext;
 use crate::data_store::DataStore;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;

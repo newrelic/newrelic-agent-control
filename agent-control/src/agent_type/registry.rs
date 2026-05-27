@@ -1,9 +1,11 @@
+pub mod embedded;
+
 use thiserror::Error;
 
 use super::definition::AgentTypeDefinition;
 
 #[derive(Error, Debug)]
-pub enum AgentRepositoryError {
+pub enum AgentTypeRegistryError {
     #[error("agent type {0} not found")]
     NotFound(String),
     #[error("agent {0} already exists")]
@@ -14,11 +16,11 @@ pub enum AgentRepositoryError {
     ValueConversion(#[from] serde_json::Error),
 }
 
-/// AgentRegistry stores and loads Agent types.
-pub trait AgentRegistry {
+/// AgentTypeRegistry stores and loads Agent types.
+pub trait AgentTypeRegistry {
     // get returns an Agent type given a definition.
     // TODO: evaluate if returning an owned value is needed, CoW?
-    fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentRepositoryError>;
+    fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentTypeRegistryError>;
 }
 
 #[cfg(test)]
@@ -29,14 +31,14 @@ pub mod tests {
 
     // Mock
     mock! {
-        pub AgentRegistry {}
+        pub AgentTypeRegistry {}
 
-        impl AgentRegistry for AgentRegistry  {
-            fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentRepositoryError>;
+        impl AgentTypeRegistry for AgentTypeRegistry  {
+            fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentTypeRegistryError>;
         }
     }
 
-    impl MockAgentRegistry {
+    impl MockAgentTypeRegistry {
         pub fn should_get(&mut self, name: String, final_agent: &AgentTypeDefinition) {
             let final_agent = final_agent.clone();
             self.expect_get()
@@ -49,7 +51,7 @@ pub mod tests {
             self.expect_get()
                 .with(predicate::eq(name.clone()))
                 .once()
-                .returning(move |_| Err(AgentRepositoryError::NotFound(name.clone())));
+                .returning(move |_| Err(AgentTypeRegistryError::NotFound(name.clone())));
         }
     }
 }

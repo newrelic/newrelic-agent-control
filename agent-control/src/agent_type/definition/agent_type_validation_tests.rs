@@ -14,8 +14,7 @@ use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::{
     agent_control::{agent_id::AgentID, run::Environment},
     agent_type::{
-        agent_type_registry::AgentRegistry,
-        embedded_registry::EmbeddedRegistry,
+        registry::{AgentTypeRegistry, embedded::EmbeddedRegistry},
         render::{TemplateRenderer, tests::testing_agent_attributes},
         variable::{Variable, namespace::Namespace},
     },
