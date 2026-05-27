@@ -3,20 +3,11 @@ name: com.newrelic.opentelemetry.collector
 version: 0.1.0
 variables:
   linux:
-    nr_account_id:
-      description: "New Relic account ID for flow data ingestion"
-      type: string
-      required: true
-    container_name:
-      description: "Name of the Docker container running ktranslate"
+    agent_dir:
+      description: "Base directory where the discovery agent binary and model are located"
       type: string
       required: false
-      default: "ktranslate-flow"
-    flow_port:
-      description: "UDP port to listen for network flow data (NetFlow/sFlow/IPFIX)"
-      type: number
-      required: false
-      default: 9995
+      default: "/tmp"
     backoff_delay:
       description: "seconds until next retry if agent fails to start"
       type: string
@@ -29,35 +20,22 @@ deployment:
       initial_delay: 60s
       timeout: 10s
       cmd:
-        command: "docker inspect --format='{{.State.Running}}' ${nr-var:container_name}"
+        command: "${nr-var:agent_dir}/nr-classifier-discovery-agent --model ${nr-var:agent_dir}/classifier.bin --scan --format json"
         healthy_codes: [ 0 ]
     version:
-      path: /usr/bin/docker
+      path: ${nr-var:agent_dir}/nr-classifier-discovery-agent
       args:
-        - inspect
-        - --format={{.Config.Image}}
-        - ${nr-var:container_name}
+        - --version
       regex: v\d+
     executables:
-      - id: ktranslate-flow
-        path: /usr/bin/docker
+      - id: nr-classifier-discovery-agent
+        path: ${nr-var:agent_dir}/nr-classifier-discovery-agent
         args:
-          - run
-          - --name=${nr-var:container_name}
-          - --rm
-          - --net=host
-          - -e
-          - NEW_RELIC_API_KEY=${nr-env:NEW_RELIC_LICENSE_KEY}
-          - kentik/ktranslate:v2
-          - -nr_account_id=${nr-var:nr_account_id}
-          - -metrics=jchf
-          - -tee_logs=true
-          - -flow_only=true
-          - -nf.port=${nr-var:flow_port}
-          - -service_name=${nr-var:container_name}
-          - nr1.flow
-        env:
-          OTEL_RESOURCE_ATTRIBUTES: "host.id=${nr-ac:host_id}"
+          - --model
+          - ${nr-var:agent_dir}/classifier.bin
+          - --scan
+          - --format
+          - json
         restart_policy:
           backoff_strategy:
             type: fixed
