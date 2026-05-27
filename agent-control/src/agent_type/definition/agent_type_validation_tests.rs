@@ -381,19 +381,14 @@ static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
                 (
                     "check all value types are correct",
                     r#"
-                nr_account_id: "12345"
-                container_name: "ktranslate-test"
-                flow_port: 9996
                 backoff_delay: "10s"
                 "#,
                 ),
             ]),
-            additional_env: HashMap::from([
-                (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
-                    Variable::new_final_string_variable("abcd1234".to_string()),
-                ),
-            ]),
+            additional_env: HashMap::from([(
+                Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
+                Variable::new_final_string_variable("abcd1234".to_string()),
+            )]),
         }
         .into(),
         ..Default::default()
@@ -408,19 +403,14 @@ static AGENT_TYPE_OTEL_COLLECTOR_OLD: LazyLock<AgentTypeValuesTestCase> =
                 (
                     "check all value types are correct",
                     r#"
-                nr_account_id: "12345"
-                container_name: "ktranslate-test"
-                flow_port: 9996
                 backoff_delay: "10s"
                 "#,
                 ),
             ]),
-            additional_env: HashMap::from([
-                (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
-                    Variable::new_final_string_variable("abcd1234".to_string()),
-                ),
-            ]),
+            additional_env: HashMap::from([(
+                Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
+                Variable::new_final_string_variable("abcd1234".to_string()),
+            )]),
         }
         .into(),
         ..Default::default()
