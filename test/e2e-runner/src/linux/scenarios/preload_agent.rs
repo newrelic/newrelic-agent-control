@@ -71,8 +71,8 @@ deployment:
       preload-agent:
         download:
           oci:
-            repository: ${{nr-var:oci.repository}}
-            version: ${{nr-var:version}}
+            repository: ${nr-var:oci.repository}
+            version: ${nr-var:version}
             public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrpreloadagent/jwks.json
 "#;
     exec_bash_command(&format!("mkdir -p {DYNAMIC_AGENT_TYPES_DIR}"))
