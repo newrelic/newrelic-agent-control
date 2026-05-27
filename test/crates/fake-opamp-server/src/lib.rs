@@ -1,3 +1,5 @@
+pub mod admin;
+
 use actix_web::{App, HttpResponse, HttpServer, web};
 use aws_lc_rs::digest;
 use aws_lc_rs::rand::SystemRandom;
@@ -22,27 +24,27 @@ use tokio::task::JoinHandle;
 
 pub use opamp_client::operation::instance_uid::InstanceUid as InstanceID;
 
-const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
-const JWKS_SERVER_PATH: &str = "/jwks";
-const JWKS_PUBLIC_KEY_ID: &str = "fakeKeyName/0";
+pub const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
+pub const JWKS_SERVER_PATH: &str = "/jwks";
+pub(crate) const JWKS_PUBLIC_KEY_ID: &str = "fakeKeyName/0";
 const AGENT_CONFIG_PREFIX: &str = "agentConfig";
 const SIGNATURE_CUSTOM_CAPABILITY: &str = "com.newrelic.security.configSignature";
 const SIGNATURE_CUSTOM_MESSAGE_TYPE: &str = "newrelicRemoteConfigSignature";
 const ED25519_ALG: &str = "ED25519";
 
-struct ServerState {
-    agent_state: HashMap<InstanceUid, AgentState>,
-    key_pair: Ed25519KeyPair,
+pub(crate) struct ServerState {
+    pub(crate) agent_state: HashMap<InstanceUid, AgentState>,
+    pub(crate) key_pair: Ed25519KeyPair,
 }
 
 #[derive(Default)]
-struct AgentState {
-    sequence_number: u64,
-    health_status: Option<ComponentHealth>,
-    attributes: AgentDescription,
-    remote_config: Option<RemoteConfig>,
-    effective_config: EffectiveConfig,
-    config_status: RemoteConfigStatus,
+pub(crate) struct AgentState {
+    pub(crate) sequence_number: u64,
+    pub(crate) health_status: Option<ComponentHealth>,
+    pub(crate) attributes: AgentDescription,
+    pub(crate) remote_config: Option<RemoteConfig>,
+    pub(crate) effective_config: EffectiveConfig,
+    pub(crate) config_status: RemoteConfigStatus,
 }
 
 impl ServerState {
@@ -52,11 +54,19 @@ impl ServerState {
             key_pair: generate_key_pair(),
         }
     }
+
+    /// Sets the pending remote config for the given agent, overwriting any previous one.
+    fn set_multi_config(&mut self, identifier: InstanceUid, config_map: HashMap<String, String>) {
+        self.agent_state
+            .entry(identifier)
+            .or_default()
+            .remote_config = Some(RemoteConfig::new(config_map));
+    }
 }
 
 /// Represents a remote configuration that can be sent to the agent.
 #[derive(Clone, Debug, Default)]
-pub struct RemoteConfig(AgentRemoteConfig);
+pub struct RemoteConfig(pub(crate) AgentRemoteConfig);
 
 impl RemoteConfig {
     pub fn new(config_map: HashMap<String, String>) -> Self {
@@ -147,6 +157,16 @@ impl FakeServer {
     /// Starts the server on a random port, spawning the HTTP task on the provided runtime handle.
     pub fn start(handle: &tokio::runtime::Handle) -> Self {
         let listener = net::TcpListener::bind("0.0.0.0:0").unwrap();
+        Self::start_with_listener(listener, handle)
+    }
+
+    /// Starts the server on the given (already-bound) listener, spawning the HTTP task on the
+    /// provided runtime handle. Useful when the caller needs to choose the bind address (e.g. the
+    /// standalone binary).
+    pub fn start_with_listener(
+        listener: net::TcpListener,
+        handle: &tokio::runtime::Handle,
+    ) -> Self {
         let port = listener.local_addr().unwrap().port();
         let state = Arc::new(Mutex::new(ServerState::generate()));
         let join_handle = handle.spawn(Self::run_http_server(listener, state.clone()));
@@ -173,7 +193,16 @@ impl FakeServer {
                 .app_data(web::Data::new(state.clone()))
                 .service(web::resource(FAKE_SERVER_PATH).to(opamp_handler))
                 .service(web::resource(JWKS_SERVER_PATH).to(jwks_handler))
+                .service(
+                    web::resource(admin::ADMIN_STATE_PATH)
+                        .route(web::get().to(admin::get_state_handler)),
+                )
+                .service(
+                    web::resource(admin::ADMIN_CONFIG_PATH)
+                        .route(web::post().to(admin::set_config_handler)),
+                )
         })
+        .disable_signals()
         .listen(listener)
         .unwrap_or_else(|err| panic!("Could not bind the HTTP server to the listener: {err}"))
         .run()
@@ -188,15 +217,13 @@ impl FakeServer {
         identifier: impl Into<InstanceUid>,
         response: impl AsRef<str>,
     ) {
-        let mut state = self.state.lock().unwrap();
-        state
-            .agent_state
-            .entry(identifier.into())
-            .or_default()
-            .remote_config = Some(RemoteConfig::new(HashMap::from([(
-            AGENT_CONFIG_PREFIX.to_string(),
-            response.as_ref().to_string(),
-        )])));
+        self.state.lock().unwrap().set_multi_config(
+            identifier.into(),
+            HashMap::from([(
+                AGENT_CONFIG_PREFIX.to_string(),
+                response.as_ref().to_string(),
+            )]),
+        );
     }
 
     /// Same as `set_config_response` but accepts multiple config keys.
@@ -205,12 +232,10 @@ impl FakeServer {
         identifier: impl Into<InstanceUid>,
         config_map: HashMap<String, String>,
     ) {
-        let mut state = self.state.lock().unwrap();
-        state
-            .agent_state
-            .entry(identifier.into())
-            .or_default()
-            .remote_config = Some(RemoteConfig::new(config_map));
+        self.state
+            .lock()
+            .unwrap()
+            .set_multi_config(identifier.into(), config_map);
     }
 
     pub fn get_health_status(&self, identifier: impl Into<InstanceUid>) -> Option<ComponentHealth> {
