@@ -142,7 +142,20 @@ namespace: test
 name: test
 version: 0.0.0
 variables:
-  common:
+  linux:
+    yaml_file_contents:
+      description: "Contents of the YAML file"
+      type: yaml
+      required: true
+    some_string:
+      description: "Contents of an arbitrary string file"
+      type: string
+      required: true
+    some_mapstringyaml:
+      description: "A directory structure"
+      type: map[string]yaml
+      required: true
+  windows:
     yaml_file_contents:
       description: "Contents of the YAML file"
       type: yaml
@@ -308,7 +321,20 @@ namespace: test
 name: infra-agent
 version: 0.0.0
 variables:
-  common:
+  linux:
+    config_agent:
+      description: "Agent configuration"
+      type: yaml
+      required: true
+    config_integrations:
+      description: "Integrations configuration"
+      type: yaml
+      required: true
+    config_logging:
+      description: "Logging configuration"
+      type: yaml
+      required: true
+  windows:
     config_agent:
       description: "Agent configuration"
       type: yaml

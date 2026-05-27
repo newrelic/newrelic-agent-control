@@ -60,7 +60,7 @@ impl Display for CustomAgentType {
             serde_saphyr::from_str(&content).unwrap();
         let mut variables = serde_json::Map::<String, serde_json::Value>::new();
         if let Some(v) = self.variables.as_ref() {
-            variables.insert("common".into(), v.clone());
+            variables.insert(AGENT_CONTROL_MODE_ON_HOST.to_string(), v.clone());
         }
         let mut deployment_content = serde_json::Map::<String, serde_json::Value>::new();
         if let Some(executables) = self.executables.as_ref() {

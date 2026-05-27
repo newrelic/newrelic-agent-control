@@ -951,7 +951,13 @@ name: default
 namespace: default
 version: 0.0.1
 variables:
-  common:
+  linux:
+    var:
+      description: "fake"
+      type: string
+      required: false
+      default: ""
+  windows:
     var:
       description: "fake"
       type: string
@@ -978,13 +984,22 @@ name: default
 namespace: default
 version: 0.0.1
 variables:
-  common:
+  linux:
+    var:
+      description: "fake"
+      type: string
+      required: true
+  windows:
     var:
       description: "fake"
       type: string
       required: true
 deployment:
   linux:
+    executables:
+      - id: exec
+        path: ${nr-var:var}
+  windows:
     executables:
       - id: exec
         path: ${nr-var:var}

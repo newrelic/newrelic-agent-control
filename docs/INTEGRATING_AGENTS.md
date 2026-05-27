@@ -27,7 +27,7 @@ version: 0.1.0
 
 ### Agent Type Variables
 
-This section, defined under the top-level field `variables`, enables the dynamic configuration of the workload created by AC by exposing arbitrary variables. The variables are grouped into three main sections: `common`, `linux` and `k8s`. Inside these, the variables can be arbitrarily grouped into common fields forming a tree, where the final leaf will determine the actual variable, its type and its allowed contents.
+This section, defined under the top-level field `variables`, enables the dynamic configuration of the workload created by AC by exposing arbitrary variables. The variables are grouped into per-environment sections: `linux`, `windows` and `k8s`. Inside these, the variables can be arbitrarily grouped into common fields forming a tree, where the final leaf will determine the actual variable, its type and its allowed contents.
 
 Defining variables is entirely optional, but if no variables are defined then no dynamic configuration will be possible for this sub-agent, AC will be only capable of adding or removing it as a workload using its deployment instructions and at most the environment variables available to AC at the time it's running (see the [deployment](#agent-type-deployment) section below).
 
@@ -70,7 +70,7 @@ variables:
       required: true
 ```
 
-See that we don't have a `common` section, for `linux` we define a single variable called `config_agent`, while inside `k8s` we have a field `chart_values` that defines three variables inside (`newrelic-infrastructure`, `nri-metadata-injection` and `global`) while a remaining variable `chart_version` is outside, as another top-level field for the `k8s` section.
+For `linux` we define a single variable called `config_agent`, while inside `k8s` we have a field `chart_values` that defines three variables inside (`newrelic-infrastructure`, `nri-metadata-injection` and `global`) while a remaining variable `chart_version` is outside, as another top-level field for the `k8s` section.
 
 When referencing these variables elsewhere, as you will see in the [deployment](#agent-type-deployment) and [applying configuration](#applying-configurations) sections, you would access these nested fields using a dot (`.`), as usual for accessing fields in programming languages. For our example, we would use `chart_values.newrelic-infrastructure` `chart_values.nri-metadata-injection` `chart_values.global` and `chart_version` respectively.
 
