@@ -59,3 +59,6 @@ coverage/
 
 # zig compiler
 .zig-cache/
+
+# vscode config dir
+.vscode/

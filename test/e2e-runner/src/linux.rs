@@ -35,6 +35,9 @@ pub fn run_linux_e2e() {
         LinuxScenarios::NrdotAgent(args) => {
             scenarios::nrdot_agent::test_nrdot_agent(args);
         }
+        LinuxScenarios::PreloadAgent(args) => {
+            scenarios::preload_agent::test_installation_with_preload_agent(args);
+        }
         LinuxScenarios::RemoteConfig(args) => {
             scenarios::remote_config::test_remote_config_is_applied(args);
         }

@@ -30,6 +30,8 @@ enum LinuxScenarios {
     EBPFAgent(InstallationArgs),
     /// Local installation of Agent Control with NRDot. It checks that nr-dot eventually reports data.
     NrdotAgent(InstallationArgs),
+    /// Local installation of Agent Control with Preload Agent. It checks that the preload-agent eventually reports data.
+    PreloadAgent(InstallationArgs),
     /// Checks that remote configuration for a sub-agent has been applied.
     RemoteConfig(InstallationArgs),
     /// Checks that the Agent Control proxy support works as expected. It uses mitproxy as a docker service.
