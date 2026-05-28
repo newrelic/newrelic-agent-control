@@ -19,16 +19,28 @@ variables:
       type: string
       required: false
       default: "pipeline-control-gateway"
+    daemonset_name:
+      description: "Name of the pipeline control daemonset for health-checks (used when PCG is deployed as a DaemonSet via daemonset.enabled=true)"
+      type: string
+      required: false
+      default: "pipeline-control-gateway-daemonset"
 
 deployment:
   k8s:
     health:
       interval: 30s
       initial_delay: 15s
+      # Both checks coexist: PCG's chart renders either a Deployment or a DaemonSet (mutually
+      # exclusive via daemonset.enabled). The unused workload simply isn't found by name and the
+      # corresponding check is treated as healthy, so the agent reports healthy in both modes.
       checks:
         - namespace: ${nr-ac:namespace_agents}
           name: ${nr-var:deployment_name}
           kind: Deployment
+          target_namespace: ${nr-ac:namespace_agents}
+        - namespace: ${nr-ac:namespace_agents}
+          name: ${nr-var:daemonset_name}
+          kind: DaemonSet
           target_namespace: ${nr-ac:namespace_agents}
     objects:
       config:
