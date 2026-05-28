@@ -17,6 +17,8 @@ pub fn local_config_path(agent_id: &str) -> String {
 
 const DEFAULT_LOG_PATH: &str = "/var/log/newrelic-agent-control/agent-control/";
 
+pub const AGENT_CONTROL_DATA_DIR: &str = "/var/lib/newrelic-agent-control";
+
 const SERVICE_NAME: &str = "newrelic-agent-control";
 
 /// Run Linux e2e corresponding scenario which will panic on failure
