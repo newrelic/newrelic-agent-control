@@ -6,11 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Unreleased section should follow [Release Toolkit](https://github.com/newrelic/release-toolkit/blob/main/README.md).
 
+Remember that the keywords that you can use are the following:
+ - breaking    => Major
+ - security    => Minor
+ - enhancement => Minor
+ - bugfix      => Patch
+
 ## Unreleased
 
 ### bugfix
 
 - Add DaemonSet health-check in pipeline-control-gateway-config Agent Type
+- pcg_config: revert agentType config
 
 ## v1.15.1 - 2026-05-26
 
