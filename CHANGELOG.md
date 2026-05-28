@@ -8,6 +8,10 @@ Unreleased section should follow [Release Toolkit](https://github.com/newrelic/r
 
 ## Unreleased
 
+### bugfix
+
+- Add DaemonSet health-check in pipeline-control-gateway-config Agent Type
+
 ## v1.15.1 - 2026-05-26
 
 ### 🐞 Bug fixes
