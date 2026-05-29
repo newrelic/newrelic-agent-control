@@ -14,10 +14,16 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
-### bugfix
+## v1.15.2 - 2026-05-29
 
+### 🐞 Bug fixes
 - Add DaemonSet health-check in pipeline-control-gateway-config Agent Type
 - pcg_config: revert agentType config
+
+### ⛓️ Dependencies
+- Updated rust crate opentelemetry_sdk to 0.32.1
+- Updated rust crate serde-saphyr to 0.0.27
+- Updated rust to v1.96.0
 
 ## v1.15.1 - 2026-05-26
 
