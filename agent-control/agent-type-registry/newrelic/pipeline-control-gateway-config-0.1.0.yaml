@@ -3,12 +3,10 @@ name: com.newrelic.pipeline_control_gateway_config
 version: 0.1.0
 variables:
   k8s:
-    chart_values:
-      gateway:
-        generated:
-          description: "OTel Collector configuration for the Pipeline Control Gateway"
-          type: yaml
-          required: true
+    config:
+      description: "OTel Collector configuration for the Pipeline Control Gateway"
+      type: yaml
+      required: true
     config_map_name:
       description: "Name of the ConfigMap that AC creates and PCG mounts as its configuration source"
       type: string
@@ -51,7 +49,7 @@ deployment:
           namespace: ${nr-ac:namespace_agents}
         data:
           deployment-config.yaml: |
-            ${nr-var:chart_values.gateway.generated}
+            ${nr-var:config}
           # This is required as it is also defined in:
           # https://github.com/newrelic/helm-charts/blob/8c3b88bdf03e600aec8a5d94bab80635b4eec671/charts/pipeline-control-gateway/templates/deployment-configmap.yaml#L7
           gateway-config.yaml: |

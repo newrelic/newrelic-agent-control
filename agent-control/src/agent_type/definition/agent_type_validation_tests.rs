@@ -561,29 +561,25 @@ static AGENT_TYPE_PIPELINE_CONTROL_GATEWAY_CONFIG: LazyLock<AgentTypeValuesTestC
                 (
                     "mandatory fields only",
                     r#"
-                chart_values:
-                  gateway:
-                    generated:
-                      receivers:
+                config:
+                    receivers:
                         otlp: {}
                 "#,
                 ),
                 (
                     "check all value types are correct",
                     r#"
-                chart_values:
-                  gateway:
-                    generated:
-                      receivers:
+                config:
+                    receivers:
                         otlp: {}
-                      exporters:
+                    exporters:
                         otlp:
-                          endpoint: "otlp.nr-data.net:4317"
-                      service:
+                            endpoint: "otlp.nr-data.net:4317"
+                    service:
                         pipelines:
-                          traces:
-                            receivers: [otlp]
-                            exporters: [otlp]
+                            traces:
+                                receivers: [otlp]
+                                exporters: [otlp]
                 config_map_name: "my-otel-config"
                 "#,
                 ),
