@@ -4,6 +4,7 @@ use crate::agent_control::defaults::PACKAGES_FOLDER_NAME;
 use crate::package::manager::{InstalledPackageData, PackageData, PackageManager};
 use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::package::oci::downloader::OCIArtifactDownloader;
+use crate::package::postdownload_executor::PostdownloadExecutor;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file::LocalFile;
 use fs::file::reader::FileReader;
@@ -13,7 +14,7 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 use thiserror::Error;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 pub type DefaultOCIPackageManager = OCIPackageManager<OCIArtifactDownloader, DirectoryManagerFs>;
 
@@ -105,6 +106,20 @@ where
 
         self.extract_package(&downloaded_package, install_path)
             .inspect_err(|e| warn!("OCI package installation failed: {}", e))?;
+
+        if let Some(postdownload) = &package_data.oci.postdownload {
+            info!(
+                "Executing postdownload script for package {}",
+                package_data.id
+            );
+            let executor = PostdownloadExecutor::new(install_path.to_path_buf());
+            executor.execute(postdownload).map_err(|e| {
+                OCIPackageManagerError::Install(io::Error::other(format!(
+                    "Postdownload script failed: {}",
+                    e
+                )))
+            })?;
+        }
 
         debug!("OCI package installed at {}", install_path.display());
         Ok(InstalledPackageData {
@@ -401,6 +416,7 @@ mod tests {
                 )
                 .unwrap(),
                 public_key_url: None,
+                postdownload: None,
             },
         }
     }
@@ -416,6 +432,7 @@ mod tests {
                 repository: Repository::from_str("newrelic/fake-agent").unwrap(),
                 version: Version::from_str(version).unwrap(),
                 public_key_url: None,
+                postdownload: None,
             },
         }
     }

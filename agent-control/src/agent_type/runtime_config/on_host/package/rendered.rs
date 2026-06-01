@@ -1,4 +1,4 @@
-use std::{fmt::Display, str::FromStr};
+use std::{fmt::Display, str::FromStr, time::Duration};
 
 use oci_client::Reference;
 use serde::{Deserialize, Serialize};
@@ -26,6 +26,18 @@ pub struct Oci {
     pub repository: Repository,
     pub version: Version,
     pub public_key_url: Option<Url>,
+    pub postdownload: Option<Postdownload>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Postdownload {
+    /// Arguments where first element is the command/executable, followed by arguments.
+    /// Example: ["bash", "./scripts/postdownload.sh", "-e"]
+    pub args: Vec<String>,
+    /// Environmental variables
+    pub env: std::collections::HashMap<String, String>,
+    /// Timeout duration
+    pub timeout: Duration,
 }
 
 const DEFAULT_TAG: &str = "latest";
@@ -268,6 +280,7 @@ mod tests {
                 repository: Repository::from_str(repository).unwrap(),
                 version: Version::from_str(version).unwrap(),
                 public_key_url: None,
+                postdownload: None,
             };
             let reference = oci.to_reference(&registry);
             assert_eq!(expected_whole, reference.whole());
