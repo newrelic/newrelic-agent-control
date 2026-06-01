@@ -203,6 +203,7 @@ pub mod tests {
                 repository: Repository::from_str(REPOSITORY).unwrap(),
                 version: Version::from_str(VERSION).unwrap(),
                 public_key_url,
+                postdownload: None,
             },
         }
     }
@@ -450,6 +451,7 @@ pub mod tests {
                 version: Version::from_str(&format!("v1.0.0@{}", oci_mock.manifest_digest()))
                     .unwrap(),
                 public_key_url: None,
+                postdownload: None,
             },
         };
 

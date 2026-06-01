@@ -33,6 +33,29 @@ pub struct Oci {
     pub version: TemplateableValue<String>,
     /// Public key url is expected to be a jwks.
     pub public_key_url: Option<TemplateableValue<String>>,
+    /// Postdownload script to execute after downloading and extracting the package.
+    /// All validations, checks, and installation steps should go here.
+    pub postdownload: Option<Postdownload>,
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub struct Postdownload {
+    /// Arguments where first element is the command/executable (e.g., "bash", "sh", "python3"),
+    /// followed by script path and additional arguments.
+    /// Example: ["bash", "./scripts/postdownload.sh", "-e"]
+    pub args: Vec<TemplateableValue<String>>,
+
+    /// Environmental variables passed to the process.
+    #[serde(default)]
+    pub env: std::collections::HashMap<String, TemplateableValue<String>>,
+
+    /// Maximum time to wait for the script to complete.
+    #[serde(default = "default_postdownload_timeout")]
+    pub timeout: TemplateableValue<String>,
+}
+
+fn default_postdownload_timeout() -> TemplateableValue<String> {
+    TemplateableValue::new("300s".to_string())
 }
 
 impl Templateable for Package {
@@ -78,11 +101,49 @@ impl Templateable for Oci {
                 AgentTypeError::OCIReferenceParsingError(format!("invalid public_key_url: {err}"))
             })?;
 
+        let postdownload = self
+            .postdownload
+            .map(|pd| pd.template_with(variables))
+            .transpose()?;
+
         Ok(Self::Output {
             repository,
             version,
             public_key_url,
+            postdownload,
         })
+    }
+}
+
+impl Templateable for Postdownload {
+    type Output = rendered::Postdownload;
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        let timeout_str = self.timeout.template_with(variables)?;
+
+        let args: Vec<String> = self
+            .args
+            .into_iter()
+            .map(|arg| arg.template_with(variables))
+            .collect::<Result<Vec<String>, AgentTypeError>>()?;
+
+        if args.is_empty() {
+            return Err(AgentTypeError::OCIReferenceParsingError(
+                "postdownload args cannot be empty, first element must be the command/executable"
+                    .to_string(),
+            ));
+        }
+
+        let env: std::collections::HashMap<String, String> = self
+            .env
+            .into_iter()
+            .map(|(k, v)| v.template_with(variables).map(|templated| (k, templated)))
+            .collect::<Result<std::collections::HashMap<_, _>, AgentTypeError>>()?;
+
+        let timeout = duration_str::parse(&timeout_str).map_err(|err| {
+            AgentTypeError::OCIReferenceParsingError(format!("invalid timeout format: {err}"))
+        })?;
+
+        Ok(Self::Output { args, env, timeout })
     }
 }
 
@@ -130,6 +191,7 @@ mod tests {
             public_key_url: public_key_url
                 .clone()
                 .map(|_| TemplateableValue::from_template("${nr-var:public-key}".to_string())),
+            postdownload: None,
         };
 
         let rendered_oci = oci.template_with(&variables).unwrap();

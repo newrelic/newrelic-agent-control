@@ -63,6 +63,7 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
             repository: Repository::from_str(reference.repository()).unwrap(),
             version: Version::from_str(reference.tag().unwrap()).unwrap(),
             public_key_url: None,
+            postdownload: None,
         },
     };
     let _ = downloader
@@ -136,6 +137,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
             repository: Repository::from_str(reference.repository()).unwrap(),
             version: Version::from_str(reference.tag().unwrap()).unwrap(),
             public_key_url: None,
+            postdownload: None,
         },
     };
     let result = downloader.download(&package_data, local_agent_data_dir);

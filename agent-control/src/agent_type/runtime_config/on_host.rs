@@ -167,6 +167,7 @@ mod tests {
                     public_key_url: Some(TemplateableValue::from_template(
                         "${nr-var:public-key-url}".to_string(),
                     )),
+                    postdownload: None,
                 },
             },
         };
