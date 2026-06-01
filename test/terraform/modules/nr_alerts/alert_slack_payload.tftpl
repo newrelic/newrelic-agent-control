@@ -1,0 +1,35 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "{{#if issueClosedAt}}✅ Alert Closed{{else}}🔴 Alert Open{{/if}}"
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Condition:*\n{{escape accumulations.conditionName.[0]}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Priority:*\n{{priority}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Instance:*\n${instance_id}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Status:*\n{{#if issueClosedAt}}CLOSED{{else}}OPEN{{/if}}"
+        }
+      ]
+    }
+  ]
+}
