@@ -16,7 +16,7 @@ include!(concat!(
 /// Its default implementation, loads the AgentTypeDefinitions from yaml files which are embedded into the binary
 /// at compilation time. Check out the agent-control build script for details.
 #[derive(Debug)]
-pub struct EmbeddedRegistry(HashMap<String, AgentTypeDefinition>);
+pub struct EmbeddedRegistry(HashMap<AgentTypeID, AgentTypeDefinition>);
 
 impl Default for EmbeddedRegistry {
     fn default() -> Self {
@@ -29,11 +29,10 @@ impl AgentTypeRegistry for EmbeddedRegistry {
         &self,
         agent_type_id: &AgentTypeID,
     ) -> Result<AgentTypeDefinition, AgentTypeRegistryError> {
-        let fqn = agent_type_id.to_string();
         self.0
-            .get(&fqn)
+            .get(agent_type_id)
             .cloned()
-            .ok_or(AgentTypeRegistryError::NotFound(fqn))
+            .ok_or_else(|| AgentTypeRegistryError::NotFound(agent_type_id.to_string()))
     }
 }
 
@@ -48,9 +47,9 @@ impl EmbeddedRegistry {
         Self::dynamic_agent_type(dynamic_agent_type_path)
             .iter()
             .for_each(|agent_type| {
-                let metadata = agent_type.agent_type_id.to_string();
-                debug!("Storing dynamic agent type: {}", metadata);
-                registry.0.insert(metadata, agent_type.clone());
+                let id = agent_type.agent_type_id.clone();
+                debug!("Storing dynamic agent type: {}", id);
+                registry.0.insert(id, agent_type.clone());
             });
         registry
     }
@@ -66,11 +65,11 @@ impl EmbeddedRegistry {
     }
 
     fn insert(&mut self, definition: AgentTypeDefinition) -> Result<(), AgentTypeRegistryError> {
-        let metadata = definition.agent_type_id.to_string();
-        if self.0.contains_key(&metadata) {
-            return Err(AgentTypeRegistryError::AlreadyExists(metadata));
+        let id = definition.agent_type_id.clone();
+        if self.0.contains_key(&id) {
+            return Err(AgentTypeRegistryError::AlreadyExists(id.to_string()));
         }
-        self.0.insert(metadata, definition);
+        self.0.insert(id, definition);
         Ok(())
     }
 
@@ -161,9 +160,9 @@ pub mod tests {
             "expected one AgentTypeDefinition for each file"
         );
 
-        // The expected key for each definition should be the metadata string
+        // The key for each definition should be its agent type id
         for (key, definition) in registry.0.iter() {
-            assert_eq!(key.to_string(), definition.agent_type_id.to_string())
+            assert_eq!(key, &definition.agent_type_id)
         }
 
         let registry_nonexistent_dynamic =
