@@ -1,25 +1,24 @@
 namespace: newrelic
 name: com.newrelic.bar-cr-agent
 version: 0.0.1
+platform: kubernetes
 variables:
-  k8s:
-    data:
-      description: "bar data"
-      type: string
-      required: false
-      default: "default"
+  data:
+    description: "bar data"
+    type: string
+    required: false
+    default: "default"
 deployment:
-  k8s:
-    health:
-      interval: 5s
-    objects:
-      bar_cr:
-        # This CRD is created in the cluster when initializing the test environment.
-        apiVersion: newrelic.com/v1
-        kind: Bar
-        metadata:
-          name: ${nr-sub:agent_id}
-          namespace: ${nr-ac:namespace}
-        spec:
-          data: ${nr-var:data}
+  health:
+    interval: 5s
+  objects:
+    bar_cr:
+      # This CRD is created in the cluster when initializing the test environment.
+      apiVersion: newrelic.com/v1
+      kind: Bar
+      metadata:
+        name: ${nr-sub:agent_id}
+        namespace: ${nr-ac:namespace}
+      spec:
+        data: ${nr-var:data}
 
