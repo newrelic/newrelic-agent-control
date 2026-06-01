@@ -1,9 +1,7 @@
 //! # Runtime config module
 //!
-//! This module defines the runtime configuration for agents, including their deployment details
-//! and associated configurations. It provides structures and implementations for deserializing
-//! and templating runtime configurations, ensuring that the deployment information is valid and
-//! complete.
+//! This module defines the deployment instructions of an agent type and the templating logic
+//! that turns the parsed deployment into its rendered form.
 pub mod health_config;
 pub mod k8s;
 pub mod on_host;
@@ -17,103 +15,33 @@ use super::error::AgentTypeError;
 use super::templates::Templateable;
 use k8s::K8s;
 use on_host::OnHost;
-use serde::Deserialize;
 
-/// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
-#[serde(deny_unknown_fields)]
+/// Strict structure that describes how to start a given agent with all needed binaries,
+/// arguments, env, etc.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Runtime {
     pub deployment: Deployment,
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct Deployment {
-    pub windows: Option<OnHost>,
-    pub linux: Option<OnHost>,
-    pub k8s: Option<K8s>,
-}
-
-impl<'de> Deserialize<'de> for Deployment {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct DeploymentInner {
-            #[serde(default)]
-            linux: Option<OnHost>,
-            #[serde(default)]
-            windows: Option<OnHost>,
-            #[serde(default)]
-            k8s: Option<K8s>,
-        }
-        // Deployment cannot have both fields empty
-        let DeploymentInner {
-            linux,
-            windows,
-            k8s,
-        } = DeploymentInner::deserialize(deserializer)?;
-
-        if windows.is_none() && linux.is_none() && k8s.is_none() {
-            Err(serde::de::Error::custom(
-                "field `deployment` must have at least one of the fields `linux`, windows or `k8s`",
-            ))
-        } else {
-            Ok(Deployment {
-                linux,
-                windows,
-                k8s,
-            })
-        }
-    }
+/// Deployment of an agent type. Each variant carries the shape-specific config for that
+/// target.
+#[derive(Debug, Clone, PartialEq)]
+#[allow(clippy::large_enum_variant)]
+pub enum Deployment {
+    Host(OnHost),
+    K8s(K8s),
 }
 
 impl Templateable for Deployment {
     type Output = rendered::Deployment;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        /*
-        `self.on_host` has type `Option<OnHost>`
-
-        let t = self.on_host.map(|o| o.template_with(variables)); `t` has type `Option<Result<OnHost, AgentTypeError>>`
-
-        Let's visit all the possibilities of `t`.
-        When I do `t.transpose()`, which takes an Option<Result<_,_>> and returns a Result<Option<_>,_>, this is what happens:
-
-        ```
-        match t {
-            None => Ok(None),
-            Some(Ok(on_host)) => Ok(Some(on_host)),
-            Some(Err(e)) => Err(e),
+        match self {
+            Deployment::Host(on_host) => Ok(rendered::Deployment::Host(
+                on_host.template_with(variables)?,
+            )),
+            Deployment::K8s(k8s) => Ok(rendered::Deployment::K8s(k8s.template_with(variables)?)),
         }
-        ```
-
-        In words:
-        - None will be mapped to Ok(None).
-        - Some(Ok(_)) will be mapped to Ok(Some(_)).
-        - Some(Err(_)) will be mapped to Err(_).
-
-        With `?` I get rid of the original Result<_,_> wrapper type and get the Option<_> (or else the error bubbles up if it contained the Err(_) variant). Then I am able to store that Option<_>, be it None or Some(_), back into the Deployment object which contains the Option<_> field.
-        */
-
-        let linux = self
-            .linux
-            .map(|lin| lin.template_with(variables))
-            .transpose()?;
-        let windows = self
-            .windows
-            .map(|win| win.template_with(variables))
-            .transpose()?;
-        let k8s = self
-            .k8s
-            .map(|k8s| k8s.template_with(variables))
-            .transpose()?;
-        Ok(Self::Output {
-            linux,
-            windows,
-            k8s,
-        })
     }
 }
 
@@ -124,30 +52,5 @@ impl Templateable for Runtime {
         Ok(Self::Output {
             deployment: self.deployment.template_with(variables)?,
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_empty_runtime_deserialization() {
-        let rtc = serde_saphyr::from_str::<Runtime>("deployment: {}");
-        assert!(rtc.is_err_and(|e| {
-            e.to_string().contains(
-                "field `deployment` must have at least one of the fields `linux`, windows or `k8s`",
-            )
-        }));
-
-        let rtc = serde_saphyr::from_str::<Runtime>("deployment: ");
-        assert!(rtc.is_err_and(|e| {
-            e.to_string().contains(
-                "field `deployment` must have at least one of the fields `linux`, windows or `k8s`",
-            )
-        }));
-
-        let rtc = serde_saphyr::from_str::<Runtime>("");
-        assert!(rtc.is_err());
     }
 }

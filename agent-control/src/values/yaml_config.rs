@@ -147,12 +147,9 @@ pub fn has_remote_management(capabilities: &Capabilities) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST,
-        agent_type::{
-            definition::AgentType,
-            variable::{Variable, tree::Tree},
-        },
+    use crate::agent_type::{
+        definition::AgentType,
+        variable::{Variable, tree::Tree},
     };
     use rstest::rstest;
     use serde_json::json;
@@ -258,39 +255,26 @@ integrations:
 name: nrdot
 namespace: newrelic
 version: 0.1.0
+platform: host
+operating_system: linux
 variables:
-  linux:
-    whatever:
-      test:
-        path:
-          description: "Path to the agent"
-          type: string
-          required: true
-        args:
-          description: "Args passed to the agent"
-          type: string
-          required: true
-  windows:
-    whatever:
-      test:
-        path:
-          description: "Path to the agent"
-          type: string
-          required: true
-        args:
-          description: "Args passed to the agent"
-          type: string
-          required: true
-deployment:
-  linux: {}
-  windows: {}
+  whatever:
+    test:
+      path:
+        description: "Path to the agent"
+        type: string
+        required: true
+      args:
+        description: "Args passed to the agent"
+        type: string
+        required: true
+deployment: {}
 "#;
 
     #[test]
     fn test_update_specs() {
         let input_structure = serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
-        let agent_type =
-            AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &AGENT_CONTROL_MODE_ON_HOST);
+        let agent_type = AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE);
 
         let expected = HashMap::from([(
             "whatever".to_string(),
@@ -341,8 +325,7 @@ deployment:
     fn test_validate_with_agent_type_wrong_value_type() {
         let input_structure =
             serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
-        let agent_type =
-            AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &AGENT_CONTROL_MODE_ON_HOST);
+        let agent_type = AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE);
 
         let result = agent_type.variables.fill_with_values(input_structure);
 

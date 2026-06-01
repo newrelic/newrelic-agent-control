@@ -1,6 +1,5 @@
 use crate::agent_control::config::K8sConfig;
 use crate::agent_control::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
-use crate::agent_control::run::Environment;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
@@ -41,7 +40,6 @@ where
     pub(crate) config_repository: Arc<Y>,
     pub(crate) effective_agents_assembler: Arc<A>,
     pub(crate) sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
-    pub(crate) ac_running_mode: Environment,
 }
 
 impl<O, I, B, R, Y, A> SubAgentBuilder for K8sSubAgentBuilder<O, I, B, R, Y, A>
@@ -105,7 +103,6 @@ where
             self.remote_config_parser.clone(),
             self.config_repository.clone(),
             self.effective_agents_assembler.clone(),
-            self.ac_running_mode,
         ))
     }
 }
@@ -173,7 +170,6 @@ pub mod tests {
     use crate::agent_control::defaults::{
         PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_custom_capabilities,
     };
-    use crate::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
@@ -230,7 +226,6 @@ pub mod tests {
             config_repository: Arc::new(MockConfigRepository::new()),
             effective_agents_assembler: Arc::new(effective_agents_assembler),
             sub_agent_publisher: UnboundedBroadcast::default(),
-            ac_running_mode: AGENT_CONTROL_MODE_K8S,
         };
 
         builder.build(&agent_identity).unwrap();
@@ -267,7 +262,6 @@ pub mod tests {
             config_repository: Arc::new(MockConfigRepository::new()),
             effective_agents_assembler: Arc::new(effective_agents_assembler),
             sub_agent_publisher: UnboundedBroadcast::default(),
-            ac_running_mode: AGENT_CONTROL_MODE_K8S,
         };
 
         let result = builder.build(&agent_identity);
@@ -287,11 +281,7 @@ pub mod tests {
         let effective_agent = EffectiveAgent::new(
             agent_identity,
             Runtime {
-                deployment: Deployment {
-                    linux: None,
-                    windows: None,
-                    k8s: Some(k8s_sample_runtime_config(true)),
-                },
+                deployment: Deployment::K8s(k8s_sample_runtime_config(true)),
             },
         );
 
@@ -312,11 +302,7 @@ pub mod tests {
         let effective_agent = EffectiveAgent::new(
             agent_identity,
             Runtime {
-                deployment: Deployment {
-                    linux: None,
-                    windows: None,
-                    k8s: Some(k8s_sample_runtime_config(false)),
-                },
+                deployment: Deployment::K8s(k8s_sample_runtime_config(false)),
             },
         );
 

@@ -1,3 +1,4 @@
+use crate::environment::Environment;
 use semver::Version;
 use serde::{Deserialize, Deserializer, Serializer};
 use std::fmt::{Display, Formatter};
@@ -14,15 +15,49 @@ pub enum AgentTypeIDError {
     InvalidName,
     #[error("invalid AgentType version")]
     InvalidVersion,
+    #[error("missing AgentType platform")]
+    MissingPlatform,
+    #[error("operating_system is required when platform is host")]
+    MissingOperatingSystem,
+    #[error("operating_system must not be set when platform is k8s")]
+    UnexpectedOperatingSystem,
 }
 
 /// Holds agent type metadata that uniquely identifies an agent type.
-/// Data can be represented as a fully qualified name in the format `<namespace>/<name>:<version>`.
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+///
+/// To keep backward compatibility with existing local and remote configs (which reference
+/// agent types only by their fully qualified name), platform and operating system were
+/// intentionally **not** added to the FQN format `<namespace>/<name>:<version>`. Identity —
+/// and therefore [Hash]/[PartialEq]/[Eq] — follows the FQN tuple `(namespace, name, version)`.
+/// `platform` and `operating_system` are auxiliary metadata describing which definition file
+/// the id was loaded from, and do not participate in equality. This way an id parsed from a
+/// YAML definition matches one built from its FQN string when used as a key in a registry,
+/// and existing FQN-based references keep working unchanged.
+#[derive(Debug, Clone)]
 pub struct AgentTypeID {
     name: String,
     namespace: String,
     version: Version,
+    platform: Option<Platform>,
+    operating_system: Option<OperatingSystem>,
+}
+
+impl PartialEq for AgentTypeID {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.namespace == other.namespace
+            && self.version == other.version
+    }
+}
+
+impl Eq for AgentTypeID {}
+
+impl std::hash::Hash for AgentTypeID {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.namespace.hash(state);
+        self.version.hash(state);
+    }
 }
 
 impl AgentTypeID {
@@ -78,9 +113,12 @@ impl Display for AgentTypeID {
     }
 }
 
-/// Converts from a fully quilified name to an AgentTypeID.
+/// Converts from a fully qualified name to an AgentTypeID.
 /// The fully qualified name must be in the format `<namespace>/<name>:<version>`.
 /// Example: `newrelic/nrdot:0.1.0`
+///
+/// FQN strings don't carry platform/OS info, so the resulting [AgentTypeID] has
+/// `environment == None`.
 impl TryFrom<&str> for AgentTypeID {
     type Error = AgentTypeIDError;
 
@@ -109,7 +147,40 @@ impl TryFrom<&str> for AgentTypeID {
             name,
             namespace,
             version,
+            platform: None,
+            operating_system: None,
         })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Platform {
+    Host,
+    Kubernetes,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum OperatingSystem {
+    Linux,
+    Windows,
+}
+
+impl TryFrom<&AgentTypeID> for Environment {
+    type Error = AgentTypeIDError;
+
+    fn try_from(id: &AgentTypeID) -> Result<Self, Self::Error> {
+        match (id.platform, id.operating_system) {
+            (Some(Platform::Host), Some(OperatingSystem::Linux)) => Ok(Environment::Linux),
+            (Some(Platform::Host), Some(OperatingSystem::Windows)) => Ok(Environment::Windows),
+            (Some(Platform::Kubernetes), None) => Ok(Environment::K8s),
+            (Some(Platform::Host), None) => Err(AgentTypeIDError::MissingOperatingSystem),
+            (Some(Platform::Kubernetes), Some(_)) => {
+                Err(AgentTypeIDError::UnexpectedOperatingSystem)
+            }
+            (None, _) => Err(AgentTypeIDError::MissingPlatform),
+        }
     }
 }
 
@@ -126,12 +197,16 @@ impl<'de> Deserialize<'de> for AgentTypeID {
             name: Option<String>,
             namespace: Option<String>,
             version: Option<String>,
+            platform: Option<Platform>,
+            operating_system: Option<OperatingSystem>,
         }
 
         let IntermediateAgentMetadata {
             name,
             namespace,
             version,
+            platform,
+            operating_system,
         } = IntermediateAgentMetadata::deserialize(deserializer)?;
 
         let name = name.unwrap_or_default();
@@ -151,12 +226,15 @@ impl<'de> Deserialize<'de> for AgentTypeID {
             name,
             namespace,
             version,
+            platform,
+            operating_system,
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
     use serde::Serialize;
 
     use super::*;
@@ -168,6 +246,7 @@ mod tests {
 name: nrdot_special-with-all.characters
 namespace: newrelic_special-with-all.characters
 version: 0.1.0-alpha.1
+platform: kubernetes
 "#,
         )
         .unwrap();
@@ -175,118 +254,91 @@ version: 0.1.0-alpha.1
         assert_eq!("nrdot_special-with-all.characters", actual.name);
         assert_eq!("newrelic_special-with-all.characters", actual.namespace);
         assert_eq!("0.1.0-alpha.1", actual.version.to_string());
+        assert_eq!(Some(Platform::Kubernetes), actual.platform);
+        assert_eq!(None, actual.operating_system);
+        assert_eq!(Environment::K8s, Environment::try_from(&actual).unwrap());
     }
 
-    #[test]
-    fn test_invalid_agent_type_metadata() {
-        struct TestCase {
-            name: &'static str,
-            metadata: &'static str,
-            expected_error: AgentTypeIDError,
-        }
-        impl TestCase {
-            fn run(self) {
-                let actual_err =
-                    serde_saphyr::from_str::<AgentTypeID>(self.metadata).expect_err(self.name);
+    #[rstest]
+    #[case::empty_name(
+        r#"
+        name:
+        namespace: newrelic
+        version: 0.1.0
+        "#,
+        AgentTypeIDError::InvalidName
+    )]
+    #[case::empty_namespace(
+        r#"
+        name: nrdot
+        namespace:
+        version: 0.1.0
+        "#,
+        AgentTypeIDError::InvalidNamespace
+    )]
+    #[case::empty_version(
+        r#"
+        name: nrdot
+        namespace: newrelic
+        version:
+        "#,
+        AgentTypeIDError::InvalidVersion
+    )]
+    #[case::version_not_semver(
+        r#"
+        name: nrdot
+        namespace: newrelic
+        version: 0
+        "#,
+        AgentTypeIDError::InvalidVersion
+    )]
+    #[case::version_garbage(
+        r#"
+        name: nrdot
+        namespace: newrelic
+        version: adsf
+        "#,
+        AgentTypeIDError::InvalidVersion
+    )]
+    #[case::invalid_chars_in_name(
+        r#"
+        name: invalid/slash
+        namespace: newrelic
+        version: 0.1.0
+        "#,
+        AgentTypeIDError::InvalidName
+    )]
+    #[case::invalid_chars_in_namespace(
+        r#"
+        name: nrdot
+        namespace: invalid/slash
+        version: 0.1.0
+        "#,
+        AgentTypeIDError::InvalidNamespace
+    )]
+    #[case::name_too_long(
+        r#"
+        name: test_test_test_test_test_test_test_test_test_test_test_test_test_test
+        namespace: newrelic
+        version: 0.1.0
+        "#,
+        AgentTypeIDError::InvalidName
+    )]
+    #[case::namespace_too_long(
+        r#"
+        name: nrdot
+        namespace: test_test_test_test_test_test_test_test_test_test_test_test_test_test
+        version: 0.1.0
+        "#,
+        AgentTypeIDError::InvalidNamespace
+    )]
+    fn test_invalid_agent_type_metadata(
+        #[case] metadata: &str,
+        #[case] expected_error: AgentTypeIDError,
+    ) {
+        let actual_err = serde_saphyr::from_str::<AgentTypeID>(metadata).unwrap_err();
 
-                assert!(
-                    actual_err
-                        .to_string()
-                        .eq(self.expected_error.to_string().as_str()),
-                    "TestCase: {} Expected error: {:?}, got: {:?}",
-                    self.name,
-                    self.expected_error,
-                    actual_err
-                );
-            }
-        }
-        let test_cases = vec![
-            TestCase {
-                name: "empty name",
-                expected_error: AgentTypeIDError::InvalidName,
-                metadata: r#"
-            name:
-            namespace: newrelic
-            version: 0.1.0
-            "#,
-            },
-            TestCase {
-                name: "empty namespace",
-                expected_error: AgentTypeIDError::InvalidNamespace,
-                metadata: r#"
-            name: nrdot
-            namespace:
-            version: 0.1.0
-            "#,
-            },
-            TestCase {
-                name: "empty version",
-                expected_error: AgentTypeIDError::InvalidVersion,
-                metadata: r#"
-            name: nrdot
-            namespace: newrelic
-            version:
-            "#,
-            },
-            TestCase {
-                name: "error wrong version 1",
-                expected_error: AgentTypeIDError::InvalidVersion,
-                metadata: r#"
-            name: nrdot
-            namespace: newrelic
-            version: 0
-            "#,
-            },
-            TestCase {
-                name: "error wrong version 2",
-                expected_error: AgentTypeIDError::InvalidVersion,
-                metadata: r#"
-            name: nrdot
-            namespace: newrelic
-            version: adsf
-            "#,
-            },
-            TestCase {
-                name: "invalid characters on name",
-                expected_error: AgentTypeIDError::InvalidName,
-                metadata: r#"
-            name: invalid/slash
-            namespace: newrelic
-            version: 0.1.0
-            "#,
-            },
-            TestCase {
-                name: "invalid characters on namespace",
-                expected_error: AgentTypeIDError::InvalidNamespace,
-                metadata: r#"
-            name: nrdot
-            namespace: invalid/slash
-            version: 0.1.0
-            "#,
-            },
-            TestCase {
-                name: "name exceeding allowed number of chars",
-                expected_error: AgentTypeIDError::InvalidName,
-                metadata: r#"
-            name: test_test_test_test_test_test_test_test_test_test_test_test_test_test
-            namespace: newrelic
-            version: 0.1.0
-            "#,
-            },
-            TestCase {
-                name: "namespace exceeding allowed number of chars",
-                expected_error: AgentTypeIDError::InvalidNamespace,
-                metadata: r#"
-            name: nrdot
-            namespace: test_test_test_test_test_test_test_test_test_test_test_test_test_test
-            version: 0.1.0
-            "#,
-            },
-        ];
-
-        for test_case in test_cases {
-            test_case.run();
-        }
+        assert_eq!(actual_err.to_string(), expected_error.to_string());
     }
 
     #[test]
@@ -295,36 +347,62 @@ version: 0.1.0-alpha.1
         assert_eq!(agent_id.name, "aa");
         assert_eq!(agent_id.namespace, "ns");
         assert_eq!(agent_id.version.to_string(), "1.1.3".to_string());
-
+        assert_eq!(None, agent_id.platform);
+        assert_eq!(None, agent_id.operating_system);
         assert_eq!(
-            AgentTypeID::try_from("aa").unwrap_err(),
-            AgentTypeIDError::InvalidName
+            AgentTypeIDError::MissingPlatform,
+            Environment::try_from(&agent_id).unwrap_err()
         );
+    }
 
-        assert_eq!(
-            AgentTypeID::try_from("aa:1.1.3").unwrap_err(),
-            AgentTypeIDError::InvalidNamespace
-        );
+    #[rstest]
+    #[case::missing_namespace_and_version("aa", AgentTypeIDError::InvalidName)]
+    #[case::missing_namespace("aa:1.1.3", AgentTypeIDError::InvalidNamespace)]
+    #[case::invalid_name_char("ns/-", AgentTypeIDError::InvalidName)]
+    #[case::missing_version("ns/aa:", AgentTypeIDError::InvalidVersion)]
+    #[case::empty_name("ns/:1.1.3", AgentTypeIDError::InvalidName)]
+    #[case::all_empty("/:", AgentTypeIDError::InvalidNamespace)]
+    fn try_from_fqn_str_invalid(#[case] input: &str, #[case] expected_error: AgentTypeIDError) {
+        assert_eq!(AgentTypeID::try_from(input).unwrap_err(), expected_error);
+    }
 
-        assert_eq!(
-            AgentTypeID::try_from("ns/-").unwrap_err(),
-            AgentTypeIDError::InvalidName
-        );
+    #[rstest]
+    #[case::host_linux(
+        Some(Platform::Host),
+        Some(OperatingSystem::Linux),
+        Ok(Environment::Linux)
+    )]
+    #[case::host_windows(
+        Some(Platform::Host),
+        Some(OperatingSystem::Windows),
+        Ok(Environment::Windows)
+    )]
+    #[case::kubernetes(Some(Platform::Kubernetes), None, Ok(Environment::K8s))]
+    #[case::host_without_os(
+        Some(Platform::Host),
+        None,
+        Err(AgentTypeIDError::MissingOperatingSystem)
+    )]
+    #[case::kubernetes_with_os(
+        Some(Platform::Kubernetes),
+        Some(OperatingSystem::Linux),
+        Err(AgentTypeIDError::UnexpectedOperatingSystem)
+    )]
+    #[case::missing_platform(None, None, Err(AgentTypeIDError::MissingPlatform))]
+    fn environment_try_from_agent_type_id(
+        #[case] platform: Option<Platform>,
+        #[case] operating_system: Option<OperatingSystem>,
+        #[case] expected: Result<Environment, AgentTypeIDError>,
+    ) {
+        let id = AgentTypeID {
+            name: "n".to_string(),
+            namespace: "ns".to_string(),
+            version: Version::parse("0.0.1").unwrap(),
+            platform,
+            operating_system,
+        };
 
-        assert_eq!(
-            AgentTypeID::try_from("ns/aa:").unwrap_err(),
-            AgentTypeIDError::InvalidVersion
-        );
-
-        assert_eq!(
-            AgentTypeID::try_from("ns/:1.1.3").unwrap_err(),
-            AgentTypeIDError::InvalidName
-        );
-
-        assert_eq!(
-            AgentTypeID::try_from("/:").unwrap_err(),
-            AgentTypeIDError::InvalidNamespace
-        );
+        assert_eq!(Environment::try_from(&id), expected);
     }
 
     #[test]

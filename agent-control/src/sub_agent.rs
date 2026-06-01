@@ -10,7 +10,6 @@ pub mod remote_config_parser;
 pub mod supervisor;
 
 use crate::agent_control::defaults::default_capabilities;
-use crate::agent_control::run::Environment;
 use crate::agent_control::uptime_report::{UptimeReportConfig, UptimeReporter};
 use crate::checkers::health::events::HealthEventPublisher;
 use crate::checkers::health::health_checker::{Health, Unhealthy};
@@ -112,7 +111,6 @@ where
     supervisor_builder: Arc<B>,
     config_repository: Arc<Y>,
     effective_agent_assembler: Arc<A>,
-    environment: Environment,
 }
 
 impl<C, B, R, Y, A> SubAgent<C, B, R, Y, A>
@@ -137,7 +135,6 @@ where
         remote_config_parser: Arc<R>,
         config_repository: Arc<Y>,
         effective_agent_assembler: Arc<A>,
-        environment: Environment,
     ) -> Self {
         Self {
             identity,
@@ -150,7 +147,6 @@ where
             remote_config_parser,
             config_repository,
             effective_agent_assembler,
-            environment,
         }
     }
 
@@ -686,11 +682,8 @@ where
         yaml_config: YAMLConfig,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
         // Assemble the new agent
-        self.effective_agent_assembler.assemble_agent(
-            &self.identity,
-            yaml_config,
-            &self.environment,
-        )
+        self.effective_agent_assembler
+            .assemble_agent(&self.identity, yaml_config)
     }
 
     fn report_state(&self, state: ConfigState, hash: &Hash) {
@@ -808,12 +801,12 @@ pub mod tests {
         MockSupervisor, MockSupervisorBuilder, MockSupervisorStarter, TestingSupervisorError,
     };
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::registry::embedded::EmbeddedRegistry;
     use crate::agent_type::render::TemplateRenderer;
     use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::checkers::health::health_checker::{Healthy, Unhealthy};
+    use crate::environment::tests::OS_ENVIRONMENT;
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::remote_config::hash::Hash;
@@ -946,64 +939,51 @@ pub mod tests {
 
         fn agent_type_definition() -> AgentTypeDefinition {
             serde_saphyr::from_str(
-                r#"
+                format!(
+                    r#"
 name: default
 namespace: default
 version: 0.0.1
+platform: host
+operating_system: {OS_ENVIRONMENT}
 variables:
-  linux:
-    var:
-      description: "fake"
-      type: string
-      required: false
-      default: ""
-  windows:
-    var:
-      description: "fake"
-      type: string
-      required: false
-      default: ""
+  var:
+    description: "fake"
+    type: string
+    required: false
+    default: ""
 deployment:
-  linux:
-    executables:
-      - id: exec
-        path: ${nr-var:var}
-  windows:
-    executables:
-      - id: exec
-        path: ${nr-var:var}
-"#,
+  executables:
+    - id: exec
+      path: ${{nr-var:var}}
+"#
+                )
+                .as_str(),
             )
             .unwrap()
         }
 
         fn agent_type_definition_with_required_var() -> AgentTypeDefinition {
             serde_saphyr::from_str(
-                r#"
+                format!(
+                    r#"
 name: default
 namespace: default
 version: 0.0.1
+platform: host
+operating_system: {OS_ENVIRONMENT}
 variables:
-  linux:
-    var:
-      description: "fake"
-      type: string
-      required: true
-  windows:
-    var:
-      description: "fake"
-      type: string
-      required: true
+  var:
+    description: "fake"
+    type: string
+    required: true
 deployment:
-  linux:
-    executables:
-      - id: exec
-        path: ${nr-var:var}
-  windows:
-    executables:
-      - id: exec
-        path: ${nr-var:var}
-"#,
+  executables:
+    - id: exec
+      path: ${{nr-var:var}}
+"#
+                )
+                .as_str(),
             )
             .unwrap()
         }
@@ -1138,7 +1118,6 @@ deployment:
             )),
             config_repository,
             effective_agents_assembler,
-            AGENT_CONTROL_MODE_ON_HOST,
         )
     }
 
@@ -1266,7 +1245,6 @@ deployment:
             )),
             config_repository,
             effective_agents_assembler,
-            AGENT_CONTROL_MODE_ON_HOST,
         );
 
         sub_agent.run().stop().unwrap();
