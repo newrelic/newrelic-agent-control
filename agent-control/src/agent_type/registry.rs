@@ -17,9 +17,9 @@ pub enum AgentTypeRegistryError {
     ValueConversion(#[from] serde_json::Error),
 }
 
-/// Returns the corresponding [AgentTypeDefinition] given an [AgentTypeID].
+/// Defines how to return an [AgentTypeDefinition] given an identifier.
 pub trait AgentTypeRegistry {
-    // Returns an Agent type given its id.
+    /// Returns an Agent type given its id.
     fn get(
         &self,
         agent_type_id: &AgentTypeID,
