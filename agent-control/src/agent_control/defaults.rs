@@ -88,7 +88,7 @@ pub const STORE_KEY_LOCAL_DATA_CONFIG: &StoreKey = "local_config";
 /// - **k8s**: Used as the data key within the OpAMP/fleet ConfigMap.
 pub const STORE_KEY_OPAMP_DATA_CONFIG: &StoreKey = "remote_config";
 pub const STORE_KEY_INSTANCE_ID: &StoreKey = "instance_id";
-pub const DYNAMIC_AGENT_TYPE_DIR: &str = "dynamic-agent-types";
+pub const CUSTOM_AGENT_TYPES_DIR: &str = "dynamic-agent-types"; // Used `dynamic-` instead of `custom-` for backwards compatibility
 pub const INSTANCE_ID_FILENAME: &str = "instance_id.yaml";
 pub const AGENT_FILESYSTEM_FOLDER_NAME: &str = "filesystem";
 pub const PACKAGES_FOLDER_NAME: &str = "packages";

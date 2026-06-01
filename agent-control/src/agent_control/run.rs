@@ -1,11 +1,11 @@
 use super::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
-    DYNAMIC_AGENT_TYPE_DIR,
+    CUSTOM_AGENT_TYPES_DIR,
 };
 use crate::agent_control::config::AgentControlConfig;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::http_server::runner::Runner;
-use crate::agent_type::registry::embedded::EmbeddedRegistry;
+use crate::agent_type::registry::{Registry, RegistryConfig};
 use crate::command::RunnerContext;
 use crate::data_store::DataStore;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
@@ -91,7 +91,7 @@ pub struct AgentControlRunner {
     /// including remote configuration when needed.
     bootstrap_config: AgentControlConfig,
 
-    agent_type_registry: Arc<EmbeddedRegistry>,
+    agent_type_registry: Arc<Registry>,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
     sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
@@ -124,9 +124,9 @@ impl AgentControlRunner {
             )
         });
 
-        let agent_type_registry = Arc::new(EmbeddedRegistry::new(
-            context.base_paths.local_dir.join(DYNAMIC_AGENT_TYPE_DIR),
-        ));
+        let agent_type_registry = Arc::new(Registry::new(RegistryConfig {
+            custom_agent_types_path: context.base_paths.local_dir.join(CUSTOM_AGENT_TYPES_DIR),
+        }));
 
         let signature_validator = context
             .bootstrap_config
