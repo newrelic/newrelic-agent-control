@@ -136,6 +136,7 @@ where
                 version: new_version,
                 public_key_url: Some(self.pub_key_url.clone()),
             },
+            postdownload: None,
         }
     }
 }

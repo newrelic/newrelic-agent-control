@@ -408,6 +408,7 @@ fn install_packages<PM: PackageManager>(
                 PackageData {
                     id: id.clone(),
                     oci: package.download.oci.clone(),
+                    postdownload: package.postdownload.clone(),
                 },
             )
             .map_err(|err| InstallPackageError {

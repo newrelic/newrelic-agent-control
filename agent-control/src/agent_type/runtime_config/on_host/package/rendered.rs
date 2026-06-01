@@ -1,7 +1,7 @@
-use std::{fmt::Display, str::FromStr};
-
 use oci_client::Reference;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::{fmt::Display, str::FromStr, time::Duration};
 use url::Url;
 
 use crate::agent_control::config::Registry;
@@ -13,6 +13,8 @@ const TAG_TOTAL_LENGTH_MAX: usize = 128;
 pub struct Package {
     /// Download defines the supported repository sources for the packages.
     pub download: Download,
+    /// Postdownload script to execute after downloading and extracting the package.
+    pub postdownload: Option<Postdownload>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -26,6 +28,18 @@ pub struct Oci {
     pub repository: Repository,
     pub version: Version,
     pub public_key_url: Option<Url>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Postdownload {
+    /// Arguments where first element is the command/executable, second element is script path,
+    /// followed by additional arguments.
+    /// Example: ["bash", "postdownload.sh", "--verbose"]
+    pub args: Vec<String>,
+    /// Environmental variables
+    pub env: HashMap<String, String>,
+    /// Timeout duration
+    pub timeout: Duration,
 }
 
 const DEFAULT_TAG: &str = "latest";

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use crate::agent_type::definition::Variables;
@@ -14,6 +15,9 @@ pub mod rendered;
 pub(super) struct Package {
     /// Download defines the supported repository sources for the packages.
     pub download: Download,
+    /// Postdownload script to execute after downloading and extracting the package.
+    /// All validations, checks, and installation steps should go here.
+    pub postdownload: Option<Postdownload>,
 }
 
 pub type PackageID = String;
@@ -35,11 +39,37 @@ pub struct Oci {
     pub public_key_url: Option<TemplateableValue<String>>,
 }
 
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub struct Postdownload {
+    /// Arguments where first element is the command/executable (e.g., "bash", "sh", "python3"),
+    /// second element is the script path, followed by additional arguments.
+    /// Example: ["bash", "postdownload.sh", "--verbose"]
+    pub args: Vec<TemplateableValue<String>>,
+
+    /// Environmental variables passed to the process.
+    #[serde(default)]
+    pub env: HashMap<String, TemplateableValue<String>>,
+
+    /// Maximum time to wait for the script to complete.
+    #[serde(default = "default_postdownload_timeout")]
+    pub timeout: TemplateableValue<String>,
+}
+
+fn default_postdownload_timeout() -> TemplateableValue<String> {
+    TemplateableValue::new("300s".to_string())
+}
+
 impl Templateable for Package {
     type Output = rendered::Package;
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        let postdownload = self
+            .postdownload
+            .map(|pd| pd.template_with(variables))
+            .transpose()?;
+
         Ok(Self::Output {
             download: self.download.template_with(variables)?,
+            postdownload,
         })
     }
 }
@@ -83,6 +113,38 @@ impl Templateable for Oci {
             version,
             public_key_url,
         })
+    }
+}
+
+impl Templateable for Postdownload {
+    type Output = rendered::Postdownload;
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        let timeout_str = self.timeout.template_with(variables)?;
+
+        let args: Vec<String> = self
+            .args
+            .into_iter()
+            .map(|arg| arg.template_with(variables))
+            .collect::<Result<Vec<String>, AgentTypeError>>()?;
+
+        if args.len() < 2 {
+            return Err(AgentTypeError::OCIReferenceParsingError(
+                "postdownload args must have at least 2 elements: command and script path"
+                    .to_string(),
+            ));
+        }
+
+        let env: HashMap<String, String> = self
+            .env
+            .into_iter()
+            .map(|(k, v)| v.template_with(variables).map(|templated| (k, templated)))
+            .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
+
+        let timeout = duration_str::parse(&timeout_str).map_err(|err| {
+            AgentTypeError::OCIReferenceParsingError(format!("invalid timeout format: {err}"))
+        })?;
+
+        Ok(Self::Output { args, env, timeout })
     }
 }
 

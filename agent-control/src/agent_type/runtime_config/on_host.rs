@@ -169,6 +169,7 @@ mod tests {
                     )),
                 },
             },
+            postdownload: None,
         };
 
         let expected_packages = HashMap::from([
