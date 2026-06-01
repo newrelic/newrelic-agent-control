@@ -1,7 +1,6 @@
 use crate::agent_control::defaults::{
     HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
-use crate::agent_control::run::Environment;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
@@ -41,7 +40,6 @@ where
     pub(crate) yaml_config_repository: Arc<Y>,
     pub(crate) effective_agents_assembler: Arc<A>,
     pub(crate) sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
-    pub(crate) ac_running_mode: Environment,
 }
 
 impl<O, I, B, R, Y, A> SubAgentBuilder for OnHostSubAgentBuilder<O, I, B, R, Y, A>
@@ -111,7 +109,6 @@ where
             self.remote_config_parser.clone(),
             self.yaml_config_repository.clone(),
             self.effective_agents_assembler.clone(),
-            self.ac_running_mode,
         ))
     }
 }
@@ -179,7 +176,6 @@ mod tests {
         OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
         PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_custom_capabilities,
     };
-    use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilder;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
@@ -237,7 +233,6 @@ mod tests {
             yaml_config_repository: Arc::new(MockConfigRepository::new()),
             effective_agents_assembler: Arc::new(MockEffectiveAgentAssembler::new()),
             sub_agent_publisher: UnboundedBroadcast::default(),
-            ac_running_mode: AGENT_CONTROL_MODE_ON_HOST,
         };
 
         assert!(on_host_builder.build(&agent_identity).is_ok());

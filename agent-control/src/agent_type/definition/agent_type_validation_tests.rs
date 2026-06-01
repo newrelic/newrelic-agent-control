@@ -11,15 +11,15 @@ use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
 use crate::agent_control::run::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_VARIABLE_NAME};
 use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
 use crate::agent_type::variable::constraints::VariableConstraints;
+use crate::environment::Environment;
 use crate::{
-    agent_control::{agent_id::AgentID, run::Environment},
+    agent_control::agent_id::AgentID,
     agent_type::{
         agent_type_id::AgentTypeID,
         registry::{AgentTypeRegistry, embedded::EmbeddedRegistry},
         render::{TemplateRenderer, tests::testing_agent_attributes},
         variable::{Variable, namespace::Namespace},
     },
-    sub_agent::effective_agents_assembler::build_agent_type,
     values::yaml_config::YAMLConfig,
 };
 
@@ -652,14 +652,27 @@ fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesT
     .map(Deref::deref)
 }
 
+/// Returns the union of agent type ids registered across all supported environments.
+/// Each id appears once, even if multiple per-platform definitions exist.
+fn registry_ids_across_envs() -> std::collections::HashSet<AgentTypeID> {
+    [Environment::K8s, Environment::Linux, Environment::Windows]
+        .into_iter()
+        .flat_map(|env| {
+            EmbeddedRegistry::new(env, std::path::PathBuf::from("/nonexistent"))
+                .iter_definitions()
+                .map(|d| d.agent_type_id.clone())
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
 #[test]
 fn all_agent_type_definitions_are_present() {
-    let registry = EmbeddedRegistry::default();
+    let registered = registry_ids_across_envs();
     for case in get_agent_type_test_cases() {
+        let id = AgentTypeID::try_from(case.agent_type).unwrap();
         assert!(
-            registry
-                .get(&AgentTypeID::try_from(case.agent_type).unwrap())
-                .is_ok(),
+            registered.contains(&id),
             "Agent type {} not found",
             case.agent_type
         );
@@ -668,31 +681,15 @@ fn all_agent_type_definitions_are_present() {
 
 #[test]
 fn all_agent_types_covered_by_tests() {
-    let registry = EmbeddedRegistry::default();
-    let registry_items = registry.iter_definitions().collect::<Vec<_>>();
-    let test_cases = get_agent_type_test_cases().collect::<Vec<_>>();
+    let registered = registry_ids_across_envs();
+    let test_cases: std::collections::HashSet<AgentTypeID> = get_agent_type_test_cases()
+        .map(|case| AgentTypeID::try_from(case.agent_type).unwrap())
+        .collect();
 
     assert_eq!(
-        registry_items.len(),
-        test_cases.len(),
-        "Expected the same amount of agent types in the registry and in the test cases"
+        registered, test_cases,
+        "Mismatch between registered agent types and test cases"
     );
-
-    let agent_type_names_from_registry = registry_items
-        .iter()
-        .map(|item| item.agent_type_id.to_string());
-    let agent_type_names_from_test_cases = test_cases
-        .iter()
-        .map(|case| case.agent_type)
-        .map(|name| name.to_string())
-        .collect::<Vec<_>>();
-
-    agent_type_names_from_registry.for_each(|name| {
-        assert!(
-            agent_type_names_from_test_cases.contains(&name),
-            "Agent type {name} not covered by test cases"
-        )
-    })
 }
 
 #[test]
@@ -711,7 +708,7 @@ fn all_agent_type_definitions_are_resilient_windows() {
 }
 
 fn iterate_test_cases(environment: &Environment) {
-    let registry = EmbeddedRegistry::default();
+    let registry = EmbeddedRegistry::new(*environment, std::path::PathBuf::from("/nonexistent"));
     for case in get_agent_type_test_cases() {
         // Skip cases where values for the environment are not provided
         let Some(values) = (match environment {
@@ -750,8 +747,7 @@ fn iterate_test_cases(environment: &Environment) {
             let definition = registry
                 .get(&AgentTypeID::try_from(case.agent_type).unwrap())
                 .unwrap();
-            let agent_type =
-                build_agent_type(definition, environment, &VariableConstraints::default());
+            let agent_type = definition.with_constraints(&VariableConstraints::default());
             let attributes = testing_agent_attributes(&agent_id);
             let variables = serde_saphyr::from_str::<YAMLConfig>(yaml).unwrap();
 

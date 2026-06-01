@@ -1,3 +1,4 @@
+use crate::environment::Environment;
 use semver::Version;
 use serde::{Deserialize, Deserializer, Serializer};
 use std::fmt::{Display, Formatter};
@@ -14,15 +15,49 @@ pub enum AgentTypeIDError {
     InvalidName,
     #[error("invalid AgentType version")]
     InvalidVersion,
+    #[error("missing AgentType platform")]
+    MissingPlatform,
+    #[error("operating_system is required when platform is host")]
+    MissingOperatingSystem,
+    #[error("operating_system must not be set when platform is k8s")]
+    UnexpectedOperatingSystem,
 }
 
 /// Holds agent type metadata that uniquely identifies an agent type.
-/// Data can be represented as a fully qualified name in the format `<namespace>/<name>:<version>`.
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+///
+/// To keep backward compatibility with existing local and remote configs (which reference
+/// agent types only by their fully qualified name), platform and operating system were
+/// intentionally **not** added to the FQN format `<namespace>/<name>:<version>`. Identity —
+/// and therefore [Hash]/[PartialEq]/[Eq] — follows the FQN tuple `(namespace, name, version)`.
+/// `platform` and `operating_system` are auxiliary metadata describing which definition file
+/// the id was loaded from, and do not participate in equality. This way an id parsed from a
+/// YAML definition matches one built from its FQN string when used as a key in a registry,
+/// and existing FQN-based references keep working unchanged.
+#[derive(Debug, Clone)]
 pub struct AgentTypeID {
     name: String,
     namespace: String,
     version: Version,
+    platform: Option<Platform>,
+    operating_system: Option<OperatingSystem>,
+}
+
+impl PartialEq for AgentTypeID {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.namespace == other.namespace
+            && self.version == other.version
+    }
+}
+
+impl Eq for AgentTypeID {}
+
+impl std::hash::Hash for AgentTypeID {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.namespace.hash(state);
+        self.version.hash(state);
+    }
 }
 
 impl AgentTypeID {
@@ -78,9 +113,12 @@ impl Display for AgentTypeID {
     }
 }
 
-/// Converts from a fully quilified name to an AgentTypeID.
+/// Converts from a fully qualified name to an AgentTypeID.
 /// The fully qualified name must be in the format `<namespace>/<name>:<version>`.
 /// Example: `newrelic/nrdot:0.1.0`
+///
+/// FQN strings don't carry platform/OS info, so the resulting [AgentTypeID] has
+/// `environment == None`.
 impl TryFrom<&str> for AgentTypeID {
     type Error = AgentTypeIDError;
 
@@ -109,7 +147,40 @@ impl TryFrom<&str> for AgentTypeID {
             name,
             namespace,
             version,
+            platform: None,
+            operating_system: None,
         })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Platform {
+    Host,
+    Kubernetes,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum OperatingSystem {
+    Linux,
+    Windows,
+}
+
+impl TryFrom<&AgentTypeID> for Environment {
+    type Error = AgentTypeIDError;
+
+    fn try_from(id: &AgentTypeID) -> Result<Self, Self::Error> {
+        match (id.platform, id.operating_system) {
+            (Some(Platform::Host), Some(OperatingSystem::Linux)) => Ok(Environment::Linux),
+            (Some(Platform::Host), Some(OperatingSystem::Windows)) => Ok(Environment::Windows),
+            (Some(Platform::Kubernetes), None) => Ok(Environment::K8s),
+            (Some(Platform::Host), None) => Err(AgentTypeIDError::MissingOperatingSystem),
+            (Some(Platform::Kubernetes), Some(_)) => {
+                Err(AgentTypeIDError::UnexpectedOperatingSystem)
+            }
+            (None, _) => Err(AgentTypeIDError::MissingPlatform),
+        }
     }
 }
 
@@ -126,12 +197,16 @@ impl<'de> Deserialize<'de> for AgentTypeID {
             name: Option<String>,
             namespace: Option<String>,
             version: Option<String>,
+            platform: Option<Platform>,
+            operating_system: Option<OperatingSystem>,
         }
 
         let IntermediateAgentMetadata {
             name,
             namespace,
             version,
+            platform,
+            operating_system,
         } = IntermediateAgentMetadata::deserialize(deserializer)?;
 
         let name = name.unwrap_or_default();
@@ -151,6 +226,8 @@ impl<'de> Deserialize<'de> for AgentTypeID {
             name,
             namespace,
             version,
+            platform,
+            operating_system,
         })
     }
 }
@@ -168,6 +245,7 @@ mod tests {
 name: nrdot_special-with-all.characters
 namespace: newrelic_special-with-all.characters
 version: 0.1.0-alpha.1
+platform: kubernetes
 "#,
         )
         .unwrap();
@@ -175,6 +253,9 @@ version: 0.1.0-alpha.1
         assert_eq!("nrdot_special-with-all.characters", actual.name);
         assert_eq!("newrelic_special-with-all.characters", actual.namespace);
         assert_eq!("0.1.0-alpha.1", actual.version.to_string());
+        assert_eq!(Some(Platform::Kubernetes), actual.platform);
+        assert_eq!(None, actual.operating_system);
+        assert_eq!(Environment::K8s, Environment::try_from(&actual).unwrap());
     }
 
     #[test]
@@ -295,6 +376,12 @@ version: 0.1.0-alpha.1
         assert_eq!(agent_id.name, "aa");
         assert_eq!(agent_id.namespace, "ns");
         assert_eq!(agent_id.version.to_string(), "1.1.3".to_string());
+        assert_eq!(None, agent_id.platform);
+        assert_eq!(None, agent_id.operating_system);
+        assert_eq!(
+            AgentTypeIDError::MissingPlatform,
+            Environment::try_from(&agent_id).unwrap_err()
+        );
 
         assert_eq!(
             AgentTypeID::try_from("aa").unwrap_err(),
@@ -324,6 +411,54 @@ version: 0.1.0-alpha.1
         assert_eq!(
             AgentTypeID::try_from("/:").unwrap_err(),
             AgentTypeIDError::InvalidNamespace
+        );
+    }
+
+    #[test]
+    fn environment_try_from_agent_type_id() {
+        fn id_with(platform: Option<Platform>, os: Option<OperatingSystem>) -> AgentTypeID {
+            AgentTypeID {
+                name: "n".to_string(),
+                namespace: "ns".to_string(),
+                version: Version::parse("0.0.1").unwrap(),
+                platform,
+                operating_system: os,
+            }
+        }
+
+        assert_eq!(
+            Environment::Linux,
+            Environment::try_from(&id_with(Some(Platform::Host), Some(OperatingSystem::Linux)))
+                .unwrap()
+        );
+        assert_eq!(
+            Environment::Windows,
+            Environment::try_from(&id_with(
+                Some(Platform::Host),
+                Some(OperatingSystem::Windows)
+            ))
+            .unwrap()
+        );
+        assert_eq!(
+            Environment::K8s,
+            Environment::try_from(&id_with(Some(Platform::Kubernetes), None)).unwrap()
+        );
+
+        assert_eq!(
+            AgentTypeIDError::MissingOperatingSystem,
+            Environment::try_from(&id_with(Some(Platform::Host), None)).unwrap_err()
+        );
+        assert_eq!(
+            AgentTypeIDError::UnexpectedOperatingSystem,
+            Environment::try_from(&id_with(
+                Some(Platform::Kubernetes),
+                Some(OperatingSystem::Linux)
+            ))
+            .unwrap_err()
+        );
+        assert_eq!(
+            AgentTypeIDError::MissingPlatform,
+            Environment::try_from(&id_with(None, None)).unwrap_err()
         );
     }
 

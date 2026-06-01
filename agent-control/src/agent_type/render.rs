@@ -105,13 +105,12 @@ pub(crate) mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::agent_type::runtime_config::on_host::executable::rendered;
+    use crate::agent_type::runtime_config::k8s::K8s;
+    use crate::agent_type::runtime_config::on_host::executable::rendered as exec_rendered;
     use crate::agent_type::runtime_config::on_host::rendered::OnHost;
+    use crate::agent_type::runtime_config::rendered;
     use crate::{
-        agent_control::{
-            agent_id::AgentID,
-            run::{Environment, on_host::AGENT_CONTROL_MODE_ON_HOST},
-        },
+        agent_control::agent_id::AgentID,
         agent_type::{
             definition::AgentType,
             runtime_config::restart_policy::{
@@ -132,8 +131,7 @@ pub(crate) mod tests {
     #[test]
     fn test_render() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type =
-            AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &AGENT_CONTROL_MODE_ON_HOST);
+        let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE);
         let values = testing_values(SIMPLE_AGENT_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
 
@@ -149,13 +147,13 @@ pub(crate) mod tests {
             .unwrap();
 
         let mut bin_stack = vec!["/opt/first", "/opt/second"].into_iter();
-        extract_runtime_by_environment(runtime_config)
+        extract_on_host(runtime_config)
             .executables
             .iter()
             .for_each(|exec| {
                 assert_eq!(bin_stack.next().unwrap(), exec.path.clone());
                 assert_eq!(
-                    rendered::Args(vec!(
+                    exec_rendered::Args(vec!(
                         "--config_path".to_string(),
                         "/some/path/config".to_string(),
                         "--foo".to_string(),
@@ -169,8 +167,7 @@ pub(crate) mod tests {
     #[test]
     fn test_render_with_empty_but_required_values() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type =
-            AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &AGENT_CONTROL_MODE_ON_HOST);
+        let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE);
         let values = YAMLConfig::default();
         let attributes = testing_agent_attributes(&agent_id);
 
@@ -190,8 +187,7 @@ pub(crate) mod tests {
     #[test]
     fn test_render_with_missing_values() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type =
-            AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &AGENT_CONTROL_MODE_ON_HOST);
+        let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE);
         let values = testing_values(SIMPLE_AGENT_VALUES_REQUIRED_MISSING);
         let attributes = testing_agent_attributes(&agent_id);
 
@@ -211,8 +207,7 @@ pub(crate) mod tests {
     #[test]
     fn test_render_agent_type_with_backoff_config() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type =
-            AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF, &AGENT_CONTROL_MODE_ON_HOST);
+        let agent_type = AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF);
         let values = testing_values(BACKOFF_VALUES_YAML);
         let attributes = testing_agent_attributes(&agent_id);
 
@@ -227,7 +222,7 @@ pub(crate) mod tests {
             )
             .unwrap();
 
-        let on_host_deployment = extract_runtime_by_environment(runtime_config);
+        let on_host_deployment = extract_on_host(runtime_config);
 
         let backoff_strategy = &on_host_deployment
             .executables
@@ -250,19 +245,24 @@ pub(crate) mod tests {
         );
     }
 
-    fn extract_runtime_by_environment(runtime_config: Runtime) -> OnHost {
-        match AGENT_CONTROL_MODE_ON_HOST {
-            Environment::Linux => runtime_config.deployment.linux.unwrap(),
-            Environment::Windows => runtime_config.deployment.windows.unwrap(),
-            Environment::K8s => unreachable!("this should not happen"),
+    fn extract_on_host(runtime_config: Runtime) -> OnHost {
+        match runtime_config.deployment {
+            rendered::Deployment::Host(on_host) => on_host,
+            rendered::Deployment::K8s(_) => unreachable!("expected host deployment"),
+        }
+    }
+
+    fn extract_k8s(runtime_config: Runtime) -> K8s {
+        match runtime_config.deployment {
+            rendered::Deployment::K8s(k8s) => k8s,
+            rendered::Deployment::Host(_) => unreachable!("expected k8s deployment"),
         }
     }
 
     #[test]
     fn test_render_agent_type_with_backoff_config_and_string_durations() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type =
-            AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF, &AGENT_CONTROL_MODE_ON_HOST);
+        let agent_type = AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF);
         let values = testing_values(BACKOFF_VALUES_STRING_DURATION);
         let attributes = testing_agent_attributes(&agent_id);
 
@@ -277,7 +277,7 @@ pub(crate) mod tests {
             )
             .unwrap();
 
-        let on_host_deployment = extract_runtime_by_environment(runtime_config);
+        let on_host_deployment = extract_on_host(runtime_config);
         let backoff_strategy = &on_host_deployment
             .executables
             .first()
@@ -303,8 +303,7 @@ pub(crate) mod tests {
     fn test_invalid_values_for_backoff_config() {
         // This is testing agent-type definition and values, but it is included here because it its related to
         // test_render_agent_type_with_backoff_config.
-        let agent_type =
-            AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF, &AGENT_CONTROL_MODE_ON_HOST);
+        let agent_type = AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF);
 
         let wrong_backoff_yamls = vec![
             WRONG_RETRIES_BACKOFF_CONFIG_YAML,
@@ -328,8 +327,7 @@ pub(crate) mod tests {
     #[test]
     fn test_render_k8s_config_with_yaml_variables() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type =
-            AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES, &Environment::K8s);
+        let agent_type = AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES);
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
 
@@ -360,7 +358,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
             )
             .unwrap();
 
-        let k8s = runtime_config.deployment.k8s.unwrap();
+        let k8s = extract_k8s(runtime_config);
         let cr1 = k8s.objects.get("cr1").unwrap();
 
         assert_eq!("group/version".to_string(), cr1.api_version);
@@ -373,10 +371,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
     #[test]
     fn test_render_with_env_variables() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type = AgentType::build_for_testing(
-            K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES,
-            &Environment::K8s,
-        );
+        let agent_type = AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES);
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
 
@@ -413,7 +408,7 @@ substituted_2: my-value-2
         let runtime_config =
             renderer.render(agent_type, values, attributes, env_vars, HashMap::new());
 
-        let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
+        let k8s = extract_k8s(runtime_config.unwrap());
         let cr1 = k8s.objects.get("cr1").unwrap();
 
         assert_eq!("group/version".to_string(), cr1.api_version);
@@ -426,8 +421,7 @@ substituted_2: my-value-2
     #[test]
     fn test_render_double_expansion_with_env_variables() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type =
-            AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES, &Environment::K8s);
+        let agent_type = AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES);
         let values = testing_values(
             r#"
 config:
@@ -468,7 +462,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
         let runtime_config =
             renderer.render(agent_type, values, attributes, HashMap::new(), secrets);
 
-        let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
+        let k8s = extract_k8s(runtime_config.unwrap());
         let values = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
         assert_eq!(expected_spec_value, values.clone());
     }
@@ -476,10 +470,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
     #[test]
     fn test_render_with_env_variables_not_found() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type = AgentType::build_for_testing(
-            K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES,
-            &Environment::K8s,
-        );
+        let agent_type = AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES);
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
 
@@ -506,29 +497,27 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 name: k8s-agent-type
 namespace: newrelic
 version: 0.0.1
+platform: kubernetes
 variables:
-  k8s:
-    config:
-      values:
-        description: "yaml values"
-        type: yaml
-        required: true
-      text_values:
-        description: "yaml values"
-        type: yaml
-        required: true
+  config:
+    values:
+      description: "yaml values"
+      type: yaml
+      required: true
+    text_values:
+      description: "yaml values"
+      type: yaml
+      required: true
 deployment:
-  k8s:
-    objects:
-      cr1:
-        apiVersion: group/version
-        kind: ObjectKind
-        metadata:
-          name: test
-          namespace: test-namespace
-        substituted: ${nr-env:MY_VARIABLE}
+  objects:
+    cr1:
+      apiVersion: group/version
+      kind: ObjectKind
+      metadata:
+        name: test
+        namespace: test-namespace
+      substituted: ${nr-env:MY_VARIABLE}
 "#,
-            &Environment::K8s,
         );
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
@@ -557,22 +546,16 @@ deployment:
 namespace: newrelic
 name: first
 version: 0.1.0
+platform: host
+operating_system: linux
 variables: {}
 deployment:
-  linux:
-    executables:
-      - id: first
-        path: /opt/first
-        args: 
-          - "${nr-ac:sa-fake-var}"
-  windows:
-    executables:
-      - id: first
-        path: /opt/first
-        args: 
-          - "${nr-ac:sa-fake-var}"
+  executables:
+    - id: first
+      path: /opt/first
+      args:
+        - "${nr-ac:sa-fake-var}"
 "#,
-            &AGENT_CONTROL_MODE_ON_HOST,
         );
         let values = testing_values("");
         let attributes = testing_agent_attributes(&agent_id);
@@ -594,8 +577,8 @@ deployment:
             )
             .unwrap();
         assert_eq!(
-            rendered::Args(vec!("fake_value".to_string())),
-            extract_runtime_by_environment(runtime_config)
+            exec_rendered::Args(vec!("fake_value".to_string())),
+            extract_on_host(runtime_config)
                 .executables
                 .first()
                 .unwrap()
@@ -610,60 +593,34 @@ deployment:
 namespace: newrelic
 name: first
 version: 0.1.0
+platform: host
+operating_system: linux
 variables:
-  linux:
-    config_path:
-      description: "config file string"
-      type: string
-      required: true
-    config_argument:
-      description: "config argument"
-      type: string
-      required: false
-      default: bar
-  windows:
-    config_path:
-      description: "config file string"
-      type: string
-      required: true
-    config_argument:
-      description: "config argument"
-      type: string
-      required: false
-      default: bar
+  config_path:
+    description: "config file string"
+    type: string
+    required: true
+  config_argument:
+    description: "config argument"
+    type: string
+    required: false
+    default: bar
 deployment:
-  linux:
-    executables:
-      - id: first
-        path: /opt/first
-        args:
-          - --config_path
-          - ${nr-var:config_path}
-          - --foo
-          - ${nr-var:config_argument}
-      - id: second
-        path: /opt/second
-        args:
+  executables:
+    - id: first
+      path: /opt/first
+      args:
         - --config_path
         - ${nr-var:config_path}
         - --foo
         - ${nr-var:config_argument}
-  windows:
-    executables:
-      - id: first
-        path: /opt/first
-        args:
-          - --config_path
-          - ${nr-var:config_path}
-          - --foo
-          - ${nr-var:config_argument}
-      - id: second
-        path: /opt/second
-        args:
-        - --config_path
-        - ${nr-var:config_path}
-        - --foo
-        - ${nr-var:config_argument}
+    - id: second
+      path: /opt/second
+      args:
+      - --config_path
+      - ${nr-var:config_path}
+      - --foo
+      - ${nr-var:config_argument}
 "#;
 
     const SIMPLE_AGENT_VALUES: &str = r#"
@@ -678,76 +635,42 @@ config_argument: value
 name: nrdot
 namespace: newrelic
 version: 0.1.0
+platform: host
+operating_system: linux
 variables:
-  linux:
-    backoff:
-      delay:
-        description: "Backoff delay"
-        type: string
-        required: false
-        default: 1s
-      retries:
-        description: "Backoff retries"
-        type: number
-        required: false
-        default: 3
-      interval:
-        description: "Backoff interval"
-        type: string
-        required: false
-        default: 30s
-      type:
-        description: "Backoff strategy type"
-        type: string
-        required: true
-  windows:
-    backoff:
-      delay:
-        description: "Backoff delay"
-        type: string
-        required: false
-        default: 1s
-      retries:
-        description: "Backoff retries"
-        type: number
-        required: false
-        default: 3
-      interval:
-        description: "Backoff interval"
-        type: string
-        required: false
-        default: 30s
-      type:
-        description: "Backoff strategy type"
-        type: string
-        required: true
+  backoff:
+    delay:
+      description: "Backoff delay"
+      type: string
+      required: false
+      default: 1s
+    retries:
+      description: "Backoff retries"
+      type: number
+      required: false
+      default: 3
+    interval:
+      description: "Backoff interval"
+      type: string
+      required: false
+      default: 30s
+    type:
+      description: "Backoff strategy type"
+      type: string
+      required: true
 deployment:
-  linux:
-    executables:
-      - id: otelcol
-        path: /just-an-example
-        args: 
-        - -c 
-        - some-arg
-        restart_policy:
-          backoff_strategy:
-            type: ${nr-var:backoff.type}
-            backoff_delay: ${nr-var:backoff.delay}
-            max_retries: ${nr-var:backoff.retries}
-            last_retry_interval: ${nr-var:backoff.interval}
-  windows:
-    executables:
-      - id: otelcol
-        path: \just-an-example
-        args:
-          - -c
-          - some-arg
-        restart_policy:
-          backoff_strategy:
-            type: ${nr-var:backoff.type}
-            backoff_delay: ${nr-var:backoff.delay}
-            max_retries: ${nr-var:backoff.retries}
-            last_retry_interval: ${nr-var:backoff.interval}
+  executables:
+    - id: otelcol
+      path: /just-an-example
+      args:
+      - -c
+      - some-arg
+      restart_policy:
+        backoff_strategy:
+          type: ${nr-var:backoff.type}
+          backoff_delay: ${nr-var:backoff.delay}
+          max_retries: ${nr-var:backoff.retries}
+          last_retry_interval: ${nr-var:backoff.interval}
 "#;
 
     const BACKOFF_VALUES_YAML: &str = r#"
@@ -801,64 +724,62 @@ backoff:
 name: k8s-agent-type
 namespace: newrelic
 version: 0.0.1
+platform: kubernetes
 variables:
-  k8s:
-    config:
-      values:
-        description: "yaml values"
-        type: yaml
-        required: true
-      text_values:
-        description: "text values"
-        type: yaml
-        required: true
+  config:
+    values:
+      description: "yaml values"
+      type: yaml
+      required: true
+    text_values:
+      description: "text values"
+      type: yaml
+      required: true
 deployment:
-  k8s:
-    objects:
-      cr1:
-        apiVersion: group/version
-        kind: ObjectKind
-        metadata:
-          name: test
-          namespace: test-namespace
-        spec:
-          values: ${nr-var:config.values}
-          from_sub_agent: ${nr-sub:agent_id}
-          text_values: |
-            ${nr-var:config.text_values}
-          collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
+  objects:
+    cr1:
+      apiVersion: group/version
+      kind: ObjectKind
+      metadata:
+        name: test
+        namespace: test-namespace
+      spec:
+        values: ${nr-var:config.values}
+        from_sub_agent: ${nr-sub:agent_id}
+        text_values: |
+          ${nr-var:config.text_values}
+        collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 "#;
 
     const K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES: &str = r#"
 name: k8s-agent-type
 namespace: newrelic
 version: 0.0.1
+platform: kubernetes
 variables:
-  k8s:
-    config:
-      values:
-        description: "yaml values"
-        type: yaml
-        required: true
-      text_values:
-        description: "text values"
-        type: yaml
-        required: true
+  config:
+    values:
+      description: "yaml values"
+      type: yaml
+      required: true
+    text_values:
+      description: "text values"
+      type: yaml
+      required: true
 deployment:
-  k8s:
-    objects:
-      cr1:
-        apiVersion: group/version
-        kind: ObjectKind
-        metadata:
-          name: test
-          namespace: test-namespace
-        spec:
-          values: ${nr-var:config.values}
-          from_sub_agent: ${nr-sub:agent_id}
-          substituted: ${nr-env:MY_VARIABLE}
-          collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
-          substituted_2: ${nr-env:MY_VARIABLE_2}
+  objects:
+    cr1:
+      apiVersion: group/version
+      kind: ObjectKind
+      metadata:
+        name: test
+        namespace: test-namespace
+      spec:
+        values: ${nr-var:config.values}
+        from_sub_agent: ${nr-sub:agent_id}
+        substituted: ${nr-env:MY_VARIABLE}
+        collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
+        substituted_2: ${nr-env:MY_VARIABLE_2}
 "#;
 
     const K8S_CONFIG_YAML_VALUES: &str = r#"
