@@ -14,6 +14,7 @@ use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::{
     agent_control::{agent_id::AgentID, run::Environment},
     agent_type::{
+        agent_type_id::AgentTypeID,
         registry::{AgentTypeRegistry, embedded::EmbeddedRegistry},
         render::{TemplateRenderer, tests::testing_agent_attributes},
         variable::{Variable, namespace::Namespace},
@@ -656,7 +657,9 @@ fn all_agent_type_definitions_are_present() {
     let registry = EmbeddedRegistry::default();
     for case in get_agent_type_test_cases() {
         assert!(
-            registry.get(case.agent_type).is_ok(),
+            registry
+                .get(&AgentTypeID::try_from(case.agent_type).unwrap())
+                .is_ok(),
             "Agent type {} not found",
             case.agent_type
         );
@@ -744,7 +747,9 @@ fn iterate_test_cases(environment: &Environment) {
         };
 
         values.cases.iter().for_each(|(scenario, yaml)| {
-            let definition = registry.get(case.agent_type).unwrap();
+            let definition = registry
+                .get(&AgentTypeID::try_from(case.agent_type).unwrap())
+                .unwrap();
             let agent_type =
                 build_agent_type(definition, environment, &VariableConstraints::default());
             let attributes = testing_agent_attributes(&agent_id);

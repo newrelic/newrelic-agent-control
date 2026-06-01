@@ -1,4 +1,5 @@
 use super::{AgentTypeRegistry, AgentTypeRegistryError};
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::agent_type::definition::AgentTypeDefinition;
 use std::{collections::HashMap, fs, path::PathBuf};
 use tracing::{debug, error};
@@ -24,11 +25,15 @@ impl Default for EmbeddedRegistry {
 }
 
 impl AgentTypeRegistry for EmbeddedRegistry {
-    fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentTypeRegistryError> {
+    fn get(
+        &self,
+        agent_type_id: &AgentTypeID,
+    ) -> Result<AgentTypeDefinition, AgentTypeRegistryError> {
+        let fqn = agent_type_id.to_string();
         self.0
-            .get(name)
+            .get(&fqn)
             .cloned()
-            .ok_or(AgentTypeRegistryError::NotFound(name.to_string()))
+            .ok_or(AgentTypeRegistryError::NotFound(fqn))
     }
 }
 
@@ -182,12 +187,18 @@ pub mod tests {
 
         let registry = EmbeddedRegistry::try_new(definitions.clone()).unwrap();
 
-        let agent_1 = registry.get("ns/agent-1:0.0.0").unwrap();
+        let agent_1 = registry
+            .get(&AgentTypeID::try_from("ns/agent-1:0.0.0").unwrap())
+            .unwrap();
         assert_eq!(definitions[0], agent_1);
-        let agent_2 = registry.get("ns/agent-2:0.0.0").unwrap();
+        let agent_2 = registry
+            .get(&AgentTypeID::try_from("ns/agent-2:0.0.0").unwrap())
+            .unwrap();
         assert_eq!(definitions[1], agent_2);
 
-        let err = registry.get("not-existent").unwrap_err();
+        let err = registry
+            .get(&AgentTypeID::try_from("ns/not-existent:0.0.0").unwrap())
+            .unwrap_err();
         assert_matches!(err, AgentTypeRegistryError::NotFound(_));
     }
 
@@ -287,12 +298,17 @@ deployment:
 
         let registry = EmbeddedRegistry::new(path.to_path_buf());
 
-        let variables = registry.get("ns/io.test:0.0.0").unwrap().variables.k8s.0;
+        let variables = registry
+            .get(&AgentTypeID::try_from("ns/io.test:0.0.0").unwrap())
+            .unwrap()
+            .variables
+            .k8s
+            .0;
         assert!(!variables.contains_key("version"));
         assert!(variables.contains_key("different"));
         assert!(
             registry
-                .get("newrelic/com.newrelic.infrastructure:0.1.0")
+                .get(&AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.1.0").unwrap())
                 .unwrap()
                 .variables
                 .k8s
