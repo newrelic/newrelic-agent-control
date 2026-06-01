@@ -51,39 +51,40 @@ impl Display for CustomAgentType {
         namespace: {}
         name: {}
         version: {}
+        platform: host
+        operating_system: {}
         "#,
             self.agent_type_id.namespace(),
             self.agent_type_id.name(),
-            self.agent_type_id.version()
+            self.agent_type_id.version(),
+            AGENT_CONTROL_MODE_ON_HOST,
         );
         let mut content: serde_json::Map<String, serde_json::Value> =
             serde_saphyr::from_str(&content).unwrap();
-        let mut variables = serde_json::Map::<String, serde_json::Value>::new();
-        if let Some(v) = self.variables.as_ref() {
-            variables.insert(AGENT_CONTROL_MODE_ON_HOST.to_string(), v.clone());
-        }
-        let mut deployment_content = serde_json::Map::<String, serde_json::Value>::new();
+
+        let variables = self
+            .variables
+            .clone()
+            .unwrap_or_else(|| serde_json::Map::<String, serde_json::Value>::new().into());
+
+        let mut deployment = serde_json::Map::<String, serde_json::Value>::new();
         if let Some(executables) = self.executables.as_ref() {
-            deployment_content.insert("executables".into(), executables.clone());
+            deployment.insert("executables".into(), executables.clone());
         }
         if let Some(filesystem) = self.filesystem.as_ref() {
-            deployment_content.insert("filesystem".into(), filesystem.clone());
+            deployment.insert("filesystem".into(), filesystem.clone());
         }
         if let Some(health) = self.health.as_ref() {
-            deployment_content.insert("health".into(), health.clone());
+            deployment.insert("health".into(), health.clone());
         }
         if let Some(version) = self.version.as_ref() {
-            deployment_content.insert("version".into(), version.clone());
+            deployment.insert("version".into(), version.clone());
         }
         if let Some(packages) = self.packages.as_ref() {
-            deployment_content.insert("packages".into(), packages.clone());
+            deployment.insert("packages".into(), packages.clone());
         }
-        let mut deployment = serde_json::Map::<String, serde_json::Value>::new();
-        deployment.insert(
-            AGENT_CONTROL_MODE_ON_HOST.to_string(),
-            deployment_content.into(),
-        );
-        content.insert("variables".into(), variables.into());
+
+        content.insert("variables".into(), variables);
         content.insert("deployment".into(), deployment.into());
         let content = serde_json::Value::from(content);
 
