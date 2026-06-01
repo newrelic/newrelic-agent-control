@@ -1,4 +1,5 @@
 use super::{AgentTypeRegistry, AgentTypeRegistryError};
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::agent_type::definition::AgentTypeDefinition;
 use std::{collections::HashMap, fs, path::PathBuf};
 use tracing::{debug, error};
@@ -15,7 +16,7 @@ include!(concat!(
 /// Its default implementation, loads the AgentTypeDefinitions from yaml files which are embedded into the binary
 /// at compilation time. Check out the agent-control build script for details.
 #[derive(Debug)]
-pub struct EmbeddedRegistry(HashMap<String, AgentTypeDefinition>);
+pub struct EmbeddedRegistry(HashMap<AgentTypeID, AgentTypeDefinition>);
 
 impl Default for EmbeddedRegistry {
     fn default() -> Self {
@@ -24,11 +25,14 @@ impl Default for EmbeddedRegistry {
 }
 
 impl AgentTypeRegistry for EmbeddedRegistry {
-    fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentTypeRegistryError> {
+    fn get(
+        &self,
+        agent_type_id: &AgentTypeID,
+    ) -> Result<AgentTypeDefinition, AgentTypeRegistryError> {
         self.0
-            .get(name)
+            .get(agent_type_id)
             .cloned()
-            .ok_or(AgentTypeRegistryError::NotFound(name.to_string()))
+            .ok_or_else(|| AgentTypeRegistryError::NotFound(agent_type_id.to_string()))
     }
 }
 
@@ -43,9 +47,9 @@ impl EmbeddedRegistry {
         Self::dynamic_agent_type(dynamic_agent_type_path)
             .iter()
             .for_each(|agent_type| {
-                let metadata = agent_type.agent_type_id.to_string();
-                debug!("Storing dynamic agent type: {}", metadata);
-                registry.0.insert(metadata, agent_type.clone());
+                let id = agent_type.agent_type_id.clone();
+                debug!("Storing dynamic agent type: {}", id);
+                registry.0.insert(id, agent_type.clone());
             });
         registry
     }
@@ -61,11 +65,11 @@ impl EmbeddedRegistry {
     }
 
     fn insert(&mut self, definition: AgentTypeDefinition) -> Result<(), AgentTypeRegistryError> {
-        let metadata = definition.agent_type_id.to_string();
-        if self.0.contains_key(&metadata) {
-            return Err(AgentTypeRegistryError::AlreadyExists(metadata));
+        let id = definition.agent_type_id.clone();
+        if self.0.contains_key(&id) {
+            return Err(AgentTypeRegistryError::AlreadyExists(id.to_string()));
         }
-        self.0.insert(metadata, definition);
+        self.0.insert(id, definition);
         Ok(())
     }
 
@@ -156,9 +160,9 @@ pub mod tests {
             "expected one AgentTypeDefinition for each file"
         );
 
-        // The expected key for each definition should be the metadata string
+        // The key for each definition should be its agent type id
         for (key, definition) in registry.0.iter() {
-            assert_eq!(key.to_string(), definition.agent_type_id.to_string())
+            assert_eq!(key, &definition.agent_type_id)
         }
 
         let registry_nonexistent_dynamic =
@@ -182,12 +186,18 @@ pub mod tests {
 
         let registry = EmbeddedRegistry::try_new(definitions.clone()).unwrap();
 
-        let agent_1 = registry.get("ns/agent-1:0.0.0").unwrap();
+        let agent_1 = registry
+            .get(&AgentTypeID::try_from("ns/agent-1:0.0.0").unwrap())
+            .unwrap();
         assert_eq!(definitions[0], agent_1);
-        let agent_2 = registry.get("ns/agent-2:0.0.0").unwrap();
+        let agent_2 = registry
+            .get(&AgentTypeID::try_from("ns/agent-2:0.0.0").unwrap())
+            .unwrap();
         assert_eq!(definitions[1], agent_2);
 
-        let err = registry.get("not-existent").unwrap_err();
+        let err = registry
+            .get(&AgentTypeID::try_from("ns/not-existent:0.0.0").unwrap())
+            .unwrap_err();
         assert_matches!(err, AgentTypeRegistryError::NotFound(_));
     }
 
@@ -287,12 +297,17 @@ deployment:
 
         let registry = EmbeddedRegistry::new(path.to_path_buf());
 
-        let variables = registry.get("ns/io.test:0.0.0").unwrap().variables.k8s.0;
+        let variables = registry
+            .get(&AgentTypeID::try_from("ns/io.test:0.0.0").unwrap())
+            .unwrap()
+            .variables
+            .k8s
+            .0;
         assert!(!variables.contains_key("version"));
         assert!(variables.contains_key("different"));
         assert!(
             registry
-                .get("newrelic/com.newrelic.infrastructure:0.1.0")
+                .get(&AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.1.0").unwrap())
                 .unwrap()
                 .variables
                 .k8s

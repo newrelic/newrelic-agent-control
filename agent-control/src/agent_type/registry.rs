@@ -2,6 +2,7 @@ pub mod embedded;
 
 use thiserror::Error;
 
+use super::agent_type_id::AgentTypeID;
 use super::definition::AgentTypeDefinition;
 
 #[derive(Error, Debug)]
@@ -16,10 +17,13 @@ pub enum AgentTypeRegistryError {
     ValueConversion(#[from] serde_json::Error),
 }
 
-/// AgentTypeRegistry stores and loads Agent types.
+/// Defines how to return an [AgentTypeDefinition] given an identifier.
 pub trait AgentTypeRegistry {
-    // Returns an Agent type given a definition.
-    fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentTypeRegistryError>;
+    /// Returns an Agent type given its id.
+    fn get(
+        &self,
+        agent_type_id: &AgentTypeID,
+    ) -> Result<AgentTypeDefinition, AgentTypeRegistryError>;
 }
 
 #[cfg(test)]
@@ -33,24 +37,29 @@ pub mod tests {
         pub AgentTypeRegistry {}
 
         impl AgentTypeRegistry for AgentTypeRegistry  {
-            fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentTypeRegistryError>;
+            fn get(&self, agent_type_id: &AgentTypeID) -> Result<AgentTypeDefinition, AgentTypeRegistryError>;
         }
     }
 
     impl MockAgentTypeRegistry {
-        pub fn should_get(&mut self, name: String, final_agent: &AgentTypeDefinition) {
+        pub fn should_get(
+            &mut self,
+            agent_type_id: AgentTypeID,
+            final_agent: &AgentTypeDefinition,
+        ) {
             let final_agent = final_agent.clone();
             self.expect_get()
-                .with(predicate::eq(name.clone()))
+                .with(predicate::eq(agent_type_id))
                 .once()
                 .returning(move |_| Ok(final_agent.clone()));
         }
 
-        pub fn should_not_get(&mut self, name: String) {
+        pub fn expect_get_not_found(&mut self, agent_type_id: AgentTypeID) {
+            let fqn = agent_type_id.to_string();
             self.expect_get()
-                .with(predicate::eq(name.clone()))
+                .with(predicate::eq(agent_type_id))
                 .once()
-                .returning(move |_| Err(AgentTypeRegistryError::NotFound(name.clone())));
+                .returning(move |_| Err(AgentTypeRegistryError::NotFound(fqn.clone())));
         }
     }
 }

@@ -18,7 +18,7 @@ pub enum AgentTypeIDError {
 
 /// Holds agent type metadata that uniquely identifies an agent type.
 /// Data can be represented as a fully qualified name in the format `<namespace>/<name>:<version>`.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct AgentTypeID {
     name: String,
     namespace: String,

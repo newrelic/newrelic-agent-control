@@ -158,9 +158,7 @@ where
         environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
         // Load the agent type definition
-        let agent_type_definition = self
-            .registry
-            .get(&agent_identity.agent_type_id.to_string())?;
+        let agent_type_definition = self.registry.get(&agent_identity.agent_type_id)?;
         // Build the corresponding agent type
         let agent_type = build_agent_type(
             agent_type_definition,
@@ -293,7 +291,10 @@ pub(crate) mod tests {
         let values = YAMLConfig::default();
 
         //Expectations
-        registry.should_get("ns/name:0.0.1".to_string(), &agent_type_definition);
+        registry.should_get(
+            AgentTypeID::try_from("ns/name:0.0.1").unwrap(),
+            &agent_type_definition,
+        );
 
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(registry);
 
@@ -316,7 +317,7 @@ pub(crate) mod tests {
         ));
 
         //Expectations
-        registry.should_not_get("namespace/name:0.0.1".to_string());
+        registry.expect_get_not_found(AgentTypeID::try_from("namespace/name:0.0.1").unwrap());
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(registry);
 
         let result = assembler.assemble_agent(

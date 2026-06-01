@@ -41,7 +41,7 @@ impl<R: AgentTypeRegistry> DynamicConfigValidator for RegistryDynamicConfigValid
             .try_for_each(|sub_agent_cfg| {
                 let _ = self
                     .agent_type_registry
-                    .get(sub_agent_cfg.agent_type.to_string().as_str())
+                    .get(&sub_agent_cfg.agent_type)
                     .map_err(|err| {
                         DynamicConfigValidatorError(format!(
                             "AgentType registry check failed: {err}"
@@ -55,6 +55,7 @@ impl<R: AgentTypeRegistry> DynamicConfigValidator for RegistryDynamicConfigValid
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::registry::tests::MockAgentTypeRegistry;
     use mockall::mock;
@@ -97,7 +98,10 @@ pub mod tests {
             AgentTypeDefinition::empty_with_metadata("ns/name:0.0.1".try_into().unwrap());
 
         //Expectations
-        registry.should_get("ns/name:0.0.1".to_string(), &agent_type_definition);
+        registry.should_get(
+            AgentTypeID::try_from("ns/name:0.0.1").unwrap(),
+            &agent_type_definition,
+        );
 
         let dynamic_config = serde_saphyr::from_str::<AgentControlDynamicConfig>(
             r#"
@@ -115,7 +119,7 @@ agents:
     #[test]
     fn test_non_existing_agent_type_validation() {
         let mut registry = MockAgentTypeRegistry::new();
-        registry.should_not_get("ns/another:0.0.1".to_string());
+        registry.expect_get_not_found(AgentTypeID::try_from("ns/another:0.0.1").unwrap());
 
         let dynamic_config = serde_saphyr::from_str::<AgentControlDynamicConfig>(
             r#"
