@@ -1,5 +1,5 @@
 use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
-use crate::agent_control::run::Environment;
+use crate::environment::Environment;
 
 pub(crate) const RUST_VERSION: &str = env!("CARGO_PKG_RUST_VERSION");
 pub(crate) const GIT_COMMIT: &str = env!("GIT_COMMIT");

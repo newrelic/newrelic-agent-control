@@ -15,29 +15,55 @@ variables:
       required: false
       default: { }
   chart_version:
-    description: "nri-bundle chart version"
+    description: "newrelic-logging chart version"
     type: string
     required: true
-  chart_location:
-    description: "nri-bundle chart version"
+  chart_name:
+    description: "newrelic-logging chart name"
     type: string
     required: false
-    default: https://github.com/newrelic/helm-charts
+    default: "newrelic-logging"
+  chart_repository:
+    url:
+      description: "chart repository url"
+      type: string
+      required: false
+      default: "https://helm-charts.newrelic.com"
+      variants:
+        ac_config_field: "chart_repository_urls"
+        values: ["https://helm-charts.newrelic.com"]
+    secret_reference:
+      description: "HelmRepository secret reference (secretRef)"
+      type: yaml
+      required: false
+      default: null
+    certificate_secret_reference:
+      description: "HelmRepository certificate secret reference (certSecretRef)"
+      type: yaml
+      required: false
+      default: null
 deployment:
   health:
     interval: 30s
+    initial_delay: 30s
+    checks:
+      - namespace: ${nr-ac:namespace}
+        name: ${nr-sub:agent_id}
+        kind: HelmReleaseWorkload
+        target_namespace: ${nr-ac:namespace_agents}
   objects:
     repository:
       apiVersion: source.toolkit.fluxcd.io/v1
-      kind: GitRepository
+      kind: HelmRepository
       metadata:
         name: ${nr-sub:agent_id}
         namespace: ${nr-ac:namespace}
       spec:
-        interval: 5m0s
-        url: ${nr-var:chart_location}
-        ref:
-          branch: master
+        interval: 30m
+        provider: generic
+        url: ${nr-var:chart_repository.url}
+        secretRef: ${nr-var:chart_repository.secret_reference}
+        certSecretRef: ${nr-var:chart_repository.certificate_secret_reference}
     values:
       apiVersion: v1
       kind: Secret
@@ -45,6 +71,7 @@ deployment:
         name: values-${nr-sub:agent_id}
         namespace: ${nr-ac:namespace}
       stringData:
+        # ${nr-env:NR_VERBOSE_LOG} is not set, since it is not used in the chart.
         default.yaml: |
           global:
             licenseKey: ${nr-env:NR_LICENSE_KEY}
@@ -65,14 +92,14 @@ deployment:
       spec:
         targetNamespace: ${nr-ac:namespace_agents}
         releaseName: ${nr-sub:agent_id}
-        interval: 3m
+        interval: 30s
         chart:
           spec:
-            chart: ./charts/newrelic-logging
+            chart: ${nr-var:chart_name}
             version: ${nr-var:chart_version}
             reconcileStrategy: ChartVersion
             sourceRef:
-              kind: GitRepository
+              kind: HelmRepository
               name: ${nr-sub:agent_id}
               namespace: ${nr-ac:namespace}
             interval: 3m
@@ -80,20 +107,12 @@ deployment:
           disableWait: true
           disableWaitForJobs: true
           disableTakeOwnership: true
-          remediation:
-            retries: 3
           createNamespace: true
         upgrade:
           disableWait: true
           disableWaitForJobs: true
           disableTakeOwnership: true
           cleanupOnFail: true
-          remediation:
-            retries: 3
-            strategy: rollback
-        rollback:
-          disableWait: true
-          disableWaitForJobs: true
         valuesFrom:
           - kind: Secret
             name: values-${nr-sub:agent_id}

@@ -511,10 +511,7 @@ pub mod tests {
                 AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
             )),
             Runtime {
-                deployment: Deployment {
-                    k8s: Some(config),
-                    ..Deployment::default()
-                },
+                deployment: Deployment::K8s(config),
             },
         );
 

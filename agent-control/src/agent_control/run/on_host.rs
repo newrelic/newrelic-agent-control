@@ -10,7 +10,7 @@ use crate::agent_control::defaults::{
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::on_host::OnHostCleaner;
 use crate::agent_control::run::{
-    AgentControlRunner, Environment, GracefulShutdownReason, RunError, RunningMode,
+    AgentControlRunner, GracefulShutdownReason, RunError, RunningMode,
     setup_config_repository_and_store,
 };
 use crate::agent_control::version_updater::on_host::OnHostACUpdater;
@@ -18,6 +18,7 @@ use crate::agent_control::version_updater::on_host::verify::ProcessVerifyExecuto
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::checkers::health::noop::NoOpHealthChecker;
+use crate::environment::Environment;
 use crate::event::channel::{EventConsumer, pub_sub};
 use crate::event::{AgentControlEvent, OpAMPEvent};
 use crate::http::config::ProxyConfig;
@@ -213,7 +214,6 @@ impl AgentControlRunner {
             yaml_config_repository,
             effective_agents_assembler: agents_assembler,
             sub_agent_publisher: self.sub_agent_publisher,
-            ac_running_mode: self.running_mode,
         };
 
         let dynamic_config_validator =
