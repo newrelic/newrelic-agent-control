@@ -6,9 +6,7 @@
 // 4. All agent type definitions are covered by the test cases (i.e. there are no agent types
 // in the registry that are not tested here).
 
-use std::collections::HashSet;
-use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
-
+use super::LocalRegistry;
 use crate::agent_control::run::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_VARIABLE_NAME};
 use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
 use crate::agent_type::variable::constraints::VariableConstraints;
@@ -17,12 +15,14 @@ use crate::{
     agent_control::agent_id::AgentID,
     agent_type::{
         agent_type_id::AgentTypeID,
-        registry::{AgentTypeRegistry, embedded::EmbeddedRegistry},
+        registry::AgentTypeRegistry,
         render::{TemplateRenderer, tests::testing_agent_attributes},
         variable::{Variable, namespace::Namespace},
     },
     values::yaml_config::YAMLConfig,
 };
+use std::collections::HashSet;
+use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
 
 type CaseDescription = &'static str;
 type YamlContents = &'static str;
@@ -700,11 +700,10 @@ fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesT
 #[test]
 fn all_agent_type_definitions_are_present() {
     for env in [Environment::K8s, Environment::Linux, Environment::Windows] {
-        let mut definitions: HashSet<AgentTypeID> =
-            EmbeddedRegistry::new(env, std::path::PathBuf::new())
-                .iter_definitions()
-                .map(|d| d.agent_type_id().clone())
-                .collect();
+        let mut definitions: HashSet<AgentTypeID> = LocalRegistry::embedded_only(env)
+            .iter_definitions()
+            .map(|d| d.agent_type_id().clone())
+            .collect();
         for case in get_agent_type_test_cases() {
             if match env {
                 Environment::K8s => case.values_k8s.is_none(),
@@ -744,7 +743,7 @@ fn all_agent_type_definitions_are_resilient_windows() {
 }
 
 fn iterate_test_cases(environment: Environment) {
-    let registry = EmbeddedRegistry::new(environment, std::path::PathBuf::new());
+    let registry = LocalRegistry::embedded_only(environment);
     for case in get_agent_type_test_cases() {
         // Skip cases where values for the environment are not provided
         let Some(values) = (match environment {
