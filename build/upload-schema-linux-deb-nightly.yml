@@ -12,7 +12,14 @@
       src_repo: "{access_point_host}/preview/linux/apt"
       dest: "{dest_prefix}linux/apt/"
       os_version:
-        - jammy
+        - noble      # Ubuntu 24.04
+        - jammy      # Ubuntu 22.04
+        - focal      # Ubuntu 20.04
+        - bionic     # Ubuntu 18.04
+        - xenial     # Ubuntu 16.04
+        - bullseye   # Debian 11
+        - bookworm   # Debian 12
+        - resolute
 
 #########################
   # UPLOAD CHECKSUMS #

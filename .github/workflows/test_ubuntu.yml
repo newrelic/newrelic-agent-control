@@ -1,0 +1,128 @@
+name: Test ubuntu 26
+
+# Pushes `nightly` image tag as scheduled.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-packages:
+    name: Build packages
+    uses: ./.github/workflows/component_packages.yml
+    with:
+      pre-release: false
+      tag_name: 0.100.${{ github.run_id }}
+    secrets:
+      gh_token: ${{ secrets.GITHUB_TOKEN }}
+      gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
+      gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+      pfx_certificate_base64: ${{ secrets.OHAI_PFX_CERTIFICATE_BASE64 }}
+      pfx_passphrase: ${{ secrets.OHAI_PFX_PASSPHRASE }}
+
+  build-image:
+    name: Build and Push nightly image
+    uses: ./.github/workflows/component_image.yml
+    with:
+      # the packages are created with 0.100.run_id, however we still push the image with nightly
+      image-tag: nightly
+      ac-version: nightly
+      push: true
+    secrets: inherit
+
+  security-image:
+    name: Security scan
+    needs: [ build-image ]
+    uses: ./.github/workflows/component_image_security.yml
+    with:
+      # the packages are created with 0.100.run_id, however we still push the image with nightly
+      image-tag: nightly
+    secrets: inherit
+
+  security-source-code:
+    uses: ./.github/workflows/component_security.yml
+
+  # This is currently required for canaries
+  upload-packages-s3:
+    runs-on: ubuntu-latest
+    needs: [ build-packages ]
+    name: Upload packages to testing bucket
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: built-binaries-0.100.${{ github.run_id }}
+          path: ./
+
+      - name: Publish deb to S3 action
+        uses: newrelic/infrastructure-publish-action@26d9d8604b2cf2e7343dc287c958e8bbc1a3f750 # v1
+        with:
+          tag: 0.100.${{ github.run_id }}
+          app_name: "newrelic-agent-control"
+          repo_name: ${{ github.repository }}
+          schema: "custom-local"
+          schema_path: "/srv/build/upload-schema-linux-deb-nightly.yml"
+          aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_TESTING }}
+          aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_TESTING }}
+          aws_s3_bucket_name: "nr-downloads-ohai-testing"
+          aws_s3_lock_bucket_name: "onhost-ci-lock-testing"
+          access_point_host: "testing"
+          run_id: ${{ github.run_id }}
+          aws_region: "us-east-1"
+          aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_TESTING }}
+          aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_TESTING }}
+          # used for signing package stuff
+          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          disable_lock: false
+          dest_prefix: "preview/"
+          local_packages_path: "/srv/dist/"
+          apt_skip_mirror: true
+
+      - name: Publish rpm to S3 action
+        uses: newrelic/infrastructure-publish-action@26d9d8604b2cf2e7343dc287c958e8bbc1a3f750 # v1
+        with:
+          tag: 0.100.${{ github.run_id }}
+          app_name: "newrelic-agent-control"
+          repo_name: ${{ github.repository }}
+          schema: "custom-local"
+          schema_path: "/srv/build/upload-schema-linux-rpm.yml"
+          aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_TESTING }}
+          aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_TESTING }}
+          aws_s3_bucket_name: "nr-downloads-ohai-testing"
+          aws_s3_lock_bucket_name: "onhost-ci-lock-testing"
+          access_point_host: "testing"
+          run_id: ${{ github.run_id }}
+          aws_region: "us-east-1"
+          aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_TESTING }}
+          aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_TESTING }}
+          # used for signing package stuff
+          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          disable_lock: false
+          dest_prefix: "preview/"
+          local_packages_path: "/srv/dist/"
+
+  onhost-e2e:
+    uses: ./.github/workflows/component_onhost_e2e.yaml
+    with:
+      caller_workflow: nightly
+    secrets:
+      NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
+      NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
+      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
+      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
+
+  molecule-packaging-tests:
+    needs: [ upload-packages-s3 ]
+    uses: ./.github/workflows/component_molecule_packaging.yml
+    with:
+      TAG: 0.100.${{ github.run_id }}
+      PACKAGE_NAME: "newrelic-agent-control"
+      REPO_ENDPOINT: 'http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/preview'
