@@ -14,9 +14,13 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
-### enhancements
+## v1.16.0 - 2026-06-02
+
+### 🚀 Enhancements
 - Add support for Ubuntu 26.
 
+### ⛓️ Dependencies
+- Updated rust crate serial_test to 3.5.0
 
 ## v1.15.2 - 2026-05-29
 
