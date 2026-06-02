@@ -44,7 +44,9 @@ resource "newrelic_notification_channel" "slack_channel" {
 
   property {
     key   = "payload"
-    value = "{\"text\": \":warning: ${var.instance_id} Alert @hero\"}"
+    value = templatefile("${path.module}/alert_slack_payload.tftpl", {
+      instance_id = var.instance_id
+    })
   }
 }
 

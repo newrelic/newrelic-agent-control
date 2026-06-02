@@ -391,7 +391,9 @@ resource "newrelic_notification_channel" "slack_channel" {
 
   property {
     key   = "payload"
-    value = "{\"text\": \":warning: ${each.key} Alert @hero\"}"
+    value = templatefile("${path.module}/../../terraform/modules/nr_alerts/alert_slack_payload.tftpl", {
+      instance_id = each.key
+    })
   }
 }
 
