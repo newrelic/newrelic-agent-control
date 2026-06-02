@@ -14,6 +14,10 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+### enhancements
+- Add support for Ubuntu 26.
+
+
 ## v1.15.2 - 2026-05-29
 
 ### 🐞 Bug fixes
