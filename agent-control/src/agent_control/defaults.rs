@@ -26,11 +26,17 @@ pub const OPAMP_AGENT_VERSION_ATTRIBUTE_KEY: &str = "agent.version";
 
 pub const ENVIRONMENT_VARIABLES_FILE_NAME: &str = "environment_variables.yaml";
 
-// TODO verify this whenever the package is published.
-pub const AC_OCI_PACKAGE_DEFAULT_REGISTRY: &str = "docker.io";
+// Default OCI registry host. Shared by all OCI pulls (agent packages, self-update, and the
+// agent type registry); customers override it via `oci.registry` to point at a mirror.
+pub const AC_OCI_DEFAULT_REGISTRY: &str = "docker.io";
+
 pub const AC_OCI_PACKAGE_DEFAULT_REPOSITORY: &str = "newrelic/agent-control-artifacts";
 pub const AC_OCI_PACKAGE_PUBLIC_KEY_URL: &str =
     "https://publickeys.newrelic.com/g/agent-control-oci/global/agent-control-artifacts/jwks.json";
+
+pub const AC_OCI_AGENT_TYPES_DEFAULT_REPOSITORY: &str = "newrelic/agent-control-agent-types";
+pub const AC_OCI_AGENT_TYPES_PUBLIC_KEY_URL: &str =
+    "https://publickeys.newrelic.com/g/agent-control-oci/global/agent-type/jwks.json";
 
 // Auth
 pub const AUTH_PRIVATE_KEY_FILE_NAME: &str = "auth_key";

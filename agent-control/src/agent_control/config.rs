@@ -2,8 +2,8 @@ use super::agent_id::AgentID;
 use super::http_server::config::ServerConfig;
 use super::uptime_report::UptimeReportConfig;
 use crate::agent_control::defaults::{
-    AC_OCI_PACKAGE_DEFAULT_REGISTRY, AC_OCI_PACKAGE_DEFAULT_REPOSITORY,
-    AC_OCI_PACKAGE_PUBLIC_KEY_URL,
+    AC_OCI_AGENT_TYPES_DEFAULT_REPOSITORY, AC_OCI_AGENT_TYPES_PUBLIC_KEY_URL,
+    AC_OCI_DEFAULT_REGISTRY, AC_OCI_PACKAGE_DEFAULT_REPOSITORY, AC_OCI_PACKAGE_PUBLIC_KEY_URL,
 };
 use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
 use crate::agent_type::runtime_config::on_host::package::rendered::{Repository, Version};
@@ -85,6 +85,11 @@ pub struct AgentControlConfig {
     /// Oci configuration (used for AC and agents packages)
     #[serde(default)]
     pub oci: OciConfig,
+
+    /// Configuration for the agent type registry remote source.
+    /// Reuses the global `oci` registry/auth; see [AgentTypeRegistryConfig].
+    #[serde(default)]
+    pub agent_types: AgentTypeRegistryConfig,
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
@@ -125,7 +130,7 @@ pub struct Registry(String);
 
 impl Default for Registry {
     fn default() -> Self {
-        Registry(AC_OCI_PACKAGE_DEFAULT_REGISTRY.to_string())
+        Registry(AC_OCI_DEFAULT_REGISTRY.to_string())
     }
 }
 
@@ -201,6 +206,42 @@ const DEFAULT_SIGNATURE_VERIFICATION_ENABLED: bool = true;
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_SIGNATURE_VERIFICATION_ENABLED)]
 pub struct SignatureVerificationEnabled(bool);
+
+/// Configuration for the agent type registry's remote source(s).
+#[derive(Debug, Default, Deserialize, PartialEq, Clone)]
+#[serde(default)]
+pub struct AgentTypeRegistryConfig {
+    /// The default (New Relic) remote source for agent types.
+    pub default_remote: DefaultAgentTypeRemote,
+}
+
+/// The default remote agent type source.
+///
+/// It reuses the global `oci.registry`/`oci.auth` (see [OciConfig]); it does not carry its own
+/// registry or auth. It only specifies the repository to pull agent types from, whether to
+/// verify their signature, and the signing key.
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(default)]
+pub struct DefaultAgentTypeRemote {
+    /// Repository (within the global OCI registry) holding the agent type definitions
+    pub repository: Repository,
+    /// Indicates whether agent type signature verification is enabled or not
+    pub signature_verification_enabled: SignatureVerificationEnabled,
+    /// Public key url (jwks) used to verify agent type signatures
+    pub public_key_url: Url,
+}
+
+impl Default for DefaultAgentTypeRemote {
+    fn default() -> Self {
+        DefaultAgentTypeRemote {
+            repository: Repository::from_str(AC_OCI_AGENT_TYPES_DEFAULT_REPOSITORY)
+                .expect("valid default agent types repository"),
+            signature_verification_enabled: SignatureVerificationEnabled::default(),
+            public_key_url: Url::parse(AC_OCI_AGENT_TYPES_PUBLIC_KEY_URL)
+                .expect("valid default agent types public key url"),
+        }
+    }
+}
 
 impl TryFrom<YAMLConfig> for AgentControlConfig {
     type Error = AgentControlConfigError;
@@ -1324,6 +1365,99 @@ oci:
 "#;
         let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
         assert_eq!("custom-registry.io".to_string(), config.oci.registry.0);
+    }
+
+    #[test]
+    fn test_agent_type_registry_default_values() {
+        let default_remote = DefaultAgentTypeRemote::default();
+        assert_eq!(
+            AC_OCI_AGENT_TYPES_DEFAULT_REPOSITORY,
+            default_remote.repository.to_string()
+        );
+        assert!(default_remote.signature_verification_enabled.0);
+        assert_eq!(
+            AC_OCI_AGENT_TYPES_PUBLIC_KEY_URL,
+            default_remote.public_key_url.as_str()
+        );
+    }
+
+    #[test]
+    fn test_agent_types_default_when_block_or_subfields_omitted() {
+        let expected = AgentTypeRegistryConfig::default();
+        for config_input in [
+            "agents: {}",                                     // agent_types omitted entirely
+            "agents: {}\nagent_types: {}",                    // empty agent_types block
+            "agents: {}\nagent_types:\n  default_remote: {}", // empty default_remote block
+        ] {
+            let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
+            assert_eq!(expected, config.agent_types);
+        }
+    }
+
+    #[test]
+    fn test_agent_types_partial_override_keeps_defaults() {
+        let config_input = r#"
+agents: {}
+agent_types:
+  default_remote:
+    repository: myorg/my-agent-types
+"#;
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
+        let default_remote = config.agent_types.default_remote;
+        // Overridden field.
+        assert_eq!(
+            "myorg/my-agent-types",
+            default_remote.repository.to_string()
+        );
+        // Untouched fields stay at default.
+        assert!(default_remote.signature_verification_enabled.0);
+        assert_eq!(
+            AC_OCI_AGENT_TYPES_PUBLIC_KEY_URL,
+            default_remote.public_key_url.as_str()
+        );
+    }
+
+    #[test]
+    fn test_agent_types_full_override() {
+        let config_input = r#"
+agents: {}
+agent_types:
+  default_remote:
+    repository: myorg/my-agent-types
+    signature_verification_enabled: false
+    public_key_url: https://example.com/jwks.json
+"#;
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
+        let default_remote = config.agent_types.default_remote;
+        assert_eq!(
+            "myorg/my-agent-types",
+            default_remote.repository.to_string()
+        );
+        assert!(!default_remote.signature_verification_enabled.0);
+        assert_eq!(
+            "https://example.com/jwks.json",
+            default_remote.public_key_url.as_str()
+        );
+    }
+
+    #[test]
+    fn test_agent_types_tolerates_unknown_future_fields() {
+        // A `custom_remotes` sibling is not implemented yet; an older binary must still parse a
+        // config that includes it (forward compatibility), populating the known `default_remote`.
+        let config_input = r#"
+agents: {}
+agent_types:
+  default_remote:
+    repository: myorg/my-agent-types
+  custom_remotes:
+    - namespaces: [fake_company]
+      repository: agent-control-agent-types
+"#;
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
+        assert_eq!(
+            "myorg/my-agent-types",
+            config.agent_types.default_remote.repository.to_string()
+        );
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
