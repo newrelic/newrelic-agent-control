@@ -14,6 +14,11 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+## v1.15.3 - 2026-06-02
+
+### ⛓️ Dependencies
+- Updated rust crate serial_test to 3.5.0
+
 ## v1.15.2 - 2026-05-29
 
 ### 🐞 Bug fixes
