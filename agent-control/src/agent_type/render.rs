@@ -105,10 +105,7 @@ pub(crate) mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::agent_type::runtime_config::k8s::K8s;
     use crate::agent_type::runtime_config::on_host::executable::rendered as exec_rendered;
-    use crate::agent_type::runtime_config::on_host::rendered::OnHost;
-    use crate::agent_type::runtime_config::rendered;
     use crate::{
         agent_control::agent_id::AgentID,
         agent_type::{
@@ -147,7 +144,9 @@ pub(crate) mod tests {
             .unwrap();
 
         let mut bin_stack = vec!["/opt/first", "/opt/second"].into_iter();
-        extract_on_host(runtime_config)
+        runtime_config
+            .deployment
+            .on_host()
             .executables
             .iter()
             .for_each(|exec| {
@@ -222,7 +221,7 @@ pub(crate) mod tests {
             )
             .unwrap();
 
-        let on_host_deployment = extract_on_host(runtime_config);
+        let on_host_deployment = runtime_config.deployment.on_host();
 
         let backoff_strategy = &on_host_deployment
             .executables
@@ -245,20 +244,6 @@ pub(crate) mod tests {
         );
     }
 
-    fn extract_on_host(runtime_config: Runtime) -> OnHost {
-        match runtime_config.deployment {
-            rendered::Deployment::Host(on_host) => on_host,
-            rendered::Deployment::K8s(_) => unreachable!("expected host deployment"),
-        }
-    }
-
-    fn extract_k8s(runtime_config: Runtime) -> K8s {
-        match runtime_config.deployment {
-            rendered::Deployment::K8s(k8s) => k8s,
-            rendered::Deployment::Host(_) => unreachable!("expected k8s deployment"),
-        }
-    }
-
     #[test]
     fn test_render_agent_type_with_backoff_config_and_string_durations() {
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
@@ -277,7 +262,7 @@ pub(crate) mod tests {
             )
             .unwrap();
 
-        let on_host_deployment = extract_on_host(runtime_config);
+        let on_host_deployment = runtime_config.deployment.on_host();
         let backoff_strategy = &on_host_deployment
             .executables
             .first()
@@ -358,7 +343,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
             )
             .unwrap();
 
-        let k8s = extract_k8s(runtime_config);
+        let k8s = runtime_config.deployment.k8s();
         let cr1 = k8s.objects.get("cr1").unwrap();
 
         assert_eq!("group/version".to_string(), cr1.api_version);
@@ -408,7 +393,7 @@ substituted_2: my-value-2
         let runtime_config =
             renderer.render(agent_type, values, attributes, env_vars, HashMap::new());
 
-        let k8s = extract_k8s(runtime_config.unwrap());
+        let k8s = runtime_config.unwrap().deployment.k8s();
         let cr1 = k8s.objects.get("cr1").unwrap();
 
         assert_eq!("group/version".to_string(), cr1.api_version);
@@ -462,7 +447,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
         let runtime_config =
             renderer.render(agent_type, values, attributes, HashMap::new(), secrets);
 
-        let k8s = extract_k8s(runtime_config.unwrap());
+        let k8s = runtime_config.unwrap().deployment.k8s();
         let values = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
         assert_eq!(expected_spec_value, values.clone());
     }
@@ -578,7 +563,9 @@ deployment:
             .unwrap();
         assert_eq!(
             exec_rendered::Args(vec!("fake_value".to_string())),
-            extract_on_host(runtime_config)
+            runtime_config
+                .deployment
+                .on_host()
                 .executables
                 .first()
                 .unwrap()

@@ -689,7 +689,7 @@ restart_policy:
         "platform: kubernetes\noperating_system: linux",
         Err(AgentTypeMetadataError::UnexpectedOperatingSystem)
     )]
-    fn test_agent_trype_metadata_from_yaml(
+    fn test_agent_type_metadata_from_yaml(
         #[case] platform_block: &str,
         #[case] expected: Result<Environment, AgentTypeMetadataError>,
     ) {

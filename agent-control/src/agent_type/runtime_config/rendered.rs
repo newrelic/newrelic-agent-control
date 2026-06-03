@@ -14,3 +14,20 @@ pub enum Deployment {
     Host(OnHost),
     K8s(K8s),
 }
+
+#[cfg(test)]
+impl Deployment {
+    pub fn on_host(self) -> OnHost {
+        match self {
+            Self::Host(on_host) => on_host,
+            Self::K8s(_) => unreachable!("expected host deployment"),
+        }
+    }
+
+    pub fn k8s(self) -> K8s {
+        match self {
+            Self::K8s(k8s) => k8s,
+            Self::Host(_) => unreachable!("expected k8s deployment"),
+        }
+    }
+}
