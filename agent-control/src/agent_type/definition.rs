@@ -5,7 +5,7 @@
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
 use super::{
-    agent_type_id::AgentTypeID,
+    agent_type_id::{AgentTypeID, AgentTypeIDError},
     error::AgentTypeError,
     runtime_config::{Deployment, Runtime},
     variable::{Variable, VariableDefinition, tree::Tree},
@@ -24,6 +24,7 @@ use crate::{agent_type::variable::tree::VarTree, values::yaml_config::YAMLConfig
 use serde::{Deserialize, de::Error as _};
 use std::collections::HashMap;
 use std::path::Path;
+use thiserror::Error;
 use tracing::{debug, warn};
 
 /// The agent type as parsed from a YAML file. Variables are still in their raw
@@ -36,7 +37,7 @@ use tracing::{debug, warn};
 /// with precise error messages.
 #[derive(Debug, PartialEq, Clone)]
 pub struct AgentTypeDefinition {
-    pub agent_type_id: AgentTypeID,
+    pub metadata: AgentTypeMetadata,
     pub variables: VariableDefinitionTree,
     pub runtime_config: Runtime,
 }
@@ -46,12 +47,10 @@ impl<'de> Deserialize<'de> for AgentTypeDefinition {
     where
         D: serde::Deserializer<'de>,
     {
-        // Captures the deployment block as a generic value so we can dispatch its
-        // deserialization based on the platform read from the agent-type id.
         #[derive(Deserialize)]
         struct Raw {
             #[serde(flatten)]
-            agent_type_id: AgentTypeID,
+            metadata: AgentTypeMetadata,
             #[serde(default)]
             variables: VariableDefinitionTree,
             deployment: serde_json::Value,
@@ -59,9 +58,7 @@ impl<'de> Deserialize<'de> for AgentTypeDefinition {
 
         let raw = Raw::deserialize(deserializer)?;
 
-        let environment = Environment::try_from(&raw.agent_type_id).map_err(D::Error::custom)?;
-
-        let deployment = match environment {
+        let deployment = match raw.metadata.environment {
             Environment::Linux | Environment::Windows => {
                 let on_host: OnHost =
                     serde_json::from_value(raw.deployment).map_err(D::Error::custom)?;
@@ -74,7 +71,7 @@ impl<'de> Deserialize<'de> for AgentTypeDefinition {
         };
 
         Ok(AgentTypeDefinition {
-            agent_type_id: raw.agent_type_id,
+            metadata: raw.metadata,
             variables: raw.variables,
             runtime_config: Runtime { deployment },
         })
@@ -82,14 +79,93 @@ impl<'de> Deserialize<'de> for AgentTypeDefinition {
 }
 
 impl AgentTypeDefinition {
+    pub fn agent_type_id(&self) -> &AgentTypeID {
+        &self.metadata.id
+    }
+
     /// Materializes this definition into an [AgentType] by applying the given variable
     /// constraints to the parsed variable tree.
     pub fn with_constraints(self, constraints: &VariableConstraints) -> AgentType {
         AgentType {
-            agent_type_id: self.agent_type_id,
+            agent_type_id: self.metadata.id,
             variables: self.variables.with_config(constraints),
             runtime_config: self.runtime_config,
         }
+    }
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum AgentTypeMetadataError {
+    #[error("{0}")]
+    Id(AgentTypeIDError),
+    #[error("operating_system is required when platform is host")]
+    MissingOperatingSystem,
+    #[error("operating_system must not be set when platform is kubernetes")]
+    UnexpectedOperatingSystem,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Platform {
+    Host,
+    Kubernetes,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum OperatingSystem {
+    Linux,
+    Windows,
+}
+
+/// Holds the identity plus extra metadata that identifies a [AgentTypeDefinition]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentTypeMetadata {
+    pub id: AgentTypeID,
+    pub environment: Environment,
+}
+
+impl AgentTypeMetadata {
+    fn try_from_parts(
+        id: AgentTypeID,
+        platform: Platform,
+        operating_system: Option<OperatingSystem>,
+    ) -> Result<Self, AgentTypeMetadataError> {
+        let environment = match (platform, operating_system) {
+            (Platform::Host, Some(OperatingSystem::Linux)) => Environment::Linux,
+            (Platform::Host, Some(OperatingSystem::Windows)) => Environment::Windows,
+            (Platform::Kubernetes, None) => Environment::K8s,
+            (Platform::Host, None) => {
+                return Err(AgentTypeMetadataError::MissingOperatingSystem);
+            }
+            (Platform::Kubernetes, Some(_)) => {
+                return Err(AgentTypeMetadataError::UnexpectedOperatingSystem);
+            }
+        };
+        Ok(AgentTypeMetadata { id, environment })
+    }
+}
+
+impl<'de> Deserialize<'de> for AgentTypeMetadata {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Raw {
+            #[serde(flatten)]
+            id: AgentTypeID,
+            platform: Platform,
+            operating_system: Option<OperatingSystem>,
+        }
+
+        let Raw {
+            id,
+            platform,
+            operating_system,
+        } = Raw::deserialize(deserializer)?;
+
+        AgentTypeMetadata::try_from_parts(id, platform, operating_system).map_err(D::Error::custom)
     }
 }
 
@@ -180,7 +256,6 @@ fn update_specs(
 ///
 /// ```yaml
 /// variables:
-///   linux:
 ///     system:
 ///       logging:
 ///         level:
@@ -265,16 +340,20 @@ pub mod tests {
     use super::*;
     use crate::agent_type::trivial_value::TrivialValue;
     use crate::agent_type::variable::constraints::VariableConstraints;
+    use rstest::rstest;
     use serde_json::Number;
     use serde_saphyr::Error;
     use std::collections::HashMap as Map;
 
     impl AgentTypeDefinition {
-        /// This helper returns an [AgentTypeDefinition] including only the provided metadata.
+        /// This helper returns an [AgentTypeDefinition] including only the provided id.
         /// Defaults to a k8s deployment with empty variables.
-        pub fn empty_with_metadata(metadata: AgentTypeID) -> Self {
+        pub fn empty_with_metadata(id: AgentTypeID) -> Self {
             Self {
-                agent_type_id: metadata,
+                metadata: AgentTypeMetadata {
+                    id,
+                    environment: Environment::K8s,
+                },
                 variables: VariableDefinitionTree::default(),
                 runtime_config: Runtime {
                     deployment: Deployment::K8s(K8s::default()),
@@ -376,9 +455,9 @@ deployment: {}
 
         let agent: AgentTypeDefinition = serde_saphyr::from_str(basic_agent).unwrap();
 
-        assert_eq!("nrdot", agent.agent_type_id.name());
-        assert_eq!("newrelic", agent.agent_type_id.namespace());
-        assert_eq!("0.0.1", agent.agent_type_id.version().to_string());
+        assert_eq!("nrdot", agent.agent_type_id().name());
+        assert_eq!("newrelic", agent.agent_type_id().namespace());
+        assert_eq!("0.0.1", agent.agent_type_id().version().to_string());
     }
 
     #[test]
@@ -599,5 +678,38 @@ restart_policy:
             "exponential".to_string(),
             var.get_final_value().unwrap().to_string()
         );
+    }
+
+    #[rstest]
+    #[case::host_linux("platform: host\noperating_system: linux", Ok(Environment::Linux))]
+    #[case::host_windows("platform: host\noperating_system: windows", Ok(Environment::Windows))]
+    #[case::kubernetes("platform: kubernetes", Ok(Environment::K8s))]
+    #[case::host_without_os("platform: host", Err(AgentTypeMetadataError::MissingOperatingSystem))]
+    #[case::kubernetes_with_os(
+        "platform: kubernetes\noperating_system: linux",
+        Err(AgentTypeMetadataError::UnexpectedOperatingSystem)
+    )]
+    fn test_agent_trype_metadata_from_yaml(
+        #[case] platform_block: &str,
+        #[case] expected: Result<Environment, AgentTypeMetadataError>,
+    ) {
+        let yaml = format!(
+            r#"
+name: fake_name
+namespace: fake_namespace
+version: 0.0.1
+{platform_block}
+"#
+        );
+
+        let result = serde_saphyr::from_str::<AgentTypeMetadata>(&yaml);
+
+        match expected {
+            Ok(env) => assert_eq!(env, result.unwrap().environment),
+            Err(err) => assert!(
+                result.unwrap_err().to_string().contains(&err.to_string()),
+                "expected error containing: {err}"
+            ),
+        }
     }
 }

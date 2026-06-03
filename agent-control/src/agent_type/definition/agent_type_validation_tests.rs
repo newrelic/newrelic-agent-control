@@ -703,7 +703,7 @@ fn all_agent_type_definitions_are_present() {
         let mut definitions: HashSet<AgentTypeID> =
             EmbeddedRegistry::new(env, std::path::PathBuf::new())
                 .iter_definitions()
-                .map(|d| d.agent_type_id.clone())
+                .map(|d| d.agent_type_id().clone())
                 .collect();
         for case in get_agent_type_test_cases() {
             if match env {

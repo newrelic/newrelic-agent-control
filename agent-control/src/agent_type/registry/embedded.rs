@@ -42,9 +42,9 @@ impl EmbeddedRegistry {
         // Since they are dynamic, they are taking the precedence over the static ones.
         Self::dynamic_agent_type(dynamic_agent_type_path)
             .into_iter()
-            .filter(|agent_type| Environment::try_from(&agent_type.agent_type_id) == Ok(env))
+            .filter(|agent_type| agent_type.metadata.environment == env)
             .for_each(|agent_type| {
-                let id = agent_type.agent_type_id.clone();
+                let id = agent_type.agent_type_id().clone();
                 debug!("Storing dynamic agent type: {}", id);
                 registry.0.insert(id, agent_type.clone());
             });
@@ -62,7 +62,7 @@ impl EmbeddedRegistry {
     }
 
     fn insert(&mut self, definition: AgentTypeDefinition) -> Result<(), AgentTypeRegistryError> {
-        let id = definition.agent_type_id.clone();
+        let id = definition.agent_type_id().clone();
         if self.0.contains_key(&id) {
             return Err(AgentTypeRegistryError::AlreadyExists(id.to_string()));
         }
@@ -78,7 +78,7 @@ impl EmbeddedRegistry {
                 serde_saphyr::from_reader::<_, AgentTypeDefinition>(file_content_ref.to_owned())
                     .expect("Invalid yaml in default agent types")
             })
-            .filter(move |def| Environment::try_from(&def.agent_type_id) == Ok(env))
+            .filter(move |def| def.metadata.environment == env)
     }
 
     /// Read and return the dynamic agent types, if there is an error reading or deserializing it, logs the error.
@@ -159,7 +159,7 @@ pub mod tests {
         for env in [Environment::K8s, Environment::Linux, Environment::Windows] {
             let registry = EmbeddedRegistry::new(env, PathBuf::from("/nonexistent"));
             for (key, definition) in registry.0.iter() {
-                assert_eq!(key.to_string(), definition.agent_type_id.to_string());
+                assert_eq!(key.to_string(), definition.agent_type_id().to_string());
             }
         }
     }

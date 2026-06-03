@@ -1536,7 +1536,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &old_remote_config,
             )
             .unwrap();
@@ -1591,7 +1593,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &old_remote_config,
             )
             .unwrap();
@@ -1645,7 +1649,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &remote_config,
             )
             .unwrap();
@@ -1701,7 +1707,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &old_remote_config,
             )
             .unwrap();
@@ -1758,7 +1766,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &old_remote_config,
             )
             .unwrap();
@@ -1813,7 +1823,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &old_remote_config,
             )
             .unwrap();
@@ -1930,7 +1942,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &remote_config,
             )
             .unwrap();
@@ -1967,7 +1981,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &remote_config,
             )
             .unwrap();
@@ -2004,7 +2020,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &remote_config,
             )
             .unwrap();
@@ -2050,7 +2068,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &input_remote_config,
             )
             .unwrap();
