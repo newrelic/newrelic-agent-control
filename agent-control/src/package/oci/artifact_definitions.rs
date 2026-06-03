@@ -156,6 +156,65 @@ impl LocalAgentPackage {
     }
 }
 
+/// Represents an Agent Type OCI artifact locally stored.
+///
+/// An Agent Type artifact is a gzipped tar containing a single Agent Type definition YAML file.
+///
+// TODO: Not consumed yet; it will be used by the agent-type OCI downloader in a follow-up change.
+#[derive(Debug)]
+pub struct LocalAgentType {
+    blob_path: PathBuf,
+    // TODO: check if we need to support other format different from gzip (tar.gz)
+}
+impl LocalAgentType {
+    pub fn new(blob_path: PathBuf) -> Self {
+        Self { blob_path }
+    }
+
+    /// Validates that the manifest meets the requirements for an Agent Type artifact and
+    /// returns the layer descriptor that contains the definition blob.
+    /// Agent Type Manifest requirements:
+    /// - artifactType must be '[AGENT_TYPE_ARTIFACT_TYPE]'
+    /// - exactly one agent-type layer (mediaType '[AGENT_TYPE_LAYER_TAR_GZ]'); other layers are ignored
+    pub fn get_layer(manifest: &OciImageManifest) -> Result<OciDescriptor, DefinitionError> {
+        if manifest.artifact_type.as_deref() != Some(AGENT_TYPE_ARTIFACT_TYPE) {
+            return Err(DefinitionError(format!(
+                "only '{}' artifact type is supported, got '{}'",
+                AGENT_TYPE_ARTIFACT_TYPE,
+                manifest.artifact_type.as_deref().unwrap_or_default()
+            )));
+        }
+        let mut supported_layers = manifest.layers.iter().filter(|layer| {
+            matches!(
+                LayerMediaType::from(layer.media_type.as_str()),
+                LayerMediaType::AgentType
+            )
+        });
+
+        let Some(layer) = supported_layers.next() else {
+            return Err(DefinitionError(format!(
+                "agent type artifact must have one supported layer {}",
+                LayerMediaType::AgentType
+            )));
+        };
+        if supported_layers.next().is_some() {
+            return Err(DefinitionError(
+                "agent type artifact must have exactly one supported layer".to_string(),
+            ));
+        }
+        Ok(layer.clone())
+    }
+
+    /// Extracts the gzipped tar blob into `dest_path`.
+    ///
+    /// The artifact is expected to contain a single Agent Type definition YAML file; deciding how
+    /// to locate and consume the extracted content is left to the caller.
+    pub fn extract(&self, dest_path: &Path) -> Result<(), DefinitionError> {
+        extract_tar_gz(&self.blob_path, dest_path)
+            .map_err(|e| DefinitionError(format!("failed extracting: {e}")))
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -165,6 +224,24 @@ pub mod tests {
         pub fn path(&self) -> &PathBuf {
             &self.blob_path
         }
+    }
+
+    /// Writes a gzipped tar archive at `path` containing the provided `(name, content)` files.
+    fn write_tar_gz(path: &Path, files: &[(&str, &[u8])]) {
+        use flate2::Compression;
+        use flate2::write::GzEncoder;
+
+        let tar_gz = std::fs::File::create(path).unwrap();
+        let enc = GzEncoder::new(tar_gz, Compression::default());
+        let mut tar = tar::Builder::new(enc);
+        for (name, content) in files {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(content.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            tar.append_data(&mut header, name, *content).unwrap();
+        }
+        tar.into_inner().unwrap().finish().unwrap();
     }
 
     #[rstest::rstest]
@@ -245,5 +322,97 @@ pub mod tests {
         };
         let err = LocalAgentPackage::get_layer(&manifest).unwrap_err();
         assert!(err.to_string().contains(expected_error));
+    }
+
+    #[rstest::rstest]
+    #[case::single_supported_layer(vec![AGENT_TYPE_LAYER_TAR_GZ])]
+    #[case::ignores_extra_unsupported_layers(
+        vec!["application/vnd.custom.extra.v1", AGENT_TYPE_LAYER_TAR_GZ]
+    )]
+    fn test_local_artifact_to_agent_type_success(#[case] layer_media_types: Vec<&str>) {
+        let layers = layer_media_types
+            .iter()
+            .map(|media_type| OciDescriptor {
+                media_type: media_type.to_string(),
+                ..Default::default()
+            })
+            .collect();
+        let manifest = OciImageManifest {
+            artifact_type: Some(ManifestArtifactType::AgentType.to_string()),
+            layers,
+            ..Default::default()
+        };
+
+        let layer = LocalAgentType::get_layer(&manifest).unwrap();
+        assert_eq!(layer.media_type, AGENT_TYPE_LAYER_TAR_GZ);
+    }
+
+    #[rstest::rstest]
+    #[case::invalid_artifact_type(
+        AGENT_PACKAGE_ARTIFACT_TYPE,
+        vec![AGENT_TYPE_LAYER_TAR_GZ],
+        "artifact type is supported"
+    )]
+    #[case::no_supported_layer(
+        AGENT_TYPE_ARTIFACT_TYPE,
+        vec!["application/vnd.custom.extra.v1"],
+        "must have one supported layer"
+    )]
+    #[case::empty_layers(
+        AGENT_TYPE_ARTIFACT_TYPE,
+        vec![],
+        "must have one supported layer"
+    )]
+    #[case::multiple_supported_layers(
+        AGENT_TYPE_ARTIFACT_TYPE,
+        vec![AGENT_TYPE_LAYER_TAR_GZ, AGENT_TYPE_LAYER_TAR_GZ],
+        "must have exactly one supported layer"
+    )]
+    fn test_local_artifact_to_agent_type_failure(
+        #[case] artifact_type: &str,
+        #[case] layer_media_types: Vec<&str>,
+        #[case] expected_error: &str,
+    ) {
+        let layers = layer_media_types
+            .iter()
+            .map(|media_type| OciDescriptor {
+                media_type: media_type.to_string(),
+                ..Default::default()
+            })
+            .collect();
+        let manifest = OciImageManifest {
+            artifact_type: Some(artifact_type.to_string()),
+            layers,
+            ..Default::default()
+        };
+        assert_matches!(LocalAgentType::get_layer(&manifest), Err(DefinitionError(msg)) => {
+            assert!(msg.contains(expected_error), "{msg}");
+        });
+    }
+
+    #[test]
+    fn test_agent_type_extract_success() {
+        const FILE_NAME: &str = "host-linux-com.newrelic.infrastructure-0.1.0.yaml";
+        const CONTENT: &[u8] = b"namespace: newrelic\nname: com.newrelic.infrastructure\n";
+        let blob_dir = tempfile::tempdir().unwrap();
+        let blob_path = blob_dir.path().join("blob.tar.gz");
+        write_tar_gz(&blob_path, &[(FILE_NAME, CONTENT)]);
+
+        let dest = tempfile::tempdir().unwrap();
+        LocalAgentType::new(blob_path).extract(dest.path()).unwrap();
+
+        assert_eq!(std::fs::read(dest.path().join(FILE_NAME)).unwrap(), CONTENT);
+    }
+
+    #[test]
+    fn test_agent_type_extract_invalid_archive() {
+        let blob_dir = tempfile::tempdir().unwrap();
+        let blob_path = blob_dir.path().join("blob.tar.gz");
+        std::fs::write(&blob_path, b"this is not a valid tar.gz").unwrap();
+
+        let dest = tempfile::tempdir().unwrap();
+        assert_matches!(LocalAgentType::new(blob_path).extract(dest.path()), Err(DefinitionError(msg)) => {
+            assert!(msg.contains("failed extracting"), "{msg}");
+        });
     }
 }
