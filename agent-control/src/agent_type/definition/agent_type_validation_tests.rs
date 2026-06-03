@@ -6,6 +6,7 @@
 // 4. All agent type definitions are covered by the test cases (i.e. there are no agent types
 // in the registry that are not tested here).
 
+use std::collections::HashSet;
 use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
 
 use crate::agent_control::run::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_VARIABLE_NAME};
@@ -696,17 +697,14 @@ fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesT
     .map(Deref::deref)
 }
 
-fn registry_ids_across_envs(env: Environment) -> std::collections::HashSet<AgentTypeID> {
-    EmbeddedRegistry::new(env, std::path::PathBuf::new())
-        .iter_definitions()
-        .map(|d| d.agent_type_id.clone())
-        .collect()
-}
-
 #[test]
 fn all_agent_type_definitions_are_present() {
     for env in [Environment::K8s, Environment::Linux, Environment::Windows] {
-        let mut definitions = registry_ids_across_envs(env);
+        let mut definitions: HashSet<AgentTypeID> =
+            EmbeddedRegistry::new(env, std::path::PathBuf::new())
+                .iter_definitions()
+                .map(|d| d.agent_type_id.clone())
+                .collect();
         for case in get_agent_type_test_cases() {
             if match env {
                 Environment::K8s => case.values_k8s.is_none(),
