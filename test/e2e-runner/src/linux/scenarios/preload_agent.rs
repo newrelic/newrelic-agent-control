@@ -9,6 +9,7 @@ use crate::linux::{
     install::{install_agent_control_from_recipe, tear_down_test},
 };
 use glob::glob;
+use std::path::Path;
 use std::time::Duration;
 use tracing::{debug, info};
 
@@ -38,6 +39,18 @@ pub fn test_installation_with_preload_agent(args: InstallationArgs) {
     let _clean_up = CleanUp::new(tear_down_test);
 
     install_agent_control_from_recipe(&recipe_data);
+
+    // after the above is done inspect the directory structures to make sure everything is in there
+    // particularly the AC local configuration
+    let ac_local_config_path = Path::new(&linux::DEFAULT_AC_CONFIG_PATH);
+    assert!(
+        ac_local_config_path.exists(),
+        "AC local config should exist"
+    );
+    debug!(
+        "AC config file contents: {}",
+        std::fs::read_to_string(ac_local_config_path).expect("failed to read AC config file")
+    );
 
     let test_id = format!(
         "onhost-e2e-preload-agent_{}",
@@ -87,7 +100,7 @@ deployment:
             r#"
 host_id: {test_id}
 agents:
-  nr-preload:
+  {preload_agent_id}:
     agent_type: "newrelic/com.newrelic.preload:0.1.0"
 {DEBUG_LOGGING_CONFIG}
 "#
