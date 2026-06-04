@@ -14,6 +14,9 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+### bugfix
+- the agentType for the PCG config should be called pipeline_control_gateway_config_mode
+
 ## v1.16.0 - 2026-06-02
 
 ### 🚀 Enhancements

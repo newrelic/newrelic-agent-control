@@ -591,6 +591,43 @@ static AGENT_TYPE_PIPELINE_CONTROL_GATEWAY_CONFIG: LazyLock<AgentTypeValuesTestC
         ..Default::default()
     });
 
+static AGENT_TYPE_PIPELINE_CONTROL_GATEWAY_CONFIG_MODE: LazyLock<AgentTypeValuesTestCase> =
+    LazyLock::new(|| AgentTypeValuesTestCase {
+        agent_type: "newrelic/com.newrelic.pipeline_control_gateway_config_mode:0.1.0",
+        values_k8s: AgentTypeValues {
+            cases: HashMap::from([
+                (
+                    "mandatory fields only",
+                    r#"
+                config:
+                    receivers:
+                        otlp: {}
+                "#,
+                ),
+                (
+                    "check all value types are correct",
+                    r#"
+                config:
+                    receivers:
+                        otlp: {}
+                    exporters:
+                        otlp:
+                            endpoint: "otlp.nr-data.net:4317"
+                    service:
+                        pipelines:
+                            traces:
+                                receivers: [otlp]
+                                exporters: [otlp]
+                config_map_name: "my-otel-config"
+                "#,
+                ),
+            ]),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    });
+
 static AGENT_TYPE_EBPF: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/com.newrelic.ebpf:0.1.0",
@@ -645,6 +682,7 @@ fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesT
         &AGENT_TYPE_OTEL_COLLECTOR,
         &AGENT_TYPE_OTEL_COLLECTOR_OLD,
         &AGENT_TYPE_PIPELINE_CONTROL_GATEWAY,
+        &AGENT_TYPE_PIPELINE_CONTROL_GATEWAY_CONFIG_MODE,
         &AGENT_TYPE_PIPELINE_CONTROL_GATEWAY_CONFIG,
         &AGENT_TYPE_EBPF,
     ]
