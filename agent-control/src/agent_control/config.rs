@@ -89,7 +89,7 @@ pub struct AgentControlConfig {
     /// Configuration for the agent type registry remote source.
     /// Reuses the global `oci` registry/auth; see [AgentTypeRegistryConfig].
     #[serde(default)]
-    pub agent_types: AgentTypeRegistryConfig,
+    pub agent_types: AgentTypeConfig,
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
@@ -210,7 +210,7 @@ pub struct SignatureVerificationEnabled(bool);
 /// Configuration for the agent type registry's remote source(s).
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
 #[serde(default)]
-pub struct AgentTypeRegistryConfig {
+pub struct AgentTypeConfig {
     /// The default (New Relic) remote source for agent types.
     pub default_remote: DefaultAgentTypeRemote,
 }
@@ -1383,7 +1383,7 @@ oci:
 
     #[test]
     fn test_agent_types_default_when_block_or_subfields_omitted() {
-        let expected = AgentTypeRegistryConfig::default();
+        let expected = AgentTypeConfig::default();
         for config_input in [
             "agents: {}",                                     // agent_types omitted entirely
             "agents: {}\nagent_types: {}",                    // empty agent_types block
