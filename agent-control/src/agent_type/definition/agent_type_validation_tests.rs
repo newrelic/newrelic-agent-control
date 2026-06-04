@@ -554,9 +554,9 @@ static AGENT_TYPE_PIPELINE_CONTROL_GATEWAY: LazyLock<AgentTypeValuesTestCase> =
         ..Default::default()
     });
 
-static AGENT_TYPE_PIPELINE_CONTROL_GATEWAY_CONFIG: LazyLock<AgentTypeValuesTestCase> =
+static AGENT_TYPE_PIPELINE_CONTROL_GATEWAY_CONFIG_MODE: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
-        agent_type: "newrelic/com.newrelic.pipeline_control_gateway_config:0.1.0",
+        agent_type: "newrelic/com.newrelic.pipeline_control_gateway_config_mode:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
                 (
@@ -645,7 +645,7 @@ fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesT
         &AGENT_TYPE_OTEL_COLLECTOR,
         &AGENT_TYPE_OTEL_COLLECTOR_OLD,
         &AGENT_TYPE_PIPELINE_CONTROL_GATEWAY,
-        &AGENT_TYPE_PIPELINE_CONTROL_GATEWAY_CONFIG,
+        &AGENT_TYPE_PIPELINE_CONTROL_GATEWAY_CONFIG_MODE,
         &AGENT_TYPE_EBPF,
     ]
     .into_iter()

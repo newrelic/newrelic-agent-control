@@ -1,8 +1,5 @@
-# This is the same agent type as `com.newrelic.pipeline_control_gateway_config_mode`, kept in the repository
-# for compatibility with existing deployments and Fleet Control support.
-# It should not drift from the `com.newrelic.pipeline_control_gateway_config_mode` definition!
 namespace: newrelic
-name: com.newrelic.pipeline_control_gateway_config
+name: com.newrelic.pipeline_control_gateway_config_mode
 version: 0.1.0
 variables:
   k8s:
