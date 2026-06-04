@@ -4,6 +4,7 @@ use std::{path::Path, sync::Arc};
 
 use crate::{http::config::ProxyConfig, signature::public_key_fetcher::PublicKeyFetcher};
 
+use futures::TryStreamExt;
 use oci_client::{
     Reference,
     client::{AsLayerDescriptor, ClientConfig},
@@ -78,6 +79,56 @@ impl Client {
             })?;
 
             Ok(())
+        })
+    }
+
+    /// Pulls the specified blob into memory and returns its bytes, rejecting any blob larger than
+    /// `max_size_bytes`. The returned bytes are verified against the layer's digest by
+    /// [oci_client::Client::pull_blob_stream].
+    ///
+    /// Prefer this over [Self::pull_blob_to_file] for small artifacts whose content is consumed
+    /// in-memory and that should not depend on a writable filesystem location.
+    pub fn pull_blob(
+        &self,
+        reference: &Reference,
+        layer: impl AsLayerDescriptor,
+        max_size_bytes: usize,
+    ) -> Result<Vec<u8>, OciClientError> {
+        self.runtime.block_on(async {
+            let mut stream = self
+                .client
+                .pull_blob_stream(reference, layer)
+                .await
+                .map_err(|err| OciClientError::PullBlob(err.to_string().into()))?;
+
+            // Cheap up-front rejection based on the advertised content length. This is
+            // attacker-controlled (it may understate the size or be absent), so it is only an
+            // optimization; the hard limit below is enforced while reading regardless.
+            if let Some(content_length) = stream.content_length
+                && content_length > max_size_bytes as u64
+            {
+                return Err(OciClientError::PullBlob(
+                    format!(
+                        "blob content length {content_length} exceeds maximum of {max_size_bytes} bytes"
+                    )
+                    .into(),
+                ));
+            }
+
+            let mut blob = Vec::new();
+            while let Some(chunk) = stream
+                .try_next()
+                .await
+                .map_err(|err| OciClientError::PullBlob(err.to_string().into()))?
+            {
+                if blob.len() + chunk.len() > max_size_bytes {
+                    return Err(OciClientError::PullBlob(
+                        format!("blob exceeds maximum of {max_size_bytes} bytes").into(),
+                    ));
+                }
+                blob.extend_from_slice(&chunk);
+            }
+            Ok(blob)
         })
     }
 
@@ -230,6 +281,45 @@ pub mod tests {
             .pull_blob_to_file(reference, layer, &filepath)
             .expect("writing blob to file should not fail");
         assert_eq!(std::fs::read(filepath).unwrap(), b"some content");
+    }
+
+    #[test]
+    fn test_pull_blob() {
+        let server = FakeOciServer::new("repo", "v1.2.3")
+            .with_layer(b"some content", "fake-media_type")
+            .build();
+
+        let client = create_test_client();
+        let reference = &server.reference();
+        let (image_manifest, _) = client
+            .pull_image_manifest(reference, &RegistryAuth::Anonymous)
+            .unwrap();
+        let layer = &image_manifest.layers[0];
+
+        let blob = client
+            .pull_blob(reference, layer, 1024)
+            .expect("pulling blob into memory should not fail");
+        assert_eq!(blob, b"some content");
+    }
+
+    #[test]
+    fn test_pull_blob_exceeds_max_size() {
+        let content = vec![b'x'; 100];
+        let server = FakeOciServer::new("repo", "v1.2.3")
+            .with_layer(&content, "fake-media_type")
+            .build();
+
+        let client = create_test_client();
+        let reference = &server.reference();
+        let (image_manifest, _) = client
+            .pull_image_manifest(reference, &RegistryAuth::Anonymous)
+            .unwrap();
+        let layer = &image_manifest.layers[0];
+
+        let result = client.pull_blob(reference, layer, 10);
+        assert_matches!(result, Err(OciClientError::PullBlob(msg)) => {
+            assert!(msg.to_string().contains("exceeds maximum"), "{msg}");
+        });
     }
 
     pub struct FakeOciServer {
