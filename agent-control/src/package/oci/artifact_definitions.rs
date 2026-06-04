@@ -1,8 +1,11 @@
 use std::fmt::Display;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use crate::utils::extract::{extract_tar_gz, extract_zip};
+use flate2::read::GzDecoder;
 use oci_client::manifest::{OciDescriptor, OciImageManifest};
+use tar::Archive;
 
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
@@ -156,19 +159,22 @@ impl LocalAgentPackage {
     }
 }
 
-/// Represents an Agent Type OCI artifact locally stored.
+/// Represents an Agent Type OCI artifact held in memory.
 ///
 /// An Agent Type artifact is a gzipped tar containing a single Agent Type definition YAML file.
+/// It is kept in memory (instead of written to disk) so resolution does not depend on a writable
+/// filesystem location, which is specially relevant on Kubernetes (read-only root fs, ephemeral
+/// storage).
 ///
 // TODO: Not consumed yet; it will be used by the agent-type OCI downloader in a follow-up change.
 #[derive(Debug)]
 pub struct LocalAgentType {
-    blob_path: PathBuf,
+    blob: Vec<u8>,
     // TODO: check if we need to support other format different from gzip (tar.gz)
 }
 impl LocalAgentType {
-    pub fn new(blob_path: PathBuf) -> Self {
-        Self { blob_path }
+    pub fn new(blob: Vec<u8>) -> Self {
+        Self { blob }
     }
 
     /// Validates that the manifest meets the requirements for an Agent Type artifact and
@@ -205,13 +211,40 @@ impl LocalAgentType {
         Ok(layer.clone())
     }
 
-    /// Extracts the gzipped tar blob into `dest_path`.
+    /// Decompresses the gzipped tar held in memory and returns the content of the single Agent
+    /// Type definition file it contains.
     ///
-    /// The artifact is expected to contain a single Agent Type definition YAML file; deciding how
-    /// to locate and consume the extracted content is left to the caller.
-    pub fn extract(&self, dest_path: &Path) -> Result<(), DefinitionError> {
-        extract_tar_gz(&self.blob_path, dest_path)
-            .map_err(|e| DefinitionError(format!("failed extracting: {e}")))
+    /// It fails if the artifact does not contain exactly one file. Deserializing the returned bytes
+    /// into an agent type definition is left to the caller.
+    pub fn extract_definition(&self) -> Result<Vec<u8>, DefinitionError> {
+        let mut archive = Archive::new(GzDecoder::new(self.blob.as_slice()));
+        let entries = archive
+            .entries()
+            .map_err(|e| DefinitionError(format!("reading agent type artifact: {e}")))?;
+
+        let mut definition: Option<Vec<u8>> = None;
+        for entry in entries {
+            let mut entry = entry
+                .map_err(|e| DefinitionError(format!("reading agent type artifact entry: {e}")))?;
+            // Skip non-file entries (e.g. directories).
+            if !entry.header().entry_type().is_file() {
+                continue;
+            }
+            if definition.is_some() {
+                return Err(DefinitionError(
+                    "agent type artifact must contain exactly one file".to_string(),
+                ));
+            }
+            let mut content = Vec::new();
+            entry
+                .read_to_end(&mut content)
+                .map_err(|e| DefinitionError(format!("reading agent type definition: {e}")))?;
+            definition = Some(content);
+        }
+
+        definition.ok_or_else(|| {
+            DefinitionError("agent type artifact does not contain any file".to_string())
+        })
     }
 }
 
@@ -226,13 +259,12 @@ pub mod tests {
         }
     }
 
-    /// Writes a gzipped tar archive at `path` containing the provided `(name, content)` files.
-    fn write_tar_gz(path: &Path, files: &[(&str, &[u8])]) {
+    /// Builds an in-memory gzipped tar archive containing the provided `(name, content)` files.
+    fn tar_gz_bytes(files: &[(&str, &[u8])]) -> Vec<u8> {
         use flate2::Compression;
         use flate2::write::GzEncoder;
 
-        let tar_gz = std::fs::File::create(path).unwrap();
-        let enc = GzEncoder::new(tar_gz, Compression::default());
+        let enc = GzEncoder::new(Vec::new(), Compression::default());
         let mut tar = tar::Builder::new(enc);
         for (name, content) in files {
             let mut header = tar::Header::new_gnu();
@@ -241,7 +273,7 @@ pub mod tests {
             header.set_cksum();
             tar.append_data(&mut header, name, *content).unwrap();
         }
-        tar.into_inner().unwrap().finish().unwrap();
+        tar.into_inner().unwrap().finish().unwrap()
     }
 
     #[rstest::rstest]
@@ -391,28 +423,38 @@ pub mod tests {
     }
 
     #[test]
-    fn test_agent_type_extract_success() {
-        const FILE_NAME: &str = "host-linux-com.newrelic.infrastructure-0.1.0.yaml";
+    fn test_agent_type_extract_definition_success() {
         const CONTENT: &[u8] = b"namespace: newrelic\nname: com.newrelic.infrastructure\n";
-        let blob_dir = tempfile::tempdir().unwrap();
-        let blob_path = blob_dir.path().join("blob.tar.gz");
-        write_tar_gz(&blob_path, &[(FILE_NAME, CONTENT)]);
+        let blob = tar_gz_bytes(&[("host-linux-com.newrelic.infrastructure-0.1.0.yaml", CONTENT)]);
 
-        let dest = tempfile::tempdir().unwrap();
-        LocalAgentType::new(blob_path).extract(dest.path()).unwrap();
+        let definition = LocalAgentType::new(blob).extract_definition().unwrap();
 
-        assert_eq!(std::fs::read(dest.path().join(FILE_NAME)).unwrap(), CONTENT);
+        assert_eq!(definition, CONTENT);
+    }
+
+    #[rstest::rstest]
+    #[case::no_files(vec![], "does not contain any file")]
+    #[case::multiple_files(
+        vec![("a.yaml", b"a".as_slice()), ("b.yaml", b"b".as_slice())],
+        "must contain exactly one file"
+    )]
+    fn test_agent_type_extract_definition_invalid_content(
+        #[case] files: Vec<(&str, &[u8])>,
+        #[case] expected_error: &str,
+    ) {
+        let blob = tar_gz_bytes(&files);
+
+        assert_matches!(LocalAgentType::new(blob).extract_definition(), Err(DefinitionError(msg)) => {
+            assert!(msg.contains(expected_error), "{msg}");
+        });
     }
 
     #[test]
-    fn test_agent_type_extract_invalid_archive() {
-        let blob_dir = tempfile::tempdir().unwrap();
-        let blob_path = blob_dir.path().join("blob.tar.gz");
-        std::fs::write(&blob_path, b"this is not a valid tar.gz").unwrap();
+    fn test_agent_type_extract_definition_invalid_archive() {
+        let blob = b"this is not a valid tar.gz".to_vec();
 
-        let dest = tempfile::tempdir().unwrap();
-        assert_matches!(LocalAgentType::new(blob_path).extract(dest.path()), Err(DefinitionError(msg)) => {
-            assert!(msg.contains("failed extracting"), "{msg}");
+        assert_matches!(LocalAgentType::new(blob).extract_definition(), Err(DefinitionError(msg)) => {
+            assert!(msg.contains("agent type artifact"), "{msg}");
         });
     }
 }
