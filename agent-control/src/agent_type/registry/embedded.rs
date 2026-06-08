@@ -1,6 +1,7 @@
 use super::{AgentTypeRegistry, AgentTypeRegistryError};
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::agent_type::definition::AgentTypeDefinition;
+use crate::environment::Environment;
 use std::{collections::HashMap, fs, path::PathBuf};
 use tracing::{debug, error};
 
@@ -13,16 +14,11 @@ include!(concat!(
 
 /// Defines an [AgentTypeRegistry] by keeping AgentTypeDefinitions in memory.
 ///
-/// Its default implementation, loads the AgentTypeDefinitions from yaml files which are embedded into the binary
-/// at compilation time. Check out the agent-control build script for details.
+/// The embedded YAMLs cover several environments (linux, windows, kubernetes); definitions
+/// not matching the requested [Environment] are skipped at construction time. This way the
+/// registry only contains entries the running binary can actually use.
 #[derive(Debug)]
 pub struct EmbeddedRegistry(HashMap<AgentTypeID, AgentTypeDefinition>);
-
-impl Default for EmbeddedRegistry {
-    fn default() -> Self {
-        Self::try_new(Self::definitions()).expect("Conflicting agent type definitions")
-    }
-}
 
 impl AgentTypeRegistry for EmbeddedRegistry {
     fn get(
@@ -37,17 +33,18 @@ impl AgentTypeRegistry for EmbeddedRegistry {
 }
 
 impl EmbeddedRegistry {
-    pub fn new(dynamic_agent_type_path: PathBuf) -> Self {
+    pub fn new(env: Environment, dynamic_agent_type_path: PathBuf) -> Self {
         // Loading the static agentTypes
-        let mut registry =
-            Self::try_new(Self::definitions()).expect("Conflicting agent type definitions");
+        let mut registry = Self::try_new(Self::load_definitions_for(env))
+            .expect("Conflicting agent type definitions");
 
         // Loading, if any, the dynamic agent types from the directory.
         // Since they are dynamic, they are taking the precedence over the static ones.
         Self::dynamic_agent_type(dynamic_agent_type_path)
-            .iter()
+            .into_iter()
+            .filter(|agent_type| agent_type.metadata.environment == env)
             .for_each(|agent_type| {
-                let id = agent_type.agent_type_id.clone();
+                let id = agent_type.agent_type_id().clone();
                 debug!("Storing dynamic agent type: {}", id);
                 registry.0.insert(id, agent_type.clone());
             });
@@ -65,7 +62,7 @@ impl EmbeddedRegistry {
     }
 
     fn insert(&mut self, definition: AgentTypeDefinition) -> Result<(), AgentTypeRegistryError> {
-        let id = definition.agent_type_id.clone();
+        let id = definition.agent_type_id().clone();
         if self.0.contains_key(&id) {
             return Err(AgentTypeRegistryError::AlreadyExists(id.to_string()));
         }
@@ -73,13 +70,15 @@ impl EmbeddedRegistry {
         Ok(())
     }
 
-    /// Iters the embedded agent-type definitions.
-    fn definitions() -> impl Iterator<Item = AgentTypeDefinition> {
-        AGENT_TYPE_REGISTRY_FILES.iter().map(|file_content_ref| {
-            // Definitions in files are expected to be valid
-            serde_saphyr::from_reader::<_, AgentTypeDefinition>(file_content_ref.to_owned())
-                .expect("Invalid yaml in default agent types")
-        })
+    /// Loads the embedded agent-type definitions matching the given [Environment].
+    fn load_definitions_for(env: Environment) -> impl Iterator<Item = AgentTypeDefinition> {
+        AGENT_TYPE_REGISTRY_FILES
+            .iter()
+            .map(|file_content_ref| {
+                serde_saphyr::from_reader::<_, AgentTypeDefinition>(file_content_ref.to_owned())
+                    .expect("Invalid yaml in default agent types")
+            })
+            .filter(move |def| def.metadata.environment == env)
     }
 
     /// Read and return the dynamic agent types, if there is an error reading or deserializing it, logs the error.
@@ -137,40 +136,32 @@ pub mod tests {
         }
     }
 
-    const AGENT_TYPE_AMOUNT: usize = 15;
+    /// Per-environment counts of embedded agent type definitions. Updating these requires
+    /// adding/removing files in `agent-type-registry/`.
+    const KUBERNETES_AGENT_TYPE_AMOUNT: usize = 15;
+    const LINUX_AGENT_TYPE_AMOUNT: usize = 4;
+    const WINDOWS_AGENT_TYPE_AMOUNT: usize = 2;
 
     #[test]
     fn check_agent_type_amount_is_unchanged() {
-        // This is intended to flag in CI if any agent type has been added or removed.
-        // Changes in code that modify the amount of agent types would need to modify this test.
-        assert_eq!(
-            AGENT_TYPE_REGISTRY_FILES.len(),
-            AGENT_TYPE_AMOUNT,
-            "Expected amount of agent types to be unchanged"
-        );
+        // Flags in CI if any agent type has been added or removed for any environment.
+        let kubernetes = EmbeddedRegistry::new(Environment::K8s, PathBuf::from("/nonexistent"));
+        let linux = EmbeddedRegistry::new(Environment::Linux, PathBuf::from("/nonexistent"));
+        let windows = EmbeddedRegistry::new(Environment::Windows, PathBuf::from("/nonexistent"));
+
+        assert_eq!(KUBERNETES_AGENT_TYPE_AMOUNT, kubernetes.0.len());
+        assert_eq!(LINUX_AGENT_TYPE_AMOUNT, linux.0.len());
+        assert_eq!(WINDOWS_AGENT_TYPE_AMOUNT, windows.0.len());
     }
 
     #[test]
-    fn test_default_embedded_registry() {
-        let registry = EmbeddedRegistry::default(); // Any invalid Agent Type definition would panic
-
-        assert_eq!(
-            AGENT_TYPE_REGISTRY_FILES.len(),
-            registry.0.len(),
-            "expected one AgentTypeDefinition for each file"
-        );
-
-        // The key for each definition should be its agent type id
-        for (key, definition) in registry.0.iter() {
-            assert_eq!(key, &definition.agent_type_id)
+    fn test_embedded_registry_keys_match_metadata() {
+        for env in [Environment::K8s, Environment::Linux, Environment::Windows] {
+            let registry = EmbeddedRegistry::new(env, PathBuf::from("/nonexistent"));
+            for (key, definition) in registry.0.iter() {
+                assert_eq!(key.to_string(), definition.agent_type_id().to_string());
+            }
         }
-
-        let registry_nonexistent_dynamic =
-            EmbeddedRegistry::new(PathBuf::from("/nonexistent/path"));
-        assert_eq!(
-            registry.0, registry_nonexistent_dynamic.0,
-            "Registry with nonexistent dynamic should match default"
-        )
     }
 
     #[test]
@@ -203,7 +194,7 @@ pub mod tests {
 
     #[test]
     fn test_insert_duplicate() {
-        let mut registry = EmbeddedRegistry::default();
+        let mut registry = EmbeddedRegistry::new(Environment::K8s, PathBuf::from("/nonexistent"));
 
         let definition = AgentTypeDefinition::empty_with_metadata(
             AgentTypeID::try_from("ns/agent:0.0.0").unwrap(),
@@ -229,15 +220,14 @@ pub mod tests {
 namespace: ns
 name: io.test
 version: 0.0.0
+platform: kubernetes
 variables:
-  k8s:
-    version:
-      type: string
-      required: true
-      description: "test"
+  version:
+    type: string
+    required: true
+    description: "test"
 deployment:
-  k8s:
-    objects: {}
+  objects: {}
     "#
                 .as_bytes(),
             )
@@ -250,15 +240,14 @@ deployment:
 namespace: ns
 name: io.test
 version: 0.0.0
+platform: kubernetes
 variables:
-  k8s:
-    different:
-      type: string
-      required: true
-      description: "test"
+  different:
+    type: string
+    required: true
+    description: "test"
 deployment:
-  k8s:
-    objects: {}
+  objects: {}
     "#
                 .as_bytes(),
             )
@@ -271,15 +260,14 @@ deployment:
 namespace: newrelic
 name: com.newrelic.infrastructure
 version: 0.1.0
+platform: kubernetes
 variables:
-  k8s:
-    different:
-      type: string
-      required: true
-      description: "test"
+  different:
+    type: string
+    required: true
+    description: "test"
 deployment:
-  k8s:
-    objects: {}
+  objects: {}
     "#
                 .as_bytes(),
             )
@@ -295,13 +283,12 @@ deployment:
             .write_all("".as_bytes())
             .unwrap();
 
-        let registry = EmbeddedRegistry::new(path.to_path_buf());
+        let registry = EmbeddedRegistry::new(Environment::K8s, path.to_path_buf());
 
         let variables = registry
             .get(&AgentTypeID::try_from("ns/io.test:0.0.0").unwrap())
             .unwrap()
             .variables
-            .k8s
             .0;
         assert!(!variables.contains_key("version"));
         assert!(variables.contains_key("different"));
@@ -310,7 +297,6 @@ deployment:
                 .get(&AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.1.0").unwrap())
                 .unwrap()
                 .variables
-                .k8s
                 .0
                 .contains_key("different")
         );

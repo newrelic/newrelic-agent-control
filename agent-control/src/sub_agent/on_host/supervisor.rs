@@ -1197,11 +1197,7 @@ pub mod tests {
         };
 
         let runtime = Runtime {
-            deployment: Deployment {
-                linux: cfg!(unix).then(|| on_host_config.clone()),
-                windows: cfg!(windows).then(|| on_host_config.clone()),
-                k8s: None,
-            },
+            deployment: Deployment::Host(on_host_config.clone()),
         };
 
         let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);
@@ -1329,11 +1325,7 @@ pub mod tests {
         };
 
         let runtime = Runtime {
-            deployment: Deployment {
-                linux: cfg!(unix).then(|| on_host_config.clone()),
-                windows: cfg!(windows).then(|| on_host_config.clone()),
-                k8s: None,
-            },
+            deployment: Deployment::Host(on_host_config.clone()),
         };
 
         let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);
@@ -1459,11 +1451,7 @@ pub mod tests {
         };
 
         let runtime = Runtime {
-            deployment: Deployment {
-                linux: cfg!(unix).then(|| on_host_config.clone()),
-                windows: cfg!(windows).then(|| on_host_config.clone()),
-                k8s: None,
-            },
+            deployment: Deployment::Host(on_host_config.clone()),
         };
 
         let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);
@@ -1590,11 +1578,7 @@ pub mod tests {
         };
 
         let runtime = Runtime {
-            deployment: Deployment {
-                linux: cfg!(unix).then(|| on_host_config.clone()),
-                windows: cfg!(windows).then(|| on_host_config.clone()),
-                k8s: None,
-            },
+            deployment: Deployment::Host(on_host_config.clone()),
         };
 
         let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);

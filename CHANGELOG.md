@@ -14,6 +14,11 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+### enhancement
+- Agent type definitions now use a flat per-platform schema (one YAML file per `(platform, operating_system)` pair). 
+  Agent type FQNs and configuration values are unchanged, so this is **not a breaking change** for end users.
+  Internal authors of custom agent type definitions need to migrate their YAMLs — see [docs/INTEGRATING_AGENTS.md](docs/INTEGRATING_AGENTS.md).
+
 ## v1.16.1 - 2026-06-04
 
 ### 🐞 Bug fixes

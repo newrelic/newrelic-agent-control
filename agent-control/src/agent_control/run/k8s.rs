@@ -14,8 +14,7 @@ use crate::agent_control::health_checker::k8s::agent_control_health_checker_buil
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
 use crate::agent_control::run::{
-    AgentControlRunner, Environment, GracefulShutdownReason, RunError,
-    setup_config_repository_and_store,
+    AgentControlRunner, GracefulShutdownReason, RunError, setup_config_repository_and_store,
 };
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::TemplateRenderer;
@@ -25,6 +24,7 @@ use crate::agent_type::version_config::{
 };
 use crate::checkers::version::k8s::checkers::spawn_version_checker;
 use crate::checkers::version::k8s::helmrelease::HelmReleaseVersionChecker;
+use crate::environment::Environment;
 use crate::event::channel::{EventPublisher, pub_sub};
 use crate::event::{AgentControlEvent, AgentControlInternalEvent};
 use crate::k8s::client::SyncK8sClient;
@@ -198,7 +198,6 @@ impl AgentControlRunner {
             config_repository: yaml_config_repository.clone(),
             effective_agents_assembler: agents_assembler,
             sub_agent_publisher: self.sub_agent_publisher,
-            ac_running_mode: self.running_mode,
         };
 
         let garbage_collector = K8sGarbageCollector {

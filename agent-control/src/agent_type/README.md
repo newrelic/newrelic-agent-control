@@ -6,21 +6,32 @@ By defining these three sections, developers can create a customizable and flexi
 
 ## Metadata
 
-The metadata section contains information about the agent type, such as its name and version. This section also includes the agent's namespace, which is used to organize related agents and their configurations.
+The metadata section contains information about the agent type: its `name`, `version`, `namespace`, and the target platform.
 
 ```yaml
 namespace: newrelic
 name: com.newrelic.opentelemetry.collector
 version: 0.0.1
+platform: host
+operating_system: linux
 ```
 
-The metadata fields can't be empty:
+```yaml
+namespace: newrelic
+name: com.newrelic.opentelemetry.collector
+version: 0.0.1
+platform: kubernetes
+```
 
 * The name and namespace should:
   * Start by an alphabetical character.
   * Only encompass `alphanumeric characters`, `.`, `_` or `-`.
   * Be in lowercase.
 * The version field should adhere to [semantic versioning](https://semver.org/).
+* `platform`: the target platform. One of `host` or `kubernetes`.
+* `operating_system`: required when `platform: host`. One of `linux` or `windows`. Must be omitted for `platform: kubernetes`.
+
+The `platform` (and `operating_system` when applicable) drives how the rest of the document is parsed: the `deployment` block is dispatched to the on-host or Kubernetes deserializer based on these fields.
 
 ## Variables
 
@@ -28,41 +39,33 @@ The `variables` section allows developers to define variables that end users can
 
 ```yaml
 variables:
-  linux:
-    config_agent:
-      description: "Newrelic infra configuration"
-      type: yaml
-      required: false
-      default: {}
-    config_integrations:
-      description: "map of YAML configs for the OHIs"
-      type: map[string]yaml
-      required: false
-      default: {}
-    backoff_delay:
-      description: "seconds until next retry if agent fails to start"
-      type: string
-      required: false
-      variants: [5s, 10s, 20s, 30s]
-      default: 20s
-    enable_file_logging:
-      description: "enable logging the on host executables' logs to files"
-      type: bool
-      required: false
-      default: false
-  k8s:
-     ...
+  config_agent:
+    description: "Newrelic infra configuration"
+    type: yaml
+    required: false
+    default: {}
+  config_integrations:
+    description: "map of YAML configs for the OHIs"
+    type: map[string]yaml
+    required: false
+    default: {}
+  backoff_delay:
+    description: "seconds until next retry if agent fails to start"
+    type: string
+    required: false
+    variants: [5s, 10s, 20s, 30s]
+    default: 20s
+  enable_file_logging:
+    description: "enable logging the on host executables' logs to files"
+    type: bool
+    required: false
+    default: false
 ```
-
-Variables are scoped to their applicable environments:
-
-* `linux` / `windows`: Refers to variables utilized in on-host environments.
-* `k8s`: Applies to variables used within Kubernetes clusters.
 
 Nested variable names are supported. For instance:
 
 ```yaml
-linux:
+variables:
   log:
     level:
       description: "Log level with only info and error"
@@ -114,34 +117,33 @@ multi_line_string: |
 
 ### On Host Deployment
 
-For on-host deployment, use the following format:
+For on-host deployment (`platform: host`, `operating_system: linux` or `windows`), use the following format:
 
 ```yaml
 deployment:
-  linux:
-    enable_file_logging: ${nr-var:enable_file_logging}
-    health:
-      interval: 5s
-      timeout: 5s
-      http:
-        path: "/v1/status"
-        port: 8003
-    version:
+  enable_file_logging: ${nr-var:enable_file_logging}
+  health:
+    interval: 5s
+    timeout: 5s
+    http:
+      path: "/v1/status"
+      port: 8003
+  version:
+    path: /usr/bin/newrelic-infra
+    args:
+      - --version
+    regex: \d+\.\d+\.\d+
+  executables:
+    - id: newrelic-infra
       path: /usr/bin/newrelic-infra
-      args: 
-        - --version
-      regex: \d+\.\d+\.\d+
-    executables:
-      - id: newrelic-infra
-        path: /usr/bin/newrelic-infra
-        args: 
-          - --config
-          - ${nr-var:config_agent}
-        env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_STATUS_SERVER_ENABLED=true"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: ${nr-var:backoff_delay}
+      args:
+        - --config
+        - ${nr-var:config_agent}
+      env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_STATUS_SERVER_ENABLED=true"
+      restart_policy:
+        backoff_strategy:
+          type: fixed
+          backoff_delay: ${nr-var:backoff_delay}
 ```
 
 In this section:
@@ -243,50 +245,49 @@ In this configuration:
 
 The Agent Control leverages [Flux](https://fluxcd.io/) to act as an operator running Helm commands (install, upgrade, delete) as needed based on the provided configurations.
 
-Then, for a Kubernetes deployment, we use the following format:
+Then, for a Kubernetes deployment (`platform: kubernetes`), we use the following format:
 
 ```yaml
 deployment:
   # See com.newrelic.infrastructure Agent type for description of fields.
-  k8s:
-    health:
-      interval: 30s
-    objects:
-      repository:
-        apiVersion: source.toolkit.fluxcd.io/v1
-        kind: HelmRepository
-        metadata:
-          name: ${nr-sub:agent_id}
-        spec:
-          interval: 30m
-          provider: generic
-          url: https://helm-charts.newrelic.com
-      release:
-        apiVersion: helm.toolkit.fluxcd.io/v2
-        kind: HelmRelease
-        metadata:
-          name: ${nr-sub:agent_id}
-        spec:
-          interval: 3m
-          chart:
-            spec:
-              chart: nr-k8s-otel-collector
-              version: ${nr-var:chart_version}
-              sourceRef:
-                kind: HelmRepository
-                name: ${nr-sub:agent_id}
-              interval: 3m
-          install:
-            disableWait: true
-            disableWaitForJobs: true
-            replace: true
-          upgrade:
-            disableWait: true
-            disableWaitForJobs: true
-            cleanupOnFail: true
-            force: true
-          values:
-            ${nr-var:chart_values}
+  health:
+    interval: 30s
+  objects:
+    repository:
+      apiVersion: source.toolkit.fluxcd.io/v1
+      kind: HelmRepository
+      metadata:
+        name: ${nr-sub:agent_id}
+      spec:
+        interval: 30m
+        provider: generic
+        url: https://helm-charts.newrelic.com
+    release:
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata:
+        name: ${nr-sub:agent_id}
+      spec:
+        interval: 3m
+        chart:
+          spec:
+            chart: nr-k8s-otel-collector
+            version: ${nr-var:chart_version}
+            sourceRef:
+              kind: HelmRepository
+              name: ${nr-sub:agent_id}
+            interval: 3m
+        install:
+          disableWait: true
+          disableWaitForJobs: true
+          replace: true
+        upgrade:
+          disableWait: true
+          disableWaitForJobs: true
+          cleanupOnFail: true
+          force: true
+        values:
+          ${nr-var:chart_values}
 ```
 
 #### Kubernetes Objects
@@ -348,11 +349,10 @@ As a result, the health section for a Kubernetes deployment is as simple as this
 
 ```yaml
 deployment:
-  k8s:
-    health:
-      interval: 30s
-    objects:
-      ...
+  health:
+    interval: 30s
+  objects:
+    ...
 ```
 
 Users can currently only configure the interval of those periodic health check, within the Agent Type. However, in the future, we could offer the end users the possibility of selecting what information should be retrieved.
@@ -364,10 +364,9 @@ check interval and initial delay:
 
 ```yaml
 deployment:
-  k8s:
-    version:
-      interval: 120s # Defaults to 60s..
-      initial_delay: 10s # Defaults to 30s.
+  version:
+    interval: 120s # Defaults to 60s..
+    initial_delay: 10s # Defaults to 30s.
 ```
 
 ## Development
@@ -383,41 +382,42 @@ This guideline shows how to build a custom agent type and integrate it with the 
     name: com.influxdata.telegraf
     # version: semver scheme
     version: 0.0.1
-    
+    # platform: host or kubernetes
+    platform: host
+    # operating_system: required when platform is host. linux or windows
+    operating_system: linux
+
     # variables:
-    #   linux | windows | k8s:
-    #     my_var_1:
-    #       description: "Variable description here"
-    #       type: string
-    #       required: false
-    #       default: "default value"
-    
+    #   my_var_1:
+    #     description: "Variable description here"
+    #     type: string
+    #     required: false
+    #     default: "default value"
+
     variables:
-      linux:
-        config_file:
-          description: "Telegraf config file path"
-          type: string
-          required: false
-          default: "/path/to/telegraf.conf"
-        backoff_delay:
-          description: "seconds until next retry if agent fails to start"
-          type: string
-          required: false
-          default: 20s
-    
+      config_file:
+        description: "Telegraf config file path"
+        type: string
+        required: false
+        default: "/path/to/telegraf.conf"
+      backoff_delay:
+        description: "seconds until next retry if agent fails to start"
+        type: string
+        required: false
+        default: 20s
+
     deployment:
-      linux:
-        executables:
-          - id: telegraf
-            path: /usr/bin/telegraf
-            args: 
-              - --config 
-              - ${nr-var:config_file}
-            env: ""
-            restart_policy:
-              backoff_strategy:
-                type: fixed
-                backoff_delay: ${nr-var:backoff_delay}
+      executables:
+        - id: telegraf
+          path: /usr/bin/telegraf
+          args:
+            - --config
+            - ${nr-var:config_file}
+          env: ""
+          restart_policy:
+            backoff_strategy:
+              type: fixed
+              backoff_delay: ${nr-var:backoff_delay}
     ```
 
 2. Copy the agent type definition to the folder `/etc/newrelic-agent-control/dynamic-agent-types`
