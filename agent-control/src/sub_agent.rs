@@ -803,7 +803,7 @@ pub mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::definition::AgentTypeDefinition;
-    use crate::agent_type::registry::embedded::EmbeddedRegistry;
+    use crate::agent_type::registry::Registry;
     use crate::agent_type::render::TemplateRenderer;
     use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::checkers::health::health_checker::{Healthy, Unhealthy};
@@ -830,7 +830,7 @@ pub mod tests {
         MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>>,
         AgentRemoteConfigParser<MockRemoteConfigValidator>,
         InMemoryConfigRepository,
-        LocalEffectiveAgentsAssembler<EmbeddedRegistry>,
+        LocalEffectiveAgentsAssembler<Registry>,
     >;
 
     mock! {
@@ -1226,7 +1226,7 @@ deployment:
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
 
         let effective_agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
-            Arc::new(EmbeddedRegistry::from(TestAgent::agent_type_definition())),
+            Arc::new(Registry::from(TestAgent::agent_type_definition())),
             TemplateRenderer::default(),
             VariableConstraints::default(),
             SecretsProviders::default(),

@@ -331,9 +331,6 @@ pub fn get_sub_agent_variable(variables: &Variables, variable_name: &str) -> Opt
 }
 
 #[cfg(test)]
-mod agent_type_validation_tests;
-
-#[cfg(test)]
 pub mod tests {
     use super::*;
     use crate::agent_type::trivial_value::TrivialValue;
