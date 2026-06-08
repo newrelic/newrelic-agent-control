@@ -3,6 +3,7 @@ pub mod agent_type_id;
 pub mod definition;
 pub mod error;
 pub mod guid_config;
+pub mod oci;
 pub mod registry;
 pub mod render;
 pub mod runtime_config;

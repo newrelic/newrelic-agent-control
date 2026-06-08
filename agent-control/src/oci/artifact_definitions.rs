@@ -11,8 +11,6 @@ use tar::Archive;
 #[error("{0}")]
 pub struct DefinitionError(String);
 
-const AGENT_PACKAGE_ARTIFACT_TYPE: &str = "application/vnd.newrelic.agent.v1";
-const AGENT_TYPE_ARTIFACT_TYPE: &str = "application/vnd.newrelic.agent-type.v1";
 /// OCI manifest artifact types supported.
 #[derive(Debug)]
 pub enum ManifestArtifactType {
@@ -41,6 +39,9 @@ impl Display for ManifestArtifactType {
         }
     }
 }
+
+const AGENT_PACKAGE_ARTIFACT_TYPE: &str = "application/vnd.newrelic.agent.v1";
+const AGENT_TYPE_ARTIFACT_TYPE: &str = "application/vnd.newrelic.agent-type.v1";
 
 const AGENT_PACKAGE_LAYER_TAR_GZ: &str = "application/vnd.newrelic.agent.content.v1.tar+gzip";
 const AGENT_PACKAGE_LAYER_ZIP: &str = "application/vnd.newrelic.agent.content.v1.zip";
@@ -165,12 +166,9 @@ impl LocalAgentPackage {
 /// It is kept in memory (instead of written to disk) so resolution does not depend on a writable
 /// filesystem location, which is specially relevant on Kubernetes (read-only root fs, ephemeral
 /// storage).
-///
-// TODO: Not consumed yet; it will be used by the agent-type OCI downloader in a follow-up change.
 #[derive(Debug)]
 pub struct LocalAgentType {
     blob: Vec<u8>,
-    // TODO: check if we need to support other format different from gzip (tar.gz)
 }
 impl LocalAgentType {
     pub fn new(blob: Vec<u8>) -> Self {
