@@ -13,7 +13,7 @@ jobs:
     name: Check third party licenses
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: newrelic/rust-licenses-noticer@9d9bb4a5137f7c9d528b4ada1f505866947feccf # v1
         with:
           template-file: THIRD_PARTY_NOTICES.md.tmpl
@@ -59,7 +59,7 @@ jobs:
     name: Upload to S3
     needs: [ build-packages ]
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
 
@@ -70,7 +70,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish windows artifacts
-        uses: newrelic/infrastructure-publish-action@26d9d8604b2cf2e7343dc287c958e8bbc1a3f750 # v1
+        uses: newrelic/infrastructure-publish-action@c5af37f49a92d3c04d5fa74a0745b21933556c4e # v1
         with:
           tag: ${{ github.event.release.tag_name }}
           app_name: "newrelic-agent-control"
@@ -95,7 +95,7 @@ jobs:
           apt_skip_mirror: false
 
       - name: Publish deb to S3 action
-        uses: newrelic/infrastructure-publish-action@26d9d8604b2cf2e7343dc287c958e8bbc1a3f750 # v1
+        uses: newrelic/infrastructure-publish-action@c5af37f49a92d3c04d5fa74a0745b21933556c4e # v1
         with:
           tag: ${{ github.event.release.tag_name }}
           app_name: "newrelic-agent-control"
@@ -120,7 +120,7 @@ jobs:
           apt_skip_mirror: false
 
       - name: Publish rpm to S3 action
-        uses: newrelic/infrastructure-publish-action@26d9d8604b2cf2e7343dc287c958e8bbc1a3f750 # v1
+        uses: newrelic/infrastructure-publish-action@c5af37f49a92d3c04d5fa74a0745b21933556c4e # v1
         with:
           tag: ${{ github.event.release.tag_name }}
           app_name: "newrelic-agent-control"
