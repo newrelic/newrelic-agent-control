@@ -14,6 +14,9 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+### enhancement
+- Added support for JP endpoints.
+
 ## v1.16.0 - 2026-06-02
 
 ### 🚀 Enhancements
