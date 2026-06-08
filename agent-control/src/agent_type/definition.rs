@@ -5,7 +5,7 @@
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
 use super::{
-    agent_type_id::{AgentTypeID, AgentTypeIDError},
+    agent_type_id::AgentTypeID,
     error::AgentTypeError,
     runtime_config::{Deployment, Runtime},
     variable::{Variable, VariableDefinition, tree::Tree},
@@ -96,8 +96,6 @@ impl AgentTypeDefinition {
 
 #[derive(Error, Debug, PartialEq)]
 pub enum AgentTypeMetadataError {
-    #[error("{0}")]
-    Id(AgentTypeIDError),
     #[error("operating_system is required when platform is host")]
     MissingOperatingSystem,
     #[error("operating_system must not be set when platform is kubernetes")]

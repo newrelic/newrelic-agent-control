@@ -801,12 +801,12 @@ pub mod tests {
         MockSupervisor, MockSupervisorBuilder, MockSupervisorStarter, TestingSupervisorError,
     };
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::registry::embedded::EmbeddedRegistry;
     use crate::agent_type::render::TemplateRenderer;
     use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::checkers::health::health_checker::{Healthy, Unhealthy};
-    use crate::environment::tests::OS_ENVIRONMENT;
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::remote_config::hash::Hash;
@@ -945,7 +945,7 @@ name: default
 namespace: default
 version: 0.0.1
 platform: host
-operating_system: {OS_ENVIRONMENT}
+operating_system: {AGENT_CONTROL_MODE_ON_HOST}
 variables:
   var:
     description: "fake"
@@ -971,7 +971,7 @@ name: default
 namespace: default
 version: 0.0.1
 platform: host
-operating_system: {OS_ENVIRONMENT}
+operating_system: {AGENT_CONTROL_MODE_ON_HOST}
 variables:
   var:
     description: "fake"

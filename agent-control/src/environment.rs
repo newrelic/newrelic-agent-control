@@ -16,13 +16,3 @@ impl Display for Environment {
         }
     }
 }
-
-#[cfg(test)]
-pub mod tests {
-    use super::*;
-
-    #[cfg(target_family = "unix")]
-    pub const OS_ENVIRONMENT: Environment = Environment::Linux;
-    #[cfg(target_family = "windows")]
-    pub const OS_ENVIRONMENT: Environment = Environment::Windows;
-}
