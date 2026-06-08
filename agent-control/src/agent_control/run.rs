@@ -1,6 +1,6 @@
 use super::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
-    CUSTOM_AGENT_TYPES_DIR,
+    DYNAMIC_AGENT_TYPES_DIR,
 };
 use crate::agent_control::config::AgentControlConfig;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
@@ -107,7 +107,10 @@ impl AgentControlRunner {
         let agent_type_registry = Arc::new(Registry::new(
             context.running_mode,
             RegistryConfig {
-                custom_agent_types_path: context.base_paths.local_dir.join(CUSTOM_AGENT_TYPES_DIR),
+                dynamic_agent_types_path: context
+                    .base_paths
+                    .local_dir
+                    .join(DYNAMIC_AGENT_TYPES_DIR),
             },
         ));
 

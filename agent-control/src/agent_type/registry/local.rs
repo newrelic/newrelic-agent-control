@@ -38,12 +38,12 @@ impl LocalRegistry {
     /// and overlaying the custom agent types found in the given directory (custom definitions take
     /// precedence over the embedded ones). Definitions whose environment does not match `env` are
     /// skipped, so the registry only contains entries the running binary can actually use.
-    pub fn new(env: Environment, custom_agent_types_path: PathBuf) -> Self {
+    pub fn new(env: Environment, dynamic_agent_types_path: PathBuf) -> Self {
         let mut registry =
             Self::try_new(embedded_definitions(env)).expect("Conflicting agent type definitions");
 
         // Custom agent types are dynamic, hence they take precedence over the embedded ones.
-        for definition in custom_definitions(custom_agent_types_path)
+        for definition in custom_definitions(dynamic_agent_types_path)
             .into_iter()
             .filter(|definition| definition.metadata.environment == env)
         {

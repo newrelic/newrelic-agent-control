@@ -32,7 +32,9 @@ pub trait AgentTypeRegistry {
 
 /// Holds the information to initialize a [Registry].
 pub struct RegistryConfig {
-    pub custom_agent_types_path: PathBuf,
+    /// Folder containing dynamic Agent Types, such Agent Types will take precedence over any other
+    /// Agent Type definition.
+    pub dynamic_agent_types_path: PathBuf,
 }
 
 /// The agent type registry used across Agent Control.
@@ -47,11 +49,11 @@ pub struct Registry {
 
 impl Registry {
     /// Builds a [Registry] whose local source loads the embedded agent types matching the given
-    /// [Environment] and overlays the custom agent types found in the given directory (custom
+    /// [Environment] and overlays the dynamic agent types found in the given directory (dynamic
     /// definitions take precedence).
     pub fn new(env: Environment, config: RegistryConfig) -> Self {
         Self {
-            local: LocalRegistry::new(env, config.custom_agent_types_path),
+            local: LocalRegistry::new(env, config.dynamic_agent_types_path),
         }
     }
 }
