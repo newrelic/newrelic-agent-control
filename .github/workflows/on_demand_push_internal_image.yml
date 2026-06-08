@@ -26,7 +26,7 @@ jobs:
     env:
       DOCKER_PLATFORMS: "linux/amd64,linux/arm64"
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
           ref: ${{ inputs.branch }}
@@ -52,7 +52,7 @@ jobs:
         with:
           version: 0.15.2
 
-      - uses: taiki-e/install-action@920ab1831fbf4fb3ef75c8ead83556c918bb7290 # v2.79.8
+      - uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # v2.81.8
         with:
           tool: cargo-zigbuild@0.20.1
 
@@ -67,7 +67,7 @@ jobs:
           make build-agent-control-k8s-cli ARCH=arm64 PKG=newrelic_agent_control
           make build-agent-control-k8s-cli ARCH=amd64 PKG=newrelic_agent_control
 
-      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4
+      - uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4
 
       - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
 
