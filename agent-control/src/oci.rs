@@ -14,6 +14,7 @@ use oci_client::{
 use tokio::runtime::Runtime;
 use url::Url;
 
+pub mod artifact_definitions;
 mod error;
 mod proxy;
 mod signature_verification;
