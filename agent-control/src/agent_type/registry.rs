@@ -1,4 +1,5 @@
 mod local;
+mod remote;
 
 use std::path::PathBuf;
 
@@ -19,6 +20,8 @@ pub enum AgentTypeRegistryError {
     Serialization(#[from] serde_saphyr::Error),
     #[error("value conversion error: {0}")]
     ValueConversion(#[from] serde_json::Error),
+    #[error("remote registry error: {0}")]
+    Remote(String),
 }
 
 /// Defines how to return an [AgentTypeDefinition] given an identifier.
