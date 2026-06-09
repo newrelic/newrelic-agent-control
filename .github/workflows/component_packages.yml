@@ -78,8 +78,8 @@ jobs:
 
       - name: Install cargo-xwin and go-winres
         run: |
-          cargo install --locked cargo-xwin --force
-          go install github.com/tc-hib/go-winres@latest
+          cargo install --locked cargo-xwin --version 0.22.0 --force
+          go install github.com/tc-hib/go-winres@v0.3.3
 
       - name: If pre-release, set tag and verify it matches Cargo.toml version
         if: ${{ inputs.pre-release}}
