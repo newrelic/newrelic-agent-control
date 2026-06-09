@@ -1,8 +1,8 @@
 use super::downloader::{OCIAgentDownloader, OCIDownloaderError};
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::PACKAGES_FOLDER_NAME;
+use crate::oci::artifact_definitions::LocalAgentPackage;
 use crate::package::manager::{InstalledPackageData, PackageData, PackageManager};
-use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::package::oci::downloader::OCIArtifactDownloader;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file::LocalFile;
@@ -380,7 +380,7 @@ mod tests {
     use super::*;
 
     use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
-    use crate::package::oci::artifact_definitions::PackageMediaType;
+    use crate::oci::artifact_definitions::PackageMediaType;
     use crate::package::oci::downloader::tests::MockOCIDownloader;
     use crate::utils::extract::tests::TestDataHelper;
     use fs::directory_manager::mock::MockDirectoryManager;
