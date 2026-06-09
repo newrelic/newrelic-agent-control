@@ -1,5 +1,5 @@
 mod local;
-mod remote;
+pub mod remote;
 
 use std::path::PathBuf;
 
@@ -22,6 +22,13 @@ pub enum AgentTypeRegistryError {
     ValueConversion(#[from] serde_json::Error),
     #[error("remote registry error: {0}")]
     Remote(String),
+    #[error(
+        "agent type definition os/platform '{found}' does not match the requested '{requested}'"
+    )]
+    EnvironmentMismatch {
+        requested: Environment,
+        found: Environment,
+    },
 }
 
 /// Defines how to return an [AgentTypeDefinition] given an identifier.

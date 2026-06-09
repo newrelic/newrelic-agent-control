@@ -11,15 +11,12 @@ use crate::environment::Environment;
 /// resolves them from its own running [Environment], which is used to build the OCI tag
 /// `<platform>-<operating_system>-<name>-<version>` (the operating system segment is omitted on
 /// kubernetes, matching how agent type metadata maps platform/os to [Environment]).
-// TODO: not yet wired into `Registry`; remove the `allow(dead_code)` once the composite registry
-// consumes it (see the precedence TODO in `Registry`).
-#[allow(dead_code)]
+// TODO: not yet wired into the composite `Registry` (see its precedence TODO).
 pub struct RemoteRegistry<D> {
     environment: Environment,
     downloader: D,
 }
 
-#[allow(dead_code)]
 impl<D: OCIAgentTypeDownloader> RemoteRegistry<D> {
     pub fn new(environment: Environment, downloader: D) -> Self {
         Self {
@@ -49,13 +46,24 @@ impl<D: OCIAgentTypeDownloader> AgentTypeRegistry for RemoteRegistry<D> {
         agent_type_id: &AgentTypeID,
     ) -> Result<AgentTypeDefinition, AgentTypeRegistryError> {
         let tag = self.artifact_tag(agent_type_id);
-        let definition = self
+        let raw = self
             .downloader
             .download(&tag)
             .map_err(|err| AgentTypeRegistryError::Remote(err.to_string()))?;
-        Ok(serde_saphyr::from_slice::<AgentTypeDefinition>(
-            &definition,
-        )?)
+        let definition = serde_saphyr::from_slice::<AgentTypeDefinition>(&raw)?;
+
+        // The tag targets a single environment, so a definition for a different one means the
+        // remote returned an artifact we did not ask for. Reject it rather than supervise an
+        // agent type meant for another platform.
+        let found = definition.metadata.environment;
+        if found != self.environment {
+            return Err(AgentTypeRegistryError::EnvironmentMismatch {
+                requested: self.environment,
+                found,
+            });
+        }
+
+        Ok(definition)
     }
 }
 
@@ -102,6 +110,24 @@ deployment:
         let definition = registry.get(&agent_type_id()).unwrap();
 
         assert_eq!(definition.metadata.environment, Environment::K8s);
+    }
+
+    #[test]
+    fn test_get_rejects_definition_for_a_different_environment() {
+        let mut downloader = MockOCIAgentTypeDownloader::new();
+        // The downloader returns a kubernetes definition while the registry runs on Linux.
+        downloader
+            .expect_download()
+            .returning(|_| Ok(K8S_DEFINITION.as_bytes().to_vec()));
+
+        let registry = RemoteRegistry::new(Environment::Linux, downloader);
+        assert_matches!(
+            registry.get(&agent_type_id()),
+            Err(AgentTypeRegistryError::EnvironmentMismatch {
+                requested: Environment::Linux,
+                found: Environment::K8s,
+            })
+        );
     }
 
     #[test]
