@@ -214,7 +214,7 @@ impl LocalAgentType {
     ///
     /// It fails if the artifact does not contain exactly one file. Deserializing the returned bytes
     /// into an agent type definition is left to the caller.
-    pub fn extract_definition(&self) -> Result<Vec<u8>, DefinitionError> {
+    pub fn extract_definition(self) -> Result<Vec<u8>, DefinitionError> {
         let mut archive = Archive::new(GzDecoder::new(self.blob.as_slice()));
         let entries = archive
             .entries()

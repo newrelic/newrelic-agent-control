@@ -14,6 +14,9 @@ use crate::utils::retry::retry;
 
 const DEFAULT_RETRIES: usize = 0;
 
+/// Maximum size of an agent type artifact blob (generous upper bound).
+const MAX_ARTIFACT_SIZE_BYTES: usize = 10 * 1024 * 1024; // 10 MiB
+
 #[derive(Debug, Error)]
 #[error("downloading agent type OCI artifact: {0}")]
 pub struct OCIAgentTypeDownloaderError(String);
@@ -23,36 +26,6 @@ pub trait OCIAgentTypeDownloader: Send + Sync {
     /// Downloads and verifies the agent type artifact identified by `tag`, returning the raw bytes
     /// of the single agent type definition it contains.
     fn download(&self, tag: &str) -> Result<Vec<u8>, OCIAgentTypeDownloaderError>;
-}
-
-impl OCIAgentTypeDownloader for OCIAgentTypeArtifactDownloader {
-    /// Downloads the agent type artifact at `<registry>/<repository>:<tag>`.
-    ///
-    /// If signature verification is enabled and a `public_key_url` is configured, it first verifies
-    /// the artifact's signature and then downloads the artifact that was verified (identified by
-    /// `digest`, to assure the artifact downloaded is the one verified).
-    ///
-    /// On failure the operation is retried as configured; if all attempts are exhausted it returns
-    /// an error.
-    fn download(&self, tag: &str) -> Result<Vec<u8>, OCIAgentTypeDownloaderError> {
-        retry(self.max_retries, self.retry_interval, || {
-            let base_reference = Reference::with_tag(
-                self.registry.to_string(),
-                self.repository.to_string(),
-                tag.to_string(),
-            );
-            let reference = if let Some(pk_url) = self.should_verify_signature() {
-                &self.verified_reference(&base_reference, pk_url)?
-            } else {
-                &base_reference
-            };
-            self.download_definition(reference)
-                .inspect_err(|e| debug!("Download '{reference}' failed with error: {e}"))
-        })
-        .map_err(|e| {
-            OCIAgentTypeDownloaderError(format!("download attempts exceeded, last error: {e}"))
-        })
-    }
 }
 
 /// Downloads agent type definitions from a configured OCI remote into memory.
@@ -67,11 +40,44 @@ pub struct OCIAgentTypeArtifactDownloader {
     registry: Registry,
     repository: Repository,
     auth: RegistryAuth,
-    signature_verification_enabled: bool,
     public_key_url: Option<Url>,
     max_retries: usize,
     retry_interval: Duration,
     max_size_bytes: usize,
+}
+
+impl OCIAgentTypeDownloader for OCIAgentTypeArtifactDownloader {
+    /// Downloads the agent type artifact at `<registry>/<repository>:<tag>`.
+    ///
+    /// If signature verification is enabled and a `public_key_url` is configured, it first verifies
+    /// the artifact's signature and then downloads the artifact that was verified (identified by
+    /// `digest`, to assure the artifact downloaded is the one verified).
+    ///
+    /// On failure the operation is retried as configured; if all attempts are exhausted it returns
+    /// an error.
+    fn download(&self, tag: &str) -> Result<Vec<u8>, OCIAgentTypeDownloaderError> {
+        let base_reference = Reference::with_tag(
+            self.registry.to_string(),
+            self.repository.to_string(),
+            tag.to_string(),
+        );
+        debug!(
+            oci_reference = base_reference.to_string(),
+            "Downloading Agent Type from remote repository"
+        );
+        retry(self.max_retries, self.retry_interval, || {
+            let reference = if let Some(pk_url) = self.should_verify_signature() {
+                &self.verified_reference(&base_reference, pk_url)?
+            } else {
+                &base_reference
+            };
+            self.download_definition(reference)
+                .inspect_err(|e| debug!("Download '{reference}' failed with error: {e}"))
+        })
+        .map_err(|e| {
+            OCIAgentTypeDownloaderError(format!("download attempts exceeded, last error: {e}"))
+        })
+    }
 }
 
 impl OCIAgentTypeArtifactDownloader {
@@ -81,9 +87,7 @@ impl OCIAgentTypeArtifactDownloader {
         registry: Registry,
         repository: Repository,
         auth: Option<OciAuth>,
-        signature_verification_enabled: bool,
         public_key_url: Option<Url>,
-        max_size_bytes: usize,
     ) -> Self {
         Self {
             client,
@@ -93,11 +97,10 @@ impl OCIAgentTypeArtifactDownloader {
                 .as_ref()
                 .map(RegistryAuth::from)
                 .unwrap_or(RegistryAuth::Anonymous),
-            signature_verification_enabled,
             public_key_url,
             max_retries: DEFAULT_RETRIES,
             retry_interval: Duration::default(),
-            max_size_bytes,
+            max_size_bytes: MAX_ARTIFACT_SIZE_BYTES,
         }
     }
 
@@ -113,13 +116,11 @@ impl OCIAgentTypeArtifactDownloader {
     /// Returns the configured `public_key_url` if signature verification needs to be performed,
     /// None otherwise.
     fn should_verify_signature(&self) -> Option<&Url> {
-        if !self.signature_verification_enabled {
-            warn!("Signature verification is disabled, skipping");
-            return None;
-        }
         if self.public_key_url.is_none() {
             warn!(
-                "No public_key_url configured for agent type remote, skipping signature verification"
+                repository = self.repository.to_string(),
+                registry = self.registry.to_string(),
+                "Signature verification is disabled, skipping"
             );
         }
         self.public_key_url.as_ref()
@@ -190,9 +191,19 @@ pub mod tests {
         }
     }
 
-    const DEFINITION: &[u8] = b"namespace: newrelic\nname: com.newrelic.infrastructure\n";
-    const REPOSITORY: &str = "newrelic/agent-control-agent-types";
-    const TAG: &str = "host-linux-com.newrelic.infrastructure-0.1.0";
+    impl OCIAgentTypeArtifactDownloader {
+        /// Overrides the maximum artifact blob size to exercise the size cap.
+        fn with_max_size_bytes(self, max_size_bytes: usize) -> Self {
+            Self {
+                max_size_bytes,
+                ..self
+            }
+        }
+    }
+
+    const DEFINITION: &[u8] = b"namespace: some.namespace\nname: some.agent.type\n";
+    const REPOSITORY: &str = "my-org/agent-types-repository";
+    const TAG: &str = "host-linux-some.agent.type-0.0.42";
 
     /// Builds an in-memory gzipped tar containing a single file with the given content.
     fn tar_gz_with_definition(file_name: &str, content: &[u8]) -> Vec<u8> {
@@ -211,9 +222,7 @@ pub mod tests {
 
     fn create_downloader(
         registry: String,
-        signature_verification_enabled: bool,
         public_key_url: Option<Url>,
-        max_size_bytes: usize,
     ) -> OCIAgentTypeArtifactDownloader {
         let client = Client::try_new(
             ClientConfig {
@@ -229,9 +238,7 @@ pub mod tests {
             Registry::from_str(&registry).unwrap(),
             Repository::from_str(REPOSITORY).unwrap(),
             None,
-            signature_verification_enabled,
             public_key_url,
-            max_size_bytes,
         )
     }
 
@@ -248,8 +255,7 @@ pub mod tests {
             .with_signature(&key_pair)
             .build();
 
-        let downloader =
-            create_downloader(server.registry(), true, Some(jwks_server.url), 1024 * 1024);
+        let downloader = create_downloader(server.registry(), Some(jwks_server.url));
         let definition = downloader.download(TAG).unwrap();
         assert_eq!(definition, DEFINITION);
     }
@@ -262,7 +268,7 @@ pub mod tests {
             .with_layer(&tar_gz, &LayerMediaType::AgentType.to_string())
             .build();
 
-        let downloader = create_downloader(server.registry(), false, None, 1024 * 1024);
+        let downloader = create_downloader(server.registry(), None);
         let definition = downloader.download(TAG).unwrap();
         assert_eq!(definition, DEFINITION);
     }
@@ -275,7 +281,7 @@ pub mod tests {
             .with_layer(&tar_gz, &LayerMediaType::AgentType.to_string())
             .build();
 
-        let downloader = create_downloader(server.registry(), false, None, 1024 * 1024);
+        let downloader = create_downloader(server.registry(), None);
         assert_matches!(downloader.download(TAG), Err(OCIAgentTypeDownloaderError(msg)) => {
             assert!(msg.contains("validating agent type manifest"), "{msg}");
         });
@@ -293,26 +299,10 @@ pub mod tests {
             .with_layer(&tar_gz, &LayerMediaType::AgentType.to_string())
             .build(); // not signed
 
-        let downloader =
-            create_downloader(server.registry(), true, Some(jwks_server.url), 1024 * 1024);
+        let downloader = create_downloader(server.registry(), Some(jwks_server.url));
         assert_matches!(downloader.download(TAG), Err(OCIAgentTypeDownloaderError(msg)) => {
             assert!(msg.contains("signature verification failed"), "{msg}");
         });
-    }
-
-    #[test]
-    fn test_download_success_verification_enabled_without_public_key() {
-        // Verification is enabled but no public_key_url is configured: the downloader logs a
-        // warning, skips verification and downloads the artifact unverified.
-        let tar_gz = tar_gz_with_definition(&format!("{TAG}.yaml"), DEFINITION);
-        let server = FakeOciServer::new(REPOSITORY, TAG)
-            .with_artifact_type(&ManifestArtifactType::AgentType.to_string())
-            .with_layer(&tar_gz, &LayerMediaType::AgentType.to_string())
-            .build(); // not signed
-
-        let downloader = create_downloader(server.registry(), true, None, 1024 * 1024);
-        let definition = downloader.download(TAG).unwrap();
-        assert_eq!(definition, DEFINITION);
     }
 
     #[test]
@@ -323,7 +313,7 @@ pub mod tests {
             .with_layer(&tar_gz, &LayerMediaType::AgentType.to_string())
             .build();
 
-        let downloader = create_downloader(server.registry(), false, None, 10);
+        let downloader = create_downloader(server.registry(), None).with_max_size_bytes(10);
         assert_matches!(downloader.download(TAG), Err(OCIAgentTypeDownloaderError(msg)) => {
             assert!(msg.contains("download artifact failure"), "{msg}");
         });
