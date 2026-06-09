@@ -127,6 +127,7 @@ These are the endpoints the AC process itself directly communicates with at runt
 |---|---|---|---|
 | `opamp.service.newrelic.com` | 443 | HTTPS | Fleet Control communication — US region |
 | `opamp.service.eu.newrelic.com` | 443 | HTTPS | Fleet Control communication — EU region |
+| `opamp.service.jp.newrelic.com` | 443 | HTTPS | Fleet Control communication — JP region |
 
 #### Authentication — always required
 
@@ -146,6 +147,7 @@ AC fetches public keys (JWKS) from these endpoints to verify the signatures of N
 |---|---|---|---|
 | `publickeys.newrelic.com` | 443 | HTTPS | Public key fetch for signature verification — US region |
 | `publickeys.eu.newrelic.com` | 443 | HTTPS | Public key fetch for signature verification — EU region |
+| `publickeys.jp.newrelic.com` | 443 | HTTPS | Public key fetch for signature verification — JP region |
 
 #### Self-instrumentation — optional
 
@@ -155,6 +157,7 @@ If AC's built-in OpenTelemetry self-instrumentation is enabled (see [`CONFIG.md`
 |---|---|---|---|
 | `otlp.nr-data.net` | 4317 | HTTPS/gRPC | AC self-telemetry (OTLP) — US region |
 | `otlp.eu01.nr-data.net` | 4317 | HTTPS/gRPC | AC self-telemetry (OTLP) — EU region |
+| `otlp.jp.nr-data.net` | 4317 | HTTPS/gRPC | AC self-telemetry (OTLP) — JP region |
 
 #### Cloud metadata
 
