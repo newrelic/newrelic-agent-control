@@ -5,7 +5,6 @@
 
 use crate::agent_control::config::AgentControlConfig;
 use crate::agent_control::defaults::ENVIRONMENT_VARIABLES_FILE_NAME;
-use crate::agent_control::run::Environment;
 use crate::agent_control::version_updater::on_host::verify::CommandResult;
 use crate::agent_control::{
     config_repository::{repository::AgentControlConfigLoader, store::AgentControlConfigStore},
@@ -13,6 +12,7 @@ use crate::agent_control::{
 };
 use crate::command::on_host_checks::config::check_config;
 use crate::command::on_host_checks::opamp::check_connectivity;
+use crate::environment::Environment;
 use crate::event::ApplicationEvent;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
 use crate::instrumentation::config::logs::config::LoggingConfig;

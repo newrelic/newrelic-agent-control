@@ -10,7 +10,7 @@ config:
     level: debug
   agents:
     gateway:
-      agent_type: newrelic/com.newrelic.pipeline_control_gateway_config:0.1.0
+      agent_type: newrelic/com.newrelic.pipeline_control_gateway_config_mode:0.1.0
 image:
   repository: agent-control-dev
   tag: e2e-test

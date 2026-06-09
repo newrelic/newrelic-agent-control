@@ -10,7 +10,8 @@ use kube::{
     Client,
     api::{Api, DeleteParams, PostParams},
 };
-use newrelic_agent_control::agent_control::{agent_id::AgentID, run::Environment};
+use newrelic_agent_control::agent_control::agent_id::AgentID;
+use newrelic_agent_control::environment::Environment;
 use newrelic_agent_control::{
     agent_control::defaults::{
         AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,

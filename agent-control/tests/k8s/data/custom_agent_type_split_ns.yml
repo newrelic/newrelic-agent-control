@@ -1,73 +1,72 @@
 namespace: newrelic
 name: com.newrelic.custom_agent
 version: 0.0.1
+platform: kubernetes
 variables:
-  k8s:
-    chart_values:
-      description: "chart_values"
-      type: yaml
-      required: false
-      default: { }
+  chart_values:
+    description: "chart_values"
+    type: yaml
+    required: false
+    default: { }
 deployment:
-  k8s:
-    health:
-      interval: 5s
-      initial_delay: 2s
-      checks:
-        - namespace: ${nr-ac:namespace}
-          name: ${nr-sub:agent_id}
-          kind: HelmReleaseWorkload
-          target_namespace: ${nr-ac:namespace_agents}
-    objects:
-      repository:
-        apiVersion: source.toolkit.fluxcd.io/v1
-        kind: HelmRepository
-        metadata:
-          name: ${nr-sub:agent_id}
-          namespace: ${nr-ac:namespace}
-        spec:
-          # we don't want to trigger this in the test to avoid extra load in the cluster
-          interval: 99m
-          url: https://helm.github.io/examples
-      default-values:
-        apiVersion: v1
-        kind: Secret
-        metadata:
-          name: default-values-${nr-sub:agent_id}
-          namespace: ${nr-ac:namespace}
-        stringData:
-          values.yaml: |
-            ${nr-var:chart_values}
-      release:
-        apiVersion: helm.toolkit.fluxcd.io/v2
-        kind: HelmRelease
-        metadata:
-          name: ${nr-sub:agent_id}
-          namespace: ${nr-ac:namespace}
-        spec:
-          # until we address https://new-relic.atlassian.net/browse/NR-435351
-          interval: 10s
-          targetNamespace: ${nr-ac:namespace_agents}
-          releaseName: ${nr-sub:agent_id}
-          chart:
-            spec:
-              chart: hello-world
-              version: 0.1.0
-              sourceRef:
-                kind: HelmRepository
-                name: ${nr-sub:agent_id}
-          install:
-            disableWait: true
-            disableWaitForJobs: true
-            disableTakeOwnership: true
-            # namespaces lifecycle is handled by the test.
-            # createNamespace: true
-          upgrade:
-            disableWait: true
-            disableWaitForJobs: true
-            disableTakeOwnership: true 
-            cleanupOnFail: true
-          valuesFrom:
-            - kind: Secret
-              name: default-values-${nr-sub:agent_id}
-              valuesKey: values.yaml
+  health:
+    interval: 5s
+    initial_delay: 2s
+    checks:
+      - namespace: ${nr-ac:namespace}
+        name: ${nr-sub:agent_id}
+        kind: HelmReleaseWorkload
+        target_namespace: ${nr-ac:namespace_agents}
+  objects:
+    repository:
+      apiVersion: source.toolkit.fluxcd.io/v1
+      kind: HelmRepository
+      metadata:
+        name: ${nr-sub:agent_id}
+        namespace: ${nr-ac:namespace}
+      spec:
+        # we don't want to trigger this in the test to avoid extra load in the cluster
+        interval: 99m
+        url: https://helm.github.io/examples
+    default-values:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: default-values-${nr-sub:agent_id}
+        namespace: ${nr-ac:namespace}
+      stringData:
+        values.yaml: |
+          ${nr-var:chart_values}
+    release:
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata:
+        name: ${nr-sub:agent_id}
+        namespace: ${nr-ac:namespace}
+      spec:
+        # until we address https://new-relic.atlassian.net/browse/NR-435351
+        interval: 10s
+        targetNamespace: ${nr-ac:namespace_agents}
+        releaseName: ${nr-sub:agent_id}
+        chart:
+          spec:
+            chart: hello-world
+            version: 0.1.0
+            sourceRef:
+              kind: HelmRepository
+              name: ${nr-sub:agent_id}
+        install:
+          disableWait: true
+          disableWaitForJobs: true
+          disableTakeOwnership: true
+          # namespaces lifecycle is handled by the test.
+          # createNamespace: true
+        upgrade:
+          disableWait: true
+          disableWaitForJobs: true
+          disableTakeOwnership: true
+          cleanupOnFail: true
+        valuesFrom:
+          - kind: Secret
+            name: default-values-${nr-sub:agent_id}
+            valuesKey: values.yaml

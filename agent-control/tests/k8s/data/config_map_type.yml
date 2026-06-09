@@ -1,26 +1,25 @@
 namespace: newrelic
 name: com.newrelic.test_config_map
 version: 0.1.0
+platform: kubernetes
 variables:
-  k8s:
-    chart_values:
-      cm_content:
-        description: "configmap content"
-        type: yaml
-        required: false
-        default: { }
+  chart_values:
+    cm_content:
+      description: "configmap content"
+      type: yaml
+      required: false
+      default: { }
 deployment:
-  k8s:
-    health:
-      interval: 30s
-      initial_delay: 30s
-    objects:
-      values:
-        apiVersion: v1
-        kind: ConfigMap
-        metadata:
-          name: test-config-map
-          namespace: ${nr-ac:namespace}
-        data:
-          deployment-config.yaml: |
-            ${nr-var:chart_values.cm_content}
+  health:
+    interval: 30s
+    initial_delay: 30s
+  objects:
+    values:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: test-config-map
+        namespace: ${nr-ac:namespace}
+      data:
+        deployment-config.yaml: |
+          ${nr-var:chart_values.cm_content}
