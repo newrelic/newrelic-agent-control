@@ -7,6 +7,7 @@
 use super::{
     agent_type_id::AgentTypeID,
     error::AgentTypeError,
+    protocol_version::{self, ProtocolVersionError},
     runtime_config::{Deployment, Runtime},
     variable::{Variable, VariableDefinition, tree::Tree},
 };
@@ -42,13 +43,17 @@ pub struct AgentTypeDefinition {
     pub runtime_config: Runtime,
 }
 
-impl<'de> Deserialize<'de> for AgentTypeDefinition {
+/// Wraps [AgentTypeDefinition] to force deserialization using [parse_agent_type_definition] which
+/// verifies the `protocol_version`.
+struct RawAgentTypeDefinition(AgentTypeDefinition);
+
+impl<'de> Deserialize<'de> for RawAgentTypeDefinition {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         #[derive(Deserialize)]
-        struct Raw {
+        struct Fields {
             #[serde(flatten)]
             metadata: AgentTypeMetadata,
             #[serde(default)]
@@ -56,26 +61,48 @@ impl<'de> Deserialize<'de> for AgentTypeDefinition {
             deployment: serde_json::Value,
         }
 
-        let raw = Raw::deserialize(deserializer)?;
+        let fields = Fields::deserialize(deserializer)?;
 
-        let deployment = match raw.metadata.environment {
+        let deployment = match fields.metadata.environment {
             Environment::Linux | Environment::Windows => {
                 let on_host: OnHost =
-                    serde_json::from_value(raw.deployment).map_err(D::Error::custom)?;
+                    serde_json::from_value(fields.deployment).map_err(D::Error::custom)?;
                 Deployment::Host(on_host)
             }
             Environment::K8s => {
-                let k8s: K8s = serde_json::from_value(raw.deployment).map_err(D::Error::custom)?;
+                let k8s: K8s =
+                    serde_json::from_value(fields.deployment).map_err(D::Error::custom)?;
                 Deployment::K8s(k8s)
             }
         };
 
-        Ok(AgentTypeDefinition {
-            metadata: raw.metadata,
-            variables: raw.variables,
+        Ok(RawAgentTypeDefinition(AgentTypeDefinition {
+            metadata: fields.metadata,
+            variables: fields.variables,
             runtime_config: Runtime { deployment },
-        })
+        }))
     }
+}
+
+/// Parses raw yaml content into an [AgentTypeDefinition], validating the file's `protocol_version`
+/// before the document is converted into the definition.
+pub fn parse_agent_type_definition(
+    content: &[u8],
+) -> Result<AgentTypeDefinition, AgentTypeDefinitionParseError> {
+    let document: serde_json::Value = serde_saphyr::from_slice(content)?;
+    protocol_version::check(&document)?;
+    let definition = serde_json::from_value::<RawAgentTypeDefinition>(document)?.0;
+    Ok(definition)
+}
+
+#[derive(Error, Debug)]
+pub enum AgentTypeDefinitionParseError {
+    #[error("incompatible protocol version: {0}")]
+    ProtocolVersion(#[from] ProtocolVersionError),
+    #[error("invalid agent type yaml: {0}")]
+    Yaml(#[from] serde_saphyr::Error),
+    #[error("invalid agent type definition: {0}")]
+    Definition(#[from] serde_json::Error),
 }
 
 impl AgentTypeDefinition {
@@ -333,12 +360,26 @@ pub fn get_sub_agent_variable(variables: &Variables, variable_name: &str) -> Opt
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::agent_type::protocol_version::SUPPORTED_PROTOCOL_VERSION;
     use crate::agent_type::trivial_value::TrivialValue;
     use crate::agent_type::variable::constraints::VariableConstraints;
+    use assert_matches::assert_matches;
     use rstest::rstest;
     use serde_json::Number;
     use serde_saphyr::Error;
     use std::collections::HashMap as Map;
+
+    /// `AgentTypeDefinition` deliberately has no production `Deserialize` impl: production code must go
+    /// through the registry boundary so the `protocol_version` is always checked first. This test-only
+    /// impl lets unit tests build definitions directly from inline yaml without that check.
+    impl<'de> Deserialize<'de> for AgentTypeDefinition {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            RawAgentTypeDefinition::deserialize(deserializer).map(|raw| raw.0)
+        }
+    }
 
     impl AgentTypeDefinition {
         /// This helper returns an [AgentTypeDefinition] including only the provided id.
@@ -482,6 +523,123 @@ variables: {}
         assert!(
             err.to_string().contains("missing field `deployment`"),
             "unexpected error: {err}"
+        );
+    }
+
+    /// A minimal valid k8s definition where the line carrying `protocol_version` can be customized
+    /// (or omitted by passing an empty string).
+    fn k8s_definition_yaml(protocol_version_line: &str) -> String {
+        format!(
+            r#"
+namespace: ns
+name: test
+version: 0.0.0
+{protocol_version_line}
+platform: kubernetes
+variables: {{}}
+deployment:
+  objects: {{}}
+"#
+        )
+    }
+
+    #[test]
+    fn parse_accepts_k8s_definition_with_supported_protocol_version() {
+        let yaml = k8s_definition_yaml(&format!(
+            "protocol_version: \"{SUPPORTED_PROTOCOL_VERSION}\""
+        ));
+
+        let definition = parse_agent_type_definition(yaml.as_bytes()).unwrap();
+
+        assert_eq!(definition.agent_type_id().namespace(), "ns");
+        assert_eq!(definition.agent_type_id().name(), "test");
+        assert_eq!(definition.metadata.environment, Environment::K8s);
+    }
+
+    #[test]
+    fn parse_accepts_host_definition_dispatching_to_host_deployment() {
+        let yaml = format!(
+            r#"
+namespace: newrelic
+name: nrdot
+version: 0.0.1
+protocol_version: "{SUPPORTED_PROTOCOL_VERSION}"
+platform: host
+operating_system: linux
+variables: {{}}
+deployment: {{}}
+"#
+        );
+
+        let definition = parse_agent_type_definition(yaml.as_bytes()).unwrap();
+
+        assert_eq!(definition.metadata.environment, Environment::Linux);
+        assert_matches!(definition.runtime_config.deployment, Deployment::Host(_));
+    }
+
+    #[test]
+    fn parse_rejects_missing_protocol_version() {
+        let yaml = k8s_definition_yaml("");
+
+        assert_matches!(
+            parse_agent_type_definition(yaml.as_bytes()),
+            Err(AgentTypeDefinitionParseError::ProtocolVersion(
+                ProtocolVersionError::Missing
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_rejects_incompatible_protocol_version() {
+        // Assumes the supported version is on major 0; a major-1 file is a breaking change.
+        let yaml = k8s_definition_yaml("protocol_version: \"99.0\"");
+
+        assert_matches!(
+            parse_agent_type_definition(yaml.as_bytes()),
+            Err(AgentTypeDefinitionParseError::ProtocolVersion(
+                ProtocolVersionError::IncompatibleMajor { .. }
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_rejects_unquoted_protocol_version() {
+        // An unquoted `0.1` is a yaml float, not the required quoted MAJOR.MINOR string.
+        let yaml = k8s_definition_yaml(&format!("protocol_version: {SUPPORTED_PROTOCOL_VERSION}"));
+
+        assert_matches!(
+            parse_agent_type_definition(yaml.as_bytes()),
+            Err(AgentTypeDefinitionParseError::ProtocolVersion(
+                ProtocolVersionError::InvalidFormat(_)
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_rejects_malformed_yaml() {
+        let err = parse_agent_type_definition(b"name: [unclosed").unwrap_err();
+
+        assert_matches!(err, AgentTypeDefinitionParseError::Yaml(_));
+    }
+
+    #[test]
+    fn parse_rejects_valid_yaml_with_invalid_definition() {
+        // Valid yaml and a compatible protocol version, but the `deployment` block is missing, so
+        // the failure must come from building the definition, not the protocol check.
+        let supported = protocol_version::SUPPORTED_PROTOCOL_VERSION;
+        let yaml = format!(
+            r#"
+namespace: ns
+name: test
+version: 0.0.0
+protocol_version: "{supported}"
+platform: host
+"#
+        );
+
+        assert_matches!(
+            parse_agent_type_definition(yaml.as_bytes()),
+            Err(AgentTypeDefinitionParseError::Definition(_))
         );
     }
 

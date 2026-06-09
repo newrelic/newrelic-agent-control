@@ -85,6 +85,7 @@ impl LocalRegistry {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::agent_type::protocol_version::SUPPORTED_PROTOCOL_VERSION;
     use assert_matches::assert_matches;
     use std::fs::File;
     use std::io::Write;
@@ -189,6 +190,7 @@ pub mod tests {
 namespace: {namespace}
 name: {name}
 version: {version}
+protocol_version: "{SUPPORTED_PROTOCOL_VERSION}"
 platform: kubernetes
 variables:
   {variable}:
