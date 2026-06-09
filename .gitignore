@@ -39,7 +39,7 @@ agent-control/tests/k8s/.kubeconfig-dev
 build/examples/values-nr-otel-collector-agent-linux.yaml
 
 # local directory for testing purposes
-local/
+/local/
 agent-control/tests/k8s/local/
 /config.yaml
 

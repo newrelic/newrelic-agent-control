@@ -4,75 +4,86 @@
 
 Currently, the supported workloads that AC is able to manage are hard-coded into the program. However, it is intended that the AC team or external teams can easily add new supported agents to it, so we have exposed a way to specify how to run, configure, manage and check the health of a workload in the form of a YAML file. This file describes what we call an **agent type definition**. In some places of the codebase, we might refer to the workload created for a certain agent type as an **agent type instance**.
 
+Each agent type definition targets a single `(platform, operating_system)` pair. The `platform` is either `host` or `kubernetes`; `operating_system` is required when `platform: host` (`linux` or `windows`) and must not be set when `platform: kubernetes`. An agent that supports more than one such pair (for example, the Infrastructure Agent which runs on host Linux, host Windows and Kubernetes) is defined by **one YAML file per pair**, all sharing the same `namespace`, `name` and `version`. At startup, Agent Control loads only the definitions whose `platform` (and `operating_system`, when `platform: host`) match the binary it's running in.
+
 The definition for an agent type consists on a single YAML file with three main areas defined below.
 
 We recommend that you read the following sections, but at any time feel free to check the currently available definitions in [its dedicated docs](../agent-control/agent-type-registry/README.md) to see working examples of the explained concepts.
 
 ### Agent Type Metadata
 
-Contains top-level fields for the name of the agent type, with a namespace, and the version.
+Contains top-level fields for the name of the agent type, with a namespace, the version, and the platform this definition targets.
 
 The version used here is not the version of your agent, but **the version of the agent type definition**. For example, at the time of writing this we may use `version: 0.1.0` for our Infrastructure Agent definition, but the version of the actual Infrastructure Agent binary that AC ends up running as sub-agent would be the most recent one (`1.60.1`).
 
 Agent Types are versioned to ensure compatibility with a given configuration values (no breaking changes, see below). As of now, we maintain only one version per agent type and use a fixed `0.1.0` value for it because these definitions are not easily visible to FC, but FC needs to know what are the agent types and their versions to make the metadata visible on New Relic's UI. As of now **we prohibit pushing breaking changes for these definitions, and any exceptions to this need to be validated at least by both AC and FC teams**.
 
-This is an example section for the metadata fields, using the actual agent type definition for the New Relic Infrastructure Agent.
+The `platform` field is required, and `operating_system` is required when `platform: host`. The supported combinations are:
+
+- `platform: kubernetes` (no `operating_system`).
+- `platform: host` with `operating_system: linux`.
+- `platform: host` with `operating_system: windows`.
+
+Any other combination (for example `platform: host` without an OS, or `platform: kubernetes` with one) is rejected at parse time.
+
+This is an example section for the metadata fields, using the Kubernetes definition of the New Relic Infrastructure Agent.
 
 ```yaml
 namespace: newrelic
 name: com.newrelic.infrastructure
 version: 0.1.0
-# ... 
+platform: kubernetes
+# ...
+```
+
+The Linux and Windows host variants share the same `namespace`/`name`/`version` and `platform: host`, and differ only in the `operating_system` value:
+
+```yaml
+namespace: newrelic
+name: com.newrelic.infrastructure
+version: 0.1.0
+platform: host
+operating_system: linux
+# ...
 ```
 
 ### Agent Type Variables
 
-This section, defined under the top-level field `variables`, enables the dynamic configuration of the workload created by AC by exposing arbitrary variables. The variables are grouped into three main sections: `common`, `linux` and `k8s`. Inside these, the variables can be arbitrarily grouped into common fields forming a tree, where the final leaf will determine the actual variable, its type and its allowed contents.
+This section, defined under the top-level field `variables`, enables the dynamic configuration of the workload created by AC by exposing arbitrary variables. Variables are declared as a flat tree directly under `variables` — there are no per-platform sub-keys. If an agent type supports multiple platforms, each per-platform YAML file declares its own variables independently (they may overlap or differ between platforms).
+
+Variables can be arbitrarily grouped into common fields forming a tree, where the final leaf will determine the actual variable, its type and its allowed contents.
 
 Defining variables is entirely optional, but if no variables are defined then no dynamic configuration will be possible for this sub-agent, AC will be only capable of adding or removing it as a workload using its deployment instructions and at most the environment variables available to AC at the time it's running (see the [deployment](#agent-type-deployment) section below).
 
-The following is a section of the defined configuration variables for the New Relic Infrastructure Agent. You can read a detailed explanation below.
+The following is a section of the defined configuration variables for the Kubernetes definition of the New Relic Infrastructure Agent. You can read a detailed explanation below.
 
 ```yaml
 variables:
-  linux:
-    config_agent:
-      description: "Newrelic infra configuration"
+  chart_values:
+    newrelic-infrastructure:
+      description: "newrelic-infrastructure chart values"
       type: yaml
       required: false
       default: {}
-  windows:
-    config_agent:
-      description: "Newrelic infra configuration"
+    nri-metadata-injection:
+      description: "nri-metadata-injection chart values"
       type: yaml
       required: false
       default: {}
-  k8s:
-    chart_values:
-      newrelic-infrastructure:
-        description: "newrelic-infrastructure chart values"
-        type: yaml
-        required: false
-        default: {}
-      nri-metadata-injection:
-        description: "nri-metadata-injection chart values"
-        type: yaml
-        required: false
-        default: {}
-      global:
-        description: "Global chart values"
-        type: yaml
-        required: false
-        default: {}
-    chart_version:
-      description: "nri-bundle chart version"
-      type: string
-      required: true
+    global:
+      description: "Global chart values"
+      type: yaml
+      required: false
+      default: {}
+  chart_version:
+    description: "nri-bundle chart version"
+    type: string
+    required: true
 ```
 
-See that we don't have a `common` section, for `linux` we define a single variable called `config_agent`, while inside `k8s` we have a field `chart_values` that defines three variables inside (`newrelic-infrastructure`, `nri-metadata-injection` and `global`) while a remaining variable `chart_version` is outside, as another top-level field for the `k8s` section.
+Here, `chart_values` is a grouping field that contains three nested variables (`newrelic-infrastructure`, `nri-metadata-injection` and `global`), while `chart_version` is a sibling top-level variable.
 
-When referencing these variables elsewhere, as you will see in the [deployment](#agent-type-deployment) and [applying configuration](#applying-configurations) sections, you would access these nested fields using a dot (`.`), as usual for accessing fields in programming languages. For our example, we would use `chart_values.newrelic-infrastructure` `chart_values.nri-metadata-injection` `chart_values.global` and `chart_version` respectively.
+When referencing these variables elsewhere, as you will see in the [deployment](#agent-type-deployment) and [applying configuration](#applying-configurations) sections, you would access these nested fields using a dot (`.`), as usual for accessing fields in programming languages. For our example, we would use `chart_values.newrelic-infrastructure`, `chart_values.nri-metadata-injection`, `chart_values.global` and `chart_version` respectively.
 
 The variables can theoretically be nested this way indefinitely, but for usability purposes we advise to keep this at a reasonable level.
 
@@ -133,9 +144,9 @@ By default, no variants are set, resulting in no variant validation.
 
 ### Agent Type Deployment
 
-This actually defines how the workload will be created and managed by AC, and it's defined under the top-level field `deployment`.
+This actually defines how the workload will be created and managed by AC, and it's defined under the top-level field `deployment`. The shape of `deployment` depends on the [platform](#agent-type-metadata) declared in the metadata: an on-host definition uses [on-host deployment fields](#on-host-deployment-definition) (`executables`, `filesystem`, `packages`, …), and a Kubernetes definition uses [Kubernetes deployment fields](#kubernetes-deployment-definition) (`objects`, …). Each per-platform YAML file describes a single deployment block.
 
-The deployment information can contain instructions for on-host deployment, for Kubernetes deployment or for both, but **cannot be empty**.
+The `deployment` field is required and **cannot be empty**.
 
 #### The role of `variables`
 
@@ -174,111 +185,122 @@ It is important to note that the availability of environment variables depends o
 
 By leveraging this mechanism, you can dynamically inject environment-specific values into your configurations, simplifying deployment and ensuring flexibility across different environments.
 
-The following is a section of the defined deployment instructions for the New Relic Infrastructure Agent. It contains definitions both for on-host and Kubernetes, so this agent type is supported when AC runs on either setting.
+The following examples show the deployment block for the Linux, Windows and Kubernetes definitions of the New Relic Infrastructure Agent — each in its own per-platform YAML file.
+
+Linux (`platform: host`, `operating_system: linux`):
 
 ```yaml
 deployment:
-  linux:
-    enable_file_logging: ${nr-var:enable_file_logging}
-    health:
-      interval: 5s
-      initial_delay: 5s
-      timeout: 5s
-      http:
-        path: "/v1/status/health"
-        port: ${nr-var:health_port}
-    packages:
-      infra-agent:
-        download:
-          oci:
-            repository: ${nr-var:oci.repository}
-            version: ${nr-var:version}
-    filesystem:
-      config:
-        newrelic-infra.yaml: |
-          ${nr-var:config_agent}
-      integrations.d: ${nr-var:config_integrations}
-      logging.d: ${nr-var:config_logging}
-    executables:
-      - id: newrelic-infra
-        path: ${nr-sub:packages.infra-agent.dir}/newrelic-infra
-        args:
-          - --config
-          - ${nr-sub:filesystem_agent_dir}/config/newrelic-infra.yaml
-        env:
-          NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}/integrations.d"
-          NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:filesystem_agent_dir}/logging.d"
-          NRIA_STATUS_SERVER_ENABLED: true
-          NRIA_STATUS_SERVER_PORT: "${nr-var:health_port}"
-          NR_HOST_ID: "${nr-ac:host_id}"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: ${nr-var:backoff_delay}
-  windows:
-    enable_file_logging: ${nr-var:enable_file_logging}
-    health:
-      interval: 5s
-      initial_delay: 5s
-      timeout: 5s
-      http:
-        path: "/v1/status/health"
-        port: ${nr-var:health_port}
-    packages:
-      infra-agent:
-        download:
-          oci:
-            repository: ${nr-var:oci.repository}
-            version: ${nr-var:version}
-    filesystem:
-      config:
-        newrelic-infra.yaml: |
-          ${nr-var:config_agent}
-      integrations.d: ${nr-var:config_integrations}
-      logging.d: ${nr-var:config_logging}
-    executables:
-      - id: newrelic-infra
-        path: ${nr-sub:packages.infra-agent.dir}\\newrelic-infra.exe
-        args:
-          - --config
-          - ${nr-sub:filesystem_agent_dir}\\config\\newrelic-infra.yaml
-        env:
-          NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}\\integrations.d"
-          NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:filesystem_agent_dir}\\logging.d"
-          NRIA_STATUS_SERVER_ENABLED: true
-          NRIA_STATUS_SERVER_PORT: "${nr-var:health_port}"
-          NR_HOST_ID: "${nr-ac:host_id}"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: ${nr-var:backoff_delay}
-  k8s:
-    health:
-      interval: 30s
-      initial_delay: 30s
-      checks:
-        - namespace: ${nr-ac:namespace}
-          name: ${nr-sub:agent_id}
-          kind: HelmReleaseWorkload
-          target_namespace: ${nr-ac:namespace_agents}
-    objects:
-      release:
-        apiVersion: helm.toolkit.fluxcd.io/v2
-        kind: HelmRelease
-        metadata:
-          name: ${nr-sub:agent_id}
-          namespace: ${nr-ac:namespace}
-        spec:
-          targetNamespace: ${nr-ac:namespace_agents}
-          releaseName: ${nr-sub:agent_id}
-          interval: 3m
-          # ... omitted for brevity
-          values:
-            newrelic-infrastructure: ${nr-var:chart_values.newrelic-infrastructure}
-            nri-metadata-injection: ${nr-var:chart_values.nri-metadata-injection}
-            kube-state-metrics: ${nr-var:chart_values.kube-state-metrics}
-            nri-kube-events: ${nr-var:chart_values.nri-kube-events}
-            global: ${nr-var:chart_values.global}
+  enable_file_logging: ${nr-var:enable_file_logging}
+  health:
+    interval: 5s
+    initial_delay: 5s
+    timeout: 5s
+    http:
+      path: "/v1/status/health"
+      port: ${nr-var:health_port}
+  packages:
+    infra-agent:
+      download:
+        oci:
+          repository: ${nr-var:oci.repository}
+          version: ${nr-var:version}
+  filesystem:
+    config:
+      newrelic-infra.yaml: |
+        ${nr-var:config_agent}
+    integrations.d: ${nr-var:config_integrations}
+    logging.d: ${nr-var:config_logging}
+  executables:
+    - id: newrelic-infra
+      path: ${nr-sub:packages.infra-agent.dir}/newrelic-infra
+      args:
+        - --config
+        - ${nr-sub:filesystem_agent_dir}/config/newrelic-infra.yaml
+      env:
+        NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}/integrations.d"
+        NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:filesystem_agent_dir}/logging.d"
+        NRIA_STATUS_SERVER_ENABLED: true
+        NRIA_STATUS_SERVER_PORT: "${nr-var:health_port}"
+        NR_HOST_ID: "${nr-ac:host_id}"
+      restart_policy:
+        backoff_strategy:
+          type: fixed
+          backoff_delay: ${nr-var:backoff_delay}
+```
+
+Windows (`platform: host`, `operating_system: windows`):
+
+```yaml
+deployment:
+  enable_file_logging: ${nr-var:enable_file_logging}
+  health:
+    interval: 5s
+    initial_delay: 5s
+    timeout: 5s
+    http:
+      path: "/v1/status/health"
+      port: ${nr-var:health_port}
+  packages:
+    infra-agent:
+      download:
+        oci:
+          repository: ${nr-var:oci.repository}
+          version: ${nr-var:version}
+  filesystem:
+    config:
+      newrelic-infra.yaml: |
+        ${nr-var:config_agent}
+    integrations.d: ${nr-var:config_integrations}
+    logging.d: ${nr-var:config_logging}
+  executables:
+    - id: newrelic-infra
+      path: ${nr-sub:packages.infra-agent.dir}\\newrelic-infra.exe
+      args:
+        - --config
+        - ${nr-sub:filesystem_agent_dir}\\config\\newrelic-infra.yaml
+      env:
+        NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}\\integrations.d"
+        NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:filesystem_agent_dir}\\logging.d"
+        NRIA_STATUS_SERVER_ENABLED: true
+        NRIA_STATUS_SERVER_PORT: "${nr-var:health_port}"
+        NR_HOST_ID: "${nr-ac:host_id}"
+      restart_policy:
+        backoff_strategy:
+          type: fixed
+          backoff_delay: ${nr-var:backoff_delay}
+```
+
+Kubernetes (`platform: kubernetes`):
+
+```yaml
+deployment:
+  health:
+    interval: 30s
+    initial_delay: 30s
+    checks:
+      - namespace: ${nr-ac:namespace}
+        name: ${nr-sub:agent_id}
+        kind: HelmReleaseWorkload
+        target_namespace: ${nr-ac:namespace_agents}
+  objects:
+    release:
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata:
+        name: ${nr-sub:agent_id}
+        namespace: ${nr-ac:namespace}
+      spec:
+        targetNamespace: ${nr-ac:namespace_agents}
+        releaseName: ${nr-sub:agent_id}
+        interval: 3m
+        # ... omitted for brevity
+        values:
+          newrelic-infrastructure: ${nr-var:chart_values.newrelic-infrastructure}
+          nri-metadata-injection: ${nr-var:chart_values.nri-metadata-injection}
+          kube-state-metrics: ${nr-var:chart_values.kube-state-metrics}
+          nri-kube-events: ${nr-var:chart_values.nri-kube-events}
+          global: ${nr-var:chart_values.global}
 ```
 
 ##### Global metadata list
@@ -486,7 +508,7 @@ Key-value pairs of the [Kubernetes Objects](https://kubernetes.io/docs/concepts/
   
 Most of Agent Control sub-agents currently deploy [Flux](https://fluxcd.io) CRs which end up in helm chart installation.
 
-You can check an [existing agent type with a Kubernetes deployment](../agent-control/agent-type-registry/newrelic/com.newrelic.infrastructure-0.1.0.yaml) as an example. This file includes all necessary Flux CR configurations required for Agent Control to manage sub-agent deployments effectively. It serves as a comprehensive reference for understanding the integration and deployment process.
+You can check an [existing agent type with a Kubernetes deployment](../agent-control/agent-type-registry/newrelic/kubernetes-com.newrelic.infrastructure-0.1.0.yaml) as an example. This file includes all necessary Flux CR configurations required for Agent Control to manage sub-agent deployments effectively. It serves as a comprehensive reference for understanding the integration and deployment process.
 
 ## Applying configurations
 

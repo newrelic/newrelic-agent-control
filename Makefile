@@ -58,3 +58,10 @@ third-party-notices:
 .PHONY: third-party-notices-check
 third-party-notices-check: third-party-notices
 	@git diff --name-only | grep -q "THIRD_PARTY_NOTICES.md" && { echo "Third party notices out of date, please commit the changes to the THIRD_PARTY_NOTICES.md file.";  exit 1; } || exit 0
+
+# rt-update-changelog runs the release-toolkit run.sh script by piping it into bash to update the CHANGELOG.md.
+# It also passes down to the script all the flags added to the make target. To check all the accepted flags,
+# see: https://github.com/newrelic/release-toolkit/blob/main/contrib/ohi-release-notes/run.sh
+#  e.g. `make rt-update-changelog -- -v`
+rt-update-changelog:
+	curl "https://raw.githubusercontent.com/newrelic/release-toolkit/v1/contrib/ohi-release-notes/run.sh" | bash -s -- $(filter-out $@,$(MAKECMDGOALS))

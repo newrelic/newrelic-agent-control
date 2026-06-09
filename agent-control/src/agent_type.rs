@@ -1,10 +1,10 @@
 pub mod agent_attributes;
 pub mod agent_type_id;
-pub mod agent_type_registry;
 pub mod definition;
-pub mod embedded_registry;
 pub mod error;
 pub mod guid_config;
+pub mod oci;
+pub mod registry;
 pub mod render;
 pub mod runtime_config;
 pub mod templates;

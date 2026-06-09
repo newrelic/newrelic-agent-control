@@ -95,7 +95,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
             objects: HashMap::from([
                 (
                     "fooCR".to_string(),
-                    serde_yaml::from_str::<K8sObject>(
+                    serde_saphyr::from_str::<K8sObject>(
                         format!(
                             r#"
     apiVersion: {}
@@ -117,7 +117,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
                 ),
                 (
                     "fooSecret".to_string(),
-                    serde_yaml::from_str::<K8sObject>(
+                    serde_saphyr::from_str::<K8sObject>(
                         format!(
                             r#"
     apiVersion: {}
@@ -137,7 +137,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
                 ),
                 (
                     "fooConfigMap".to_string(),
-                    serde_yaml::from_str::<K8sObject>(
+                    serde_saphyr::from_str::<K8sObject>(
                         format!(
                             r#"
     apiVersion: {}
@@ -171,7 +171,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
 
     let instance_id_storer = Storer::from(k8s_store.clone());
     let instance_id_getter =
-        InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
+        InstanceIDWithIdentifiersGetter::new(Arc::new(instance_id_storer), Identifiers::default());
 
     // Creates Instance ID CM correctly tagged.
     let agent_instance_id = instance_id_getter.get(&agent_identity.id).unwrap();
@@ -201,7 +201,7 @@ agents:
 
     // Expects the GC to keep the agent cr, secret, and configmap from the config, even if looking for multiple kinds or that
     // are missing in the cluster.
-    let first_agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>(config.as_str())
+    let first_agents_config = serde_saphyr::from_str::<AgentControlDynamicConfig>(config.as_str())
         .unwrap()
         .agents;
     gc.retain(K8sGarbageCollector::<SyncK8sClient>::active_config_ids(
@@ -221,7 +221,7 @@ agents:
     );
 
     // Expect that the current_agent, secret, and configmap to be removed on the second call.
-    let second_agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}")
+    let second_agents_config = serde_saphyr::from_str::<AgentControlDynamicConfig>("agents: {}")
         .unwrap()
         .agents;
     gc.retain(K8sGarbageCollector::<SyncK8sClient>::active_config_ids(
@@ -280,7 +280,7 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
         cr_type_meta: vec![missing_kind, foo_type_meta()],
     };
 
-    let agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}")
+    let agents_config = serde_saphyr::from_str::<AgentControlDynamicConfig>("agents: {}")
         .unwrap()
         .agents;
     // Expects the GC to clean the "removed" agent CR.
@@ -312,7 +312,7 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
 
     let instance_id_storer = Storer::from(k8s_store.clone());
     let instance_id_getter =
-        InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
+        InstanceIDWithIdentifiersGetter::new(Arc::new(instance_id_storer), Identifiers::default());
 
     let ac_instance_id = instance_id_getter.get(ac_id).unwrap();
 
@@ -324,7 +324,7 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
     };
 
     // Expects the GC do not clean any resource related to the SA.
-    let agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}")
+    let agents_config = serde_saphyr::from_str::<AgentControlDynamicConfig>("agents: {}")
         .unwrap()
         .agents;
     gc.retain(K8sGarbageCollector::<SyncK8sClient>::active_config_ids(
@@ -406,7 +406,7 @@ agents:
     };
 
     // Expects the GC do not clean any resource related to the SA, running SubAgents or unmanaged resources.
-    let agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>(config.as_str())
+    let agents_config = serde_saphyr::from_str::<AgentControlDynamicConfig>(config.as_str())
         .unwrap()
         .agents;
     gc.retain(K8sGarbageCollector::<SyncK8sClient>::active_config_ids(

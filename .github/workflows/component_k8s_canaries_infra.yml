@@ -30,12 +30,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-2
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Set branch name
         run: |
@@ -49,7 +49,7 @@ jobs:
         uses: newrelic/fargate-runner-action@121b96de1a4d7135204fd8a510927b0463df1b6b # main
         with:
           aws_region: us-east-2
-          container_make_target: "SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }} CANARY_DIR=${{ inputs.canary_dir }} test/k8s-canaries/terraform-${{ inputs.apply && 'apply' || 'plan' }}"
+          container_make_target: "SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }} EMAILS=${{ vars.EMAILS }} CANARY_DIR=${{ inputs.canary_dir }} test/k8s-canaries/terraform-${{ inputs.apply && 'apply' || 'plan' }}"
           ecs_cluster_name: agent_control
           task_definition_name: agent_control
           cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control

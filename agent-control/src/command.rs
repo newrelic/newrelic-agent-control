@@ -5,7 +5,6 @@
 
 use crate::agent_control::config::AgentControlConfig;
 use crate::agent_control::defaults::ENVIRONMENT_VARIABLES_FILE_NAME;
-use crate::agent_control::run::Environment;
 use crate::agent_control::version_updater::on_host::verify::CommandResult;
 use crate::agent_control::{
     config_repository::{repository::AgentControlConfigLoader, store::AgentControlConfigStore},
@@ -13,6 +12,7 @@ use crate::agent_control::{
 };
 use crate::command::on_host_checks::config::check_config;
 use crate::command::on_host_checks::opamp::check_connectivity;
+use crate::environment::Environment;
 use crate::event::ApplicationEvent;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
 use crate::instrumentation::config::logs::config::LoggingConfig;
@@ -119,7 +119,7 @@ pub struct BootstrapContext {
 pub struct Context {
     /// Context used to build and start [crate::agent_control::AgentControl]
     pub ac_runner_context: RunnerContext,
-    /// This must be kept alive for the duration of the program to ensure logs and traces are flushed.
+    /// This must be kept alive for the duration of the program to ensure logs are flushed.
     pub tracer: Vec<TracingGuardBox>,
     /// A handler used to signal the application to stop when running as a Windows Service
     #[cfg(target_family = "windows")]
@@ -218,7 +218,9 @@ impl Command {
         }
     }
 
-    fn build_bootstrap_context(args: &Args) -> Result<BootstrapContext, Box<dyn Error>> {
+    fn build_bootstrap_context(
+        #[cfg_attr(not(debug_assertions), allow(unused_variables))] args: &Args,
+    ) -> Result<BootstrapContext, Box<dyn Error>> {
         let base_paths = BasePaths::default();
 
         #[cfg(debug_assertions)]

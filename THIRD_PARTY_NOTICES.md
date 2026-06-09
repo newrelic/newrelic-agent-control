@@ -150,6 +150,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## annotate-snippets <https://crates.io/crates/annotate-snippets>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## anstream <https://crates.io/crates/anstream>
 
 Distributed under the following license(s):
@@ -810,6 +817,13 @@ Distributed under the following license(s):
 * MIT
 * BSD-3-Clause
 
+## encoding_rs_io <https://crates.io/crates/encoding_rs_io>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## enum-ordinalize <https://crates.io/crates/enum-ordinalize>
 
 Distributed under the following license(s):
@@ -1027,6 +1041,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## granit-parser <https://crates.io/crates/granit-parser>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## h2 <https://crates.io/crates/h2>
 
 Distributed under the following license(s):
@@ -1055,6 +1076,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## heck <https://crates.io/crates/heck>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## hex <https://crates.io/crates/hex>
 
 Distributed under the following license(s):
 
@@ -1267,13 +1295,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## iri-string <https://crates.io/crates/iri-string>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## is_terminal_polyfill <https://crates.io/crates/is_terminal_polyfill>
 
 Distributed under the following license(s):
@@ -1463,12 +1484,6 @@ Distributed under the following license(s):
 
 * MIT
 
-## libredox <https://crates.io/crates/libredox>
-
-Distributed under the following license(s):
-
-* MIT
-
 ## linux-raw-sys <https://crates.io/crates/linux-raw-sys>
 
 Distributed under the following license(s):
@@ -1599,6 +1614,13 @@ Distributed under the following license(s):
 * MIT
 
 ## no_std_io2 <https://crates.io/crates/no_std_io2>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
+
+## nohash-hasher <https://crates.io/crates/nohash-hasher>
 
 Distributed under the following license(s):
 
@@ -1869,13 +1891,6 @@ Distributed under the following license(s):
 * MIT
 
 ## pkg-config <https://crates.io/crates/pkg-config>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## plain <https://crates.io/crates/plain>
 
 Distributed under the following license(s):
 
@@ -2274,6 +2289,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## serde <https://crates.io/crates/serde>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## serde-saphyr <https://crates.io/crates/serde-saphyr>
 
 Distributed under the following license(s):
 
@@ -2816,6 +2838,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## unicode-width <https://crates.io/crates/unicode-width>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## unicode-xid <https://crates.io/crates/unicode-xid>
 
 Distributed under the following license(s):
@@ -3225,6 +3254,13 @@ Distributed under the following license(s):
 * Unicode-3.0
 
 ## zeroize <https://crates.io/crates/zeroize>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
+
+## zeroize_derive <https://crates.io/crates/zeroize_derive>
 
 Distributed under the following license(s):
 

@@ -2,8 +2,8 @@ use super::agent_id::AgentID;
 use super::http_server::config::ServerConfig;
 use super::uptime_report::UptimeReportConfig;
 use crate::agent_control::defaults::{
-    AC_OCI_PACKAGE_DEFAULT_REGISTRY, AC_OCI_PACKAGE_DEFAULT_REPOSITORY,
-    AC_OCI_PACKAGE_PUBLIC_KEY_URL,
+    AC_OCI_AGENT_TYPES_DEFAULT_REPOSITORY, AC_OCI_AGENT_TYPES_PUBLIC_KEY_URL,
+    AC_OCI_DEFAULT_REGISTRY, AC_OCI_PACKAGE_DEFAULT_REPOSITORY, AC_OCI_PACKAGE_PUBLIC_KEY_URL,
 };
 use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
 use crate::agent_type::runtime_config::on_host::package::rendered::{Repository, Version};
@@ -85,17 +85,28 @@ pub struct AgentControlConfig {
     /// Oci configuration (used for AC and agents packages)
     #[serde(default)]
     pub oci: OciConfig,
+
+    /// Configuration for the agent type registry remote source.
+    /// Reuses the global `oci` registry/auth; see [AgentTypeRegistryConfig].
+    #[serde(default)]
+    pub agent_types: AgentTypeConfig,
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
+#[serde(default)]
 pub struct SelfUpdateConfig {
     /// Indicates whether the self remote update mechanism is enabled or not
-    pub enabled: bool,
+    pub enabled: SelfUpdateConfigEnabled,
     /// Indicates whether package signature verification is enabled or not
     pub signature_verification_enabled: SignatureVerificationEnabled,
     /// Package configuration for the self-update mechanism in on-host environments
     pub package: AgentControlPackage,
 }
+
+const DEFAULT_SELF_UPDATE_CONFIG_ENABLED: bool = false;
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_SELF_UPDATE_CONFIG_ENABLED)]
+pub struct SelfUpdateConfigEnabled(bool);
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
 pub struct PackagesConfig {
@@ -119,7 +130,7 @@ pub struct Registry(String);
 
 impl Default for Registry {
     fn default() -> Self {
-        Registry(AC_OCI_PACKAGE_DEFAULT_REGISTRY.to_string())
+        Registry(AC_OCI_DEFAULT_REGISTRY.to_string())
     }
 }
 
@@ -196,11 +207,50 @@ const DEFAULT_SIGNATURE_VERIFICATION_ENABLED: bool = true;
 #[wrapper_default_value(DEFAULT_SIGNATURE_VERIFICATION_ENABLED)]
 pub struct SignatureVerificationEnabled(bool);
 
+/// Configuration for the agent type registry's remote source(s).
+#[derive(Debug, Default, Deserialize, PartialEq, Clone)]
+#[serde(default)]
+pub struct AgentTypeConfig {
+    /// The default (New Relic) remote source for agent types.
+    pub default_remote: DefaultAgentTypeRemote,
+}
+
+/// The default remote agent type source.
+///
+/// It reuses the global `oci.registry`/`oci.auth` (see [OciConfig]); it does not carry its own
+/// registry or auth. It only specifies the repository to pull agent types from, whether to
+/// verify their signature, and the signing key.
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(default)]
+pub struct DefaultAgentTypeRemote {
+    /// Repository (within the global OCI registry) holding the agent type definitions
+    pub repository: Repository,
+    /// Indicates whether agent type signature verification is enabled or not
+    pub signature_verification_enabled: SignatureVerificationEnabled,
+    /// Public key url (jwks) used to verify agent type signatures
+    pub public_key_url: Url,
+}
+
+impl Default for DefaultAgentTypeRemote {
+    fn default() -> Self {
+        DefaultAgentTypeRemote {
+            repository: Repository::from_str(AC_OCI_AGENT_TYPES_DEFAULT_REPOSITORY)
+                .expect("valid default agent types repository"),
+            signature_verification_enabled: SignatureVerificationEnabled::default(),
+            public_key_url: Url::parse(AC_OCI_AGENT_TYPES_PUBLIC_KEY_URL)
+                .expect("valid default agent types public key url"),
+        }
+    }
+}
+
 impl TryFrom<YAMLConfig> for AgentControlConfig {
-    type Error = serde_yaml::Error;
+    type Error = AgentControlConfigError;
 
     fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
-        serde_yaml::from_value(serde_yaml::to_value(value)?)
+        let value_string = serde_saphyr::to_string(&value)
+            .map_err(|e| AgentControlConfigError(format!("converting config: {e}")))?;
+        serde_saphyr::from_str(&value_string)
+            .map_err(|e| AgentControlConfigError(format!("deserializing config: {e}")))
     }
 }
 
@@ -297,9 +347,9 @@ impl TryFrom<&OpampRemoteConfig> for AgentControlDynamicConfig {
 /// Tries to append agents from a YAML value into the agents map, erroring on duplicates.
 fn try_append_agents(
     merged_agents: SubAgentsMap,
-    agents_value: serde_yaml::Value,
+    agents_value: serde_json::Value,
 ) -> Result<SubAgentsMap, AgentControlConfigError> {
-    let sub_agents_map: SubAgentsMap = serde_yaml::from_value(agents_value)
+    let sub_agents_map: SubAgentsMap = serde_json::from_value(agents_value)
         .map_err(|err| AgentControlConfigError(format!("invalid agents: {}", err)))?;
 
     let mut merged_agents = merged_agents;
@@ -323,11 +373,10 @@ impl TryFrom<YAMLConfig> for AgentControlDynamicConfig {
     type Error = AgentControlConfigError;
 
     fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
-        serde_yaml::from_value(
-            serde_yaml::to_value(value)
-                .map_err(|e| AgentControlConfigError(format!("deserializing: {e}")))?,
-        )
-        .map_err(|e| AgentControlConfigError(format!("serializing: {e}")))
+        let value_string = serde_saphyr::to_string(&value)
+            .map_err(|e| AgentControlConfigError(format!("deserializing: {e}")))?;
+        serde_saphyr::from_str(&value_string)
+            .map_err(|e| AgentControlConfigError(format!("serializing: {e}")))
     }
 }
 
@@ -491,9 +540,10 @@ impl<'de> Deserialize<'de> for K8sConfig {
             && !cd_enabled
         {
             info!(
-                "CD is disabled, setting cd_release_name to None, cd_remote_update to false and removing flux and instrumentation types from cr_type_meta"
+                "CD is disabled, setting cd_release_name to None, cd_remote_update and ac_remote_update to false and removing flux and instrumentation types from cr_type_meta"
             );
             intermediate.cd_remote_update = Some(false);
+            intermediate.ac_remote_update = Some(false);
             intermediate.cd_release_name = None;
             cr_type_meta = intermediate
                 .cr_type_meta
@@ -633,7 +683,12 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
 }
 
 pub fn default_group_version_kinds_no_flux() -> Vec<TypeMeta> {
-    vec![secret_type_meta()]
+    vec![
+        secret_type_meta(),
+        // This allows ConfigMaps created by sub-agents to be cleaned up by the GC.
+        // AC internal ConfigMaps (e.g. fleet-data) are handled by garbage_collect_agent_control_resources.
+        configmap_type_meta(),
+    ]
 }
 
 #[cfg(test)]
@@ -676,7 +731,7 @@ pub mod tests {
     impl TryFrom<&str> for AgentControlDynamicConfig {
         type Error = AgentControlConfigError;
         fn try_from(value: &str) -> Result<Self, Self::Error> {
-            serde_yaml::from_str(value)
+            serde_saphyr::from_str(value)
                 .map_err(|e| AgentControlConfigError(format!("serializing: {e}")))
         }
     }
@@ -798,27 +853,27 @@ agents: {}
 
     #[test]
     fn basic_parse() {
-        assert!(serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG).is_ok());
+        assert!(serde_saphyr::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG).is_ok());
         assert!(
-            serde_yaml::from_str::<AgentControlDynamicConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok()
+            serde_saphyr::from_str::<AgentControlDynamicConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok()
         );
-        let k8s_config = serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_K8S_CONFIG);
+        let k8s_config = serde_saphyr::from_str::<AgentControlConfig>(EXAMPLE_K8S_CONFIG);
         assert!(k8s_config.is_ok());
         let k8s = k8s_config.unwrap().k8s.unwrap();
         assert_eq!(k8s.auth_secret.secret_name, "secret-name");
         assert_eq!(k8s.auth_secret.secret_key_name, "secret-key");
         assert!(
-            serde_yaml::from_str::<AgentControlDynamicConfig>(
+            serde_saphyr::from_str::<AgentControlDynamicConfig>(
                 EXAMPLE_AGENTCONTROL_CONFIG_EMPTY_AGENTS
             )
             .is_ok()
         );
         assert!(
-            serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG_NO_AGENTS)
+            serde_saphyr::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG_NO_AGENTS)
                 .is_err()
         );
         assert!(
-            serde_yaml::from_str::<AgentControlDynamicConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok()
+            serde_saphyr::from_str::<AgentControlDynamicConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok()
         );
     }
 
@@ -832,15 +887,16 @@ agents: {}
         .into_iter()
         .for_each(|cfg_lf| {
             let cfg_crlf = cfg_lf.replace("\n", "\r\n");
-            let from_lf: AgentControlConfig = serde_yaml::from_str(cfg_lf).unwrap();
-            let from_crlf: AgentControlConfig = serde_yaml::from_str(&cfg_crlf).unwrap();
+            let from_lf: AgentControlConfig = serde_saphyr::from_str(cfg_lf).unwrap();
+            let from_crlf: AgentControlConfig = serde_saphyr::from_str(&cfg_crlf).unwrap();
             assert_eq!(from_lf, from_crlf);
         });
     }
 
     #[test]
     fn parse_with_wrong_agent_id() {
-        let actual = serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_CONFIG_WRONG_AGENT_ID);
+        let actual =
+            serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_CONFIG_WRONG_AGENT_ID);
         assert!(actual.is_err());
         assert!(actual
             .unwrap_err()
@@ -851,22 +907,23 @@ agents: {}
     #[test]
     fn parse_with_reserved_agent_id() {
         let actual =
-            serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_CONFIG_RESERVED_AGENT_ID);
+            serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_CONFIG_RESERVED_AGENT_ID);
         assert!(actual.is_err());
         assert!(
             actual
                 .unwrap_err()
                 .to_string()
-                .contains("AgentID 'agent-control' is reserved at line")
+                .contains("AgentID 'agent-control' is reserved")
         )
     }
 
     #[test]
     fn test_logging_config() {
         let default_config =
-            serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG_EMPTY_AGENTS);
+            serde_saphyr::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG_EMPTY_AGENTS);
         assert!(default_config.is_ok());
-        let custom_config = serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG);
+        let custom_config =
+            serde_saphyr::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG);
         assert!(custom_config.is_ok());
         assert_eq!(default_config.unwrap().log, LoggingConfig::default());
         assert_eq!(
@@ -886,17 +943,19 @@ agents: {}
     #[test]
     fn log_path_but_not_enabled_should_error() {
         let config =
-            serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_BAD_FILE_LOGGING_CONFIG);
+            serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_BAD_FILE_LOGGING_CONFIG);
         assert!(config.is_err());
-        assert_eq!(
-            config.unwrap_err().to_string(),
-            "log.file: missing field `enabled` at line 4 column 5"
+        assert!(
+            config
+                .unwrap_err()
+                .to_string()
+                .contains("missing field `enabled`")
         );
     }
 
     #[test]
     fn good_file_logging_config() {
-        let config = serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_FILE_LOGGING_CONFIG);
+        let config = serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_FILE_LOGGING_CONFIG);
         assert!(config.is_ok());
         assert_eq!(
             config.unwrap().log.file,
@@ -909,13 +968,13 @@ agents: {}
 
     #[test]
     fn host_id_config() {
-        let config = serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_HOST_ID).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_HOST_ID).unwrap();
         assert_eq!(config.host_id, "123");
     }
 
     #[test]
     fn fleet_id_config() {
-        let config = serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_FLEET_ID).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_FLEET_ID).unwrap();
         assert_eq!(config.fleet_control.unwrap().fleet_id, "123");
     }
 
@@ -929,7 +988,7 @@ k8s:
   cluster_name: some-cluster
 "#;
 
-        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
 
         let k8s = config.k8s.unwrap();
 
@@ -947,10 +1006,10 @@ k8s:
   cluster_name: some-cluster
 "#;
         assert!(
-            serde_yaml::from_str::<AgentControlConfig>(missing_namespace)
+            serde_saphyr::from_str::<AgentControlConfig>(missing_namespace)
                 .unwrap_err()
                 .to_string()
-                .contains("k8s: missing field `namespace`")
+                .contains("missing field `namespace`")
         );
 
         let missing_cluster_name = r#"
@@ -960,10 +1019,10 @@ k8s:
   # missing cluster_name
 "#;
         assert!(
-            serde_yaml::from_str::<AgentControlConfig>(missing_cluster_name)
+            serde_saphyr::from_str::<AgentControlConfig>(missing_cluster_name)
                 .unwrap_err()
                 .to_string()
-                .contains("k8s: missing field `cluster_name`")
+                .contains("missing field `cluster_name`")
         );
     }
 
@@ -980,7 +1039,7 @@ k8s:
       kind: "CustomKind"
 "#;
 
-        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
 
         let custom_type_meta = TypeMeta {
             api_version: "custom.io/v1".to_string(),
@@ -996,7 +1055,7 @@ k8s:
 
     #[test]
     fn test_proxy_config() {
-        let config = serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_PROXY).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_PROXY).unwrap();
         assert_eq!(
             config.proxy.url_as_string(),
             "http://localhost:8080/".to_string()
@@ -1006,6 +1065,22 @@ k8s:
     #[test]
     fn test_default_package_compiles() {
         let _ = AgentControlPackage::default();
+    }
+
+    #[test]
+    fn self_update_partial_config_uses_defaults_for_missing_fields() {
+        let config_input = r#"
+agents: {}
+self_update:
+  enabled: true
+"#;
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
+
+        assert_eq!(
+            config.self_update.signature_verification_enabled,
+            SignatureVerificationEnabled::default()
+        );
+        assert_eq!(config.self_update.package, AgentControlPackage::default());
     }
 
     #[rstest]
@@ -1030,7 +1105,7 @@ k8s:
             ac_release_name, cd_release_name
         );
 
-        let config = serde_yaml::from_str::<AgentControlConfig>(&config_input).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(&config_input).unwrap();
         let k8s = config.k8s.unwrap();
 
         assert_eq!(k8s.ac_release_name, expected_ac_release_name);
@@ -1048,14 +1123,16 @@ k8s:
   cd_enabled: false
   cd_release_name: "will-be-cleared"
   cd_remote_update: true
+  ac_remote_update: true
 "#;
 
-        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
         let k8s = config.k8s.unwrap();
 
         assert!(!k8s.cd_enabled);
         assert_eq!(k8s.cd_release_name, None);
         assert!(!k8s.cd_remote_update);
+        assert!(!k8s.ac_remote_update);
         assert!(
             !k8s.cr_type_meta
                 .iter()
@@ -1268,7 +1345,7 @@ k8s:
     #[test]
     fn test_deserialize_oci_config() {
         let config_input = r#"agents: {}"#;
-        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
         assert_eq!("docker.io".to_string(), config.oci.registry.0);
 
         let config_input = r#"
@@ -1278,7 +1355,7 @@ oci:
     bearer:
       token: "token"
 "#;
-        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
         assert_eq!("docker.io".to_string(), config.oci.registry.0);
 
         let config_input = r#"
@@ -1286,8 +1363,101 @@ agents: {}
 oci:
   registry: "custom-registry.io"
 "#;
-        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
         assert_eq!("custom-registry.io".to_string(), config.oci.registry.0);
+    }
+
+    #[test]
+    fn test_agent_type_registry_default_values() {
+        let default_remote = DefaultAgentTypeRemote::default();
+        assert_eq!(
+            AC_OCI_AGENT_TYPES_DEFAULT_REPOSITORY,
+            default_remote.repository.to_string()
+        );
+        assert!(default_remote.signature_verification_enabled.0);
+        assert_eq!(
+            AC_OCI_AGENT_TYPES_PUBLIC_KEY_URL,
+            default_remote.public_key_url.as_str()
+        );
+    }
+
+    #[test]
+    fn test_agent_types_default_when_block_or_subfields_omitted() {
+        let expected = AgentTypeConfig::default();
+        for config_input in [
+            "agents: {}",                                     // agent_types omitted entirely
+            "agents: {}\nagent_types: {}",                    // empty agent_types block
+            "agents: {}\nagent_types:\n  default_remote: {}", // empty default_remote block
+        ] {
+            let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
+            assert_eq!(expected, config.agent_types);
+        }
+    }
+
+    #[test]
+    fn test_agent_types_partial_override_keeps_defaults() {
+        let config_input = r#"
+agents: {}
+agent_types:
+  default_remote:
+    repository: myorg/my-agent-types
+"#;
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
+        let default_remote = config.agent_types.default_remote;
+        // Overridden field.
+        assert_eq!(
+            "myorg/my-agent-types",
+            default_remote.repository.to_string()
+        );
+        // Untouched fields stay at default.
+        assert!(default_remote.signature_verification_enabled.0);
+        assert_eq!(
+            AC_OCI_AGENT_TYPES_PUBLIC_KEY_URL,
+            default_remote.public_key_url.as_str()
+        );
+    }
+
+    #[test]
+    fn test_agent_types_full_override() {
+        let config_input = r#"
+agents: {}
+agent_types:
+  default_remote:
+    repository: myorg/my-agent-types
+    signature_verification_enabled: false
+    public_key_url: https://example.com/jwks.json
+"#;
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
+        let default_remote = config.agent_types.default_remote;
+        assert_eq!(
+            "myorg/my-agent-types",
+            default_remote.repository.to_string()
+        );
+        assert!(!default_remote.signature_verification_enabled.0);
+        assert_eq!(
+            "https://example.com/jwks.json",
+            default_remote.public_key_url.as_str()
+        );
+    }
+
+    #[test]
+    fn test_agent_types_tolerates_unknown_future_fields() {
+        // A `custom_remotes` sibling is not implemented yet; an older binary must still parse a
+        // config that includes it (forward compatibility), populating the known `default_remote`.
+        let config_input = r#"
+agents: {}
+agent_types:
+  default_remote:
+    repository: myorg/my-agent-types
+  custom_remotes:
+    - namespaces: [fake_company]
+      repository: agent-control-agent-types
+"#;
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
+        assert_eq!(
+            "myorg/my-agent-types",
+            config.agent_types.default_remote.repository.to_string()
+        );
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
@@ -1350,7 +1520,7 @@ oci:
 
     #[test]
     fn test_oci_auth_rejects_empty() {
-        let result = serde_yaml::from_str::<OciAuth>("{}");
+        let result = serde_saphyr::from_str::<OciAuth>("{}");
         assert!(result.is_err());
         assert!(
             result
@@ -1363,7 +1533,7 @@ oci:
     #[test]
     fn test_oci_auth_rejects_both_basic_and_bearer() {
         let yaml = "basic:\n  username: user\n  password: pass\nbearer:\n  token: my-token";
-        let result = serde_yaml::from_str::<OciAuth>(yaml);
+        let result = serde_saphyr::from_str::<OciAuth>(yaml);
         assert!(result.is_err());
         assert!(
             result

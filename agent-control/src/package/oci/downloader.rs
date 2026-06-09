@@ -1,8 +1,8 @@
 use crate::agent_control::config::OciAuth;
 use crate::agent_control::config::Registry;
 use crate::oci::Client;
+use crate::oci::artifact_definitions::LocalAgentPackage;
 use crate::package::manager::PackageData;
-use crate::package::oci::artifact_definitions::LocalAgentPackage;
 use crate::utils::retry::retry;
 use oci_client::Reference;
 use oci_client::secrets::RegistryAuth;
@@ -164,10 +164,10 @@ pub mod tests {
     use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
     use crate::http::config::ProxyConfig;
 
-    use crate::oci::tests::FakeOciServer;
-    use crate::package::oci::artifact_definitions::{
+    use crate::oci::artifact_definitions::{
         LayerMediaType, ManifestArtifactType, PackageMediaType,
     };
+    use crate::oci::tests::FakeOciServer;
     use crate::signature::public_key::tests::TestKeyPair;
     use crate::signature::public_key_fetcher::tests::JwksMockServer;
     use crate::utils::test_runtime::tokio_runtime;

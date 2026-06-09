@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use serde_yaml::Error;
+use serde_saphyr::Error;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::fmt::{Display, Formatter};
@@ -85,7 +85,7 @@ impl Hash for AgentTypeFieldFQN {
 pub struct FileInfo {
     pub file_path: FilePath,
     // overwrites defines a list of attributes to be added or overwritten to the config
-    pub overwrites: HashMap<String, serde_yaml::Value>,
+    pub overwrites: HashMap<String, serde_json::Value>,
     // deletions defines a list of attribute keys to be removed from the config
     pub deletions: Vec<String>,
 }
@@ -112,7 +112,7 @@ pub struct MigrationConfig {
 
 impl MigrationConfig {
     pub fn parse(config_content: &str) -> Result<Self, MigrationConfigError> {
-        let mut config: MigrationConfig = serde_yaml::from_str(config_content)?;
+        let mut config: MigrationConfig = serde_saphyr::from_str(config_content)?;
         config.configs.sort_by_key(|c| c.agent_type_fqn.to_string());
         let last = config
             .configs

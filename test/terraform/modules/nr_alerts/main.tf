@@ -5,14 +5,14 @@ resource "newrelic_alert_policy" "alert_policy_config" {
 locals {
   policies_with_instance_id = [
     for cond in var.conditions : {
-      policy_id    = newrelic_alert_policy.alert_policy_config.id
+      policy_id   = newrelic_alert_policy.alert_policy_config.id
       instance_id = var.instance_id
-      condition    = cond
+      condition   = cond
     }
   ]
 }
 
-resource "newrelic_workflow" workflow {
+resource "newrelic_workflow" "workflow" {
   name                  = var.instance_id
   muting_rules_handling = "NOTIFY_ALL_ISSUES"
 
@@ -27,30 +27,58 @@ resource "newrelic_workflow" workflow {
   }
 
   destination {
-    channel_id = newrelic_notification_channel.channel.id
+    channel_id = newrelic_notification_channel.slack_channel.id
+  }
+
+  destination {
+    channel_id = newrelic_notification_channel.email_channel.id
   }
 }
 
 
-resource newrelic_notification_channel channel {
-  name = var.instance_id
-  type = "WEBHOOK"
-  destination_id = newrelic_notification_destination.destination.id
+resource "newrelic_notification_channel" "slack_channel" {
+  name           = var.instance_id
+  type           = "WEBHOOK"
+  destination_id = newrelic_notification_destination.slack_webhook.id
   product        = "IINT"
 
   property {
-    key = "payload"
-    value = "{\"text\": \":warning: ${var.instance_id} Alert @hero\"}"
+    key   = "payload"
+    value = templatefile("${path.module}/alert_slack_payload.tftpl", {
+      instance_id = var.instance_id
+    })
   }
 }
 
-resource "newrelic_notification_destination" "destination" {
+resource "newrelic_notification_channel" "email_channel" {
+  name           = var.instance_id
+  type           = "EMAIL"
+  destination_id = newrelic_notification_destination.email.id
+  product        = "IINT"
+
+  property {
+    key   = "subject"
+    value = "Alert: ${var.instance_id}"
+  }
+}
+
+resource "newrelic_notification_destination" "slack_webhook" {
   name = "SlackWebhook"
   type = "WEBHOOK"
 
   property {
-    key = "url"
+    key   = "url"
     value = var.slack_webhook_url
+  }
+}
+
+resource "newrelic_notification_destination" "email" {
+  name = "Email"
+  type = "EMAIL"
+
+  property {
+    key   = "email"
+    value = var.emails
   }
 }
 
@@ -67,6 +95,11 @@ resource "newrelic_nrql_alert_condition" "condition_nrql_canary" {
   name                         = local.policies_with_instance_id[count.index].condition.name
   violation_time_limit_seconds = 3600
 
+  # Defaults values from https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/nrql_alert_condition#example-usage
+  aggregation_window = try(local.policies_with_instance_id[count.index].condition.aggregation_window, 60)
+  slide_by           = try(local.policies_with_instance_id[count.index].condition.slide_by, 30)
+
+
   nrql {
     query = templatefile(
       local.policies_with_instance_id[count.index].condition.template_name,
@@ -74,7 +107,7 @@ resource "newrelic_nrql_alert_condition" "condition_nrql_canary" {
         {
           "instance_id" : "${local.policies_with_instance_id[count.index].instance_id}",
           "function" : null,
-          "wheres" : {}
+          "wheres" : {},
         },
         local.policies_with_instance_id[count.index].condition
       )

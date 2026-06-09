@@ -1,5 +1,6 @@
 use crate::common::RecipeData;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config};
+use crate::common::nrql::Region;
 use crate::common::on_drop::CleanUp;
 use crate::common::{FleetControlInstallationArgs, fleet_control_api};
 use crate::linux;
@@ -16,12 +17,12 @@ use tracing::info;
 pub fn test_fleet_control(args: FleetControlInstallationArgs) {
     let fleet_id = &args.fleet_control.fleet_id;
     let fleet_control_token = &args.fleet_control.fleet_control_token;
-    let fleet_type = &args.fleet_control.fleet_type;
-    let test_suite = &args.fleet_control.test_suite;
+    let include_test_tags = &args.fleet_control.include_test_tags;
+    let test_scenarios = &args.fleet_control.test_scenarios;
 
     assert_eq!(
-        args.installation.nr_region.to_lowercase().as_str(),
-        "staging",
+        args.installation.nr_region,
+        Region::Staging,
         "This test can only run on staging environment"
     );
 
@@ -71,8 +72,8 @@ agents:
     let test_response = fleet_control_api::trigger_and_wait_for_fleet_control_tests(
         fleet_id,
         fleet_control_token,
-        fleet_type,
-        test_suite,
+        include_test_tags,
+        test_scenarios,
     );
 
     // Write test report to JSON file

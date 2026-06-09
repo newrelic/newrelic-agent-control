@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
-use tracing::{debug, error, info, warn};
+use tracing::{Level, debug, error, info, warn};
 
 /// Request body sent to the Fleet Control test runner to trigger a test suite.
 #[derive(Debug, Default, Serialize)]
@@ -83,21 +83,14 @@ const FLEET_CONTROL_TEST_CONTROLLER_ENDPOINT: &str =
 /// This function only handles the Fleet Control API communication and does not
 /// install or configure Agent Control. Useful when AC is already deployed externally
 /// (e.g., in a minikube cluster).
-pub fn run_fleet_control_api(
-    FleetControlArgs {
-        fleet_id,
-        fleet_control_token,
-        fleet_type,
-        test_suite,
-    }: FleetControlArgs,
-) {
+pub fn run_fleet_control_api(args: &FleetControlArgs) {
     info!("Starting Fleet Control API E2E test");
 
     let response = trigger_and_wait_for_fleet_control_tests(
-        fleet_id.as_str(),
-        fleet_control_token.as_str(),
-        fleet_type.as_str(),
-        test_suite.as_str(),
+        &args.fleet_id,
+        &args.fleet_control_token,
+        &args.include_test_tags,
+        &args.test_scenarios,
     );
 
     // Write test report to JSON file
@@ -120,12 +113,13 @@ pub fn run_fleet_control_api(
 pub fn trigger_and_wait_for_fleet_control_tests(
     fleet_id: &str,
     fleet_control_token: &str,
-    fleet_type: &str,
-    test_suite: &str,
+    include_test_tags: &[String],
+    test_scenarios: &[String],
 ) -> FinishedTestResponse {
     info!("Triggering Fleet Control tests");
     info!("Fleet ID: {fleet_id}");
-    info!("Fleet type: {fleet_type}");
+    info!("Include test tags: {include_test_tags:?}");
+    info!("Test scenarios: {test_scenarios:?}");
 
     // Trigger Fleet Control tests
     let test_run_id = retry_panic(
@@ -137,8 +131,8 @@ pub fn trigger_and_wait_for_fleet_control_tests(
                 FLEET_CONTROL_TEST_CONTROLLER_ENDPOINT,
                 fleet_control_token,
                 fleet_id,
-                fleet_type,
-                test_suite,
+                include_test_tags,
+                test_scenarios,
             )
         },
     );
@@ -166,43 +160,51 @@ fn trigger_fleet_control_tests(
     base_url: &str,
     token: &str,
     fleet_id: &str,
-    fleet_type: &str,
-    test_suite: &str,
+    include_test_tags: &[String],
+    test_scenarios: &[String],
 ) -> TestResult<String> {
     let client = Client::builder().timeout(CLIENT_TIMEOUT).build()?;
     let url = Url::parse(base_url)?
         .join("test-runner/")?
         .join("trigger-suites")?;
 
-    let request_body = TriggerTestRequest {
-        include_test_tags: vec!["FLEET_DEPLOYMENT".to_string()],
-        test_threads: 1,
-        user_defined_args: serde_json::json!({
-            test_suite: {
-                fleet_type: fleet_id
-            }
-        }),
-        ..TriggerTestRequest::default()
-    };
+    let request_body = build_trigger_request(fleet_id, include_test_tags, test_scenarios);
     info!("Triggering Fleet Control tests for fleet ID: {}", fleet_id);
 
     debug!(payload = ?request_body, "Sending request");
+
+    if tracing::enabled!(Level::TRACE) {
+        let payload_json = serde_json::to_string_pretty(&request_body)
+            .unwrap_or("Failed to serialize payload into JSON".to_string());
+        tracing::trace!(payload_json);
+    }
+
     let response = client
         .post(url.as_ref())
         .bearer_auth(token)
         .json(&request_body)
         .send()?;
 
-    let status = response.status();
-    if status.is_success() {
-        let run_id = response.json::<TriggerTestResponse>()?.test_run_id;
-        info!("✅ Successfully triggered test suite (HTTP 200). Run ID: {run_id}");
-        Ok(run_id)
-    } else {
-        let error_body = response
-            .text()
-            .unwrap_or_else(|_| "Unable to read response".to_string());
-        Err(format!("❌ Failed with HTTP {status}. Response: {error_body}").into())
+    match response.status().as_u16() {
+        status @ 200 => {
+            let run_id = response.json::<TriggerTestResponse>()?.test_run_id;
+            info!("✅ Successfully triggered test suite (HTTP {status}). Run ID: {run_id}");
+            Ok(run_id)
+        }
+        status @ 450 => {
+            let error_body = response
+                .text()
+                .unwrap_or_else(|_| "Unable to read response".to_string());
+            let message = format!("⚠️ No tests triggered (HTTP {status}). Response: {error_body}");
+            warn!("{message}");
+            Err(message.into())
+        }
+        status => {
+            let error_body = response
+                .text()
+                .unwrap_or_else(|_| "Unable to read response".to_string());
+            Err(format!("❌ Failed with HTTP {status}. Response: {error_body}").into())
+        }
     }
 }
 
@@ -278,6 +280,26 @@ fn wait_for_fleet_control_completion(
     }
 }
 
+/// Builds the request body sent to the Fleet Control test runner.
+fn build_trigger_request(
+    fleet_id: &str,
+    include_test_tags: &[String],
+    test_scenarios: &[String],
+) -> TriggerTestRequest {
+    let user_defined_args: serde_json::Value = test_scenarios
+        .iter()
+        .map(|name| (name.clone(), serde_json::json!({ "fleetId": fleet_id })))
+        .collect::<serde_json::Map<_, _>>()
+        .into();
+
+    TriggerTestRequest {
+        include_test_tags: include_test_tags.to_vec(),
+        test_threads: 1,
+        user_defined_args,
+        ..TriggerTestRequest::default()
+    }
+}
+
 /// Writes a flat test report derived from the API response to a JSON file.
 pub fn write_test_report(response: &FinishedTestResponse) {
     let filename = "fleet-control-test-report.json";
@@ -287,5 +309,70 @@ pub fn write_test_report(response: &FinishedTestResponse) {
     ) {
         Ok(_) => info!("📝 Test report written to: {filename}"),
         Err(e) => error!("⚠️  Failed to write report file: {e}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::common::FleetControlArgs;
+    use clap::Parser;
+
+    // E2E test from CLI args to JSON data
+    #[test]
+    fn trigger_request_body_matches_cli_flags() {
+        let args = FleetControlArgs::try_parse_from([
+            "e2e-runner",
+            "--fleet-id",
+            "test-fleet-id",
+            "--fleet-control-token",
+            "some-token",
+            "--include-test-tag",
+            "FLEET_DEPLOYMENT_REMOTE",
+            "--test-scenario",
+            "ManagedEntityIsConnectedRemote",
+            "--test-scenario",
+            "DeployValidConfigurationsRemote",
+            "--test-scenario",
+            "DeployInvalidConfigurationsRemote",
+            "--test-scenario",
+            "DeployMultipleConfigsRemote",
+        ])
+        .unwrap();
+
+        let request = build_trigger_request(
+            &args.fleet_id,
+            &args.include_test_tags,
+            &args.test_scenarios,
+        );
+        let json = serde_json::to_value(&request).unwrap();
+
+        assert_eq!(
+            json["includeTestTags"],
+            serde_json::json!(["FLEET_DEPLOYMENT_REMOTE"])
+        );
+        assert_eq!(json["excludeTestTags"], serde_json::json!([]));
+        assert_eq!(json["testThreads"], 1);
+        assert_eq!(json["debugRun"], false);
+        assert_eq!(json["allowHiddenTests"], false);
+
+        let user_args = &json["userDefinedArgs"];
+        assert_eq!(
+            user_args.as_object().unwrap().len(),
+            4,
+            "number of scenarios should match the number of items passed by CLI"
+        );
+
+        for scenario in [
+            "ManagedEntityIsConnectedRemote",
+            "DeployValidConfigurationsRemote",
+            "DeployInvalidConfigurationsRemote",
+            "DeployMultipleConfigsRemote",
+        ] {
+            assert_eq!(
+                user_args[scenario]["fleetId"], "test-fleet-id",
+                "scenario {scenario} should map to the provided fleet ID"
+            );
+        }
     }
 }

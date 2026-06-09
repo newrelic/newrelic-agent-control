@@ -1,5 +1,5 @@
 use crate::agent_control::config::AgentControlDynamicConfig;
-use crate::agent_type::agent_type_registry::AgentRegistry;
+use crate::agent_type::registry::AgentTypeRegistry;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -18,11 +18,11 @@ pub trait DynamicConfigValidator {
 }
 
 /// Validator that checks the agent type exists in the agent type registry.
-pub struct RegistryDynamicConfigValidator<R: AgentRegistry> {
+pub struct RegistryDynamicConfigValidator<R: AgentTypeRegistry> {
     agent_type_registry: Arc<R>,
 }
 
-impl<R: AgentRegistry> RegistryDynamicConfigValidator<R> {
+impl<R: AgentTypeRegistry> RegistryDynamicConfigValidator<R> {
     pub fn new(agent_type_registry: Arc<R>) -> Self {
         Self {
             agent_type_registry,
@@ -30,7 +30,7 @@ impl<R: AgentRegistry> RegistryDynamicConfigValidator<R> {
     }
 }
 
-impl<R: AgentRegistry> DynamicConfigValidator for RegistryDynamicConfigValidator<R> {
+impl<R: AgentTypeRegistry> DynamicConfigValidator for RegistryDynamicConfigValidator<R> {
     fn validate(
         &self,
         dynamic_config: &AgentControlDynamicConfig,
@@ -41,7 +41,7 @@ impl<R: AgentRegistry> DynamicConfigValidator for RegistryDynamicConfigValidator
             .try_for_each(|sub_agent_cfg| {
                 let _ = self
                     .agent_type_registry
-                    .get(sub_agent_cfg.agent_type.to_string().as_str())
+                    .get(&sub_agent_cfg.agent_type)
                     .map_err(|err| {
                         DynamicConfigValidatorError(format!(
                             "AgentType registry check failed: {err}"
@@ -55,8 +55,9 @@ impl<R: AgentRegistry> DynamicConfigValidator for RegistryDynamicConfigValidator
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_type::agent_type_registry::tests::MockAgentRegistry;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::definition::AgentTypeDefinition;
+    use crate::agent_type::registry::tests::MockAgentTypeRegistry;
     use mockall::mock;
 
     mock! {
@@ -91,15 +92,18 @@ pub mod tests {
 
     #[test]
     fn test_existing_agent_type_validation() {
-        let mut registry = MockAgentRegistry::new();
+        let mut registry = MockAgentTypeRegistry::new();
 
         let agent_type_definition =
             AgentTypeDefinition::empty_with_metadata("ns/name:0.0.1".try_into().unwrap());
 
         //Expectations
-        registry.should_get("ns/name:0.0.1".to_string(), &agent_type_definition);
+        registry.should_get(
+            AgentTypeID::try_from("ns/name:0.0.1").unwrap(),
+            &agent_type_definition,
+        );
 
-        let dynamic_config = serde_yaml::from_str::<AgentControlDynamicConfig>(
+        let dynamic_config = serde_saphyr::from_str::<AgentControlDynamicConfig>(
             r#"
 agents:
   some-agent:
@@ -114,10 +118,10 @@ agents:
     }
     #[test]
     fn test_non_existing_agent_type_validation() {
-        let mut registry = MockAgentRegistry::new();
-        registry.should_not_get("ns/another:0.0.1".to_string());
+        let mut registry = MockAgentTypeRegistry::new();
+        registry.expect_get_not_found(AgentTypeID::try_from("ns/another:0.0.1").unwrap());
 
-        let dynamic_config = serde_yaml::from_str::<AgentControlDynamicConfig>(
+        let dynamic_config = serde_saphyr::from_str::<AgentControlDynamicConfig>(
             r#"
 agents:
   some-agent:

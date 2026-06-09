@@ -1,6 +1,7 @@
 use crate::common::InstallationArgs;
 use crate::common::RecipeData;
 use crate::common::config::write_agent_local_config;
+use crate::common::nrql::Region;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::{
@@ -20,7 +21,7 @@ pub fn test_ebpf_agent(args: InstallationArgs) {
         .clone()
         .expect("--infra-agent-version is required for this scenario");
 
-    let staging = matches!(args.nr_region.to_lowercase().as_str(), "staging");
+    let staging = args.nr_region == Region::Staging;
 
     let recipe_data = RecipeData {
         args,

@@ -9,7 +9,7 @@ static INIT_LOGGER: Once = Once::new();
 
 pub fn init_logger() {
     INIT_LOGGER.call_once(|| {
-        let logging_config: LoggingConfig = serde_yaml::from_str(
+        let logging_config: LoggingConfig = serde_saphyr::from_str(
             r#"
         format:
           target: true

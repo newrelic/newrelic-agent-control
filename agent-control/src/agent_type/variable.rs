@@ -76,7 +76,7 @@ impl Variable {
         self.variable_type.get_final_value()
     }
 
-    pub fn merge_with_yaml_value(&mut self, yaml: serde_yaml::Value) -> Result<(), AgentTypeError> {
+    pub fn merge_with_yaml_value(&mut self, yaml: serde_json::Value) -> Result<(), AgentTypeError> {
         self.variable_type.merge_with_yaml_value(yaml)
     }
 
@@ -99,8 +99,8 @@ mod tests {
 
     use super::Variable;
 
-    impl From<Fields<serde_yaml::Value>> for Variable {
-        fn from(kind_value: Fields<serde_yaml::Value>) -> Self {
+    impl From<Fields<serde_json::Value>> for Variable {
+        fn from(kind_value: Fields<serde_json::Value>) -> Self {
             Self {
                 description: String::new(),
                 variable_type: VariableType::Yaml(kind_value),
@@ -108,8 +108,8 @@ mod tests {
         }
     }
 
-    impl From<Fields<HashMap<String, serde_yaml::Value>>> for Variable {
-        fn from(kind_value: Fields<HashMap<String, serde_yaml::Value>>) -> Self {
+    impl From<Fields<HashMap<String, serde_json::Value>>> for Variable {
+        fn from(kind_value: Fields<HashMap<String, serde_json::Value>>) -> Self {
             Self {
                 description: String::new(),
                 variable_type: VariableType::MapStringYaml(kind_value),
@@ -167,7 +167,7 @@ foo:
         ac_config_field: "foo.bar.var_name"
         values: ["a", "b"]
 "#;
-        let tree: Tree<VariableDefinition> = serde_yaml::from_str(value).unwrap();
+        let tree: Tree<VariableDefinition> = serde_saphyr::from_str(value).unwrap();
         let expected: Tree<VariableDefinition> = Tree::Mapping(HashMap::from([(
             "foo".to_string(),
             Tree::Mapping(HashMap::from([(

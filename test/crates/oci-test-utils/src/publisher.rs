@@ -1,3 +1,4 @@
+use crate::LOCAL_HTTP_REGISTRY_URL;
 use crate::blob_digest;
 use oci_client::Client;
 use oci_client::Reference;
@@ -50,7 +51,7 @@ impl PackagePublisher {
             registry_url: registry_url.into(),
             runtime_handle,
             client: Client::new(ClientConfig {
-                protocol: ClientProtocol::Http,
+                protocol: ClientProtocol::HttpsExcept(vec![LOCAL_HTTP_REGISTRY_URL.to_string()]),
                 ..Default::default()
             }),
         }
@@ -75,12 +76,16 @@ impl PackagePublisher {
     /// The artifact is structured as a manifest index (multiarch) with a single entry for the
     /// current platform.
     pub fn push(&self, file: &Path, media_type: PackageMediaType) -> Reference {
-        self.runtime_handle
-            .block_on(async { self.push_async(file, media_type).await })
+        self.push_with_tag(file, media_type, &unique_tag())
     }
 
-    async fn push_async(&self, file: &Path, media_type: PackageMediaType) -> Reference {
-        let tag = unique_tag();
+    /// Same as [`push`] but uses `tag` instead of a generated unique tag.
+    pub fn push_with_tag(&self, file: &Path, media_type: PackageMediaType, tag: &str) -> Reference {
+        self.runtime_handle
+            .block_on(async { self.push_async(file, media_type, tag).await })
+    }
+
+    async fn push_async(&self, file: &Path, media_type: PackageMediaType, tag: &str) -> Reference {
         let index_reference: Reference = format!("{}/{REPOSITORY_NAME}:{tag}", self.registry_url)
             .parse()
             .unwrap();
@@ -180,6 +185,7 @@ impl PackagePublisher {
             artifact_type: None,
             manifests: vec![ImageIndexEntry {
                 media_type: OCI_IMAGE_MEDIA_TYPE.to_string(),
+                artifact_type: None,
                 digest: manifest_digest,
                 size: manifest_size,
                 platform: Some(Platform {

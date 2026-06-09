@@ -15,9 +15,6 @@ on:
       cluster_name:
         required: true
         type: string
-      fleet_id:
-        required: true
-        type: string
       canary_dir:
         description: "Name of the tf directory to run the canary in. Valid values are `production` and `staging`."
         required: true
@@ -25,6 +22,12 @@ on:
 
 permissions:
   contents: read
+
+env:
+  # AC Staging Account `k8s-canaries-staging-1` fleet
+  FLEET_ID_STAGING: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk1ZDE1NC1iNTI0LTdhMTYtYWExYS0wYzQ2Y2VhOGFiMzg"
+  # AC US Production Account `k8s-canaries-production` fleet
+  FLEET_ID_PRODUCTION: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVlYzZhLTYwNjItNzZiZS1iOWE0LTA4MzZlZmE2MGY4YQ"
 
 jobs:
   helm_upgrade:
@@ -36,7 +39,7 @@ jobs:
       contents: read
     steps:
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-2
@@ -49,15 +52,23 @@ jobs:
           GIT_BRANCH=${GIT_BRANCH#refs/tags/}
           echo "GIT_BRANCH=$GIT_BRANCH" >> $GITHUB_ENV
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
+
+      - name: Resolve fleet ID for canary_dir
+        run: |
+          if [ "${{ inputs.canary_dir }}" = "production" ]; then
+            echo "FLEET_ID=${{ env.FLEET_ID_PRODUCTION }}" >> "$GITHUB_ENV"
+          else
+            echo "FLEET_ID=${{ env.FLEET_ID_STAGING }}" >> "$GITHUB_ENV"
+          fi
 
       - name: Upgrade helm release
         uses: newrelic/fargate-runner-action@121b96de1a4d7135204fd8a510927b0463df1b6b # main
         with:
           aws_region: us-east-2
-          container_make_target: "FLEET_ID=${{ inputs.fleet_id }} IMAGE_TAG=${{ inputs.image-tag }} CLUSTER_NAME=${{ inputs.cluster_name }} CANARY_DIR=${{ inputs.canary_dir }} test/k8s-canaries/helm-upgrade"
+          container_make_target: "FLEET_ID=${{ env.FLEET_ID }} IMAGE_TAG=${{ inputs.image-tag }} CLUSTER_NAME=${{ inputs.cluster_name }} CANARY_DIR=${{ inputs.canary_dir }} test/k8s-canaries/helm-upgrade"
           ecs_cluster_name: agent_control
           task_definition_name: agent_control
           cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control

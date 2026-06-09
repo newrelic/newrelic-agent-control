@@ -110,7 +110,7 @@ impl RemoteConfig {
 pub mod tests {
 
     use rstest::rstest;
-    use serde_yaml::Value;
+    use serde_json::Value;
 
     use super::*;
 
@@ -147,17 +147,17 @@ pub mod tests {
         #[case] check_state: impl Fn(&RemoteConfig) -> bool,
         #[case] expected_state: &str,
     ) {
-        let remote_config: RemoteConfig = serde_yaml::from_str(example).unwrap();
+        let remote_config: RemoteConfig = serde_saphyr::from_str(example).unwrap();
         assert_eq!(remote_config.config.get("key").unwrap(), "value");
         assert_eq!(remote_config.hash.to_string(), "examplehash");
         assert!(check_state(&remote_config));
 
-        let serialized_yaml_value = serde_yaml::to_value(&remote_config).unwrap();
+        let serialized_yaml_value = serde_json::to_value(&remote_config).unwrap();
         assert_eq!(serialized_yaml_value["config"]["key"], "value");
         assert_eq!(serialized_yaml_value["hash"], "examplehash");
         assert_eq!(serialized_yaml_value["state"], expected_state);
 
-        let deserialized_yaml_value = serde_yaml::from_str::<Value>(example).unwrap();
+        let deserialized_yaml_value = serde_saphyr::from_str::<Value>(example).unwrap();
         assert_eq!(deserialized_yaml_value, serialized_yaml_value);
     }
 }

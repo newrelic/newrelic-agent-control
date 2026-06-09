@@ -33,9 +33,9 @@ proxy:
 {LOG_SECTION}
     "#,
     );
-    let expected_value: serde_yaml::Value = serde_yaml::from_str(&expected_yaml).unwrap();
+    let expected_value: serde_json::Value = serde_saphyr::from_str(&expected_yaml).unwrap();
     let actual_content = std::fs::read_to_string(&path).unwrap();
-    let actual_value: serde_yaml::Value = serde_yaml::from_str(&actual_content).unwrap();
+    let actual_value: serde_json::Value = serde_saphyr::from_str(&actual_content).unwrap();
     assert_eq!(actual_value, expected_value);
 }
 
@@ -66,9 +66,9 @@ agents: {{}}
 {LOG_SECTION}
     "#,
     );
-    let expected_value: serde_yaml::Value = serde_yaml::from_str(&expected_yaml).unwrap();
+    let expected_value: serde_json::Value = serde_saphyr::from_str(&expected_yaml).unwrap();
     let actual_content = std::fs::read_to_string(&path).unwrap();
-    let actual_value: serde_yaml::Value = serde_yaml::from_str(&actual_content).unwrap();
+    let actual_value: serde_json::Value = serde_saphyr::from_str(&actual_content).unwrap();
     assert_eq!(actual_value, expected_value);
 }
 
@@ -112,9 +112,9 @@ agents: {{}}
 {LOG_SECTION}
     "#,
     );
-    let expected_value: serde_yaml::Value = serde_yaml::from_str(&expected_yaml).unwrap();
+    let expected_value: serde_json::Value = serde_saphyr::from_str(&expected_yaml).unwrap();
     let actual_content = std::fs::read_to_string(&path).unwrap();
-    let actual_value: serde_yaml::Value = serde_yaml::from_str(&actual_content).unwrap();
+    let actual_value: serde_json::Value = serde_saphyr::from_str(&actual_content).unwrap();
     assert_eq!(actual_value, expected_value);
 }
 
@@ -136,7 +136,7 @@ fn test_config_generator_environment_variables() {
     cmd.args(args.split_ascii_whitespace());
     cmd.assert().success();
 
-    let expected_value: serde_yaml::Value = serde_yaml::from_str(
+    let expected_value: serde_json::Value = serde_saphyr::from_str(
         r#"
 OTEL_EXPORTER_OTLP_ENDPOINT: https://otlp.nr-data.net:4317/
 NEW_RELIC_LICENSE_KEY: fake_license
@@ -144,7 +144,7 @@ NEW_RELIC_LICENSE_KEY: fake_license
     )
     .unwrap();
     let actual_content = std::fs::read_to_string(&env_vars_path).unwrap();
-    let actual_value: serde_yaml::Value = serde_yaml::from_str(&actual_content).unwrap();
+    let actual_value: serde_json::Value = serde_saphyr::from_str(&actual_content).unwrap();
     assert_eq!(actual_value, expected_value);
 }
 

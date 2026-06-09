@@ -1,12 +1,17 @@
+use crate::common::nrql::Region;
 use std::path::PathBuf;
 
+pub mod cert;
 pub mod config;
+pub mod docker_hub;
 pub mod exec;
 pub mod file;
 pub mod fleet_control_api;
 pub mod logs;
 pub mod nrql;
+pub mod oci;
 pub mod on_drop;
+pub mod runtime;
 pub mod test;
 
 /// Common Fleet Control arguments shared across different commands
@@ -20,13 +25,15 @@ pub struct FleetControlArgs {
     #[arg(long)]
     pub fleet_control_token: String,
 
-    /// Fleet type for Fleet Control API (e.g. linux-fleet or k8s-fleet)
-    #[arg(long)]
-    pub fleet_type: String,
+    /// Test tags to include when filtering which tests to run (e.g. FLEET_DEPLOYMENT_REMOTE),
+    /// can be specified multiple times
+    #[arg(long = "include-test-tag")]
+    pub include_test_tags: Vec<String>,
 
-    /// Name of the test suite to run (e.g. DeploymentServicesTestSuite)
-    #[arg(long)]
-    pub test_suite: String,
+    /// Test scenario names to run (e.g. ManagedEntityIsConnectedRemote),
+    /// can be specified multiple times
+    #[arg(long = "test-scenario")]
+    pub test_scenarios: Vec<String>,
 }
 
 /// Arguments for scenarios that require Agent Control installation
@@ -72,8 +79,8 @@ pub struct InstallationArgs {
     pub agent_control_version: String,
 
     /// New Relic region
-    #[arg(long, default_value = "US")]
-    pub nr_region: String,
+    #[arg(long, ignore_case = true)]
+    pub nr_region: Region,
 
     /// Version of the infrastructure agent OCI image to use in tests
     #[arg(long)]

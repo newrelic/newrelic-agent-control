@@ -1,7 +1,7 @@
 use crate::opamp::instance_id::storer::StorerError;
 use crate::{agent_control::agent_id::AgentID, opamp::instance_id::storer::InstanceIDStorer};
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use tracing::debug;
 
@@ -26,7 +26,8 @@ pub struct InstanceIDWithIdentifiersGetter<S>
 where
     S: InstanceIDStorer,
 {
-    storer: Mutex<S>,
+    // The storer is thread safe. The mutex guards the instance id creation process
+    storer: Mutex<Arc<S>>,
     identifiers: S::Identifiers,
 }
 
@@ -34,7 +35,7 @@ impl<S> InstanceIDWithIdentifiersGetter<S>
 where
     S: InstanceIDStorer,
 {
-    pub fn new(storer: S, identifiers: S::Identifiers) -> Self {
+    pub fn new(storer: Arc<S>, identifiers: S::Identifiers) -> Self {
         Self {
             storer: Mutex::new(storer),
             identifiers,
@@ -125,7 +126,8 @@ pub mod tests {
             .once()
             .with(predicate::eq(agent_id.clone()), predicate::always())
             .returning(|_, _| Ok(()));
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
+        let getter =
+            InstanceIDWithIdentifiersGetter::new(Arc::new(mock), MockIdentifiers::default());
         let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
@@ -140,7 +142,8 @@ pub mod tests {
             .once()
             .with(predicate::eq(agent_id.clone()))
             .returning(|_| Err(StorerError::Io(io::Error::other("error"))));
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
+        let getter =
+            InstanceIDWithIdentifiersGetter::new(Arc::new(mock), MockIdentifiers::default());
         let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_err());
@@ -160,7 +163,8 @@ pub mod tests {
             .with(predicate::eq(agent_id.clone()), predicate::always())
             .returning(|_, _| Err(StorerError::Io(io::Error::other("error"))));
 
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
+        let getter =
+            InstanceIDWithIdentifiersGetter::new(Arc::new(mock), MockIdentifiers::default());
         let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_err());
@@ -182,7 +186,8 @@ pub mod tests {
                     identifiers: Default::default(),
                 }))
             });
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
+        let getter =
+            InstanceIDWithIdentifiersGetter::new(Arc::new(mock), MockIdentifiers::default());
         let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
@@ -209,7 +214,8 @@ pub mod tests {
             .once()
             .with(predicate::eq(agent_id.clone()), predicate::always())
             .returning(|_, _| Ok(()));
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
+        let getter =
+            InstanceIDWithIdentifiersGetter::new(Arc::new(mock), MockIdentifiers::default());
         let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
@@ -244,7 +250,8 @@ pub mod tests {
                 Ok(())
             });
 
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
+        let getter =
+            InstanceIDWithIdentifiersGetter::new(Arc::new(mock), MockIdentifiers::default());
         let getter1 = Arc::new(getter);
         let getter2 = getter1.clone();
 
@@ -264,7 +271,7 @@ pub mod tests {
     fn test_uuid() {
         let uuid_as_str = "018FF38D01B37796B2C81C8069BC6ADF";
         // Crete InstanceID from string
-        let id: InstanceID = serde_yaml::from_str(uuid_as_str).unwrap();
+        let id: InstanceID = serde_saphyr::from_str(uuid_as_str).unwrap();
         // Convert instanceID to OpAMP instanceUid
         let value = InstanceUid::from(id.clone());
         // Get the instanceID back from the corresponding bytes

@@ -1,13 +1,16 @@
+pub mod admin;
+
 use actix_web::{App, HttpResponse, HttpServer, web};
 use aws_lc_rs::digest;
 use aws_lc_rs::rand::SystemRandom;
 use aws_lc_rs::signature::{Ed25519KeyPair, KeyPair as _};
 use base64::Engine;
 use base64::prelude::{BASE64_STANDARD, BASE64_URL_SAFE_NO_PAD};
+use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::{
     AgentConfigFile, AgentConfigMap, AgentDescription, AgentRemoteConfig, AgentToServer,
-    ComponentHealth, CustomMessage, EffectiveConfig, RemoteConfigStatus, ServerToAgent,
-    ServerToAgentFlags,
+    ComponentHealth, CustomCapabilities, CustomMessage, EffectiveConfig, RemoteConfigStatus,
+    RemoteConfigStatuses, ServerToAgent, ServerToAgentFlags,
 };
 use opamp_client::operation::instance_uid::InstanceUid;
 use prost::Message;
@@ -21,27 +24,29 @@ use tokio::task::JoinHandle;
 
 pub use opamp_client::operation::instance_uid::InstanceUid as InstanceID;
 
-const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
-const JWKS_SERVER_PATH: &str = "/jwks";
-const JWKS_PUBLIC_KEY_ID: &str = "fakeKeyName/0";
+pub const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
+pub const JWKS_SERVER_PATH: &str = "/jwks";
+pub(crate) const JWKS_PUBLIC_KEY_ID: &str = "fakeKeyName/0";
 const AGENT_CONFIG_PREFIX: &str = "agentConfig";
 const SIGNATURE_CUSTOM_CAPABILITY: &str = "com.newrelic.security.configSignature";
 const SIGNATURE_CUSTOM_MESSAGE_TYPE: &str = "newrelicRemoteConfigSignature";
 const ED25519_ALG: &str = "ED25519";
 
-struct ServerState {
-    agent_state: HashMap<InstanceUid, AgentState>,
-    key_pair: Ed25519KeyPair,
+pub(crate) struct ServerState {
+    pub(crate) agent_state: HashMap<InstanceUid, AgentState>,
+    pub(crate) key_pair: Ed25519KeyPair,
 }
 
 #[derive(Default)]
 struct AgentState {
-    sequence_number: u64,
-    health_status: Option<ComponentHealth>,
-    attributes: AgentDescription,
-    remote_config: Option<RemoteConfig>,
-    effective_config: EffectiveConfig,
-    config_status: RemoteConfigStatus,
+    pub(crate) sequence_number: u64,
+    pub(crate) health_status: Option<ComponentHealth>,
+    pub(crate) attributes: AgentDescription,
+    pub(crate) capabilities: u64, // Proto requires this field to be set in every message
+    pub(crate) custom_capabilities: Option<CustomCapabilities>,
+    pub(crate) remote_config: Option<RemoteConfig>,
+    pub(crate) effective_config: EffectiveConfig,
+    pub(crate) config_status: RemoteConfigStatus,
 }
 
 impl ServerState {
@@ -51,11 +56,19 @@ impl ServerState {
             key_pair: generate_key_pair(),
         }
     }
+
+    /// Sets the pending remote config for the given agent, overwriting any previous one.
+    fn set_multi_config(&mut self, identifier: InstanceUid, config_map: HashMap<String, String>) {
+        self.agent_state
+            .entry(identifier)
+            .or_default()
+            .remote_config = Some(RemoteConfig::new(config_map));
+    }
 }
 
 /// Represents a remote configuration that can be sent to the agent.
 #[derive(Clone, Debug, Default)]
-pub struct RemoteConfig(AgentRemoteConfig);
+pub struct RemoteConfig(pub(crate) AgentRemoteConfig);
 
 impl RemoteConfig {
     pub fn new(config_map: HashMap<String, String>) -> Self {
@@ -146,6 +159,16 @@ impl FakeServer {
     /// Starts the server on a random port, spawning the HTTP task on the provided runtime handle.
     pub fn start(handle: &tokio::runtime::Handle) -> Self {
         let listener = net::TcpListener::bind("0.0.0.0:0").unwrap();
+        Self::start_with_listener(listener, handle)
+    }
+
+    /// Starts the server on the given (already-bound) listener, spawning the HTTP task on the
+    /// provided runtime handle. Useful when the caller needs to choose the bind address (e.g. the
+    /// standalone binary).
+    pub fn start_with_listener(
+        listener: net::TcpListener,
+        handle: &tokio::runtime::Handle,
+    ) -> Self {
         let port = listener.local_addr().unwrap().port();
         let state = Arc::new(Mutex::new(ServerState::generate()));
         let join_handle = handle.spawn(Self::run_http_server(listener, state.clone()));
@@ -172,7 +195,16 @@ impl FakeServer {
                 .app_data(web::Data::new(state.clone()))
                 .service(web::resource(FAKE_SERVER_PATH).to(opamp_handler))
                 .service(web::resource(JWKS_SERVER_PATH).to(jwks_handler))
+                .service(
+                    web::resource(admin::ADMIN_STATE_PATH)
+                        .route(web::get().to(admin::get_state_handler)),
+                )
+                .service(
+                    web::resource(admin::ADMIN_CONFIG_PATH)
+                        .route(web::post().to(admin::set_config_handler)),
+                )
         })
+        .disable_signals()
         .listen(listener)
         .unwrap_or_else(|err| panic!("Could not bind the HTTP server to the listener: {err}"))
         .run()
@@ -187,15 +219,13 @@ impl FakeServer {
         identifier: impl Into<InstanceUid>,
         response: impl AsRef<str>,
     ) {
-        let mut state = self.state.lock().unwrap();
-        state
-            .agent_state
-            .entry(identifier.into())
-            .or_default()
-            .remote_config = Some(RemoteConfig::new(HashMap::from([(
-            AGENT_CONFIG_PREFIX.to_string(),
-            response.as_ref().to_string(),
-        )])));
+        self.state.lock().unwrap().set_multi_config(
+            identifier.into(),
+            HashMap::from([(
+                AGENT_CONFIG_PREFIX.to_string(),
+                response.as_ref().to_string(),
+            )]),
+        );
     }
 
     /// Same as `set_config_response` but accepts multiple config keys.
@@ -204,12 +234,10 @@ impl FakeServer {
         identifier: impl Into<InstanceUid>,
         config_map: HashMap<String, String>,
     ) {
-        let mut state = self.state.lock().unwrap();
-        state
-            .agent_state
-            .entry(identifier.into())
-            .or_default()
-            .remote_config = Some(RemoteConfig::new(config_map));
+        self.state
+            .lock()
+            .unwrap()
+            .set_multi_config(identifier.into(), config_map);
     }
 
     pub fn get_health_status(&self, identifier: impl Into<InstanceUid>) -> Option<ComponentHealth> {
@@ -226,6 +254,29 @@ impl FakeServer {
             .agent_state
             .get(&identifier.into())
             .map(|s| s.attributes.clone())
+    }
+
+    /// Returns the latest `CustomCapabilities` reported by the given agent, or `None` if the agent
+    /// is unknown or has not reported them yet.
+    pub fn get_custom_capabilities(
+        &self,
+        identifier: impl Into<InstanceUid>,
+    ) -> Option<CustomCapabilities> {
+        let state = self.state.lock().unwrap();
+        state
+            .agent_state
+            .get(&identifier.into())
+            .and_then(|s| s.custom_capabilities.clone())
+    }
+
+    /// Returns the latest standard OpAMP `capabilities` bitfield reported by the given agent,
+    /// or `None` if the agent has not connected yet.
+    pub fn get_capabilities(&self, identifier: impl Into<InstanceUid>) -> Option<u64> {
+        let state = self.state.lock().unwrap();
+        state
+            .agent_state
+            .get(&identifier.into())
+            .map(|s| s.capabilities)
     }
 
     pub fn get_effective_config(
@@ -248,6 +299,55 @@ impl FakeServer {
             .agent_state
             .get(&identifier.into())
             .map(|s| s.config_status.clone())
+    }
+
+    /// Returns the instance IDs of all connected agents that have an identifying attribute
+    /// matching the given key–value pair. Matches string-typed attribute values only.
+    pub fn find_agents_with_identifying_attr(&self, key: &str, value: &str) -> Vec<InstanceID> {
+        let state = self.state.lock().unwrap();
+        state
+            .agent_state
+            .iter()
+            .filter(|(_, agent_state)| has_identifying_attr(&agent_state.attributes, key, value))
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
+    /// Finds the Agent Control instance ID connected to this OpAMP server.
+    /// Returns an error if no agent-control is connected or if more than one is found.
+    pub fn find_agent_control_instance(&self) -> Result<InstanceID, String> {
+        let agents = self.find_agents_with_identifying_attr("supervisor.key", "agent-control");
+        match agents.len() {
+            0 => Err("no agent-control connected to OpAMP server yet".to_string()),
+            1 => Ok(agents.into_iter().next().unwrap()),
+            n => Err(format!("expected exactly one agent-control, found {n}")),
+        }
+    }
+
+    /// Returns the string value of an identifying attribute for the given agent, or `None` if the
+    /// agent is unknown or the attribute is absent or not a string.
+    pub fn get_identifying_attr_value(
+        &self,
+        identifier: impl Into<InstanceUid>,
+        key: &str,
+    ) -> Option<String> {
+        let state = self.state.lock().unwrap();
+        state
+            .agent_state
+            .get(&identifier.into())
+            .and_then(|s| find_string_identifying_attr(&s.attributes, key))
+    }
+
+    /// Returns `Ok(())` if the agent has reported a remote config status of `Applied`.
+    pub fn is_config_status_applied(
+        &self,
+        identifier: impl Into<InstanceUid>,
+    ) -> Result<(), String> {
+        match self.get_remote_config_status(identifier) {
+            Some(s) if s.status == RemoteConfigStatuses::Applied as i32 => Ok(()),
+            Some(_) => Err("Config status is not Applied".to_string()),
+            None => Err("Remote config status not found".to_string()),
+        }
     }
 }
 
@@ -283,6 +383,14 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<ServerState>>>, req: web::Byte
     if let Some(attributes) = message.agent_description {
         agent_state.attributes = attributes;
     }
+
+    if let Some(custom_capabilities) = message.custom_capabilities {
+        agent_state.custom_capabilities = Some(custom_capabilities);
+    }
+
+    // `AgentToServer.capabilities` is required on every message per the OpAMP spec, so always
+    // record the latest value.
+    agent_state.capabilities = message.capabilities;
 
     if let Some(effective_cfg) = message.effective_config {
         agent_state.effective_config = effective_cfg;
@@ -349,6 +457,22 @@ fn build_response(
         ..Default::default()
     }
     .encode_to_vec()
+}
+
+fn find_string_identifying_attr(description: &AgentDescription, key: &str) -> Option<String> {
+    let kv = description
+        .identifying_attributes
+        .iter()
+        .find(|kv| kv.key == key)?;
+
+    match kv.value.as_ref()?.value.as_ref()? {
+        Value::StringValue(s) => Some(s.clone()),
+        _ => None,
+    }
+}
+
+fn has_identifying_attr(description: &AgentDescription, key: &str, value: &str) -> bool {
+    find_string_identifying_attr(description, key).is_some_and(|v| v == value)
 }
 
 fn generate_key_pair() -> Ed25519KeyPair {

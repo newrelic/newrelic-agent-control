@@ -38,16 +38,13 @@ fn writes_filesystem_entries() {
 namespace: test
 name: test
 version: 0.0.0
+platform: host
+operating_system: {AGENT_CONTROL_MODE_ON_HOST}
 variables: {{}}
 deployment:
-  linux:
-    filesystem:
-      {dir_entry}:
-        {file_path}: "{expected_file_contents}"
-  windows:
-    filesystem:
-      {dir_entry}:
-        {file_path}: "{expected_file_contents}"
+  filesystem:
+    {dir_entry}:
+      {file_path}: "{expected_file_contents}"
 "#,
         ),
         local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -141,43 +138,32 @@ fn complete_render_and_and_write_files_and_dirs() {
 namespace: test
 name: test
 version: 0.0.0
+platform: host
+operating_system: {AGENT_CONTROL_MODE_ON_HOST}
 variables:
-  common:
-    yaml_file_contents:
-      description: "Contents of the YAML file"
-      type: yaml
-      required: true
-    some_string:
-      description: "Contents of an arbitrary string file"
-      type: string
-      required: true
-    some_mapstringyaml:
-      description: "A directory structure"
-      type: map[string]yaml
-      required: true
+  yaml_file_contents:
+    description: "Contents of the YAML file"
+    type: yaml
+    required: true
+  some_string:
+    description: "Contents of an arbitrary string file"
+    type: string
+    required: true
+  some_mapstringyaml:
+    description: "A directory structure"
+    type: map[string]yaml
+    required: true
 deployment:
-  windows:
-    filesystem:
-      randomdir:
-        "{yaml_file_path}": |-
-          ${{nr-var:yaml_file_contents}}
-        "{string_file_path}": "Some string contents with a rendered variable: ${{nr-var:some_string}}"
-      {dir_path}:
-        file1.txt: "File 1 contents"
-        file2.txt: |
-          File 2 contents with a variable: ${{nr-var:some_string}}
-      "{fully_templated_dir}": ${{nr-var:some_mapstringyaml}}
-  linux:
-    filesystem:
-      randomdir:
-        "{yaml_file_path}": |-
-          ${{nr-var:yaml_file_contents}}
-        "{string_file_path}": "Some string contents with a rendered variable: ${{nr-var:some_string}}"
-      {dir_path}:
-        file1.txt: "File 1 contents"
-        file2.txt: |
-          File 2 contents with a variable: ${{nr-var:some_string}}
-      "{fully_templated_dir}": ${{nr-var:some_mapstringyaml}}
+  filesystem:
+    randomdir:
+      "{yaml_file_path}": |-
+        ${{nr-var:yaml_file_contents}}
+      "{string_file_path}": "Some string contents with a rendered variable: ${{nr-var:some_string}}"
+    {dir_path}:
+      file1.txt: "File 1 contents"
+      file2.txt: |
+        File 2 contents with a variable: ${{nr-var:some_string}}
+    "{fully_templated_dir}": ${{nr-var:some_mapstringyaml}}
 "#,
         ),
         local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -303,53 +289,41 @@ fn filesystem_persists_across_restarts() {
 
     // Create agent type definition with filesystem structure similar to newrelic-infra
     create_file(
-        r#"
+        format!(
+            r#"
 namespace: test
 name: infra-agent
 version: 0.0.0
+platform: host
+operating_system: {AGENT_CONTROL_MODE_ON_HOST}
 variables:
-  common:
-    config_agent:
-      description: "Agent configuration"
-      type: yaml
-      required: true
-    config_integrations:
-      description: "Integrations configuration"
-      type: yaml
-      required: true
-    config_logging:
-      description: "Logging configuration"
-      type: yaml
-      required: true
+  config_agent:
+    description: "Agent configuration"
+    type: yaml
+    required: true
+  config_integrations:
+    description: "Integrations configuration"
+    type: yaml
+    required: true
+  config_logging:
+    description: "Logging configuration"
+    type: yaml
+    required: true
 deployment:
-  linux:
-    filesystem:
-      config:
-        newrelic-infra.yaml: |-
-          ${nr-var:config_agent}
-      integrations.d:
-        integration.yaml: |-
-          ${nr-var:config_integrations}
-      logging.d:
-        logging.yaml: |-
-          ${nr-var:config_logging}
-      # This directory needs to persist across restarts for the infra agent
-      newrelic-infra/newrelic-integrations/logging: {}
-  windows:
-    filesystem:
-      config:
-        newrelic-infra.yaml: |-
-          ${nr-var:config_agent}
-      integrations.d:
-        integration.yaml: |-
-          ${nr-var:config_integrations}
-      logging.d:
-        logging.yaml: |-
-          ${nr-var:config_logging}
-      # This directory needs to persist across restarts for the infra agent
-      newrelic-infra/newrelic-integrations/logging: {}
-"#
-        .to_string(),
+  filesystem:
+    config:
+      newrelic-infra.yaml: |-
+        ${{nr-var:config_agent}}
+    integrations.d:
+      integration.yaml: |-
+        ${{nr-var:config_integrations}}
+    logging.d:
+      logging.yaml: |-
+        ${{nr-var:config_logging}}
+    # This directory needs to persist across restarts for the infra agent
+    newrelic-infra/newrelic-integrations/logging: {{}}
+"#,
+        ),
         local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
 

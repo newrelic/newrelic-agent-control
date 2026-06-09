@@ -349,7 +349,7 @@ async fn create_flux_rbac(k8s_client: Client, namespace: &str) {
     role_api
         .create(
             &PostParams::default(),
-            &serde_yaml::from_str(ROLE_FLUX).unwrap(),
+            &serde_saphyr::from_str(ROLE_FLUX).unwrap(),
         )
         .await
         .unwrap();
@@ -358,7 +358,7 @@ async fn create_flux_rbac(k8s_client: Client, namespace: &str) {
     role_binding_api
         .create(
             &PostParams::default(),
-            &serde_yaml::from_str(ROLE_BINDING_FLUX).unwrap(),
+            &serde_saphyr::from_str(ROLE_BINDING_FLUX).unwrap(),
         )
         .await
         .unwrap();

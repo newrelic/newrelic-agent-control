@@ -56,6 +56,7 @@ define check_env_vars_infra
 	$(call check_env_vars_base)
 	$(call check_env_var,AC_CANARY_WINDOWS_PASSWORD)
 	$(call check_env_var,SLACK_WEBHOOK_URL)
+	$(call check_env_var,EMAILS)
 endef
 
 define check_env_vars_install
@@ -84,6 +85,7 @@ test/onhost-canaries/infra-plan:
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
+	TF_VAR_emails="${EMAILS}" \
 	terraform -chdir=$(ONHOST_TF_DIR) plan -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
 .PHONY: test/onhost-canaries/infra-apply
@@ -94,6 +96,7 @@ test/onhost-canaries/infra-apply:
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
+	TF_VAR_emails="${EMAILS}" \
 	terraform -chdir=$(ONHOST_TF_DIR) apply -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
 .PHONY: test/onhost-canaries/infra-destroy
@@ -104,6 +107,7 @@ test/onhost-canaries/infra-destroy:
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
+	TF_VAR_emails="${EMAILS}" \
 	terraform -chdir=$(ONHOST_TF_DIR) destroy -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
 .PHONY: test/onhost-canaries/ansible-install
@@ -115,6 +119,16 @@ test/onhost-canaries/ansible-install:
 	@terraform -chdir=$(ONHOST_TF_DIR) output -raw ansible_inventory_content > \
 		$(ONHOST_TF_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT)
 	@echo "✓ Inventory file generated from Terraform state"
+	@INVENTORY_FILE=$(ONHOST_TF_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT) && \
+	echo "Validating Ansible inventory contains the 2 canaries..." && \
+	HOST_COUNT=$$(ansible-inventory -i $$INVENTORY_FILE --list 2>/dev/null | jq '[.. | .hosts? // empty] | flatten | length') && \
+	if [ "$$HOST_COUNT" -ne 2 ]; then \
+		echo "ERROR: Inventory file has no hosts defined"; \
+		echo "Inventory content:"; \
+		cat $$INVENTORY_FILE; \
+		exit 1; \
+	fi && \
+	echo "✓ Inventory validation passed ($$HOST_COUNT hosts found)"
 	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ONHOST_ANSIBLE_FOLDER) ANSIBLE_ENV_SCRIPT=$(ONHOST_ANSIBLE_FOLDER)/set_ansible_env.sh
 	@echo "Running Ansible playbook for environment: $(ENVIRONMENT)"
 	@INVENTORY_FILE=$(ONHOST_TF_DIR)/environments/$(ENVIRONMENT)/inventory.$(ENVIRONMENT) && \

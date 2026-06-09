@@ -16,12 +16,12 @@ members = [
 authors = ["The New Relic Agent Control Team"]
 edition = "2024"
 publish = false
-rust-version = "1.95.0"
+rust-version = "1.96.0"
 license-file = "./LICENSE.md"
 repository = "https://github.com/newrelic/newrelic-agent-control"
 
 [workspace.dependencies]
-serde_json = "1.0.149"
+serde_json = "1.0.150"
 serde = "1.0.228"
 tempfile = "3.27.0"
 thiserror = "2.0.18"
@@ -29,27 +29,27 @@ tracing = "0.1.44"
 regex = "1.12.3"
 mockall = "0.14.0"
 clap = "4.6.1"
-nix = "0.31.2"
+nix = "0.31.3"
 tracing-subscriber = { version = "0.3.23", features = ["json"] }
 tracing-test = "0.2.6"
-assert_cmd = "2.2.1"
+assert_cmd = "2.2.2"
 assert_matches = "1.5.0"
 tower-test = "0.4.0"
-serde_yaml = "0.9.34+deprecated"
+serde-saphyr = "0.0.27"
 schemars = "1.2.1"
-http = "1.4.0"
+http = "1.4.2"
 predicates = "3.1.4"
 semver = "1.0.28"
-chrono = "0.4.44"
-jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
-reqwest = { version = "0.13.3", features = ["blocking", "socks"] }
+chrono = "0.4.45"
+jsonwebtoken = { version = "10.4.0", features = ["aws_lc_rs"] }
+reqwest = { version = "0.13.4", features = ["blocking", "socks"] }
 rstest = "0.26.1"
 windows = "0.62.2"
 windows-sys = "0.61.2"
-aws-lc-rs = "1.16.3"
-opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.37" }
-oci-client = { version = "0.16.1", default-features = false }
-tokio = "1.52.2"
+aws-lc-rs = "1.17.0"
+opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.39" }
+oci-client = { version = "0.17.0", default-features = false }
+tokio = "1.52.3"
 base64 = "0.22.1"
 actix-web = "4.13.0"
 

@@ -1,4 +1,5 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
+use crate::common::nrql::Region;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{InstallationArgs, RecipeData};
@@ -18,7 +19,7 @@ pub fn test_installation_with_infra_agent(args: InstallationArgs) {
         .clone()
         .expect("--infra-agent-version is required for this scenario");
 
-    let staging = matches!(args.nr_region.to_lowercase().as_str(), "staging");
+    let staging = args.nr_region == Region::Staging;
 
     let recipe_data = RecipeData {
         args,

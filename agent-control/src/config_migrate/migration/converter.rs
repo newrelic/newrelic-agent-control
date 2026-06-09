@@ -1,10 +1,9 @@
-use crate::agent_type::agent_type_registry::AgentRepositoryError;
+use crate::agent_type::registry::AgentTypeRegistryError;
 use crate::config_migrate::migration::config::{FileInfo, MappingType};
 use crate::config_migrate::migration::{
     agent_value_spec::AgentValueError,
     config::{DirInfo, MigrationAgentConfig},
 };
-use crate::sub_agent::effective_agents_assembler::AgentTypeDefinitionError;
 use fs::file::LocalFile;
 use fs::file::reader::FileReader;
 use regex::Regex;
@@ -17,19 +16,19 @@ use tracing::debug;
 #[derive(Error, Debug)]
 pub enum ConversionError {
     #[error("{0}")]
-    Repository(#[from] AgentRepositoryError),
+    Registry(#[from] AgentTypeRegistryError),
     #[error("{0}")]
     FileSystem(io::Error),
     #[error("{0}")]
     AgentValue(#[from] AgentValueError),
-    #[error("{0}")]
-    AgentTypeDefinition(#[from] AgentTypeDefinitionError),
     #[error("cannot find required file map: {0}")]
     RequiredFileMappingNotFound(String),
     #[error("cannot find required dir map: {0}")]
     RequiredDirMappingNotFound(String),
-    #[error("deserializing YAML: {0}")]
-    InvalidYamlConfiguration(#[from] serde_yaml::Error),
+    #[error("deserializing configuration: {0}")]
+    InvalidConfiguration(#[from] serde_saphyr::Error),
+    #[error("converting configuration values: {0}")]
+    ValueConversion(#[from] serde_json::Error),
 }
 
 pub struct ConfigConverter<F: FileReader> {
@@ -48,7 +47,7 @@ impl<F: FileReader> ConfigConverter<F> {
     pub fn convert(
         &self,
         migration_agent_config: &MigrationAgentConfig,
-    ) -> Result<HashMap<String, serde_yaml::Value>, ConversionError> {
+    ) -> Result<HashMap<String, serde_json::Value>, ConversionError> {
         // Parse first file mappings (supposedly only a single infra-agent config)
         // then directory mappings (integrations and logs).
         // Both file and directory mappings are key-value structures. I assume
@@ -82,22 +81,22 @@ impl<F: FileReader> ConfigConverter<F> {
 fn retrieve_file_mapping_value<F: FileReader>(
     file_reader: &F,
     file_info: &FileInfo,
-) -> Result<serde_yaml::Value, ConversionError> {
+) -> Result<serde_json::Value, ConversionError> {
     debug!("Reading file mapping from: {:?}", file_info.file_path);
     let yaml_value = file_reader
         .read(file_info.file_path.as_path())
         .map_err(ConversionError::FileSystem)?;
-    let mut parsed_yaml: serde_yaml::Value = serde_yaml::from_str(&yaml_value)?;
+    let mut parsed_yaml: serde_json::Value = serde_saphyr::from_str(&yaml_value)?;
     // Overwrite or add attributes from the HashMap
-    if let serde_yaml::Value::Mapping(ref mut map) = parsed_yaml {
+    if let serde_json::Value::Object(ref mut map) = parsed_yaml {
         // Remove elements based on the Vec of keys
         for key in &file_info.deletions {
-            map.remove(serde_yaml::Value::String(key.clone()));
+            map.remove(key);
         }
 
         // Add or overwrite elements based on the overwrites hashmap
         for (key, value) in &file_info.overwrites {
-            map.insert(serde_yaml::Value::String(key.clone()), value.clone());
+            map.insert(key.clone(), value.clone());
         }
     }
 
@@ -107,7 +106,7 @@ fn retrieve_file_mapping_value<F: FileReader>(
 fn retrieve_dir_mapping_values<F: FileReader>(
     file_reader: &F,
     dir_info: &DirInfo,
-) -> Result<serde_yaml::Value, ConversionError> {
+) -> Result<serde_json::Value, ConversionError> {
     let valid_extension_files = file_reader
         .dir_entries(&dir_info.dir_path)
         .map_err(ConversionError::FileSystem)?
@@ -124,12 +123,12 @@ fn retrieve_dir_mapping_values<F: FileReader>(
 
     let read_files = read_files.try_fold(HashMap::new(), |mut acc, read_file| {
         let (filepath, content) = read_file.map_err(ConversionError::FileSystem)?;
-        let parsed = serde_yaml::from_str::<serde_yaml::Value>(&process_config_input(content))?;
+        let parsed = serde_saphyr::from_str::<serde_json::Value>(&process_config_input(content))?;
         acc.insert(filepath, parsed);
         Ok::<_, ConversionError>(acc)
     })?;
 
-    Ok(serde_yaml::to_value(read_files)?)
+    Ok(serde_json::to_value(read_files)?)
 }
 
 /// Handles the usage of environment variables in the YAML config files via the special
@@ -349,34 +348,34 @@ element: dsfadsf
         assert!(result.contains_key("config_logging"));
 
         let expected_config_agent =
-            serde_yaml::from_str::<serde_yaml::Value>(config_agent).unwrap();
+            serde_saphyr::from_str::<serde_json::Value>(config_agent).unwrap();
         assert_eq!(&expected_config_agent, result.get("config_agent").unwrap());
 
-        let mut expected_integrations_mapping = serde_yaml::Mapping::new();
+        let mut expected_integrations_mapping = serde_json::Map::new();
         expected_integrations_mapping.insert(
-            serde_yaml::Value::String("integration1.yml".into()),
-            serde_yaml::from_str::<serde_yaml::Value>(INTEGRATION_1_CONFIG).unwrap(),
+            "integration1.yml".into(),
+            serde_saphyr::from_str::<serde_json::Value>(INTEGRATION_1_CONFIG).unwrap(),
         );
         expected_integrations_mapping.insert(
-            serde_yaml::Value::String("integration2.yaml".into()),
-            serde_yaml::from_str::<serde_yaml::Value>(INTEGRATION_2_CONFIG).unwrap(),
+            "integration2.yaml".into(),
+            serde_saphyr::from_str::<serde_json::Value>(INTEGRATION_2_CONFIG).unwrap(),
         );
-        let expected_integrations = serde_yaml::Value::Mapping(expected_integrations_mapping);
+        let expected_integrations = serde_json::Value::Object(expected_integrations_mapping);
         assert_eq!(
             &expected_integrations,
             result.get("config_integrations").unwrap()
         );
 
-        let mut expected_logs_mapping = serde_yaml::Mapping::new();
+        let mut expected_logs_mapping = serde_json::Map::new();
         expected_logs_mapping.insert(
-            serde_yaml::Value::String("logging1.yaml".into()),
-            serde_yaml::from_str::<serde_yaml::Value>(LOGS_1_CONFIG).unwrap(),
+            "logging1.yaml".into(),
+            serde_saphyr::from_str::<serde_json::Value>(LOGS_1_CONFIG).unwrap(),
         );
         expected_logs_mapping.insert(
-            serde_yaml::Value::String("logging2.yml".into()),
-            serde_yaml::from_str::<serde_yaml::Value>(LOGS_2_CONFIG).unwrap(),
+            "logging2.yml".into(),
+            serde_saphyr::from_str::<serde_json::Value>(LOGS_2_CONFIG).unwrap(),
         );
-        let expected_logs = serde_yaml::Value::Mapping(expected_logs_mapping);
+        let expected_logs = serde_json::Value::Object(expected_logs_mapping);
         assert_eq!(&expected_logs, result.get("config_logging").unwrap());
     }
 
@@ -476,25 +475,25 @@ element: dsfadsf
         assert!(result.contains_key("config_logging"));
 
         let expected_config_agent =
-            serde_yaml::from_str::<serde_yaml::Value>(config_agent).unwrap();
+            serde_saphyr::from_str::<serde_json::Value>(config_agent).unwrap();
         assert_eq!(&expected_config_agent, result.get("config_agent").unwrap());
 
         // Read integrations object should be present but empty array
-        let expected_integrations = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
+        let expected_integrations = serde_json::Value::Object(serde_json::Map::new());
         assert_eq!(
             &expected_integrations,
             result.get("config_integrations").unwrap()
         );
-        let mut expected_logs_mapping = serde_yaml::Mapping::new();
+        let mut expected_logs_mapping = serde_json::Map::new();
         expected_logs_mapping.insert(
-            serde_yaml::Value::String("logging1.yaml".into()),
-            serde_yaml::from_str::<serde_yaml::Value>(LOGS_1_CONFIG).unwrap(),
+            "logging1.yaml".into(),
+            serde_saphyr::from_str::<serde_json::Value>(LOGS_1_CONFIG).unwrap(),
         );
         expected_logs_mapping.insert(
-            serde_yaml::Value::String("logging2.yml".into()),
-            serde_yaml::from_str::<serde_yaml::Value>(LOGS_2_CONFIG).unwrap(),
+            "logging2.yml".into(),
+            serde_saphyr::from_str::<serde_json::Value>(LOGS_2_CONFIG).unwrap(),
         );
-        let expected_logs = serde_yaml::Value::Mapping(expected_logs_mapping);
+        let expected_logs = serde_json::Value::Object(expected_logs_mapping);
         assert_eq!(&expected_logs, result.get("config_logging").unwrap());
     }
 
@@ -636,17 +635,17 @@ element: dsfadsf
         assert!(result.contains_key("config_logging"));
 
         let expected_config_agent =
-            serde_yaml::from_str::<serde_yaml::Value>(config_agent).unwrap();
+            serde_saphyr::from_str::<serde_json::Value>(config_agent).unwrap();
         assert_eq!(&expected_config_agent, result.get("config_agent").unwrap());
 
         // Read integrations object should be present but empty array
-        let expected_integrations = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
+        let expected_integrations = serde_json::Value::Object(serde_json::Map::new());
         assert_eq!(
             &expected_integrations,
             result.get("config_integrations").unwrap()
         );
 
-        let expected_logs = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
+        let expected_logs = serde_json::Value::Object(serde_json::Map::new());
         assert_eq!(&expected_logs, result.get("config_logging").unwrap());
     }
 
@@ -678,19 +677,19 @@ element: dsfadsf
                 let mut map = HashMap::new();
                 map.insert(
                     "license_key".to_string(),
-                    serde_yaml::Value::String("new_key".to_string()),
+                    serde_json::Value::String("new_key".to_string()),
                 );
                 map.insert(
                     "status_server_port".to_string(),
-                    serde_yaml::Value::Number(serde_yaml::Number::from(9090)),
+                    serde_json::Value::Number(serde_json::Number::from(9090)),
                 );
                 map.insert(
                     "status_server_enabled".to_string(),
-                    serde_yaml::Value::Bool(false),
+                    serde_json::Value::Bool(false),
                 );
                 map.insert(
                     "enable_process_metrics".to_string(),
-                    serde_yaml::Value::Bool(true),
+                    serde_json::Value::Bool(true),
                 );
                 map
             },
@@ -713,47 +712,21 @@ element: dsfadsf
         let parsed_yaml = result.unwrap();
 
         // Check that the YAML has been modified correctly
-        if let serde_yaml::Value::Mapping(map) = parsed_yaml {
+        if let serde_json::Value::Object(map) = parsed_yaml {
             assert!(
-                map.get(serde_yaml::Value::String(
-                    "enable_process_metrics".to_string()
-                ))
-                .unwrap()
-                .as_bool()
-                .unwrap()
+                map.get("enable_process_metrics")
+                    .unwrap()
+                    .as_bool()
+                    .unwrap()
             );
-            assert!(
-                !map.get(serde_yaml::Value::String(
-                    "status_server_enabled".to_string()
-                ))
-                .unwrap()
-                .as_bool()
-                .unwrap()
-            );
+            assert!(!map.get("status_server_enabled").unwrap().as_bool().unwrap());
             assert_eq!(
                 9090,
-                map.get(serde_yaml::Value::String("status_server_port".to_string()))
-                    .unwrap()
-                    .as_i64()
-                    .unwrap()
+                map.get("status_server_port").unwrap().as_i64().unwrap()
             );
-            assert_eq!(
-                "new_key",
-                map.get(serde_yaml::Value::String("license_key".to_string()))
-                    .unwrap()
-                    .as_str()
-                    .unwrap()
-            );
-            assert!(
-                map.get(serde_yaml::Value::String(
-                    "is_integrations_only".to_string()
-                ))
-                .is_none()
-            );
-            assert!(
-                map.get(serde_yaml::Value::String("extra_field".to_string()))
-                    .is_some()
-            );
+            assert_eq!("new_key", map.get("license_key").unwrap().as_str().unwrap());
+            assert!(map.get("is_integrations_only").is_none());
+            assert!(map.get("extra_field").is_some());
         } else {
             panic!("Expected a YAML mapping");
         }

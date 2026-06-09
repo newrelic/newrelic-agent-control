@@ -118,7 +118,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
     let proxy_url = proxy_server.base_url();
     let proxy_yaml = format!("{{\"url\": \"{proxy_url}\"}}");
 
-    let proxy_config = serde_yaml::from_str::<ProxyConfig>(&proxy_yaml).unwrap();
+    let proxy_config = serde_saphyr::from_str::<ProxyConfig>(&proxy_yaml).unwrap();
 
     let client = create_client_with_proxy(proxy_config);
 

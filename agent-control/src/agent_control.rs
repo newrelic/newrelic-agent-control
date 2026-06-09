@@ -519,6 +519,8 @@ where
                 Some(old_sub_agent_config) => {
                     info!(%agent_id, "Recreating SubAgent");
                     self.recreate_sub_agent(&agent_identity, running_sub_agents)?;
+                    // onhost: we are removing old sub agent fleet data
+                    // k8s: fleet data gets reused, only the CM annotation for agent_type_id is changed.
                     self.resource_cleaner
                         .clean(agent_id, &old_sub_agent_config.agent_type)?;
                     Ok(())
@@ -1669,7 +1671,7 @@ chart_version: 0.0.2 # not actually used, we rely on a mock
 
         t.assert_stored_remote_config(|config| {
             assert_eq!(config.hash, opamp_remote_config.hash);
-            let expected_yaml_config = serde_yaml::from_str(remote_config).unwrap();
+            let expected_yaml_config = serde_saphyr::from_str(remote_config).unwrap();
             assert_eq!(config.config, expected_yaml_config);
             assert!(config.state.is_applied());
         });

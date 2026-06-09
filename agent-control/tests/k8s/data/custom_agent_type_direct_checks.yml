@@ -1,23 +1,23 @@
 namespace: newrelic
 name: com.newrelic.custom_agent
 version: 0.0.1
+platform: kubernetes
 variables: {}
 deployment:
-  k8s:
-    health:
-      interval: 5s
-      initial_delay: 2s
-      # The integration test defines a Deployment. StatefulSet and DaemonSet are also defined to check that the
-      # health-checker is healthy when one of them is found and healthy, allowing the definition of health-checks
-      # for Agent-Type whose workload definition is configurable.
-      checks:
-        - namespace: ${nr-ac:namespace_agents}
-          name: ${nr-sub:agent_id}
-          kind: Deployment
-        - namespace: ${nr-ac:namespace_agents}
-          name: ${nr-sub:agent_id}
-          kind: StatefulSet
-        - namespace: ${nr-ac:namespace_agents}
-          name: ${nr-sub:agent_id}
-          kind: DaemonSet
-    objects: {} # No objects, the workload is defined externally
+  health:
+    interval: 5s
+    initial_delay: 2s
+    # The integration test defines a Deployment. StatefulSet and DaemonSet are also defined to check that the
+    # health-checker is healthy when one of them is found and healthy, allowing the definition of health-checks
+    # for Agent-Type whose workload definition is configurable.
+    checks:
+      - namespace: ${nr-ac:namespace_agents}
+        name: ${nr-sub:agent_id}
+        kind: Deployment
+      - namespace: ${nr-ac:namespace_agents}
+        name: ${nr-sub:agent_id}
+        kind: StatefulSet
+      - namespace: ${nr-ac:namespace_agents}
+        name: ${nr-sub:agent_id}
+        kind: DaemonSet
+  objects: {} # No objects, the workload is defined externally

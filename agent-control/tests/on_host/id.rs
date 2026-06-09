@@ -178,18 +178,19 @@ fn test_sub_sa_vars() {
 namespace: test
 name: test
 version: 0.0.0
+platform: host
+operating_system: linux
 variables: {}
 deployment:
-  linux:
-    executables:
-      - id: trap-term-sleep
-        path: "sh"
-        args:
-          - tests/on_host/data/sleep_60.sh
-          - --host_id
-          - ${nr-ac:host_id}
-          - --agent_id
-          - ${nr-sub:agent_id}
+  executables:
+    - id: trap-term-sleep
+      path: "sh"
+      args:
+        - tests/on_host/data/sleep_60.sh
+        - --host_id
+        - ${nr-ac:host_id}
+        - --agent_id
+        - ${nr-sub:agent_id}
     "#
         .to_string(),
         local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -201,20 +202,21 @@ deployment:
 namespace: test
 name: test
 version: 0.0.0
+platform: host
+operating_system: windows
 variables: {}
 deployment:
-  windows:
-    executables:
-      - id: trap-term-sleep
-        path: "powershell.exe"
-        args: 
-          - -NoProfile 
-          - -ExecutionPolicy
-          - Bypass
-          - -File 
-          - tests\\on_host\\data\\sleep_60.ps1
-          - --host_id=${nr-ac:host_id}
-          - --agent_id=${nr-sub:agent_id}
+  executables:
+    - id: trap-term-sleep
+      path: "powershell.exe"
+      args:
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - tests\\on_host\\data\\sleep_60.ps1
+        - --host_id=${nr-ac:host_id}
+        - --agent_id=${nr-sub:agent_id}
     "#
         .to_string(),
         local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),

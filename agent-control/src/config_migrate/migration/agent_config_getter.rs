@@ -108,7 +108,10 @@ pub(crate) mod tests {
             fn run(self) {
                 let mut config_loader = MockAgentControlDynamicConfigLoader::new();
                 config_loader.expect_load().times(1).returning(move || {
-                    Ok(serde_yaml::from_str::<AgentControlDynamicConfig>(self.agents_cfg).unwrap())
+                    Ok(
+                        serde_saphyr::from_str::<AgentControlDynamicConfig>(self.agents_cfg)
+                            .unwrap(),
+                    )
                 });
 
                 let config_getter = AgentConfigGetter::new(config_loader);
@@ -234,7 +237,10 @@ agents:
             fn run(self) {
                 let mut config_loader = MockAgentControlDynamicConfigLoader::new();
                 config_loader.expect_load().times(1).returning(move || {
-                    Ok(serde_yaml::from_str::<AgentControlDynamicConfig>(self.agents_cfg).unwrap())
+                    Ok(
+                        serde_saphyr::from_str::<AgentControlDynamicConfig>(self.agents_cfg)
+                            .unwrap(),
+                    )
                 });
 
                 let config_getter = AgentConfigGetter::new(config_loader);

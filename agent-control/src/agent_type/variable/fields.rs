@@ -28,7 +28,7 @@ where
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct YamlFieldsDefinition {
     #[serde(flatten)]
-    pub(crate) inner: FieldsDefinition<serde_yaml::Value>,
+    pub(crate) inner: FieldsDefinition<serde_json::Value>,
 }
 
 /// Type support additional fields for the string type
@@ -75,7 +75,7 @@ where
 
 impl YamlFieldsDefinition {
     /// Returns the corresponding inner [Fields].
-    pub fn with_config(self, _: &VariableConstraints) -> Fields<serde_yaml::Value> {
+    pub fn with_config(self, _: &VariableConstraints) -> Fields<serde_json::Value> {
         Fields {
             required: self.inner.required,
             default: self.inner.default,
@@ -178,7 +178,7 @@ impl<'de> Deserialize<'de> for YamlFieldsDefinition {
 
         #[derive(Debug, Deserialize)]
         struct IntermediateValueKind {
-            default: Option<serde_yaml::Value>,
+            default: Option<serde_json::Value>,
             required: bool,
         }
 
@@ -192,7 +192,7 @@ impl<'de> Deserialize<'de> for YamlFieldsDefinition {
 
         // Supports to set 'Null' Yaml default value.
         if !intermediate_spec.required && intermediate_spec.default.is_none() {
-            intermediate_spec.default = Some(serde_yaml::Value::Null)
+            intermediate_spec.default = Some(serde_json::Value::Null)
         }
 
         Ok(YamlFieldsDefinition {
@@ -208,7 +208,7 @@ impl<'de> Deserialize<'de> for YamlFieldsDefinition {
 mod tests {
     use assert_matches::assert_matches;
     use rstest::rstest;
-    use serde_yaml::Mapping;
+    use serde_json::Map;
 
     use crate::agent_type::{
         error::AgentTypeError,
@@ -255,7 +255,7 @@ mod tests {
     }
 
     impl YamlFieldsDefinition {
-        pub(crate) fn new(required: bool, default: Option<serde_yaml::Value>) -> Self {
+        pub(crate) fn new(required: bool, default: Option<serde_json::Value>) -> Self {
             Self {
                 inner: FieldsDefinition { required, default },
             }
@@ -342,61 +342,61 @@ mod tests {
         required: false
         default: Null
         "#,
-        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Null),)
+        YamlFieldsDefinition::new(false, Some(serde_json::Value::Null),)
     )]
     #[case::null_explicit_lower(
         r#"
         required: false
         default: null
         "#,
-        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Null),)
+        YamlFieldsDefinition::new(false, Some(serde_json::Value::Null),)
     )]
     #[case::null_explicit_upper(
         r#"
         required: false
         default: NULL
         "#,
-        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Null),)
+        YamlFieldsDefinition::new(false, Some(serde_json::Value::Null),)
     )]
     #[case::null_explicit_symbol(
         r#"
         required: false
         default: ~
         "#,
-        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Null),)
+        YamlFieldsDefinition::new(false, Some(serde_json::Value::Null),)
     )]
     #[case::null_explicit_empty(
         r#"
         required: false
         default:
         "#,
-        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Null),)
+        YamlFieldsDefinition::new(false, Some(serde_json::Value::Null),)
     )]
     #[case::null_by_absence(
         r#"
         required: false
         "#,
-        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Null),)
+        YamlFieldsDefinition::new(false, Some(serde_json::Value::Null),)
     )]
     #[case::emtpy_map(
         r#"
         required: false
         default: { }
         "#,
-        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Mapping(Mapping::default())),)
+        YamlFieldsDefinition::new(false, Some(serde_json::Value::Object(Map::default())),)
     )]
     #[case::other_yaml_value(
         r#"
         required: false
         default: true
         "#,
-        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Bool(true)),)
+        YamlFieldsDefinition::new(false, Some(serde_json::Value::Bool(true)),)
     )]
     fn test_parse_yaml_field_definition(
         #[case] def_str: &str,
         #[case] expected: YamlFieldsDefinition,
     ) {
-        let fields_def: YamlFieldsDefinition = serde_yaml::from_str(def_str).unwrap();
+        let fields_def: YamlFieldsDefinition = serde_saphyr::from_str(def_str).unwrap();
         assert_eq!(fields_def, expected);
     }
 
@@ -415,7 +415,7 @@ mod tests {
         "default value cannot be specified for a required spec key"
     )]
     fn test_fail_parse_yaml_field_definition(#[case] def_str: &str, #[case] expected_error: &str) {
-        let err = serde_yaml::from_str::<YamlFieldsDefinition>(def_str).unwrap_err();
+        let err = serde_saphyr::from_str::<YamlFieldsDefinition>(def_str).unwrap_err();
         assert!(err.to_string().contains(expected_error));
     }
 }

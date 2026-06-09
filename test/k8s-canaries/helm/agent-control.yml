@@ -9,11 +9,6 @@ agentControlDeployment:
         secretKeyName: "private_key"
       log:
         level: debug
-      override:
-        self_instrumentation:
-          opentelemetry:
-            traces:
-              enabled: true
       agents:
         infra:
           agent_type: newrelic/com.newrelic.infrastructure:0.1.0

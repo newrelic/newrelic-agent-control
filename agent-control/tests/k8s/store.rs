@@ -28,7 +28,7 @@ use newrelic_agent_control::values::ConfigRepo;
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
 use newrelic_agent_control::values::yaml_config::YAMLConfig;
-use serde_yaml::from_str;
+use serde_saphyr::from_str;
 use std::sync::Arc;
 
 const AGENT_ID_1: &str = "agent-id-test";
@@ -50,7 +50,7 @@ fn k8s_instance_id_store() {
 
     let instance_id_storer = Storer::from(k8s_store.clone());
     let instance_id_getter =
-        InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
+        InstanceIDWithIdentifiersGetter::new(Arc::new(instance_id_storer), Identifiers::default());
 
     let instance_id_created_1 = instance_id_getter.get(&agent_id_1).unwrap();
     let instance_id_1 = instance_id_getter.get(&agent_id_1).unwrap();
@@ -331,7 +331,7 @@ fn k8s_multiple_store_entries() {
     let config_repository = ConfigRepo::new(k8s_store.clone());
     let instance_id_storer = Storer::from(k8s_store.clone());
     let instance_id_getter =
-        InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
+        InstanceIDWithIdentifiersGetter::new(Arc::new(instance_id_storer), Identifiers::default());
 
     let hash = Hash::from("hash-test");
     let remote_config = RemoteConfig {

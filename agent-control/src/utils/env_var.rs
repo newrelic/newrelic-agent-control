@@ -18,7 +18,7 @@ const KEY_VALIDATION_REGEX: &str = r"^[A-Za-z_][A-Za-z0-9_]*$";
 pub fn load_env_yaml_file(path: &Path) -> Result<(), Box<dyn Error>> {
     eprintln!("Loading environment variables from: {}", path.display());
     let content = LocalFile.read(path)?;
-    let env_vars: HashMap<String, String> = serde_yaml::from_str(&content)?;
+    let env_vars: HashMap<String, String> = serde_saphyr::from_str(&content)?;
 
     load_env_from_hashmap(env_vars)
 }

@@ -53,7 +53,7 @@ jobs:
     needs: [ build-packages ]
     name: Upload packages to testing bucket
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
 
@@ -63,7 +63,7 @@ jobs:
           path: ./
 
       - name: Publish deb to S3 action
-        uses: newrelic/infrastructure-publish-action@26d9d8604b2cf2e7343dc287c958e8bbc1a3f750 # v1
+        uses: newrelic/infrastructure-publish-action@c5af37f49a92d3c04d5fa74a0745b21933556c4e # v1
         with:
           tag: 0.100.${{ github.run_id }}
           app_name: "newrelic-agent-control"
@@ -88,7 +88,7 @@ jobs:
           apt_skip_mirror: true
 
       - name: Publish windows artifacts
-        uses: newrelic/infrastructure-publish-action@26d9d8604b2cf2e7343dc287c958e8bbc1a3f750 # v1
+        uses: newrelic/infrastructure-publish-action@c5af37f49a92d3c04d5fa74a0745b21933556c4e # v1
         with:
           tag: 0.100.${{ github.run_id }}
           app_name: "newrelic-agent-control"
@@ -131,7 +131,7 @@ jobs:
       # Context:
       # We were using version 0.2.6, which downloaded the linux headers from an s3 bucket in staging.
       # This is no longer true and newer versions don't work out of the box.
-      scenarios: '["apm", "collector", "fleet-control", "dynamic", "custom-repo", "proxy"]'
+      scenarios: '["apm", "collector", "configmap-agent", "fleet-control", "dynamic", "custom-repo", "proxy"]'
       # Network policies needs calico installed,the others do not
       minikube_start_args: '--cni=calico'
       caller_workflow: nightly
@@ -142,33 +142,57 @@ jobs:
       E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
       E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
 
+  k8s_canaries_infra:
+    uses: ./.github/workflows/component_k8s_canaries_infra.yml
+    needs: [ build-image ]
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      canary_dir: staging
+      apply: true
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+      SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
+
   k8s_canaries:
     uses: ./.github/workflows/component_k8s_canaries.yml
-    needs: [ build-image ]
+    needs: [ k8s_canaries_infra ]
     permissions:
       id-token: write
       contents: read
     with:
       image-tag: nightly
       cluster_name: Agent_Control_Canaries_Staging-Cluster
-      # AC Staging Account `k8s-canaries-staging-1` fleet
-      fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk1ZDE1NC1iNTI0LTdhMTYtYWExYS0wYzQ2Y2VhOGFiMzg"
-      canary_dir: "staging"
+      canary_dir: staging
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
 
-  onhost_canaries:
-    uses: ./.github/workflows/component_onhost_canaries.yml
-    needs: [ upload-packages-s3 ]
+  onhost_canaries_infra:
+    uses: ./.github/workflows/component_onhost_canaries_infra.yml
+    needs: [ upload-packages-s3]
     permissions:
       id-token: write
       contents: read
     with:
       environment: staging
-      # AC Staging Account `host-canaries-staging` fleet
-      fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlhZTNiNS01Yjg5LTdkNjYtYWU0MC1lNmZkOTY2ZDFhMDA"
-      windows_fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTljMjNjYy0yM2I2LTc1OTYtODBkNy0yMzAzYWIyYzcwMTA"
+      operation: apply
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+      AC_CANARY_WINDOWS_PASSWORD: ${{ secrets.AC_CANARY_WINDOWS_PASSWORD }}
+      SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
+
+  onhost_canaries:
+    uses: ./.github/workflows/component_onhost_canaries.yml
+    needs: [ onhost_canaries_infra ]
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      environment: staging
       package_version: 0.100.${{ github.run_id }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
@@ -180,7 +204,7 @@ jobs:
     if: always()
     needs: [ onhost-e2e, k8s-e2e-tests ]
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:

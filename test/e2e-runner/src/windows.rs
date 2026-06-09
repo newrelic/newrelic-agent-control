@@ -49,6 +49,12 @@ pub fn run_windows_e2e() {
         WindowsScenarios::SwitchInfraAgentVersion(args) => {
             scenarios::switch_infra_agent_version::switch_infra_agent_version(args);
         }
+        WindowsScenarios::SelfUpdateLatestToCurrent(args) => {
+            scenarios::self_update::test_self_update_from_latest_to_current(args);
+        }
+        WindowsScenarios::SelfUpdateCurrentToLatest(args) => {
+            scenarios::self_update::test_self_update_from_current_to_latest(args);
+        }
         WindowsScenarios::WrongConfig(args) => {
             scenarios::service_wrong_config::test_service_restart_depending_on_config_correctness(
                 args,
@@ -58,7 +64,7 @@ pub fn run_windows_e2e() {
             scenarios::fleet_control::test_fleet_control(args);
         }
         WindowsScenarios::FleetControlApi(args) => {
-            fleet_control_api::run_fleet_control_api(args.fleet_control);
+            fleet_control_api::run_fleet_control_api(&args.fleet_control);
         }
     }
 }

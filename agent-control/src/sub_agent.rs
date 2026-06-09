@@ -10,7 +10,6 @@ pub mod remote_config_parser;
 pub mod supervisor;
 
 use crate::agent_control::defaults::default_capabilities;
-use crate::agent_control::run::Environment;
 use crate::agent_control::uptime_report::{UptimeReportConfig, UptimeReporter};
 use crate::checkers::health::events::HealthEventPublisher;
 use crate::checkers::health::health_checker::{Health, Unhealthy};
@@ -112,7 +111,6 @@ where
     supervisor_builder: Arc<B>,
     config_repository: Arc<Y>,
     effective_agent_assembler: Arc<A>,
-    environment: Environment,
 }
 
 impl<C, B, R, Y, A> SubAgent<C, B, R, Y, A>
@@ -137,7 +135,6 @@ where
         remote_config_parser: Arc<R>,
         config_repository: Arc<Y>,
         effective_agent_assembler: Arc<A>,
-        environment: Environment,
     ) -> Self {
         Self {
             identity,
@@ -150,7 +147,6 @@ where
             remote_config_parser,
             config_repository,
             effective_agent_assembler,
-            environment,
         }
     }
 
@@ -686,11 +682,8 @@ where
         yaml_config: YAMLConfig,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
         // Assemble the new agent
-        self.effective_agent_assembler.assemble_agent(
-            &self.identity,
-            yaml_config,
-            &self.environment,
-        )
+        self.effective_agent_assembler
+            .assemble_agent(&self.identity, yaml_config)
     }
 
     fn report_state(&self, state: ConfigState, hash: &Hash) {
@@ -810,7 +803,7 @@ pub mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::definition::AgentTypeDefinition;
-    use crate::agent_type::embedded_registry::EmbeddedRegistry;
+    use crate::agent_type::registry::Registry;
     use crate::agent_type::render::TemplateRenderer;
     use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::checkers::health::health_checker::{Healthy, Unhealthy};
@@ -837,7 +830,7 @@ pub mod tests {
         MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>>,
         AgentRemoteConfigParser<MockRemoteConfigValidator>,
         InMemoryConfigRepository,
-        LocalEffectiveAgentsAssembler<EmbeddedRegistry>,
+        LocalEffectiveAgentsAssembler<Registry>,
     >;
 
     mock! {
@@ -945,50 +938,52 @@ pub mod tests {
         }
 
         fn agent_type_definition() -> AgentTypeDefinition {
-            serde_yaml::from_str(
-                r#"
+            serde_saphyr::from_str(
+                format!(
+                    r#"
 name: default
 namespace: default
 version: 0.0.1
+platform: host
+operating_system: {AGENT_CONTROL_MODE_ON_HOST}
 variables:
-  common:
-    var:
-      description: "fake"
-      type: string
-      required: false
-      default: ""
+  var:
+    description: "fake"
+    type: string
+    required: false
+    default: ""
 deployment:
-  linux:
-    executables:
-      - id: exec
-        path: ${nr-var:var}
-  windows:
-    executables:
-      - id: exec
-        path: ${nr-var:var}
-"#,
+  executables:
+    - id: exec
+      path: ${{nr-var:var}}
+"#
+                )
+                .as_str(),
             )
             .unwrap()
         }
 
         fn agent_type_definition_with_required_var() -> AgentTypeDefinition {
-            serde_yaml::from_str(
-                r#"
+            serde_saphyr::from_str(
+                format!(
+                    r#"
 name: default
 namespace: default
 version: 0.0.1
+platform: host
+operating_system: {AGENT_CONTROL_MODE_ON_HOST}
 variables:
-  common:
-    var:
-      description: "fake"
-      type: string
-      required: true
+  var:
+    description: "fake"
+    type: string
+    required: true
 deployment:
-  linux:
-    executables:
-      - id: exec
-        path: ${nr-var:var}
-"#,
+  executables:
+    - id: exec
+      path: ${{nr-var:var}}
+"#
+                )
+                .as_str(),
             )
             .unwrap()
         }
@@ -1123,7 +1118,6 @@ deployment:
             )),
             config_repository,
             effective_agents_assembler,
-            AGENT_CONTROL_MODE_ON_HOST,
         )
     }
 
@@ -1232,7 +1226,7 @@ deployment:
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
 
         let effective_agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
-            Arc::new(EmbeddedRegistry::from(TestAgent::agent_type_definition())),
+            Arc::new(Registry::from(TestAgent::agent_type_definition())),
             TemplateRenderer::default(),
             VariableConstraints::default(),
             SecretsProviders::default(),
@@ -1251,7 +1245,6 @@ deployment:
             )),
             config_repository,
             effective_agents_assembler,
-            AGENT_CONTROL_MODE_ON_HOST,
         );
 
         sub_agent.run().stop().unwrap();
@@ -1543,7 +1536,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &old_remote_config,
             )
             .unwrap();
@@ -1598,7 +1593,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &old_remote_config,
             )
             .unwrap();
@@ -1652,7 +1649,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &remote_config,
             )
             .unwrap();
@@ -1708,7 +1707,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &old_remote_config,
             )
             .unwrap();
@@ -1765,7 +1766,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &old_remote_config,
             )
             .unwrap();
@@ -1820,7 +1823,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &old_remote_config,
             )
             .unwrap();
@@ -1937,7 +1942,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &remote_config,
             )
             .unwrap();
@@ -1974,7 +1981,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &remote_config,
             )
             .unwrap();
@@ -2011,7 +2020,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &remote_config,
             )
             .unwrap();
@@ -2057,7 +2068,9 @@ deployment:
         config_repository
             .store_remote(
                 &TestAgent::id(),
-                ResourceOwnership::SubAgent(TestAgent::agent_type_definition().agent_type_id),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
                 &input_remote_config,
             )
             .unwrap();

@@ -20,7 +20,7 @@ The `index` file includes a list of manifest files. AC expects:
   The section is automatically handled by the [oci_client](https://github.com/oras-project/rust-oci-client/blob/4541487ec759eef2a511e385d95e72e78aa37f69/src/client.rs#L974), which automatically detects the platform and retrieves the correct manifest from the index.
 
 > [!NOTE]
-> The `artifactType` field in a given manifest entry of the `index` is not verified by AC, nor by the [client](https://docs.rs/oci-client/latest/oci_client/manifest/struct.ImageIndexEntry.html).
+> The `artifactType` field in a given manifest entry of the `index` is not verified by AC.
 
 Other than that, it must follow the OCI spec.
 

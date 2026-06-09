@@ -52,6 +52,7 @@ define check_tf_env_vars
 		exit 1; \
 	fi
 	$(call check_env_var,SLACK_WEBHOOK_URL)
+	$(call check_env_var,EMAILS)
 endef
 
 .PHONY: test/k8s-canaries/terraform-plan
@@ -59,14 +60,14 @@ test/k8s-canaries/terraform-plan:
 	@$(call check_tf_env_vars)
 	@terraform -chdir=$(K8S_TF_DIR)/$(CANARY_DIR) init && \
 	terraform -chdir=$(K8S_TF_DIR)/$(CANARY_DIR) plan \
-	-var="api_key=$(NEW_RELIC_API_KEY)" -var="account_id=$(NEW_RELIC_ACCOUNT_ID)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)"
+	-var="api_key=$(NEW_RELIC_API_KEY)" -var="account_id=$(NEW_RELIC_ACCOUNT_ID)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)" -var="emails=$(EMAILS)"
 
 .PHONY: test/k8s-canaries/terraform-apply
 test/k8s-canaries/terraform-apply:
 	@$(call check_tf_env_vars)
 	@terraform -chdir=$(K8S_TF_DIR)/$(CANARY_DIR) init && \
 	terraform -chdir=$(K8S_TF_DIR)/$(CANARY_DIR) apply -auto-approve \
-	-var="api_key=$(NEW_RELIC_API_KEY)" -var="account_id=$(NEW_RELIC_ACCOUNT_ID)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)"
+	-var="api_key=$(NEW_RELIC_API_KEY)" -var="account_id=$(NEW_RELIC_ACCOUNT_ID)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)" -var="emails=$(EMAILS)"
 
 .PHONY: test/k8s-canaries/update-kubeconfig-from-aws
 test/k8s-canaries/update-kubeconfig-from-aws:

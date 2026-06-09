@@ -13,7 +13,7 @@ use crate::{
         common::{
             error::CliError,
             proxy_config::ProxyConfig,
-            region::{Region, region_parser},
+            region::Region,
             system_identity::{ParentAuthMethod, ProvisionIdentityArgs, create_identity},
         },
         k8s::{errors::K8sCliError, utils::try_new_k8s_client},
@@ -32,7 +32,7 @@ pub struct Args {
     secret_name: String,
 
     /// New Relic region
-    #[arg(long, value_parser = region_parser(), required = true)]
+    #[arg(long, required = true, ignore_case = true)]
     region: Region,
 
     /// Identity configuration

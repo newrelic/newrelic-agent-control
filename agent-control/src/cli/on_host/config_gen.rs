@@ -3,7 +3,7 @@ use crate::cli::{
     common::{
         error::CliError,
         proxy_config::ProxyConfig,
-        region::{Region, region_parser},
+        region::Region,
         system_identity::{ParentAuthMethod, ProvisionIdentityArgs, create_identity},
     },
     on_host::config_gen::config::{
@@ -38,7 +38,7 @@ pub struct Args {
     fleet_disabled: bool,
 
     /// New Relic region
-    #[arg(long, value_parser = region_parser(), required = true)]
+    #[arg(long, required = true, ignore_case = true)]
     region: Region,
 
     /// Fleet identifier
@@ -242,7 +242,7 @@ fn generate_env_var_config(params: &Params) -> Result<String, CliError> {
         );
     }
 
-    serde_yaml::to_string(&env_vars).map_err(|err| {
+    serde_saphyr::to_string(&env_vars).map_err(|err| {
         CliError::Command(format!(
             "failed to serialize environment variables configuration: {err}"
         ))
@@ -309,7 +309,7 @@ where
         log: default_log_config(),
     };
 
-    serde_yaml::to_string(&config)
+    serde_saphyr::to_string(&config)
         .map_err(|err| CliError::Command(format!("failed to serialize configuration: {err}")))
 }
 
@@ -453,13 +453,13 @@ mod tests {
 
         // Check that the config can be used in Agent Control
         let _: AgentControlConfig =
-            serde_yaml::from_str(&yaml).expect("Config should be valid for Agent Control");
+            serde_saphyr::from_str(&yaml).expect("Config should be valid for Agent Control");
 
         // Compare obtained config and expected
-        let parsed: serde_yaml::Value =
-            serde_yaml::from_str(&yaml).expect("Invalid generated YAML");
-        let expected_parsed: serde_yaml::Value =
-            serde_yaml::from_str(&expected).expect("Invalid expectation");
+        let parsed: serde_json::Value =
+            serde_saphyr::from_str(&yaml).expect("Invalid generated YAML");
+        let expected_parsed: serde_json::Value =
+            serde_saphyr::from_str(&expected).expect("Invalid expectation");
         assert_eq!(parsed, expected_parsed);
     }
 
@@ -477,7 +477,7 @@ mod tests {
         let yaml = generate_env_var_config(&args).expect("should generate env var config");
 
         let parsed: HashMap<String, String> =
-            serde_yaml::from_str(&yaml).expect("YAML should parse to a map");
+            serde_saphyr::from_str(&yaml).expect("YAML should parse to a map");
 
         // Always contains the OTEL endpoint env var
         assert_eq!(

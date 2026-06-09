@@ -23,6 +23,7 @@ use crate::agent_type::{
     variable::{Variable, namespace::Namespace},
 };
 use serde::Deserialize;
+use serde::de::Error;
 
 pub mod rendered;
 
@@ -206,33 +207,33 @@ impl Templateable for TemplateableValue<DirEntriesMap> {
         let value: HashMap<SafePath, String> = if templated_string.is_empty() {
             HashMap::new()
         } else {
-            let map_string_value: HashMap<SafePath, serde_yaml::Value> =
-                serde_yaml::from_str(&templated_string).map_err(|e| {
+            let map_string_value: HashMap<SafePath, serde_json::Value> =
+                serde_saphyr::from_str(&templated_string).map_err(|e| {
                     AgentTypeError::ValueNotParseableFromString(format!(
                         "Could not parse templated directory items as YAML: {e}"
                     ))
                 })?;
 
-            // Convert the serde_yaml::Value (i.e. the file contents) to String
+            // Convert the serde_json::Value (i.e. the file contents) to String
             map_string_value
                 .into_iter()
                 .map(|(k, v)| Ok((k, output_string(v)?)))
-                .collect::<Result<HashMap<_, _>, serde_yaml::Error>>()?
+                .collect::<Result<HashMap<_, _>, serde_saphyr::Error>>()?
         };
 
         Ok(DirEntriesMap(value))
     }
 }
 
-/// Converts a serde_yaml::Value to a String.
+/// Converts a serde_json::Value to a String.
 /// If the value is already a String, it is returned as-is.
-/// Otherwise, it is serialized to a YAML string using serde_yaml.
-fn output_string(value: serde_yaml::Value) -> Result<String, serde_yaml::Error> {
+/// Otherwise, it is serialized to a YAML string using serde_saphyr.
+fn output_string(value: serde_json::Value) -> Result<String, serde_saphyr::Error> {
     match value {
-        // Pass the string directly (serde_yaml inserts literal syntax for multi-line strings)
-        serde_yaml::Value::String(s) => Ok(s),
+        // Pass the string directly (serde_saphyr inserts literal syntax for multi-line strings)
+        serde_json::Value::String(s) => Ok(s),
         // Else serialize the value to a YAML string using the default methods
-        v => serde_yaml::to_string(&v),
+        v => serde_saphyr::to_string(&v).map_err(|e| serde_saphyr::Error::custom(e.to_string())),
     }
 }
 
@@ -282,7 +283,7 @@ mod tests {
     use fs::directory_manager::DirectoryManagerFs;
     use fs::file::LocalFile;
     use rstest::rstest;
-    use serde_yaml::Value;
+    use serde_json::Value;
     use tempfile::TempDir;
 
     #[rstest]
@@ -363,18 +364,18 @@ mod tests {
     #[rstest]
     #[case::valid_filesystem_parse("basic/path", |r: Result<_, _>| r.is_ok())]
     #[case::windows_style_path(r"some\\windows\\style\\path", |r: Result<_, _>| r.is_ok())]
-    #[case::invalid_absolute_path("/absolute/path", |r: Result<_, serde_yaml::Error>| r.is_err())]
-    #[case::invalid_reaches_parentdir("basedir/dir/../dir/../../../outdir/path", |r: Result<_, serde_yaml::Error>| r.is_err())]
-    // #[case::invalid_windows_path_prefix(r"C:\\absolute\\windows\\path", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
-    // #[case::invalid_windows_root_device("C:", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
-    // #[case::invalid_windows_server_path(r"\\\\server\\share", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
+    #[case::invalid_absolute_path("/absolute/path", |r: Result<_, serde_saphyr::Error>| r.is_err())]
+    #[case::invalid_reaches_parentdir("basedir/dir/../dir/../../../outdir/path", |r: Result<_, serde_saphyr::Error>| r.is_err())]
+    // #[case::invalid_windows_path_prefix(r"C:\\absolute\\windows\\path", |r: Result<_, serde_saphyr::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
+    // #[case::invalid_windows_root_device("C:", |r: Result<_, serde_saphyr::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
+    // #[case::invalid_windows_server_path(r"\\\\server\\share", |r: Result<_, serde_saphyr::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
     // TODO add windows paths to check that this handles the `Component::Prefix(_)` case correctly
     fn file_entry_parsing(
         #[case] path: &str,
-        #[case] validation: impl Fn(Result<DirEntriesType, serde_yaml::Error>) -> bool,
+        #[case] validation: impl Fn(Result<DirEntriesType, serde_saphyr::Error>) -> bool,
     ) {
         let yaml = format!("\"{path}\": \"some random content\"");
-        let parsed = serde_yaml::from_str::<DirEntriesType>(&yaml);
+        let parsed = serde_saphyr::from_str::<DirEntriesType>(&yaml);
         let parsed_display = format!("{parsed:?}");
         assert!(validation(parsed), "input: {yaml}, parsed:{parsed_display}");
     }
@@ -390,7 +391,7 @@ mod tests {
 
     #[test]
     fn parse_valid_directories() {
-        let parsed: Result<FileSystem, _> = serde_yaml::from_str(EXAMPLE_FILESYSTEM);
+        let parsed: Result<FileSystem, _> = serde_saphyr::from_str(EXAMPLE_FILESYSTEM);
         assert!(
             parsed.as_ref().is_ok_and(|p| p.0.len() == 2),
             "Parsed directories: {parsed:?}"
@@ -429,7 +430,7 @@ mod tests {
 
     #[test]
     fn parse_and_template_filesystem() {
-        let parsed = serde_yaml::from_str::<FileSystem>(FILESYSTEM_EXAMPLE);
+        let parsed = serde_saphyr::from_str::<FileSystem>(FILESYSTEM_EXAMPLE);
         assert!(
             parsed.as_ref().is_ok_and(|fs| fs.0.len() == 4),
             "Parsed filesystem: {parsed:?}"
@@ -473,7 +474,7 @@ mod tests {
 
     #[test]
     fn rendered_files() {
-        let parsed = serde_yaml::from_str::<FileSystem>(FILESYSTEM_EXAMPLE);
+        let parsed = serde_saphyr::from_str::<FileSystem>(FILESYSTEM_EXAMPLE);
         assert!(
             parsed.as_ref().is_ok_and(|fs| fs.0.len() == 4),
             "Parsed filesystem: {parsed:?}"

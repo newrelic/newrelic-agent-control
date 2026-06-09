@@ -30,6 +30,10 @@ variable "slack_webhook_url" {
   description = "Slack webhook where New Relic will send alerts"
 }
 
+variable "emails" {
+  description = "Comma-separated list of emails to receive alert notifications"
+}
+
 # conditions should follow next structure:
 #[
 # {

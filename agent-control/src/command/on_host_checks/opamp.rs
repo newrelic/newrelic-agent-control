@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use opamp_client::StartedClient;
 use tracing::info;
 
@@ -19,7 +21,7 @@ pub fn check_connectivity(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let identifiers = ac_identifiers(&verified_config.agent_control_config)?;
 
-    let instance_id_storer = Storer::from(verified_config.file_store.clone());
+    let instance_id_storer = Arc::new(Storer::from(verified_config.file_store.clone()));
     let instance_id_getter =
         InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers.clone());
 

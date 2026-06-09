@@ -86,6 +86,15 @@ where
 
         Ok(None)
     }
+
+    fn delete(&self, agent_id: &AgentID) -> Result<(), StorerError> {
+        debug!("storer: deleting Instance ID of agent_id: {}", agent_id);
+
+        self.opamp_data_store
+            .delete_remote_data(agent_id, STORE_KEY_INSTANCE_ID)?;
+
+        Ok(())
+    }
 }
 
 pub trait InstanceIDStorer {
@@ -98,6 +107,7 @@ pub trait InstanceIDStorer {
     ) -> Result<(), StorerError>;
     fn get(&self, agent_id: &AgentID)
     -> Result<Option<DataStored<Self::Identifiers>>, StorerError>;
+    fn delete(&self, agent_id: &AgentID) -> Result<(), StorerError>;
 }
 
 #[cfg(test)]
@@ -115,6 +125,7 @@ pub(crate) mod tests {
 
             fn set(&self, agent_id: &AgentID, data: &DataStored<MockIdentifiers>) -> Result<(), StorerError>;
             fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored<MockIdentifiers>>, StorerError>;
+            fn delete(&self, agent_id: &AgentID) -> Result<(), StorerError>;
         }
     }
 }

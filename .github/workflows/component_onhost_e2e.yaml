@@ -28,8 +28,9 @@ permissions:
 # versions of the packages in our E2E tests. If you change the names or move these values outside
 # the GitHub workflows please update `renovate.json` accordingly to avoid breaking the automation!
 env:
-  HOST_E2E_INFRA_AGENT_VERSION: "1.74.3"
-  HOST_E2E_NRDOT_VERSION: "1.14.0"
+
+  HOST_E2E_INFRA_AGENT_VERSION: "1.76.1"
+  HOST_E2E_NRDOT_VERSION: "1.15.1"
   HOST_E2E_PRELOAD_VERSION: "0.1.0"
 
 jobs:
@@ -55,11 +56,13 @@ jobs:
           - nrdot-agent
           - proxy
           - preload-agent
+          - self-update-latest-to-current
+          - self-update-current-to-latest
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: ./.github/actions/install-rust-toolchain
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -117,12 +120,14 @@ jobs:
           - wrong-config
           - remote-config
           - switch-infra-agent-version
+          - self-update-latest-to-current
+          - self-update-current-to-latest
     steps:
       - name: Record job start time
         shell: bash
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: ./.github/actions/install-rust-toolchain
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:

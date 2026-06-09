@@ -19,42 +19,61 @@ use newrelic_agent_control::agent_control::{
 use rstest::rstest;
 use tempfile::tempdir;
 
+#[cfg(target_family = "unix")]
 const LOGGING_AGENT_TYPE_YAML: &str = r#"
 namespace: test
 name: file-logging-agent
 version: 0.0.0
+platform: host
+operating_system: linux
 variables:
-  common:
-    message:
-      description: "Message to echo to stdout"
-      type: "string"
-      required: true
-    enable_file_logging:
-      description: "Whether to enable file logging"
-      type: "string"
-      required: true
+  message:
+    description: "Message to echo to stdout"
+    type: "string"
+    required: true
+  enable_file_logging:
+    description: "Whether to enable file logging"
+    type: "string"
+    required: true
 deployment:
-  linux:
-    enable_file_logging: ${nr-var:enable_file_logging}
-    executables:
-      - id: echo-agent
-        path: sh
-        args:
-          - tests/on_host/data/echo_and_sleep.sh
-          - "${nr-var:message}"
-  windows:
-    enable_file_logging: ${nr-var:enable_file_logging}
-    executables:
-      - id: echo-agent
-        path: powershell.exe
-        args:
-          - -NoProfile
-          - -ExecutionPolicy
-          - Bypass
-          - -File
-          - tests\\on_host\\data\\echo_and_sleep.ps1
-          - -Message
-          - "${nr-var:message}"
+  enable_file_logging: ${nr-var:enable_file_logging}
+  executables:
+    - id: echo-agent
+      path: sh
+      args:
+        - tests/on_host/data/echo_and_sleep.sh
+        - "${nr-var:message}"
+"#;
+
+#[cfg(target_family = "windows")]
+const LOGGING_AGENT_TYPE_YAML: &str = r#"
+namespace: test
+name: file-logging-agent
+version: 0.0.0
+platform: host
+operating_system: windows
+variables:
+  message:
+    description: "Message to echo to stdout"
+    type: "string"
+    required: true
+  enable_file_logging:
+    description: "Whether to enable file logging"
+    type: "string"
+    required: true
+deployment:
+  enable_file_logging: ${nr-var:enable_file_logging}
+  executables:
+    - id: echo-agent
+      path: powershell.exe
+      args:
+        - -NoProfile
+        - -ExecutionPolicy
+        - Bypass
+        - -File
+        - tests\\on_host\\data\\echo_and_sleep.ps1
+        - -Message
+        - "${nr-var:message}"
 "#;
 
 /// Collects all stdout log file contents for the given agent under the log directory.

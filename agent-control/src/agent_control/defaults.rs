@@ -10,7 +10,7 @@ pub const RESERVED_AGENT_IDS: [&str; 1] = [AGENT_CONTROL_ID];
 
 pub const AGENT_CONTROL_TYPE: &str = "com.newrelic.agent_control";
 pub const AGENT_CONTROL_NAMESPACE: &str = "newrelic";
-pub const AGENT_CONTROL_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const AGENT_CONTROL_VERSION: &str = env!("AGENT_CONTROL_VERSION");
 
 // Keys identifying attributes
 pub const OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY: &str = "chart.version";
@@ -26,11 +26,17 @@ pub const OPAMP_AGENT_VERSION_ATTRIBUTE_KEY: &str = "agent.version";
 
 pub const ENVIRONMENT_VARIABLES_FILE_NAME: &str = "environment_variables.yaml";
 
-// TODO verify this whenever the package is published.
-pub const AC_OCI_PACKAGE_DEFAULT_REGISTRY: &str = "docker.io";
+// Default OCI registry host. Shared by all OCI pulls (agent packages, self-update, and the
+// agent type registry); customers override it via `oci.registry` to point at a mirror.
+pub const AC_OCI_DEFAULT_REGISTRY: &str = "docker.io";
+
 pub const AC_OCI_PACKAGE_DEFAULT_REPOSITORY: &str = "newrelic/agent-control-artifacts";
 pub const AC_OCI_PACKAGE_PUBLIC_KEY_URL: &str =
-    "https://publickeys.newrelic.com/g/agent-control-oci/global/agent-control/jwks.json";
+    "https://publickeys.newrelic.com/g/agent-control-oci/global/agent-control-artifacts/jwks.json";
+
+pub const AC_OCI_AGENT_TYPES_DEFAULT_REPOSITORY: &str = "newrelic/agent-control-agent-types";
+pub const AC_OCI_AGENT_TYPES_PUBLIC_KEY_URL: &str =
+    "https://publickeys.newrelic.com/g/agent-control-oci/global/agent-type/jwks.json";
 
 // Auth
 pub const AUTH_PRIVATE_KEY_FILE_NAME: &str = "auth_key";
@@ -88,7 +94,7 @@ pub const STORE_KEY_LOCAL_DATA_CONFIG: &StoreKey = "local_config";
 /// - **k8s**: Used as the data key within the OpAMP/fleet ConfigMap.
 pub const STORE_KEY_OPAMP_DATA_CONFIG: &StoreKey = "remote_config";
 pub const STORE_KEY_INSTANCE_ID: &StoreKey = "instance_id";
-pub const DYNAMIC_AGENT_TYPE_DIR: &str = "dynamic-agent-types";
+pub const DYNAMIC_AGENT_TYPES_DIR: &str = "dynamic-agent-types";
 pub const INSTANCE_ID_FILENAME: &str = "instance_id.yaml";
 pub const AGENT_FILESYSTEM_FOLDER_NAME: &str = "filesystem";
 pub const PACKAGES_FOLDER_NAME: &str = "packages";

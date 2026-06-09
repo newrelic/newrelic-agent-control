@@ -1,0 +1,178 @@
+# Reusable workflow that opens a pre-release PR:
+#   1. Calculates the next version from CHANGELOG.md unreleased entries (release-toolkit).
+#   2. Bumps the version in the specified Cargo.toml.
+#   3. Commits CHANGELOG.md + Cargo.toml on a new branch `generate-release/<version>`.
+#   4. Opens a PR against the default branch with the `release` label.
+#
+name: 📞 Create pre-release PR
+
+on:
+  workflow_call:
+    inputs:
+      cargo_toml_path:
+        description: Path to the Cargo.toml containing the version field to bump.
+        required: false
+        type: string
+        default: Cargo.toml
+    secrets:
+      app_id:
+        description: GitHub App ID used to authenticate (via actions/create-github-app-token).
+        required: true
+      app_private_key:
+        description: GitHub App private key used to authenticate.
+        required: true
+
+permissions:
+  # required to create a branch in the repo
+  contents: write
+
+env:
+  # Prefix of the auto-opened pre-release PR branch. Must match the filter used
+  # by callers of `shared_create_prerelease.yml`.
+  RELEASE_BRANCH_PREFIX: generate-release/
+
+concurrency:
+  # Serialize pre-release PR creation per repository so two runs cannot race on
+  # CHANGELOG.md / Cargo.toml / the remote branch check.
+  group: prerelease-pr-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  open-prerelease-pr:
+    name: Open pre-release PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify default branch
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "${{ github.event.repository.default_branch }}" ] || [ "${GITHUB_REF_TYPE}" != "branch" ]; then
+            echo "This workflow must be triggered from the default branch ('${{ github.event.repository.default_branch }}'), got '${GITHUB_REF_NAME}'."
+            exit 1
+          fi
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Generate release notes and update CHANGELOG
+        id: release-data
+        env:
+          # Limits the calculated version from dependencies to be a patch bump (by default it propagates the bump type from the dependency).
+          DEPENDENCY_CAP: patch
+        uses: newrelic/release-toolkit/contrib/ohi-release-notes@e28834c3115d501cd42e8458f058591d34bf045f # v1
+        with:
+          # overrides the default "v" prefix for the version.
+          output-prefix: ""
+
+      - name: Fail if no changes to release
+        if: steps.release-data.outputs.skip-release == 'true'
+        run: |
+          echo "No unreleased entries or dependencies updated found. Nothing to release."
+          exit 1
+
+      - name: Bump version in Cargo.toml and refresh Cargo.lock
+        env:
+          VERSION: ${{ steps.release-data.outputs.next-version }}
+          CARGO_TOML_PATH: ${{ inputs.cargo_toml_path }}
+        run: |
+          sed -i "s/^version = .*/version = \"$VERSION\"/" "$CARGO_TOML_PATH"
+          grep -n '^version = ' "$CARGO_TOML_PATH"
+
+          # Refresh Cargo.lock (assumed at repo root) so it reflects the bumped version.
+          cargo update --workspace --manifest-path "$CARGO_TOML_PATH"
+
+      - name: Regenerate THIRD_PARTY_NOTICES.md
+        id: regen-notices
+        # The action fails the step whenever it regenerates the file with new content; the
+        # follow-up step distinguishes that expected case from a real error.
+        continue-on-error: true
+        uses: newrelic/rust-licenses-noticer@9d9bb4a5137f7c9d528b4ada1f505866947feccf # v1
+        with:
+          template-file: THIRD_PARTY_NOTICES.md.tmpl
+
+      - name: Fail if regeneration errored without producing changes
+        if: steps.regen-notices.outcome == 'failure'
+        run: |
+          if git diff --quiet -- THIRD_PARTY_NOTICES.md; then
+            echo "::error::THIRD_PARTY_NOTICES.md regeneration failed and the file did not change."
+            echo "::error::Likely a transient error (network, action upstream); please investigate."
+            exit 1
+          fi
+          echo "Action reported failure because THIRD_PARTY_NOTICES.md needed updating; the regenerated file is on disk and will be committed."
+
+      # Commits are created via the GraphQL `createCommitOnBranch` mutation so GitHub signs them automatically.
+      - name: Create release branch and commit files (signed via API)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ env.RELEASE_BRANCH_PREFIX }}${{ steps.release-data.outputs.next-version }}
+          VERSION: ${{ steps.release-data.outputs.next-version }}
+          CARGO_TOML_PATH: ${{ inputs.cargo_toml_path }}
+        run: |
+          BASE_SHA=$(git rev-parse HEAD)
+
+          # Create the branch ref at the base commit so the mutation has somewhere to land.
+          # Fails with 422 "Reference already exists" if the branch is already present.
+          gh api -X POST "repos/$REPO/git/refs" \
+            -f ref="refs/heads/$BRANCH" \
+            -f sha="$BASE_SHA"
+
+          # Write the mutation to a file and feed it to gh via --input <file>
+          # to avoid stdin buffering issues with large payloads.
+          jq -n \
+            --rawfile changelog CHANGELOG.md \
+            --rawfile cargo "$CARGO_TOML_PATH" \
+            --rawfile lock Cargo.lock \
+            --rawfile notices THIRD_PARTY_NOTICES.md \
+            --arg repo "$REPO" \
+            --arg branch "$BRANCH" \
+            --arg msg "chore(release): prepare $VERSION" \
+            --arg oid "$BASE_SHA" \
+            --arg cargo_path "$CARGO_TOML_PATH" \
+            '{
+              query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }",
+              variables: {
+                input: {
+                  branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                  message: {headline: $msg},
+                  expectedHeadOid: $oid,
+                  fileChanges: {
+                    additions: [
+                      {path: "CHANGELOG.md", contents: ($changelog | @base64)},
+                      {path: $cargo_path, contents: ($cargo | @base64)},
+                      {path: "Cargo.lock", contents: ($lock | @base64)},
+                      {path: "THIRD_PARTY_NOTICES.md", contents: ($notices | @base64)}
+                    ]
+                  }
+                }
+              }
+            }' > "$RUNNER_TEMP/mutation.json"
+
+          gh api graphql --input "$RUNNER_TEMP/mutation.json"
+
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+
+      # CI workflows does not run when a PR is created using the GITHUB_TOKEN (actions app)
+      # So we use the AC app in order overcome that limitation.
+      - name: Create pull request
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          VERSION: ${{ steps.release-data.outputs.next-version }}
+          HEAD_BRANCH: ${{ env.RELEASE_BRANCH_PREFIX }}${{ steps.release-data.outputs.next-version }}
+          BASE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          BODY=$(cat <<EOF
+          Automated pre-release PR for version \`$VERSION\`.
+          EOF
+          )
+          gh pr create \
+            --base "$BASE_BRANCH" \
+            --head "$HEAD_BRANCH" \
+            --title "chore(release): prepare $VERSION" \
+            --body "$BODY" \
+            --label release

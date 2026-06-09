@@ -1,12 +1,10 @@
-use crate::agent_control::run::Environment;
 use crate::agent_type::agent_attributes::AgentAttributes;
-use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
-use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::error::AgentTypeError;
+use crate::agent_type::registry::{AgentTypeRegistry, AgentTypeRegistryError};
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::rendered::OnHost;
-use crate::agent_type::runtime_config::{Deployment, Runtime, rendered};
+use crate::agent_type::runtime_config::rendered;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::secret_variables::{
     SecretVariables, SecretVariablesError, load_env_vars,
@@ -25,21 +23,15 @@ pub enum EffectiveAgentsAssemblerError {
     #[error("error assembling agents: {0}")]
     EffectiveAgentsAssemblerError(String),
     #[error("error assembling agents: {0}")]
-    RepositoryError(#[from] AgentRepositoryError),
+    Registry(#[from] AgentTypeRegistryError),
     #[error("error assembling agents: {0}")]
-    SerdeYamlError(#[from] serde_yaml::Error),
+    SerializationError(#[from] serde_saphyr::Error),
+    #[error("error assembling agents: {0}")]
+    ValueConversionError(#[from] serde_json::Error),
     #[error("error assembling agents: {0}")]
     AgentTypeError(#[from] AgentTypeError),
-    #[error("error assembling agents: {0}")]
-    AgentTypeDefinitionError(#[from] AgentTypeDefinitionError),
     #[error("error loading secrets: {0}")]
     SecretVariablesError(#[from] SecretVariablesError),
-}
-
-#[derive(Error, Debug)]
-pub enum AgentTypeDefinitionError {
-    #[error("invalid agent-type for '{0}' environment: {1}")]
-    EnvironmentError(AgentTypeError, Environment),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -62,28 +54,26 @@ impl EffectiveAgent {
         }
     }
 
-    // Depending on the environment this method returns either the linux or windows deployment
     pub(crate) fn get_onhost_config(&self) -> Result<&OnHost, EffectiveAgentsAssemblerError> {
-        #[cfg(target_family = "windows")]
-        return self.runtime_config.deployment.windows.as_ref().ok_or(
-            EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
-                "missing windows deployment configuration".to_string(),
+        match &self.runtime_config.deployment {
+            rendered::Deployment::Host(on_host) => Ok(on_host),
+            rendered::Deployment::K8s(_) => Err(
+                EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
+                    "missing host deployment configuration".to_string(),
+                ),
             ),
-        );
-        #[cfg(target_family = "unix")]
-        self.runtime_config.deployment.linux.as_ref().ok_or(
-            EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
-                "missing linux deployment configuration".to_string(),
-            ),
-        )
+        }
     }
 
     pub(crate) fn get_k8s_config(&self) -> Result<&K8s, EffectiveAgentsAssemblerError> {
-        self.runtime_config.deployment.k8s.as_ref().ok_or(
-            EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
-                "missing k8s deployment configuration".to_string(),
+        match &self.runtime_config.deployment {
+            rendered::Deployment::K8s(k8s) => Ok(k8s),
+            rendered::Deployment::Host(_) => Err(
+                EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
+                    "missing k8s deployment configuration".to_string(),
+                ),
             ),
-        )
+        }
     }
 
     pub(crate) fn get_agent_identity(&self) -> &AgentIdentity {
@@ -95,11 +85,14 @@ impl TryFrom<EffectiveAgent> for K8s {
     type Error = EffectiveAgentsAssemblerError;
 
     fn try_from(value: EffectiveAgent) -> Result<Self, Self::Error> {
-        value.runtime_config.deployment.k8s.ok_or(
-            EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
-                "missing k8s deployment configuration".to_string(),
+        match value.runtime_config.deployment {
+            rendered::Deployment::K8s(k8s) => Ok(k8s),
+            rendered::Deployment::Host(_) => Err(
+                EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
+                    "missing k8s deployment configuration".to_string(),
+                ),
             ),
-        )
+        }
     }
 }
 
@@ -110,12 +103,11 @@ pub trait EffectiveAgentsAssembler {
         &self,
         agent_identity: &AgentIdentity,
         yaml_config: YAMLConfig,
-        environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
 }
 
 /// Implements [EffectiveAgentsAssembler] and is responsible for:
-/// - Getting [AgentType] from [AgentRegistry]
+/// - Getting [AgentType] from [AgentTypeRegistry]
 /// - Getting Local or Remote configs from [ConfigRepository]
 /// - Rendering the [Runtime] configuration of an Agent
 ///
@@ -123,7 +115,7 @@ pub trait EffectiveAgentsAssembler {
 /// or removing configs when the Runtime is [Renderer].
 pub struct LocalEffectiveAgentsAssembler<R>
 where
-    R: AgentRegistry,
+    R: AgentTypeRegistry,
 {
     registry: Arc<R>,
     renderer: TemplateRenderer,
@@ -134,7 +126,7 @@ where
 
 impl<R> LocalEffectiveAgentsAssembler<R>
 where
-    R: AgentRegistry,
+    R: AgentTypeRegistry,
 {
     pub fn new(
         registry: Arc<R>,
@@ -155,26 +147,20 @@ where
 
 impl<R> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R>
 where
-    R: AgentRegistry,
+    R: AgentTypeRegistry,
 {
     fn assemble_agent(
         &self,
         agent_identity: &AgentIdentity,
         values: YAMLConfig,
-        environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
-        // Load the agent type definition
-        let agent_type_definition = self
+        // Load the parsed definition and apply the AC-wide variable constraints to materialize
+        // an [AgentType] ready for the renderer.
+        let agent_type = self
             .registry
-            .get(&agent_identity.agent_type_id.to_string())?;
-        // Build the corresponding agent type
-        let agent_type = build_agent_type(
-            agent_type_definition,
-            environment,
-            &self.variable_constraints,
-        )?;
+            .get(&agent_identity.agent_type_id)?
+            .with_constraints(&self.variable_constraints);
 
-        // Build the agent attributes
         let attributes =
             AgentAttributes::try_new(agent_identity.id.to_owned(), self.remote_dir.to_path_buf())
                 .map_err(|e| {
@@ -195,61 +181,6 @@ where
     }
 }
 
-/// Builds an [AgentType] given the provided [AgentTypeDefinition] and environment.
-pub fn build_agent_type(
-    definition: AgentTypeDefinition,
-    environment: &Environment,
-    variable_constraints: &VariableConstraints,
-) -> Result<AgentType, AgentTypeDefinitionError> {
-    // Select vars and runtime config according to the environment
-    let (specific_vars, runtime_config) = match environment {
-        Environment::K8s => (
-            definition.variables.k8s,
-            Runtime {
-                deployment: Deployment {
-                    linux: None,
-                    windows: None,
-                    ..definition.runtime_config.deployment
-                },
-            },
-        ),
-        Environment::Linux => (
-            definition.variables.linux,
-            Runtime {
-                deployment: Deployment {
-                    k8s: None,
-                    windows: None,
-                    ..definition.runtime_config.deployment
-                },
-            },
-        ),
-        Environment::Windows => (
-            definition.variables.windows,
-            Runtime {
-                deployment: Deployment {
-                    k8s: None,
-                    linux: None,
-                    ..definition.runtime_config.deployment
-                },
-            },
-        ),
-    };
-    // Merge common and specific variables
-    let merged_variables = definition
-        .variables
-        .common
-        .merge(specific_vars)
-        .map_err(|err| AgentTypeDefinitionError::EnvironmentError(err, *environment))?;
-
-    let agent_type_vars = merged_variables.with_config(variable_constraints);
-
-    Ok(AgentType::new(
-        definition.agent_type_id,
-        agent_type_vars,
-        runtime_config,
-    ))
-}
-
 ////////////////////////////////////////////////////////////////////////////////////
 // Tests
 ////////////////////////////////////////////////////////////////////////////////////
@@ -258,12 +189,11 @@ pub fn build_agent_type(
 pub(crate) mod tests {
 
     use super::*;
-    use crate::agent_control::{agent_id::AgentID, run::on_host::AGENT_CONTROL_MODE_ON_HOST};
+    use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::agent_type_registry::tests::MockAgentRegistry;
     use crate::agent_type::definition::AgentTypeDefinition;
+    use crate::agent_type::registry::tests::MockAgentTypeRegistry;
     use crate::values::yaml_config::YAMLConfig;
-    use assert_matches::assert_matches;
     use mockall::mock;
 
     mock! {
@@ -274,7 +204,6 @@ pub(crate) mod tests {
                 &self,
                 agent_identity:&AgentIdentity,
                 yaml_config: YAMLConfig,
-                environment: &Environment,
             ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
 
         }
@@ -282,7 +211,7 @@ pub(crate) mod tests {
 
     impl<R> LocalEffectiveAgentsAssembler<R>
     where
-        R: AgentRegistry,
+        R: AgentTypeRegistry,
     {
         pub fn new_for_testing(registry: R) -> Self {
             Self {
@@ -298,7 +227,7 @@ pub(crate) mod tests {
     #[test]
     fn test_assemble_agents() {
         // Mocks
-        let mut registry = MockAgentRegistry::new();
+        let mut registry = MockAgentTypeRegistry::new();
 
         // Objects
         let agent_identity = AgentIdentity::from((
@@ -310,13 +239,14 @@ pub(crate) mod tests {
         let values = YAMLConfig::default();
 
         //Expectations
-        registry.should_get("ns/name:0.0.1".to_string(), &agent_type_definition);
+        registry.should_get(
+            AgentTypeID::try_from("ns/name:0.0.1").unwrap(),
+            &agent_type_definition,
+        );
 
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(registry);
 
-        let effective_agent = assembler
-            .assemble_agent(&agent_identity, values, &AGENT_CONTROL_MODE_ON_HOST)
-            .unwrap();
+        let effective_agent = assembler.assemble_agent(&agent_identity, values).unwrap();
 
         assert_eq!(agent_identity, effective_agent.agent_identity);
     }
@@ -324,7 +254,7 @@ pub(crate) mod tests {
     #[test]
     fn test_assemble_agents_error_on_registry() {
         //Mocks
-        let mut registry = MockAgentRegistry::new();
+        let mut registry = MockAgentTypeRegistry::new();
 
         // Objects
         let agent_identity = AgentIdentity::from((
@@ -333,14 +263,10 @@ pub(crate) mod tests {
         ));
 
         //Expectations
-        registry.should_not_get("namespace/name:0.0.1".to_string());
+        registry.expect_get_not_found(AgentTypeID::try_from("namespace/name:0.0.1").unwrap());
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(registry);
 
-        let result = assembler.assemble_agent(
-            &agent_identity,
-            YAMLConfig::default(),
-            &AGENT_CONTROL_MODE_ON_HOST,
-        );
+        let result = assembler.assemble_agent(&agent_identity, YAMLConfig::default());
 
         assert!(result.is_err());
         assert_eq!(
@@ -350,144 +276,82 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_build_agent_type() {
+    fn test_with_constraints_k8s() {
         let definition =
-            serde_yaml::from_str::<AgentTypeDefinition>(AGENT_TYPE_DEFINITION).unwrap();
+            serde_saphyr::from_str::<AgentTypeDefinition>(K8S_AGENT_TYPE_DEFINITION).unwrap();
 
-        let k8s_agent_type = build_agent_type(
-            definition.clone(),
-            &Environment::K8s,
-            &VariableConstraints::default(),
-        )
-        .unwrap();
-        let k8s_vars = k8s_agent_type.variables.flatten();
-        assert!(k8s_vars.contains_key("config.really_common"));
-        let var = k8s_vars.get("config.var").unwrap();
-        assert_eq!("K8s var".to_string(), var.description);
-        assert!(
-            k8s_agent_type.runtime_config.deployment.linux.is_none(),
-            "linux deployment for k8s should be none"
-        );
-        assert!(
-            k8s_agent_type.runtime_config.deployment.windows.is_none(),
-            "windows deployment for k8s should be none"
-        );
+        let agent_type = definition.with_constraints(&VariableConstraints::default());
 
-        let on_host_agent_type = build_agent_type(
-            definition,
-            &AGENT_CONTROL_MODE_ON_HOST,
-            &VariableConstraints::default(),
-        )
-        .unwrap();
-        let on_host_vars = on_host_agent_type.variables.flatten();
-        assert!(on_host_vars.contains_key("config.really_common"));
-        let var = on_host_vars.get("config.var").unwrap();
-        #[cfg(target_family = "unix")]
-        assert_eq!("Linux var".to_string(), var.description);
-        #[cfg(target_family = "windows")]
-        assert_eq!("Windows var".to_string(), var.description);
-        assert!(
-            on_host_agent_type.runtime_config.deployment.k8s.is_none(),
-            "K8s deployment for on_host should be none"
+        let vars = agent_type.variables.flatten();
+        assert_eq!(
+            "K8s var".to_string(),
+            vars.get("config.var").unwrap().description
         );
+        assert!(matches!(
+            agent_type.runtime_config.deployment,
+            crate::agent_type::runtime_config::Deployment::K8s(_)
+        ));
     }
 
     #[test]
-    fn test_build_agent_type_error() {
+    fn test_with_constraints_host_linux() {
         let definition =
-            serde_yaml::from_str::<AgentTypeDefinition>(CONFLICTING_AGENT_TYPE_DEFINITION).unwrap();
+            serde_saphyr::from_str::<AgentTypeDefinition>(HOST_LINUX_AGENT_TYPE_DEFINITION)
+                .unwrap();
 
-        let expected_err = build_agent_type(
-            definition,
-            &Environment::K8s,
-            &VariableConstraints::default(),
-        )
-        .err()
-        .unwrap();
-        assert_matches!(expected_err, AgentTypeDefinitionError::EnvironmentError(err, env) => {
-            assert_matches!(err, AgentTypeError::ConflictingVariableDefinition(key) => {
-                assert_eq!("config.var".to_string(), key);
-            });
-            assert_matches!(env, Environment::K8s);
-        });
+        let agent_type = definition.with_constraints(&VariableConstraints::default());
+
+        let vars = agent_type.variables.flatten();
+        assert_eq!(
+            "Linux var".to_string(),
+            vars.get("config.var").unwrap().description
+        );
+        assert!(matches!(
+            agent_type.runtime_config.deployment,
+            crate::agent_type::runtime_config::Deployment::Host(_)
+        ));
     }
 
-    const AGENT_TYPE_DEFINITION: &str = r#"
+    const K8S_AGENT_TYPE_DEFINITION: &str = r#"
 name: common
 namespace: newrelic
 version: 0.0.1
+platform: kubernetes
 variables:
-  common:
-    config:
-      really_common:
-        description: "Common var"
-        type: string
-        required: true
-  k8s:
-    config:
-      var:
-        description: "K8s var"
-        type: string
-        required: true
-  linux:
-    config:
-      var:
-        description: "Linux var"
-        type: string
-        required: true
-  windows:
-    config:
-      var:
-        description: "Windows var"
-        type: string
-        required: true
+  config:
+    var:
+      description: "K8s var"
+      type: string
+      required: true
 deployment:
-    linux:
-      executables:
-        - id: my-exec
-          path: /some/path
-          args: 
-            - ${nr-var:config.really_common} 
-            - ${config.var}
-    windows:
-      executables:
-        - id: my-exec
-          path: /some/path
-          args: 
-            - ${nr-var:config.really_common} 
-            - ${config.var}
-    k8s:
-      objects:
-        chart:
-          apiVersion: some.api.version/v1
-          kind: SomeKind
-          metadata:
-            name: ${nr-sub:agent_id}
-            namespace: ${nr-ac:namespace}
-          spec:
-            some_key: ${nr-var:config.really_common}
-            other: ${nr-avar:config.var}
+  objects:
+    chart:
+      apiVersion: some.api.version/v1
+      kind: SomeKind
+      metadata:
+        name: ${nr-sub:agent_id}
+        namespace: ${nr-ac:namespace}
+      spec:
+        other: ${nr-var:config.var}
 "#;
 
-    const CONFLICTING_AGENT_TYPE_DEFINITION: &str = r#"
+    const HOST_LINUX_AGENT_TYPE_DEFINITION: &str = r#"
 name: common
 namespace: newrelic
 version: 0.0.1
+platform: host
+operating_system: linux
 variables:
-  common:
-    config:
-      var:
-        description: "Common variable"
-        type: string
-        required: true
-  k8s:
-    config:
-      var:
-        description: "K8s variable"
-        type: string
-        required: true
+  config:
+    var:
+      description: "Linux var"
+      type: string
+      required: true
 deployment:
-    k8s:
-      objects: {}
+  executables:
+    - id: my-exec
+      path: /some/path
+      args:
+        - ${nr-var:config.var}
 "#;
 }

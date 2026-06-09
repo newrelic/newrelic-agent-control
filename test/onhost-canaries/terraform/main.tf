@@ -43,6 +43,11 @@ variable "slack_webhook_url" {
   type        = string
 }
 
+variable "emails" {
+  description = "Comma-separated list of emails to receive alert notifications"
+  type        = string
+}
+
 locals {
   ec2_instances = {
     "amd64:ubuntu22.04" = {
@@ -120,26 +125,78 @@ locals {
   // Platform-specific memory conditions.
   // Linux uses virtual size; Windows uses working set (physical memory committed to the process).
   memory_alert_condition_by_platform = {
-    linux = {
-      name          = "Memory usage (bytes)"
-      metric        = "max(memoryResidentSizeBytes) OR 0"
-      sample        = "ProcessSample"
-      threshold     = 42000000
-      duration      = 600
-      operator      = "above"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
-    }
-    windows = {
-      name          = "Memory usage (bytes)"
-      # For the purpose of leak detection using memoryVirtualSizeBytes reflects better the AC memory intent of usage,
-      # as memoryResidentSizeBytes gets heavily affected by the way windows manages memory.
-      metric        = "max(memoryVirtualSizeBytes) OR 0"
-      sample        = "ProcessSample"
-      threshold     = 35000000
-      duration      = 600
-      operator      = "above"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
-    }
+    linux = [
+      {
+        name          = "Memory usage (bytes)"
+        metric        = "max(memoryResidentSizeBytes) OR 0"
+        sample        = "ProcessSample"
+        threshold     = 42000000
+        duration      = 600
+        operator      = "above"
+        template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+      },
+      {
+        # This alert should detect slow memory leaks.
+        #
+        # For that, we compute the slope of the line (derivative function), with 3 hours of data (aggregation_window).
+        # We then smooth the curve by computing the slope every hour (slide_by) and check that the slope is
+        # above 210KB/hour (threshold) for at least 6 hours (duration).
+        #
+        # That roughly translates to +5MB over 24 hours. False positives should be unlikely with the current threshold,
+        # but we can adjust it.
+        #
+        # Bare in mind that we are using 3 hour windows. The duration must be computed as the multiplication of the
+        # aggregation_window by the number of data points we want to be above the threshold to trigger the alert.
+        # In our case, we want 2 data points to be above the threshold, so the duration is 3 hours * 2 = 6 hours.
+        name               = "Memory growth (bytes/hour)"
+        metric             = "derivative(memoryResidentSizeBytes, 1 hour)"
+        sample             = "ProcessSample"
+        aggregation_window = 10800
+        slide_by           = 3600
+        threshold          = 210000
+        duration           = 21600
+        operator           = "above"
+        template_name      = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+      }
+    ],
+    windows = [
+      {
+        name = "Memory usage (bytes)"
+        # For the purpose of leak detection using memoryVirtualSizeBytes reflects better the AC memory intent of usage,
+        # as memoryResidentSizeBytes gets heavily affected by the way windows manages memory.
+        metric        = "max(memoryVirtualSizeBytes) OR 0"
+        sample        = "ProcessSample"
+        threshold     = 35000000
+        duration      = 600
+        operator      = "above"
+        template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+      },
+      {
+        # This alert should detect slow memory leaks.
+        #
+        # For that, we compute the slope of the line (derivative function), with 3 hours of data (aggregation_window).
+        # We then smooth the curve by computing the slope every hour (slide_by) and check that the slope is
+        # above 210KB/hour (threshold) for at least 6 hours (duration).
+        #
+        # That roughly translates to +5MB over 24 hours. False positives should be unlikely with the current threshold,
+        # but we can adjust it.
+        #
+        # Bare in mind that we are using 3 hour windows. The duration must be computed as the multiplication of the
+        # aggregation_window by the number of data points we want to be above the threshold to trigger the alert.
+        # In our case, we want 2 data points to be above the threshold, so the duration is 3 hours * 2 = 6 hours.
+        name = "Memory growth (bytes/hour)"
+        # For the purpose of leak detection using memoryVirtualSizeBytes reflects better the AC memory intent of usage,
+        # as memoryResidentSizeBytes gets heavily affected by the way windows manages memory.
+        metric             = "derivative(memoryVirtualSizeBytes, 1 hour)"
+        sample             = "ProcessSample"
+        aggregation_window = 10800
+        slide_by           = 3600
+        threshold          = 210000
+        duration           = 21600
+        operator           = "above"
+        template_name      = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+      }
+    ]
   }
 
   // To setup the alerts, we need to know the hostnames of the instances.
@@ -156,7 +213,7 @@ locals {
       platform = v.platform
       conditions = concat(
         local.common_alert_conditions,
-        [local.memory_alert_condition_by_platform[v.platform]]
+        local.memory_alert_condition_by_platform[v.platform]
       )
     }
   }
@@ -165,10 +222,10 @@ locals {
   alert_conditions_flat = flatten([
     for instance_id, instance_data in local.instance_alerts : [
       for idx, condition in instance_data.conditions : {
-        instance_id  = instance_id
-        condition    = condition
-        policy_id    = newrelic_alert_policy.alert_policy[instance_id].id
-        unique_key   = "${instance_id}-${idx}"
+        instance_id = instance_id
+        condition   = condition
+        policy_id   = newrelic_alert_policy.alert_policy[instance_id].id
+        unique_key  = "${instance_id}-${idx}"
       }
     ]
   ])
@@ -313,18 +370,44 @@ resource "newrelic_notification_destination" "slack_webhook" {
   }
 }
 
+resource "newrelic_notification_destination" "email" {
+  name = "Email"
+  type = "EMAIL"
+
+  property {
+    key   = "email"
+    value = var.emails
+  }
+}
+
 # Create notification channel for each instance
-resource "newrelic_notification_channel" "channel" {
+resource "newrelic_notification_channel" "slack_channel" {
   for_each = local.instance_alerts
 
-  name           = each.key
+  name           = "${each.key}-slack"
   type           = "WEBHOOK"
   destination_id = newrelic_notification_destination.slack_webhook.id
   product        = "IINT"
 
   property {
     key   = "payload"
-    value = "{\"text\": \":warning: ${each.key} Alert @hero\"}"
+    value = templatefile("${path.module}/../../terraform/modules/nr_alerts/alert_slack_payload.tftpl", {
+      instance_id = each.key
+    })
+  }
+}
+
+resource "newrelic_notification_channel" "email_channel" {
+  for_each = local.instance_alerts
+
+  name           = "${each.key}-email"
+  type           = "EMAIL"
+  destination_id = newrelic_notification_destination.email.id
+  product        = "IINT"
+
+  property {
+    key   = "subject"
+    value = "Alert: ${each.key}"
   }
 }
 
@@ -346,7 +429,11 @@ resource "newrelic_workflow" "workflow" {
   }
 
   destination {
-    channel_id = newrelic_notification_channel.channel[each.key].id
+    channel_id = newrelic_notification_channel.slack_channel[each.key].id
+  }
+
+  destination {
+    channel_id = newrelic_notification_channel.email_channel[each.key].id
   }
 }
 
@@ -359,6 +446,10 @@ resource "newrelic_nrql_alert_condition" "condition" {
   name                         = each.value.condition.name
   violation_time_limit_seconds = 3600
 
+  # Defaults values from https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/nrql_alert_condition#example-usage
+  aggregation_window = try(each.value.condition.aggregation_window, 60)
+  slide_by           = try(each.value.condition.slide_by, 30)
+
   nrql {
     query = templatefile(
       each.value.condition.template_name,
@@ -366,7 +457,7 @@ resource "newrelic_nrql_alert_condition" "condition" {
         {
           "instance_id" : each.value.instance_id,
           "function" : null,
-          "wheres" : {}
+          "wheres" : {},
         },
         each.value.condition
       )

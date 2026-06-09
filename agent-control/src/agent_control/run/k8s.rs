@@ -7,14 +7,14 @@ use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, CD_EXTERNAL_ENABLED_ATTRIBUTE_KEY,
     CD_REMOTE_UPDATE_ENABLED_ATTRIBUTE_KEY, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
     HOST_NAME_ATTRIBUTE_KEY, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY, default_capabilities,
+    default_custom_capabilities,
 };
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
 use crate::agent_control::run::{
-    AgentControlRunner, Environment, GracefulShutdownReason, RunError,
-    setup_config_repository_and_store,
+    AgentControlRunner, GracefulShutdownReason, RunError, setup_config_repository_and_store,
 };
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::TemplateRenderer;
@@ -24,6 +24,7 @@ use crate::agent_type::version_config::{
 };
 use crate::checkers::version::k8s::checkers::spawn_version_checker;
 use crate::checkers::version::k8s::helmrelease::HelmReleaseVersionChecker;
+use crate::environment::Environment;
 use crate::event::channel::{EventPublisher, pub_sub};
 use crate::event::{AgentControlEvent, AgentControlInternalEvent};
 use crate::k8s::client::SyncK8sClient;
@@ -34,7 +35,7 @@ use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
 use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
 use crate::opamp::instance_id::storer::Storer;
-use crate::opamp::operations::{agent_description, start_settings};
+use crate::opamp::operations::agent_description;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::secret_retriever::k8s::retrieve::K8sSecretRetriever;
@@ -96,7 +97,7 @@ impl AgentControlRunner {
         let identifiers = get_identifiers(k8s_config.cluster_name.clone(), fleet_id);
         info!("Instance Identifiers: {}", identifiers);
 
-        let instance_id_storer = Storer::from(k8s_store.clone());
+        let instance_id_storer = Arc::new(Storer::from(k8s_store.clone()));
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers.clone());
 
@@ -197,7 +198,6 @@ impl AgentControlRunner {
             config_repository: yaml_config_repository.clone(),
             effective_agents_assembler: agents_assembler,
             sub_agent_publisher: self.sub_agent_publisher,
-            ac_running_mode: self.running_mode,
         };
 
         let garbage_collector = K8sGarbageCollector {
@@ -321,14 +321,19 @@ pub fn build_ac_opamp_start_settings(
         .get(&agent_identity.id)
         .map_err(|err| RunError(format!("error getting instance id: {err}")))?;
 
-    let mut settings = start_settings(instance_id, agent_description);
-    if !k8s_config.cd_remote_update
-        && let Some(ref mut caps) = settings.custom_capabilities
-    {
-        caps.capabilities
+    let mut custom_capabilities = default_custom_capabilities();
+    if !k8s_config.cd_enabled {
+        custom_capabilities
+            .capabilities
             .push(K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY.to_string());
     }
-    Ok(settings)
+
+    Ok(StartSettings {
+        instance_uid: instance_id.into(),
+        capabilities: default_capabilities(),
+        custom_capabilities: Some(custom_capabilities),
+        agent_description,
+    })
 }
 
 pub fn agent_control_opamp_non_identifying_attributes(
@@ -407,9 +412,9 @@ mod tests {
     }
 
     #[test]
-    fn test_start_settings_cd_remote_update_false_adds_k8s_config_only_capability() {
+    fn test_start_settings_cd_enabled_false_adds_k8s_config_only_capability() {
         let k8s_config = K8sConfig {
-            cd_remote_update: false,
+            cd_enabled: false,
             ..Default::default()
         };
         let agent_identity = AgentIdentity::new_agent_control_identity();
@@ -434,7 +439,7 @@ mod tests {
     #[test]
     fn test_start_settings_cd_remote_update_true_does_not_add_k8s_config_only_capability() {
         let k8s_config = K8sConfig {
-            cd_remote_update: true,
+            cd_enabled: true,
             ..Default::default()
         };
         let agent_identity = AgentIdentity::new_agent_control_identity();

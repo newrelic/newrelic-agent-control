@@ -1,11 +1,11 @@
 use super::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
-    DYNAMIC_AGENT_TYPE_DIR,
+    DYNAMIC_AGENT_TYPES_DIR,
 };
 use crate::agent_control::config::AgentControlConfig;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::http_server::runner::Runner;
-use crate::agent_type::embedded_registry::EmbeddedRegistry;
+use crate::agent_type::registry::{Registry, RegistryConfig};
 use crate::command::RunnerContext;
 use crate::data_store::DataStore;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
@@ -13,7 +13,6 @@ use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
 use crate::values::ConfigRepo;
 use std::error::Error;
-use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -36,24 +35,6 @@ pub enum GracefulShutdownReason {
 
 pub mod k8s;
 pub mod on_host;
-
-/// Defines the supported deployments for agent types
-#[derive(Debug, PartialEq, Copy, Clone)]
-pub enum Environment {
-    Linux,
-    Windows,
-    K8s,
-}
-
-impl Display for Environment {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            Environment::Linux => write!(f, "linux"),
-            Environment::Windows => write!(f, "windows"),
-            Environment::K8s => write!(f, "k8s"),
-        }
-    }
-}
 
 /// Defines the execution mode of Agent Control
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -91,14 +72,13 @@ pub struct AgentControlRunner {
     /// including remote configuration when needed.
     bootstrap_config: AgentControlConfig,
 
-    agent_type_registry: Arc<EmbeddedRegistry>,
+    agent_type_registry: Arc<Registry>,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
     sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     signature_validator: SignatureValidator,
     base_paths: BasePaths,
     runtime: Arc<Runtime>,
-    running_mode: Environment,
     http_server_runner: Option<Runner>,
 }
 
@@ -124,8 +104,14 @@ impl AgentControlRunner {
             )
         });
 
-        let agent_type_registry = Arc::new(EmbeddedRegistry::new(
-            context.base_paths.local_dir.join(DYNAMIC_AGENT_TYPE_DIR),
+        let agent_type_registry = Arc::new(Registry::new(
+            context.running_mode,
+            RegistryConfig {
+                dynamic_agent_types_path: context
+                    .base_paths
+                    .local_dir
+                    .join(DYNAMIC_AGENT_TYPES_DIR),
+            },
         ));
 
         let signature_validator = context
@@ -151,7 +137,6 @@ impl AgentControlRunner {
             sub_agent_publisher,
             base_paths: context.base_paths,
             signature_validator,
-            running_mode: context.running_mode,
         })
     }
 }

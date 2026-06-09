@@ -50,7 +50,13 @@ pub fn run_linux_e2e() {
             scenarios::fleet_control::test_fleet_control(args);
         }
         LinuxScenarios::FleetControlApi(args) => {
-            fleet_control_api::run_fleet_control_api(args.fleet_control);
+            fleet_control_api::run_fleet_control_api(&args.fleet_control);
+        }
+        LinuxScenarios::SelfUpdateLatestToCurrent(args) => {
+            scenarios::self_update::test_self_update_from_latest_to_current(args);
+        }
+        LinuxScenarios::SelfUpdateCurrentToLatest(args) => {
+            scenarios::self_update::test_self_update_from_current_to_latest(args);
         }
     };
 }

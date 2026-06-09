@@ -25,9 +25,9 @@ pub enum VariableTypeDefinition {
     #[serde(rename = "bool")]
     Bool(FieldsDefinition<bool>),
     #[serde(rename = "number")]
-    Number(FieldsDefinition<serde_yaml::Number>),
+    Number(FieldsDefinition<serde_json::Number>),
     #[serde(rename = "map[string]yaml")]
-    MapStringYaml(FieldsDefinition<HashMap<String, serde_yaml::Value>>),
+    MapStringYaml(FieldsDefinition<HashMap<String, serde_json::Value>>),
     #[serde(rename = "yaml")]
     Yaml(YamlFieldsDefinition),
 }
@@ -37,9 +37,9 @@ pub enum VariableTypeDefinition {
 pub enum VariableType {
     String(StringFields),
     Bool(Fields<bool>),
-    Number(Fields<serde_yaml::Number>),
-    MapStringYaml(Fields<HashMap<String, serde_yaml::Value>>),
-    Yaml(Fields<serde_yaml::Value>),
+    Number(Fields<serde_json::Number>),
+    MapStringYaml(Fields<HashMap<String, serde_json::Value>>),
+    Yaml(Fields<serde_json::Value>),
 }
 
 impl VariableTypeDefinition {
@@ -72,13 +72,13 @@ impl VariableType {
 
     pub(crate) fn merge_with_yaml_value(
         &mut self,
-        value: serde_yaml::Value,
+        value: serde_json::Value,
     ) -> Result<(), AgentTypeError> {
         match self {
-            VariableType::String(f) => f.set_final_value(serde_yaml::from_value(value)?),
-            VariableType::Bool(f) => f.set_final_value(serde_yaml::from_value(value)?),
-            VariableType::Number(f) => f.set_final_value(serde_yaml::from_value(value)?),
-            VariableType::MapStringYaml(f) => f.set_final_value(serde_yaml::from_value(value)?),
+            VariableType::String(f) => f.set_final_value(serde_json::from_value(value)?),
+            VariableType::Bool(f) => f.set_final_value(serde_json::from_value(value)?),
+            VariableType::Number(f) => f.set_final_value(serde_json::from_value(value)?),
+            VariableType::MapStringYaml(f) => f.set_final_value(serde_json::from_value(value)?),
             VariableType::Yaml(f) => f.set_final_value(value),
         }?;
         Ok(())
@@ -132,20 +132,20 @@ mod tests {
         }
     }
 
-    impl From<Fields<serde_yaml::Number>> for VariableType {
-        fn from(fields: Fields<serde_yaml::Number>) -> Self {
+    impl From<Fields<serde_json::Number>> for VariableType {
+        fn from(fields: Fields<serde_json::Number>) -> Self {
             VariableType::Number(fields)
         }
     }
 
-    impl From<Fields<HashMap<String, serde_yaml::Value>>> for VariableType {
-        fn from(fields: Fields<HashMap<String, serde_yaml::Value>>) -> Self {
+    impl From<Fields<HashMap<String, serde_json::Value>>> for VariableType {
+        fn from(fields: Fields<HashMap<String, serde_json::Value>>) -> Self {
             VariableType::MapStringYaml(fields)
         }
     }
 
-    impl From<Fields<serde_yaml::Value>> for VariableType {
-        fn from(fields: Fields<serde_yaml::Value>) -> Self {
+    impl From<Fields<serde_json::Value>> for VariableType {
+        fn from(fields: Fields<serde_json::Value>) -> Self {
             VariableType::Yaml(fields)
         }
     }

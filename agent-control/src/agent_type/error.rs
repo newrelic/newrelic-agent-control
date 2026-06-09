@@ -3,8 +3,10 @@ use thiserror::Error;
 /// The different error types to be returned by operations involving the [`Agent`] type.
 #[derive(Error, Debug)]
 pub enum AgentTypeError {
-    #[error("error while parsing: {0}")]
-    SerdeYaml(#[from] serde_yaml::Error),
+    #[error("serialization error: {0}")]
+    Serialization(#[from] serde_saphyr::Error),
+    #[error("value conversion error: {0}")]
+    ValueConversion(#[from] serde_json::Error),
     #[error("missing value for key: {0}")]
     MissingValue(String),
     #[error("unexpected value for key: key({0}) val({1})")]
@@ -23,8 +25,6 @@ pub enum AgentTypeError {
     InvalidVariant(String),
     #[error("rendering template: {0}")]
     RenderingTemplate(String),
-    #[error("conflicting variable definition: {0}")]
-    ConflictingVariableDefinition(String),
     #[error("error parsing oci reference: {0}")]
     OCIReferenceParsingError(String),
 }

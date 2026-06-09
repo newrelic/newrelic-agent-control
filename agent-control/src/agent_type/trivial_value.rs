@@ -11,18 +11,18 @@ use serde::{Deserialize, Serialize};
 pub enum TrivialValue {
     String(String),
     Bool(bool),
-    Number(serde_yaml::Number),
+    Number(serde_json::Number),
     #[serde(skip)]
-    Yaml(serde_yaml::Value),
+    Yaml(serde_json::Value),
     #[serde(skip)]
     MapStringString(Map<String, String>),
     #[serde(skip)]
-    MapStringYaml(Map<String, serde_yaml::Value>),
+    MapStringYaml(Map<String, serde_json::Value>),
 }
 
 impl TrivialValue {
-    /// If the trivial value is a yaml, it returns a copy the corresponding [serde_yaml::Value], returns None otherwise.
-    pub fn to_yaml_value(&self) -> Option<serde_yaml::Value> {
+    /// If the trivial value is a yaml, it returns a copy the corresponding [serde_json::Value], returns None otherwise.
+    pub fn to_yaml_value(&self) -> Option<serde_json::Value> {
         match self {
             Self::Yaml(yaml) => Some(yaml.clone()),
             _ => None,
@@ -37,8 +37,8 @@ impl Display for TrivialValue {
             TrivialValue::Yaml(yaml) => write!(
                 f,
                 "{}",
-                serde_yaml::to_string(yaml)
-                    .expect("A value of type serde_yaml::Value should always be serializable")
+                serde_saphyr::to_string(yaml)
+                    .expect("A value of type serde_json::Value should always be serializable")
             ),
             TrivialValue::Bool(b) => write!(f, "{b}"),
             TrivialValue::Number(n) => write!(f, "{n}"),
@@ -53,8 +53,8 @@ impl Display for TrivialValue {
             TrivialValue::MapStringYaml(n) => write!(
                 f,
                 "{}",
-                serde_yaml::to_string(n)
-                    .expect("A value of type HashMap<String, serde_yaml::Value> should always be serializable")
+                serde_saphyr::to_string(n)
+                    .expect("A value of type HashMap<String, serde_json::Value> should always be serializable")
             )
         }
     }
