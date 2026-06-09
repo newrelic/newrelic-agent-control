@@ -581,8 +581,9 @@ fn onhost_opamp_agent_control_remote_config_add_remove_add_agent() {
 
     let filesystem_config = format!(
         r#"
-{dir_entry}:
-  {file_path}: "{content_template}"
+persistent:
+  {dir_entry}:
+    {file_path}: "{content_template}"
 "#
     );
 

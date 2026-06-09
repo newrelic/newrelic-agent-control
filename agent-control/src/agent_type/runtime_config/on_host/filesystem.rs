@@ -27,28 +27,40 @@ use serde::Deserialize;
 pub mod rendered;
 
 /// Represents the file system configuration for the deployment of a host agent. Consisting of
-/// a set of directories (map keys) which in turn contain a set of files (nested map keys) with
-/// their respective content (map values).
+/// two sections — `ephemeral` and `persistent` — each mapping directory paths (keys) to their
+/// file entries (values).
+///
+/// Directories under `ephemeral` are deleted when the agent is removed from the config.
+/// Directories under `persistent` are preserved across agent removal.
 ///
 /// It would be equivalent to a YAML mapping of this format:
 /// ```yaml
 /// filesystem:
-///   "path/to/my-dir":
-///      # YAML content, expected to be a mapping string -> yaml
-///      filepath1: "file1 content"
-///      filepath2: | # multi-line string content
-///        key: value
-///   # fully templated content, expected to render to a valid YAML mapping string -> string
-///   "another/path/to/my-dir": ${nr-var:some_var_that_renders_to_a_yaml_mapping}
+///   ephemeral:
+///     "path/to/my-dir":
+///        # YAML content, expected to be a mapping string -> yaml
+///        filepath1: "file1 content"
+///        filepath2: | # multi-line string content
+///          key: value
+///   persistent:
+///     # fully templated content, expected to render to a valid YAML mapping string -> string
+///     "another/path/to/my-dir": ${nr-var:some_var_that_renders_to_a_yaml_mapping}
 /// ```
 ///
 /// The files can be hardcoded, with the contents possibly containing templates, or the whole set of
 /// files can be templated so a directory contains an arbitrary number of files (a place to use a
 /// `map[string]yaml` variable type). **The paths cannot be templated.**
 ///
-/// See [`AgentDirectoryEntry`] and [`DirEntriesType`] for more details.
+/// See [`DirEntriesType`] for more details.
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
-pub struct FileSystem(HashMap<SafePath, DirEntriesType>);
+pub struct FileSystem {
+    /// Directories that are deleted when the agent is removed from the config.
+    #[serde(default)]
+    pub(crate) ephemeral: HashMap<SafePath, DirEntriesType>,
+    /// Directories that are preserved when the agent is removed from the config.
+    #[serde(default)]
+    pub(crate) persistent: HashMap<SafePath, DirEntriesType>,
+}
 
 /// A path to a file or directory that has been validated to be "safe",
 /// i.e. relative and not escaping its base directory (e.g. with parent dir specifiers like `..`).
@@ -91,7 +103,7 @@ impl From<SafePath> for PathBuf {
 ///      a placeholder for later rendering.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
-enum DirEntriesType {
+pub(crate) enum DirEntriesType {
     /// A directory with a fixed set of entries (i.e. files). Each entry's content can be templated.
     /// E.g.
     /// ```yaml
@@ -133,21 +145,26 @@ impl Templateable for FileSystem {
             )
             .and_then(Variable::get_final_value)
         {
-            let filesystem = self
-                .0
-                .into_iter()
-                .map(|(k, v)| {
-                    Ok((
-                        // The only place where we construct a `SafePath` directly, prepending the
-                        // sub-agent's filesystem directory to the user-provided relative path.
-                        // FIXME: when we fix the templating and make the agent type definitions
-                        // type-safe, we will make sure to always build correct "final paths" here.
-                        SafePath(PathBuf::from(filesystem_dir.clone()).join(k)),
-                        v.template_with(variables)?,
-                    ))
-                })
-                .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
-            Ok(rendered::FileSystem(filesystem))
+            let filesystem_dir_path = PathBuf::from(filesystem_dir.clone());
+
+            // The only place where we construct a `SafePath` directly, prepending the
+            // sub-agent's filesystem directory to the user-provided relative path.
+            // FIXME: when we fix the templating and make the agent type definitions
+            // type-safe, we will make sure to always build correct "final paths" here.
+            let template_map =
+                |map: HashMap<SafePath, DirEntriesType>| -> Result<HashMap<SafePath, _>, AgentTypeError> {
+                    map.into_iter()
+                        .map(|(k, v)| {
+                            Ok((SafePath(filesystem_dir_path.join(k)), v.template_with(variables)?))
+                        })
+                        .collect()
+                };
+
+            Ok(rendered::FileSystem {
+                ephemeral: template_map(self.ephemeral)?,
+                persistent: template_map(self.persistent)?,
+                filesystem_dir: filesystem_dir_path,
+            })
         } else {
             Err(AgentTypeError::MissingValue(
                 Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
@@ -157,9 +174,10 @@ impl Templateable for FileSystem {
 }
 
 impl FileSystem {
-    /// Returns the list of directory paths (keys) defined in this filesystem configuration.
+    /// Returns the list of directory paths (keys) defined in this filesystem configuration,
+    /// covering both ephemeral and persistent sections.
     pub fn dir_paths(&self) -> impl Iterator<Item = &SafePath> {
-        self.0.keys()
+        self.ephemeral.keys().chain(self.persistent.keys())
     }
 }
 
@@ -309,26 +327,33 @@ mod tests {
             Variable::new_final_string_variable("/base/dir"),
         )]);
 
-        let filesystem_entry = FileSystem(HashMap::from([(
-            PathBuf::from("my/path").try_into().unwrap(),
-            DirEntriesType::FixedWithTemplatedContent(HashMap::from([(
-                PathBuf::from("my/file/path").try_into().unwrap(),
-                TemplateableValue::from_template("some content".to_string()),
-            )])),
-        )]));
+        let filesystem_entry = FileSystem {
+            ephemeral: HashMap::from([(
+                PathBuf::from("my/path").try_into().unwrap(),
+                DirEntriesType::FixedWithTemplatedContent(HashMap::from([(
+                    PathBuf::from("my/file/path").try_into().unwrap(),
+                    TemplateableValue::from_template("some content".to_string()),
+                )])),
+            )]),
+            persistent: HashMap::default(),
+        };
 
         let rendered = filesystem_entry.template_with(&variables);
         assert!(rendered.is_ok());
         let rendered = rendered.unwrap();
-        assert!(rendered.0.len() == 1);
+        assert!(rendered.ephemeral.len() == 1);
 
-        let expected_filesystem = rendered::FileSystem(HashMap::from([(
-            SafePath(PathBuf::from("/base/dir/my/path")),
-            DirEntriesMap(HashMap::from([(
-                PathBuf::from("my/file/path").try_into().unwrap(),
-                "some content".to_string(),
-            )])),
-        )]));
+        let expected_filesystem = rendered::FileSystem {
+            ephemeral: HashMap::from([(
+                SafePath(PathBuf::from("/base/dir/my/path")),
+                DirEntriesMap(HashMap::from([(
+                    PathBuf::from("my/file/path").try_into().unwrap(),
+                    "some content".to_string(),
+                )])),
+            )]),
+            persistent: HashMap::default(),
+            filesystem_dir: PathBuf::from("/base/dir"),
+        };
 
         assert_eq!(rendered, expected_filesystem);
     }
@@ -339,13 +364,16 @@ mod tests {
         // templating must fail.
         let variables = Variables::default();
 
-        let filesystem_entry = FileSystem(HashMap::from([(
-            PathBuf::from("my/path").try_into().unwrap(),
-            DirEntriesType::FixedWithTemplatedContent(HashMap::from([(
-                PathBuf::from("my/file/path").try_into().unwrap(),
-                TemplateableValue::new("some content".to_string()),
-            )])),
-        )]));
+        let filesystem_entry = FileSystem {
+            ephemeral: HashMap::from([(
+                PathBuf::from("my/path").try_into().unwrap(),
+                DirEntriesType::FixedWithTemplatedContent(HashMap::from([(
+                    PathBuf::from("my/file/path").try_into().unwrap(),
+                    TemplateableValue::new("some content".to_string()),
+                )])),
+            )]),
+            persistent: HashMap::default(),
+        };
 
         let rendered = filesystem_entry.template_with(&variables);
         assert!(rendered.is_err());
@@ -380,11 +408,12 @@ mod tests {
     }
 
     const EXAMPLE_FILESYSTEM: &str = r#"
-"path/to/my-dir":
+ephemeral:
+  "path/to/my-dir":
     filepath1: "file1 content"
     filepath2: |
-        key: ${nr-var:some_var}
-"another/path/to/my-dir":
+      key: ${nr-var:some_var}
+  "another/path/to/my-dir":
     ${nr-var:some_var_that_renders_to_a_yaml_mapping}
 "#;
 
@@ -392,11 +421,11 @@ mod tests {
     fn parse_valid_directories() {
         let parsed: Result<FileSystem, _> = serde_yaml::from_str(EXAMPLE_FILESYSTEM);
         assert!(
-            parsed.as_ref().is_ok_and(|p| p.0.len() == 2),
+            parsed.as_ref().is_ok_and(|p| p.ephemeral.len() == 2),
             "Parsed directories: {parsed:?}"
         );
 
-        let parsed = parsed.unwrap().0;
+        let parsed = parsed.unwrap().ephemeral;
         let my_dir = parsed
             .get(&SafePath(PathBuf::from("path/to/my-dir")))
             .unwrap();
@@ -412,26 +441,27 @@ mod tests {
     }
 
     const FILESYSTEM_EXAMPLE: &str = r#"
-"some/files":
+ephemeral:
+  "some/files":
     "path/to/my-file": "something ${nr-var:some_file_var}"
     "another/path/to/my-file": |
-        some
-        multi-line
-        content
-"path/to/my-dir":
+      some
+      multi-line
+      content
+  "path/to/my-dir":
     filepath1: "file1 content"
     filepath2: |
-        key: ${nr-var:some_dir_var}
-"another/path/to/my-dir":
+      key: ${nr-var:some_dir_var}
+  "another/path/to/my-dir":
     ${nr-var:some_var_that_renders_to_a_yaml_mapping}
-"empty/dir": {}
+  "empty/dir": {}
 "#;
 
     #[test]
     fn parse_and_template_filesystem() {
         let parsed = serde_yaml::from_str::<FileSystem>(FILESYSTEM_EXAMPLE);
         assert!(
-            parsed.as_ref().is_ok_and(|fs| fs.0.len() == 4),
+            parsed.as_ref().is_ok_and(|fs| fs.ephemeral.len() == 4),
             "Parsed filesystem: {parsed:?}"
         );
 
@@ -475,7 +505,7 @@ mod tests {
     fn rendered_files() {
         let parsed = serde_yaml::from_str::<FileSystem>(FILESYSTEM_EXAMPLE);
         assert!(
-            parsed.as_ref().is_ok_and(|fs| fs.0.len() == 4),
+            parsed.as_ref().is_ok_and(|fs| fs.ephemeral.len() == 4),
             "Parsed filesystem: {parsed:?}"
         );
         let tmp_dir = TempDir::new().unwrap();
@@ -563,5 +593,146 @@ mod tests {
                 r_path.display()
             );
         }
+    }
+
+    /// When a config update removes a file from an ephemeral directory (e.g. an integration
+    /// removed from `config_integrations`), the stale file must be deleted on the next write.
+    #[test]
+    fn ephemeral_dir_stale_files_are_deleted_on_next_write() {
+        let tmp_dir = TempDir::new().unwrap();
+        let base_variables = |dir: &str| {
+            Variables::from_iter(vec![(
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable(dir),
+            )])
+        };
+
+        // First write: integrations.d contains apache, nginx, mysql
+        let first_config = FileSystem {
+            ephemeral: HashMap::from([(
+                PathBuf::from("integrations.d").try_into().unwrap(),
+                DirEntriesType::FixedWithTemplatedContent(HashMap::from([
+                    (
+                        PathBuf::from("apache.yaml").try_into().unwrap(),
+                        TemplateableValue::from_template("apache config".to_string()),
+                    ),
+                    (
+                        PathBuf::from("nginx.yaml").try_into().unwrap(),
+                        TemplateableValue::from_template("nginx config".to_string()),
+                    ),
+                    (
+                        PathBuf::from("mysql.yaml").try_into().unwrap(),
+                        TemplateableValue::from_template("mysql config".to_string()),
+                    ),
+                ])),
+            )]),
+            persistent: HashMap::default(),
+        };
+
+        let dir = tmp_dir.path().to_string_lossy().to_string();
+        first_config
+            .template_with(&base_variables(&dir))
+            .unwrap()
+            .write(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
+
+        assert!(tmp_dir.path().join("integrations.d/apache.yaml").exists());
+        assert!(tmp_dir.path().join("integrations.d/nginx.yaml").exists());
+        assert!(tmp_dir.path().join("integrations.d/mysql.yaml").exists());
+
+        // Second write: nginx and mysql removed from config_integrations
+        let second_config = FileSystem {
+            ephemeral: HashMap::from([(
+                PathBuf::from("integrations.d").try_into().unwrap(),
+                DirEntriesType::FixedWithTemplatedContent(HashMap::from([(
+                    PathBuf::from("apache.yaml").try_into().unwrap(),
+                    TemplateableValue::from_template("apache config".to_string()),
+                )])),
+            )]),
+            persistent: HashMap::default(),
+        };
+
+        second_config
+            .template_with(&base_variables(&dir))
+            .unwrap()
+            .write(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
+
+        assert!(
+            tmp_dir.path().join("integrations.d/apache.yaml").exists(),
+            "apache.yaml should still be present"
+        );
+        assert!(
+            !tmp_dir.path().join("integrations.d/nginx.yaml").exists(),
+            "nginx.yaml should have been deleted"
+        );
+        assert!(
+            !tmp_dir.path().join("integrations.d/mysql.yaml").exists(),
+            "mysql.yaml should have been deleted"
+        );
+    }
+
+    /// Files in persistent directories must never be deleted by a config update,
+    /// even if they are absent from the new configuration.
+    #[test]
+    fn persistent_dir_files_survive_config_update() {
+        let tmp_dir = TempDir::new().unwrap();
+        let base_variables = |dir: &str| {
+            Variables::from_iter(vec![(
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable(dir),
+            )])
+        };
+
+        let dir = tmp_dir.path().to_string_lossy().to_string();
+
+        // First write: persistent dir gets a file written by the config
+        let first_config = FileSystem {
+            ephemeral: HashMap::default(),
+            persistent: HashMap::from([(
+                PathBuf::from("logging").try_into().unwrap(),
+                DirEntriesType::FixedWithTemplatedContent(HashMap::from([(
+                    PathBuf::from("fluent.yaml").try_into().unwrap(),
+                    TemplateableValue::from_template("fluent config".to_string()),
+                )])),
+            )]),
+        };
+
+        first_config
+            .template_with(&base_variables(&dir))
+            .unwrap()
+            .write(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
+
+        // Simulate a file written by the sub-agent itself into the persistent dir
+        std::fs::write(
+            tmp_dir.path().join("logging/agent-created.yaml"),
+            "runtime data",
+        )
+        .unwrap();
+
+        // Second write: persistent dir entry is now empty in the config
+        let second_config = FileSystem {
+            ephemeral: HashMap::default(),
+            persistent: HashMap::from([(
+                PathBuf::from("logging").try_into().unwrap(),
+                DirEntriesType::FixedWithTemplatedContent(HashMap::default()),
+            )]),
+        };
+
+        second_config
+            .template_with(&base_variables(&dir))
+            .unwrap()
+            .write(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
+
+        assert!(
+            tmp_dir.path().join("logging/fluent.yaml").exists(),
+            "fluent.yaml written by the config must survive a config update in a persistent dir"
+        );
+        assert!(
+            tmp_dir.path().join("logging/agent-created.yaml").exists(),
+            "file written by the sub-agent must survive a config update in a persistent dir"
+        );
     }
 }
