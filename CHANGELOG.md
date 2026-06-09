@@ -19,6 +19,10 @@ Remember that the keywords that you can use are the following:
 - Agent type definitions now use a flat per-platform schema (one YAML file per `(platform, operating_system)` pair). 
   Agent type FQNs and configuration values are unchanged, so this is **not a breaking change** for end users.
   Internal authors of custom agent type definitions need to migrate their YAMLs — see [docs/INTEGRATING_AGENTS.md](docs/INTEGRATING_AGENTS.md).
+- Agent type definitions now declare a top-level `protocol_version` (a quoted `MAJOR.MINOR` string) that versions the
+  agent-type schema language itself. It is validated against the version Agent Control supports at registry ingestion,
+  so definitions targeting an incompatible schema are rejected early. Internal authors of custom agent type definitions
+  must add this field — see [docs/INTEGRATING_AGENTS.md](docs/INTEGRATING_AGENTS.md).
 
 ## v1.16.1 - 2026-06-04
 
