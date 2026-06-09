@@ -40,6 +40,7 @@ name: test
 version: 0.0.0
 platform: host
 operating_system: {AGENT_CONTROL_MODE_ON_HOST}
+protocol_version: "0.1"
 variables: {{}}
 deployment:
   filesystem:
@@ -140,6 +141,7 @@ name: test
 version: 0.0.0
 platform: host
 operating_system: {AGENT_CONTROL_MODE_ON_HOST}
+protocol_version: "0.1"
 variables:
   yaml_file_contents:
     description: "Contents of the YAML file"
@@ -296,6 +298,7 @@ name: infra-agent
 version: 0.0.0
 platform: host
 operating_system: {AGENT_CONTROL_MODE_ON_HOST}
+protocol_version: "0.1"
 variables:
   config_agent:
     description: "Agent configuration"

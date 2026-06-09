@@ -2,6 +2,7 @@ namespace: newrelic
 name: com.newrelic.custom_agent
 version: 0.0.1
 platform: kubernetes
+protocol_version: "0.1"
 variables: {}
 deployment:
   health:
