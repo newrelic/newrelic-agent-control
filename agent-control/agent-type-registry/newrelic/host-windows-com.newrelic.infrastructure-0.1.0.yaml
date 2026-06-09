@@ -3,6 +3,7 @@ name: com.newrelic.infrastructure
 version: 0.1.0
 platform: host
 operating_system: windows
+protocol_version: "0.1"
 variables:
   config_agent:
     description: "Newrelic infra configuration"

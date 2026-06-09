@@ -3,6 +3,7 @@ name: com.newrelic.ebpf
 version: 0.1.0
 platform: host
 operating_system: linux
+protocol_version: "0.1"
 variables:
   config_agent:
     DEPLOYMENT_NAME:

@@ -2,6 +2,7 @@ namespace: newrelic
 name: com.newrelic.apm_ruby
 version: 0.1.0
 platform: kubernetes
+protocol_version: "0.1"
 variables:
   podLabelSelector:
     description: "Pod label selector"

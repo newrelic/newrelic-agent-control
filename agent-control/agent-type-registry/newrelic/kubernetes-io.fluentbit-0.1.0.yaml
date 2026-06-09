@@ -2,6 +2,7 @@ namespace: newrelic
 name: io.fluentbit
 version: 0.1.0
 platform: kubernetes
+protocol_version: "0.1"
 variables:
   chart_values:
     newrelic-logging:
