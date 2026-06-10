@@ -9,7 +9,9 @@ use newrelic_agent_control::agent_type::runtime_config::on_host::package::render
 use newrelic_agent_control::http::config::ProxyConfig;
 use newrelic_agent_control::oci;
 use newrelic_agent_control::package::manager::PackageData;
-use newrelic_agent_control::package::oci::downloader::{OCIAgentDownloader, OCIArtifactDownloader};
+use newrelic_agent_control::package::oci::downloader::{
+    OCIPackageArtifactDownloader, OCIPackageDownloader,
+};
 use oci_client::client::{ClientConfig, ClientProtocol};
 use oci_test_utils::{PackageMediaType, PackagePublisher, blob_digest};
 use std::str::FromStr;
@@ -50,7 +52,7 @@ fn test_download_artifact_from_local_registry_with_oci_registry() {
 
     let client = create_client_with_proxy(ProxyConfig::default());
 
-    let downloader = OCIArtifactDownloader::new(
+    let downloader = OCIPackageArtifactDownloader::new(
         client,
         Registry::from_str(OCI_TEST_REGISTRY_URL).unwrap(),
         Default::default(),
@@ -122,7 +124,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
 
     let client = create_client_with_proxy(proxy_config);
 
-    let downloader = OCIArtifactDownloader::new(
+    let downloader = OCIPackageArtifactDownloader::new(
         client,
         Registry::from_str(OCI_TEST_REGISTRY_URL).unwrap(),
         Default::default(),
