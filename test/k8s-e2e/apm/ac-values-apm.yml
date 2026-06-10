@@ -36,7 +36,7 @@ agentControlDeployment:
           agent_type: newrelic/com.newrelic.apm_dotnet:0.1.0
     agentsConfig:
       operator:
-        chart_version: "*"
+        chart_version: "0.43.1"
       # One agent per language
       java-agent:
         podLabelSelector:
