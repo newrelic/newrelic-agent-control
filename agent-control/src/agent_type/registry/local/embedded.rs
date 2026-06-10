@@ -1,4 +1,4 @@
-use crate::agent_type::definition::{AgentTypeDefinition, parse_agent_type_definition};
+use crate::agent_type::definition::AgentTypeDefinition;
 use crate::environment::Environment;
 
 // Include generated code
@@ -20,7 +20,7 @@ pub(super) fn embedded_definitions(env: Environment) -> impl Iterator<Item = Age
         .iter()
         .map(|file_content_ref| {
             // Definitions in files are expected to be valid and protocol-compatible.
-            parse_agent_type_definition(file_content_ref)
+            AgentTypeDefinition::from_slice(file_content_ref)
                 .expect("Invalid or incompatible embedded agent type")
         })
         .filter(move |def| def.metadata.environment == env)

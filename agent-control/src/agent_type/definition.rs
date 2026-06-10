@@ -43,8 +43,8 @@ pub struct AgentTypeDefinition {
     pub runtime_config: Runtime,
 }
 
-/// Wraps [AgentTypeDefinition] to force deserialization using [parse_agent_type_definition] which
-/// verifies the `protocol_version`.
+/// Wraps [AgentTypeDefinition] to force deserialization through [AgentTypeDefinition::from_slice],
+/// which verifies the `protocol_version`.
 struct RawAgentTypeDefinition(AgentTypeDefinition);
 
 impl<'de> Deserialize<'de> for RawAgentTypeDefinition {
@@ -84,17 +84,6 @@ impl<'de> Deserialize<'de> for RawAgentTypeDefinition {
     }
 }
 
-/// Parses raw yaml content into an [AgentTypeDefinition], validating the file's `protocol_version`
-/// before the document is converted into the definition.
-pub fn parse_agent_type_definition(
-    content: &[u8],
-) -> Result<AgentTypeDefinition, AgentTypeDefinitionParseError> {
-    let document: serde_json::Value = serde_saphyr::from_slice(content)?;
-    protocol_version::check(&document)?;
-    let definition = serde_json::from_value::<RawAgentTypeDefinition>(document)?.0;
-    Ok(definition)
-}
-
 #[derive(Error, Debug)]
 pub enum AgentTypeDefinitionParseError {
     #[error("incompatible protocol version: {0}")]
@@ -106,6 +95,15 @@ pub enum AgentTypeDefinitionParseError {
 }
 
 impl AgentTypeDefinition {
+    /// Parses raw yaml content into an [AgentTypeDefinition], validating the file's
+    /// `protocol_version` before the document is converted into the definition.
+    pub fn from_slice(content: &[u8]) -> Result<Self, AgentTypeDefinitionParseError> {
+        let document: serde_json::Value = serde_saphyr::from_slice(content)?;
+        protocol_version::check(&document)?;
+        let definition = serde_json::from_value::<RawAgentTypeDefinition>(document)?.0;
+        Ok(definition)
+    }
+
     pub fn agent_type_id(&self) -> &AgentTypeID {
         &self.metadata.id
     }
@@ -549,7 +547,7 @@ deployment:
             "protocol_version: \"{SUPPORTED_PROTOCOL_VERSION}\""
         ));
 
-        let definition = parse_agent_type_definition(yaml.as_bytes()).unwrap();
+        let definition = AgentTypeDefinition::from_slice(yaml.as_bytes()).unwrap();
 
         assert_eq!(definition.agent_type_id().namespace(), "ns");
         assert_eq!(definition.agent_type_id().name(), "test");
@@ -571,7 +569,7 @@ deployment: {{}}
 "#
         );
 
-        let definition = parse_agent_type_definition(yaml.as_bytes()).unwrap();
+        let definition = AgentTypeDefinition::from_slice(yaml.as_bytes()).unwrap();
 
         assert_eq!(definition.metadata.environment, Environment::Linux);
         assert_matches!(definition.runtime_config.deployment, Deployment::Host(_));
@@ -582,7 +580,7 @@ deployment: {{}}
         let yaml = k8s_definition_yaml("");
 
         assert_matches!(
-            parse_agent_type_definition(yaml.as_bytes()),
+            AgentTypeDefinition::from_slice(yaml.as_bytes()),
             Err(AgentTypeDefinitionParseError::ProtocolVersion(
                 ProtocolVersionError::Missing
             ))
@@ -595,7 +593,7 @@ deployment: {{}}
         let yaml = k8s_definition_yaml("protocol_version: \"99.0\"");
 
         assert_matches!(
-            parse_agent_type_definition(yaml.as_bytes()),
+            AgentTypeDefinition::from_slice(yaml.as_bytes()),
             Err(AgentTypeDefinitionParseError::ProtocolVersion(
                 ProtocolVersionError::IncompatibleMajor { .. }
             ))
@@ -608,7 +606,7 @@ deployment: {{}}
         let yaml = k8s_definition_yaml(&format!("protocol_version: {SUPPORTED_PROTOCOL_VERSION}"));
 
         assert_matches!(
-            parse_agent_type_definition(yaml.as_bytes()),
+            AgentTypeDefinition::from_slice(yaml.as_bytes()),
             Err(AgentTypeDefinitionParseError::ProtocolVersion(
                 ProtocolVersionError::InvalidFormat(_)
             ))
@@ -617,7 +615,7 @@ deployment: {{}}
 
     #[test]
     fn parse_rejects_malformed_yaml() {
-        let err = parse_agent_type_definition(b"name: [unclosed").unwrap_err();
+        let err = AgentTypeDefinition::from_slice(b"name: [unclosed").unwrap_err();
 
         assert_matches!(err, AgentTypeDefinitionParseError::Yaml(_));
     }
@@ -638,7 +636,7 @@ platform: host
         );
 
         assert_matches!(
-            parse_agent_type_definition(yaml.as_bytes()),
+            AgentTypeDefinition::from_slice(yaml.as_bytes()),
             Err(AgentTypeDefinitionParseError::Definition(_))
         );
     }

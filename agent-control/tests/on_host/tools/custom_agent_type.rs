@@ -5,7 +5,7 @@ use fs::file::LocalFile;
 use fs::file::writer::FileWriter;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
-use newrelic_agent_control::agent_type::definition::parse_agent_type_definition;
+use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
 pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
 
 /// Helper to build a Custom Agent type with defaults ready to use in integration tests
@@ -220,7 +220,7 @@ regex: \d+\.\d+\.\d+
     pub fn build(self, local_dir: PathBuf) -> String {
         let agent_type_file_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
 
-        let parsed_agent_type = parse_agent_type_definition(self.to_string().as_bytes());
+        let parsed_agent_type = AgentTypeDefinition::from_slice(self.to_string().as_bytes());
         assert!(
             parsed_agent_type.is_ok(),
             "CustomAgentType did not produce valid AgentTypeDefinition:\n{}",

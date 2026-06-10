@@ -28,17 +28,17 @@ pub enum ProtocolVersionError {
     #[error("invalid protocol_version \"{0}\": expected a quoted MAJOR.MINOR string")]
     InvalidFormat(String),
     #[error(
-        "unsupported protocol_version {file}: incompatible major version (this agent control supports {supported})"
+        "unsupported protocol_version {target}: incompatible major version (this agent control supports {supported})"
     )]
     IncompatibleMajor {
-        file: ProtocolVersion,
+        target: ProtocolVersion,
         supported: ProtocolVersion,
     },
     #[error(
-        "unsupported protocol_version {file}: newer than supported (this agent control supports up to {supported})"
+        "unsupported protocol_version {target}: newer than supported (this agent control supports up to {supported})"
     )]
     TooNew {
-        file: ProtocolVersion,
+        target: ProtocolVersion,
         supported: ProtocolVersion,
     },
 }
@@ -76,20 +76,20 @@ impl ProtocolVersion {
     /// A different major is a breaking change in either direction; a higher minor under the same major
     /// is too new for this Agent Control. Equal or lower minors under the same major are additive and
     /// backward-compatible.
-    pub fn is_compatible_with_supported(&self) -> Result<(), ProtocolVersionError> {
+    pub fn is_supported(&self) -> Result<(), ProtocolVersionError> {
         check_compatibility(*self, SUPPORTED_PROTOCOL_VERSION)
     }
 }
 
 fn check_compatibility(
-    file: ProtocolVersion,
+    target: ProtocolVersion,
     supported: ProtocolVersion,
 ) -> Result<(), ProtocolVersionError> {
-    if file.major != supported.major {
-        return Err(ProtocolVersionError::IncompatibleMajor { file, supported });
+    if target.major != supported.major {
+        return Err(ProtocolVersionError::IncompatibleMajor { target, supported });
     }
-    if file.minor > supported.minor {
-        return Err(ProtocolVersionError::TooNew { file, supported });
+    if target.minor > supported.minor {
+        return Err(ProtocolVersionError::TooNew { target, supported });
     }
     Ok(())
 }
@@ -104,7 +104,7 @@ pub fn check(document: &serde_json::Value) -> Result<(), ProtocolVersionError> {
         Some(other) => return Err(ProtocolVersionError::InvalidFormat(other.to_string())),
     };
 
-    version.is_compatible_with_supported()
+    version.is_supported()
 }
 
 #[cfg(test)]
@@ -138,16 +138,16 @@ mod tests {
     #[case(pv(1, 5), pv(1, 6), Ok(()))]
     #[case(pv(1, 6), pv(1, 6), Ok(()))]
     #[case(pv(1, 0), pv(1, 6), Ok(()))]
-    #[case(pv(1, 7), pv(1, 6), Err(ProtocolVersionError::TooNew { file: pv(1, 7), supported: pv(1, 6) }))]
+    #[case(pv(1, 7), pv(1, 6), Err(ProtocolVersionError::TooNew { target: pv(1, 7), supported: pv(1, 6) }))]
     // Any major mismatch is rejected in either direction.
-    #[case(pv(0, 9), pv(1, 6), Err(ProtocolVersionError::IncompatibleMajor { file: pv(0, 9), supported: pv(1, 6) }))]
-    #[case(pv(2, 0), pv(1, 6), Err(ProtocolVersionError::IncompatibleMajor { file: pv(2, 0), supported: pv(1, 6) }))]
+    #[case(pv(0, 9), pv(1, 6), Err(ProtocolVersionError::IncompatibleMajor { target: pv(0, 9), supported: pv(1, 6) }))]
+    #[case(pv(2, 0), pv(1, 6), Err(ProtocolVersionError::IncompatibleMajor { target: pv(2, 0), supported: pv(1, 6) }))]
     fn compatibility_matrix(
-        #[case] file: ProtocolVersion,
+        #[case] target: ProtocolVersion,
         #[case] supported: ProtocolVersion,
         #[case] expected: Result<(), ProtocolVersionError>,
     ) {
-        assert_eq!(check_compatibility(file, supported), expected);
+        assert_eq!(check_compatibility(target, supported), expected);
     }
 
     #[test]
@@ -180,7 +180,7 @@ mod tests {
         assert_eq!(
             check(&yaml_value("protocol_version: \"1.0\"")),
             Err(ProtocolVersionError::IncompatibleMajor {
-                file: pv(1, 0),
+                target: pv(1, 0),
                 supported: SUPPORTED_PROTOCOL_VERSION,
             })
         );

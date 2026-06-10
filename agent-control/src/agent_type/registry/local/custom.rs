@@ -1,4 +1,4 @@
-use crate::agent_type::definition::{AgentTypeDefinition, parse_agent_type_definition};
+use crate::agent_type::definition::AgentTypeDefinition;
 use std::{fs, path::PathBuf};
 use tracing::{debug, error};
 
@@ -33,7 +33,7 @@ pub(super) fn custom_definitions(path: PathBuf) -> Vec<AgentTypeDefinition> {
                 .ok()
                 .and_then(|content| {
                     debug!("Loading Dynamic Agent Type: {file:?}");
-                    parse_agent_type_definition(content.as_slice())
+                    AgentTypeDefinition::from_slice(content.as_slice())
                         .inspect_err(
                             |e| error!(error = %e, "Could not parse Dynamic Agent Type: {file:?}"),
                         )
