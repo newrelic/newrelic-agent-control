@@ -25,6 +25,7 @@ fn agent_type_definition_yaml(name: &str, version: &str) -> String {
 namespace: example
 name: {name}
 version: {version}
+protocol_version: "1.0"
 platform: kubernetes
 deployment:
   objects: {{}}
