@@ -18,8 +18,14 @@ use std::fmt::{self, Display};
 use std::str::FromStr;
 use thiserror::Error;
 
-/// Maximum protocol version this Agent Control understands.
-pub const SUPPORTED_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 0, minor: 1 };
+// Generated from `package.metadata.agent_type_protocol_version` in agent-control/Cargo.toml by
+// build.rs; defines `SUPPORTED_PROTOCOL_VERSION` (the maximum protocol version this Agent Control
+// understands).
+include!(concat!(
+    env!("OUT_DIR"),
+    "/",
+    env!("GENERATED_PROTOCOL_VERSION_FILE")
+));
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ProtocolVersionError {
