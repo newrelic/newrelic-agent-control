@@ -89,6 +89,10 @@ pub struct InstallationArgs {
     /// Version of the NRDot OCI image to use in tests
     #[arg(long)]
     pub nrdot_version: Option<String>,
+
+    /// Version of the preload OCI image to use in tests
+    #[arg(long)]
+    pub preload_version: Option<String>,
 }
 
 /// Arguments for Fleet Control scenarios that also install Agent Control

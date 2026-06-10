@@ -28,8 +28,10 @@ permissions:
 # versions of the packages in our E2E tests. If you change the names or move these values outside
 # the GitHub workflows please update `renovate.json` accordingly to avoid breaking the automation!
 env:
+
   HOST_E2E_INFRA_AGENT_VERSION: "1.76.1"
   HOST_E2E_NRDOT_VERSION: "1.15.1"
+  HOST_E2E_PRELOAD_VERSION: "0.1.0"
 
 jobs:
   build-packages:
@@ -53,6 +55,7 @@ jobs:
           - infra-agent
           - nrdot-agent
           - proxy
+          - preload-agent
           - self-update-latest-to-current
           - self-update-current-to-latest
     steps:
@@ -81,7 +84,8 @@ jobs:
             --agent-control-version "0.900.${{ github.run_id }}" \
             --recipes-repo-branch "main" \
             --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" \
-            --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}"
+            --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}" \
+            --preload-version "${{ env.HOST_E2E_PRELOAD_VERSION }}"
 
       - name: Report test result to New Relic
         if: always()
