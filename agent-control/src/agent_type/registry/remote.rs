@@ -50,7 +50,9 @@ impl<D: OCIAgentTypeDownloader> AgentTypeRegistry for RemoteRegistry<D> {
             .downloader
             .download(&tag)
             .map_err(|err| AgentTypeRegistryError::Remote(err.to_string()))?;
-        let definition = serde_saphyr::from_slice::<AgentTypeDefinition>(&raw)?;
+
+        let definition =
+            AgentTypeDefinition::from_slice(&raw).map_err(AgentTypeRegistryError::Parsing)?;
 
         // The tag targets a single environment, so a definition for a different one means the
         // remote returned an artifact we did not ask for. Reject it rather than supervise an
@@ -79,6 +81,7 @@ mod tests {
 namespace: newrelic
 name: com.newrelic.infrastructure
 version: 0.1.0
+protocol_version: "1.0"
 platform: kubernetes
 deployment:
   objects: {}
@@ -154,7 +157,7 @@ deployment:
         let registry = RemoteRegistry::new(Environment::K8s, downloader);
         assert_matches!(
             registry.get(&agent_type_id()),
-            Err(AgentTypeRegistryError::Serialization(_))
+            Err(AgentTypeRegistryError::Parsing(_))
         );
     }
 }

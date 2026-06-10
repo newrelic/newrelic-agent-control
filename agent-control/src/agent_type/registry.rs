@@ -8,6 +8,7 @@ use thiserror::Error;
 use self::local::LocalRegistry;
 use super::agent_type_id::AgentTypeID;
 use super::definition::AgentTypeDefinition;
+use crate::agent_type::definition::AgentTypeDefinitionParseError;
 use crate::environment::Environment;
 
 #[derive(Error, Debug)]
@@ -16,10 +17,8 @@ pub enum AgentTypeRegistryError {
     NotFound(String),
     #[error("agent {0} already exists")]
     AlreadyExists(String),
-    #[error("serialization error: {0}")]
-    Serialization(#[from] serde_saphyr::Error),
-    #[error("value conversion error: {0}")]
-    ValueConversion(#[from] serde_json::Error),
+    #[error("invalid agent type definition: {0}")]
+    Parsing(AgentTypeDefinitionParseError),
     #[error("remote registry error: {0}")]
     Remote(String),
     #[error(
