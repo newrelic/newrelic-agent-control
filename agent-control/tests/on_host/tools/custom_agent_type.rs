@@ -53,6 +53,7 @@ impl Display for CustomAgentType {
         version: {}
         platform: host
         operating_system: {}
+        protocol_version: "1.0"
         "#,
             self.agent_type_id.namespace(),
             self.agent_type_id.name(),
@@ -219,14 +220,7 @@ regex: \d+\.\d+\.\d+
     pub fn build(self, local_dir: PathBuf) -> String {
         let agent_type_file_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
 
-        // Fail early in the test if Self cannot parse into an Agent Type definition or even YAML
-        let parsed_yaml = serde_saphyr::from_str::<serde_json::Value>(&self.to_string());
-        assert!(
-            parsed_yaml.is_ok(),
-            "CustomAgentType did not produce valid YAML:\n{}",
-            self
-        );
-        let parsed_agent_type = serde_saphyr::from_str::<AgentTypeDefinition>(&self.to_string());
+        let parsed_agent_type = AgentTypeDefinition::from_slice(self.to_string().as_bytes());
         assert!(
             parsed_agent_type.is_ok(),
             "CustomAgentType did not produce valid AgentTypeDefinition:\n{}",

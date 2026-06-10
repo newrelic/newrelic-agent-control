@@ -9,6 +9,7 @@ use std::path::Path;
 
 const REGISTRY_PATH: &str = "agent-type-registry/";
 const GENERATED_REGISTRY_FILE: &str = "generated_agent_type_registry.rs";
+const GENERATED_PROTOCOL_VERSION_FILE: &str = "generated_protocol_version.rs";
 
 // List of crates whose logs are enabled at the configured level.
 const LOGGING_ENABLED_CRATES: &[&str] = &[
@@ -33,9 +34,11 @@ const LOGGING_DISABLED_CRATES: &[&str] = &[
 
 fn main() {
     generate_agent_type_registry();
+    generate_protocol_version_const();
     check_logging_crates();
     // setup the env variable for the generated registry path
     println!("cargo:rustc-env=GENERATED_REGISTRY_FILE={GENERATED_REGISTRY_FILE}");
+    println!("cargo:rustc-env=GENERATED_PROTOCOL_VERSION_FILE={GENERATED_PROTOCOL_VERSION_FILE}");
     // re-run only if the registry has changed
     println!("cargo:rerun-if-changed={REGISTRY_PATH}");
     set_git_commit();
@@ -133,6 +136,50 @@ fn check_logging_crates() {
 
     let crates_value = LOGGING_ENABLED_CRATES.join(",");
     println!("cargo:rustc-env=LOGGING_ENABLED_CRATES={crates_value}");
+}
+
+/// Reads `package.metadata.agent_type_protocol_version` from this crate's `Cargo.toml`,
+/// validates that it is a `MAJOR.MINOR` numeric string, and emits a generated `.rs` file
+/// defining `SUPPORTED_PROTOCOL_VERSION`, and included by `agent_type::protocol_version`.
+fn generate_protocol_version_const() {
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
+    let manifest_path = Path::new(&manifest_dir).join("Cargo.toml");
+    println!("cargo:rerun-if-changed={}", manifest_path.display());
+
+    let manifest: toml::Table = fs::read_to_string(&manifest_path)
+        .expect("Could not read agent-control Cargo.toml")
+        .parse()
+        .expect("Could not parse agent-control Cargo.toml");
+
+    let raw = manifest
+        .get("package")
+        .and_then(|p| p.get("metadata"))
+        .and_then(|m| m.get("agent_type_protocol_version"))
+        .and_then(|v| v.as_str())
+        .expect(
+            "package.metadata.agent_type_protocol_version is missing or not a string in agent-control/Cargo.toml",
+        );
+
+    let (major, minor) = parse_major_minor(raw).unwrap_or_else(|| {
+        panic!(
+            "package.metadata.agent_type_protocol_version = \"{raw}\" is not a valid MAJOR.MINOR \
+            numeric string"
+        )
+    });
+
+    let contents = format!(
+        "/// Maximum protocol version this Agent Control supports.
+pub const SUPPORTED_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {{ major: {major}, minor: {minor} }};\n"
+    );
+
+    let out_dir = env::var_os("OUT_DIR").expect("OUT_DIR not set");
+    let dest = Path::new(&out_dir).join(GENERATED_PROTOCOL_VERSION_FILE);
+    fs::write(dest, contents).expect("Could not write generated protocol_version file");
+}
+
+fn parse_major_minor(s: &str) -> Option<(u64, u64)> {
+    let (major, minor) = s.split_once('.')?;
+    Some((major.parse().ok()?, minor.parse().ok()?))
 }
 
 fn generate_agent_type_registry() {

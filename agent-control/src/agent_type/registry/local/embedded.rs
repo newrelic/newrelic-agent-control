@@ -19,9 +19,9 @@ pub(super) fn embedded_definitions(env: Environment) -> impl Iterator<Item = Age
     AGENT_TYPE_REGISTRY_FILES
         .iter()
         .map(|file_content_ref| {
-            // Definitions in files are expected to be valid
-            serde_saphyr::from_reader::<_, AgentTypeDefinition>(file_content_ref.to_owned())
-                .expect("Invalid yaml in default agent types")
+            // Definitions in files are expected to be valid and protocol-compatible.
+            AgentTypeDefinition::from_slice(file_content_ref)
+                .expect("Invalid or incompatible embedded agent type")
         })
         .filter(move |def| def.metadata.environment == env)
 }
