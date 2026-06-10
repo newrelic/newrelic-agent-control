@@ -52,8 +52,10 @@ fn onhost_opamp_agent_control_remote_config_add_remove_add_agent() {
     let sleep_agent_type = CustomAgentType::default()
         .with_filesystem(Some(&format!(
             r#"
-{dir_entry}:
-  {file_path}: "{content_template}"
+ephemeral:
+  {dir_entry}:
+    {file_path}: "{content_template}"
+persistent: {{}}
 "#
         )))
         .with_variables(

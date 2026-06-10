@@ -206,11 +206,13 @@ deployment:
           repository: ${nr-var:oci.repository}
           version: ${nr-var:version}
   filesystem:
-    config:
-      newrelic-infra.yaml: |
-        ${nr-var:config_agent}
-    integrations.d: ${nr-var:config_integrations}
-    logging.d: ${nr-var:config_logging}
+    ephemeral:
+      config:
+        newrelic-infra.yaml: |
+          ${nr-var:config_agent}
+      integrations.d: ${nr-var:config_integrations}
+    persistent:
+      logging.d: ${nr-var:config_logging}
   executables:
     - id: newrelic-infra
       path: ${nr-sub:packages.infra-agent.dir}/newrelic-infra
@@ -248,11 +250,13 @@ deployment:
           repository: ${nr-var:oci.repository}
           version: ${nr-var:version}
   filesystem:
-    config:
-      newrelic-infra.yaml: |
-        ${nr-var:config_agent}
-    integrations.d: ${nr-var:config_integrations}
-    logging.d: ${nr-var:config_logging}
+    ephemeral:
+      config:
+        newrelic-infra.yaml: |
+          ${nr-var:config_agent}
+      integrations.d: ${nr-var:config_integrations}
+    persistent:
+      logging.d: ${nr-var:config_logging}
   executables:
     - id: newrelic-infra
       path: ${nr-sub:packages.infra-agent.dir}\\newrelic-infra.exe
@@ -339,9 +343,18 @@ As of now, the `executables` field is array and is actually **optional**. This w
 
 ##### `filesystem`
 
-Represents the file system configuration for the deployment of a host agent.
-Consisting of a set of directories (map keys) which in turn contain a set of files (nested map keys)
-with their respective content (map values).
+Represents the file system configuration for the deployment of a host agent with lifecycle semantics.
+The filesystem is divided into two sections — `ephemeral` and `persistent` — each consisting of a set
+of directories (map keys) which in turn contain a set of files (nested map keys) with their respective
+content (map values).
+
+**Lifecycle semantics:**
+- **`ephemeral`**: Directories that are deleted when the agent is stopped, removed, or restarted. These
+  directories are cleared and repopulated on every config update, so files removed from dynamic variables
+  (e.g., `config_integrations`) are automatically deleted from disk without extra tracking.
+- **`persistent`**: Directories that are only deleted when the agent is removed. These directories are
+  written additively and survive agent stops, restarts, and config updates, intended for directories owned
+  by the sub-agent process itself (e.g., logging directories).
 
 The contents defined here will be written to the sub-agent's dedicated directory for filesystem
 files, which can be referenced in other fields via the variable `${nr-sub:filesystem_agent_dir}`.

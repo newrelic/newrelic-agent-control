@@ -43,8 +43,9 @@ operating_system: {AGENT_CONTROL_MODE_ON_HOST}
 variables: {{}}
 deployment:
   filesystem:
-    {dir_entry}:
-      {file_path}: "{expected_file_contents}"
+    ephemeral:
+      {dir_entry}:
+        {file_path}: "{expected_file_contents}"
 "#,
         ),
         local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -155,15 +156,16 @@ variables:
     required: true
 deployment:
   filesystem:
-    randomdir:
-      "{yaml_file_path}": |-
-        ${{nr-var:yaml_file_contents}}
-      "{string_file_path}": "Some string contents with a rendered variable: ${{nr-var:some_string}}"
-    {dir_path}:
-      file1.txt: "File 1 contents"
-      file2.txt: |
-        File 2 contents with a variable: ${{nr-var:some_string}}
-    "{fully_templated_dir}": ${{nr-var:some_mapstringyaml}}
+    ephemeral:
+      randomdir:
+        "{yaml_file_path}": |-
+          ${{nr-var:yaml_file_contents}}
+        "{string_file_path}": "Some string contents with a rendered variable: ${{nr-var:some_string}}"
+      {dir_path}:
+        file1.txt: "File 1 contents"
+        file2.txt: |
+          File 2 contents with a variable: ${{nr-var:some_string}}
+      "{fully_templated_dir}": ${{nr-var:some_mapstringyaml}}
 "#,
         ),
         local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -271,9 +273,17 @@ some_mapstringyaml:
     });
 }
 
-/// Filesystem entries should persist across agent control restarts.
-/// This test verifies that directories like newrelic-infra/newrelic-integrations/logging
-/// are not deleted when agent control restarts, ensuring persistent storage across restarts.
+/// Filesystem entries should persist across agent control restarts, and ephemeral directories
+/// should replace their contents when the config changes (stale files are removed).
+///
+/// This test verifies three behaviours:
+///   1. **Restart with same config** — neither ephemeral nor persistent files are deleted.
+///      The resource cleaner only runs when an agent is removed from config, so a plain restart
+///      must leave all files intact (the sub-agent may still be running and needs them).
+///   2. **Ephemeral dirs on config change** — when an integration is removed from the config the
+///      corresponding file is deleted from disk (ephemeral replace-on-write semantics).
+///   3. **Persistent dirs always survive** — files created by the sub-agent in a persistent dir
+///      (e.g. `newrelic-infra/newrelic-integrations/logging`) are never deleted by agent control.
 #[test]
 fn filesystem_persists_across_restarts() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
@@ -284,10 +294,13 @@ fn filesystem_persists_across_restarts() {
 
     let agent_id = "test-agent";
     let config_content = "license_key: test_key\nlog_level: info\n";
-    let integrations_content = "integration: test\n";
+    let apache_content = "type: apache\n";
+    let nginx_content = "type: nginx\n";
     let logging_content = "fluent_bit: true\n";
 
-    // Create agent type definition with filesystem structure similar to newrelic-infra
+    // Create agent type definition with filesystem structure similar to newrelic-infra.
+    // `config_integrations` uses `map[string]yaml` so that each key becomes a file name and
+    // the directory is fully replaced on every write (ephemeral replace-on-write semantics).
     create_file(
         format!(
             r#"
@@ -311,17 +324,17 @@ variables:
     required: true
 deployment:
   filesystem:
-    config:
-      newrelic-infra.yaml: |-
-        ${{nr-var:config_agent}}
-    integrations.d:
-      integration.yaml: |-
+    ephemeral:
+      config:
+        newrelic-infra.yaml: |-
+          ${{nr-var:config_agent}}
+      integrations.d: |-
         ${{nr-var:config_integrations}}
-    logging.d:
-      logging.yaml: |-
-        ${{nr-var:config_logging}}
-    # This directory needs to persist across restarts for the infra agent
-    newrelic-infra/newrelic-integrations/logging: {{}}
+      logging.d:
+        logging.yaml: |-
+          ${{nr-var:config_logging}}
+    persistent:
+      newrelic-infra/newrelic-integrations/logging: {{}}
 "#,
         ),
         local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -341,6 +354,7 @@ deployment:
         local_dir.to_path_buf(),
     );
 
+    // Initial config: two integrations (apache + nginx)
     create_local_config(
         agent_id.to_string(),
         r#"
@@ -348,7 +362,10 @@ config_agent:
   license_key: test_key
   log_level: info
 config_integrations:
-  integration: test
+  apache.yaml:
+    type: apache
+  nginx.yaml:
+    type: nginx
 config_logging:
   fluent_bit: true
 "#
@@ -362,7 +379,12 @@ config_logging:
         log_dir: local_dir.to_path_buf(),
     };
 
-    // Define expected file paths (used throughout the test)
+    let integrations_dir = base_paths
+        .remote_dir
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(agent_id)
+        .join("integrations.d");
+
     let config_file_path = base_paths
         .remote_dir
         .join(AGENT_FILESYSTEM_FOLDER_NAME)
@@ -370,12 +392,8 @@ config_logging:
         .join("config")
         .join("newrelic-infra.yaml");
 
-    let integrations_file_path = base_paths
-        .remote_dir
-        .join(AGENT_FILESYSTEM_FOLDER_NAME)
-        .join(agent_id)
-        .join("integrations.d")
-        .join("integration.yaml");
+    let apache_file_path = integrations_dir.join("apache.yaml");
+    let nginx_file_path = integrations_dir.join("nginx.yaml");
 
     let logging_file_path = base_paths
         .remote_dir
@@ -394,18 +412,17 @@ config_logging:
 
     let test_file_path = persistent_dir_path.join("test.yaml");
 
-    // First agent control run - creates the filesystem structure
+    // First agent control run — creates the filesystem structure with two integrations
     {
         let _agent_control =
             start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
-        // Wait for files to be created
         retry(30, Duration::from_secs(1), || {
             read_file_and_expect_content(&config_file_path, config_content)?;
-            read_file_and_expect_content(&integrations_file_path, integrations_content)?;
+            read_file_and_expect_content(&apache_file_path, apache_content)?;
+            read_file_and_expect_content(&nginx_file_path, nginx_content)?;
             read_file_and_expect_content(&logging_file_path, logging_content)?;
 
-            // Verify the persistent directory exists
             if !persistent_dir_path.exists() {
                 return Err(format!(
                     "Persistent directory does not exist: {}",
@@ -419,14 +436,15 @@ config_logging:
         // Agent control is dropped here, simulating a shutdown
     }
 
-    // Verify files still exist on disk after shutdown, before restart
+    // Verify all files still exist on disk after shutdown.
     read_file_and_expect_content(&config_file_path, config_content)
         .expect("Config file content should match after shutdown");
-    read_file_and_expect_content(&integrations_file_path, integrations_content)
-        .expect("Integrations file content should match after shutdown");
+    read_file_and_expect_content(&apache_file_path, apache_content)
+        .expect("Apache integration file should exist after shutdown");
+    read_file_and_expect_content(&nginx_file_path, nginx_content)
+        .expect("Nginx integration file should exist after shutdown");
     read_file_and_expect_content(&logging_file_path, logging_content)
         .expect("Logging file content should match after shutdown");
-
     assert!(
         persistent_dir_path.exists(),
         "Persistent directory should still exist after shutdown: {}",
@@ -436,17 +454,42 @@ config_logging:
     // Simulate a file created by the infra agent in the persistent directory
     create_file("test\n".to_string(), test_file_path.clone());
 
-    // Second agent control run - simulates restart
+    // Update the config to remove nginx — only apache remains
+    create_local_config(
+        agent_id.to_string(),
+        r#"
+config_agent:
+  license_key: test_key
+  log_level: info
+config_integrations:
+  apache.yaml:
+    type: apache
+config_logging:
+  fluent_bit: true
+"#
+        .to_string(),
+        local_dir.to_path_buf(),
+    );
+
     {
         let _agent_control =
             start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
 
-        // Verify all files and directories still exist after restart
         retry(30, Duration::from_secs(1), || {
             read_file_and_expect_content(&config_file_path, config_content)?;
-            read_file_and_expect_content(&integrations_file_path, integrations_content)?;
+            read_file_and_expect_content(&apache_file_path, apache_content)?;
             read_file_and_expect_content(&logging_file_path, logging_content)?;
 
+            // Ephemeral replace-on-write: nginx was removed from config, so the file must be gone
+            if nginx_file_path.exists() {
+                return Err(format!(
+                    "Stale nginx integration file should have been deleted: {}",
+                    nginx_file_path.display()
+                )
+                .into());
+            }
+
+            // Persistent dir: test.yaml created by the sub-agent must survive the restart
             if !persistent_dir_path.exists() {
                 return Err(format!(
                     "Persistent directory was deleted after restart: {}",
@@ -454,8 +497,6 @@ config_logging:
                 )
                 .into());
             }
-
-            // Verify the test file created in the persistent directory still exists
             read_file_and_expect_content(&test_file_path, "test\n")?;
 
             Ok(())

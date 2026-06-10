@@ -111,8 +111,11 @@ impl AgentControlRunner {
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer.clone(), identifiers.clone());
 
-        let resource_cleaner =
-            OnHostCleaner::new(instance_id_storer, yaml_config_repository.clone());
+        let resource_cleaner = OnHostCleaner::new(
+            instance_id_storer,
+            yaml_config_repository.clone(),
+            remote_dir.clone(),
+        );
 
         let proxy = self.bootstrap_config.proxy;
         let opamp_client_builder = maybe_opamp.map(|config| {
