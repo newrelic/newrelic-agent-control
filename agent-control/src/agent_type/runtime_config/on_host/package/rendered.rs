@@ -109,12 +109,22 @@ fn validate_repository_char(c: char) -> Result<(), InvalidRepository> {
 #[error("{0}")]
 pub struct InvalidVersion(String);
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Version(String);
 
 impl Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+impl<'de> Deserialize<'de> for Version {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Version::from_str(&s).map_err(serde::de::Error::custom)
     }
 }
 
@@ -126,6 +136,10 @@ impl FromStr for Version {
     type Err = InvalidVersion;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            return Err(InvalidVersion("version cannot be empty".to_string()));
+        }
+
         if s.ends_with('@') {
             return Err(InvalidVersion("version cannot end with '@'".to_string()));
         }
@@ -214,6 +228,7 @@ mod tests {
     }
 
     #[rstest]
+    #[case("")]
     #[case("v1.0.0@")]
     #[case("v1.0.0@sha256:123")]
     #[case("v1.0.0@invaliddigest")]
