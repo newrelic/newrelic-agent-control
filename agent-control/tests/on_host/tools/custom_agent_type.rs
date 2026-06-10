@@ -53,7 +53,7 @@ impl Display for CustomAgentType {
         version: {}
         platform: host
         operating_system: {}
-        protocol_version: "0.1"
+        protocol_version: "1.0"
         "#,
             self.agent_type_id.namespace(),
             self.agent_type_id.name(),

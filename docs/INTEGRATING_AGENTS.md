@@ -18,7 +18,7 @@ The version used here is not the version of your agent, but **the version of the
 
 Agent Types are versioned to ensure compatibility with a given configuration values (no breaking changes, see below). As of now, we maintain only one version per agent type and use a fixed `0.1.0` value for it because these definitions are not easily visible to FC, but FC needs to know what are the agent types and their versions to make the metadata visible on New Relic's UI. As of now **we prohibit pushing breaking changes for these definitions, and any exceptions to this need to be validated at least by both AC and FC teams**.
 
-Separately from the agent type `version`, every definition must declare a top-level `protocol_version`. This is **not** a metadata field — it is parsed on its own and versions the **agent-type schema language itself**: the set of fields and their meaning that Agent Control knows how to parse, *including the shape of the metadata block described here*. It is decoupled from both the agent type `version` (semver) and the Agent Control release version. It is a quoted `MAJOR.MINOR` string (for example `"0.1"`); the value **must be quoted**, otherwise YAML interprets `0.1` as a float and the field is rejected.
+Separately from the agent type `version`, every definition must declare a top-level `protocol_version`. This is **not** a metadata field — it is parsed on its own and versions the **agent-type schema language itself**: the set of fields and their meaning that Agent Control knows how to parse, *including the shape of the metadata block described here*. It is decoupled from both the agent type `version` (semver) and the Agent Control release version. It is a quoted `MAJOR.MINOR` string (for example `"1.0"`); the value **must be quoted**, otherwise YAML interprets `0.1` as a float and the field is rejected.
 
 Because it gates the rest of the document, Agent Control reads and validates `protocol_version` first, at the registry ingestion boundary, *before* the metadata and the other sections are interpreted. Each Agent Control release understands a single maximum protocol version. The compatibility rules are:
 
@@ -42,7 +42,7 @@ This is an example section for the metadata fields, using the Kubernetes definit
 namespace: newrelic
 name: com.newrelic.infrastructure
 version: 0.1.0
-protocol_version: "0.1"
+protocol_version: "1.0"
 platform: kubernetes
 # ...
 ```
@@ -53,7 +53,7 @@ The Linux and Windows host variants share the same `namespace`/`name`/`version` 
 namespace: newrelic
 name: com.newrelic.infrastructure
 version: 0.1.0
-protocol_version: "0.1"
+protocol_version: "1.0"
 platform: host
 operating_system: linux
 # ...

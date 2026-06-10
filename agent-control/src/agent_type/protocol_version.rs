@@ -159,7 +159,7 @@ mod tests {
     #[test]
     fn check_accepts_supported_version() {
         assert_eq!(
-            check(&yaml_value("protocol_version: \"0.1\"\nname: whatever")),
+            check(&yaml_value("protocol_version: \"1.0\"\nname: whatever")),
             Ok(())
         );
     }
@@ -184,9 +184,9 @@ mod tests {
     #[test]
     fn check_rejects_incompatible_version() {
         assert_eq!(
-            check(&yaml_value("protocol_version: \"1.0\"")),
+            check(&yaml_value("protocol_version: \"99.0\"")),
             Err(ProtocolVersionError::IncompatibleMajor {
-                target: pv(1, 0),
+                target: pv(99, 0),
                 supported: SUPPORTED_PROTOCOL_VERSION,
             })
         );

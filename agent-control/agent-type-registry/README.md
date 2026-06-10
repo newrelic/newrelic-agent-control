@@ -4,7 +4,7 @@ Any `*.yaml` file defined in this folder or any subfolder will be embedded into 
 at compilation time. These files define the agent-type registry.
 
 Each YAML file declares a top-level `protocol_version` (a quoted `MAJOR.MINOR` string identifying the
-agent-type schema language, e.g. `"0.1"`), which is parsed separately and validated against the version
+agent-type schema language, e.g. `"1.0"`), which is parsed separately and validated against the version
 this Agent Control supports at ingestion time; see the
 [agent type integration guide](../../docs/INTEGRATING_AGENTS.md#agent-type-metadata) for the
 compatibility rules. The metadata then declares a `platform` (`host` or `kubernetes`) and, when

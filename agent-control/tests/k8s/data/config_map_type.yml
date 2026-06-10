@@ -2,7 +2,7 @@ namespace: newrelic
 name: com.newrelic.test_config_map
 version: 0.1.0
 platform: kubernetes
-protocol_version: "0.1"
+protocol_version: "1.0"
 variables:
   chart_values:
     cm_content:

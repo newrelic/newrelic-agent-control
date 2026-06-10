@@ -26,7 +26,7 @@ name: file-logging-agent
 version: 0.0.0
 platform: host
 operating_system: linux
-protocol_version: "0.1"
+protocol_version: "1.0"
 variables:
   message:
     description: "Message to echo to stdout"
@@ -53,7 +53,7 @@ name: file-logging-agent
 version: 0.0.0
 platform: host
 operating_system: windows
-protocol_version: "0.1"
+protocol_version: "1.0"
 variables:
   message:
     description: "Message to echo to stdout"

@@ -10,7 +10,7 @@ On top of those sections, every file declares a top-level [`protocol_version`](#
 
 `protocol_version` is a top-level field — separate from the three sections below — that declares the version of the agent-type **schema language itself**: the set of fields and their meaning that Agent Control knows how to parse, *including the shape of the metadata*. It is decoupled from both the agent type `version` (the definition's semver) and the Agent Control release version.
 
-It is a quoted `MAJOR.MINOR` string (e.g. `"0.1"`). The value **must be quoted**, otherwise YAML parses `0.1` as a float and the field is rejected.
+It is a quoted `MAJOR.MINOR` string (e.g. `"1.0"`). The value **must be quoted**, otherwise YAML parses `0.1` as a float and the field is rejected.
 
 It is parsed and validated on its own, at the registry ingestion boundary, *before* the rest of the document is interpreted — so it can gate files whose metadata or other sections use a shape this Agent Control would not otherwise understand. Each Agent Control release understands a single maximum protocol version, and the compatibility rules are:
 
@@ -399,7 +399,7 @@ This guideline shows how to build a custom agent type and integrate it with the 
     # version: semver scheme
     version: 0.0.1
     # protocol_version: quoted MAJOR.MINOR of the agent-type schema language
-    protocol_version: "0.1"
+    protocol_version: "1.0"
     # platform: host or kubernetes
     platform: host
     # operating_system: required when platform is host. linux or windows

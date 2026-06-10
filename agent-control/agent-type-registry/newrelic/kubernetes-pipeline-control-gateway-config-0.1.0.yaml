@@ -5,7 +5,7 @@ namespace: newrelic
 name: com.newrelic.pipeline_control_gateway_config
 version: 0.1.0
 platform: kubernetes
-protocol_version: "0.1"
+protocol_version: "1.0"
 variables:
   config:
     description: "OTel Collector configuration for the Pipeline Control Gateway"
