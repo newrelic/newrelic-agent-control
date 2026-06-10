@@ -2,6 +2,7 @@ namespace: newrelic
 name: io.opentelemetry.collector
 version: 0.1.0
 platform: kubernetes
+protocol_version: "1.0"
 variables:
   chart_values:
     nr-k8s-otel-collector:

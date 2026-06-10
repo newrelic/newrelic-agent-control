@@ -180,6 +180,7 @@ name: test
 version: 0.0.0
 platform: host
 operating_system: linux
+protocol_version: "1.0"
 variables: {}
 deployment:
   executables:
@@ -204,6 +205,7 @@ name: test
 version: 0.0.0
 platform: host
 operating_system: windows
+protocol_version: "1.0"
 variables: {}
 deployment:
   executables:

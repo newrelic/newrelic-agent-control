@@ -22,6 +22,10 @@ Remember that the keywords that you can use are the following:
 - Introduced ephemeral/persistent lifecycle semantics for sub-agent filesystem directories.
   Ephemeral directories are cleared on agent stop/restart/config updates.
   extra tracking. Persistent directories survive config changes and are only deleted on agent removal — see [docs/INTEGRATING_AGENTS.md](docs/INTEGRATING_AGENTS.md).
+- Agent type definitions now declare a top-level `protocol_version` (a quoted `MAJOR.MINOR` string) that versions the
+  agent-type schema language itself. It is validated against the version Agent Control supports at registry ingestion,
+  so definitions targeting an incompatible schema are rejected early. Internal authors of custom agent type definitions
+  must add this field — see [docs/INTEGRATING_AGENTS.md](docs/INTEGRATING_AGENTS.md).
 
 ## v1.16.1 - 2026-06-04
 

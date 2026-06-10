@@ -33,7 +33,7 @@ pub(super) fn custom_definitions(path: PathBuf) -> Vec<AgentTypeDefinition> {
                 .ok()
                 .and_then(|content| {
                     debug!("Loading Dynamic Agent Type: {file:?}");
-                    serde_saphyr::from_slice::<AgentTypeDefinition>(content.as_slice())
+                    AgentTypeDefinition::from_slice(content.as_slice())
                         .inspect_err(
                             |e| error!(error = %e, "Could not parse Dynamic Agent Type: {file:?}"),
                         )
@@ -47,6 +47,7 @@ pub(super) fn custom_definitions(path: PathBuf) -> Vec<AgentTypeDefinition> {
 mod tests {
     use super::*;
     use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::agent_type::protocol_version::SUPPORTED_PROTOCOL_VERSION;
     use std::fs::File;
     use std::io::Write;
     use std::path::Path;
@@ -59,6 +60,7 @@ mod tests {
 namespace: ns
 name: {name}
 version: 0.0.0
+protocol_version: "{SUPPORTED_PROTOCOL_VERSION}"
 platform: kubernetes
 variables: {{}}
 deployment:

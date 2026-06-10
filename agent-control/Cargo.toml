@@ -8,6 +8,10 @@ rust-version.workspace = true
 publish.workspace = true
 license-file.workspace = true
 
+[package.metadata]
+# Max agent-type schema protocol version this Agent Control understands (MAJOR.MINOR).
+agent_type_protocol_version = "1.0"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
