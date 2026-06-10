@@ -104,9 +104,6 @@ jobs:
         with:
           components: llvm-tools-preview
 
-      - name: cargo install cargo-llvm-cov
-        uses: taiki-e/install-action@71765c00dd3e08a5484a5b9e82a4c88b86520e0e # 71765c00dd3e08a5484a5b9e82a4c88b86520e0e
-        # uses: taiki-e/install-action@cargo-llvm-cov
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
@@ -371,7 +368,7 @@ jobs:
 
     steps:
       - name: Decide whether the needed jobs succeeded or failed
-        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # 05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe
+        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
         with:
           # allowed-failures: docs, linters
           # allowed-skips: non-voting-flaky-job
