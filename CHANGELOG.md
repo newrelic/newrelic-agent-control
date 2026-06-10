@@ -24,6 +24,9 @@ Remember that the keywords that you can use are the following:
   so definitions targeting an incompatible schema are rejected early. Internal authors of custom agent type definitions
   must add this field — see [docs/INTEGRATING_AGENTS.md](docs/INTEGRATING_AGENTS.md).
 
+### bugfix
+- Validate version coming from remote.
+
 ## v1.16.1 - 2026-06-04
 
 ### 🐞 Bug fixes
