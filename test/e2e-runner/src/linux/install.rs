@@ -80,7 +80,7 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
   NEW_RELIC_AGENT_CONTROL_PROXY_URL={} \
   HTTPS_PROXY={} \
   /usr/local/bin/newrelic install \
-  --localRecipes {}\
+  --localRecipes {} \
   -n {}
 "#,
         data.args.nr_license_key,
