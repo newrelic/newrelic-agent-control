@@ -110,11 +110,20 @@ fn validate_repository_char(c: char) -> Result<(), InvalidRepository> {
 pub struct InvalidVersion(String);
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(try_from = "String")]
 pub struct Version(String);
 
 impl Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+impl TryFrom<String> for Version {
+    type Error = InvalidVersion;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Version::from_str(&value)
     }
 }
 
