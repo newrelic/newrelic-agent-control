@@ -879,7 +879,7 @@ agents: {}
 
     #[test]
     fn dynamic_config_invalid_version_fails_to_deserialize() {
-        let yaml = "agents: {{}}\nversion: invalid-version; rm -rf /\n";
+        let yaml = "agents: {}\nversion: invalid-version; rm -rf /\n";
         assert!(serde_saphyr::from_str::<AgentControlDynamicConfig>(yaml).is_err());
     }
 

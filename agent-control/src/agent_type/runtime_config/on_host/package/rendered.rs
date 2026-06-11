@@ -109,7 +109,8 @@ fn validate_repository_char(c: char) -> Result<(), InvalidRepository> {
 #[error("{0}")]
 pub struct InvalidVersion(String);
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(try_from = "String")]
 pub struct Version(String);
 
 impl Display for Version {
@@ -118,13 +119,11 @@ impl Display for Version {
     }
 }
 
-impl<'de> Deserialize<'de> for Version {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Version::from_str(&s).map_err(serde::de::Error::custom)
+impl TryFrom<String> for Version {
+    type Error = InvalidVersion;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Version::from_str(&value)
     }
 }
 
