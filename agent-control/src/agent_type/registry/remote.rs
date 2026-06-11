@@ -1,6 +1,6 @@
 use super::{AgentTypeRegistry, AgentTypeRegistryError};
 use crate::agent_type::agent_type_id::AgentTypeID;
-use crate::agent_type::definition::AgentTypeDefinition;
+use crate::agent_type::definition::{AgentTypeDefinition, AgentTypeMetadata};
 use crate::agent_type::oci::downloader::OCIAgentTypeDownloader;
 use crate::environment::Environment;
 
@@ -38,6 +38,36 @@ impl<D: OCIAgentTypeDownloader> RemoteRegistry<D> {
             agent_type_id.version()
         )
     }
+
+    /// Verifies that the downloaded definition's metadata matches what was requested: its
+    /// environment must equal the running one and its id must equal `expected_id`. A mismatch
+    /// means the remote returned an artifact we did not ask for, so it is rejected.
+    fn check_metadata(
+        &self,
+        metadata: &AgentTypeMetadata,
+        expected_id: &AgentTypeID,
+        tag: &str,
+    ) -> Result<(), AgentTypeRegistryError> {
+        if metadata.environment != self.environment {
+            return Err(AgentTypeRegistryError::MetadataMismatch {
+                tag: tag.to_string(),
+                details: format!(
+                    "expected environment '{}', found '{}'",
+                    self.environment, metadata.environment
+                ),
+            });
+        }
+        if &metadata.id != expected_id {
+            return Err(AgentTypeRegistryError::MetadataMismatch {
+                tag: tag.to_string(),
+                details: format!(
+                    "expected <namespace/name:version> '{}', found  {}",
+                    expected_id, metadata.id
+                ),
+            });
+        }
+        Ok(())
+    }
 }
 
 impl<D: OCIAgentTypeDownloader> AgentTypeRegistry for RemoteRegistry<D> {
@@ -54,16 +84,10 @@ impl<D: OCIAgentTypeDownloader> AgentTypeRegistry for RemoteRegistry<D> {
         let definition =
             AgentTypeDefinition::from_slice(&raw).map_err(AgentTypeRegistryError::Parsing)?;
 
-        // The tag targets a single environment, so a definition for a different one means the
+        // The tag targets a specific metadata, so a definition for a different one means the
         // remote returned an artifact we did not ask for. Reject it rather than supervise an
         // agent type meant for another platform.
-        let found = definition.metadata.environment;
-        if found != self.environment {
-            return Err(AgentTypeRegistryError::EnvironmentMismatch {
-                requested: self.environment,
-                found,
-            });
-        }
+        self.check_metadata(&definition.metadata, agent_type_id, &tag)?;
 
         Ok(definition)
     }
@@ -81,6 +105,18 @@ mod tests {
 namespace: newrelic
 name: com.newrelic.infrastructure
 version: 0.1.0
+protocol_version: "1.0"
+platform: kubernetes
+deployment:
+  objects: {}
+"#;
+
+    // Same environment as the requested id, but a different version: the remote returned an
+    // artifact whose metadata id does not match what we asked for.
+    const K8S_DEFINITION_MISMATCHED_ID: &str = r#"
+namespace: newrelic
+name: com.newrelic.infrastructure
+version: 0.2.0
 protocol_version: "1.0"
 platform: kubernetes
 deployment:
@@ -126,10 +162,27 @@ deployment:
         let registry = RemoteRegistry::new(Environment::Linux, downloader);
         assert_matches!(
             registry.get(&agent_type_id()),
-            Err(AgentTypeRegistryError::EnvironmentMismatch {
-                requested: Environment::Linux,
-                found: Environment::K8s,
-            })
+            Err(AgentTypeRegistryError::MetadataMismatch { tag, details })
+                if tag == "host-linux-com.newrelic.infrastructure-0.1.0"
+                    && details.contains("environment")
+        );
+    }
+
+    #[test]
+    fn test_get_rejects_definition_with_a_mismatched_id() {
+        let mut downloader = MockOCIAgentTypeDownloader::new();
+        // The environment matches, but the returned definition's id (version 0.2.0) differs from
+        // the requested one (0.1.0).
+        downloader
+            .expect_download()
+            .returning(|_| Ok(K8S_DEFINITION_MISMATCHED_ID.as_bytes().to_vec()));
+
+        let registry = RemoteRegistry::new(Environment::K8s, downloader);
+        assert_matches!(
+            registry.get(&agent_type_id()),
+            Err(AgentTypeRegistryError::MetadataMismatch { tag, details })
+                if tag == "kubernetes-com.newrelic.infrastructure-0.1.0"
+                    && details.contains("newrelic/com.newrelic.infrastructure:0.2.0")
         );
     }
 

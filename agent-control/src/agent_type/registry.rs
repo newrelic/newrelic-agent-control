@@ -21,13 +21,8 @@ pub enum AgentTypeRegistryError {
     Parsing(AgentTypeDefinitionParseError),
     #[error("remote registry error: {0}")]
     Remote(String),
-    #[error(
-        "agent type definition os/platform '{found}' does not match the requested '{requested}'"
-    )]
-    EnvironmentMismatch {
-        requested: Environment,
-        found: Environment,
-    },
+    #[error("metadata mismatch for '{tag}': {details}")]
+    MetadataMismatch { tag: String, details: String },
 }
 
 /// Defines how to return an [AgentTypeDefinition] given an identifier.
