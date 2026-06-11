@@ -3,7 +3,7 @@ use aws_lc_rs::digest::{SHA256, digest};
 mod publisher;
 mod signer;
 
-pub use publisher::{PackageMediaType, PackagePublisher};
+pub use publisher::{AgentTypeArtifact, ArtifactKind, PackageMediaType, PackagePublisher};
 pub use signer::OCISigner;
 
 /// Port to be used for plain http testing registries

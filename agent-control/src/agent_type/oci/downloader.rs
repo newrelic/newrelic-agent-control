@@ -23,9 +23,13 @@ pub struct OCIAgentTypeDownloaderError(String);
 
 /// An interface for downloading Agent Type definitions from a configured OCI remote.
 pub trait OCIAgentTypeDownloader: Send + Sync {
+    /// Error returned when a download fails. Consumers only rely on its `Display` representation,
+    /// so each implementation (and its mock) can use its own error type.
+    type Error: std::error::Error;
+
     /// Downloads and verifies the agent type artifact identified by `tag`, returning the raw bytes
     /// of the single agent type definition it contains.
-    fn download(&self, tag: &str) -> Result<Vec<u8>, OCIAgentTypeDownloaderError>;
+    fn download(&self, tag: &str) -> Result<Vec<u8>, Self::Error>;
 }
 
 /// Downloads agent type definitions from a configured OCI remote into memory.
@@ -47,6 +51,8 @@ pub struct OCIAgentTypeArtifactDownloader {
 }
 
 impl OCIAgentTypeDownloader for OCIAgentTypeArtifactDownloader {
+    type Error = OCIAgentTypeDownloaderError;
+
     /// Downloads the agent type artifact at `<registry>/<repository>:<tag>`.
     ///
     /// If signature verification is enabled and a `public_key_url` is configured, it first verifies
@@ -184,10 +190,17 @@ pub mod tests {
     use oci_client::client::{ClientConfig, ClientProtocol};
     use std::str::FromStr;
 
+    /// A trivially-constructible error for the mock downloader, so consumers (e.g. the remote
+    /// registry) can exercise the failure path without access to the real downloader's internals.
+    #[derive(Debug, thiserror::Error)]
+    #[error("{0}")]
+    pub struct FakeDownloaderError(pub String);
+
     mock! {
         pub OCIAgentTypeDownloader {}
         impl OCIAgentTypeDownloader for OCIAgentTypeDownloader {
-            fn download(&self, tag: &str) -> Result<Vec<u8>, OCIAgentTypeDownloaderError>;
+            type Error = FakeDownloaderError;
+            fn download(&self, tag: &str) -> Result<Vec<u8>, FakeDownloaderError>;
         }
     }
 

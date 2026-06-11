@@ -22,20 +22,46 @@ use tokio::runtime::Handle;
 const AGENT_PACKAGE_MANIFEST_ARTIFACT_TYPE: &str = "application/vnd.newrelic.agent.v1";
 const AGENT_PACKAGE_LAYER_TAR_GZ: &str = "application/vnd.newrelic.agent.content.v1.tar+gzip";
 const AGENT_PACKAGE_LAYER_ZIP: &str = "application/vnd.newrelic.agent.content.v1.zip";
+const AGENT_TYPE_MANIFEST_ARTIFACT_TYPE: &str = "application/vnd.newrelic.agent-type.v1";
+const AGENT_TYPE_LAYER_TAR_GZ: &str = "application/vnd.newrelic.agent-type.content.v1.tar+gzip";
 
 const REPOSITORY_NAME: &str = "test";
+
+/// Describes the OCI manifest artifact type and layer media type of a published artifact, so the
+/// publisher can emit both agent packages and agent types.
+pub trait ArtifactKind {
+    fn manifest_artifact_type(&self) -> &'static str;
+    fn layer_media_type(&self) -> &'static str;
+}
 
 pub enum PackageMediaType {
     TarGz,
     Zip,
 }
 
-impl PackageMediaType {
+impl ArtifactKind for PackageMediaType {
+    fn manifest_artifact_type(&self) -> &'static str {
+        AGENT_PACKAGE_MANIFEST_ARTIFACT_TYPE
+    }
+
     fn layer_media_type(&self) -> &'static str {
         match self {
             PackageMediaType::TarGz => AGENT_PACKAGE_LAYER_TAR_GZ,
             PackageMediaType::Zip => AGENT_PACKAGE_LAYER_ZIP,
         }
+    }
+}
+
+/// An agent type artifact: a single gzipped tar containing the agent type definition.
+pub struct AgentTypeArtifact;
+
+impl ArtifactKind for AgentTypeArtifact {
+    fn manifest_artifact_type(&self) -> &'static str {
+        AGENT_TYPE_MANIFEST_ARTIFACT_TYPE
+    }
+
+    fn layer_media_type(&self) -> &'static str {
+        AGENT_TYPE_LAYER_TAR_GZ
     }
 }
 
@@ -72,30 +98,50 @@ impl PackagePublisher {
         self
     }
 
-    /// Pushes `file` as an OCI agent package artifact and returns the index manifest reference.
-    /// The artifact is structured as a manifest index (multiarch) with a single entry for the
-    /// current platform.
-    pub fn push(&self, file: &Path, media_type: PackageMediaType) -> Reference {
-        self.push_with_tag(file, media_type, &unique_tag())
+    /// Pushes `file` as an OCI artifact of the given [ArtifactKind] and returns the index manifest
+    /// reference. The artifact is structured as a manifest index (multiarch) with a single entry
+    /// for the current platform.
+    pub fn push<A: ArtifactKind>(&self, file: &Path, kind: A) -> Reference {
+        self.push_with_tag(file, kind, &unique_tag())
     }
 
     /// Same as [`push`] but uses `tag` instead of a generated unique tag.
-    pub fn push_with_tag(&self, file: &Path, media_type: PackageMediaType, tag: &str) -> Reference {
-        self.runtime_handle
-            .block_on(async { self.push_async(file, media_type, tag).await })
+    pub fn push_with_tag<A: ArtifactKind>(&self, file: &Path, kind: A, tag: &str) -> Reference {
+        self.runtime_handle.block_on(async {
+            self.push_async(
+                file,
+                kind.layer_media_type(),
+                kind.manifest_artifact_type(),
+                tag,
+            )
+            .await
+        })
     }
 
-    async fn push_async(&self, file: &Path, media_type: PackageMediaType, tag: &str) -> Reference {
+    async fn push_async(
+        &self,
+        file: &Path,
+        layer_media_type: &str,
+        manifest_artifact_type: &str,
+        tag: &str,
+    ) -> Reference {
         let index_reference: Reference = format!("{}/{REPOSITORY_NAME}:{tag}", self.registry_url)
             .parse()
             .unwrap();
 
         let file_name = file.file_name().unwrap().to_string_lossy().to_string();
 
-        let blob_descriptor = self.push_blob(&index_reference, file, &media_type).await;
+        let blob_descriptor = self
+            .push_blob(&index_reference, file, layer_media_type)
+            .await;
 
         let (manifest_digest, manifest_size) = self
-            .push_package_manifest(&index_reference, blob_descriptor, file_name)
+            .push_package_manifest(
+                &index_reference,
+                blob_descriptor,
+                file_name,
+                manifest_artifact_type,
+            )
             .await;
 
         self.push_package_index(&index_reference, manifest_digest, manifest_size)
@@ -109,6 +155,7 @@ impl PackagePublisher {
         index_reference: &Reference,
         blob_descriptor: OciDescriptor,
         file_name: String,
+        manifest_artifact_type: &str,
     ) -> (String, i64) {
         // Pushed under a tagged reference because the client's local digest calculation does not
         // always match the registry's canonical JSON. The tag is not used in production scenarios.
@@ -124,7 +171,7 @@ impl PackagePublisher {
 
         let pkg_manifest = OciImageManifest {
             media_type: Some(OCI_IMAGE_MEDIA_TYPE.to_string()),
-            artifact_type: Some(AGENT_PACKAGE_MANIFEST_ARTIFACT_TYPE.to_string()),
+            artifact_type: Some(manifest_artifact_type.to_string()),
             layers: vec![blob_descriptor],
             config,
             annotations: Some(title_annotation),
@@ -214,7 +261,7 @@ impl PackagePublisher {
         &self,
         reference: &Reference,
         file: &Path,
-        media_type: &PackageMediaType,
+        layer_media_type: &str,
     ) -> OciDescriptor {
         let mut f = File::open(file).await.unwrap();
         let mut data = Vec::new();
@@ -229,7 +276,7 @@ impl PackagePublisher {
             .unwrap();
 
         OciDescriptor {
-            media_type: media_type.layer_media_type().to_string(),
+            media_type: layer_media_type.to_string(),
             digest,
             size,
             ..Default::default()
