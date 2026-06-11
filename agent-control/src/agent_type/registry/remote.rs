@@ -46,25 +46,18 @@ impl<D: OCIAgentTypeDownloader> RemoteRegistry<D> {
         &self,
         metadata: &AgentTypeMetadata,
         expected_id: &AgentTypeID,
-        tag: &str,
-    ) -> Result<(), AgentTypeRegistryError> {
+    ) -> Result<(), String> {
         if metadata.environment != self.environment {
-            return Err(AgentTypeRegistryError::MetadataMismatch {
-                tag: tag.to_string(),
-                details: format!(
-                    "expected environment '{}', found '{}'",
-                    self.environment, metadata.environment
-                ),
-            });
+            return Err(format!(
+                "expected environment '{}', found '{}'",
+                self.environment, metadata.environment
+            ));
         }
         if &metadata.id != expected_id {
-            return Err(AgentTypeRegistryError::MetadataMismatch {
-                tag: tag.to_string(),
-                details: format!(
-                    "expected <namespace/name:version> '{}', found  {}",
-                    expected_id, metadata.id
-                ),
-            });
+            return Err(format!(
+                "expected <namespace/name:version> '{}', found  {}",
+                expected_id, metadata.id
+            ));
         }
         Ok(())
     }
@@ -87,7 +80,8 @@ impl<D: OCIAgentTypeDownloader> AgentTypeRegistry for RemoteRegistry<D> {
         // The tag targets a specific metadata, so a definition for a different one means the
         // remote returned an artifact we did not ask for. Reject it rather than supervise an
         // agent type meant for another platform.
-        self.check_metadata(&definition.metadata, agent_type_id, &tag)?;
+        self.check_metadata(&definition.metadata, agent_type_id)
+            .map_err(|details| AgentTypeRegistryError::MetadataMismatch { tag, details })?;
 
         Ok(definition)
     }
