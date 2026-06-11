@@ -174,24 +174,6 @@ impl Client {
         self.runtime
             .block_on(self.verify_signature_with_public_keys(reference, &public_keys, auth))
     }
-
-    /// Returns the [Reference] to download from, verifying its signature when required.
-    ///
-    /// When `public_key_url` is `Some`, the artifact's signature is verified via
-    /// [Self::verify_signature] and the returned reference is digest-pinned (assuring the artifact
-    /// downloaded is the one verified). When it is `None`, signature verification is skipped and the
-    /// `base` reference is returned unchanged.
-    pub fn verified_reference(
-        &self,
-        base: &Reference,
-        public_key_url: Option<&Url>,
-        auth: &RegistryAuth,
-    ) -> Result<Reference, OciClientError> {
-        match public_key_url {
-            Some(public_key_url) => self.verify_signature(base, public_key_url, auth),
-            None => Ok(base.clone()),
-        }
-    }
 }
 
 /// Retrying "verify-then-fetch" orchestration to be shared among different components.
@@ -242,14 +224,31 @@ impl OciArtifactFetcher {
         fetch_artifact: impl Fn(&Client, &Reference, &RegistryAuth) -> Result<T, OciClientError>,
     ) -> Result<T, OciClientError> {
         retry(self.max_retries, self.retry_interval, || {
-            let reference =
-                self.client
-                    .verified_reference(base_reference, public_key_url, &self.auth)?;
+            let reference = self.verified_reference(base_reference, public_key_url)?;
 
             fetch_artifact(&self.client, &reference, &self.auth)
                 .inspect_err(|e| debug!("Download '{reference}' failed with error: {e}"))
         })
         .map_err(|e| OciClientError::AttemptsExceeded(e.to_string()))
+    }
+
+    /// Returns the [Reference] to download from, verifying its signature when required.
+    ///
+    /// When `public_key_url` is `Some`, the artifact's signature is verified via
+    /// [Client::verify_signature] and the returned reference is digest-pinned (assuring the artifact
+    /// downloaded is the one verified). When it is `None`, signature verification is skipped and the
+    /// `base` reference is returned unchanged.
+    fn verified_reference(
+        &self,
+        base: &Reference,
+        public_key_url: Option<&Url>,
+    ) -> Result<Reference, OciClientError> {
+        match public_key_url {
+            Some(public_key_url) => self
+                .client
+                .verify_signature(base, public_key_url, &self.auth),
+            None => Ok(base.clone()),
+        }
     }
 }
 
@@ -548,8 +547,7 @@ pub mod tests {
         let reference = oci_mock_a.reference_on_server(&server);
         let fetcher = create_fetcher();
         let verified_reference = fetcher
-            .client
-            .verified_reference(&reference, Some(&jwks_server.url), &RegistryAuth::Anonymous)
+            .verified_reference(&reference, Some(&jwks_server.url))
             .expect("signature should verify");
 
         // Move the tag after verification (TOCTOU attack).
