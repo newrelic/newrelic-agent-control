@@ -2,24 +2,16 @@ use std::time::Duration;
 
 use oci_client::Reference;
 use oci_client::secrets::RegistryAuth;
-use thiserror::Error;
 use tracing::{debug, warn};
 use url::Url;
 
 use crate::agent_control::config::{OciAuth, Registry};
 use crate::agent_type::runtime_config::on_host::package::rendered::Repository;
-use crate::oci::Client;
 use crate::oci::artifact_definitions::LocalAgentType;
-use crate::utils::retry::retry;
-
-const DEFAULT_RETRIES: usize = 0;
+use crate::oci::{Client, OciArtifactFetcher, OciClientError};
 
 /// Maximum size of an agent type artifact blob (generous upper bound).
 const MAX_ARTIFACT_SIZE_BYTES: usize = 10 * 1024 * 1024; // 10 MiB
-
-#[derive(Debug, Error)]
-#[error("downloading agent type OCI artifact: {0}")]
-pub struct OCIAgentTypeDownloaderError(String);
 
 /// An interface for downloading Agent Type definitions from a configured OCI remote.
 pub trait OCIAgentTypeDownloader: Send + Sync {
@@ -40,18 +32,15 @@ pub trait OCIAgentTypeDownloader: Send + Sync {
 /// The artifact content is never written to disk, so resolution does not depend on a writable
 /// filesystem location (relevant on Kubernetes). Blobs larger than `max_size_bytes` are rejected.
 pub struct OCIAgentTypeArtifactDownloader {
-    client: Client,
+    fetcher: OciArtifactFetcher,
     registry: Registry,
     repository: Repository,
-    auth: RegistryAuth,
     public_key_url: Option<Url>,
-    max_retries: usize,
-    retry_interval: Duration,
     max_size_bytes: usize,
 }
 
 impl OCIAgentTypeDownloader for OCIAgentTypeArtifactDownloader {
-    type Error = OCIAgentTypeDownloaderError;
+    type Error = OciClientError;
 
     /// Downloads the agent type artifact at `<registry>/<repository>:<tag>`.
     ///
@@ -61,7 +50,7 @@ impl OCIAgentTypeDownloader for OCIAgentTypeArtifactDownloader {
     ///
     /// On failure the operation is retried as configured; if all attempts are exhausted it returns
     /// an error.
-    fn download(&self, tag: &str) -> Result<Vec<u8>, OCIAgentTypeDownloaderError> {
+    fn download(&self, tag: &str) -> Result<Vec<u8>, OciClientError> {
         let base_reference = Reference::with_tag(
             self.registry.to_string(),
             self.repository.to_string(),
@@ -71,18 +60,15 @@ impl OCIAgentTypeDownloader for OCIAgentTypeArtifactDownloader {
             oci_reference = base_reference.to_string(),
             "Downloading Agent Type from remote repository"
         );
-        retry(self.max_retries, self.retry_interval, || {
-            let reference = if let Some(pk_url) = self.should_verify_signature() {
-                &self.verified_reference(&base_reference, pk_url)?
-            } else {
-                &base_reference
-            };
-            self.download_definition(reference)
-                .inspect_err(|e| debug!("Download '{reference}' failed with error: {e}"))
-        })
-        .map_err(|e| {
-            OCIAgentTypeDownloaderError(format!("download attempts exceeded, last error: {e}"))
-        })
+        let public_key_url = self.should_verify_signature();
+        let max_size_bytes = self.max_size_bytes;
+        self.fetcher.fetch(
+            &base_reference,
+            public_key_url,
+            |client, reference, auth| {
+                Self::download_definition(client, reference, auth, max_size_bytes)
+            },
+        )
     }
 }
 
@@ -96,16 +82,10 @@ impl OCIAgentTypeArtifactDownloader {
         public_key_url: Option<Url>,
     ) -> Self {
         Self {
-            client,
+            fetcher: OciArtifactFetcher::new(client, auth),
             registry,
             repository,
-            auth: auth
-                .as_ref()
-                .map(RegistryAuth::from)
-                .unwrap_or(RegistryAuth::Anonymous),
             public_key_url,
-            max_retries: DEFAULT_RETRIES,
-            retry_interval: Duration::default(),
             max_size_bytes: MAX_ARTIFACT_SIZE_BYTES,
         }
     }
@@ -113,8 +93,7 @@ impl OCIAgentTypeArtifactDownloader {
     /// Returns a new downloader with the provided retry configuration.
     pub fn with_retries(self, retries: usize, retry_interval: Duration) -> Self {
         Self {
-            max_retries: retries,
-            retry_interval,
+            fetcher: self.fetcher.with_retries(retries, retry_interval),
             ..self
         }
     }
@@ -132,46 +111,32 @@ impl OCIAgentTypeArtifactDownloader {
         self.public_key_url.as_ref()
     }
 
-    /// Returns the [Reference] after verifying its signature. The returned reference always includes
-    /// the `digest` to assure it is the same reference whose signature was verified.
-    fn verified_reference(
-        &self,
-        reference: &Reference,
-        public_key_url: &Url,
-    ) -> Result<Reference, OCIAgentTypeDownloaderError> {
-        self.client
-            .verify_signature(reference, public_key_url, &self.auth)
-            .map_err(|err| OCIAgentTypeDownloaderError(err.to_string()))
-    }
-
     /// Pulls the manifest, validates it is an agent type artifact, pulls its single layer into
     /// memory and returns the agent type definition it contains.
     fn download_definition(
-        &self,
+        client: &Client,
         reference: &Reference,
-    ) -> Result<Vec<u8>, OCIAgentTypeDownloaderError> {
-        let (manifest, _) = self
-            .client
-            .pull_image_manifest(reference, &self.auth)
-            .map_err(|err| {
-                OCIAgentTypeDownloaderError(format!("pull artifact manifest failure: {err}"))
-            })?;
-
-        let layer = LocalAgentType::get_layer(&manifest).map_err(|err| {
-            OCIAgentTypeDownloaderError(format!("validating agent type manifest: {err}"))
+        auth: &RegistryAuth,
+        max_size_bytes: usize,
+    ) -> Result<Vec<u8>, OciClientError> {
+        let (manifest, _) = client.pull_image_manifest(reference, auth).map_err(|err| {
+            OciClientError::FetchArtifact(format!("downloading agent type manifest: {err}"))
         })?;
 
-        let blob = self
-            .client
-            .pull_blob(reference, &layer, self.max_size_bytes)
+        let layer = LocalAgentType::get_layer(&manifest).map_err(|err| {
+            OciClientError::FetchArtifact(format!("validating agent type manifest: {err}"))
+        })?;
+
+        let blob = client
+            .pull_blob(reference, &layer, max_size_bytes)
             .map_err(|err| {
-                OCIAgentTypeDownloaderError(format!("download artifact failure: {err}"))
+                OciClientError::FetchArtifact(format!("downloading agent type reference: {err}"))
             })?;
 
         LocalAgentType::new(blob)
             .extract_definition()
             .map_err(|err| {
-                OCIAgentTypeDownloaderError(format!("extracting agent type definition: {err}"))
+                OciClientError::FetchArtifact(format!("extracting agent type definition: {err}"))
             })
     }
 }
@@ -182,8 +147,6 @@ pub mod tests {
     use crate::http::config::ProxyConfig;
     use crate::oci::artifact_definitions::{LayerMediaType, ManifestArtifactType};
     use crate::oci::tests::FakeOciServer;
-    use crate::signature::public_key::tests::TestKeyPair;
-    use crate::signature::public_key_fetcher::tests::JwksMockServer;
     use crate::utils::test_runtime::tokio_runtime;
     use assert_matches::assert_matches;
     use mockall::mock;
@@ -256,24 +219,6 @@ pub mod tests {
     }
 
     #[test]
-    fn test_download_success_with_signature() {
-        let key_pair = TestKeyPair::new(0);
-        let jwks_server = JwksMockServer::new(vec![
-            serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
-        ]);
-        let tar_gz = tar_gz_with_definition(&format!("{TAG}.yaml"), DEFINITION);
-        let server = FakeOciServer::new(REPOSITORY, TAG)
-            .with_artifact_type(&ManifestArtifactType::AgentType.to_string())
-            .with_layer(&tar_gz, &LayerMediaType::AgentType.to_string())
-            .with_signature(&key_pair)
-            .build();
-
-        let downloader = create_downloader(server.registry(), Some(jwks_server.url));
-        let definition = downloader.download(TAG).unwrap();
-        assert_eq!(definition, DEFINITION);
-    }
-
-    #[test]
     fn test_download_success_signature_disabled() {
         let tar_gz = tar_gz_with_definition(&format!("{TAG}.yaml"), DEFINITION);
         let server = FakeOciServer::new(REPOSITORY, TAG)
@@ -295,26 +240,8 @@ pub mod tests {
             .build();
 
         let downloader = create_downloader(server.registry(), None);
-        assert_matches!(downloader.download(TAG), Err(OCIAgentTypeDownloaderError(msg)) => {
+        assert_matches!(downloader.download(TAG), Err(OciClientError::AttemptsExceeded(msg)) => {
             assert!(msg.contains("validating agent type manifest"), "{msg}");
-        });
-    }
-
-    #[test]
-    fn test_download_unsigned_but_verification_enabled() {
-        let key_pair = TestKeyPair::new(0);
-        let jwks_server = JwksMockServer::new(vec![
-            serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
-        ]);
-        let tar_gz = tar_gz_with_definition(&format!("{TAG}.yaml"), DEFINITION);
-        let server = FakeOciServer::new(REPOSITORY, TAG)
-            .with_artifact_type(&ManifestArtifactType::AgentType.to_string())
-            .with_layer(&tar_gz, &LayerMediaType::AgentType.to_string())
-            .build(); // not signed
-
-        let downloader = create_downloader(server.registry(), Some(jwks_server.url));
-        assert_matches!(downloader.download(TAG), Err(OCIAgentTypeDownloaderError(msg)) => {
-            assert!(msg.contains("signature verification failed"), "{msg}");
         });
     }
 
@@ -327,8 +254,8 @@ pub mod tests {
             .build();
 
         let downloader = create_downloader(server.registry(), None).with_max_size_bytes(10);
-        assert_matches!(downloader.download(TAG), Err(OCIAgentTypeDownloaderError(msg)) => {
-            assert!(msg.contains("download artifact failure"), "{msg}");
+        assert_matches!(downloader.download(TAG), Err(OciClientError::AttemptsExceeded(msg)) => {
+            assert!(msg.contains("exceeds maximum"), "{msg}");
         });
     }
 }

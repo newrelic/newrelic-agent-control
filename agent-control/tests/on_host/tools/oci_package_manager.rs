@@ -6,7 +6,7 @@ use newrelic_agent_control::{
     agent_control::config::Registry,
     http::config::ProxyConfig,
     oci,
-    package::oci::{downloader::OCIArtifactDownloader, package_manager::OCIPackageManager},
+    package::oci::{downloader::OCIPackageArtifactDownloader, package_manager::OCIPackageManager},
 };
 use oci_client::client::{ClientConfig, ClientProtocol};
 use std::path::Path;
@@ -16,7 +16,7 @@ use std::{fs::File, str::FromStr};
 pub fn new_testing_oci_package_manager(
     base_path: PathBuf,
     registry: String,
-) -> OCIPackageManager<OCIArtifactDownloader, DirectoryManagerFs> {
+) -> OCIPackageManager<OCIPackageArtifactDownloader, DirectoryManagerFs> {
     let client = oci::Client::try_new(
         ClientConfig {
             protocol: ClientProtocol::Http,
@@ -26,7 +26,7 @@ pub fn new_testing_oci_package_manager(
         tokio_runtime(),
     )
     .unwrap();
-    let downloader = OCIArtifactDownloader::new(
+    let downloader = OCIPackageArtifactDownloader::new(
         client,
         Registry::from_str(&registry).unwrap(),
         Default::default(),

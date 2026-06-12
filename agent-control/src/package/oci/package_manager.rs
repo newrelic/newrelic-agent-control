@@ -1,9 +1,10 @@
-use super::downloader::{OCIAgentDownloader, OCIDownloaderError};
+use super::downloader::OCIPackageDownloader;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::PACKAGES_FOLDER_NAME;
+use crate::oci::OciClientError;
 use crate::oci::artifact_definitions::LocalAgentPackage;
 use crate::package::manager::{InstalledPackageData, PackageData, PackageManager};
-use crate::package::oci::downloader::OCIArtifactDownloader;
+use crate::package::oci::downloader::OCIPackageArtifactDownloader;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file::LocalFile;
 use fs::file::reader::FileReader;
@@ -15,12 +16,13 @@ use std::sync::Mutex;
 use thiserror::Error;
 use tracing::{debug, error, warn};
 
-pub type DefaultOCIPackageManager = OCIPackageManager<OCIArtifactDownloader, DirectoryManagerFs>;
+pub type DefaultOCIPackageManager =
+    OCIPackageManager<OCIPackageArtifactDownloader, DirectoryManagerFs>;
 
 // This is expected to be thread-safe
 pub struct OCIPackageManager<D, DM>
 where
-    D: OCIAgentDownloader,
+    D: OCIPackageDownloader,
     DM: DirectoryManager,
 {
     downloader: D,
@@ -32,7 +34,7 @@ where
 #[derive(Debug, Error)]
 pub enum OCIPackageManagerError {
     #[error("error attempting to download OCI artifact: {0}")]
-    Download(OCIDownloaderError),
+    Download(OciClientError),
     #[error("error attempting to install OCI artifact: {0}")]
     Install(io::Error),
     #[error("error attempting to uninstall OCI artifact: {0}")]
@@ -74,7 +76,7 @@ const INSTALLED_PCK_LOCATION: &str = "stored_packages";
 
 impl<D, DM> OCIPackageManager<D, DM>
 where
-    D: OCIAgentDownloader,
+    D: OCIPackageDownloader,
     DM: DirectoryManager,
 {
     pub fn new(downloader: D, directory_manager: DM, remote_dir: PathBuf) -> Self {
@@ -307,7 +309,7 @@ fn compute_path_suffix(package_data: &PackageData) -> Result<PathBuf, OCIPackage
 
 impl<D, DM> PackageManager for OCIPackageManager<D, DM>
 where
-    D: OCIAgentDownloader,
+    D: OCIPackageDownloader,
     DM: DirectoryManager,
 {
     /// Installs the given OCI package for the specified agent.
@@ -691,7 +693,7 @@ mod tests {
             .expect_download()
             .with(eq(package_data.clone()), eq(download_dir))
             .once()
-            .returning(|_, _| Err(OCIDownloaderError("download failed".into())));
+            .returning(|_, _| Err(OciClientError::FetchArtifact("download failed".into())));
 
         let pm = OCIPackageManager::new(downloader, directory_manager, remote_dir);
 

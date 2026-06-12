@@ -17,6 +17,10 @@ pub enum OciClientError {
     Verify(String),
     #[error("failed to fetch public key: {0}")]
     KeyFetch(String),
+    #[error("failed to fetch artifact: {0}")]
+    FetchArtifact(String),
+    #[error("download attempts exceeded, last error: {0}")]
+    AttemptsExceeded(String),
 }
 
 /// Simple string wrapper to represent curated messages coming from [oci_client].

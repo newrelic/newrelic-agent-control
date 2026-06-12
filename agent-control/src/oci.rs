@@ -1,7 +1,10 @@
 //! This module provides an [oci_client] wrapper.
 
+use std::time::Duration;
 use std::{path::Path, sync::Arc};
 
+use crate::agent_control::config::OciAuth;
+use crate::utils::retry::retry;
 use crate::{http::config::ProxyConfig, signature::public_key_fetcher::PublicKeyFetcher};
 
 use futures::TryStreamExt;
@@ -12,6 +15,7 @@ use oci_client::{
     secrets::RegistryAuth,
 };
 use tokio::runtime::Runtime;
+use tracing::debug;
 use url::Url;
 
 pub mod artifact_definitions;
@@ -20,6 +24,8 @@ mod proxy;
 mod signature_verification;
 
 pub use error::OciClientError;
+
+const DEFAULT_RETRIES: usize = 0;
 
 /// [oci_client::Client] wrapper with extended functionality.
 /// It also wraps all _async_ operations using the underlying runtime, all functions will
@@ -167,6 +173,82 @@ impl Client {
             .map_err(|err| OciClientError::Verify(format!("could not fetch public keys: {err}")))?;
         self.runtime
             .block_on(self.verify_signature_with_public_keys(reference, &public_keys, auth))
+    }
+}
+
+/// Retrying "verify-then-fetch" orchestration to be shared among different components.
+///
+/// It owns a [Client] together with the registry authentication and retry policy, so the
+/// artifact-specific downloaders only need to build a reference and supply how to materialize the
+/// artifact once a verified reference is resolved.
+pub struct OciArtifactFetcher {
+    client: Client,
+    auth: RegistryAuth,
+    max_retries: usize,
+    retry_interval: Duration,
+}
+
+impl OciArtifactFetcher {
+    /// Returns a fetcher with default (no) retries.
+    pub fn new(client: Client, auth: Option<OciAuth>) -> Self {
+        Self {
+            client,
+            auth: auth
+                .as_ref()
+                .map(RegistryAuth::from)
+                .unwrap_or(RegistryAuth::Anonymous),
+            max_retries: DEFAULT_RETRIES,
+            retry_interval: Duration::default(),
+        }
+    }
+
+    /// Returns a new fetcher with the provided retry configuration.
+    pub fn with_retries(self, retries: usize, retry_interval: Duration) -> Self {
+        Self {
+            max_retries: retries,
+            retry_interval,
+            ..self
+        }
+    }
+
+    /// Resolves the reference (verifying its signature when `public_key_url` is `Some`) and fetches
+    /// the artifact from it, retrying the whole operation per the configured policy.
+    ///
+    /// `fetch_artifact` performs the artifact-specific work (manifest validation, layer selection
+    /// and blob retrieval) once a verified reference is resolved. On exhaustion the last error of
+    /// the retried operation is returned, wrapped to signal that all attempts were used.
+    pub fn fetch<T>(
+        &self,
+        base_reference: &Reference,
+        public_key_url: Option<&Url>,
+        fetch_artifact: impl Fn(&Client, &Reference, &RegistryAuth) -> Result<T, OciClientError>,
+    ) -> Result<T, OciClientError> {
+        retry(self.max_retries, self.retry_interval, || {
+            let reference = self.verified_reference(base_reference, public_key_url)?;
+
+            fetch_artifact(&self.client, &reference, &self.auth)
+                .inspect_err(|e| debug!("Download '{reference}' failed with error: {e}"))
+        })
+        .map_err(|e| OciClientError::AttemptsExceeded(e.to_string()))
+    }
+
+    /// Returns the [Reference] to download from, verifying its signature when required.
+    ///
+    /// When `public_key_url` is `Some`, the artifact's signature is verified via
+    /// [Client::verify_signature] and the returned reference is digest-pinned (assuring the artifact
+    /// downloaded is the one verified). When it is `None`, signature verification is skipped and the
+    /// `base` reference is returned unchanged.
+    fn verified_reference(
+        &self,
+        base: &Reference,
+        public_key_url: Option<&Url>,
+    ) -> Result<Reference, OciClientError> {
+        match public_key_url {
+            Some(public_key_url) => self
+                .client
+                .verify_signature(base, public_key_url, &self.auth),
+            None => Ok(base.clone()),
+        }
     }
 }
 
@@ -321,6 +403,168 @@ pub mod tests {
         assert_matches!(result, Err(OciClientError::PullBlob(msg)) => {
             assert!(msg.to_string().contains("exceeds maximum"), "{msg}");
         });
+    }
+
+    /// Minimal `fetch_artifact` step for fetcher tests: pulls the manifest's first layer into memory.
+    fn pull_first_layer(
+        client: &Client,
+        reference: &Reference,
+        auth: &RegistryAuth,
+    ) -> Result<Vec<u8>, OciClientError> {
+        let (manifest, _) = client.pull_image_manifest(reference, auth)?;
+        let layer = manifest
+            .layers
+            .first()
+            .expect("test manifest should have at least one layer");
+        client.pull_blob(reference, layer, 10 * 1024 * 1024)
+    }
+
+    fn create_fetcher() -> OciArtifactFetcher {
+        OciArtifactFetcher::new(create_test_client(), None)
+    }
+
+    #[test]
+    fn test_fetch_verifies_signature_and_materializes() {
+        let key_pair = TestKeyPair::new(0);
+        let jwks_server = JwksMockServer::new(vec![
+            serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
+        ]);
+        let server = FakeOciServer::new("repo", "v1")
+            .with_layer(b"content", "fake-media_type")
+            .with_signature(&key_pair)
+            .build();
+
+        let fetcher = create_fetcher();
+        let blob = fetcher
+            .fetch(
+                &server.reference(),
+                Some(&jwks_server.url),
+                pull_first_layer,
+            )
+            .unwrap();
+        assert_eq!(blob, b"content");
+    }
+
+    #[test]
+    fn test_fetch_skips_verification_when_no_public_key() {
+        let server = FakeOciServer::new("repo", "v1")
+            .with_layer(b"content", "fake-media_type")
+            .build();
+
+        let fetcher = create_fetcher();
+        let blob = fetcher
+            .fetch(&server.reference(), None, pull_first_layer)
+            .unwrap();
+        assert_eq!(blob, b"content");
+    }
+
+    #[test]
+    fn test_fetch_fails_when_verification_enabled_but_unsigned() {
+        let key_pair = TestKeyPair::new(0);
+        let jwks_server = JwksMockServer::new(vec![
+            serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
+        ]);
+        let server = FakeOciServer::new("repo", "v1")
+            .with_layer(b"content", "fake-media_type")
+            .build(); // unsigned
+
+        let fetcher = create_fetcher();
+        let err = fetcher
+            .fetch(
+                &server.reference(),
+                Some(&jwks_server.url),
+                pull_first_layer,
+            )
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("signature verification failed"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn test_fetch_returns_last_error_on_missing_manifest() {
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(GET).path("/v2/repo/manifests/v1");
+            then.status(404).json_body(serde_json::json!({
+                "errors": [{"code": "MANIFEST_UNKNOWN", "message": "manifest unknown"}]
+            }));
+        });
+        let reference = Reference::with_tag(
+            server.address().to_string(),
+            "repo".to_string(),
+            "v1".to_string(),
+        );
+
+        let fetcher = create_fetcher();
+        let result = fetcher.fetch(&reference, None, pull_first_layer);
+        assert_matches!(result, Err(OciClientError::AttemptsExceeded(msg)) => {
+            assert!(msg.contains("pulling image manifest"), "{msg}");
+        });
+    }
+
+    #[test]
+    fn test_fetch_detects_content_not_matching_digest() {
+        // The manifest served at the pinned digest does not match that digest (MITM).
+        let oci_mock =
+            FakeOciServer::new("repo", "v1").with_layer(b"some content", "fake-media_type");
+        let server = MockServer::start();
+        oci_mock.mock_manifest(
+            &server,
+            &oci_mock.manifest_digest(),
+            b"malicious content".to_vec(),
+        );
+        let reference = Reference::with_digest(
+            server.address().to_string(),
+            "repo".to_string(),
+            oci_mock.manifest_digest(),
+        );
+
+        let fetcher = create_fetcher();
+        let err = fetcher
+            .fetch(&reference, None, pull_first_layer)
+            .unwrap_err();
+        assert!(err.to_string().contains("Digest error"), "{err}");
+    }
+
+    #[test]
+    fn test_fetch_pins_digest_against_toctou() {
+        const ORIGINAL: &[u8] = b"A";
+        const MALICIOUS: &[u8] = b"B";
+
+        let key_pair = TestKeyPair::new(0);
+        let jwks_server = JwksMockServer::new(vec![
+            serde_json::to_value(key_pair.public_key_jwk()).unwrap(),
+        ]);
+        let oci_mock_a = FakeOciServer::new("repo", "v1")
+            .with_layer(ORIGINAL, "fake-media_type")
+            .with_signature(&key_pair);
+        let server = MockServer::start();
+        oci_mock_a.setup_mocks_on(&server);
+
+        // Verify the signature to obtain a digest-pinned reference.
+        let reference = oci_mock_a.reference_on_server(&server);
+        let fetcher = create_fetcher();
+        let verified_reference = fetcher
+            .verified_reference(&reference, Some(&jwks_server.url))
+            .expect("signature should verify");
+
+        // Move the tag after verification (TOCTOU attack).
+        let oci_mock_b = FakeOciServer::new("repo", "v1").with_layer(MALICIOUS, "fake-media_type");
+        server.reset();
+        oci_mock_b.setup_mocks_on(&server); // new tag takes precedence
+        oci_mock_a.setup_mocks_on(&server); // keep the previous digest and blobs reachable
+
+        // Sanity check: pulling by tag now yields the malicious content.
+        let malicious = fetcher.fetch(&reference, None, pull_first_layer).unwrap();
+        assert_eq!(malicious, MALICIOUS);
+
+        // The pinned reference still resolves to the originally verified content.
+        let original = fetcher
+            .fetch(&verified_reference, None, pull_first_layer)
+            .unwrap();
+        assert_eq!(original, ORIGINAL);
     }
 
     pub struct FakeOciServer {

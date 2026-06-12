@@ -37,7 +37,7 @@ use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::agent_description;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
-use crate::package::oci::downloader::OCIArtifactDownloader;
+use crate::package::oci::downloader::OCIPackageArtifactDownloader;
 use crate::package::oci::package_manager::OCIPackageManager;
 use crate::secret_retriever::on_host::retrieve::OnHostSecretRetriever;
 use crate::secrets_provider::SecretsProviders;
@@ -178,7 +178,7 @@ impl AgentControlRunner {
             .map_err(|err| RunError(format!("failed to create the OciClient: {err}")))?;
 
         let agents_package_manager = OCIPackageManager::new(
-            OCIArtifactDownloader::new(
+            OCIPackageArtifactDownloader::new(
                 oci_client.clone(),
                 self.bootstrap_config.oci.registry.clone(),
                 self.bootstrap_config.oci.auth.clone(),
@@ -229,7 +229,7 @@ impl AgentControlRunner {
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
 
         let agent_control_package_manager = OCIPackageManager::new(
-            OCIArtifactDownloader::new(
+            OCIPackageArtifactDownloader::new(
                 oci_client.clone(),
                 self.bootstrap_config.oci.registry.clone(),
                 self.bootstrap_config.oci.auth.clone(),
