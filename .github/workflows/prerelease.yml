@@ -70,7 +70,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish windows artifacts
-        uses: newrelic/infrastructure-publish-action@c5af37f49a92d3c04d5fa74a0745b21933556c4e # v1
+        uses: newrelic/infrastructure-publish-action@9093501822a3853a23ec8be6cd3c24c2ac32e994 # v1
         with:
           tag: ${{ github.event.release.tag_name }}
           app_name: "newrelic-agent-control"
@@ -95,7 +95,7 @@ jobs:
           apt_skip_mirror: false
 
       - name: Publish deb to S3 action
-        uses: newrelic/infrastructure-publish-action@c5af37f49a92d3c04d5fa74a0745b21933556c4e # v1
+        uses: newrelic/infrastructure-publish-action@9093501822a3853a23ec8be6cd3c24c2ac32e994 # v1
         with:
           tag: ${{ github.event.release.tag_name }}
           app_name: "newrelic-agent-control"
@@ -120,7 +120,7 @@ jobs:
           apt_skip_mirror: false
 
       - name: Publish rpm to S3 action
-        uses: newrelic/infrastructure-publish-action@c5af37f49a92d3c04d5fa74a0745b21933556c4e # v1
+        uses: newrelic/infrastructure-publish-action@9093501822a3853a23ec8be6cd3c24c2ac32e994 # v1
         with:
           tag: ${{ github.event.release.tag_name }}
           app_name: "newrelic-agent-control"
