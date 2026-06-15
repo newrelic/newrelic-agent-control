@@ -1,3 +1,4 @@
+pub mod caching;
 mod local;
 pub mod remote;
 
