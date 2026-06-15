@@ -269,7 +269,7 @@ agents:
             TestCase {
                 name: "error no agents of namespace",
                 agent_type_id: AgentTypeID::try_from(
-                    "francisco-partners/com.newrelic.infrastructure:0.0.1",
+                    "francisco_partners/com.newrelic.infrastructure:0.0.1",
                 )
                 .unwrap(),
                 next: None,

@@ -6,6 +6,7 @@ use tracing::{debug, warn};
 use url::Url;
 
 use crate::agent_control::config::{OciAuth, Registry};
+use crate::agent_type::oci::AgentTypeTag;
 use crate::agent_type::runtime_config::on_host::package::rendered::Repository;
 use crate::oci::artifact_definitions::LocalAgentType;
 use crate::oci::{Client, OciArtifactFetcher, OciClientError};
@@ -21,7 +22,7 @@ pub trait OCIAgentTypeDownloader: Send + Sync {
 
     /// Downloads and verifies the agent type artifact identified by `tag`, returning the raw bytes
     /// of the single agent type definition it contains.
-    fn download(&self, tag: &str) -> Result<Vec<u8>, Self::Error>;
+    fn download(&self, tag: &AgentTypeTag) -> Result<Vec<u8>, Self::Error>;
 }
 
 /// Downloads agent type definitions from a configured OCI remote into memory.
@@ -50,11 +51,11 @@ impl OCIAgentTypeDownloader for OCIAgentTypeArtifactDownloader {
     ///
     /// On failure the operation is retried as configured; if all attempts are exhausted it returns
     /// an error.
-    fn download(&self, tag: &str) -> Result<Vec<u8>, OciClientError> {
+    fn download(&self, tag: &AgentTypeTag) -> Result<Vec<u8>, OciClientError> {
         let base_reference = Reference::with_tag(
             self.registry.to_string(),
             self.repository.to_string(),
-            tag.to_string(),
+            tag.as_str().to_string(),
         );
         debug!(
             oci_reference = base_reference.to_string(),
@@ -144,6 +145,8 @@ impl OCIAgentTypeArtifactDownloader {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::environment::Environment;
     use crate::http::config::ProxyConfig;
     use crate::oci::artifact_definitions::{LayerMediaType, ManifestArtifactType};
     use crate::oci::tests::FakeOciServer;
@@ -163,7 +166,7 @@ pub mod tests {
         pub OCIAgentTypeDownloader {}
         impl OCIAgentTypeDownloader for OCIAgentTypeDownloader {
             type Error = FakeDownloaderError;
-            fn download(&self, tag: &str) -> Result<Vec<u8>, FakeDownloaderError>;
+            fn download(&self, tag: &AgentTypeTag) -> Result<Vec<u8>, FakeDownloaderError>;
         }
     }
 
@@ -180,6 +183,15 @@ pub mod tests {
     const DEFINITION: &[u8] = b"namespace: some.namespace\nname: some.agent.type\n";
     const REPOSITORY: &str = "my-org/agent-types-repository";
     const TAG: &str = "host-linux-some.agent.type-0.0.42";
+
+    /// An [AgentTypeTag] whose string equals [TAG], so it matches the artifact the mock server
+    /// serves under that tag.
+    fn agent_type_tag() -> AgentTypeTag {
+        AgentTypeTag::new(
+            &AgentTypeID::try_from("newrelic/some.agent.type:0.0.42").unwrap(),
+            Environment::Linux,
+        )
+    }
 
     /// Builds an in-memory gzipped tar containing a single file with the given content.
     fn tar_gz_with_definition(file_name: &str, content: &[u8]) -> Vec<u8> {
@@ -227,7 +239,7 @@ pub mod tests {
             .build();
 
         let downloader = create_downloader(server.registry(), None);
-        let definition = downloader.download(TAG).unwrap();
+        let definition = downloader.download(&agent_type_tag()).unwrap();
         assert_eq!(definition, DEFINITION);
     }
 
@@ -240,7 +252,7 @@ pub mod tests {
             .build();
 
         let downloader = create_downloader(server.registry(), None);
-        assert_matches!(downloader.download(TAG), Err(OciClientError::AttemptsExceeded(msg)) => {
+        assert_matches!(downloader.download(&agent_type_tag()), Err(OciClientError::AttemptsExceeded(msg)) => {
             assert!(msg.contains("validating agent type manifest"), "{msg}");
         });
     }
@@ -254,7 +266,7 @@ pub mod tests {
             .build();
 
         let downloader = create_downloader(server.registry(), None).with_max_size_bytes(10);
-        assert_matches!(downloader.download(TAG), Err(OciClientError::AttemptsExceeded(msg)) => {
+        assert_matches!(downloader.download(&agent_type_tag()), Err(OciClientError::AttemptsExceeded(msg)) => {
             assert!(msg.contains("exceeds maximum"), "{msg}");
         });
     }

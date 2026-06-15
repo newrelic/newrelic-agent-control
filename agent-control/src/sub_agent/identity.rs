@@ -1,11 +1,11 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::{
-    AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
-};
+use crate::agent_control::defaults::{AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE};
 use crate::agent_type::agent_type_id::AgentTypeID;
 use std::fmt::{Display, Formatter};
 
 pub const ID_ATTRIBUTE_NAME: &str = "id";
+
+const AC_AGENT_TYPE_VERSION: &str = "0.1.0";
 
 // This could be SubAgentIdentity
 #[derive(Clone, Debug, PartialEq)]
@@ -15,9 +15,11 @@ pub struct AgentIdentity {
 }
 
 impl AgentIdentity {
+    /// AC doesn't have a real identity as agent since there is no Agent type for it. In order to build one and
+    /// make possible to reuse some components that are based on this we use a fake [AgentTypeID] for AC.
     pub fn new_agent_control_identity() -> Self {
         let ac_agent_type_id =
-            format!("{AGENT_CONTROL_NAMESPACE}/{AGENT_CONTROL_TYPE}:{AGENT_CONTROL_VERSION}");
+            format!("{AGENT_CONTROL_NAMESPACE}/{AGENT_CONTROL_TYPE}:{AC_AGENT_TYPE_VERSION}");
         Self::from((
             AgentID::AgentControl,
             // This is a safe unwrap because we are creating the AgentTypeID from a string that we know is valid.

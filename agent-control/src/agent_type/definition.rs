@@ -675,7 +675,7 @@ platform: host
     }
 
     const GIVEN_NEWRELIC_INFRA_YAML: &str = r#"
-name: newrelic-infra
+name: newrelic_infra
 namespace: newrelic
 version: 1.39.1
 platform: host
@@ -764,7 +764,7 @@ status_server_port: 8004
     }
 
     const AGENT_TYPE_WITH_VARIANTS: &str = r#"
-name: variant-values
+name: variant_values
 namespace: newrelic
 version: 0.0.1
 platform: host

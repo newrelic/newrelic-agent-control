@@ -221,7 +221,7 @@ configs:
           - "yml"
 
   -
-    agent_type_fqn: francisco-partners/com.newrelic.another:0.0.2
+    agent_type_fqn: francisco_partners/com.newrelic.another:0.0.2
     filesystem_mappings:
       config_agent:
         file_path: /etc/another.yml
@@ -255,7 +255,7 @@ configs:
 "#;
 
         let expected_fqns_in_order = [
-            "francisco-partners/com.newrelic.another:0.0.2"
+            "francisco_partners/com.newrelic.another:0.0.2"
                 .try_into()
                 .unwrap(),
             "newrelic/com.newrelic.another:0.0.1".try_into().unwrap(),

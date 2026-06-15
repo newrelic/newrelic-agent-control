@@ -1,6 +1,7 @@
 use super::{AgentTypeRegistry, AgentTypeRegistryError};
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::agent_type::definition::{AgentTypeDefinition, AgentTypeMetadata};
+use crate::agent_type::oci::AgentTypeTag;
 use crate::agent_type::oci::downloader::OCIAgentTypeDownloader;
 use crate::environment::Environment;
 
@@ -23,20 +24,6 @@ impl<D: OCIAgentTypeDownloader> RemoteRegistry<D> {
             environment,
             downloader,
         }
-    }
-
-    /// Builds the OCI tag for the given id according to the running environment.
-    fn artifact_tag(&self, agent_type_id: &AgentTypeID) -> String {
-        let target = match self.environment {
-            Environment::Linux => "host-linux",
-            Environment::Windows => "host-windows",
-            Environment::K8s => "kubernetes",
-        };
-        format!(
-            "{target}-{}-{}",
-            agent_type_id.name(),
-            agent_type_id.version()
-        )
     }
 
     /// Verifies that the downloaded definition's metadata matches what was requested: its
@@ -68,7 +55,7 @@ impl<D: OCIAgentTypeDownloader> AgentTypeRegistry for RemoteRegistry<D> {
         &self,
         agent_type_id: &AgentTypeID,
     ) -> Result<AgentTypeDefinition, AgentTypeRegistryError> {
-        let tag = self.artifact_tag(agent_type_id);
+        let tag = AgentTypeTag::new(agent_type_id, self.environment);
         let raw = self
             .downloader
             .download(&tag)
@@ -81,7 +68,10 @@ impl<D: OCIAgentTypeDownloader> AgentTypeRegistry for RemoteRegistry<D> {
         // remote returned an artifact we did not ask for. Reject it rather than supervise an
         // agent type meant for another platform.
         self.check_metadata(&definition.metadata, agent_type_id)
-            .map_err(|details| AgentTypeRegistryError::MetadataMismatch { tag, details })?;
+            .map_err(|details| AgentTypeRegistryError::MetadataMismatch {
+                tag: tag.to_string(),
+                details,
+            })?;
 
         Ok(definition)
     }
@@ -121,21 +111,12 @@ deployment:
         AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.1.0").unwrap()
     }
 
-    #[rstest::rstest]
-    #[case::linux(Environment::Linux, "host-linux-com.newrelic.infrastructure-0.1.0")]
-    #[case::windows(Environment::Windows, "host-windows-com.newrelic.infrastructure-0.1.0")]
-    #[case::kubernetes(Environment::K8s, "kubernetes-com.newrelic.infrastructure-0.1.0")]
-    fn test_artifact_tag(#[case] environment: Environment, #[case] expected_tag: &str) {
-        let registry = RemoteRegistry::new(environment, MockOCIAgentTypeDownloader::new());
-        assert_eq!(registry.artifact_tag(&agent_type_id()), expected_tag);
-    }
-
     #[test]
     fn test_get_downloads_parses_and_returns_definition() {
         let mut downloader = MockOCIAgentTypeDownloader::new();
         downloader
             .expect_download()
-            .withf(|tag| tag == "kubernetes-com.newrelic.infrastructure-0.1.0")
+            .withf(|tag| tag.as_str() == "kubernetes-com.newrelic.infrastructure-0.1.0")
             .once()
             .returning(|_| Ok(K8S_DEFINITION.as_bytes().to_vec()));
 

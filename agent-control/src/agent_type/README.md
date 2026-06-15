@@ -39,11 +39,13 @@ version: 0.0.1
 platform: kubernetes
 ```
 
-* The name and namespace should:
-  * Start by an alphabetical character.
-  * Only encompass `alphanumeric characters`, `.`, `_` or `-`.
-  * Be in lowercase.
-* The version field should adhere to [semantic versioning](https://semver.org/).
+* The name and namespace must:
+  * Start with an ASCII letter and end with a letter or digit.
+  * Only contain lowercase letters, digits, `.` or `_` (note: `-` is **not** allowed).
+  * Be at most 64 characters long.
+* The version must be a plain `Major.Minor.Patch` semver (e.g. `0.1.0`). Pre-release
+  (`-alpha.1`) and build-metadata (`+build`) suffixes are **not** allowed, and the version
+  must be at most 14 characters long (keeps the derived OCI tag bounded).
 * `platform`: the target platform. One of `host` or `kubernetes`.
 * `operating_system`: required when `platform: host`. One of `linux` or `windows`. Must be omitted for `platform: kubernetes`.
 

@@ -106,7 +106,7 @@ fn k8s_hash_in_config_map() {
         .store_remote(
             &agent_id_1,
             ResourceOwnership::SubAgent(
-                AgentTypeID::try_from("test/test-agent-type:0.0.1").unwrap(),
+                AgentTypeID::try_from("test/test_agent_type:0.0.1").unwrap(),
             ),
             &remote_config_1,
         )
@@ -128,7 +128,7 @@ fn k8s_hash_in_config_map() {
         .store_remote(
             &agent_id_2,
             ResourceOwnership::SubAgent(
-                AgentTypeID::try_from("test/test-agent-type:0.0.2").unwrap(),
+                AgentTypeID::try_from("test/test_agent_type:0.0.2").unwrap(),
             ),
             &remote_config_2,
         )
@@ -190,7 +190,7 @@ fn k8s_value_repository_config_map() {
         .store_remote(
             &agent_id_1,
             ResourceOwnership::SubAgent(
-                AgentTypeID::try_from("test/test-agent-type:0.0.1").unwrap(),
+                AgentTypeID::try_from("test/test_agent_type:0.0.1").unwrap(),
             ),
             &remote_values,
         )
@@ -230,7 +230,7 @@ fn k8s_value_repository_config_map() {
         .store_remote(
             &agent_id_2,
             ResourceOwnership::SubAgent(
-                AgentTypeID::try_from("test/test-agent-type:0.0.1").unwrap(),
+                AgentTypeID::try_from("test/test_agent_type:0.0.1").unwrap(),
             ),
             &remote_values_agent_2,
         )
@@ -343,7 +343,7 @@ fn k8s_multiple_store_entries() {
         .store_remote(
             &agent_id,
             ResourceOwnership::SubAgent(
-                AgentTypeID::try_from("test/test-agent-type:0.0.1").unwrap(),
+                AgentTypeID::try_from("test/test_agent_type:0.0.1").unwrap(),
             ),
             &remote_config,
         )

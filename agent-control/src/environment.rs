@@ -16,3 +16,23 @@ impl Display for Environment {
         }
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+
+    impl Environment {
+        /// Iterates over every [Environment] variant.
+        pub fn all() -> impl Iterator<Item = Environment> {
+            std::iter::successors(Some(Environment::Linux), Environment::succeeding)
+        }
+
+        fn succeeding(current: &Environment) -> Option<Environment> {
+            match current {
+                Environment::Linux => Some(Environment::Windows),
+                Environment::Windows => Some(Environment::K8s),
+                Environment::K8s => None,
+            }
+        }
+    }
+}

@@ -52,7 +52,7 @@ fn test_store_remote_no_mocks() {
         .store_remote(
             &agent_id.clone(),
             ResourceOwnership::SubAgent(
-                AgentTypeID::try_from("test/test-agent-type:0.0.1").unwrap(),
+                AgentTypeID::try_from("test/test_agent_type:0.0.1").unwrap(),
             ),
             &agent_values,
         )

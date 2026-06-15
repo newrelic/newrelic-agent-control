@@ -137,29 +137,28 @@ pub mod tests {
     fn test_get() {
         let definitions = vec![
             AgentTypeDefinition::empty_with_metadata(
-                AgentTypeID::try_from("ns/agent-1:0.0.0").unwrap(),
+                AgentTypeID::try_from("ns/agent_1:0.0.0").unwrap(),
             ),
             AgentTypeDefinition::empty_with_metadata(
-                AgentTypeID::try_from("ns/agent-2:0.0.0").unwrap(),
+                AgentTypeID::try_from("ns/agent_2:0.0.0").unwrap(),
             ),
         ];
 
         let registry = LocalRegistry::try_new(definitions.clone()).unwrap();
 
         let agent_1 = registry
-            .get(&AgentTypeID::try_from("ns/agent-1:0.0.0").unwrap())
+            .get(&AgentTypeID::try_from("ns/agent_1:0.0.0").unwrap())
             .unwrap();
         assert_eq!(definitions[0], agent_1);
         let agent_2 = registry
-            .get(&AgentTypeID::try_from("ns/agent-2:0.0.0").unwrap())
+            .get(&AgentTypeID::try_from("ns/agent_2:0.0.0").unwrap())
             .unwrap();
         assert_eq!(definitions[1], agent_2);
 
         assert_matches!(
-            registry
-                .get(&AgentTypeID::try_from("ns/not-existent:0.0.0").unwrap()),
+            registry.get(&AgentTypeID::try_from("ns/not_existent:0.0.0").unwrap()),
             Err(AgentTypeRegistryError::NotFound(s)) => {
-                assert_eq!(s, "ns/not-existent:0.0.0".to_string());
+                assert_eq!(s, "ns/not_existent:0.0.0".to_string());
             }
         );
     }

@@ -22,7 +22,7 @@ use tempfile::tempdir;
 #[cfg(target_family = "unix")]
 const LOGGING_AGENT_TYPE_YAML: &str = r#"
 namespace: test
-name: file-logging-agent
+name: file_logging_agent
 version: 0.0.0
 platform: host
 operating_system: linux
@@ -49,7 +49,7 @@ deployment:
 #[cfg(target_family = "windows")]
 const LOGGING_AGENT_TYPE_YAML: &str = r#"
 namespace: test
-name: file-logging-agent
+name: file_logging_agent
 version: 0.0.0
 platform: host
 operating_system: windows
@@ -142,7 +142,7 @@ fn run_file_logging_scenario(
     let agents = format!(
         r#"
   {agent_id}:
-    agent_type: "test/file-logging-agent:0.0.0"
+    agent_type: "test/file_logging_agent:0.0.0"
 "#
     );
     create_agent_control_config(

@@ -1441,7 +1441,7 @@ agents:
         let remote_config: &str = r#"
 agents:
   remote-id1: # not actually used, we rely on a mock
-    agent_type: "non-existent/invalid:0.0.1"
+    agent_type: "nonexistent/invalid:0.0.1"
 chart_version: 0.0.2 # not actually used, we rely on a mock
 "#;
         let opamp_remote_config = t.build_ac_remote_config(remote_config);
