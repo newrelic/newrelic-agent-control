@@ -12,7 +12,6 @@ use crate::environment::Environment;
 /// resolves them from its own running [Environment], which is used to build the OCI tag
 /// `<platform>-<operating_system>-<name>-<version>` (the operating system segment is omitted on
 /// kubernetes, matching how agent type metadata maps platform/os to [Environment]).
-// TODO: not yet wired into the composite `Registry` (see its precedence TODO).
 pub struct RemoteRegistry<D> {
     environment: Environment,
     downloader: D,

@@ -5,13 +5,20 @@ use super::defaults::{
 use crate::agent_control::config::AgentControlConfig;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::http_server::runner::Runner;
+#[cfg(debug_assertions)]
+use crate::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
+use crate::agent_type::oci::downloader::OCIAgentTypeArtifactDownloader;
 use crate::agent_type::registry::{Registry, RegistryConfig};
 use crate::command::RunnerContext;
 use crate::data_store::DataStore;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
+use crate::oci;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
 use crate::values::ConfigRepo;
+use oci_client::client::ClientConfig;
+#[cfg(debug_assertions)]
+use oci_client::client::ClientProtocol;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -73,6 +80,7 @@ pub struct AgentControlRunner {
     bootstrap_config: AgentControlConfig,
 
     agent_type_registry: Arc<Registry>,
+    oci_client: oci::Client,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
     sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
@@ -104,15 +112,19 @@ impl AgentControlRunner {
             )
         });
 
-        let agent_type_registry = Arc::new(Registry::new(
-            context.running_mode,
-            RegistryConfig {
-                dynamic_agent_types_path: context
-                    .base_paths
-                    .local_dir
-                    .join(DYNAMIC_AGENT_TYPES_DIR),
-            },
-        ));
+        // We are setting client http in debug_assertions mode for tests
+        let oci_client_config = ClientConfig {
+            #[cfg(debug_assertions)]
+            protocol: ClientProtocol::HttpsExcept(vec![OCI_TEST_REGISTRY_URL.to_string()]),
+            ..Default::default()
+        };
+        let oci_client = oci::Client::try_new(
+            oci_client_config,
+            context.bootstrap_config.proxy.clone(),
+            runtime.clone(),
+        )?;
+
+        let agent_type_registry = Arc::new(build_agent_type_registry(&context, oci_client.clone()));
 
         let signature_validator = context
             .bootstrap_config
@@ -132,6 +144,7 @@ impl AgentControlRunner {
             http_server_runner,
             runtime,
             agent_type_registry,
+            oci_client,
             application_event_consumer: context.application_event_consumer,
             agent_control_publisher,
             sub_agent_publisher,
@@ -139,6 +152,30 @@ impl AgentControlRunner {
             signature_validator,
         })
     }
+}
+
+fn build_agent_type_registry(context: &RunnerContext, oci_client: oci::Client) -> Registry {
+    let default_remote = &context.bootstrap_config.agent_types.default_remote;
+    let public_key_url = if default_remote.signature_verification_enabled.into() {
+        Some(default_remote.public_key_url.clone())
+    } else {
+        None
+    };
+    let downloader = OCIAgentTypeArtifactDownloader::new(
+        oci_client,
+        context.bootstrap_config.oci.registry.clone(),
+        default_remote.repository.clone(),
+        context.bootstrap_config.oci.auth.clone(),
+        public_key_url,
+    );
+
+    Registry::build(
+        context.running_mode,
+        RegistryConfig {
+            dynamic_agent_types_path: context.base_paths.local_dir.join(DYNAMIC_AGENT_TYPES_DIR),
+        },
+        downloader,
+    )
 }
 
 type RepositoryAndStore<D> = (

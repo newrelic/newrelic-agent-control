@@ -1,4 +1,5 @@
 mod agent_control_cli;
+mod agent_type_composite_registry;
 mod agent_type_remote_registry;
 mod cli;
 mod command;
