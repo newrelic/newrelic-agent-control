@@ -243,15 +243,20 @@ where
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) {
-        let Some(version_config) = &self.version_config else {
-            info!(agent_type=%self.agent_identity.agent_type_id, "Version checks are disabled for this agent");
+        // If both version_config and packages are missing, skip version checking
+        if self.version_config.is_none() && self.packages_config.is_empty() {
+            info!(
+                agent_type=%self.agent_identity.agent_type_id,
+                "Version checks are disabled for this agent (no version config, no packages)"
+            );
             return;
-        };
+        }
 
         let onhost_version_checker = OnHostAgentVersionChecker {
-            path: version_config.path.clone(),
-            args: version_config.args.clone(),
-            regex: version_config.regex.clone(),
+            path: self.version_config.as_ref().map(|c| c.path.clone()),
+            args: self.version_config.as_ref().map(|c| c.args.clone()),
+            regex: self.version_config.as_ref().and_then(|c| c.regex.clone()),
+            packages: Some(self.packages_config.clone()),
         };
 
         check_version(

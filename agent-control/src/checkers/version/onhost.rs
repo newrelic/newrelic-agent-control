@@ -2,6 +2,7 @@ use std::process::Command;
 
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 use crate::agent_type::runtime_config::on_host::executable::rendered::Args;
+use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::opamp::attributes::{UpdatedAttributesMessage, publish_update_attributes_event};
 use opamp_client::operation::settings::AgentDescription;
 use regex::Regex;
@@ -14,32 +15,106 @@ use std::fmt::Debug;
 use tracing::{debug, info, info_span, warn};
 
 pub struct OnHostAgentVersionChecker {
-    pub(crate) path: String,
-    pub(crate) args: Args,
+    pub(crate) path: Option<String>,
+    pub(crate) args: Option<Args>,
     pub(crate) regex: Option<Regex>,
+    pub(crate) packages: Option<RenderedPackages>,
 }
 
 impl VersionChecker for OnHostAgentVersionChecker {
     fn check_agent_version(&self) -> Result<AgentVersion, VersionCheckError> {
-        let output = Command::new(&self.path)
-            .args(self.args.0.clone())
-            .output()
-            .map_err(|e| VersionCheckError(format!("error executing version command: {e}")))?;
-        let output = String::from_utf8_lossy(&output.stdout);
+        // Priority 1: Try OCI package version
+        if let Some(version) = self.extract_package_version() {
+            debug!(version = %version, "Using version from OCI package metadata");
+            return Ok(AgentVersion {
+                version,
+                opamp_field: OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+            });
+        }
 
-        let version = if let Some(regex) = &self.regex {
-            let version_match = regex.find(&output).ok_or(VersionCheckError(
-                "error checking agent version: version not found".to_string(),
-            ))?;
-            version_match.as_str().to_string()
-        } else {
-            output.to_string()
-        };
+        // Priority 2: Fall back to command-based checking
+        if let (Some(path), Some(args)) = (&self.path, &self.args) {
+            debug!(path = %path, "Using command-based version checking as fallback");
+            let output = Command::new(path)
+                .args(args.0.clone())
+                .output()
+                .map_err(|e| {
+                    warn!("Command-based version check failed: {e}");
+                    VersionCheckError(format!("error executing version command: {e}"))
+                })?;
+            let output = String::from_utf8_lossy(&output.stdout);
 
-        Ok(AgentVersion {
-            version: version.as_str().to_string(),
-            opamp_field: OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-        })
+            let version = if let Some(regex) = &self.regex {
+                let version_match = regex.find(&output).ok_or(VersionCheckError(
+                    "error checking agent version: version not found in command output".to_string(),
+                ))?;
+                version_match.as_str().to_string()
+            } else {
+                output.trim().to_string()
+            };
+
+            return Ok(AgentVersion {
+                version,
+                opamp_field: OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+            });
+        }
+
+        // No version source available
+        Err(VersionCheckError(
+            "no version source available (no packages, no command config)".to_string(),
+        ))
+    }
+}
+
+impl OnHostAgentVersionChecker {
+    /// Extracts version from OCI package metadata.
+    ///
+    /// Priority:
+    /// 1. Tag (e.g., "1.2.3", "v1.2.3")
+    /// 2. Digest (truncated to first 12 chars)
+    ///
+    /// Version normalization:
+    /// - Strips 'v' prefix if present (v1.2.3 → 1.2.3)
+    fn extract_package_version(&self) -> Option<String> {
+        let packages = self.packages.as_ref()?;
+
+        if packages.is_empty() {
+            return None;
+        }
+
+        // Use first package (most agents have single package)
+        let package = packages.values().next()?;
+        let version = &package.download.oci.version;
+
+        // Try tag first (preferred)
+        let (tag, digest) = version.tag_and_digest();
+
+        if let Some(tag) = tag {
+            let normalized = Self::normalize_version(&tag);
+            return Some(normalized);
+        }
+
+        // Fall back to digest (truncated for readability)
+        if let Some(digest) = digest {
+            // Extract short hash (first 12 chars after 'sha256:')
+            let short_digest = digest
+                .strip_prefix("sha256:")
+                .and_then(|d| d.get(..12))
+                .unwrap_or(&digest);
+            return Some(format!("digest-{}", short_digest));
+        }
+
+        None
+    }
+
+    /// Normalizes version string by stripping 'v' prefix.
+    ///
+    /// Examples:
+    /// - "v1.2.3" → "1.2.3"
+    /// - "1.2.3" → "1.2.3"
+    /// - "v7" → "7"
+    fn normalize_version(version: &str) -> String {
+        version.strip_prefix('v').unwrap_or(version).to_string()
     }
 }
 
@@ -119,9 +194,10 @@ mod tests {
         #[case] regex: Option<&str>,
     ) {
         let agent_version = OnHostAgentVersionChecker {
-            path: path.to_string(),
-            args: Args(args),
+            path: Some(path.to_string()),
+            args: Some(Args(args)),
             regex: regex.map(|r| Regex::new(r).unwrap()),
+            packages: None, // No packages, should use command
         }
         .check_agent_version()
         .unwrap();
@@ -169,5 +245,226 @@ mod tests {
 
         // Check there are no more events
         assert!(version_consumer.as_ref().recv().is_err());
+    }
+
+    mod package_version_tests {
+        use super::*;
+        use crate::agent_type::runtime_config::on_host::package::rendered::{
+            Download, Oci, Package, Repository, Version,
+        };
+        use std::str::FromStr;
+
+        #[test]
+        fn test_version_from_package_tag() {
+            let mut packages = HashMap::new();
+            packages.insert(
+                "ebpf-agent".to_string(),
+                Package {
+                    download: Download {
+                        oci: Oci {
+                            repository: Repository::from_str("newrelic/nr-ebpf-agent").unwrap(),
+                            version: Version::from_str("0.5.2").unwrap(),
+                            public_key_url: None,
+                        },
+                    },
+                },
+            );
+
+            let checker = OnHostAgentVersionChecker {
+                path: None,
+                args: None,
+                regex: None,
+                packages: Some(packages),
+            };
+
+            let version = checker.check_agent_version().unwrap();
+            assert_eq!(version.version, "0.5.2");
+        }
+
+        #[test]
+        fn test_version_from_package_tag_with_v_prefix() {
+            let mut packages = HashMap::new();
+            packages.insert(
+                "ebpf-agent".to_string(),
+                Package {
+                    download: Download {
+                        oci: Oci {
+                            repository: Repository::from_str("newrelic/nr-ebpf-agent").unwrap(),
+                            version: Version::from_str("v7").unwrap(),
+                            public_key_url: None,
+                        },
+                    },
+                },
+            );
+
+            let checker = OnHostAgentVersionChecker {
+                path: None,
+                args: None,
+                regex: None,
+                packages: Some(packages),
+            };
+
+            let version = checker.check_agent_version().unwrap();
+            assert_eq!(version.version, "7"); // 'v' prefix stripped
+        }
+
+        #[test]
+        fn test_version_from_package_digest() {
+            let mut packages = HashMap::new();
+            packages.insert(
+                "ebpf-agent".to_string(),
+                Package {
+                    download: Download {
+                        oci: Oci {
+                            repository: Repository::from_str("newrelic/nr-ebpf-agent").unwrap(),
+                            version: Version::from_str(
+                                "@sha256:ec5f08ee7be8b557cd1fc5ae1a0ac985e8538da7c93f51a51eff4b277509a723",
+                            )
+                            .unwrap(),
+                            public_key_url: None,
+                        },
+                    },
+                },
+            );
+
+            let checker = OnHostAgentVersionChecker {
+                path: None,
+                args: None,
+                regex: None,
+                packages: Some(packages),
+            };
+
+            let version = checker.check_agent_version().unwrap();
+            assert_eq!(version.version, "digest-ec5f08ee7be8"); // Truncated digest
+        }
+
+        #[test]
+        fn test_package_version_preferred_over_command() {
+            let mut packages = HashMap::new();
+            packages.insert(
+                "agent".to_string(),
+                Package {
+                    download: Download {
+                        oci: Oci {
+                            repository: Repository::from_str("newrelic/agent").unwrap(),
+                            version: Version::from_str("2.0.0").unwrap(),
+                            public_key_url: None,
+                        },
+                    },
+                },
+            );
+
+            #[cfg(target_family = "unix")]
+            let checker = OnHostAgentVersionChecker {
+                path: Some("echo".to_string()),
+                args: Some(Args(vec!["-n".to_string(), "1.0.0".to_string()])),
+                regex: None,
+                packages: Some(packages),
+            };
+
+            #[cfg(target_family = "windows")]
+            let checker = OnHostAgentVersionChecker {
+                path: Some("cmd".to_string()),
+                args: Some(Args(vec![
+                    "/C".to_string(),
+                    "set".to_string(),
+                    "/p=1.0.0<nul".to_string(),
+                ])),
+                regex: None,
+                packages: Some(packages),
+            };
+
+            let version = checker.check_agent_version().unwrap();
+            // Should use package version (2.0.0) not command output (1.0.0)
+            assert_eq!(version.version, "2.0.0");
+        }
+
+        #[test]
+        fn test_command_fallback_when_no_packages() {
+            #[cfg(target_family = "unix")]
+            let checker = OnHostAgentVersionChecker {
+                path: Some("echo".to_string()),
+                args: Some(Args(vec!["-n".to_string(), "1.5.0".to_string()])),
+                regex: None,
+                packages: None,
+            };
+
+            #[cfg(target_family = "windows")]
+            let checker = OnHostAgentVersionChecker {
+                path: Some("cmd".to_string()),
+                args: Some(Args(vec![
+                    "/C".to_string(),
+                    "set".to_string(),
+                    "/p=1.5.0<nul".to_string(),
+                ])),
+                regex: None,
+                packages: None,
+            };
+
+            let version = checker.check_agent_version().unwrap();
+            assert_eq!(version.version, "1.5.0");
+        }
+
+        #[test]
+        fn test_command_fallback_when_empty_packages() {
+            let packages = HashMap::new(); // Empty
+
+            #[cfg(target_family = "unix")]
+            let checker = OnHostAgentVersionChecker {
+                path: Some("echo".to_string()),
+                args: Some(Args(vec!["-n".to_string(), "1.5.0".to_string()])),
+                regex: None,
+                packages: Some(packages),
+            };
+
+            #[cfg(target_family = "windows")]
+            let checker = OnHostAgentVersionChecker {
+                path: Some("cmd".to_string()),
+                args: Some(Args(vec![
+                    "/C".to_string(),
+                    "set".to_string(),
+                    "/p=1.5.0<nul".to_string(),
+                ])),
+                regex: None,
+                packages: Some(packages),
+            };
+
+            let version = checker.check_agent_version().unwrap();
+            assert_eq!(version.version, "1.5.0");
+        }
+
+        #[test]
+        fn test_no_version_available() {
+            let checker = OnHostAgentVersionChecker {
+                path: None,
+                args: None,
+                regex: None,
+                packages: None,
+            };
+
+            let result = checker.check_agent_version();
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .0
+                .contains("no version source available"));
+        }
+
+        #[test]
+        fn test_normalize_version() {
+            assert_eq!(
+                OnHostAgentVersionChecker::normalize_version("v1.2.3"),
+                "1.2.3"
+            );
+            assert_eq!(
+                OnHostAgentVersionChecker::normalize_version("1.2.3"),
+                "1.2.3"
+            );
+            assert_eq!(OnHostAgentVersionChecker::normalize_version("v7"), "7");
+            assert_eq!(
+                OnHostAgentVersionChecker::normalize_version("latest"),
+                "latest"
+            );
+        }
     }
 }
