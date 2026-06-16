@@ -1,7 +1,7 @@
 use oci_client::Reference;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::{fmt::Display, str::FromStr, time::Duration};
+use std::{fmt::Display, str::FromStr};
 use url::Url;
 
 use crate::agent_control::config::Registry;
@@ -13,8 +13,8 @@ const TAG_TOTAL_LENGTH_MAX: usize = 128;
 pub struct Package {
     /// Download defines the supported repository sources for the packages.
     pub download: Download,
-    /// Postdownload script to execute after downloading and extracting the package.
-    pub postdownload: Option<Postdownload>,
+    /// Post-download hook script to execute after downloading and extracting the package.
+    pub post_download_hook: Option<PostDownloadHook>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -31,15 +31,14 @@ pub struct Oci {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Postdownload {
-    /// Arguments where first element is the command/executable, second element is script path,
-    /// followed by additional arguments.
-    /// Example: ["bash", "postdownload.sh", "--verbose"]
+pub struct PostDownloadHook {
+    /// Absolute path to the command/executable (e.g., "/bin/bash", "/usr/bin/python3")
+    pub path: String,
+    /// Arguments where first element is the script path, followed by additional arguments.
+    /// Example: ["install.sh", "--check-dependencies", "--verbose"]
     pub args: Vec<String>,
     /// Environmental variables
     pub env: HashMap<String, String>,
-    /// Timeout duration
-    pub timeout: Duration,
 }
 
 const DEFAULT_TAG: &str = "latest";

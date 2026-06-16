@@ -404,6 +404,7 @@ mod tests {
                 .unwrap(),
                 public_key_url: None,
             },
+            post_download_hook: None,
         }
     }
 
@@ -419,6 +420,7 @@ mod tests {
                 version: Version::from_str(version).unwrap(),
                 public_key_url: None,
             },
+            post_download_hook: None,
         }
     }
 

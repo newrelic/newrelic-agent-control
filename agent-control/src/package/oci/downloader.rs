@@ -168,6 +168,7 @@ pub mod tests {
                 version: Version::from_str(VERSION).unwrap(),
                 public_key_url,
             },
+            post_download_hook: None,
         }
     }
 

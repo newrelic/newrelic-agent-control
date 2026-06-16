@@ -1,3 +1,3 @@
 pub mod manager;
 pub mod oci;
-pub mod postdownload_executor;
+pub mod post_download_hook_executor;

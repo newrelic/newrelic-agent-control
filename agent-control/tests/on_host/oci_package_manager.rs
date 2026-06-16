@@ -47,7 +47,7 @@ fn test_install_and_uninstall_with_oci_registry() {
             version: Version::from_str(reference.tag().unwrap()).unwrap(),
             public_key_url: None,
         },
-        postdownload: None,
+        post_download_hook: None,
     };
     let installed_package_result = package_manager.install(&agent_id, package_data.clone());
 
@@ -111,7 +111,7 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
             version: Version::from_str(reference.tag().unwrap()).unwrap(),
             public_key_url: None,
         },
-        postdownload: None,
+        post_download_hook: None,
     };
 
     let installed_1 = package_manager

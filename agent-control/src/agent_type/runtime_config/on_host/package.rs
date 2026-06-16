@@ -15,9 +15,9 @@ pub mod rendered;
 pub(super) struct Package {
     /// Download defines the supported repository sources for the packages.
     pub download: Download,
-    /// Postdownload script to execute after downloading and extracting the package.
+    /// Post-download hook script to execute after downloading and extracting the package.
     /// All validations, checks, and installation steps should go here.
-    pub postdownload: Option<Postdownload>,
+    pub post_download_hook: Option<PostDownloadHook>,
 }
 
 pub type PackageID = String;
@@ -40,36 +40,32 @@ pub struct Oci {
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct Postdownload {
-    /// Arguments where first element is the command/executable (e.g., "bash", "sh", "python3"),
-    /// second element is the script path, followed by additional arguments.
-    /// Example: ["bash", "postdownload.sh", "--verbose"]
+pub struct PostDownloadHook {
+    /// Absolute path to the command/executable (e.g., "/bin/bash", "/usr/bin/python3").
+    /// This is the interpreter or tool that will execute the script.
+    pub path: TemplateableValue<String>,
+
+    /// Arguments passed to the command. First element should be the script path (absolute),
+    /// followed by additional arguments for the script.
+    /// Example: ["install.sh", "--check-dependencies", "--verbose"]
     pub args: Vec<TemplateableValue<String>>,
 
     /// Environmental variables passed to the process.
     #[serde(default)]
     pub env: HashMap<String, TemplateableValue<String>>,
-
-    /// Maximum time to wait for the script to complete.
-    #[serde(default = "default_postdownload_timeout")]
-    pub timeout: TemplateableValue<String>,
-}
-
-fn default_postdownload_timeout() -> TemplateableValue<String> {
-    TemplateableValue::new("300s".to_string())
 }
 
 impl Templateable for Package {
     type Output = rendered::Package;
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let postdownload = self
-            .postdownload
+        let post_download_hook = self
+            .post_download_hook
             .map(|pd| pd.template_with(variables))
             .transpose()?;
 
         Ok(Self::Output {
             download: self.download.template_with(variables)?,
-            postdownload,
+            post_download_hook,
         })
     }
 }
@@ -116,10 +112,10 @@ impl Templateable for Oci {
     }
 }
 
-impl Templateable for Postdownload {
-    type Output = rendered::Postdownload;
+impl Templateable for PostDownloadHook {
+    type Output = rendered::PostDownloadHook;
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let timeout_str = self.timeout.template_with(variables)?;
+        let path = self.path.template_with(variables)?;
 
         let args: Vec<String> = self
             .args
@@ -127,10 +123,9 @@ impl Templateable for Postdownload {
             .map(|arg| arg.template_with(variables))
             .collect::<Result<Vec<String>, AgentTypeError>>()?;
 
-        if args.len() < 2 {
+        if args.is_empty() {
             return Err(AgentTypeError::OCIReferenceParsingError(
-                "postdownload args must have at least 2 elements: command and script path"
-                    .to_string(),
+                "post_download_hook args must have at least 1 element: the script path".to_string(),
             ));
         }
 
@@ -140,11 +135,7 @@ impl Templateable for Postdownload {
             .map(|(k, v)| v.template_with(variables).map(|templated| (k, templated)))
             .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
 
-        let timeout = duration_str::parse(&timeout_str).map_err(|err| {
-            AgentTypeError::OCIReferenceParsingError(format!("invalid timeout format: {err}"))
-        })?;
-
-        Ok(Self::Output { args, env, timeout })
+        Ok(Self::Output { path, args, env })
     }
 }
 

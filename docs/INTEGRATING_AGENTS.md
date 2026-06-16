@@ -387,6 +387,61 @@ Note that a Package version. Can be:
 > [!WARNING]
 > The package in the OCI repository **MUST** follow a specific [structure](./package_manager.md#package-structure).
 
+**Post-Download Hook:**
+
+The `post_download_hook` is an optional field that allows executing a custom script after the package is downloaded and extracted. This is useful for:
+- Installing system dependencies
+- Compiling native code
+- Performing system configuration
+- Validating installation requirements
+- Running setup scripts that cannot be handled through simple file extraction
+
+The hook runs with a hardcoded timeout of 300 seconds (5 minutes) and is not configurable. If the script exits with a non-zero status code, the package installation fails.
+
+```yaml
+  post_download_hook:
+    path: /bin/bash
+    args:
+      - /absolute/path/to/script.sh
+      - --arg1
+      - --arg2
+    env:
+      PACKAGE_VERSION: ${nr-var:version}
+      CUSTOM_VAR: some-value
+```
+
+Fields:
+- `path`: Absolute path to the command/interpreter (e.g., `/bin/bash`, `/usr/bin/python3`). **Required**.
+- `args`: List of arguments where the first element **must** be the absolute path to the script, followed by any additional script arguments. **Required** (at least one element).
+- `env`: Optional map of environment variables passed to the script process.
+
+The script execution environment includes:
+- `PACKAGE_DIR`: Automatically set to the package installation directory
+- Current working directory: Set to the package directory
+- `stdout`: Discarded (to avoid log noise)
+- `stderr`: Captured and logged on failure
+
+> [!IMPORTANT]
+> Both `path` (the command) and the first element of `args` (the script) **must be absolute paths**. Relative paths are rejected with an error.
+
+**Example with post-download hook:**
+
+```yaml
+    packages:
+      ebpf-agent:
+        download:
+          oci:
+            repository: ${nr-var:oci.repository}
+            version: ${nr-var:version}
+        post_download_hook:
+          path: /bin/bash
+          args:
+            - /opt/newrelic/ebpf-agent/install.sh
+            - --check-dependencies
+          env:
+            AGENT_VERSION: ${nr-var:version}
+```
+
 **Accessing Package Contents:**
 
 After installation, the package directory path is available via the reserved variable `${nr-sub:packages.<package-id>.dir}`, where `<package-id>` is the key used in the packages map.

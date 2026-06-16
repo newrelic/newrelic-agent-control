@@ -1,6 +1,6 @@
 //! This module manages package operations such as installation, removal, and updates.
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Postdownload};
+use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, PostDownloadHook};
 use crate::package::oci::package_manager::OCIPackageManagerError;
 use std::path::PathBuf;
 
@@ -9,7 +9,7 @@ use std::path::PathBuf;
 pub struct PackageData {
     pub id: String, // same type as the packages map on an agent type definition
     pub oci: Oci,
-    pub postdownload: Option<Postdownload>,
+    pub post_download_hook: Option<PostDownloadHook>,
 }
 
 /// Information about an installed package
