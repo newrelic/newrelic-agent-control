@@ -3,7 +3,6 @@ use serde::{Deserialize, Deserializer, Serializer};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 
-const NAME_NAMESPACE_MIN_LENGTH: usize = 1;
 pub(crate) const NAME_NAMESPACE_MAX_LENGTH: usize = 64;
 /// Bounds the version length so a version bump (e.g. `9999.9999.999` -> `9999.9999.1000`)
 /// cannot overflow external constraints like the OCI tag built using this metadata.
@@ -62,7 +61,7 @@ impl AgentTypeID {
     /// Parses a semver version, additionally rejecting anything that isn't a digit or `.`.
     /// This constraint relates to the OCI tag built from this metadata.
     fn parse_version(s: &str) -> Result<Version, AgentTypeIDError> {
-        if !s.chars().all(|c| c.is_ascii_digit() || c.eq(&'.')) {
+        if !s.chars().all(|c| c.is_ascii_digit() || c == '.') {
             return Err(AgentTypeIDError::ForbiddenSemVer);
         }
         if s.len() > VERSION_MAX_LENGTH {
@@ -74,10 +73,10 @@ impl AgentTypeID {
         Version::parse(s).map_err(|e| AgentTypeIDError::InvalidVersion(e.to_string()))
     }
 
-    /// Limits the characters allowed so this could be used as identifier for k8s resources and other
+    /// Limits the characters allowed so this could be used as k8s labels and other
     /// places like OCI tags. Returns the specific [NameFormatError] on the first rule violated.
     fn validate_format(s: &str) -> Result<(), NameFormatError> {
-        if s.len() < NAME_NAMESPACE_MIN_LENGTH {
+        if s.is_empty() {
             return Err(NameFormatError::Empty);
         }
         if s.len() > NAME_NAMESPACE_MAX_LENGTH {
@@ -104,11 +103,11 @@ impl AgentTypeID {
     fn from_parts(
         name: String,
         namespace: String,
-        version: &str,
+        version: String,
     ) -> Result<Self, AgentTypeIDError> {
         Self::validate_format(namespace.as_str()).map_err(AgentTypeIDError::InvalidNamespace)?;
         Self::validate_format(name.as_str()).map_err(AgentTypeIDError::InvalidName)?;
-        let version = Self::parse_version(version)?;
+        let version = Self::parse_version(version.as_str())?;
         Ok(Self {
             name,
             namespace,
@@ -151,16 +150,10 @@ impl TryFrom<&str> for AgentTypeID {
     type Error = AgentTypeIDError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let namespace: String = value.chars().take_while(|&i| i != '/').collect();
-        let name: String = value
-            .chars()
-            .skip_while(|&i| i != '/')
-            .skip(1)
-            .take_while(|&i| i != ':')
-            .collect();
-        let version: String = value.chars().skip_while(|&i| i != ':').skip(1).collect();
+        let (namespace, rest) = value.split_once('/').unwrap_or_default();
+        let (name, version) = rest.split_once(':').unwrap_or_default();
 
-        Self::from_parts(name, namespace, version.as_str())
+        Self::from_parts(name.to_string(), namespace.to_string(), version.to_string())
     }
 }
 
@@ -188,7 +181,7 @@ impl<'de> Deserialize<'de> for AgentTypeID {
         Self::from_parts(
             name.unwrap_or_default(),
             namespace.unwrap_or_default(),
-            version.unwrap_or_default().as_str(),
+            version.unwrap_or_default(),
         )
         .map_err(Error::custom)
     }
@@ -228,23 +221,23 @@ version: 0.1.0
     type ErrorMatcher = fn(AgentTypeIDError) -> bool;
 
     #[rstest]
-    #[case::empty_name("ns/:0.1.0", (|e| matches!(e, AgentTypeIDError::InvalidName(NameFormatError::Empty))) as ErrorMatcher)]
-    #[case::name_does_not_start_with_letter("ns/1nrdot:0.1.0", (|e| matches!(e, AgentTypeIDError::InvalidName(NameFormatError::InvalidStart))) as ErrorMatcher)]
-    #[case::name_does_not_end_with_alphanumeric("ns/nrdot.:0.1.0", (|e| matches!(e, AgentTypeIDError::InvalidName(NameFormatError::InvalidEnd))) as ErrorMatcher)]
-    #[case::name_with_invalid_char("ns/nr@dot:0.1.0", (|e| matches!(e, AgentTypeIDError::InvalidName(NameFormatError::InvalidCharacter('@')))) as ErrorMatcher)]
-    #[case::name_with_dash("ns/nr-dot:0.1.0", (|e| matches!(e, AgentTypeIDError::InvalidName(NameFormatError::InvalidCharacter('-')))) as ErrorMatcher)]
-    #[case::name_too_long(TOO_LONG_NAME_FQN, (|e| matches!(e, AgentTypeIDError::InvalidName(NameFormatError::TooLong { .. }))) as ErrorMatcher)]
-    #[case::empty_namespace("/nrdot:0.1.0", (|e| matches!(e, AgentTypeIDError::InvalidNamespace(NameFormatError::Empty))) as ErrorMatcher)]
-    #[case::namespace_with_invalid_char("n@s/nrdot:0.1.0", (|e| matches!(e, AgentTypeIDError::InvalidNamespace(NameFormatError::InvalidCharacter('@')))) as ErrorMatcher)]
+    #[case::empty_name("ns/:0.1.0", |e| matches!(e, AgentTypeIDError::InvalidName(NameFormatError::Empty)))]
+    #[case::name_does_not_start_with_letter("ns/1nrdot:0.1.0", |e| matches!(e, AgentTypeIDError::InvalidName(NameFormatError::InvalidStart)))]
+    #[case::name_does_not_end_with_alphanumeric("ns/nrdot.:0.1.0", |e| matches!(e, AgentTypeIDError::InvalidName(NameFormatError::InvalidEnd)))]
+    #[case::name_with_invalid_char("ns/nr@dot:0.1.0", |e| matches!(e, AgentTypeIDError::InvalidName(NameFormatError::InvalidCharacter('@'))))]
+    #[case::name_with_dash("ns/nr-dot:0.1.0", |e| matches!(e, AgentTypeIDError::InvalidName(NameFormatError::InvalidCharacter('-'))))]
+    #[case::name_too_long(TOO_LONG_NAME_FQN, |e| matches!(e, AgentTypeIDError::InvalidName(NameFormatError::TooLong { .. })))]
+    #[case::empty_namespace("/nrdot:0.1.0", |e| matches!(e, AgentTypeIDError::InvalidNamespace(NameFormatError::Empty)))]
+    #[case::namespace_with_invalid_char("n@s/nrdot:0.1.0", |e| matches!(e, AgentTypeIDError::InvalidNamespace(NameFormatError::InvalidCharacter('@'))))]
     // Without a `/`, the whole input is taken as the namespace and `:` is not an allowed character.
-    #[case::missing_name_separator("aa:1.1.3", (|e| matches!(e, AgentTypeIDError::InvalidNamespace(NameFormatError::InvalidCharacter(':')))) as ErrorMatcher)]
-    #[case::namespace_too_long(TOO_LONG_NAMESPACE_FQN, (|e| matches!(e, AgentTypeIDError::InvalidNamespace(NameFormatError::TooLong { .. }))) as ErrorMatcher)]
-    #[case::empty_version("ns/nrdot:", (|e| matches!(e, AgentTypeIDError::InvalidVersion(_))) as ErrorMatcher)]
-    #[case::incomplete_version("ns/nrdot:0", (|e| matches!(e, AgentTypeIDError::InvalidVersion(_))) as ErrorMatcher)]
-    #[case::non_numeric_version("ns/nrdot:adsf", (|e| matches!(e, AgentTypeIDError::ForbiddenSemVer)) as ErrorMatcher)]
-    #[case::pre_release_version("ns/nrdot:0.1.0-alpha.1", (|e| matches!(e, AgentTypeIDError::ForbiddenSemVer)) as ErrorMatcher)]
-    #[case::build_metadata_version("ns/nrdot:0.1.0+build", (|e| matches!(e, AgentTypeIDError::ForbiddenSemVer)) as ErrorMatcher)]
-    #[case::version_too_long("ns/nrdot:1111.1111.11111", (|e| matches!(e, AgentTypeIDError::VersionTooLong { length: 15, max: 14 })) as ErrorMatcher)]
+    #[case::missing_name_separator("aa:1.1.3", |e| matches!(e, AgentTypeIDError::InvalidNamespace(NameFormatError::InvalidCharacter(':'))))]
+    #[case::namespace_too_long(TOO_LONG_NAMESPACE_FQN, |e| matches!(e, AgentTypeIDError::InvalidNamespace(NameFormatError::TooLong { .. })))]
+    #[case::empty_version("ns/nrdot:", |e| matches!(e, AgentTypeIDError::InvalidVersion(_)))]
+    #[case::incomplete_version("ns/nrdot:0", |e| matches!(e, AgentTypeIDError::InvalidVersion(_)))]
+    #[case::non_numeric_version("ns/nrdot:adsf", |e| matches!(e, AgentTypeIDError::ForbiddenSemVer))]
+    #[case::pre_release_version("ns/nrdot:0.1.0-alpha.1", |e| matches!(e, AgentTypeIDError::ForbiddenSemVer))]
+    #[case::build_metadata_version("ns/nrdot:0.1.0+build", |e| matches!(e, AgentTypeIDError::ForbiddenSemVer))]
+    #[case::version_too_long("ns/nrdot:1111.1111.11111", |e| matches!(e, AgentTypeIDError::VersionTooLong { length: 15, max: 14 }))]
     fn try_from_invalid_fqn(#[case] fqn: &str, #[case] is_expected_error: ErrorMatcher) {
         let error = AgentTypeID::try_from(fqn).unwrap_err();
         let rendered = format!("{error:?}");

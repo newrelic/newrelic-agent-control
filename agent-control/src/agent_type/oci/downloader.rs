@@ -55,7 +55,7 @@ impl OCIAgentTypeDownloader for OCIAgentTypeArtifactDownloader {
         let base_reference = Reference::with_tag(
             self.registry.to_string(),
             self.repository.to_string(),
-            tag.as_str().to_string(),
+            tag.to_string(),
         );
         debug!(
             oci_reference = base_reference.to_string(),
@@ -186,7 +186,7 @@ pub mod tests {
 
     /// An [AgentTypeTag] whose string equals [TAG], so it matches the artifact the mock server
     /// serves under that tag.
-    fn agent_type_tag() -> AgentTypeTag {
+    fn test_agent_type_tag() -> AgentTypeTag {
         AgentTypeTag::new(
             &AgentTypeID::try_from("newrelic/some.agent.type:0.0.42").unwrap(),
             Environment::Linux,
@@ -239,7 +239,7 @@ pub mod tests {
             .build();
 
         let downloader = create_downloader(server.registry(), None);
-        let definition = downloader.download(&agent_type_tag()).unwrap();
+        let definition = downloader.download(&test_agent_type_tag()).unwrap();
         assert_eq!(definition, DEFINITION);
     }
 
@@ -252,7 +252,7 @@ pub mod tests {
             .build();
 
         let downloader = create_downloader(server.registry(), None);
-        assert_matches!(downloader.download(&agent_type_tag()), Err(OciClientError::AttemptsExceeded(msg)) => {
+        assert_matches!(downloader.download(&test_agent_type_tag()), Err(OciClientError::AttemptsExceeded(msg)) => {
             assert!(msg.contains("validating agent type manifest"), "{msg}");
         });
     }
@@ -266,7 +266,7 @@ pub mod tests {
             .build();
 
         let downloader = create_downloader(server.registry(), None).with_max_size_bytes(10);
-        assert_matches!(downloader.download(&agent_type_tag()), Err(OciClientError::AttemptsExceeded(msg)) => {
+        assert_matches!(downloader.download(&test_agent_type_tag()), Err(OciClientError::AttemptsExceeded(msg)) => {
             assert!(msg.contains("exceeds maximum"), "{msg}");
         });
     }
