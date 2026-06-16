@@ -193,4 +193,56 @@ mod tests {
         assert_eq!(rendered_oci.version, Version::from_str(&version).unwrap());
         assert_eq!(rendered_oci.public_key_url, public_key_url);
     }
+
+    #[test]
+    fn test_post_download_hook_template_with_variables() {
+        let mut variables = Variables::new();
+        variables.insert(
+            "nr-var:version".to_string(),
+            Variable::new_final_string_variable("1.0.0".to_string()),
+        );
+        variables.insert(
+            "nr-var:script-path".to_string(),
+            Variable::new_final_string_variable("/opt/install.sh".to_string()),
+        );
+        variables.insert(
+            "nr-var:env-value".to_string(),
+            Variable::new_final_string_variable("test-value".to_string()),
+        );
+
+        let mut env = HashMap::new();
+        env.insert(
+            "AGENT_VERSION".to_string(),
+            TemplateableValue::from_template("${nr-var:version}".to_string()),
+        );
+        env.insert(
+            "CUSTOM_VAR".to_string(),
+            TemplateableValue::from_template("${nr-var:env-value}".to_string()),
+        );
+
+        let post_download_hook = PostDownloadHook {
+            path: TemplateableValue::from_template("/bin/bash".to_string()),
+            args: vec![
+                TemplateableValue::from_template("${nr-var:script-path}".to_string()),
+                TemplateableValue::from_template("--version=${nr-var:version}".to_string()),
+            ],
+            env,
+        };
+
+        let rendered = post_download_hook.template_with(&variables).unwrap();
+
+        assert_eq!(rendered.path, "/bin/bash");
+        assert_eq!(rendered.args.len(), 2);
+        assert_eq!(rendered.args[0], "/opt/install.sh");
+        assert_eq!(rendered.args[1], "--version=1.0.0");
+        assert_eq!(rendered.env.len(), 2);
+        assert_eq!(
+            rendered.env.get("AGENT_VERSION"),
+            Some(&"1.0.0".to_string())
+        );
+        assert_eq!(
+            rendered.env.get("CUSTOM_VAR"),
+            Some(&"test-value".to_string())
+        );
+    }
 }

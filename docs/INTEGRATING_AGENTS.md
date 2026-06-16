@@ -400,7 +400,7 @@ The hook runs with a hardcoded timeout of 300 seconds (5 minutes) and is not con
 
 ```yaml
   post_download_hook:
-    path: /bin/bash
+    path: /bin/bash           # or just "bash" (searches in PATH)
     args:
       - /absolute/path/to/script.sh
       - --arg1
@@ -411,8 +411,8 @@ The hook runs with a hardcoded timeout of 300 seconds (5 minutes) and is not con
 ```
 
 Fields:
-- `path`: Absolute path to the command/interpreter (e.g., `/bin/bash`, `/usr/bin/python3`). **Required**.
-- `args`: List of arguments where the first element **must** be the absolute path to the script, followed by any additional script arguments. **Required** (at least one element).
+- `path`: Path to the command/interpreter. Can be absolute (e.g., `/bin/bash`, `C:\Windows\System32\cmd.exe`) or relative (e.g., `bash`, `python3`, `cmd`) which will be searched in the system PATH. **Required**.
+- `args`: List of arguments passed to the command. The structure depends on your use case (see examples below). **Required** (at least one element).
 - `env`: Optional map of environment variables passed to the script process.
 
 The script execution environment includes:
@@ -421,10 +421,66 @@ The script execution environment includes:
 - `stdout`: Discarded (to avoid log noise)
 - `stderr`: Captured and logged on failure
 
-> [!IMPORTANT]
-> Both `path` (the command) and the first element of `args` (the script) **must be absolute paths**. Relative paths are rejected with an error.
+> [!NOTE]
+> On Unix systems, if `path` points to a file, it will be automatically made executable (`chmod +x`) before execution. This ensures scripts extracted from OCI packages work even if they don't have execute permissions in the archive.
 
-**Example with post-download hook:**
+**Linux Examples:**
+
+```yaml
+# Using bash from PATH with absolute script path
+post_download_hook:
+  path: bash
+  args:
+    - /opt/newrelic/install.sh
+    - --check-dependencies
+  env:
+    AGENT_VERSION: ${nr-var:version}
+
+# Using absolute interpreter path
+post_download_hook:
+  path: /usr/bin/python3
+  args:
+    - /opt/newrelic/setup.py
+    - --install
+
+# Using relative script path (relative to package directory)
+post_download_hook:
+  path: bash
+  args:
+    - ./install.sh
+    - --verbose
+```
+
+**Windows Examples:**
+
+```yaml
+# Using cmd.exe with /c flag
+post_download_hook:
+  path: cmd
+  args:
+    - /c
+    - C:\newrelic\install.bat
+    - --check-dependencies
+  env:
+    AGENT_VERSION: ${nr-var:version}
+
+# Using PowerShell
+post_download_hook:
+  path: powershell
+  args:
+    - -ExecutionPolicy
+    - Bypass
+    - -File
+    - C:\newrelic\setup.ps1
+
+# Direct batch script execution (Windows can execute .bat/.cmd directly)
+post_download_hook:
+  path: C:\newrelic\install.bat
+  args:
+    - --verbose
+```
+
+**Complete package example:**
 
 ```yaml
     packages:
@@ -434,9 +490,9 @@ The script execution environment includes:
             repository: ${nr-var:oci.repository}
             version: ${nr-var:version}
         post_download_hook:
-          path: /bin/bash
+          path: bash
           args:
-            - /opt/newrelic/ebpf-agent/install.sh
+            - ./install.sh
             - --check-dependencies
           env:
             AGENT_VERSION: ${nr-var:version}

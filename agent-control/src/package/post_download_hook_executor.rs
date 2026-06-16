@@ -1,33 +1,30 @@
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::io::{Error as IoError, ErrorKind, Read};
+use std::path::PathBuf;
+use std::process::{Command, Output, Stdio};
+use std::thread;
 use std::time::{Duration, Instant};
 use tracing::{debug, warn};
 
 use crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadHook;
 use crate::utils::thread_context::NotStartedThreadContext;
 
+#[cfg(unix)]
+use {
+    std::fs::{metadata, set_permissions},
+    std::os::unix::fs::PermissionsExt,
+    std::path::Path,
+};
+
 #[derive(thiserror::Error, Debug)]
 pub enum PostDownloadHookExecutionError {
-    #[error("post_download_hook args cannot be empty, must contain at least the script path")]
+    #[error("post_download_hook args cannot be empty")]
     EmptyArgs,
-
-    #[error("path must be absolute: {path}")]
-    PathNotAbsolute { path: String },
-
-    #[error("script path (first argument) must be absolute: {path}")]
-    ScriptPathNotAbsolute { path: String },
 
     #[error("command not found: {path}")]
     CommandNotFound { path: String },
 
-    #[error("script not found: {path}")]
-    ScriptNotFound { path: String },
-
-    #[error("failed to set script permissions: {0}")]
-    ScriptPermissionError(#[source] std::io::Error),
-
     #[error("failed to spawn command '{0}': {1}")]
-    SpawnFailed(String, #[source] std::io::Error),
+    SpawnFailed(String, #[source] IoError),
 
     #[error("script execution failed with exit code {0:?}\nstderr: {1}")]
     ExecutionFailed(Option<i32>, String),
@@ -37,17 +34,17 @@ pub enum PostDownloadHookExecutionError {
 }
 
 #[cfg(unix)]
-fn make_script_executable(script_path: &Path) -> Result<(), PostDownloadHookExecutionError> {
-    use std::os::unix::fs::PermissionsExt;
-
-    let mut perms = std::fs::metadata(script_path)
-        .map_err(PostDownloadHookExecutionError::ScriptPermissionError)?
-        .permissions();
-
-    perms.set_mode(0o755);
-
-    std::fs::set_permissions(script_path, perms)
-        .map_err(PostDownloadHookExecutionError::ScriptPermissionError)
+fn make_executable_if_exists(path: &str) {
+    let _ = Path::new(path).canonicalize().ok().and_then(|file_path| {
+        if !file_path.is_file() {
+            return None;
+        }
+        metadata(&file_path).ok().map(|meta| {
+            let mut perms = meta.permissions();
+            perms.set_mode(0o755);
+            set_permissions(&file_path, perms)
+        })
+    });
 }
 
 pub struct PostDownloadHookExecutor {
@@ -67,36 +64,14 @@ impl PostDownloadHookExecutor {
             return Err(PostDownloadHookExecutionError::EmptyArgs);
         }
 
-        // Validate that path is absolute
-        let path = Path::new(&post_download_hook.path);
-        if !path.is_absolute() {
-            return Err(PostDownloadHookExecutionError::PathNotAbsolute {
-                path: post_download_hook.path.clone(),
-            });
-        }
-
-        // Validate that script path (args[0]) is absolute
-        let script_path = Path::new(&post_download_hook.args[0]);
-        if !script_path.is_absolute() {
-            return Err(PostDownloadHookExecutionError::ScriptPathNotAbsolute {
-                path: post_download_hook.args[0].clone(),
-            });
-        }
-
-        let script_args = &post_download_hook.args[1..];
-
         debug!(
             path = %post_download_hook.path,
-            script = %post_download_hook.args[0],
-            args = ?script_args,
+            args = ?post_download_hook.args,
             "Executing post-download hook"
         );
 
-        // Make script executable on Unix if it exists
-        if script_path.exists() {
-            #[cfg(unix)]
-            make_script_executable(script_path)?;
-        }
+        #[cfg(unix)]
+        make_executable_if_exists(&post_download_hook.path);
 
         let output = self.execute_with_timeout(post_download_hook)?;
 
@@ -124,7 +99,7 @@ impl PostDownloadHookExecutor {
     fn execute_with_timeout(
         &self,
         post_download_hook: &PostDownloadHook,
-    ) -> Result<std::process::Output, PostDownloadHookExecutionError> {
+    ) -> Result<Output, PostDownloadHookExecutionError> {
         let package_dir = self.package_dir.clone();
         let env = post_download_hook.env.clone();
 
@@ -147,7 +122,7 @@ impl PostDownloadHookExecutor {
                 let mut child = match cmd.spawn() {
                     Ok(child) => child,
                     Err(e) => {
-                        if e.kind() == std::io::ErrorKind::NotFound {
+                        if e.kind() == ErrorKind::NotFound {
                             return Err(PostDownloadHookExecutionError::CommandNotFound {
                                 path: path.clone(),
                             });
@@ -165,14 +140,13 @@ impl PostDownloadHookExecutor {
                         .expect("failed to check process status - internal OS error")
                     {
                         Some(status) => {
-                            let output = std::process::Output {
+                            let output = Output {
                                 status,
                                 stdout: Vec::new(),
                                 stderr: child
                                     .stderr
                                     .take()
                                     .and_then(|mut stderr| {
-                                        use std::io::Read;
                                         let mut buf = Vec::new();
                                         stderr.read_to_end(&mut buf).ok().map(|_| buf)
                                     })
@@ -186,7 +160,7 @@ impl PostDownloadHookExecutor {
                                 let _ = child.wait();
                                 return Err(PostDownloadHookExecutionError::Timeout(timeout));
                             }
-                            std::thread::sleep(POLL_INTERVAL);
+                            thread::sleep(POLL_INTERVAL);
                         }
                     }
                 }
@@ -206,12 +180,8 @@ mod tests {
     use std::collections::HashMap;
     use std::fs::{File, create_dir};
     use std::io::Write;
+    use std::path::Path;
     use tempfile::TempDir;
-
-    #[cfg(unix)]
-    use std::fs::{metadata, set_permissions};
-    #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
 
     fn create_post_download_hook(path: String, args: Vec<String>) -> PostDownloadHook {
         PostDownloadHook {
@@ -230,7 +200,7 @@ mod tests {
     }
 
     #[cfg(windows)]
-    fn create_batch_script(path: &std::path::Path, content: &str, exit_code: i32) {
+    fn create_batch_script(path: &Path, content: &str, exit_code: i32) {
         let mut file = File::create(path).unwrap();
         writeln!(file, "@echo off").unwrap();
         writeln!(file, "{}", content).unwrap();
@@ -253,7 +223,7 @@ mod tests {
         let absolute_script_path = script_path.canonicalize().unwrap();
 
         let post_download_hook = create_post_download_hook(
-            "/bin/bash".to_string(),
+            "bash".to_string(),
             vec![absolute_script_path.to_string_lossy().to_string()],
         );
 
@@ -276,7 +246,7 @@ mod tests {
         let absolute_script_path = script_path.canonicalize().unwrap();
 
         let post_download_hook = create_post_download_hook(
-            "/bin/bash".to_string(),
+            "bash".to_string(),
             vec![absolute_script_path.to_string_lossy().to_string()],
         );
 
@@ -303,7 +273,7 @@ mod tests {
         let absolute_script_path = script_path.canonicalize().unwrap();
 
         let post_download_hook = create_post_download_hook(
-            "/bin/bash".to_string(),
+            "bash".to_string(),
             vec![absolute_script_path.to_string_lossy().to_string()],
         );
 
@@ -320,21 +290,21 @@ mod tests {
         let script_path = temp_dir.path().join("install.sh");
         create_bash_script(&script_path, "cat $1", 0);
 
-        // Create config file (NOT executable)
+        // Make script executable
+        let mut perms = metadata(&script_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        set_permissions(&script_path, perms).unwrap();
+
+        // Create config file
         let config_path = temp_dir.path().join("config.yaml");
         let mut config_file = File::create(&config_path).unwrap();
         writeln!(config_file, "setting: value").unwrap();
-
-        // Set config as read-only (NOT executable)
-        let mut perms = metadata(&config_path).unwrap().permissions();
-        perms.set_mode(0o644);
-        set_permissions(&config_path, perms).unwrap();
 
         let absolute_script_path = script_path.canonicalize().unwrap();
         let absolute_config_path = config_path.canonicalize().unwrap();
 
         let post_download_hook = create_post_download_hook(
-            "/bin/bash".to_string(),
+            "bash".to_string(),
             vec![
                 absolute_script_path.to_string_lossy().to_string(),
                 absolute_config_path.to_string_lossy().to_string(),
@@ -343,73 +313,58 @@ mod tests {
 
         let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
         assert!(executor.execute(&post_download_hook).is_ok());
+    }
 
-        // Verify script is executable but config is NOT
-        let script_perms = metadata(&script_path).unwrap().permissions();
-        assert_eq!(
-            script_perms.mode() & 0o111,
-            0o111,
-            "Script should be executable"
-        );
+    #[test]
+    #[cfg(unix)]
+    fn test_direct_script_execution_without_execute_permission() {
+        let temp_dir = TempDir::new().unwrap();
+        let script_path = temp_dir.path().join("direct_script.sh");
 
-        let config_perms = metadata(&config_path).unwrap().permissions();
+        create_bash_script(&script_path, "echo 'Direct execution works'", 0);
+
+        // Explicitly remove execute permissions
+        let mut perms = metadata(&script_path).unwrap().permissions();
+        perms.set_mode(0o644);
+        set_permissions(&script_path, perms).unwrap();
+
+        // Verify script is NOT executable before test
+        let perms_before = metadata(&script_path).unwrap().permissions();
         assert_eq!(
-            config_perms.mode() & 0o111,
+            perms_before.mode() & 0o111,
             0,
-            "Config should NOT be executable"
+            "Script should not be executable initially"
         );
-    }
 
-    #[test]
-    #[cfg(unix)]
-    fn test_reject_relative_path() {
-        let temp_dir = TempDir::new().unwrap();
-        let script_path = temp_dir.path().join("script.sh");
-        create_bash_script(&script_path, "echo 'test'", 0);
+        let absolute_script_path = script_path.canonicalize().unwrap();
 
-        // Relative path for command should be rejected
+        // Execute script directly (path points to script, not interpreter)
         let post_download_hook = create_post_download_hook(
-            "bash".to_string(),
-            vec![script_path.to_string_lossy().to_string()],
+            absolute_script_path.to_string_lossy().to_string(),
+            vec![absolute_script_path.to_string_lossy().to_string()],
         );
 
         let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
         let result = executor.execute(&post_download_hook);
 
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(
-            err,
-            PostDownloadHookExecutionError::PathNotAbsolute { .. }
-        ));
-        assert!(err.to_string().contains("path must be absolute"));
-    }
+        // Should succeed because make_executable_if_exists() makes it executable
+        assert!(
+            result.is_ok(),
+            "Direct script execution should work after auto-chmod"
+        );
 
-    #[test]
-    #[cfg(unix)]
-    fn test_reject_relative_script_path() {
-        let temp_dir = TempDir::new().unwrap();
-        let script_path = temp_dir.path().join("script.sh");
-        create_bash_script(&script_path, "echo 'test'", 0);
-
-        // Relative script path should be rejected
-        let post_download_hook =
-            create_post_download_hook("/bin/bash".to_string(), vec!["./script.sh".to_string()]);
-
-        let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
-        let result = executor.execute(&post_download_hook);
-
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(
-            err,
-            PostDownloadHookExecutionError::ScriptPathNotAbsolute { .. }
-        ));
-        assert!(err.to_string().contains("script path"));
-        assert!(err.to_string().contains("must be absolute"));
+        // Verify script is now executable
+        let perms_after = metadata(&script_path).unwrap().permissions();
+        assert_eq!(
+            perms_after.mode() & 0o111,
+            0o111,
+            "Script should be executable after execution"
+        );
     }
 
     // Windows tests
+    // Note: We don't use .canonicalize() in Windows tests because it returns
+    // UNC paths (\\?\C:\...) which cmd.exe cannot handle.
     #[test]
     #[cfg(windows)]
     fn test_execute_successful_post_download_hook_windows() {
@@ -422,13 +377,12 @@ mod tests {
             0,
         );
 
-        let absolute_script_path = script_path.canonicalize().unwrap();
+        let cmd_path = std::env::var("COMSPEC")
+            .unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
+
         let post_download_hook = create_post_download_hook(
-            "cmd".to_string(),
-            vec![
-                "/c".to_string(),
-                absolute_script_path.to_string_lossy().to_string(),
-            ],
+            cmd_path,
+            vec!["/c".to_string(), script_path.to_string_lossy().to_string()],
         );
 
         let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
@@ -443,13 +397,12 @@ mod tests {
 
         create_batch_script(&script_path, "echo Post-download hook failed 1>&2", 1);
 
-        let absolute_script_path = script_path.canonicalize().unwrap();
+        let cmd_path = std::env::var("COMSPEC")
+            .unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
+
         let post_download_hook = create_post_download_hook(
-            "cmd".to_string(),
-            vec![
-                "/c".to_string(),
-                absolute_script_path.to_string_lossy().to_string(),
-            ],
+            cmd_path,
+            vec!["/c".to_string(), script_path.to_string_lossy().to_string()],
         );
 
         let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
@@ -472,13 +425,12 @@ mod tests {
         let script_path = bin_dir.join("my_script.bat");
         create_batch_script(&script_path, "echo Script executed from subdirectory", 0);
 
-        let absolute_script_path = script_path.canonicalize().unwrap();
+        let cmd_path = std::env::var("COMSPEC")
+            .unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
+
         let post_download_hook = create_post_download_hook(
-            "cmd".to_string(),
-            vec![
-                "/c".to_string(),
-                absolute_script_path.to_string_lossy().to_string(),
-            ],
+            cmd_path,
+            vec!["/c".to_string(), script_path.to_string_lossy().to_string()],
         );
 
         let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
@@ -499,15 +451,15 @@ mod tests {
         let mut config_file = File::create(&config_path).unwrap();
         writeln!(config_file, "setting: value").unwrap();
 
-        let absolute_script_path = script_path.canonicalize().unwrap();
-        let absolute_config_path = config_path.canonicalize().unwrap();
+        let cmd_path = std::env::var("COMSPEC")
+            .unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
 
         let post_download_hook = create_post_download_hook(
-            "cmd".to_string(),
+            cmd_path,
             vec![
                 "/c".to_string(),
-                absolute_script_path.to_string_lossy().to_string(),
-                absolute_config_path.to_string_lossy().to_string(),
+                script_path.to_string_lossy().to_string(),
+                config_path.to_string_lossy().to_string(),
             ],
         );
 
@@ -517,31 +469,5 @@ mod tests {
         // Both files should exist
         assert!(script_path.exists());
         assert!(config_path.exists());
-    }
-
-    #[test]
-    #[cfg(windows)]
-    fn test_reject_relative_script_path_windows() {
-        let temp_dir = TempDir::new().unwrap();
-        let script_path = temp_dir.path().join("script.bat");
-        create_batch_script(&script_path, "echo test", 0);
-
-        // Relative script path should be rejected
-        let post_download_hook = create_post_download_hook(
-            "cmd".to_string(),
-            vec!["/c".to_string(), ".\\script.bat".to_string()],
-        );
-
-        let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
-        let result = executor.execute(&post_download_hook);
-
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(
-            err,
-            PostDownloadHookExecutionError::ScriptPathNotAbsolute { .. }
-        ));
-        assert!(err.to_string().contains("script path"));
-        assert!(err.to_string().contains("must be absolute"));
     }
 }
