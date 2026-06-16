@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 env:
   DOCKER_IMAGE: newrelic/newrelic-agent-control
@@ -53,7 +52,5 @@ jobs:
           TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db
           TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db
 
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4
-        with:
-          sarif_file: 'trivy-results.sarif'
+      # TODO Upload Trivy scan results to GitHub Security tab when the repo gets public state.
+      # more info about current limitation https://docs.github.com/en/code-security/code-scanning/troubleshooting-code-scanning/advanced-security-must-be-enabled
