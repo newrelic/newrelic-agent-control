@@ -14,16 +14,24 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
-### enhancement
-- Added support for JP endpoints.
-- Agent type definitions changed: flat per-platform schema (one YAML per `(platform, operating_system)` pair), a new
-  top-level `protocol_version` field (quoted `MAJOR.MINOR`, validated at registry ingestion), and stricter `name`/`namespace`
-  validation (no `-`) and `version` (plain `Major.Minor.Patch` semver). FQNs and configuration values are unchanged, so this
-  is **not a breaking change** for end users; internal authors of custom definitions must migrate — see
-  [docs/INTEGRATING_AGENTS.md](docs/INTEGRATING_AGENTS.md).
+## v1.17.0 - 2026-06-16
 
-### bugfix
+### 🚀 Enhancements
+- Added support for JP endpoints.
+- Agent type definitions changed: flat per-platform schema (one YAML per `(platform, operating_system)` pair), a new top-level `protocol_version` field (quoted `MAJOR.MINOR`, validated at registry ingestion), and stricter `name`/`namespace` validation (no `-`) and `version` (plain `Major.Minor.Patch` semver). FQNs and configuration values are unchanged, so this is **not a breaking change** for end users; internal authors of custom definitions must migrate — see [docs/INTEGRATING_AGENTS.md](docs/INTEGRATING_AGENTS.md).
+
+### 🐞 Bug fixes
 - Validate version coming from remote.
+
+### ⛓️ Dependencies
+- Updated rust crate chrono to 0.4.45
+- Updated amazon-eks to v1.36
+- Updated rust crate http to 1.4.2
+- Updated rust crate regex to 1.12.4
+- Updated alpine/kubectl to v1.36.2
+- Updated alpine/helm to v4.2.1
+- Updated rust crate opamp-client to v0.0.40
+- Updated rust crate nr-auth to v0.5.1
 
 ## v1.16.1 - 2026-06-04
 

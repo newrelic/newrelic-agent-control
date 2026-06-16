@@ -1966,20 +1966,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## proc-macro-error-attr2 <https://crates.io/crates/proc-macro-error-attr2>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## proc-macro-error2 <https://crates.io/crates/proc-macro-error2>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## proc-macro2 <https://crates.io/crates/proc-macro2>
 
 Distributed under the following license(s):
