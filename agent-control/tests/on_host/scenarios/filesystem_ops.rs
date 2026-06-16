@@ -294,7 +294,7 @@ fn filesystem_persists_across_restarts() {
         format!(
             r#"
 namespace: test
-name: infra-agent
+name: infra_agent
 version: 0.0.0
 platform: host
 operating_system: {AGENT_CONTROL_MODE_ON_HOST}
@@ -333,7 +333,7 @@ deployment:
     let agents = format!(
         r#"
   {agent_id}:
-    agent_type: "test/infra-agent:0.0.0"
+    agent_type: "test/infra_agent:0.0.0"
 "#
     );
 

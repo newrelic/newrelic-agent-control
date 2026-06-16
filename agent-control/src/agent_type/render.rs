@@ -479,7 +479,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
         let agent_id = AgentID::try_from("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(
             r#"
-name: k8s-agent-type
+name: k8s_agent_type
 namespace: newrelic
 version: 0.0.1
 platform: kubernetes
@@ -708,7 +708,7 @@ backoff:
 "#;
 
     const K8S_AGENT_TYPE_YAML_VARIABLES: &str = r#"
-name: k8s-agent-type
+name: k8s_agent_type
 namespace: newrelic
 version: 0.0.1
 platform: kubernetes
@@ -739,7 +739,7 @@ deployment:
 "#;
 
     const K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES: &str = r#"
-name: k8s-agent-type
+name: k8s_agent_type
 namespace: newrelic
 version: 0.0.1
 platform: kubernetes

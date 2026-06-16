@@ -39,7 +39,7 @@ mod tests {
         // Given there is a healthy Sub Agent registered
         let agent_identity = AgentIdentity::from((
             AgentID::try_from("some-agent-id").unwrap(),
-            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
         ));
         let mut sub_agent_status = SubAgentStatus::with_identity(agent_identity.clone());
 
@@ -70,7 +70,7 @@ mod tests {
         let request = TestRequest::default().to_http_request();
         let response = responder.respond_to(&request);
 
-        let expected_body = r#"{"agent_control":{"healthy":true},"fleet":{"enabled":true,"endpoint":"http://127.0.0.1/","reachable":true},"agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some-agent-type:0.0.1","agent_start_time_unix_nano":0,"health_info":{"healthy":true,"start_time_unix_nano":0,"status_time_unix_nano":0}}}}"#;
+        let expected_body = r#"{"agent_control":{"healthy":true},"fleet":{"enabled":true,"endpoint":"http://127.0.0.1/","reachable":true},"agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some_agent_type:0.0.1","agent_start_time_unix_nano":0,"health_info":{"healthy":true,"start_time_unix_nano":0,"status_time_unix_nano":0}}}}"#;
 
         assert_eq!(
             expected_body,
@@ -87,7 +87,7 @@ mod tests {
         // Given there is a healthy Sub Agent registered
         let agent_identity = AgentIdentity::from((
             AgentID::try_from("some-agent-id").unwrap(),
-            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
         ));
         let mut sub_agent_status = SubAgentStatus::with_identity(agent_identity.clone());
         sub_agent_status.update_health(HealthWithStartTime::new(
@@ -119,7 +119,7 @@ mod tests {
         let request = TestRequest::default().to_http_request();
         let response = responder.respond_to(&request);
 
-        let expected_body = r#"{"agent_control":{"healthy":false,"last_error":"agent control error"},"fleet":{"enabled":true,"endpoint":"http://127.0.0.1/","reachable":true},"agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some-agent-type:0.0.1","agent_start_time_unix_nano":0,"health_info":{"healthy":false,"last_error":"some error","start_time_unix_nano":0,"status_time_unix_nano":0}}}}"#;
+        let expected_body = r#"{"agent_control":{"healthy":false,"last_error":"agent control error"},"fleet":{"enabled":true,"endpoint":"http://127.0.0.1/","reachable":true},"agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some_agent_type:0.0.1","agent_start_time_unix_nano":0,"health_info":{"healthy":false,"last_error":"some error","start_time_unix_nano":0,"status_time_unix_nano":0}}}}"#;
 
         assert_eq!(
             expected_body,

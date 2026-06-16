@@ -1,5 +1,5 @@
 namespace: newrelic
-name: com.newrelic.foo-cr-agent
+name: com.newrelic.foo_cr_agent
 version: 0.0.1
 platform: kubernetes
 protocol_version: "1.0"

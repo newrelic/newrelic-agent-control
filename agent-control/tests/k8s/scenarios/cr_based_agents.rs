@@ -58,7 +58,7 @@ fn k8s_opamp_foo_cr_subagent() {
         r#"
 agents:
   foo-agent:
-    agent_type: "newrelic/com.newrelic.foo-cr-agent:0.0.1"
+    agent_type: "newrelic/com.newrelic.foo_cr_agent:0.0.1"
             "#,
     );
 
@@ -141,7 +141,7 @@ fn k8s_opamp_cr_subagent_installed_before_crd() {
         r#"
 agents:
   bar-agent:
-    agent_type: "newrelic/com.newrelic.bar-cr-agent:0.0.1"
+    agent_type: "newrelic/com.newrelic.bar_cr_agent:0.0.1"
             "#,
     );
 

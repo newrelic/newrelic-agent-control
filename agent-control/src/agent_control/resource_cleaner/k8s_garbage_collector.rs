@@ -332,7 +332,7 @@ mod tests {
         };
         let ac_id = &AgentID::AgentControl;
         let ac_type_id =
-            &AgentTypeID::try_from("newrelic/com.newrelic.agent-control:0.0.1").unwrap();
+            &AgentTypeID::try_from("newrelic/com.newrelic.agent_control:0.0.1").unwrap();
 
         assert!(matches!(
             garbage_collector.collect(ac_id, ac_type_id),

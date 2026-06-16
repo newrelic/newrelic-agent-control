@@ -178,7 +178,7 @@ mod tests {
     fn agent_identity(id: &str) -> AgentIdentity {
         AgentIdentity::from((
             AgentID::try_from(id).unwrap(),
-            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
         ))
     }
 
@@ -249,7 +249,7 @@ mod tests {
                     AgentID::try_from("some-agent-id").unwrap(),
                     SubAgentStatus::new(
                         AgentID::try_from("some-agent-id").unwrap(),
-                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                        AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                         0,
                         HealthInfo::new(String::default(), true, None, 0, 0),
                     ),
@@ -258,7 +258,7 @@ mod tests {
                     AgentID::try_from("some-other-id").unwrap(),
                     SubAgentStatus::new(
                         AgentID::try_from("some-other-id").unwrap(),
-                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                        AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                         0,
                         HealthInfo::new(String::default(), true, None, 0, 0),
                     ),
@@ -272,7 +272,7 @@ mod tests {
                 AgentID::try_from("some-other-id").unwrap(),
                 SubAgentStatus::new(
                     AgentID::try_from("some-other-id").unwrap(),
-                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                     0,
                     HealthInfo::new(String::default(), true, None, 0, 0),
                 ),
@@ -390,7 +390,7 @@ mod tests {
                 AgentID::try_from("some-agent-id").unwrap(),
                 SubAgentStatus::new(
                     AgentID::try_from("some-agent-id").unwrap(),
-                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                     0,
                     HealthInfo::new(String::default(), true, None, 0, 0),
                 ),
@@ -419,7 +419,7 @@ mod tests {
                 AgentID::try_from("some-agent-id").unwrap(),
                 SubAgentStatus::new(
                     AgentID::try_from("some-agent-id").unwrap(),
-                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                     0,
                     HealthInfo::new(
                         String::default(),
@@ -450,7 +450,7 @@ mod tests {
                     AgentID::try_from("some-agent-id").unwrap(),
                     SubAgentStatus::new(
                         AgentID::try_from("some-agent-id").unwrap(),
-                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                        AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                         0,
                         HealthInfo::new(String::default(), true, None, 0, 0),
                     ),
@@ -459,7 +459,7 @@ mod tests {
                     AgentID::try_from("some-other-id").unwrap(),
                     SubAgentStatus::new(
                         AgentID::try_from("some-other-id").unwrap(),
-                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                        AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                         0,
                         HealthInfo::new(String::default(), true, None, 0, 0),
                     ),
@@ -474,7 +474,7 @@ mod tests {
                     AgentID::try_from("some-agent-id").unwrap(),
                     SubAgentStatus::new(
                         AgentID::try_from("some-agent-id").unwrap(),
-                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                        AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                         0,
                         HealthInfo::new(
                             String::default(),
@@ -489,7 +489,7 @@ mod tests {
                     AgentID::try_from("some-other-id").unwrap(),
                     SubAgentStatus::new(
                         AgentID::try_from("some-other-id").unwrap(),
-                        AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                        AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                         0,
                         HealthInfo::new(String::default(), true, None, 0, 0),
                     ),
@@ -523,7 +523,7 @@ mod tests {
                 AgentID::try_from("some-agent-id").unwrap(),
                 SubAgentStatus::new(
                     AgentID::try_from("some-agent-id").unwrap(),
-                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                     0,
                     HealthInfo::new(String::default(), true, None, 0, 0),
                 ),
@@ -536,7 +536,7 @@ mod tests {
                 AgentID::try_from("some-agent-id").unwrap(),
                 SubAgentStatus::new(
                     AgentID::try_from("some-agent-id").unwrap(),
-                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                     0,
                     HealthInfo::new(String::default(), true, None, 0, 0),
                 ),
@@ -555,7 +555,7 @@ mod tests {
                 AgentID::try_from("some-agent-id").unwrap(),
                 SubAgentStatus::new(
                     AgentID::try_from("some-agent-id").unwrap(),
-                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                     0,
                     HealthInfo::new(String::default(), true, None, 0, 0),
                 ),
@@ -568,7 +568,7 @@ mod tests {
                 AgentID::try_from("some-agent-id").unwrap(),
                 SubAgentStatus::new(
                     AgentID::try_from("some-agent-id").unwrap(),
-                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                     0,
                     HealthInfo::new(String::default(), true, None, 0, 0),
                 )
@@ -591,7 +591,7 @@ mod tests {
                 AgentID::try_from("some-agent-id").unwrap(),
                 SubAgentStatus::new(
                     AgentID::try_from("some-agent-id").unwrap(),
-                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                     0,
                     HealthInfo::new(String::default(), true, None, 0, 0),
                 )
@@ -608,7 +608,7 @@ mod tests {
                 AgentID::try_from("some-agent-id").unwrap(),
                 SubAgentStatus::new(
                     AgentID::try_from("some-agent-id").unwrap(),
-                    AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                     0,
                     HealthInfo::new(String::default(), true, None, 0, 0),
                 )
