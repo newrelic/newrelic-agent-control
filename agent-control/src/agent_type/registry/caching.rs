@@ -11,7 +11,7 @@ use crate::agent_type::definition::AgentTypeDefinition;
 /// so a definition is cached for the process lifetime once resolved. Only successful lookups are
 /// cached: errors propagate untouched and are retried on the next call, avoiding pinning a transient
 /// failure or a not-yet-published agent type.
-pub struct CachingRegistry<R> {
+pub struct CachingRegistry<R: AgentTypeRegistry> {
     inner: R,
     cache: RwLock<HashMap<AgentTypeID, AgentTypeDefinition>>,
 }
