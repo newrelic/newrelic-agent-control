@@ -9,9 +9,11 @@ use newrelic_agent_control::{
     package::oci::{downloader::OCIPackageArtifactDownloader, package_manager::OCIPackageManager},
 };
 use oci_client::client::{ClientConfig, ClientProtocol};
+use oci_test_utils::{OCISigner, PackagePublisher};
 use std::path::Path;
 use std::path::PathBuf;
 use std::{fs::File, str::FromStr};
+use tempfile::tempdir;
 
 pub fn new_testing_oci_package_manager(
     base_path: PathBuf,
@@ -111,4 +113,54 @@ impl TestDataHelper {
         std::fs::write(file_path.as_path(), file_content).unwrap();
         file_path
     }
+}
+
+/// Pushes a dummy test package to the OCI registry with the specified version.
+/// The package is signed with the provided signer so it can be downloaded by agent types
+/// with signature verification enabled.
+///
+/// # Arguments
+/// * `signer` - The OCI signer to sign the artifact
+/// * `version` - The version tag for the package (e.g., "1.2.3")
+/// * `registry_url` - The OCI registry URL
+#[cfg(target_family = "unix")]
+pub fn push_dummy_test_package(signer: &OCISigner, version: &str, registry_url: &str) {
+    use oci_test_utils::PackageMediaType;
+
+    let source_dir = tempdir().unwrap();
+    let archive_dir = tempdir().unwrap();
+    let archive = archive_dir.path().join("package.tar.gz");
+
+    TestDataHelper::compress_tar_gz(
+        source_dir.path(),
+        &archive,
+        "dummy package content",
+        "dummy.txt",
+    );
+
+    let reference = PackagePublisher::new(tokio_runtime().handle().clone(), registry_url)
+        .push_with_tag(&archive, PackageMediaType::TarGz, version);
+
+    signer.sign_artifact(&reference);
+}
+
+#[cfg(target_family = "windows")]
+pub fn push_dummy_test_package(signer: &OCISigner, version: &str, registry_url: &str) {
+    use oci_test_utils::PackageMediaType;
+
+    let source_dir = tempdir().unwrap();
+    let archive_dir = tempdir().unwrap();
+    let archive = archive_dir.path().join("package.zip");
+
+    TestDataHelper::compress_zip(
+        source_dir.path(),
+        &archive,
+        "dummy package content",
+        "dummy.txt",
+    );
+
+    let reference = PackagePublisher::new(tokio_runtime().handle().clone(), registry_url)
+        .push_with_tag(&archive, PackageMediaType::Zip, version);
+
+    signer.sign_artifact(&reference);
 }

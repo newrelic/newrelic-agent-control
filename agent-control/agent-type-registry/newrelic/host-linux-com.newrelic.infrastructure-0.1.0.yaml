@@ -64,11 +64,6 @@ deployment:
           repository: ${nr-var:oci.repository}
           version: ${nr-var:version}
           public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrinfraagent/jwks.json
-  version:
-    path: ${nr-sub:packages.infra-agent.dir}/newrelic-infra
-    args:
-      - --version
-    regex: \d+\.\d+\.\d+
   filesystem:
     config:
       kind: dir

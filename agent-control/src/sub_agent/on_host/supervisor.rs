@@ -2,22 +2,22 @@
 //! and version checks for a single sub-agent.
 
 use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConfig;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::{
     FileSystem, FileSystemEntriesError,
 };
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
-use crate::agent_type::runtime_config::version_config::rendered::OnHostVersionConfig;
 use crate::checkers::health::health_checker::{Health, HealthCheckerError, spawn_health_checker};
 use crate::checkers::health::health_checker::{Healthy, Unhealthy};
 use crate::checkers::health::on_host::health_checker::OnHostHealthCheckers;
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
-use crate::checkers::version::onhost::{OnHostAgentVersionChecker, check_version};
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
+use crate::opamp::attributes::publish_update_attributes_event;
 use crate::package::manager::{PackageData, PackageManager};
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssemblerError};
 use crate::sub_agent::identity::AgentIdentity;
@@ -31,6 +31,8 @@ use crate::utils::thread_context::{
 };
 use fs::directory_manager::DirectoryManagerFs;
 use fs::file::LocalFile;
+use opamp_client::operation::settings::AgentDescription;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::sync::Arc;
@@ -101,7 +103,6 @@ where
     health_config: OnHostHealthConfig,
     package_manager: Arc<PM>,
     packages_config: RenderedPackages,
-    version_config: Option<OnHostVersionConfig>,
     filesystem: FileSystem,
 }
 
@@ -180,7 +181,6 @@ where
             agent_identity,
             executables,
             onhost_config.health,
-            onhost_config.version,
             onhost_config.packages,
             package_manager,
             onhost_config.enable_file_logging,
@@ -209,7 +209,6 @@ where
         agent_identity: AgentIdentity,
         executables: Vec<ExecutableData>,
         health_config: OnHostHealthConfig,
-        version_config: Option<OnHostVersionConfig>,
         packages_config: RenderedPackages,
         package_manager: Arc<PM>,
         file_logging_enable: bool,
@@ -224,7 +223,6 @@ where
             health_config,
             package_manager,
             packages_config,
-            version_config,
             filesystem,
         }
     }
@@ -264,27 +262,59 @@ where
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) {
-        let Some(version_config) = &self.version_config else {
-            info!(agent_type=%self.agent_identity.agent_type_id, "Version checks are disabled for this agent");
-            return;
-        };
+        debug!(
+            agent_type=%self.agent_identity.agent_type_id,
+            packages_count=%self.packages_config.len(),
+            "check_subagent_version called"
+        );
 
-        let onhost_version_checker = OnHostAgentVersionChecker {
-            path: version_config.path.clone(),
-            args: version_config.args.clone(),
-            regex: version_config.regex.clone(),
-        };
+        // Get version from OCI package configuration
+        // TODO: For complex OHIs with multiple packages, we need a better strategy
+        // to determine which version to report (e.g., mark a primary package in agent type definition)
+        let version = self
+            .packages_config
+            .iter()
+            .min_by_key(|(id, _)| *id)
+            .map(|(id, pkg)| {
+                let version_str = pkg.download.oci.version.to_string();
+                debug!(
+                    agent_type=%self.agent_identity.agent_type_id,
+                    package_id=%id,
+                    version=%version_str,
+                    "Found package version from OCI config"
+                );
+                version_str
+            });
 
-        check_version(
-            self.agent_identity.id.to_string(),
-            onhost_version_checker,
-            sub_agent_internal_publisher,
-            // The below argument expects a function "UpdateAttributesMessage -> T"
-            // where T is the "event" sendable by the above publisher.
-            // Using an enum variant that wraps a type is the same as a function taking the type.
-            // Basically, it's the same as passing "|x| SubAgentInternalEvent::AgentAttributesUpdated(x)"
-            SubAgentInternalEvent::AgentAttributesUpdated,
-        )
+        if let Some(version) = version {
+            info!(
+                agent_type=%self.agent_identity.agent_type_id,
+                version=%version,
+                "Agent version determined from OCI package"
+            );
+
+            info!(
+                agent_type=%self.agent_identity.agent_type_id,
+                version=%version,
+                "Publishing AgentAttributesUpdated event"
+            );
+
+            publish_update_attributes_event(
+                &sub_agent_internal_publisher,
+                SubAgentInternalEvent::AgentAttributesUpdated(AgentDescription {
+                    identifying_attributes: HashMap::from([(
+                        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+                        version.into(),
+                    )]),
+                    ..Default::default()
+                }),
+            );
+        } else {
+            warn!(
+                agent_type=%self.agent_identity.agent_type_id,
+                "Unable to determine agent version: no packages configured"
+            );
+        }
     }
 
     fn spin_up(
@@ -696,7 +726,6 @@ pub mod tests {
             agent_identity,
             executable_data,
             OnHostHealthConfig::default(),
-            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -742,7 +771,6 @@ pub mod tests {
             agent_identity,
             executables,
             OnHostHealthConfig::default(),
-            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -785,7 +813,6 @@ pub mod tests {
             agent_identity,
             executables,
             OnHostHealthConfig::default(),
-            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -835,7 +862,6 @@ pub mod tests {
             agent_identity,
             executables,
             OnHostHealthConfig::default(),
-            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -885,7 +911,6 @@ pub mod tests {
             agent_identity,
             executables,
             OnHostHealthConfig::default(),
-            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -930,7 +955,6 @@ pub mod tests {
             agent_identity,
             executables,
             OnHostHealthConfig::default(),
-            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -994,7 +1018,6 @@ pub mod tests {
             agent_identity,
             executables,
             OnHostHealthConfig::default(),
-            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -1175,7 +1198,6 @@ pub mod tests {
             agent_identity.clone(),
             vec![exec_data_1],
             OnHostHealthConfig::default(),
-            None,
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
             true,
@@ -1214,7 +1236,6 @@ pub mod tests {
             executables: vec![executable_rendered],
             enable_file_logging: true,
             health: OnHostHealthConfig::default(),
-            version: None,
             filesystem: FileSystem::default(),
             packages: get_empty_packages(),
         };
@@ -1303,7 +1324,6 @@ pub mod tests {
             agent_identity.clone(),
             vec![exec_data_1],
             OnHostHealthConfig::default(),
-            None,
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
             false,
@@ -1342,7 +1362,6 @@ pub mod tests {
             executables: vec![executable_rendered],
             enable_file_logging: true,
             health: OnHostHealthConfig::default(),
-            version: None,
             filesystem: FileSystem::default(),
             packages: get_empty_packages(),
         };
@@ -1429,7 +1448,6 @@ pub mod tests {
             agent_identity.clone(),
             vec![exec_data_1],
             OnHostHealthConfig::default(),
-            None,
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
             true,
@@ -1468,7 +1486,6 @@ pub mod tests {
             executables: vec![executable_rendered],
             enable_file_logging: false,
             health: OnHostHealthConfig::default(),
-            version: None,
             filesystem: FileSystem::default(),
             packages: get_empty_packages(),
         };
@@ -1556,7 +1573,6 @@ pub mod tests {
             agent_identity.clone(),
             vec![exec_data_1],
             OnHostHealthConfig::default(),
-            None,
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
             false,
@@ -1595,7 +1611,6 @@ pub mod tests {
             executables: vec![executable_rendered],
             enable_file_logging: false,
             health: OnHostHealthConfig::default(),
-            version: None,
             filesystem: FileSystem::default(),
             packages: get_empty_packages(),
         };

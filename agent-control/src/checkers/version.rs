@@ -1,8 +1,6 @@
 //! Checking and reporting the version of a managed agent.
 /// Kubernetes version checkers.
 pub mod k8s;
-/// On-host version checker.
-pub mod onhost;
 
 use std::fmt::Debug;
 

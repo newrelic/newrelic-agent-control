@@ -146,11 +146,6 @@ deployment:
     http:
       path: "/v1/status"
       port: 8003
-  version:
-    path: /usr/bin/newrelic-infra
-    args:
-      - --version
-    regex: \d+\.\d+\.\d+
   executables:
     - id: newrelic-infra
       path: /usr/bin/newrelic-infra
@@ -168,7 +163,6 @@ In this section:
 
 * `enable_file_logging`: This setting turns on logging for the agent supervisor
 * `health`: The measures used to check the health status of the agent.
-* `version`: The command used to check the version of the binary.
 * `executables`: This outlines the list of binaries the agent supervisor runs. Developers can define:
   * * `id`: Unique identifier for the exec used by the health checker.
     * `path`: The location of the binary required.
@@ -243,21 +237,24 @@ health:
 
 #### On Host Version
 
-The `version` section in the deployment configuration is where you can specify how to obtain the version of the binary running. Here's how you can define it block:
+On-host agents do not define a version-check command. The agent version reported to Fleet Control
+(the `agent.version` identifying attribute) is derived from the OCI **package** the agent is
+deployed from, using the version configured under
+`deployment.packages.<package_id>.download.oci.version`:
 
 ```yaml
-version:
-  path: /usr/bin/newrelic-infra
-  args: 
-    - --version
-  regex: \d+\.\d+\.\d+
+deployment:
+  packages:
+    newrelic-infra:
+      download:
+        oci:
+          repository: newrelic-infra
+          version: ${nr-var:package_version}
 ```
 
-In this configuration:
-
-* `path`: Specifies the binary to run.
-* `args`: Specifies the arguments passed to the binary to get the version.
-* `regex`: Optional field that specifies the regular expression to get the version from the output. When not used, the whole output will be used as the version.
+The resolved value of that `version` field is published as `agent.version`. Which package reports
+the version when an agent type defines more than one is not yet finalized. See
+[On Host Packages](#on-host-packages) for the full package configuration.
 
 ### Kubernetes Deployment
 

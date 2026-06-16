@@ -397,7 +397,6 @@ file:
     );
     let agent_type_wo_exec = CustomAgentType::default()
         .with_executables(None)
-        .with_version(None)
         .with_health(Some(&health_agent_type_config))
         .build(dirs.local_dir());
 

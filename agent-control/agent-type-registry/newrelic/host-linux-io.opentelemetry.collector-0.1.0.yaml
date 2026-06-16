@@ -37,11 +37,6 @@ deployment:
     http:
       path: "${nr-var:health_check.path}"
       port: ${nr-var:health_check.port}
-  version:
-    path: /usr/bin/nrdot-collector
-    args:
-      - -v
-    regex: \d+\.\d+\.\d+
   filesystem:
     otel-config:
       kind: dir

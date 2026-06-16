@@ -24,6 +24,7 @@ Remember that the keywords that you can use are the following:
 - Hardens service restart policies on Linux and Windows (systemd rate limiting: 5 restarts max in 60s) to prevent crash-looping from saturating CPU.
 - Added support for remote agent type definition retrieval from OCI registries.
 - Agent type definitions now tolerate unknown fields for forward compatibility.
+- On-host agents: removed command-based version checking. Agent version is now determined from OCI package metadata, eliminating the need for `deployment.version` configuration in agent type definitions.
 - Replace filesystem in on-host agent-type definitions with an explicit, recursive, tagged-kind tree: every entry declares `kind: file | dir | dir_content_from_map`, and `dir` entries nest via `entries:`.
 
 ## v1.17.0 - 2026-06-16
