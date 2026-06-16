@@ -50,6 +50,9 @@ jobs:
     name: Security scan
     needs: [ build-image ]
     uses: ./.github/workflows/component_image_security.yml
+    permissions:
+      contents: read
+      security-events: write
     with:
       image-tag: ${{ github.event.release.tag_name }}-rc
     secrets: inherit

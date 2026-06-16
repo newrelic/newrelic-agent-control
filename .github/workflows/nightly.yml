@@ -39,6 +39,9 @@ jobs:
     name: Security scan
     needs: [ build-image ]
     uses: ./.github/workflows/component_image_security.yml
+    permissions:
+      contents: read
+      security-events: write
     with:
       # the packages are created with 0.100.run_id, however we still push the image with nightly
       image-tag: nightly
