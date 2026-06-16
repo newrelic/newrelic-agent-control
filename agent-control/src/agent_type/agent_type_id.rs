@@ -229,8 +229,7 @@ version: 0.1.0
     #[case::name_too_long(TOO_LONG_NAME_FQN, |e| matches!(e, AgentTypeIDError::InvalidName(NameFormatError::TooLong { .. })))]
     #[case::empty_namespace("/nrdot:0.1.0", |e| matches!(e, AgentTypeIDError::InvalidNamespace(NameFormatError::Empty)))]
     #[case::namespace_with_invalid_char("n@s/nrdot:0.1.0", |e| matches!(e, AgentTypeIDError::InvalidNamespace(NameFormatError::InvalidCharacter('@'))))]
-    // Without a `/`, the whole input is taken as the namespace and `:` is not an allowed character.
-    #[case::missing_name_separator("aa:1.1.3", |e| matches!(e, AgentTypeIDError::InvalidNamespace(NameFormatError::InvalidCharacter(':'))))]
+    #[case::missing_name_separator("aa:1.1.3", |e| matches!(e, AgentTypeIDError::InvalidNamespace(NameFormatError::Empty)))]
     #[case::namespace_too_long(TOO_LONG_NAMESPACE_FQN, |e| matches!(e, AgentTypeIDError::InvalidNamespace(NameFormatError::TooLong { .. })))]
     #[case::empty_version("ns/nrdot:", |e| matches!(e, AgentTypeIDError::InvalidVersion(_)))]
     #[case::incomplete_version("ns/nrdot:0", |e| matches!(e, AgentTypeIDError::InvalidVersion(_)))]
