@@ -38,7 +38,7 @@ base64 = { workspace = true }
 
 # New Relic dependencies (external repos)
 opamp-client = { workspace = true }
-nr-auth = { git = "https://github.com/newrelic/newrelic-auth-rs.git", tag = "0.5.0" }
+nr-auth = { git = "https://github.com/newrelic/newrelic-auth-rs.git", tag = "0.5.1" }
 # local dependencies
 fs = { path = "../fs" }
 wrapper_with_default = { path = "../wrapper_with_default" }
