@@ -16,6 +16,11 @@ use tracing::{debug, info};
 /// Directory where Agent Control loads dynamic (custom) agent type definitions.
 const DYNAMIC_AGENT_TYPES_DIR: &str = "/etc/newrelic-agent-control/dynamic-agent-types";
 
+/// World-readable path the preload `.so` is staged to. /var/lib/newrelic-agent-control
+/// isn't traversable by non-root, so referencing the OCI-managed copy directly from
+/// /etc/ld.so.preload breaks every dynamically linked binary for non-root users.
+const STAGED_PRELOAD_SO: &str = "/usr/local/lib/newrelic-preload-agent.so";
+
 /// Expected package installation directory for the preload agent.
 fn preload_package_dir() -> String {
     format!(
@@ -136,8 +141,16 @@ agents:
     }
     info!("Found shared library: {so_path}");
 
+    // Stage to a world-readable path so non-root processes can load it; see the
+    // STAGED_PRELOAD_SO doc comment for why we don't reference so_path directly.
+    info!("Staging shared library to {STAGED_PRELOAD_SO}");
+    exec_bash_command(&format!(
+        "install -m 0644 -o root -g root {so_path} {STAGED_PRELOAD_SO}"
+    ))
+    .unwrap_or_else(|err| panic!("Failed to stage preload .so to {STAGED_PRELOAD_SO}: {err}"));
+
     info!("Installing shared library into /etc/ld.so.preload");
-    let install_command = format!(r#"echo "{so_path}" >> /etc/ld.so.preload"#);
+    let install_command = format!(r#"echo "{STAGED_PRELOAD_SO}" >> /etc/ld.so.preload"#);
     let output = exec_bash_command(&install_command)
         .unwrap_or_else(|err| panic!("Editing /etc/ld.so.preload failed: {err}"));
     debug!("Install output:\n{output}");
