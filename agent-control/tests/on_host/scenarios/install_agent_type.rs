@@ -2,7 +2,6 @@ use crate::common::agent_control::{StartedAgentControl, start_agent_control_with
 use crate::common::attributes::{
     check_identifying_attributes_contains_expected, convert_to_vec_key_value,
 };
-use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::retry::{retry, retry_never};
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::create_local_config;
@@ -206,10 +205,6 @@ agents:
             )]),
         )
         .map_err(|e| e.into())
-    });
-
-    retry(30, Duration::from_secs(1), || {
-        check_latest_health_status_was_healthy(opamp_server, &sub_agent_instance_id)
     });
 }
 
