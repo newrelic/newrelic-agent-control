@@ -160,20 +160,16 @@ fn build_agent_type_registry(
     oci_client: oci::Client,
 ) -> Result<Registry, AgentControlConfigError> {
     let default_remote = &context.bootstrap_config.agent_types.default_remote;
-    let signature_verification_enabled = default_remote.signature_verification_enabled;
+    let signature_verification_enabled = default_remote.signature_verification_enabled.into();
     let default_public_key_url = &default_remote.public_key_url;
 
-    if signature_verification_enabled.into() && default_public_key_url.as_str().is_empty() {
+    if signature_verification_enabled && default_public_key_url.as_str().is_empty() {
         return Err(AgentControlConfigError(
             "Signature verification is enabled, but public_key_url is empty".to_string(),
         ));
     }
 
-    let public_key_url = if signature_verification_enabled.into() {
-        Some(default_public_key_url.clone())
-    } else {
-        None
-    };
+    let public_key_url = signature_verification_enabled.then(|| default_public_key_url.clone());
 
     let downloader = OCIAgentTypeArtifactDownloader::new(
         oci_client,

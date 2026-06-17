@@ -4,7 +4,7 @@ pub mod remote;
 use std::path::PathBuf;
 
 use thiserror::Error;
-use tracing::warn;
+use tracing::{debug, warn};
 
 use self::local::LocalRegistry;
 use self::remote::RemoteRegistry;
@@ -106,11 +106,20 @@ impl<R: AgentTypeRegistry> AgentTypeRegistry for Registry<R> {
             match inner.get(agent_type_id) {
                 Ok(def) => return Ok(def),
                 Err(err) => {
-                    warn!(
-                        agent_type_id = %agent_type_id,
-                        error = %err,
-                        "Agent type registry layer returned an error; falling through to the next layer",
-                    );
+                    match err {
+                        AgentTypeRegistryError::NotFound(_) => {
+                            debug!(
+                                agent_type_id = %agent_type_id,
+                                error = %err,
+                                "Agent type registry layer did not find the agent type; falling through to the next layer",
+                            );
+                        }
+                        _ => warn!(
+                            agent_type_id = %agent_type_id,
+                            error = %err,
+                            "Agent type registry layer returned an error; falling through to the next layer",
+                        ),
+                    }
 
                     last_err = err;
                 }
