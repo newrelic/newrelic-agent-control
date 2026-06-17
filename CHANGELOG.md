@@ -23,6 +23,7 @@ Remember that the keywords that you can use are the following:
 - Added support for remote agent type retrieval.
 - add post-download script support for OCI packages.
 - Replace filesystem in on-host agent-type definitions with an explicit, recursive, tagged-kind tree: every entry declares `kind: file | dir | dir_content_from_map`, and `dir` entries nest via `entries:`.
+- Add new persistence behavior for filesystems in the agent type allowing to set a folder or file as persistent to have different behaviors on stop/start/restart of an agent, it also adds resource cleaning after an agent is removed.
 
 ## v1.17.0 - 2026-06-16
 
