@@ -1,11 +1,13 @@
 //! Module defining the file system configuration for sub-agents.
 //!
-//! This includes files and directories that should be created for the sub-agent at runtime,
-//! based on templated content and paths. The paths are always relative to the sub-agent's
-//! dedicated directory created by agent-control
-//! (usually something like `/var/lib/newrelic-agent-control/filesystem/<SUB_AGENT_ID>`).
-//! The files are created in a dedicated `files/` subdirectory, while directories are created in
-//! a dedicated `directories/` subdirectory, to avoid name clashes.
+//! Every entry under `filesystem:` is declared with an explicit `kind:` (`file`, `dir`, or
+//! `dir_content_from_map`). Directory trees are built recursively via the `entries:` field on
+//! `kind: dir`. A directory's contents may also be projected from a `map[string]yaml` variable
+//! using `kind: dir_content_from_map`, where map keys become filenames and values become file
+//! bodies.
+//!
+//! Top-level keys are interpreted relative to the sub-agent's dedicated filesystem directory
+//! (`${nr-sub:filesystem_agent_dir}`).
 
 use std::{
     collections::HashMap,
@@ -27,46 +29,44 @@ use serde::de::Error;
 
 pub mod rendered;
 
-/// Represents the file system configuration for the deployment of a host agent. Consisting of
-/// a set of directories (map keys) which in turn contain a set of files (nested map keys) with
-/// their respective content (map values).
+/// Filesystem configuration for an on-host sub-agent: a tree of files, directories, and
+/// directories whose contents are projected from `map[string]yaml` variables.
 ///
-/// It would be equivalent to a YAML mapping of this format:
-/// ```yaml
-/// filesystem:
-///   "path/to/my-dir":
-///      # YAML content, expected to be a mapping string -> yaml
-///      filepath1: "file1 content"
-///      filepath2: | # multi-line string content
-///        key: value
-///   # fully templated content, expected to render to a valid YAML mapping string -> string
-///   "another/path/to/my-dir": ${nr-var:some_var_that_renders_to_a_yaml_mapping}
-/// ```
-///
-/// The files can be hardcoded, with the contents possibly containing templates, or the whole set of
-/// files can be templated so a directory contains an arbitrary number of files (a place to use a
-/// `map[string]yaml` variable type). **The paths cannot be templated.**
-///
-/// See [`AgentDirectoryEntry`] and [`DirEntriesType`] for more details.
+/// Every entry is tagged with a `kind:`. `dir` entries may contain further entries under
+/// `entries:`, recursively.
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
-pub struct FileSystem(HashMap<SafePath, DirEntriesType>);
+pub struct FileSystem(HashMap<SafePath, FilesystemEntry>);
 
-/// A path to a file or directory that has been validated to be "safe",
-/// i.e. relative and not escaping its base directory (e.g. with parent dir specifiers like `..`).
+/// One entry in a filesystem tree. The `kind` discriminator selects which fields are required.
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum FilesystemEntry {
+    /// A single file with literal or templated content.
+    File { text: TemplateableValue<String> },
+    /// An explicitly declared directory. Children, if any, live under `entries:`.
+    Dir {
+        #[serde(default)]
+        entries: HashMap<SafePath, FilesystemEntry>,
+    },
+    /// A directory whose set of files is computed at deploy time from a `map[string]yaml`
+    /// variable. Map keys become filenames; values become file contents.
+    DirContentFromMap {
+        source: TemplateableValue<DirEntriesMap>,
+    },
+}
+
+/// A path validated to be relative and not escaping its base directory (no `..`, no absolute
+/// roots, no Windows prefixes).
 #[derive(Debug, Default, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(try_from = "PathBuf")]
 pub struct SafePath(PathBuf);
 
-/// Allow borrowing the inner [`Path`] from a [`SafePath`].
 impl AsRef<Path> for SafePath {
     fn as_ref(&self) -> &Path {
         &self.0
     }
 }
 
-/// Try to create a [`SafePath`] from a [`PathBuf`], validating that the path is relative
-/// and does not escape its base directory. If the path is invalid, an error string is returned
-/// containing a comma-separated list of the issues found.
 impl TryFrom<PathBuf> for SafePath {
     type Error = IOError;
 
@@ -83,43 +83,8 @@ impl From<SafePath> for PathBuf {
     }
 }
 
-/// The type of items present in a directory entry.
-///
-/// There are two supported modes:
-///   1. A fixed set of entries, where each entry's content can be templated.
-///      This implies the number and names of the entries are known at parse time.
-///   2. A fully templated set of entries, where it's expected that a full template is provided as
-///      a placeholder for later rendering.
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-#[serde(untagged)]
-enum DirEntriesType {
-    /// A directory with a fixed set of entries (i.e. files). Each entry's content can be templated.
-    /// E.g.
-    /// ```yaml
-    /// "my/dir":
-    ///   filepath1: "file1 content with ${nr-var:some_var}"
-    ///   filepath2: "file2 content"
-    /// ```
-    FixedWithTemplatedContent(HashMap<SafePath, TemplateableValue<String>>),
-
-    /// A directory with a fully templated set of entries, where it's expected that a full template
-    /// is provided that renders to a valid YAML mapping of a safe [`PathBuf`] to [`String`].
-    /// E.g.
-    /// ```yaml
-    /// "my/templated/dir":
-    ///   ${nr-var:some_var_that_renders_to_a_yaml_mapping}
-    /// ```
-    FullyTemplated(TemplateableValue<DirEntriesMap>),
-}
-
-impl Default for DirEntriesType {
-    fn default() -> Self {
-        DirEntriesType::FixedWithTemplatedContent(HashMap::default())
-    }
-}
-
-/// A helper newtype to allow implementing `Templateable` for `TemplateableValue<HashMap<PathBuf, String>>`
-/// without running into orphan rule issues.
+/// Helper carrying the rendered output of a `${nr-var:map[string]yaml}` source — exists
+/// to satisfy the orphan rule when implementing `Templateable` for `TemplateableValue<_>`.
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct DirEntriesMap(HashMap<SafePath, String>);
 
@@ -127,82 +92,68 @@ impl Templateable for FileSystem {
     type Output = rendered::FileSystem;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        if let Some(TrivialValue::String(filesystem_dir)) = variables
-            .get(
-                &Namespace::SubAgent
-                    .namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-            )
-            .and_then(Variable::get_final_value)
-        {
-            let filesystem = self
-                .0
-                .into_iter()
-                .map(|(k, v)| {
-                    Ok((
-                        // The only place where we construct a `SafePath` directly, prepending the
-                        // sub-agent's filesystem directory to the user-provided relative path.
-                        // FIXME: when we fix the templating and make the agent type definitions
-                        // type-safe, we will make sure to always build correct "final paths" here.
-                        SafePath(PathBuf::from(filesystem_dir.clone()).join(k)),
-                        v.template_with(variables)?,
-                    ))
-                })
-                .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
-            Ok(rendered::FileSystem(filesystem))
-        } else {
-            Err(AgentTypeError::MissingValue(
-                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-            ))
-        }
+        let base_dir = filesystem_agent_dir(variables)?;
+
+        let entries = self
+            .0
+            .into_iter()
+            .map(|(key, entry)| {
+                // The only place we construct a final-on-disk path: prepend the sub-agent's
+                // dedicated filesystem dir to the user-provided relative top-level key.
+                let path = PathBuf::from(&base_dir).join(&key);
+                Ok((path, entry.template_with(variables)?))
+            })
+            .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
+
+        Ok(rendered::FileSystem(entries))
     }
 }
 
-impl FileSystem {
-    /// Returns the list of directory paths (keys) defined in this filesystem configuration.
-    pub fn dir_paths(&self) -> impl Iterator<Item = &SafePath> {
-        self.0.keys()
-    }
-}
+impl Templateable for FilesystemEntry {
+    type Output = rendered::RenderedEntry;
 
-impl Templateable for DirEntriesType {
-    type Output = DirEntriesMap;
-    /// Replaces placeholders in the content with values from the `Variables` map.
-    ///
-    /// Behaves differently depending on the variant:
-    /// - For `FixedWithTemplatedContent`, it templates each entry's content individually.
-    /// - For `FullyTemplated`, it templates the entire content as a single unit, expecting it to
-    ///   be a valid (YAML) mapping of safe `PathBuf` to `String`.
-    ///
-    /// See [`TemplateableValue<DirEntriesMap>::template_with`] for details.
+    /// Recursively templates this entry into a [`rendered::RenderedEntry`] tree. Sub-paths in the
+    /// resulting tree are kept relative to their parent; the absolute prefix is applied once at
+    /// the top level by [`FileSystem::template_with`].
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         match self {
-            DirEntriesType::FixedWithTemplatedContent(map) => {
-                let rendered_map = map
+            FilesystemEntry::File { text } => Ok(rendered::RenderedEntry::File(
+                text.template_with(variables)?,
+            )),
+            FilesystemEntry::Dir { entries } => {
+                let children = entries
                     .into_iter()
-                    .map(|(k, v)| Ok((k, v.template_with(variables)?)))
+                    .map(|(k, v)| Ok((PathBuf::from(k), v.template_with(variables)?)))
                     .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
-                Ok(DirEntriesMap(rendered_map))
+                Ok(rendered::RenderedEntry::Dir(children))
             }
-            DirEntriesType::FullyTemplated(tv) => Ok(tv.template_with(variables)?),
+            FilesystemEntry::DirContentFromMap { source } => {
+                let map = source.template_with(variables)?;
+                let children = map
+                    .0
+                    .into_iter()
+                    .map(|(k, content)| (PathBuf::from(k), rendered::RenderedEntry::File(content)))
+                    .collect();
+                Ok(rendered::RenderedEntry::Dir(children))
+            }
         }
+    }
+}
+
+fn filesystem_agent_dir(variables: &Variables) -> Result<String, AgentTypeError> {
+    let key = Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR);
+    match variables.get(&key).and_then(Variable::get_final_value) {
+        Some(TrivialValue::String(s)) => Ok(s.clone()),
+        _ => Err(AgentTypeError::MissingValue(key)),
     }
 }
 
 impl Templateable for TemplateableValue<DirEntriesMap> {
     type Output = DirEntriesMap;
-    /// Performs the templating of the defined directory entries for this sub-agent in the case where
-    /// they were fully templated (see [`DirEntriesType::FullyTemplated`]).
-    ///
-    /// The paths present in the DirectoryEntry structures are always assumed to start from the
-    /// sub-agent's dedicated directory.
-    ///
-    /// Besides, we know the paths are relative and don't go above their base dir (e.g. `/../..`)
-    /// due to the parse-time validations of [`FileSystem`], so here we "safely" prepend the
-    /// provided base dir to them, as it must be defined in the variables passed to the sub-agent.
-    /// If the value of the sub-agent's dedicated directory is missing, the templating fails.
+
+    /// Templates the source string of a `dir_content_from_map` entry, then parses the result as a
+    /// YAML mapping `filename -> contents`. Empty templated string yields an empty map.
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        // Template content as a string first. Then parse as a YAML and attempt to convert to the
-        // expected HashMap<PathBuf, String> type.
         let templated_string = self.template.template_with(variables)?;
         let value: HashMap<SafePath, String> = if templated_string.is_empty() {
             HashMap::new()
@@ -214,7 +165,6 @@ impl Templateable for TemplateableValue<DirEntriesMap> {
                     ))
                 })?;
 
-            // Convert the serde_json::Value (i.e. the file contents) to String
             map_string_value
                 .into_iter()
                 .map(|(k, v)| Ok((k, output_string(v)?)))
@@ -225,9 +175,8 @@ impl Templateable for TemplateableValue<DirEntriesMap> {
     }
 }
 
-/// Converts a serde_json::Value to a String.
-/// If the value is already a String, it is returned as-is.
-/// Otherwise, it is serialized to a YAML string using serde_saphyr.
+/// Converts a serde_json::Value to a String. Strings pass through; other variants are serialized
+/// as YAML.
 fn output_string(value: serde_json::Value) -> Result<String, serde_saphyr::Error> {
     match value {
         // Pass the string directly (serde_saphyr inserts literal syntax for multi-line strings)
@@ -258,17 +207,11 @@ fn validate_file_entry_path(path: &Path) -> Result<(), String> {
     }
 }
 
-/// Makes sure the passed directory goes not traverse outside the directory where it's contained.
-/// E.g. via relative path specifiers like `./../../some_path`.
-///
-/// This would make files and directories "safe" to be created inside a sub-agent's dedicated
-/// directory, as they would not be able to write outside of it
-/// (tampering with other sub-agents or worse).
-/// Returns an error string if this property does not hold.
+/// Rejects paths that traverse outside their base directory (e.g. `./../../some_path`) so that
+/// no sub-agent can write outside its dedicated dir.
 fn check_basedir_escape_safety(path: &Path) -> Result<(), String> {
     path.components().try_for_each(|comp| match comp {
         Component::Normal(_) | Component::CurDir => Ok(()),
-        // Disallow other non-supported variants like roots or prefixes
         Component::ParentDir | Component::RootDir | Component::Prefix(_) => Err(format!(
             "path `{}` has an invalid component: `{}`",
             path.display(),
@@ -280,6 +223,7 @@ fn check_basedir_escape_safety(path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent_type::runtime_config::on_host::filesystem::rendered::RenderedEntry;
     use fs::directory_manager::DirectoryManagerFs;
     use fs::file::LocalFile;
     use rstest::rstest;
@@ -304,56 +248,42 @@ mod tests {
     }
 
     #[test]
-    fn valid_filepath_rendering() {
+    fn templates_top_level_file() {
         let variables = Variables::from_iter(vec![(
             Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
             Variable::new_final_string_variable("/base/dir"),
         )]);
 
-        let filesystem_entry = FileSystem(HashMap::from([(
-            PathBuf::from("my/path").try_into().unwrap(),
-            DirEntriesType::FixedWithTemplatedContent(HashMap::from([(
-                PathBuf::from("my/file/path").try_into().unwrap(),
-                TemplateableValue::from_template("some content".to_string()),
-            )])),
+        let fs_input = FileSystem(HashMap::from([(
+            PathBuf::from("config/newrelic.yaml").try_into().unwrap(),
+            FilesystemEntry::File {
+                text: TemplateableValue::from_template("hello".to_string()),
+            },
         )]));
 
-        let rendered = filesystem_entry.template_with(&variables);
-        assert!(rendered.is_ok());
-        let rendered = rendered.unwrap();
-        assert!(rendered.0.len() == 1);
+        let rendered = fs_input.template_with(&variables).unwrap();
 
-        let expected_filesystem = rendered::FileSystem(HashMap::from([(
-            SafePath(PathBuf::from("/base/dir/my/path")),
-            DirEntriesMap(HashMap::from([(
-                PathBuf::from("my/file/path").try_into().unwrap(),
-                "some content".to_string(),
-            )])),
+        let expected = rendered::FileSystem(HashMap::from([(
+            PathBuf::from("/base/dir/config/newrelic.yaml"),
+            RenderedEntry::File("hello".to_string()),
         )]));
-
-        assert_eq!(rendered, expected_filesystem);
+        assert_eq!(rendered, expected);
     }
 
     #[test]
-    fn invalid_filepath_rendering_nonexisting_subagent_basepath() {
-        // If the sub-agent variable (nr-sub) containing the agent's filesystem dir is missing,
-        // templating must fail.
+    fn templating_fails_without_filesystem_agent_dir_variable() {
         let variables = Variables::default();
-
-        let filesystem_entry = FileSystem(HashMap::from([(
-            PathBuf::from("my/path").try_into().unwrap(),
-            DirEntriesType::FixedWithTemplatedContent(HashMap::from([(
-                PathBuf::from("my/file/path").try_into().unwrap(),
-                TemplateableValue::new("some content".to_string()),
-            )])),
+        let fs_input = FileSystem(HashMap::from([(
+            PathBuf::from("any").try_into().unwrap(),
+            FilesystemEntry::Dir {
+                entries: HashMap::new(),
+            },
         )]));
 
-        let rendered = filesystem_entry.template_with(&variables);
-        assert!(rendered.is_err());
-        let rendered_err = rendered.unwrap_err();
-        assert!(matches!(rendered_err, AgentTypeError::MissingValue(_)));
+        let err = fs_input.template_with(&variables).unwrap_err();
+        assert!(matches!(err, AgentTypeError::MissingValue(_)));
         assert_eq!(
-            rendered_err.to_string(),
+            err.to_string(),
             format!(
                 "missing value for key: {}",
                 Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR)
@@ -362,207 +292,209 @@ mod tests {
     }
 
     #[rstest]
-    #[case::valid_filesystem_parse("basic/path", |r: Result<_, _>| r.is_ok())]
-    #[case::windows_style_path(r"some\\windows\\style\\path", |r: Result<_, _>| r.is_ok())]
-    #[case::invalid_absolute_path("/absolute/path", |r: Result<_, serde_saphyr::Error>| r.is_err())]
-    #[case::invalid_reaches_parentdir("basedir/dir/../dir/../../../outdir/path", |r: Result<_, serde_saphyr::Error>| r.is_err())]
-    // #[case::invalid_windows_path_prefix(r"C:\\absolute\\windows\\path", |r: Result<_, serde_saphyr::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
-    // #[case::invalid_windows_root_device("C:", |r: Result<_, serde_saphyr::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
-    // #[case::invalid_windows_server_path(r"\\\\server\\share", |r: Result<_, serde_saphyr::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
-    // TODO add windows paths to check that this handles the `Component::Prefix(_)` case correctly
-    fn file_entry_parsing(
-        #[case] path: &str,
-        #[case] validation: impl Fn(Result<DirEntriesType, serde_saphyr::Error>) -> bool,
-    ) {
-        let yaml = format!("\"{path}\": \"some random content\"");
-        let parsed = serde_saphyr::from_str::<DirEntriesType>(&yaml);
-        let parsed_display = format!("{parsed:?}");
-        assert!(validation(parsed), "input: {yaml}, parsed:{parsed_display}");
+    #[case::single_segment("config", true)]
+    #[case::multi_segment("agent/data", true)]
+    #[case::dot_segment("agent/./data", true)]
+    #[case::windows_style_path(r"some\\windows\\style\\path", true)]
+    #[case::absolute("/etc", false)]
+    #[case::dotdot("agent/../escape", false)]
+    fn safe_path_parsing(#[case] path: &str, #[case] should_parse: bool) {
+        let yaml = format!(
+            r#"
+"{path}":
+  kind: dir
+"#
+        );
+        let parsed = serde_saphyr::from_str::<FileSystem>(&yaml);
+        assert_eq!(
+            parsed.is_ok(),
+            should_parse,
+            "input: {yaml}, parsed: {parsed:?}"
+        );
     }
 
-    const EXAMPLE_FILESYSTEM: &str = r#"
-"path/to/my-dir":
-    filepath1: "file1 content"
-    filepath2: |
-        key: ${nr-var:some_var}
-"another/path/to/my-dir":
-    ${nr-var:some_var_that_renders_to_a_yaml_mapping}
-"#;
-
-    #[test]
-    fn parse_valid_directories() {
-        let parsed: Result<FileSystem, _> = serde_saphyr::from_str(EXAMPLE_FILESYSTEM);
-        assert!(
-            parsed.as_ref().is_ok_and(|p| p.0.len() == 2),
-            "Parsed directories: {parsed:?}"
+    #[cfg(windows)]
+    #[rstest]
+    #[case::drive_with_path(r"C:\\absolute\\windows\\path")]
+    #[case::drive_root("C:")]
+    #[case::unc_server_share(r"\\\\server\\share")]
+    fn safe_path_parsing_rejects_windows_prefixes(#[case] path: &str) {
+        let yaml = format!(
+            r#"
+"{path}":
+  kind: dir
+"#
         );
-
-        let parsed = parsed.unwrap().0;
-        let my_dir = parsed
-            .get(&SafePath(PathBuf::from("path/to/my-dir")))
-            .unwrap();
-        assert!(matches!(
-            my_dir,
-            DirEntriesType::FixedWithTemplatedContent(_)
-        ));
-
-        let another_dir = parsed
-            .get(&SafePath(PathBuf::from("another/path/to/my-dir")))
-            .unwrap();
-        assert!(matches!(another_dir, DirEntriesType::FullyTemplated(_)));
+        let parsed = serde_saphyr::from_str::<FileSystem>(&yaml);
+        assert!(parsed.is_err(), "input: {yaml}, parsed: {parsed:?}");
     }
 
     const FILESYSTEM_EXAMPLE: &str = r#"
-"some/files":
-    "path/to/my-file": "something ${nr-var:some_file_var}"
-    "another/path/to/my-file": |
-        some
-        multi-line
-        content
-"path/to/my-dir":
-    filepath1: "file1 content"
-    filepath2: |
-        key: ${nr-var:some_dir_var}
-"another/path/to/my-dir":
-    ${nr-var:some_var_that_renders_to_a_yaml_mapping}
-"empty/dir": {}
+newrelic-infra.yaml:
+  kind: file
+  text: ${nr-var:config_agent}
+
+config:
+  kind: dir
+
+logging.d:
+  kind: dir_content_from_map
+  source: ${nr-var:config_logging}
+
+agent:
+  kind: dir
+  entries:
+    data:
+      kind: dir
+    integrations.d:
+      kind: dir_content_from_map
+      source: ${nr-var:config_integrations}
+    newrelic-infra.yaml:
+      kind: file
+      text: ${nr-var:config_agent}
 "#;
 
-    #[test]
-    fn parse_and_template_filesystem() {
-        let parsed = serde_saphyr::from_str::<FileSystem>(FILESYSTEM_EXAMPLE);
-        assert!(
-            parsed.as_ref().is_ok_and(|fs| fs.0.len() == 4),
-            "Parsed filesystem: {parsed:?}"
-        );
-
-        let parsed = parsed.unwrap();
-        let variables = Variables::from_iter(vec![
+    fn example_variables(base_dir: &str) -> Variables {
+        Variables::from_iter(vec![
             (
                 Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-                Variable::new_final_string_variable("/test/base/dir"),
+                Variable::new_final_string_variable(base_dir),
             ),
             (
-                Namespace::Variable.namespaced_name("some_file_var"),
-                Variable::new_final_string_variable("file_var_value"),
+                Namespace::Variable.namespaced_name("config_agent"),
+                Variable::new_final_string_variable("license_key: REDACTED\n"),
             ),
             (
-                Namespace::Variable.namespaced_name("some_dir_var"),
-                Variable::new_final_string_variable("dir_var_value"),
-            ),
-            (
-                Namespace::Variable.namespaced_name("some_var_that_renders_to_a_yaml_mapping"),
-                // a map[string]yaml
+                Namespace::Variable.namespaced_name("config_integrations"),
                 Variable::new(
                     String::default(),
                     false,
                     None,
                     Some(HashMap::from([
-                        ("fileA".to_string(), Value::String("contentA".to_string())),
                         (
-                            "fileB".to_string(),
-                            Value::String("multi-line\ncontentB".to_string()),
+                            "nri-mysql.yaml".to_string(),
+                            Value::String("integration: mysql".to_string()),
+                        ),
+                        (
+                            "nri-redis.yaml".to_string(),
+                            Value::String("integration: redis".to_string()),
                         ),
                     ])),
                 ),
             ),
-        ]);
-
-        let templated = parsed.template_with(&variables);
-        assert!(templated.is_ok(), "Templated filesystem: {templated:?}");
+            (
+                Namespace::Variable.namespaced_name("config_logging"),
+                Variable::new(
+                    String::default(),
+                    false,
+                    None,
+                    Some(HashMap::from([(
+                        "syslog.yaml".to_string(),
+                        Value::String("logs: []".to_string()),
+                    )])),
+                ),
+            ),
+        ])
     }
 
     #[test]
-    fn rendered_files() {
-        let parsed = serde_saphyr::from_str::<FileSystem>(FILESYSTEM_EXAMPLE);
-        assert!(
-            parsed.as_ref().is_ok_and(|fs| fs.0.len() == 4),
-            "Parsed filesystem: {parsed:?}"
-        );
+    fn parses_all_three_kinds() {
+        let parsed = serde_saphyr::from_str::<FileSystem>(FILESYSTEM_EXAMPLE).unwrap();
+        assert_eq!(parsed.0.len(), 4);
+
+        let file_entry = parsed
+            .0
+            .get(&SafePath(PathBuf::from("newrelic-infra.yaml")))
+            .unwrap();
+        assert!(matches!(file_entry, FilesystemEntry::File { .. }));
+
+        let empty_dir = parsed.0.get(&SafePath(PathBuf::from("config"))).unwrap();
+        assert!(matches!(empty_dir, FilesystemEntry::Dir { entries } if entries.is_empty()));
+
+        let dir_from_map = parsed.0.get(&SafePath(PathBuf::from("logging.d"))).unwrap();
+        assert!(matches!(
+            dir_from_map,
+            FilesystemEntry::DirContentFromMap { .. }
+        ));
+
+        let nested_dir = parsed.0.get(&SafePath(PathBuf::from("agent"))).unwrap();
+        let FilesystemEntry::Dir { entries } = nested_dir else {
+            panic!("expected agent to be a Dir, got {nested_dir:?}");
+        };
+        assert_eq!(entries.len(), 3);
+        assert!(matches!(
+            entries.get(&SafePath(PathBuf::from("data"))).unwrap(),
+            FilesystemEntry::Dir { .. }
+        ));
+        assert!(matches!(
+            entries
+                .get(&SafePath(PathBuf::from("integrations.d")))
+                .unwrap(),
+            FilesystemEntry::DirContentFromMap { .. }
+        ));
+        assert!(matches!(
+            entries
+                .get(&SafePath(PathBuf::from("newrelic-infra.yaml")))
+                .unwrap(),
+            FilesystemEntry::File { .. }
+        ));
+    }
+
+    #[test]
+    fn rejects_unknown_kind() {
+        let yaml = r#"
+foo:
+  kind: invented
+"#;
+        let parsed = serde_saphyr::from_str::<FileSystem>(yaml);
+        assert!(parsed.is_err(), "parsed: {parsed:?}");
+    }
+
+    /// Templating + writing the example to disk produces every expected file with the right
+    /// content, an empty directory for `kind: dir` with no entries, and `dir_content_from_map`
+    /// projects the map's keys as files.
+    #[test]
+    fn rendered_files_on_disk() {
+        let parsed = serde_saphyr::from_str::<FileSystem>(FILESYSTEM_EXAMPLE).unwrap();
         let tmp_dir = TempDir::new().unwrap();
+        let variables = example_variables(&tmp_dir.path().to_string_lossy());
 
-        let parsed = parsed.unwrap();
-        let variables = Variables::from_iter(vec![
-            (
-                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy().to_string()),
-            ),
-            (
-                Namespace::Variable.namespaced_name("some_file_var"),
-                Variable::new_final_string_variable("file_var_value"),
-            ),
-            (
-                Namespace::Variable.namespaced_name("some_dir_var"),
-                Variable::new_final_string_variable("dir_var_value"),
-            ),
-            (
-                Namespace::Variable.namespaced_name("some_var_that_renders_to_a_yaml_mapping"),
-                // a map[string]yaml
-                Variable::new(
-                    String::default(),
-                    false,
-                    None,
-                    Some(HashMap::from([
-                        ("fileA".to_string(), Value::String("contentA".to_string())),
-                        (
-                            "fileB".to_string(),
-                            Value::String("multi-line\ncontentB".to_string()),
-                        ),
-                    ])),
-                ),
-            ),
-        ]);
-
-        let templated = parsed.template_with(&variables);
-        assert!(templated.is_ok(), "Templated filesystem: {templated:?}");
-        let templated = templated.unwrap();
+        let templated = parsed.template_with(&variables).unwrap();
         templated.write(&LocalFile, &DirectoryManagerFs).unwrap();
 
-        // Expected rendered paths with contents.
-        // All paths must be prepended by the sub-agent's generated dir and the
-        // corresponding `files/` or `directories/` subdir, depending on where they came from.
-        // They also must have all variables rendered and have the correct content.
-        let expected_rendered = [
+        let expected_files = [
             (
-                tmp_dir.path().join("another/path/to/my-dir/fileA"),
-                String::from("contentA"),
+                tmp_dir.path().join("newrelic-infra.yaml"),
+                "license_key: REDACTED\n",
             ),
             (
-                tmp_dir.path().join("path/to/my-dir/filepath1"),
-                String::from("file1 content"),
+                tmp_dir.path().join("agent/newrelic-infra.yaml"),
+                "license_key: REDACTED\n",
             ),
             (
-                tmp_dir.path().join("path/to/my-dir/filepath2"),
-                String::from("key: dir_var_value\n"),
+                tmp_dir.path().join("agent/integrations.d/nri-mysql.yaml"),
+                "integration: mysql",
             ),
             (
-                tmp_dir.path().join("some/files/path/to/my-file"),
-                String::from("something file_var_value"),
+                tmp_dir.path().join("agent/integrations.d/nri-redis.yaml"),
+                "integration: redis",
             ),
-            (
-                tmp_dir.path().join("some/files/another/path/to/my-file"),
-                String::from("some\nmulti-line\ncontent\n"),
-            ),
-            (
-                tmp_dir.path().join("another/path/to/my-dir/fileB"),
-                String::from("multi-line\ncontentB"),
-            ),
+            (tmp_dir.path().join("logging.d/syslog.yaml"), "logs: []"),
         ];
-        let empty_dir = tmp_dir.path().join("empty/dir");
-        assert!(
-            empty_dir.exists() && empty_dir.is_dir(),
-            "Empty dir was not created"
-        );
 
-        for (r_path, r_content) in expected_rendered.iter() {
-            println!("Checking rendered file at path: {}", r_path.display());
-            let read_content = std::fs::read_to_string(r_path).unwrap();
-            assert_eq!(
-                &read_content,
-                r_content,
-                "File content mismatch for path: {}",
-                r_path.display()
-            );
+        for (path, expected) in expected_files.iter() {
+            let actual = std::fs::read_to_string(path)
+                .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+            assert_eq!(&actual, expected, "content mismatch at {}", path.display());
         }
+
+        let empty_dir = tmp_dir.path().join("config");
+        assert!(empty_dir.is_dir(), "empty dir not created at {empty_dir:?}");
+
+        let nested_empty_dir = tmp_dir.path().join("agent/data");
+        assert!(
+            nested_empty_dir.is_dir(),
+            "nested empty dir not created at {nested_empty_dir:?}"
+        );
     }
 }

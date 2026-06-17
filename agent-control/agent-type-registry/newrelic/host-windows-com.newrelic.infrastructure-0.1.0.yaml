@@ -67,12 +67,21 @@ deployment:
     regex: \d+\.\d+\.\d+
   filesystem:
     config:
-      newrelic-infra.yaml: |
-        ${nr-var:config_agent}
-    integrations.d: ${nr-var:config_integrations}
-    logging.d: ${nr-var:config_logging}
+      kind: dir
+      entries:
+        newrelic-infra.yaml:
+          kind: file
+          text: |
+            ${nr-var:config_agent}
+    integrations.d:
+      kind: dir_content_from_map
+      source: ${nr-var:config_integrations}
+    logging.d:
+      kind: dir_content_from_map
+      source: ${nr-var:config_logging}
     # this is needed in order to create the logging integration directory expected by fluentBit
-    newrelic-infra/newrelic-integrations/logging: { }
+    newrelic-infra/newrelic-integrations/logging:
+      kind: dir
   executables:
     - id: newrelic-infra
       path: ${nr-sub:packages.infra-agent.dir}\\newrelic-infra.exe

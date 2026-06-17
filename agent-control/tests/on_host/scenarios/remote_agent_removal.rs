@@ -53,7 +53,11 @@ fn onhost_opamp_agent_control_remote_config_add_remove_add_agent() {
         .with_filesystem(Some(&format!(
             r#"
 {dir_entry}:
-  {file_path}: "{content_template}"
+  kind: dir
+  entries:
+    {file_path}:
+      kind: file
+      text: "{content_template}"
 "#
         )))
         .with_variables(
