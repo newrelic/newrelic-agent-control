@@ -14,6 +14,9 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+### enhancement
+- Added support for remote agent type retrieval.
+
 ## v1.17.0 - 2026-06-16
 
 ### 🚀 Enhancements
