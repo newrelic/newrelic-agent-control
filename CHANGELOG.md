@@ -14,6 +14,10 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+### enhancement
+- Hardens service restart policies on Linux and Windows (systemd rate limiting: 5 restarts max in 60s) to prevent
+  crash-looping from saturating CPU.
+
 ## v1.17.0 - 2026-06-16
 
 ### 🚀 Enhancements
