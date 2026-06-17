@@ -5,8 +5,6 @@ use super::defaults::{
 use crate::agent_control::config::{AgentControlConfig, AgentControlConfigError};
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::http_server::runner::Runner;
-#[cfg(debug_assertions)]
-use crate::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use crate::agent_type::oci::downloader::OCIAgentTypeArtifactDownloader;
 use crate::agent_type::registry::{Registry, RegistryConfig};
 use crate::command::RunnerContext;
@@ -17,8 +15,6 @@ use crate::oci;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
 use crate::values::ConfigRepo;
 use oci_client::client::ClientConfig;
-#[cfg(debug_assertions)]
-use oci_client::client::ClientProtocol;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -115,7 +111,9 @@ impl AgentControlRunner {
         // We are setting client http in debug_assertions mode for tests
         let oci_client_config = ClientConfig {
             #[cfg(debug_assertions)]
-            protocol: ClientProtocol::HttpsExcept(vec![OCI_TEST_REGISTRY_URL.to_string()]),
+            protocol: oci_client::client::ClientProtocol::HttpsExcept(vec![
+                crate::agent_control::run::on_host::OCI_TEST_REGISTRY_URL.to_string(),
+            ]),
             ..Default::default()
         };
         let oci_client = oci::Client::try_new(
