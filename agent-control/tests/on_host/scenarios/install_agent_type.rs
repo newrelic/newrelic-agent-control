@@ -174,7 +174,7 @@ fn assert_sub_agent_reports_version(
     let agent_type_id = agent_type_id(agent_type_version);
 
     opamp_server.set_config_response(
-        ac_instance_id,
+        ac_instance_id.clone(),
         format!(
             r#"
 agents:
@@ -184,16 +184,19 @@ agents:
         ),
     );
 
+    retry(60, Duration::from_secs(1), || {
+        opamp_server
+            .is_config_status_applied(ac_instance_id.clone())
+            .map_err(|e| e.into())
+    });
+
     let sub_agent_id = AgentID::try_from(AGENT_ID).unwrap();
     let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 
-    create_local_config(
-        sub_agent_id.as_str(),
-        "{}".to_string(),
-        base_paths.local_dir.clone(),
+    opamp_server.set_config_response(
+        sub_agent_instance_id.clone(),
+        "{new_config: true}".to_string(),
     );
-
-    opamp_server.set_config_response(sub_agent_instance_id.clone(), "{}");
 
     retry(60, Duration::from_secs(1), || {
         check_identifying_attributes_contains_expected(
