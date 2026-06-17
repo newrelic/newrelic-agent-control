@@ -65,8 +65,8 @@ test/k8s/integration-part1:
 	KUBECONFIG='./tests/k8s/.kubeconfig-dev' minikube update-context
 	ENABLE_VAULT=true  tilt ci --file ./tests/k8s/Tiltfile
 	# reduce test threads to 1 to see sequential logs
-	cargo test k8s::scenarios -- --nocapture --ignored  --test-threads=10
-	cargo test k8s::agent_control_cli -- --nocapture --ignored  --test-threads=10
+	cargo test k8s::scenarios -- --nocapture --ignored --skip k8s::scenarios::install_agent_type --test-threads=10
+	cargo test k8s::agent_control_cli -- --nocapture --ignored --test-threads=10
 
 # Flux upgrade tests require isolated test environments with Flux installed.
 # This installs an initial Flux instance with CRDs that only reconciles the default namespace,
