@@ -364,6 +364,164 @@ The files can be hardcoded, with the contents possibly containing templates, or 
 files can be templated, so a directory contains an arbitrary number of files (a place to use a
 `map[string]yaml` variable type). **The paths cannot be templated individually.**
 
+Every directory and every file is declared with a `kind`, and directory trees are built recursively via an `entries:` field. A directory's contents can also be templated from a `map[string]yaml` variable using `kind: dir_content_from_map`, the map's keys become filenames and the values become file contents.
+
+The example below uses these variables:
+
+```yaml
+variables:
+  config_agent:
+    description: "Newrelic infra configuration"
+    type: yaml
+    required: false
+    default: ""
+  config_integrations:
+    description: "map of YAML configs for the OHIs"
+    type: map[string]yaml
+    required: false
+    default: {}
+  config_logging:
+    description: "map of YAML config for logging"
+    type: map[string]yaml
+    required: false
+    default: {}
+```
+
+And this `filesystem` block:
+
+```yaml
+filesystem:
+  newrelic-infra.yaml:
+    kind: file
+    persistent: true
+    text: ${nr-var:config_agent}
+
+  config:
+    kind: dir
+    persistent: true
+
+  logging.d:
+    kind: dir_content_from_map
+    source: ${nr-var:config_logging}
+
+  agent:
+    kind: dir
+    entries:
+      data:
+        kind: dir
+        persistent: true
+      integrations.d:
+        kind: dir_content_from_map
+        source: ${nr-var:config_integrations}
+      newrelic-infra.yaml:
+        kind: file
+        text: ${nr-var:config_agent}
+```
+
+###### Worked examples
+
+Given these user-supplied values:
+
+```yaml
+config_agent: |
+  license_key: REDACTED
+  log:
+    level: info
+
+config_integrations:
+  nri-mysql.yaml: |
+    integrations:
+      - name: nri-mysql
+        env:
+          HOSTNAME: localhost
+  nri-redis.yaml: |
+    integrations:
+      - name: nri-redis
+        env:
+          HOSTNAME: localhost
+
+config_logging:
+  syslog.yaml: |
+    logs:
+      - name: syslog
+        file: /var/log/syslog
+```
+
+The runtime produces the following on disk under `${nr-sub:filesystem_agent_dir}`. Each kind is shown in isolation.
+
+**`kind: file`**: single file rendered from the templated `text:` field. `persistent: true` means it survives `ResourceCleaner` on teardown.
+
+```
+newrelic-infra.yaml      ← contents from ${nr-var:config_agent}
+```
+
+**`kind: dir`**: an explicitly declared directory. With no `entries:` it's just an (optionally persistent) empty directory; with `entries:` it builds a tree, where each child is itself any of the three kinds, including another `dir`, so recursion is uniform.
+
+```
+config/                  ← empty, persistent
+
+agent/
+├── data/                ← empty, persistent
+├── integrations.d/      ← projected from config_integrations (see below)
+│   ├── nri-mysql.yaml
+│   └── nri-redis.yaml
+└── newrelic-infra.yaml  ← contents from ${nr-var:config_agent}
+```
+
+**`kind: dir_content_from_map`**: a directory whose entries are projected from a `map[string]yaml` variable at deploy time. Map keys become filenames; map values become file bodies.
+
+```
+logging.d/
+└── syslog.yaml          ← contents from config_logging["syslog.yaml"]
+
+agent/integrations.d/
+├── nri-mysql.yaml       ← contents from config_integrations["nri-mysql.yaml"]
+└── nri-redis.yaml       ← contents from config_integrations["nri-redis.yaml"]
+```
+
+###### Entry kinds reference
+
+**`file`** — a single file with literal or templated content.
+
+| Field        | Required | Default | Description                                                  |
+|--------------|----------|---------|--------------------------------------------------------------|
+| `kind`       | yes      | —       | Must be `file`.                                              |
+| `text`       | yes      | —       | File body. May reference `${nr-var:…}` / `${nr-sub:…}`.      |
+| `persistent` | no       | `false` | If `true`, survives `ResourceCleaner`.                       |
+
+**`dir`** — an explicitly declared directory. Its children, if any, live under `entries:`.
+
+| Field        | Required | Default | Description                                                  |
+|--------------|----------|---------|--------------------------------------------------------------|
+| `kind`       | yes      | —       | Must be `dir`.                                               |
+| `entries`    | no       | `{}`    | Map of child entries (any kind). Recursive.                  |
+| `persistent` | no       | `false` | If `true`, this directory and its tree survive cleanup.      |
+
+**`dir_content_from_map`** — a directory whose set of files is computed at deploy time from a `map[string]yaml` variable. The map's keys become filenames; the values become file contents.
+
+| Field        | Required | Default | Description                                                  |
+|--------------|----------|---------|--------------------------------------------------------------|
+| `kind`       | yes      | —       | Must be `dir_content_from_map`.                              |
+| `source`     | yes      | —       | Reference to a `map[string]yaml` variable (`${nr-var:…}`).   |
+| `persistent` | no       | `false` | If `true`, files projected here are not removed on cleanup.  |
+
+##### Persistence in Filesystem
+
+Every `file`, `dir`, and `dir_content_from_map` entry accepts a boolean `persistent:` (default `false`) that controls how the runtime treats it across the agent's lifecycle — start, stop, restart, config update, and removal from the fleet.
+
+**Ephemeral (`persistent: false`, default).** On every write event (start, restart, config update) the directory is wiped and recreated, then only the entries declared by the current manifest are written; the directory is deleted on agent stop.
+**Persistent (`persistent: true`).** On every write event the directory is created if absent (`mkdir -p`) and existing contents are left in place. Config-managed files are written or overwritten in place; agent-created files are preserved untouched. 
+
+**Stale-agent cleanup on startup.** If a sub-agent that was deployed previously is no longer present in the fleet config when Agent Control starts (e.g., it was removed while Agent Control was stopped), its filesystem is deleted on start regardless of any `persistent` flags.
+
+| Event              | Ephemeral (`persistent: false`)        | Persistent (`persistent: true`)                        |
+|--------------------|----------------------------------------|--------------------------------------------------------|
+| Agent start        | Wipe + recreate + write managed files  | `mkdir -p` if absent; write managed files              |
+| Agent stop         | Directory deleted                      | Directory kept                                         |
+| Agent restart      | Wipe + recreate + write managed files  | Reconcile managed files; agent-created files preserved |
+| Config update      | Wipe + recreate + write managed files  | Overwrite managed files; agent-created files preserved |
+| Removed from fleet | Deleted by `ResourceCleaner` if exists | Deleted by `ResourceCleaner`                           |
+
 ##### `packages`
 
 Defines OCI packages containing the executables and data to be downloaded and installed for the sub-agent. 
