@@ -28,7 +28,6 @@ const AGENT_ID: &str = "test-agent-id";
 const AGENT_TYPE_NAME: &str = "some.agent.type";
 const AGENT_TYPE_NAMESPACE: &str = "onhost_install_agent_type";
 const AGENT_TYPE_VERSION: &str = "0.1.0";
-// Reported by the `echo` version checker in the agent type definition.
 const REPORTED_VERSION: &str = "1.2.3";
 
 #[test]
@@ -42,7 +41,7 @@ fn test_local_agent_type_shadows_remote_registry_with_oci_registry() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let mut agent_control = start_agent_control_for_test(&opamp_server, &signer, &base_paths);
 
-    assert_sub_agent_connected(&mut opamp_server, &base_paths);
+    assert_sub_reports_version(&mut opamp_server, &base_paths);
     assert_agent_control_still_running(&mut agent_control);
 }
 
@@ -58,7 +57,7 @@ fn test_local_miss_resolves_via_remote_registry_with_oci_registry() {
 
     let mut agent_control = start_agent_control_for_test(&opamp_server, &signer, &base_paths);
 
-    assert_sub_agent_connected(&mut opamp_server, &base_paths);
+    assert_sub_reports_version(&mut opamp_server, &base_paths);
     assert_agent_control_still_running(&mut agent_control);
 }
 
@@ -105,7 +104,10 @@ agents: {{}}
 }
 
 fn push_agent_type_to_registry(signer: &OCISigner) -> oci_client::Reference {
-    let tag = agent_type_tag(AGENT_TYPE_VERSION);
+    let tag = AgentTypeTag::new(
+        &agent_type_id(AGENT_TYPE_VERSION),
+        AGENT_CONTROL_MODE_ON_HOST,
+    );
 
     let source_dir = tempdir().unwrap();
     let archive_dir = tempdir().unwrap();
@@ -130,7 +132,7 @@ fn write_agent_type_to_local_dir(local_dir: &Path) {
     std::fs::write(dynamic_dir.join("type.yaml"), agent_type_definition_yaml()).unwrap();
 }
 
-fn assert_sub_agent_connected(opamp_server: &mut FakeServer, base_paths: &BasePaths) {
+fn assert_sub_reports_version(opamp_server: &mut FakeServer, base_paths: &BasePaths) {
     let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
     let agent_type_id = agent_type_id(AGENT_TYPE_VERSION);
 
@@ -154,12 +156,8 @@ agents:
     let sub_agent_id = AgentID::try_from(AGENT_ID).unwrap();
     let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 
-    opamp_server.set_config_response(
-        sub_agent_instance_id.clone(),
-        "{new_config: true}".to_string(),
-    );
+    opamp_server.set_config_response(sub_agent_instance_id.clone(), "{new_config: true}");
 
-    // Wait for the sub-agent to connect to OpAMP and report its version via the `echo` checker.
     retry(60, Duration::from_secs(1), || {
         check_identifying_attributes_contains_expected(
             opamp_server,
@@ -186,10 +184,6 @@ fn assert_agent_control_still_running(agent_control: &mut StartedAgentControl) {
 fn agent_type_id(version: &str) -> AgentTypeID {
     let id = format!("{AGENT_TYPE_NAMESPACE}/{AGENT_TYPE_NAME}:{version}");
     AgentTypeID::try_from(id.as_str()).unwrap()
-}
-
-fn agent_type_tag(version: &str) -> AgentTypeTag {
-    AgentTypeTag::new(&agent_type_id(version), AGENT_CONTROL_MODE_ON_HOST)
 }
 
 #[cfg(not(target_os = "windows"))]

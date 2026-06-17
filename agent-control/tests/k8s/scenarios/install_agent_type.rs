@@ -158,7 +158,7 @@ agents: {{}}
 }
 
 fn push_agent_type_to_registry(signer: &OCISigner) -> oci_client::Reference {
-    let tag = agent_type_tag(AGENT_TYPE_VERSION);
+    let tag = AgentTypeTag::new(&agent_type_id(), Environment::K8s);
 
     let source_dir = tempdir().unwrap();
     let archive_dir = tempdir().unwrap();
@@ -166,7 +166,7 @@ fn push_agent_type_to_registry(signer: &OCISigner) -> oci_client::Reference {
     TestDataHelper::compress_tar_gz(
         source_dir.path(),
         &archive,
-        &agent_type_definition_yaml(AGENT_TYPE_VERSION),
+        &agent_type_definition_yaml(),
         &format!("{tag}.yaml"),
     );
 
@@ -180,11 +180,7 @@ fn push_agent_type_to_registry(signer: &OCISigner) -> oci_client::Reference {
 fn write_agent_type_to_local_dir(local_dir: &Path) {
     let agent_type_file_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
     std::fs::create_dir_all(agent_type_file_path.parent().unwrap()).unwrap();
-    std::fs::write(
-        agent_type_file_path,
-        agent_type_definition_yaml(AGENT_TYPE_VERSION),
-    )
-    .unwrap();
+    std::fs::write(agent_type_file_path, agent_type_definition_yaml()).unwrap();
 }
 
 fn assert_sub_agent_reports_version(
@@ -194,7 +190,7 @@ fn assert_sub_agent_reports_version(
 ) {
     let ac_instance_id =
         instance_id::get_instance_id(k8s_client.clone(), namespace, &AgentID::AgentControl);
-    let agent_type_id = agent_type_id(AGENT_TYPE_VERSION);
+    let agent_type_id = agent_type_id();
 
     opamp_server.set_config_response(
         ac_instance_id.clone(),
@@ -213,20 +209,12 @@ agents:
             .map_err(|e| e.into())
     });
 
-    // Wait for the sub-agent's fleet-data ConfigMap to appear, which is written during
-    // K8sSubAgentBuilder::build. This confirms AC received the config and successfully
-    // resolved the agent type (either from local dir or remote OCI registry).
     let sub_agent_id = AgentID::try_from(AGENT_ID).unwrap();
     let sub_agent_instance_id =
         instance_id::get_instance_id(k8s_client.clone(), namespace, &sub_agent_id);
 
-    opamp_server.set_config_response(
-        sub_agent_instance_id.clone(),
-        "{new_config: true}".to_string(),
-    );
+    opamp_server.set_config_response(sub_agent_instance_id.clone(), "{new_config: true}");
 
-    // On k8s, the sub-agent reports the agent type version via the `service.version` identifying
-    // attribute (set in sub_agent_start_settings). There is no runtime version checker on k8s.
     retry(60, Duration::from_secs(1), || {
         check_identifying_attributes_contains_expected(
             opamp_server,
@@ -250,21 +238,17 @@ fn assert_agent_control_still_running(agent_control: &mut StartedAgentControl) {
     });
 }
 
-fn agent_type_id(version: &str) -> AgentTypeID {
-    let id = format!("{AGENT_TYPE_NAMESPACE}/{AGENT_TYPE_NAME}:{version}");
+fn agent_type_id() -> AgentTypeID {
+    let id = format!("{AGENT_TYPE_NAMESPACE}/{AGENT_TYPE_NAME}:{AGENT_TYPE_VERSION}");
     AgentTypeID::try_from(id.as_str()).unwrap()
 }
 
-fn agent_type_tag(version: &str) -> AgentTypeTag {
-    AgentTypeTag::new(&agent_type_id(version), Environment::K8s)
-}
-
-fn agent_type_definition_yaml(agent_type_version: &str) -> String {
+fn agent_type_definition_yaml() -> String {
     format!(
         r#"
 namespace: {AGENT_TYPE_NAMESPACE}
 name: {AGENT_TYPE_NAME}
-version: {agent_type_version}
+version: {AGENT_TYPE_VERSION}
 protocol_version: "1.0"
 platform: kubernetes
 deployment:
