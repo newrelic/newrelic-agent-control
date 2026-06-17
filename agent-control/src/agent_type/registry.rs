@@ -102,22 +102,28 @@ impl<R: AgentTypeRegistry> AgentTypeRegistry for Registry<R> {
         agent_type_id: &AgentTypeID,
     ) -> Result<AgentTypeDefinition, AgentTypeRegistryError> {
         let mut last_err = AgentTypeRegistryError::NotFound(agent_type_id.to_string());
-        for inner in &self.registries {
+        for (index, inner) in self.registries.iter().enumerate() {
             match inner.get(agent_type_id) {
-                Ok(def) => return Ok(def),
+                Ok(def) => {
+                    debug!(
+                        agent_type_id = %agent_type_id,
+                        "Agent type definition found on registry layer \"{index}\"",
+                    );
+                    return Ok(def);
+                }
                 Err(err) => {
                     match err {
                         AgentTypeRegistryError::NotFound(_) => {
                             debug!(
                                 agent_type_id = %agent_type_id,
                                 error = %err,
-                                "Agent type registry layer did not find the agent type; falling through to the next layer",
+                                "Agent type definition not found on registry layer \"{index}\"; falling through to the next layer",
                             );
                         }
                         _ => warn!(
                             agent_type_id = %agent_type_id,
                             error = %err,
-                            "Agent type registry layer returned an error; falling through to the next layer",
+                            "Agent type definition error on registry layer \"{index}\"; falling through to the next layer",
                         ),
                     }
 
@@ -125,6 +131,13 @@ impl<R: AgentTypeRegistry> AgentTypeRegistry for Registry<R> {
                 }
             }
         }
+
+        debug!(
+            agent_type_id = %agent_type_id,
+            error = %last_err,
+            "Agent type definition not found on any registry layer",
+        );
+
         Err(last_err)
     }
 }

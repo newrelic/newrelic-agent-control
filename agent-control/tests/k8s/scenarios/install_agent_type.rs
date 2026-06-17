@@ -40,7 +40,7 @@ const AGENT_TYPE_VERSION: &str = "0.1.0";
 
 #[test]
 #[ignore = "needs oci registry and a k8s cluster (use *with_oci_registry suffix)"]
-fn k8s_test_local_agent_type_shadows_remote_registry_with_oci_registry() {
+fn k8s_local_agent_type_shadows_remote_registry_with_oci_registry() {
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
     let mut k8s = block_on(K8sEnv::new());
@@ -65,7 +65,7 @@ fn k8s_test_local_agent_type_shadows_remote_registry_with_oci_registry() {
 
 #[test]
 #[ignore = "needs oci registry and a k8s cluster (use *with_oci_registry suffix)"]
-fn k8s_test_local_miss_resolves_via_remote_registry_with_oci_registry() {
+fn k8s_local_miss_resolves_via_remote_registry_with_oci_registry() {
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
     let mut k8s = block_on(K8sEnv::new());
