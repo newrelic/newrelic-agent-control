@@ -41,7 +41,11 @@ variables: {{}}
 deployment:
   filesystem:
     {dir_entry}:
-      {file_path}: "{expected_file_contents}"
+      kind: dir
+      entries:
+        {file_path}:
+          kind: file
+          text: "{expected_file_contents}"
 "#,
         ),
         dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -144,14 +148,28 @@ variables:
 deployment:
   filesystem:
     randomdir:
-      "{yaml_file_path}": |-
-        ${{nr-var:yaml_file_contents}}
-      "{string_file_path}": "Some string contents with a rendered variable: ${{nr-var:some_string}}"
+      kind: dir
+      entries:
+        "{yaml_file_path}":
+          kind: file
+          text: |-
+            ${{nr-var:yaml_file_contents}}
+        "{string_file_path}":
+          kind: file
+          text: "Some string contents with a rendered variable: ${{nr-var:some_string}}"
     {dir_path}:
-      file1.txt: "File 1 contents"
-      file2.txt: |
-        File 2 contents with a variable: ${{nr-var:some_string}}
-    "{fully_templated_dir}": ${{nr-var:some_mapstringyaml}}
+      kind: dir
+      entries:
+        file1.txt:
+          kind: file
+          text: "File 1 contents"
+        file2.txt:
+          kind: file
+          text: |
+            File 2 contents with a variable: ${{nr-var:some_string}}
+    "{fully_templated_dir}":
+      kind: dir_content_from_map
+      source: ${{nr-var:some_mapstringyaml}}
 "#,
         ),
         dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -291,16 +309,29 @@ variables:
 deployment:
   filesystem:
     config:
-      newrelic-infra.yaml: |-
-        ${{nr-var:config_agent}}
+      kind: dir
+      entries:
+        newrelic-infra.yaml:
+          kind: file
+          text: |-
+            ${{nr-var:config_agent}}
     integrations.d:
-      integration.yaml: |-
-        ${{nr-var:config_integrations}}
+      kind: dir
+      entries:
+        integration.yaml:
+          kind: file
+          text: |-
+            ${{nr-var:config_integrations}}
     logging.d:
-      logging.yaml: |-
-        ${{nr-var:config_logging}}
+      kind: dir
+      entries:
+        logging.yaml:
+          kind: file
+          text: |-
+            ${{nr-var:config_logging}}
     # This directory needs to persist across restarts for the infra agent
-    newrelic-infra/newrelic-integrations/logging: {{}}
+    newrelic-infra/newrelic-integrations/logging:
+      kind: dir
 "#,
         ),
         dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
