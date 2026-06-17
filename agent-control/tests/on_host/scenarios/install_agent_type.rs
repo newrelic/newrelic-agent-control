@@ -26,61 +26,39 @@ use tempfile::tempdir;
 
 const AGENT_ID: &str = "test-agent-id";
 const AGENT_TYPE_NAME: &str = "some.agent.type";
-const AGENT_TYPE_NAMESPACE: &str = "install_agent_type";
-
-const LOCAL_VERSION_CHECKER_OUTPUT: &str = "1.0.0";
-const REMOTE_VERSION_CHECKER_OUTPUT: &str = "2.0.0";
-
-#[test]
-#[ignore = "needs oci registry (use *with_oci_registry suffix)"]
-fn test_local_miss_resolves_via_remote_registry_with_oci_registry() {
-    let signer = OCISigner::start(tokio_runtime().handle().clone());
-    // Each test uses a different agent type version to avoid concurrency issues.
-    let agent_type_version = "0.1.0";
-
-    push_agent_type_to_registry(&signer, agent_type_version, REMOTE_VERSION_CHECKER_OUTPUT);
-
-    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
-    let base_paths = temp_base_paths();
-    let mut agent_control = start_agent_control_for_test(&opamp_server, &signer, &base_paths);
-
-    assert_sub_agent_reports_version(
-        &mut opamp_server,
-        &base_paths,
-        agent_type_version,
-        REMOTE_VERSION_CHECKER_OUTPUT,
-    );
-    assert_agent_control_still_running(&mut agent_control);
-}
+const AGENT_TYPE_NAMESPACE: &str = "onhost_install_agent_type";
+const AGENT_TYPE_VERSION: &str = "0.1.0";
+// Reported by the `echo` version checker in the agent type definition.
+const REPORTED_VERSION: &str = "1.2.3";
 
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
 fn test_local_agent_type_shadows_remote_registry_with_oci_registry() {
     let signer = OCISigner::start(tokio_runtime().handle().clone());
-    // Each test uses a different agent type version to avoid concurrency issues.
-    let agent_type_version = "0.2.0";
 
-    // Push the remote variant — version checker will output REMOTE_VERSION_CHECKER_OUTPUT.
-    push_agent_type_to_registry(&signer, agent_type_version, REMOTE_VERSION_CHECKER_OUTPUT);
-
-    // Write the local variant — version checker will output LOCAL_VERSION_CHECKER_OUTPUT.
     let base_paths = temp_base_paths();
-    write_agent_type_to_local_dir(
-        &base_paths.local_dir,
-        agent_type_version,
-        LOCAL_VERSION_CHECKER_OUTPUT,
-    );
+    write_agent_type_to_local_dir(&base_paths.local_dir);
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let mut agent_control = start_agent_control_for_test(&opamp_server, &signer, &base_paths);
 
-    assert_sub_agent_reports_version(
-        &mut opamp_server,
-        &base_paths,
-        agent_type_version,
-        LOCAL_VERSION_CHECKER_OUTPUT,
-    );
+    assert_sub_agent_connected(&mut opamp_server, &base_paths);
+    assert_agent_control_still_running(&mut agent_control);
+}
 
+#[test]
+#[ignore = "needs oci registry (use *with_oci_registry suffix)"]
+fn test_local_miss_resolves_via_remote_registry_with_oci_registry() {
+    let signer = OCISigner::start(tokio_runtime().handle().clone());
+
+    push_agent_type_to_registry(&signer);
+
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
+    let base_paths = temp_base_paths();
+
+    let mut agent_control = start_agent_control_for_test(&opamp_server, &signer, &base_paths);
+
+    assert_sub_agent_connected(&mut opamp_server, &base_paths);
     assert_agent_control_still_running(&mut agent_control);
 }
 
@@ -126,12 +104,8 @@ agents: {{}}
     start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST)
 }
 
-fn push_agent_type_to_registry(
-    signer: &OCISigner,
-    agent_type_version: &str,
-    reported_version: &str,
-) -> oci_client::Reference {
-    let tag = agent_type_tag(agent_type_version);
+fn push_agent_type_to_registry(signer: &OCISigner) -> oci_client::Reference {
+    let tag = agent_type_tag(AGENT_TYPE_VERSION);
 
     let source_dir = tempdir().unwrap();
     let archive_dir = tempdir().unwrap();
@@ -139,7 +113,7 @@ fn push_agent_type_to_registry(
     TestDataHelper::compress_tar_gz(
         source_dir.path(),
         &archive,
-        &agent_type_definition_yaml(agent_type_version, reported_version),
+        &agent_type_definition_yaml(),
         &format!("{tag}.yaml"),
     );
 
@@ -150,28 +124,15 @@ fn push_agent_type_to_registry(
     reference
 }
 
-fn write_agent_type_to_local_dir(
-    local_dir: &Path,
-    agent_type_version: &str,
-    reported_version: &str,
-) {
+fn write_agent_type_to_local_dir(local_dir: &Path) {
     let dynamic_dir = local_dir.join(DYNAMIC_AGENT_TYPES_DIR);
     std::fs::create_dir_all(&dynamic_dir).unwrap();
-    std::fs::write(
-        dynamic_dir.join("type.yaml"),
-        agent_type_definition_yaml(agent_type_version, reported_version),
-    )
-    .unwrap();
+    std::fs::write(dynamic_dir.join("type.yaml"), agent_type_definition_yaml()).unwrap();
 }
 
-fn assert_sub_agent_reports_version(
-    opamp_server: &mut FakeServer,
-    base_paths: &BasePaths,
-    agent_type_version: &str,
-    expected_version: &str,
-) {
+fn assert_sub_agent_connected(opamp_server: &mut FakeServer, base_paths: &BasePaths) {
     let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
-    let agent_type_id = agent_type_id(agent_type_version);
+    let agent_type_id = agent_type_id(AGENT_TYPE_VERSION);
 
     opamp_server.set_config_response(
         ac_instance_id.clone(),
@@ -198,13 +159,14 @@ agents:
         "{new_config: true}".to_string(),
     );
 
+    // Wait for the sub-agent to connect to OpAMP and report its version via the `echo` checker.
     retry(60, Duration::from_secs(1), || {
         check_identifying_attributes_contains_expected(
             opamp_server,
             &sub_agent_instance_id,
             convert_to_vec_key_value(vec![(
                 OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-                Value::StringValue(expected_version.to_string()),
+                Value::StringValue(REPORTED_VERSION.to_string()),
             )]),
         )
         .map_err(|e| e.into())
@@ -231,38 +193,38 @@ fn agent_type_tag(version: &str) -> AgentTypeTag {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn agent_type_definition_yaml(agent_type_version: &str, reported_version: &str) -> String {
+fn agent_type_definition_yaml() -> String {
     format!(
         r#"
 namespace: {AGENT_TYPE_NAMESPACE}
 name: {AGENT_TYPE_NAME}
-version: {agent_type_version}
+version: {AGENT_TYPE_VERSION}
 protocol_version: "1.0"
 platform: host
 operating_system: linux
 deployment:
   version:
     path: echo
-    args: ["{reported_version}"]
+    args: ["{REPORTED_VERSION}"]
     regex: \d+\.\d+\.\d+
 "#
     )
 }
 
 #[cfg(target_os = "windows")]
-fn agent_type_definition_yaml(agent_type_version: &str, reported_version: &str) -> String {
+fn agent_type_definition_yaml() -> String {
     format!(
         r#"
 namespace: {AGENT_TYPE_NAMESPACE}
 name: {AGENT_TYPE_NAME}
-version: {agent_type_version}
+version: {AGENT_TYPE_VERSION}
 protocol_version: "1.0"
 platform: host
 operating_system: windows
 deployment:
   version:
-    path: cmd
-    args: ["/C", "echo", "{reported_version}"]
+    path: echo
+    args: ["{REPORTED_VERSION}"]
     regex: \d+\.\d+\.\d+
 "#
     )

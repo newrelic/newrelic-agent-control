@@ -1,4 +1,5 @@
 mod ac_restarts;
+mod install_agent_type;
 mod attributes;
 mod config_signature;
 mod cr_based_agents;
