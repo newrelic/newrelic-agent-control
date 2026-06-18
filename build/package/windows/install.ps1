@@ -127,6 +127,12 @@ Set-RestrictedAcl -Path $acDataDir
 Write-Host "Copying New Relic Agent Control program files..."
 Copy-Item -Path ".\newrelic-agent-control.exe" -Destination "$acProgramFilesDir"
 
+# Copy uninstall script if it exists
+if (Test-Path ".\uninstall.ps1") {
+    Copy-Item -Path ".\uninstall.ps1" -Destination "$acProgramFilesDir\uninstall.ps1"
+    Write-Host "Uninstall script copied to $acProgramFilesDir"
+}
+
 # Generate configuration based on inputs
 $localConfigPath = Join-Path $acLocalConfigDir 'local_config.yaml'
 
