@@ -5,6 +5,7 @@ mod file_logging;
 mod filesystem_ops;
 mod health_check;
 mod http_status_server;
+mod install_agent_type;
 mod install_remote_package;
 mod invalid_remote_config;
 mod memory_benchmark;

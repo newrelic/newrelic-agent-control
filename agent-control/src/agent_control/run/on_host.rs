@@ -22,7 +22,6 @@ use crate::environment::Environment;
 use crate::event::channel::{EventConsumer, pub_sub};
 use crate::event::{AgentControlEvent, OpAMPEvent};
 use crate::http::config::ProxyConfig;
-use crate::oci;
 use crate::on_host::file_store::FileStore;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::callbacks::AgentCallbacks;
@@ -50,9 +49,6 @@ use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::values::ConfigRepo;
 use fs::directory_manager::DirectoryManagerFs;
 use fs::file::LocalFile;
-use oci_client::client::ClientConfig;
-#[cfg(debug_assertions)]
-use oci_client::client::ClientProtocol;
 use opamp_client::http::StartedHttpClient;
 use opamp_client::http::client::OpAMPHttpClient;
 use opamp_client::operation::settings::{AgentDescription, DescriptionValueType, StartSettings};
@@ -114,12 +110,11 @@ impl AgentControlRunner {
         let resource_cleaner =
             OnHostCleaner::new(instance_id_storer, yaml_config_repository.clone());
 
-        let proxy = self.bootstrap_config.proxy;
         let opamp_client_builder = maybe_opamp.map(|config| {
             opamp_client_builder(
                 local_dir.clone(),
                 config,
-                proxy.clone(),
+                self.bootstrap_config.proxy,
                 yaml_config_repository.clone(),
             )
         });
@@ -167,19 +162,9 @@ impl AgentControlRunner {
             &remote_dir,
         ));
 
-        // We are setting client http in debug_assertions mode for tests
-        let oci_client_config = ClientConfig {
-            #[cfg(debug_assertions)]
-            protocol: ClientProtocol::HttpsExcept(vec![OCI_TEST_REGISTRY_URL.to_string()]),
-            ..Default::default()
-        };
-
-        let oci_client = oci::Client::try_new(oci_client_config, proxy, self.runtime.clone())
-            .map_err(|err| RunError(format!("failed to create the OciClient: {err}")))?;
-
         let agents_package_manager = OCIPackageManager::new(
             OCIPackageArtifactDownloader::new(
-                oci_client.clone(),
+                self.oci_client.clone(),
                 self.bootstrap_config.oci.registry.clone(),
                 self.bootstrap_config.oci.auth.clone(),
                 agent_control_config
@@ -230,7 +215,7 @@ impl AgentControlRunner {
 
         let agent_control_package_manager = OCIPackageManager::new(
             OCIPackageArtifactDownloader::new(
-                oci_client.clone(),
+                self.oci_client.clone(),
                 self.bootstrap_config.oci.registry.clone(),
                 self.bootstrap_config.oci.auth.clone(),
                 agent_control_config
