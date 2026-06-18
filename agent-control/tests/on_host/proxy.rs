@@ -1,11 +1,11 @@
 #![cfg(target_family = "unix")]
-use fake_opamp_server::FakeServer;
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
-use crate::common::{runtime::tokio_runtime, retry::retry};
-use crate::on_host::tools::config::create_agent_control_config_with_proxy;
+use crate::common::{retry::retry, runtime::tokio_runtime};
+use crate::on_host::tools::config::AgentControlConfigBuilder;
 use crate::on_host::tools::instance_id::get_instance_id;
+use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
@@ -50,15 +50,11 @@ fn proxy_onhost_opamp_agent_control_local_effective_config() {
 
     let agents = "{}";
 
-    create_agent_control_config_with_proxy(
-        opamp_server_endpoint,
-        jwks_endpoint,
-        agents.to_string(),
-        local_dir.path().to_path_buf(),
-        Some(format!(
+    AgentControlConfigBuilder::new(opamp_server_endpoint, jwks_endpoint, agents)
+        .with_proxy(format!(
             "{{\"url\": \"{proxy_url}\", \"ca_bundle_dir\": \"{proxy_ca_dir}\"}}"
-        )),
-    );
+        ))
+        .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),

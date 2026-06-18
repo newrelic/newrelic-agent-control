@@ -6,7 +6,7 @@ use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::remote_config_status::check_latest_remote_config_status;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
+use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
@@ -75,12 +75,8 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        "{}".to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint(), "{}")
+        .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -186,12 +182,8 @@ fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        "{}".to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint(), "{}")
+        .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),

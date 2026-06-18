@@ -3,7 +3,7 @@ use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{retry::retry, runtime::tokio_runtime};
 use crate::on_host::tools::config::load_remote_config_content;
-use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
+use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
@@ -40,12 +40,12 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 "#,
     );
 
-    create_agent_control_config(
+    AgentControlConfigBuilder::new(
         opamp_server.endpoint(),
         opamp_server.jwks_endpoint(),
         agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    )
+    .write(local_dir.path().to_path_buf());
 
     // And the custom-agent has local config values
 
@@ -129,12 +129,12 @@ fn test_invalid_config_executable_less_supervisor() {
         local_dir.path().to_path_buf(),
     );
 
-    create_agent_control_config(
+    AgentControlConfigBuilder::new(
         opamp_server.endpoint(),
         opamp_server.jwks_endpoint(),
         agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    )
+    .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -204,12 +204,12 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
 "#,
     );
 
-    create_agent_control_config(
+    AgentControlConfigBuilder::new(
         opamp_server.endpoint(),
         opamp_server.jwks_endpoint(),
         agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    )
+    .write(local_dir.path().to_path_buf());
 
     // And the custom-agent has local config values
 

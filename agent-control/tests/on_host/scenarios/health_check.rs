@@ -2,9 +2,7 @@ use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::consts::NO_CONFIG;
-use crate::on_host::tools::config::{
-    create_agent_control_config, create_file, create_local_config,
-};
+use crate::on_host::tools::config::{AgentControlConfigBuilder, create_file, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
@@ -54,12 +52,12 @@ file:
         NO_CONFIG.to_string(),
         local_dir.path().into(),
     );
-    create_agent_control_config(
+    AgentControlConfigBuilder::new(
         opamp_server.endpoint(),
         opamp_server.jwks_endpoint(),
         agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    )
+    .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -162,12 +160,12 @@ http:
 "#
     );
 
-    create_agent_control_config(
+    AgentControlConfigBuilder::new(
         opamp_server.endpoint(),
         opamp_server.jwks_endpoint(),
         agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    )
+    .write(local_dir.path().to_path_buf());
     create_local_config(
         sub_agent_id.to_string(),
         NO_CONFIG.to_string(),

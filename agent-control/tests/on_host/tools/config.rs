@@ -15,110 +15,94 @@ use newrelic_agent_control::on_host::file_store::{FileStore, build_config_name};
 use newrelic_agent_control::values::ConfigRepo;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
 
-/// Creates the agent-control config given an opamp_server_endpoint
-/// and a list of agents on the specified local_dir.
-pub fn create_agent_control_config(
-    opamp_server_endpoint: String,
+pub struct AgentControlConfigBuilder {
+    opamp_endpoint: String,
     jwks_endpoint: String,
     agents: String,
-    local_dir: PathBuf,
-) {
-    create_agent_control_config_with_proxy(
-        opamp_server_endpoint,
-        jwks_endpoint,
-        OCI_TEST_REGISTRY_URL.to_string(),
-        agents,
-        local_dir,
-        None,
-    );
-}
-
-/// Creates the agent-control config given an opamp_server_endpoint
-/// and a list of agents on the specified local_dir.
-pub fn create_agent_control_config_with_oci_registry(
-    opamp_server_endpoint: String,
-    jwks_endpoint: String,
     oci_registry: String,
-    agents: String,
-    local_dir: PathBuf,
-) {
-    create_agent_control_config_with_proxy(
-        opamp_server_endpoint,
-        jwks_endpoint,
-        oci_registry,
-        agents,
-        local_dir,
-        None,
-    );
+    status_server_port: Option<u16>,
+    proxy: Option<String>,
 }
 
-/// Extends [create_agent_control_config] enabling the HTTP status server on the given port.
-pub fn create_agent_control_config_with_status_server(
-    host_id: &str,
-    opamp_server_endpoint: String,
-    jwks_endpoint: String,
-    agents: String,
-    local_dir: PathBuf,
-    status_server_port: u16,
-) {
-    let agent_control_config = format!(
-        r#"
-host_id: {host_id}
+impl AgentControlConfigBuilder {
+    pub fn new(
+        opamp_endpoint: impl Into<String>,
+        jwks_endpoint: impl Into<String>,
+        agents: impl Into<String>,
+    ) -> Self {
+        Self {
+            opamp_endpoint: opamp_endpoint.into(),
+            jwks_endpoint: jwks_endpoint.into(),
+            agents: agents.into(),
+            oci_registry: OCI_TEST_REGISTRY_URL.to_string(),
+            status_server_port: None,
+            proxy: None,
+        }
+    }
+
+    pub fn with_oci_registry(mut self, registry: impl Into<String>) -> Self {
+        self.oci_registry = registry.into();
+        self
+    }
+
+    pub fn with_status_server(mut self, port: u16) -> Self {
+        self.status_server_port = Some(port);
+        self
+    }
+
+    // This is used in `proxy.rs`, which isn't automatized.
+    // Therefore, we need to allow dead code here.
+    #[allow(dead_code)]
+    pub fn with_proxy(mut self, proxy: impl Into<String>) -> Self {
+        self.proxy = Some(proxy.into());
+        self
+    }
+
+    pub fn write(self, local_dir: PathBuf) {
+        let proxy_config = self
+            .proxy
+            .map(|p| format!("proxy: {p}"))
+            .unwrap_or_default();
+
+        let status_server_config = self
+            .status_server_port
+            .map(|port| {
+                format!(
+                    r#"server:
+  enabled: true
+  port: {port}"#
+                )
+            })
+            .unwrap_or_default();
+
+        let agent_control_config = format!(
+            r#"
+host_id: integration-test
 fleet_control:
-  endpoint: {opamp_server_endpoint}
+  endpoint: {opamp_endpoint}
   poll_interval: 5s
   signature_validation:
     public_key_server_url: {jwks_endpoint}
-agents: {agents}
-server:
-  enabled: true
-  port: {status_server_port}
-"#,
-    );
-    create_file(
-        agent_control_config,
-        local_dir
-            .join(FOLDER_NAME_LOCAL_DATA)
-            .join(AGENT_CONTROL_ID)
-            .join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)),
-    );
-}
-
-/// Extends [create_agent_control_config] with a proxy configuration parameter.
-pub fn create_agent_control_config_with_proxy(
-    opamp_server_endpoint: String,
-    jwks_endpoint: String,
-    oci_registry: String,
-    agents: String,
-    local_dir: PathBuf,
-    proxy: Option<String>,
-) {
-    let proxy_config = proxy
-        .map(|config| format!("proxy: {config}"))
-        .unwrap_or_default();
-
-    let agent_control_config = format!(
-        r#"
-host_id: integration-test
-fleet_control:
-  endpoint: {}
-  poll_interval: 5s
-  signature_validation:
-    public_key_server_url: {}
 oci:
-  registry: "{}"
-agents: {}
-{}
+  registry: "{oci_registry}"
+agents: {agents}
+{proxy_config}
+{status_server_config}
 "#,
-        opamp_server_endpoint, jwks_endpoint, oci_registry, agents, proxy_config,
-    );
-    create_file(
-        agent_control_config,
-        local_dir
-            .join(FOLDER_NAME_LOCAL_DATA)
-            .join(AGENT_CONTROL_ID)
-            .join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)),
-    );
+            opamp_endpoint = self.opamp_endpoint,
+            jwks_endpoint = self.jwks_endpoint,
+            oci_registry = self.oci_registry,
+            agents = self.agents,
+        );
+
+        create_file(
+            agent_control_config,
+            local_dir
+                .join(FOLDER_NAME_LOCAL_DATA)
+                .join(AGENT_CONTROL_ID)
+                .join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)),
+        );
+    }
 }
 
 pub fn create_file(content: impl Into<String>, path: PathBuf) {

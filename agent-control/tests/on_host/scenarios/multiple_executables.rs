@@ -6,7 +6,7 @@ use crate::{
         retry::retry, runtime::tokio_runtime,
     },
     on_host::tools::{
-        config::create_agent_control_config, custom_agent_type::CustomAgentType,
+        config::AgentControlConfigBuilder, custom_agent_type::CustomAgentType,
         instance_id::get_instance_id,
     },
 };
@@ -43,12 +43,12 @@ agents:
 "#
     );
 
-    create_agent_control_config(
+    AgentControlConfigBuilder::new(
         opamp_server.endpoint(),
         opamp_server.jwks_endpoint(),
         agents,
-        local_dir.path().to_path_buf(),
-    );
+    )
+    .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -101,12 +101,12 @@ agents:
 "#
     );
 
-    create_agent_control_config(
+    AgentControlConfigBuilder::new(
         opamp_server.endpoint(),
         opamp_server.jwks_endpoint(),
         agents,
-        local_dir.path().to_path_buf(),
-    );
+    )
+    .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),

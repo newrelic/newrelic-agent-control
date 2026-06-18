@@ -6,7 +6,7 @@ use crate::common::attributes::{
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::consts::NO_CONFIG;
-use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
+use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
@@ -46,12 +46,12 @@ fn test_attributes_from_non_existing_agent_type() {
 "#
     );
 
-    create_agent_control_config(
+    AgentControlConfigBuilder::new(
         opamp_server.endpoint(),
         opamp_server.jwks_endpoint(),
         agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    )
+    .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -139,12 +139,12 @@ agents:
 "#
     );
 
-    create_agent_control_config(
+    AgentControlConfigBuilder::new(
         opamp_server.endpoint(),
         opamp_server.jwks_endpoint(),
         agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    )
+    .write(local_dir.path().to_path_buf());
 
     // And the custom-agent has empty config values
     create_local_config(
