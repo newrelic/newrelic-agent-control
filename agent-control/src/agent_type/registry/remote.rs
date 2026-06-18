@@ -9,9 +9,7 @@ use crate::environment::Environment;
 /// through an [OCIAgentTypeDownloader].
 ///
 /// The agent type fully qualified name does not carry the platform/operating system; Agent Control
-/// resolves them from its own running [Environment], which is used to build the OCI tag
-/// `<platform>-<operating_system>-<name>-<version>` (the operating system segment is omitted on
-/// kubernetes, matching how agent type metadata maps platform/os to [Environment]).
+/// resolves them from its own running [Environment], which is used to build the [AgentTypeTag].
 pub struct RemoteRegistry<D> {
     environment: Environment,
     downloader: D,
