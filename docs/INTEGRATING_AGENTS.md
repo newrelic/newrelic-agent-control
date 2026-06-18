@@ -507,24 +507,38 @@ agent/integrations.d/
 
 ##### Persistence in Filesystem
 
-Every `file`, `dir`, and `dir_content_from_map` entry accepts a boolean `persistent:` (default `false`) that controls how the runtime treats it across the agent's lifecycle — start, stop, restart, config update, and removal from the fleet.
+Every `file`, `dir`, and `dir_content_from_map` entry accepts a boolean `persistent:` (default `false`). Two independent mechanisms govern lifecycle:
 
-**Ephemeral (`persistent: false`, default).** On every write event (start, restart, config update) the directory is wiped and recreated, then only the entries declared by the current manifest are written; the directory is deleted on agent stop.
-**Persistent (`persistent: true`).** On every write event the directory is created if absent (`mkdir -p`) and existing contents are left in place. Config-managed files are written or overwritten in place; agent-created files are preserved untouched. 
+- **The `persistent` flag** controls whether the entry's on-disk path is wiped on sub-agent stop. Ephemeral entries are deleted on stop; persistent entries are kept.
+- **The sidecar manifest** drives reconciliation on every write event. Anything Agent Control wrote on the previous successful write is recorded in the manifest. On the next write, Agent Control diffs the manifest against the new declared set: paths it owned previously and no longer owns are deleted; paths it never owned are left alone.
 
-**Stale-agent cleanup on startup.** If a sub-agent that was deployed previously is no longer present in the fleet config when Agent Control starts (e.g., it was removed while Agent Control was stopped), its filesystem is deleted on start regardless of any `persistent` flags.
+The flag does **not** shield the entry from intentional removal: if you delete an entry from the agent type (or remove a key from a `dir_content_from_map` source map), the manifest diff catches it and the on-disk path is deleted on the next write event.
 
-| Event              | Ephemeral (`persistent: false`)        | Persistent (`persistent: true`)                        |
-|--------------------|----------------------------------------|--------------------------------------------------------|
-| Agent start        | Wipe + recreate + write managed files  | `mkdir -p` if absent; write managed files              |
-| Agent stop         | Directory deleted                      | Directory kept                                         |
-| Agent restart      | Wipe + recreate + write managed files  | Reconcile managed files; agent-created files preserved |
-| Config update      | Wipe + recreate + write managed files  | Overwrite managed files; agent-created files preserved |
-| Removed from fleet | Deleted by `ResourceCleaner` if exists | Deleted by `ResourceCleaner`                           |
+###### Sidecar manifest
+
+After every successful write, Agent Control writes `.ac-managed-paths.json` inside the sub-agent's filesystem directory listing the absolute paths it just wrote. This filename is **reserved** — agent types must not declare it.
+
+The manifest is the source of truth for "what Agent Control owns." Files the sub-agent process creates at runtime are never in the manifest, so they're invisible to reconciliation: they survive every write event, every sub-agent restart, and every config update. They're only removed if some declared ancestor directory is itself removed from the agent type (the `remove_dir_all` of the parent takes them as collateral) or if the agent is removed from the fleet.
+
+###### Lifecycle
+
+- **Ephemeral (`persistent: false`, default).** On sub-agent stop, the entry's on-disk path is deleted.
+- **Persistent (`persistent: true`).** On sub-agent stop, the entry's on-disk path is preserved.
+- **Removed from fleet.** When an agent is removed from the fleet config (via remote config or by being absent at AC startup after a previous deploy), its entire filesystem directory is deleted by `ResourceCleaner`. The `persistent` flag is bypassed.
+
+| Event              | Ephemeral (`persistent: false`)           | Persistent (`persistent: true`)                        |
+|--------------------|-------------------------------------------|--------------------------------------------------------|
+| Agent start        | Reconcile (manifest diff) + write         | Reconcile (manifest diff) + write                      |
+| Agent stop         | Path deleted                              | Path kept                                              |
+| Agent restart      | Reconcile + write                         | Reconcile + write                                      |
+| Config update      | Reconcile + write                         | Reconcile + write                                      |
+| Removed from fleet | Filesystem dir deleted by ResourceCleaner | Filesystem dir deleted by ResourceCleaner              |
+
+In all the "Reconcile + write" rows, agent-process-created files survive (not in the manifest, not declared, not deleted).
 
 ##### `packages`
 
-Defines OCI packages containing the executables and data to be downloaded and installed for the sub-agent. 
+Defines OCI packages containing the executables and data to be downloaded and installed for the sub-agent.
 This is a map where keys are package identifiers and values contain package metadata and download configuration.
 
 The value yaml look like:
@@ -538,9 +552,9 @@ The value yaml look like:
 ```
 
 Note that a Package version. Can be:
-  - A tag (`:v1.0.0`)
-  - A digest (`@sha256:...`)
-  - Both tag and digest (`:v1.0.0@sha256:...`), when both are specified the digest takes precedence.
+- A tag (`:v1.0.0`)
+- A digest (`@sha256:...`)
+- Both tag and digest (`:v1.0.0@sha256:...`), when both are specified the digest takes precedence.
 
 `public_key_url` is an optional field, when not configured signature verifications is skipped and logged with warn level.
 
@@ -793,7 +807,7 @@ Key-value pairs of the [Kubernetes Objects](https://kubernetes.io/docs/concepts/
   - `namespace`, a string.
   - `labels`: key-value pair of strings representing Kubernetes labels.
 - And a collection of arbitrary fields representing the actual data (e.g. the `spec`) of the object.
-  
+
 Most of Agent Control sub-agents currently deploy [Flux](https://fluxcd.io) CRs which end up in helm chart installation.
 
 You can check an [existing agent type with a Kubernetes deployment](../agent-control/agent-type-registry/newrelic/kubernetes-com.newrelic.infrastructure-0.1.0.yaml) as an example. This file includes all necessary Flux CR configurations required for Agent Control to manage sub-agent deployments effectively. It serves as a comprehensive reference for understanding the integration and deployment process.
@@ -820,12 +834,12 @@ The first time it runs, whether it's using static configs or when already runnin
 2. Attempt to assemble the actual, effective config that the sub-agent will have.
 3. If the assembly is successful, attempt to deploy (spawn process or create Kubernetes resources) the sub-agent using the effective config.
 4. Once the sub-agent is deployed:
-    - Perform regular health checks.
-    - Restart it if it crashes, according to the configured restart policy (for on-host).
-    - Assure that the resources match the ones defined in the agent-type (for k8s).
+  - Perform regular health checks.
+  - Restart it if it crashes, according to the configured restart policy (for on-host).
+  - Assure that the resources match the ones defined in the agent-type (for k8s).
 5. If Fleet Control is enabled, the supervisor will listen for incoming remote configs different from the one currently in use:
-    - When receiving one, the supervisor will stop its workload and restart from step 1 again.
-    - If an empty config is passed it means that this agent should be retired, so the supervisor will just stop its workload and exit.
+  - When receiving one, the supervisor will stop its workload and restart from step 1 again.
+  - If an empty config is passed it means that this agent should be retired, so the supervisor will just stop its workload and exit.
 6. On failure of assembly or deployment, the supervisor will be kept alive, but will report itself as unhealthy. If FC is enabled, this offers the user the possibility of pushing a new remote config, in case the sub-agent was left in a bad state due to receiving an invalid one.
 
 Agent Control itself shares much of the behavior of a supervisor, that's how, if FC is enabled, it can receive remote configs (mainly the desired list of sub-agents) and apply them.
