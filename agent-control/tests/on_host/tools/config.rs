@@ -17,10 +17,26 @@ use newrelic_agent_control::values::config_repository::ConfigRepository;
 pub struct AgentControlConfigBuilder {
     opamp_endpoint: String,
     jwks_endpoint: String,
+
     agents: Option<String>,
     oci_registry: Option<String>,
+    oci_basic_auth: Option<(String, String)>,
     status_server_port: Option<u16>,
     proxy: Option<String>,
+    self_update: Option<SelfUpdateConfig>,
+    agent_types: Option<AgentTypes>,
+}
+
+struct SelfUpdateConfig {
+    signature_verification_enabled: bool,
+    repository: String,
+    public_key_url: String,
+}
+
+struct AgentTypes {
+    signature_verification_enabled: bool,
+    repository: String,
+    public_key_url: String,
 }
 
 impl AgentControlConfigBuilder {
@@ -30,8 +46,11 @@ impl AgentControlConfigBuilder {
             jwks_endpoint: jwks_endpoint.into(),
             agents: None,
             oci_registry: None,
+            oci_basic_auth: None,
             status_server_port: None,
             proxy: None,
+            self_update: None,
+            agent_types: None,
         }
     }
 
@@ -40,8 +59,17 @@ impl AgentControlConfigBuilder {
         self
     }
 
-    pub fn with_oci_registry(mut self, registry: impl Into<String>) -> Self {
-        self.oci_registry = Some(registry.into());
+    pub fn with_oci_registry(mut self, oci_registry: impl Into<String>) -> Self {
+        self.oci_registry = Some(oci_registry.into());
+        self
+    }
+
+    pub fn with_oci_basic_auth(
+        mut self,
+        username: impl Into<String>,
+        password: impl Into<String>,
+    ) -> Self {
+        self.oci_basic_auth = Some((username.into(), password.into()));
         self
     }
 
@@ -52,6 +80,34 @@ impl AgentControlConfigBuilder {
 
     // This is used in `proxy.rs`, which isn't automated.
     // Therefore, we need to allow dead code here.
+    pub fn with_self_update(
+        mut self,
+        signature_verification_enabled: bool,
+        repository: impl Into<String>,
+        public_key_url: impl Into<String>,
+    ) -> Self {
+        self.self_update = Some(SelfUpdateConfig {
+            signature_verification_enabled,
+            repository: repository.into(),
+            public_key_url: public_key_url.into(),
+        });
+        self
+    }
+
+    pub fn with_agent_types(
+        mut self,
+        signature_verification_enabled: bool,
+        repository: impl Into<String>,
+        public_key_url: impl Into<String>,
+    ) -> Self {
+        self.agent_types = Some(AgentTypes {
+            signature_verification_enabled,
+            repository: repository.into(),
+            public_key_url: public_key_url.into(),
+        });
+        self
+    }
+
     #[allow(dead_code)]
     pub fn with_proxy(mut self, proxy: impl Into<String>) -> Self {
         self.proxy = Some(proxy.into());
@@ -59,6 +115,8 @@ impl AgentControlConfigBuilder {
     }
 
     pub fn write(self, local_dir: PathBuf) {
+        let agents = self.agents.as_deref().unwrap_or("{}");
+
         let proxy_config = self
             .proxy
             .map(|p| format!("proxy: {p}"))
@@ -66,7 +124,18 @@ impl AgentControlConfigBuilder {
 
         let oci_config = self
             .oci_registry
-            .map(|r| format!("oci:\n  registry: \"{r}\""))
+            .map(|r| {
+                let auth = self
+                    .oci_basic_auth
+                    .map(|(username, password)| {
+                        format!(
+                            "  auth:\n  basic:\n    username: {username}\n    password: {password}"
+                        )
+                    })
+                    .unwrap_or_default();
+
+                format!("oci:\n  registry: \"{}\"\n{}", r, auth)
+            })
             .unwrap_or_default();
 
         let status_server_config = self
@@ -80,23 +149,53 @@ impl AgentControlConfigBuilder {
             })
             .unwrap_or_default();
 
-        let agents = self.agents.as_deref().unwrap_or("{}");
+        let self_update_config = self
+            .self_update
+            .map(|su| {
+                format!(
+                    r#"self_update:
+  enabled: true
+  signature_verification_enabled: {}
+  package:
+    download:
+      oci:
+        repository: {}
+        public_key_url: {}"#,
+                    su.signature_verification_enabled, su.repository, su.public_key_url,
+                )
+            })
+            .unwrap_or_default();
+
+        let agent_types_config = self
+            .agent_types
+            .map(|at| {
+                format!(
+                    r#"agent_types:
+  default_remote:
+    repository: {}
+    signature_verification_enabled: {}
+    public_key_url: {}"#,
+                    at.repository, at.signature_verification_enabled, at.public_key_url,
+                )
+            })
+            .unwrap_or_default();
 
         let agent_control_config = format!(
             r#"
 host_id: integration-test
 fleet_control:
-  endpoint: {opamp_endpoint}
+  endpoint: {}
   poll_interval: 5s
   signature_validation:
-    public_key_server_url: {jwks_endpoint}
+    public_key_server_url: {}
 agents: {agents}
-{oci_config}
 {proxy_config}
+{oci_config}
 {status_server_config}
+{self_update_config}
+{agent_types_config}
 "#,
-            opamp_endpoint = self.opamp_endpoint,
-            jwks_endpoint = self.jwks_endpoint,
+            self.opamp_endpoint, self.jwks_endpoint,
         );
 
         create_file(
