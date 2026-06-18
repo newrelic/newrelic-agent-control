@@ -24,7 +24,7 @@ fn onhost_ac_multiconfig_agents_append() {
 
     let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
 
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint(), "{}")
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
@@ -96,7 +96,7 @@ fn onhost_ac_multiconfig_agents_append_fails() {
 
     let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
 
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint(), "{}")
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
@@ -167,12 +167,9 @@ fn onhost_sub_agent_multiconfig() {
 "#
     );
 
-    AgentControlConfigBuilder::new(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents,
-    )
-    .write(local_dir.path().to_path_buf());
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents)
+        .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),

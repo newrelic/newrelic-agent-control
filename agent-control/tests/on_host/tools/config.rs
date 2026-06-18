@@ -10,7 +10,6 @@ use newrelic_agent_control::agent_control::defaults::{
     STORE_KEY_OPAMP_DATA_CONFIG, default_capabilities,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
-use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::on_host::file_store::{FileStore, build_config_name};
 use newrelic_agent_control::values::ConfigRepo;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
@@ -18,30 +17,31 @@ use newrelic_agent_control::values::config_repository::ConfigRepository;
 pub struct AgentControlConfigBuilder {
     opamp_endpoint: String,
     jwks_endpoint: String,
-    agents: String,
-    oci_registry: String,
+    agents: Option<String>,
+    oci_registry: Option<String>,
     status_server_port: Option<u16>,
     proxy: Option<String>,
 }
 
 impl AgentControlConfigBuilder {
-    pub fn new(
-        opamp_endpoint: impl Into<String>,
-        jwks_endpoint: impl Into<String>,
-        agents: impl Into<String>,
-    ) -> Self {
+    pub fn basic(opamp_endpoint: impl Into<String>, jwks_endpoint: impl Into<String>) -> Self {
         Self {
             opamp_endpoint: opamp_endpoint.into(),
             jwks_endpoint: jwks_endpoint.into(),
-            agents: agents.into(),
-            oci_registry: OCI_TEST_REGISTRY_URL.to_string(),
+            agents: None,
+            oci_registry: None,
             status_server_port: None,
             proxy: None,
         }
     }
 
+    pub fn with_agents(mut self, agents: impl Into<String>) -> Self {
+        self.agents = Some(agents.into());
+        self
+    }
+
     pub fn with_oci_registry(mut self, registry: impl Into<String>) -> Self {
-        self.oci_registry = registry.into();
+        self.oci_registry = Some(registry.into());
         self
     }
 
@@ -50,7 +50,7 @@ impl AgentControlConfigBuilder {
         self
     }
 
-    // This is used in `proxy.rs`, which isn't automatized.
+    // This is used in `proxy.rs`, which isn't automated.
     // Therefore, we need to allow dead code here.
     #[allow(dead_code)]
     pub fn with_proxy(mut self, proxy: impl Into<String>) -> Self {
@@ -64,6 +64,11 @@ impl AgentControlConfigBuilder {
             .map(|p| format!("proxy: {p}"))
             .unwrap_or_default();
 
+        let oci_config = self
+            .oci_registry
+            .map(|r| format!("oci:\n  registry: \"{r}\""))
+            .unwrap_or_default();
+
         let status_server_config = self
             .status_server_port
             .map(|port| {
@@ -75,6 +80,8 @@ impl AgentControlConfigBuilder {
             })
             .unwrap_or_default();
 
+        let agents = self.agents.as_deref().unwrap_or("{}");
+
         let agent_control_config = format!(
             r#"
 host_id: integration-test
@@ -83,16 +90,13 @@ fleet_control:
   poll_interval: 5s
   signature_validation:
     public_key_server_url: {jwks_endpoint}
-oci:
-  registry: "{oci_registry}"
 agents: {agents}
+{oci_config}
 {proxy_config}
 {status_server_config}
 "#,
             opamp_endpoint = self.opamp_endpoint,
             jwks_endpoint = self.jwks_endpoint,
-            oci_registry = self.oci_registry,
-            agents = self.agents,
         );
 
         create_file(

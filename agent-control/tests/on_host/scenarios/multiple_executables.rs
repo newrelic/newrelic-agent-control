@@ -43,12 +43,9 @@ agents:
 "#
     );
 
-    AgentControlConfigBuilder::new(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents,
-    )
-    .write(local_dir.path().to_path_buf());
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents)
+        .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -101,12 +98,9 @@ agents:
 "#
     );
 
-    AgentControlConfigBuilder::new(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents,
-    )
-    .write(local_dir.path().to_path_buf());
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents)
+        .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),

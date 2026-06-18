@@ -58,12 +58,9 @@ deployment:
 "#
     );
 
-    AgentControlConfigBuilder::new(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents.to_string(),
-    )
-    .write(local_dir.to_path_buf());
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents.to_string())
+        .write(local_dir.to_path_buf());
     create_local_config(
         agent_id.to_string(),
         NO_CONFIG.to_string(),
@@ -172,17 +169,14 @@ deployment:
     );
 
     // Create AC config
-    AgentControlConfigBuilder::new(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        format!(
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(format!(
             r#"
   {agent_id}:
     agent_type: "test/test:0.0.0"
 "#
-        ),
-    )
-    .write(local_dir.to_path_buf());
+        ))
+        .write(local_dir.to_path_buf());
     // Values. Contains 3 variables: a YAML, a string, and a map[string]yaml (to create files in a directory)
     create_local_config(
         agent_id.to_string(),
@@ -337,12 +331,9 @@ deployment:
 "#
     );
 
-    AgentControlConfigBuilder::new(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents.to_string(),
-    )
-    .write(local_dir.to_path_buf());
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents.to_string())
+        .write(local_dir.to_path_buf());
 
     create_local_config(
         agent_id.to_string(),

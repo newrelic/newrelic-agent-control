@@ -48,7 +48,7 @@ fn test_memory_on_agent_substitution_and_version_update() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint(), "{}")
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_oci_registry("non-existent:5000")
         .write(local_dir.path().to_path_buf());
 

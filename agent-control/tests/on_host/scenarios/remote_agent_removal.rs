@@ -28,13 +28,8 @@ fn onhost_opamp_agent_control_remote_config_add_remove_add_agent() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    let agents = "{}";
-    AgentControlConfigBuilder::new(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents,
-    )
-    .write(local_dir.path().to_path_buf());
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),

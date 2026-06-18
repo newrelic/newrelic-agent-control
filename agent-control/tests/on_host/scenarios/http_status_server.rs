@@ -41,13 +41,10 @@ fn test_http_status_endpoint_response() {
     );
 
     let status_server_port = available_port();
-    AgentControlConfigBuilder::new(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents,
-    )
-    .with_status_server(status_server_port)
-    .write(local_dir.path().to_path_buf());
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents)
+        .with_status_server(status_server_port)
+        .write(local_dir.path().to_path_buf());
 
     create_local_config(
         AGENT_ID.to_string(),

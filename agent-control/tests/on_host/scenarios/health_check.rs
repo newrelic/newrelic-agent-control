@@ -52,12 +52,9 @@ file:
         NO_CONFIG.to_string(),
         local_dir.path().into(),
     );
-    AgentControlConfigBuilder::new(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents.to_string(),
-    )
-    .write(local_dir.path().to_path_buf());
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents.to_string())
+        .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -160,12 +157,9 @@ http:
 "#
     );
 
-    AgentControlConfigBuilder::new(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents.to_string(),
-    )
-    .write(local_dir.path().to_path_buf());
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents.to_string())
+        .write(local_dir.path().to_path_buf());
     create_local_config(
         sub_agent_id.to_string(),
         NO_CONFIG.to_string(),

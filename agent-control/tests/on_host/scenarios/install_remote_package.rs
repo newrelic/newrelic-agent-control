@@ -75,7 +75,8 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint(), "{}")
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_oci_registry(OCI_TEST_REGISTRY_URL)
         .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
@@ -182,7 +183,8 @@ fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint(), "{}")
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_oci_registry(OCI_TEST_REGISTRY_URL)
         .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
