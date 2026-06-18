@@ -8,6 +8,13 @@ EnvironmentFile=/etc/newrelic-agent-control/systemd-env.conf
 ExecStart=/usr/bin/newrelic-agent-control
 KillMode=mixed
 Restart=always
+# Restart rate limiting to prevent crash-looping from saturating CPU
+# Wait 5s between attempts; tolerate up to 5 starts per rolling
+# 60s; the 6th crash inside that window stops the loop instead of spinning
+# forever. A pathological crash-loop is bounded to ~5 restarts/minute.
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
 Type=simple
 
 [Install]
