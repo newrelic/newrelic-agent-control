@@ -32,6 +32,11 @@ const REPOSITORY_NAME: &str = "test";
 pub trait ArtifactKind {
     fn manifest_artifact_type(&self) -> &'static str;
     fn layer_media_type(&self) -> &'static str;
+
+    /// Whether the image manifest should be wrapped in a multi-arch image index tagged with the
+    /// requested tag. Multi-arch packages need it; single, platform-agnostic agent types do not and
+    /// are served as a plain manifest at the tag.
+    fn wrap_in_index(&self) -> bool;
 }
 
 pub enum PackageMediaType {
@@ -50,6 +55,10 @@ impl ArtifactKind for PackageMediaType {
             PackageMediaType::Zip => AGENT_PACKAGE_LAYER_ZIP,
         }
     }
+
+    fn wrap_in_index(&self) -> bool {
+        true
+    }
 }
 
 /// An agent type artifact: a single gzipped tar containing the agent type definition.
@@ -62,6 +71,10 @@ impl ArtifactKind for AgentTypeArtifact {
 
     fn layer_media_type(&self) -> &'static str {
         AGENT_TYPE_LAYER_TAR_GZ
+    }
+
+    fn wrap_in_index(&self) -> bool {
+        false
     }
 }
 
@@ -113,6 +126,7 @@ impl PackagePublisher {
                 kind.layer_media_type(),
                 kind.manifest_artifact_type(),
                 tag,
+                kind.wrap_in_index(),
             )
             .await
         })
@@ -124,67 +138,78 @@ impl PackagePublisher {
         layer_media_type: &str,
         manifest_artifact_type: &str,
         tag: &str,
+        wrap_in_index: bool,
     ) -> Reference {
-        let index_reference: Reference = format!("{}/{REPOSITORY_NAME}:{tag}", self.registry_url)
+        let tag_reference: Reference = format!("{}/{REPOSITORY_NAME}:{tag}", self.registry_url)
             .parse()
             .unwrap();
 
         let file_name = file.file_name().unwrap().to_string_lossy().to_string();
 
-        let blob_descriptor = self
-            .push_blob(&index_reference, file, layer_media_type)
-            .await;
+        let blob_descriptor = self.push_blob(&tag_reference, file, layer_media_type).await;
 
-        let (manifest_digest, manifest_size) = self
-            .push_package_manifest(
-                &index_reference,
+        let manifest = self
+            .build_package_manifest(
+                &tag_reference,
                 blob_descriptor,
                 file_name,
                 manifest_artifact_type,
             )
             .await;
 
-        self.push_package_index(&index_reference, manifest_digest, manifest_size)
-            .await;
+        if wrap_in_index {
+            let (manifest_digest, manifest_size) =
+                self.push_indexed_manifest(&tag_reference, manifest).await;
+            self.push_package_index(&tag_reference, manifest_digest, manifest_size)
+                .await;
+        } else {
+            self.client
+                .push_manifest(&tag_reference, &manifest::OciManifest::Image(manifest))
+                .await
+                .unwrap();
+        }
 
-        index_reference
+        tag_reference
     }
 
-    async fn push_package_manifest(
+    async fn build_package_manifest(
         &self,
-        index_reference: &Reference,
+        reference: &Reference,
         blob_descriptor: OciDescriptor,
         file_name: String,
         manifest_artifact_type: &str,
-    ) -> (String, i64) {
-        // Pushed under a tagged reference because the client's local digest calculation does not
-        // always match the registry's canonical JSON. The tag is not used in production scenarios.
-        let manifest_reference: Reference = format!("{index_reference}-manifest").parse().unwrap();
-
+    ) -> OciImageManifest {
         let mut title_annotation: BTreeMap<String, String> = BTreeMap::new();
         title_annotation.insert(
             annotations::ORG_OPENCONTAINERS_IMAGE_TITLE.to_string(),
             file_name,
         );
 
-        let config = self.push_platform_config(index_reference).await;
+        let config = self.push_platform_config(reference).await;
 
-        let pkg_manifest = OciImageManifest {
+        OciImageManifest {
             media_type: Some(OCI_IMAGE_MEDIA_TYPE.to_string()),
             artifact_type: Some(manifest_artifact_type.to_string()),
             layers: vec![blob_descriptor],
             config,
             annotations: Some(title_annotation),
             ..Default::default()
-        };
+        }
+    }
 
-        let manifest_size = serde_json::to_vec(&pkg_manifest).unwrap().len() as i64;
+    async fn push_indexed_manifest(
+        &self,
+        index_reference: &Reference,
+        manifest: OciImageManifest,
+    ) -> (String, i64) {
+        // Pushed under a tagged reference because the client's local digest calculation does not
+        // always match the registry's canonical JSON. The tag is not used in production scenarios.
+        let manifest_reference: Reference = format!("{index_reference}-manifest").parse().unwrap();
+
+        let manifest_size = serde_json::to_vec(&manifest).unwrap().len() as i64;
 
         self.client
-            .push_manifest(
-                &manifest_reference,
-                &manifest::OciManifest::Image(pkg_manifest),
-            )
+            .push_manifest(&manifest_reference, &manifest::OciManifest::Image(manifest))
             .await
             .unwrap();
 
