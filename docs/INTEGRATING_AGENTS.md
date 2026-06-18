@@ -412,7 +412,7 @@ The hook runs with a hardcoded timeout of 300 seconds (5 minutes) and is not con
 
 Fields:
 - `path`: Path to the command/interpreter. Can be absolute (e.g., `/bin/bash`, `C:\Windows\System32\cmd.exe`) or relative (e.g., `bash`, `python3`, `cmd`) which will be searched in the system PATH. **Required**.
-- `args`: List of arguments passed to the command. The structure depends on your use case (see examples below). **Required** (at least one element).
+- `args`: List of arguments passed to the command. The structure depends on your use case (see examples below). Can be empty for binaries that don't require arguments. **Required**.
 - `env`: Optional map of environment variables passed to the script process.
 
 The script execution environment includes:
@@ -449,6 +449,11 @@ post_download_hook:
   args:
     - ./install.sh
     - --verbose
+
+# Direct binary execution without arguments
+post_download_hook:
+  path: /usr/bin/validate-system
+  args: []
 ```
 
 **Windows Examples:**

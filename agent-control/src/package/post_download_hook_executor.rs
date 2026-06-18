@@ -1,12 +1,11 @@
 use std::io::{Error as IoError, ErrorKind, Read};
 use std::path::PathBuf;
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 use tracing::{debug, warn};
 
 use crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadHook;
-use crate::utils::thread_context::NotStartedThreadContext;
 
 #[cfg(unix)]
 use {
@@ -17,9 +16,6 @@ use {
 
 #[derive(thiserror::Error, Debug)]
 pub enum PostDownloadHookExecutionError {
-    #[error("post_download_hook args cannot be empty")]
-    EmptyArgs,
-
     #[error("command not found: {path}")]
     CommandNotFound { path: String },
 
@@ -35,16 +31,14 @@ pub enum PostDownloadHookExecutionError {
 
 #[cfg(unix)]
 fn make_executable_if_exists(path: &str) {
-    let _ = Path::new(path).canonicalize().ok().and_then(|file_path| {
-        if !file_path.is_file() {
-            return None;
-        }
-        metadata(&file_path).ok().map(|meta| {
-            let mut perms = meta.permissions();
-            perms.set_mode(0o755);
-            set_permissions(&file_path, perms)
-        })
-    });
+    let file_path = Path::new(path);
+    if file_path.is_file()
+        && let Ok(meta) = metadata(file_path)
+    {
+        let mut perms = meta.permissions();
+        perms.set_mode(0o755);
+        let _ = set_permissions(file_path, perms);
+    }
 }
 
 pub struct PostDownloadHookExecutor {
@@ -60,10 +54,6 @@ impl PostDownloadHookExecutor {
         &self,
         post_download_hook: &PostDownloadHook,
     ) -> Result<(), PostDownloadHookExecutionError> {
-        if post_download_hook.args.is_empty() {
-            return Err(PostDownloadHookExecutionError::EmptyArgs);
-        }
-
         debug!(
             path = %post_download_hook.path,
             args = ?post_download_hook.args,
@@ -73,104 +63,74 @@ impl PostDownloadHookExecutor {
         #[cfg(unix)]
         make_executable_if_exists(&post_download_hook.path);
 
-        let output = self.execute_with_timeout(post_download_hook)?;
+        let mut cmd = Command::new(&post_download_hook.path);
+        cmd.args(&post_download_hook.args.0)
+            .current_dir(&self.package_dir)
+            .env("PACKAGE_DIR", &self.package_dir)
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .envs(&post_download_hook.env.0);
 
-        if output.status.success() {
-            debug!(
-                path = %post_download_hook.path,
-                "Post-download hook completed successfully"
-            );
-            Ok(())
-        } else {
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            warn!(
-                path = %post_download_hook.path,
-                exit_code = ?output.status.code(),
-                stderr = %stderr,
-                "Post-download hook execution failed"
-            );
-            Err(PostDownloadHookExecutionError::ExecutionFailed(
-                output.status.code(),
-                stderr,
-            ))
-        }
-    }
+        let mut child = cmd.spawn().map_err(|e| {
+            if e.kind() == ErrorKind::NotFound {
+                PostDownloadHookExecutionError::CommandNotFound {
+                    path: post_download_hook.path.clone(),
+                }
+            } else {
+                PostDownloadHookExecutionError::SpawnFailed(post_download_hook.path.clone(), e)
+            }
+        })?;
 
-    fn execute_with_timeout(
-        &self,
-        post_download_hook: &PostDownloadHook,
-    ) -> Result<Output, PostDownloadHookExecutionError> {
-        let package_dir = self.package_dir.clone();
-        let env = post_download_hook.env.clone();
-
+        // Wait for completion with timeout
         let timeout = Duration::from_secs(300);
+        let deadline = Instant::now() + timeout;
+        const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
-        let path = post_download_hook.path.clone();
-        let args = post_download_hook.args.clone();
+        loop {
+            match child
+                .try_wait()
+                .expect("failed to check process status - internal OS error")
+            {
+                Some(status) => {
+                    let stderr = child
+                        .stderr
+                        .take()
+                        .and_then(|mut stderr| {
+                            let mut buf = Vec::new();
+                            stderr.read_to_end(&mut buf).ok().map(|_| buf)
+                        })
+                        .unwrap_or_default();
 
-        let thread_context =
-            NotStartedThreadContext::new("post-download-hook", move |_stop_consumer| {
-                let mut cmd = Command::new(&path);
-
-                cmd.args(&args);
-                cmd.current_dir(&package_dir);
-                cmd.env("PACKAGE_DIR", &package_dir);
-                cmd.stdout(Stdio::null());
-                cmd.stderr(Stdio::piped());
-                cmd.envs(&env);
-
-                let mut child = match cmd.spawn() {
-                    Ok(child) => child,
-                    Err(e) => {
-                        if e.kind() == ErrorKind::NotFound {
-                            return Err(PostDownloadHookExecutionError::CommandNotFound {
-                                path: path.clone(),
-                            });
-                        }
-                        return Err(PostDownloadHookExecutionError::SpawnFailed(path.clone(), e));
-                    }
-                };
-
-                let deadline = Instant::now() + timeout;
-                const POLL_INTERVAL: Duration = Duration::from_millis(100);
-
-                loop {
-                    match child
-                        .try_wait()
-                        .expect("failed to check process status - internal OS error")
-                    {
-                        Some(status) => {
-                            let output = Output {
-                                status,
-                                stdout: Vec::new(),
-                                stderr: child
-                                    .stderr
-                                    .take()
-                                    .and_then(|mut stderr| {
-                                        let mut buf = Vec::new();
-                                        stderr.read_to_end(&mut buf).ok().map(|_| buf)
-                                    })
-                                    .unwrap_or_default(),
-                            };
-                            return Ok(output);
-                        }
-                        None => {
-                            if Instant::now() >= deadline {
-                                let _ = child.kill();
-                                let _ = child.wait();
-                                return Err(PostDownloadHookExecutionError::Timeout(timeout));
-                            }
-                            thread::sleep(POLL_INTERVAL);
-                        }
+                    if status.success() {
+                        debug!(
+                            path = %post_download_hook.path,
+                            "Post-download hook completed successfully"
+                        );
+                        return Ok(());
+                    } else {
+                        let stderr_str = String::from_utf8_lossy(&stderr).to_string();
+                        warn!(
+                            path = %post_download_hook.path,
+                            exit_code = ?status.code(),
+                            stderr = %stderr_str,
+                            "Post-download hook execution failed"
+                        );
+                        return Err(PostDownloadHookExecutionError::ExecutionFailed(
+                            status.code(),
+                            stderr_str,
+                        ));
                     }
                 }
-            })
-            .start();
-
-        thread_context.stop_blocking().expect(
-            "post-download hook thread unexpectedly failed - this is an internal bug, \
-             all user errors should be caught inside the thread",
-        )
+                None => {
+                    if Instant::now() >= deadline {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        return Err(PostDownloadHookExecutionError::Timeout(timeout));
+                    }
+                    thread::sleep(POLL_INTERVAL);
+                }
+            }
+        }
     }
 }
 
@@ -180,54 +140,93 @@ mod tests {
     use std::collections::HashMap;
     use std::fs::{File, create_dir};
     use std::io::Write;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use tempfile::TempDir;
+
+    use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env};
 
     fn create_post_download_hook(path: String, args: Vec<String>) -> PostDownloadHook {
         PostDownloadHook {
             path,
-            args,
-            env: HashMap::new(),
+            args: Args(args),
+            env: Env(HashMap::new()),
         }
     }
 
-    #[cfg(unix)]
-    fn create_bash_script(path: &Path, content: &str, exit_code: i32) {
+    /// Creates a test script with platform-specific format
+    fn create_script(path: &Path, content: &str, exit_code: i32) {
         let mut file = File::create(path).unwrap();
-        writeln!(file, "#!/bin/bash").unwrap();
-        writeln!(file, "{}", content).unwrap();
-        writeln!(file, "exit {}", exit_code).unwrap();
+
+        #[cfg(unix)]
+        {
+            writeln!(file, "#!/bin/bash").unwrap();
+            writeln!(file, "{}", content).unwrap();
+            writeln!(file, "exit {}", exit_code).unwrap();
+        }
+
+        #[cfg(windows)]
+        {
+            writeln!(file, "@echo off").unwrap();
+            writeln!(file, "{}", content).unwrap();
+            writeln!(file, "exit /b {}", exit_code).unwrap();
+        }
     }
 
-    #[cfg(windows)]
-    fn create_batch_script(path: &Path, content: &str, exit_code: i32) {
-        let mut file = File::create(path).unwrap();
-        writeln!(file, "@echo off").unwrap();
-        writeln!(file, "{}", content).unwrap();
-        writeln!(file, "exit /b {}", exit_code).unwrap();
+    /// Returns the script file extension for the current platform
+    fn script_extension() -> &'static str {
+        #[cfg(unix)]
+        return "sh";
+
+        #[cfg(windows)]
+        return "bat";
+    }
+
+    /// Returns the shell command and required args for executing scripts on the current platform
+    fn get_shell_command() -> (String, Vec<String>) {
+        #[cfg(unix)]
+        {
+            ("bash".to_string(), vec![])
+        }
+
+        #[cfg(windows)]
+        {
+            let cmd = std::env::var("COMSPEC")
+                .unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
+            (cmd, vec!["/c".to_string()])
+        }
+    }
+
+    /// Creates a PostDownloadHook that executes a script with the appropriate shell
+    fn create_script_hook(script_path: PathBuf, additional_args: Vec<String>) -> PostDownloadHook {
+        let (shell_cmd, mut shell_args) = get_shell_command();
+        shell_args.push(script_path.to_string_lossy().to_string());
+        shell_args.extend(additional_args);
+
+        create_post_download_hook(shell_cmd, shell_args)
+    }
+
+    /// Sets up a test with temp directory, script path, and executor
+    /// Returns (temp_dir, script_path, executor)
+    fn setup_test_script(script_name: &str) -> (TempDir, PathBuf, PostDownloadHookExecutor) {
+        let temp_dir = TempDir::new().unwrap();
+        let script_path = temp_dir
+            .path()
+            .join(format!("{}.{}", script_name, script_extension()));
+        let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
+        (temp_dir, script_path, executor)
     }
 
     #[test]
-    #[cfg(unix)]
     fn test_execute_successful_post_download_hook() {
-        let temp_dir = TempDir::new().unwrap();
-        let script_path = temp_dir.path().join("test_post_download_hook.sh");
+        let (_temp_dir, script_path, executor) = setup_test_script("test_post_download_hook");
 
-        create_bash_script(
+        create_script(
             &script_path,
             "echo 'Post-download hook executed successfully'",
             0,
         );
 
-        // Canonicalize to get absolute path
-        let absolute_script_path = script_path.canonicalize().unwrap();
-
-        let post_download_hook = create_post_download_hook(
-            "bash".to_string(),
-            vec![absolute_script_path.to_string_lossy().to_string()],
-        );
-
-        let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
+        let post_download_hook = create_script_hook(script_path, vec![]);
         let result = executor.execute(&post_download_hook);
         if let Err(e) = &result {
             eprintln!("Error: {}", e);
@@ -236,21 +235,12 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
     fn test_execute_failing_post_download_hook() {
-        let temp_dir = TempDir::new().unwrap();
-        let script_path = temp_dir.path().join("failing_post_download_hook.sh");
+        let (_temp_dir, script_path, executor) = setup_test_script("failing_post_download_hook");
 
-        create_bash_script(&script_path, "echo 'Post-download hook failed' >&2", 1);
+        create_script(&script_path, "echo 'Post-download hook failed' >&2", 1);
 
-        let absolute_script_path = script_path.canonicalize().unwrap();
-
-        let post_download_hook = create_post_download_hook(
-            "bash".to_string(),
-            vec![absolute_script_path.to_string_lossy().to_string()],
-        );
-
-        let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
+        let post_download_hook = create_script_hook(script_path, vec![]);
         let result = executor.execute(&post_download_hook);
 
         assert!(result.is_err());
@@ -261,67 +251,50 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
     fn test_execute_script_in_subdirectory() {
         let temp_dir = TempDir::new().unwrap();
         let bin_dir = temp_dir.path().join("bin");
         create_dir(&bin_dir).unwrap();
 
-        let script_path = bin_dir.join("my_script.sh");
-        create_bash_script(&script_path, "echo 'Script executed from subdirectory'", 0);
+        let script_path = bin_dir.join(format!("my_script.{}", script_extension()));
+        create_script(&script_path, "echo 'Script executed from subdirectory'", 0);
 
-        let absolute_script_path = script_path.canonicalize().unwrap();
-
-        let post_download_hook = create_post_download_hook(
-            "bash".to_string(),
-            vec![absolute_script_path.to_string_lossy().to_string()],
-        );
+        let post_download_hook = create_script_hook(script_path, vec![]);
 
         let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
         assert!(executor.execute(&post_download_hook).is_ok());
     }
 
     #[test]
-    #[cfg(unix)]
     fn test_script_with_config_file_argument() {
-        let temp_dir = TempDir::new().unwrap();
+        let (temp_dir, script_path, executor) = setup_test_script("install");
 
-        // Create script
-        let script_path = temp_dir.path().join("install.sh");
-        create_bash_script(&script_path, "cat $1", 0);
+        // Create script that reads the config file passed as argument
+        #[cfg(unix)]
+        let script_content = "cat $1";
 
-        // Make script executable
-        let mut perms = metadata(&script_path).unwrap().permissions();
-        perms.set_mode(0o755);
-        set_permissions(&script_path, perms).unwrap();
+        #[cfg(windows)]
+        let script_content = "type %1";
+
+        create_script(&script_path, script_content, 0);
 
         // Create config file
         let config_path = temp_dir.path().join("config.yaml");
         let mut config_file = File::create(&config_path).unwrap();
         writeln!(config_file, "setting: value").unwrap();
 
-        let absolute_script_path = script_path.canonicalize().unwrap();
-        let absolute_config_path = config_path.canonicalize().unwrap();
+        let post_download_hook =
+            create_script_hook(script_path, vec![config_path.to_string_lossy().to_string()]);
 
-        let post_download_hook = create_post_download_hook(
-            "bash".to_string(),
-            vec![
-                absolute_script_path.to_string_lossy().to_string(),
-                absolute_config_path.to_string_lossy().to_string(),
-            ],
-        );
-
-        let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
         assert!(executor.execute(&post_download_hook).is_ok());
     }
 
     #[test]
     #[cfg(unix)]
     fn test_direct_script_execution_without_execute_permission() {
-        let temp_dir = TempDir::new().unwrap();
-        let script_path = temp_dir.path().join("direct_script.sh");
+        let (_temp_dir, script_path, executor) = setup_test_script("direct_script");
 
-        create_bash_script(&script_path, "echo 'Direct execution works'", 0);
+        create_script(&script_path, "echo 'Direct execution works'", 0);
 
         // Explicitly remove execute permissions
         let mut perms = metadata(&script_path).unwrap().permissions();
@@ -336,15 +309,12 @@ mod tests {
             "Script should not be executable initially"
         );
 
-        let absolute_script_path = script_path.canonicalize().unwrap();
-
         // Execute script directly (path points to script, not interpreter)
         let post_download_hook = create_post_download_hook(
-            absolute_script_path.to_string_lossy().to_string(),
-            vec![absolute_script_path.to_string_lossy().to_string()],
+            script_path.to_string_lossy().to_string(),
+            vec![script_path.to_string_lossy().to_string()],
         );
 
-        let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
         let result = executor.execute(&post_download_hook);
 
         // Should succeed because make_executable_if_exists() makes it executable
@@ -362,112 +332,44 @@ mod tests {
         );
     }
 
-    // Windows tests
-    // Note: We don't use .canonicalize() in Windows tests because it returns
-    // UNC paths (\\?\C:\...) which cmd.exe cannot handle.
     #[test]
-    #[cfg(windows)]
-    fn test_execute_successful_post_download_hook_windows() {
-        let temp_dir = TempDir::new().unwrap();
-        let script_path = temp_dir.path().join("test_post_download_hook.bat");
+    #[cfg(unix)]
+    fn test_execute_binary_without_args() {
+        let (_temp_dir, _script_path, executor) = setup_test_script("unused");
 
-        create_batch_script(
-            &script_path,
-            "echo Post-download hook executed successfully",
-            0,
-        );
+        // Use a simple binary that doesn't require arguments (true always succeeds)
+        let post_download_hook = create_post_download_hook("/usr/bin/true".to_string(), vec![]);
 
-        let cmd_path = std::env::var("COMSPEC")
-            .unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
-
-        let post_download_hook = create_post_download_hook(
-            cmd_path,
-            vec!["/c".to_string(), script_path.to_string_lossy().to_string()],
-        );
-
-        let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
-        assert!(executor.execute(&post_download_hook).is_ok());
-    }
-
-    #[test]
-    #[cfg(windows)]
-    fn test_execute_failing_post_download_hook_windows() {
-        let temp_dir = TempDir::new().unwrap();
-        let script_path = temp_dir.path().join("failing_post_download_hook.bat");
-
-        create_batch_script(&script_path, "echo Post-download hook failed 1>&2", 1);
-
-        let cmd_path = std::env::var("COMSPEC")
-            .unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
-
-        let post_download_hook = create_post_download_hook(
-            cmd_path,
-            vec!["/c".to_string(), script_path.to_string_lossy().to_string()],
-        );
-
-        let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
         let result = executor.execute(&post_download_hook);
 
-        assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            PostDownloadHookExecutionError::ExecutionFailed { .. }
-        ));
+        // Should succeed - args can be empty for binaries that don't need arguments
+        assert!(
+            result.is_ok(),
+            "Binary execution without args should work: {:?}",
+            result
+        );
     }
 
     #[test]
-    #[cfg(windows)]
-    fn test_execute_script_in_subdirectory_windows() {
-        let temp_dir = TempDir::new().unwrap();
-        let bin_dir = temp_dir.path().join("bin");
-        create_dir(&bin_dir).unwrap();
+    #[cfg(unix)]
+    fn test_execute_with_command_in_path() {
+        let (_temp_dir, script_path, executor) = setup_test_script("test_script");
 
-        let script_path = bin_dir.join("my_script.bat");
-        create_batch_script(&script_path, "echo Script executed from subdirectory", 0);
+        create_script(&script_path, "echo 'Using command from PATH'", 0);
 
-        let cmd_path = std::env::var("COMSPEC")
-            .unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
-
+        // Use "bash" instead of "/bin/bash" - should find it in PATH
         let post_download_hook = create_post_download_hook(
-            cmd_path,
-            vec!["/c".to_string(), script_path.to_string_lossy().to_string()],
+            "bash".to_string(),
+            vec![script_path.to_string_lossy().to_string()],
         );
 
-        let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
-        assert!(executor.execute(&post_download_hook).is_ok());
-    }
+        let result = executor.execute(&post_download_hook);
 
-    #[test]
-    #[cfg(windows)]
-    fn test_script_with_config_file_argument_windows() {
-        let temp_dir = TempDir::new().unwrap();
-
-        // Create script that reads config file
-        let script_path = temp_dir.path().join("install.bat");
-        create_batch_script(&script_path, "type %1", 0);
-
-        // Create config file
-        let config_path = temp_dir.path().join("config.yaml");
-        let mut config_file = File::create(&config_path).unwrap();
-        writeln!(config_file, "setting: value").unwrap();
-
-        let cmd_path = std::env::var("COMSPEC")
-            .unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
-
-        let post_download_hook = create_post_download_hook(
-            cmd_path,
-            vec![
-                "/c".to_string(),
-                script_path.to_string_lossy().to_string(),
-                config_path.to_string_lossy().to_string(),
-            ],
+        // Should succeed - "bash" is found in PATH
+        assert!(
+            result.is_ok(),
+            "Command from PATH should work: {:?}",
+            result
         );
-
-        let executor = PostDownloadHookExecutor::new(temp_dir.path().to_path_buf());
-        assert!(executor.execute(&post_download_hook).is_ok());
-
-        // Both files should exist
-        assert!(script_path.exists());
-        assert!(config_path.exists());
     }
 }

@@ -5,6 +5,9 @@ use crate::oci::OciClientError;
 use crate::oci::artifact_definitions::LocalAgentPackage;
 use crate::package::manager::{InstalledPackageData, PackageData, PackageManager};
 use crate::package::oci::downloader::OCIPackageArtifactDownloader;
+use crate::package::post_download_hook_executor::{
+    PostDownloadHookExecutionError, PostDownloadHookExecutor,
+};
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file::LocalFile;
 use fs::file::reader::FileReader;
@@ -46,6 +49,8 @@ pub enum OCIPackageManagerError {
     NotNormalSuffix(String),
     #[error("errors removing packages: {0}")]
     RetainPackageErrors(RetainPackageErrors),
+    #[error("post-download hook execution failed: {0}")]
+    PostDownloadHook(#[from] PostDownloadHookExecutionError),
 }
 
 #[derive(Debug, Default)]
@@ -107,6 +112,16 @@ where
 
         self.extract_package(&downloaded_package, install_path)
             .inspect_err(|e| warn!("OCI package installation failed: {}", e))?;
+
+        // Execute post-download hook if configured
+        if let Some(ref hook) = package_data.post_download_hook {
+            debug!(
+                "Executing post-download hook for package {}",
+                package_data.id
+            );
+            let executor = PostDownloadHookExecutor::new(install_path.to_path_buf());
+            executor.execute(hook)?;
+        }
 
         debug!("OCI package installed at {}", install_path.display());
         Ok(InstalledPackageData {

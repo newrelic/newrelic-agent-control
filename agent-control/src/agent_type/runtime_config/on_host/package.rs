@@ -1,8 +1,8 @@
-use std::collections::HashMap;
 use std::str::FromStr;
 
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
+use crate::agent_type::runtime_config::on_host::executable::{Args, Env};
 use crate::agent_type::runtime_config::on_host::package::rendered::{Repository, Version};
 use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
 use crate::agent_type::templates::Templateable;
@@ -41,18 +41,22 @@ pub struct Oci {
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct PostDownloadHook {
-    /// Absolute path to the command/executable (e.g., "/bin/bash", "/usr/bin/python3").
-    /// This is the interpreter or tool that will execute the script.
+    /// Path to the command/executable to run.
+    /// Can be an absolute path (e.g., "/bin/bash") or a command name to search in PATH (e.g., "bash").
+    /// Supports shell interpreters or direct binaries.
     pub path: TemplateableValue<String>,
 
-    /// Arguments passed to the command. First element should be the script path (absolute),
-    /// followed by additional arguments for the script.
-    /// Example: ["install.sh", "--check-dependencies", "--verbose"]
-    pub args: Vec<TemplateableValue<String>>,
+    /// Arguments passed to the command.
+    /// - When using a shell: first arg is typically the script path, followed by script arguments
+    ///   Example: ["/path/to/install.sh", "--check-dependencies", "--verbose"]
+    /// - When using a binary directly: arguments for that binary (can be empty)
+    ///   Example: ["--flag", "value"] or []
+    #[serde(default)]
+    pub args: Args,
 
     /// Environmental variables passed to the process.
     #[serde(default)]
-    pub env: HashMap<String, TemplateableValue<String>>,
+    pub env: Env,
 }
 
 impl Templateable for Package {
@@ -115,25 +119,19 @@ impl Templateable for Oci {
 impl Templateable for PostDownloadHook {
     type Output = rendered::PostDownloadHook;
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        use crate::agent_type::runtime_config::on_host::executable::rendered::Args as RenderedArgs;
+
         let path = self.path.template_with(variables)?;
 
-        let args: Vec<String> = self
-            .args
-            .into_iter()
-            .map(|arg| arg.template_with(variables))
-            .collect::<Result<Vec<String>, AgentTypeError>>()?;
+        let args = RenderedArgs(
+            self.args
+                .0
+                .into_iter()
+                .map(|arg| arg.template_with(variables))
+                .collect::<Result<Vec<String>, AgentTypeError>>()?,
+        );
 
-        if args.is_empty() {
-            return Err(AgentTypeError::OCIReferenceParsingError(
-                "post_download_hook args must have at least 1 element: the script path".to_string(),
-            ));
-        }
-
-        let env: HashMap<String, String> = self
-            .env
-            .into_iter()
-            .map(|(k, v)| v.template_with(variables).map(|templated| (k, templated)))
-            .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
+        let env = self.env.template_with(variables)?;
 
         Ok(Self::Output { path, args, env })
     }
@@ -196,6 +194,8 @@ mod tests {
 
     #[test]
     fn test_post_download_hook_template_with_variables() {
+        use std::collections::HashMap;
+
         let mut variables = Variables::new();
         variables.insert(
             "nr-var:version".to_string(),
@@ -210,38 +210,38 @@ mod tests {
             Variable::new_final_string_variable("test-value".to_string()),
         );
 
-        let mut env = HashMap::new();
-        env.insert(
+        let mut env_map = HashMap::new();
+        env_map.insert(
             "AGENT_VERSION".to_string(),
             TemplateableValue::from_template("${nr-var:version}".to_string()),
         );
-        env.insert(
+        env_map.insert(
             "CUSTOM_VAR".to_string(),
             TemplateableValue::from_template("${nr-var:env-value}".to_string()),
         );
 
         let post_download_hook = PostDownloadHook {
             path: TemplateableValue::from_template("/bin/bash".to_string()),
-            args: vec![
+            args: Args(vec![
                 TemplateableValue::from_template("${nr-var:script-path}".to_string()),
                 TemplateableValue::from_template("--version=${nr-var:version}".to_string()),
-            ],
-            env,
+            ]),
+            env: Env(env_map),
         };
 
         let rendered = post_download_hook.template_with(&variables).unwrap();
 
         assert_eq!(rendered.path, "/bin/bash");
-        assert_eq!(rendered.args.len(), 2);
-        assert_eq!(rendered.args[0], "/opt/install.sh");
-        assert_eq!(rendered.args[1], "--version=1.0.0");
-        assert_eq!(rendered.env.len(), 2);
+        assert_eq!(rendered.args.0.len(), 2);
+        assert_eq!(rendered.args.0[0], "/opt/install.sh");
+        assert_eq!(rendered.args.0[1], "--version=1.0.0");
+        assert_eq!(rendered.env.0.len(), 2);
         assert_eq!(
-            rendered.env.get("AGENT_VERSION"),
+            rendered.env.0.get("AGENT_VERSION"),
             Some(&"1.0.0".to_string())
         );
         assert_eq!(
-            rendered.env.get("CUSTOM_VAR"),
+            rendered.env.0.get("CUSTOM_VAR"),
             Some(&"test-value".to_string())
         );
     }

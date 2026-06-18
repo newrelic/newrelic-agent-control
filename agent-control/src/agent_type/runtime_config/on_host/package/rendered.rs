@@ -1,10 +1,10 @@
 use oci_client::Reference;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::{fmt::Display, str::FromStr};
 use url::Url;
 
 use crate::agent_control::config::Registry;
+use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env};
 
 const REPOSITORY_TOTAL_LENGTH_MAX: usize = 255;
 const TAG_TOTAL_LENGTH_MAX: usize = 128;
@@ -34,11 +34,10 @@ pub struct Oci {
 pub struct PostDownloadHook {
     /// Absolute path to the command/executable (e.g., "/bin/bash", "/usr/bin/python3")
     pub path: String,
-    /// Arguments where first element is the script path, followed by additional arguments.
-    /// Example: ["install.sh", "--check-dependencies", "--verbose"]
-    pub args: Vec<String>,
+    /// Arguments passed to the executable on [`path`].
+    pub args: Args,
     /// Environmental variables
-    pub env: HashMap<String, String>,
+    pub env: Env,
 }
 
 const DEFAULT_TAG: &str = "latest";
