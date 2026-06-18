@@ -129,7 +129,7 @@ impl AgentControlConfigBuilder {
                     .oci_basic_auth
                     .map(|(username, password)| {
                         format!(
-                            "  auth:\n  basic:\n    username: {username}\n    password: {password}"
+                            "  auth:\n    basic:\n      username: {username}\n      password: {password}"
                         )
                     })
                     .unwrap_or_default();
