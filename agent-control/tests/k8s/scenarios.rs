@@ -6,6 +6,7 @@ mod fail_remote_config;
 mod garbage_collector;
 mod health_checks;
 mod http_status_server;
+mod install_agent_type;
 mod no_opamp;
 mod opamp;
 mod secrets_providers;

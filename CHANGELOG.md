@@ -16,6 +16,8 @@ Remember that the keywords that you can use are the following:
 
 ### Breaking
 - Replace filesystem in on-host agent-type definitions with an explicit, recursive, tagged-kind tree: every entry declares `kind: file | dir | dir_content_from_map`, and `dir` entries nest via `entries:`.
+### enhancement
+- Added support for remote agent type retrieval.
 
 ## v1.17.0 - 2026-06-16
 

@@ -31,7 +31,7 @@ test/onhost/oci-registry/integration:
 	@echo "testing-machine-id" > /tmp/machine-id
 	@../tools/oci-registry.sh install
 	@../tools/oci-registry.sh run > /dev/null 2>&1 &
-	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=multiple-instances --test integration_tests _with_oci_registry -- --ignored
+	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=multiple-instances --test integration_tests _with_oci_registry -- --ignored --skip no_root --skip k8s
 	@../tools/oci-registry.sh killall
 
 .PHONY: test/onhost/oci-auth-registry/integration
@@ -39,7 +39,7 @@ test/onhost/oci-auth-registry/integration:
 	@echo "testing-machine-id" > /tmp/machine-id
 	@../tools/oci-registry.sh install --basic-auth
 	@../tools/oci-registry.sh run --basic-auth > /dev/null 2>&1 &
-	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=multiple-instances --test integration_tests _with_auth_oci_registry -- --ignored
+	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=multiple-instances --test integration_tests _with_auth_oci_registry -- --ignored --skip no_root --skip k8s
 	@../tools/oci-registry.sh killall
 
 # K8S
@@ -65,8 +65,8 @@ test/k8s/integration-part1:
 	KUBECONFIG='./tests/k8s/.kubeconfig-dev' minikube update-context
 	ENABLE_VAULT=true  tilt ci --file ./tests/k8s/Tiltfile
 	# reduce test threads to 1 to see sequential logs
-	cargo test k8s::scenarios -- --nocapture --ignored  --test-threads=10
-	cargo test k8s::agent_control_cli -- --nocapture --ignored  --test-threads=10
+	cargo test k8s::scenarios -- --nocapture --ignored --skip k8s::scenarios::install_agent_type --test-threads=10
+	cargo test k8s::agent_control_cli -- --nocapture --ignored --test-threads=10
 
 # Flux upgrade tests require isolated test environments with Flux installed.
 # This installs an initial Flux instance with CRDs that only reconciles the default namespace,
@@ -85,3 +85,11 @@ test/k8s/integration-part2:
 	# reduce test threads to 1 to see sequential logs
 	# We use this approach to split the k8s tests into two parts. We need to update it if this takes too long to run.
 	cargo test k8s_ --  --skip k8s::scenarios --skip k8s::agent_control_cli --skip k8s::flux_self_update --nocapture --ignored  --test-threads=10
+
+.PHONY: test/k8s/integration-oci-registry
+test/k8s/integration-oci-registry:
+	KUBECONFIG='./tests/k8s/.kubeconfig-dev' minikube update-context
+	@../tools/oci-registry.sh install
+	@../tools/oci-registry.sh run > /dev/null 2>&1 &
+	cargo test k8s::scenarios::install_agent_type -- --nocapture --ignored --skip on_host --test-threads=10
+	@../tools/oci-registry.sh killall
