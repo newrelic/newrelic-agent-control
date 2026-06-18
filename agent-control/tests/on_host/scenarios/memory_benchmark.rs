@@ -2,16 +2,15 @@ use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::health::check_latest_health_status;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
+use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::on_host::tools::config::AgentControlConfigBuilder;
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
 use memory_stats::memory_stats;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use std::time::Duration;
-use tempfile::tempdir;
 
 #[test]
 fn test_memory_on_agent_substitution_and_version_update() {
@@ -20,7 +19,7 @@ fn test_memory_on_agent_substitution_and_version_update() {
     // 150 MiB (Bloat Protection) 120 MiB is the actual max happening on first iteration
     let max_memory_limit = 150 * 1024 * 1024;
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
+    let dirs = TempBasePaths::new();
     let agent_id = "nr-sleep-agent";
 
     let packages_config = format!(
@@ -43,25 +42,18 @@ fn test_memory_on_agent_substitution_and_version_update() {
             ]"#,
         ))
         .with_packages(Some(&packages_config))
-        .build(local_dir.path().to_path_buf());
+        .build(dirs.local_dir());
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_oci_registry("non-existent:5000")
-        .write(local_dir.path().to_path_buf());
-
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
+        .write(dirs.local_dir());
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
 
     let mut memory_samples = Vec::new();
 
@@ -79,10 +71,8 @@ fn test_memory_on_agent_substitution_and_version_update() {
 
         opamp_server.set_config_response(ac_instance_id.clone(), agent_a);
 
-        let sleep_instance_id = get_instance_id(
-            &AgentID::try_from(new_agent_id).unwrap(),
-            base_paths.clone(),
-        );
+        let sleep_instance_id =
+            get_instance_id(&AgentID::try_from(new_agent_id).unwrap(), dirs.base_paths());
 
         // A new version to call the template and compute the oci reference
         let timestamp = std::time::SystemTime::now()

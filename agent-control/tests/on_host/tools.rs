@@ -1,3 +1,4 @@
+pub mod base_paths;
 pub mod config;
 pub mod custom_agent_type;
 pub mod fake_binary;

@@ -3,15 +3,14 @@ use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::{retry::retry, runtime::tokio_runtime};
+use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::on_host::tools::config::AgentControlConfigBuilder;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use std::env;
 use std::time::Duration;
-use tempfile::tempdir;
 
 /// Check proxy configuration in a simple scenario involving OpAMP
 /// In order to execute the integration test a proxy needs to be up and running. Example:
@@ -30,8 +29,7 @@ fn proxy_onhost_opamp_agent_control_local_effective_config() {
 
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::new();
     // Setup proxy env variables
     let proxy_url =
         env::var("TESTING_PROXY_URL").expect("Required TESTING_PROXY_URL env var not defined");
@@ -52,19 +50,14 @@ fn proxy_onhost_opamp_agent_control_local_effective_config() {
         .with_proxy(format!(
             "{{\"url\": \"{proxy_url}\", \"ca_bundle_dir\": \"{proxy_ca_dir}\"}}"
         ))
-        .write(local_dir.path().to_path_buf());
+        .write(dirs.local_dir());
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
-    let base_paths = base_paths.clone();
+    let _agent_control = start_agent_control_with_custom_config(
+        dirs.base_paths().clone(),
+        AGENT_CONTROL_MODE_ON_HOST,
+    );
 
-    let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
-
-    let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, base_paths);
+    let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
 
     retry(60, Duration::from_secs(1), || {
         let expected_config = "agents: {}\n";

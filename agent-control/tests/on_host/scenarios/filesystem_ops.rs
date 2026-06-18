@@ -1,6 +1,7 @@
 use std::{fs::read_to_string, path::Path, time::Duration};
 
 use crate::on_host::consts::NO_CONFIG;
+use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::{
     common::{
         agent_control::start_agent_control_with_custom_config, retry::retry, runtime::tokio_runtime,
@@ -11,11 +12,8 @@ use crate::{
     },
 };
 use fake_opamp_server::FakeServer;
+use newrelic_agent_control::agent_control::defaults::AGENT_FILESYSTEM_FOLDER_NAME;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
-use newrelic_agent_control::agent_control::{
-    defaults::AGENT_FILESYSTEM_FOLDER_NAME, run::BasePaths,
-};
-use tempfile::tempdir;
 
 /// An on-host agent definition that includes filesystem entries should result in the entries being
 /// created in the appropriate location under the remote directory.
@@ -23,9 +21,7 @@ use tempfile::tempdir;
 fn writes_filesystem_entries() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let tempdir = tempdir().expect("failed to create temp dir");
-    let local_dir = tempdir.path().join("local");
-    let remote_dir = tempdir.path().join("remote");
+    let dirs = TempBasePaths::new();
 
     let expected_file_contents = "Hello, world!";
     let agent_id = "test-agent";
@@ -48,7 +44,7 @@ deployment:
       {file_path}: "{expected_file_contents}"
 "#,
         ),
-        local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
+        dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
 
     let agents = format!(
@@ -60,23 +56,18 @@ deployment:
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
-        .write(local_dir.to_path_buf());
+        .write(dirs.local_dir());
     create_local_config(
         agent_id.to_string(),
         NO_CONFIG.to_string(),
-        local_dir.to_path_buf(),
+        dirs.local_dir(),
     );
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.to_path_buf(),
-        remote_dir: remote_dir.to_path_buf(),
-        log_dir: local_dir.to_path_buf(),
-    };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let search_path = base_paths
-        .remote_dir
+    let search_path = dirs
+        .remote_dir()
         .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join(dir_entry)
@@ -95,9 +86,7 @@ deployment:
 fn complete_render_and_and_write_files_and_dirs() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let tempdir = tempdir().expect("failed to create temp dir");
-    let local_dir = tempdir.path().join("local");
-    let remote_dir = tempdir.path().join("remote");
+    let dirs = TempBasePaths::new();
 
     let agent_id = "test-agent";
 
@@ -165,7 +154,7 @@ deployment:
     "{fully_templated_dir}": ${{nr-var:some_mapstringyaml}}
 "#,
         ),
-        local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
+        dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
 
     // Create AC config
@@ -176,7 +165,7 @@ deployment:
     agent_type: "test/test:0.0.0"
 "#
         ))
-        .write(local_dir.to_path_buf());
+        .write(dirs.local_dir());
     // Values. Contains 3 variables: a YAML, a string, and a map[string]yaml (to create files in a directory)
     create_local_config(
         agent_id.to_string(),
@@ -199,37 +188,32 @@ some_mapstringyaml:
         string in YAML
 "#
         ),
-        local_dir.to_path_buf(),
+        dirs.local_dir().to_path_buf(),
     );
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.to_path_buf(),
-        remote_dir: remote_dir.to_path_buf(),
-        log_dir: local_dir.to_path_buf(),
-    };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
     // Rendered files
-    let yaml_search_path = base_paths
-        .remote_dir
+    let yaml_search_path = dirs
+        .remote_dir()
         .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join("randomdir")
         .join(yaml_file_path);
-    let string_search_path = base_paths
-        .remote_dir
+    let string_search_path = dirs
+        .remote_dir()
         .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join("randomdir")
         .join(string_file_path);
-    let dir_search_path = base_paths
-        .remote_dir
+    let dir_search_path = dirs
+        .remote_dir()
         .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join(dir_path);
-    let fully_templated_dir_search_path = base_paths
-        .remote_dir
+    let fully_templated_dir_search_path = dirs
+        .remote_dir()
         .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join(fully_templated_dir);
@@ -274,9 +258,7 @@ some_mapstringyaml:
 fn filesystem_persists_across_restarts() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let tempdir = tempdir().expect("failed to create temp dir");
-    let local_dir = tempdir.path().join("local");
-    let remote_dir = tempdir.path().join("remote");
+    let dirs = TempBasePaths::new();
 
     let agent_id = "test-agent";
     let config_content = "license_key: test_key\nlog_level: info\n";
@@ -321,7 +303,7 @@ deployment:
     newrelic-infra/newrelic-integrations/logging: {{}}
 "#,
         ),
-        local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
+        dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
 
     let agents = format!(
@@ -333,7 +315,7 @@ deployment:
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
-        .write(local_dir.to_path_buf());
+        .write(dirs.local_dir().to_path_buf());
 
     create_local_config(
         agent_id.to_string(),
@@ -347,39 +329,33 @@ config_logging:
   fluent_bit: true
 "#
         .to_string(),
-        local_dir.to_path_buf(),
+        dirs.local_dir().to_path_buf(),
     );
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.to_path_buf(),
-        remote_dir: remote_dir.to_path_buf(),
-        log_dir: local_dir.to_path_buf(),
-    };
-
     // Define expected file paths (used throughout the test)
-    let config_file_path = base_paths
-        .remote_dir
+    let config_file_path = dirs
+        .remote_dir()
         .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join("config")
         .join("newrelic-infra.yaml");
 
-    let integrations_file_path = base_paths
-        .remote_dir
+    let integrations_file_path = dirs
+        .remote_dir()
         .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join("integrations.d")
         .join("integration.yaml");
 
-    let logging_file_path = base_paths
-        .remote_dir
+    let logging_file_path = dirs
+        .remote_dir()
         .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join("logging.d")
         .join("logging.yaml");
 
-    let persistent_dir_path = base_paths
-        .remote_dir
+    let persistent_dir_path = dirs
+        .remote_dir()
         .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join("newrelic-infra")
@@ -391,7 +367,7 @@ config_logging:
     // First agent control run - creates the filesystem structure
     {
         let _agent_control =
-            start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+            start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
         // Wait for files to be created
         retry(30, Duration::from_secs(1), || {
@@ -433,7 +409,7 @@ config_logging:
     // Second agent control run - simulates restart
     {
         let _agent_control =
-            start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+            start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
         // Verify all files and directories still exist after restart
         retry(30, Duration::from_secs(1), || {

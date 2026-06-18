@@ -4,6 +4,7 @@ use crate::common::attributes::{
 };
 use crate::common::retry::{retry, retry_never};
 use crate::common::runtime::tokio_runtime;
+use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::on_host::tools::config::AgentControlConfigBuilder;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
@@ -35,13 +36,14 @@ const REPORTED_VERSION: &str = "1.2.3";
 fn test_local_agent_type_shadows_remote_registry_with_oci_registry() {
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let base_paths = temp_base_paths();
-    write_agent_type_to_local_dir(&base_paths.local_dir);
+    let dirs = TempBasePaths::new();
+    write_agent_type_to_local_dir(&dirs.local_dir());
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
-    let mut agent_control = start_agent_control_for_test(&opamp_server, &signer, &base_paths);
+    let mut agent_control =
+        start_agent_control_for_test(&opamp_server, &signer, &dirs.base_paths());
 
-    assert_sub_reports_version(&mut opamp_server, &base_paths);
+    assert_sub_reports_version(&mut opamp_server, &dirs.base_paths());
     assert_agent_control_still_running(&mut agent_control);
 }
 
@@ -53,23 +55,13 @@ fn test_local_miss_resolves_via_remote_registry_with_oci_registry() {
     push_agent_type_to_registry(&signer);
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
-    let base_paths = temp_base_paths();
+    let dirs = TempBasePaths::new();
 
-    let mut agent_control = start_agent_control_for_test(&opamp_server, &signer, &base_paths);
+    let mut agent_control =
+        start_agent_control_for_test(&opamp_server, &signer, &dirs.base_paths());
 
-    assert_sub_reports_version(&mut opamp_server, &base_paths);
+    assert_sub_reports_version(&mut opamp_server, &dirs.base_paths());
     assert_agent_control_still_running(&mut agent_control);
-}
-
-fn temp_base_paths() -> BasePaths {
-    let local_dir = tempdir().unwrap();
-    let remote_dir = tempdir().unwrap();
-
-    BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    }
 }
 
 fn start_agent_control_for_test(

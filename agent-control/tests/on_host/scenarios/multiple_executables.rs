@@ -6,23 +6,20 @@ use crate::{
         retry::retry, runtime::tokio_runtime,
     },
     on_host::tools::{
-        config::AgentControlConfigBuilder, custom_agent_type::CustomAgentType,
-        instance_id::get_instance_id,
+        base_paths::TempBasePaths, config::AgentControlConfigBuilder,
+        custom_agent_type::CustomAgentType, instance_id::get_instance_id,
     },
 };
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::{
-    agent_id::AgentID,
-    run::{BasePaths, on_host::AGENT_CONTROL_MODE_ON_HOST},
+    agent_id::AgentID, run::on_host::AGENT_CONTROL_MODE_ON_HOST,
 };
-use tempfile::tempdir;
 
 #[test]
 fn onhost_subagent_multiple_executables_some_failed_launching() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::new();
 
     // Add custom agent_type to registry
     let sleep_agent_type = CustomAgentType::default()
@@ -33,7 +30,7 @@ fn onhost_subagent_multiple_executables_some_failed_launching() {
             ]"#,
         ))
         .with_health(Some(r#"{"interval": "1s", "initial_delay": "2s"}"#))
-        .build(local_dir.path().to_path_buf());
+        .build(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -45,20 +42,14 @@ agents:
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
-        .write(local_dir.path().to_path_buf());
-
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
+        .write(dirs.local_dir());
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
     let subagent_instance_id = get_instance_id(
         &AgentID::try_from("nr-sleep-agent").unwrap(),
-        base_paths.clone(),
+        dirs.base_paths(),
     );
     // Set sub-agent configuration remotely
     opamp_server.set_config_response(subagent_instance_id.clone(), "fake_variable: value");
@@ -74,8 +65,7 @@ agents:
 fn onhost_subagent_multiple_executables_some_commands_failed_after_max_retries() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::new();
 
     // Add custom agent_type to registry
     let sleep_agent_type = CustomAgentType::default()
@@ -88,7 +78,7 @@ fn onhost_subagent_multiple_executables_some_commands_failed_after_max_retries()
             ]"#,
         ))
         .with_health(Some(r#"{"interval": "1s", "initial_delay": "2s"}"#))
-        .build(local_dir.path().to_path_buf());
+        .build(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -100,20 +90,14 @@ agents:
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
-        .write(local_dir.path().to_path_buf());
-
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
+        .write(dirs.local_dir());
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
     let subagent_instance_id = get_instance_id(
         &AgentID::try_from("nr-sleep-agent").unwrap(),
-        base_paths.clone(),
+        dirs.base_paths(),
     );
     // Set sub-agent configuration remotely
     opamp_server.set_config_response(subagent_instance_id.clone(), "fake_variable: value");

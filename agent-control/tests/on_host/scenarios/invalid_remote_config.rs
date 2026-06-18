@@ -2,6 +2,7 @@ use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{retry::retry, runtime::tokio_runtime};
+use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::on_host::tools::config::load_remote_config_content;
 use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
@@ -9,12 +10,10 @@ use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::STORE_KEY_OPAMP_DATA_CONFIG;
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::on_host::file_store::build_config_name;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;
-use tempfile::tempdir;
 
 /// A agent control has a sub agent configured and the sub agent has a local configuration, then a **invalid** remote
 /// configuration is set. This test checks:
@@ -27,12 +26,11 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::new();
 
     let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
-    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
+    let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
     let agents = format!(
         r#"
   {sub_agent_id}:
@@ -42,7 +40,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
-        .write(local_dir.path().to_path_buf());
+        .write(dirs.local_dir());
 
     // And the custom-agent has local config values
 
@@ -50,19 +48,13 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
     create_local_config(
         sub_agent_id.to_string(),
         local_config.to_string(),
-        local_dir.path().to_path_buf(),
+        dirs.local_dir(),
     );
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
-
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
+    let sub_agent_instance_id = get_instance_id(&sub_agent_id, dirs.base_paths());
 
     // When a new incorrect config is received from OpAMP
     opamp_server.set_config_response(
@@ -74,7 +66,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
     retry(60, Duration::from_secs(1), || {
         {
             // Then the remote config should not be created in the remote filesystem.
-            if load_remote_config_content(&sub_agent_id, base_paths.clone()).is_some() {
+            if load_remote_config_content(&sub_agent_id, dirs.base_paths()).is_some() {
                 return Err("Remote config file should not be created".into());
             }
 
@@ -104,13 +96,12 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 fn test_invalid_config_executable_less_supervisor() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::new();
     let sub_agent_id = AgentID::try_from("test-agent").unwrap();
 
     let agent_type = CustomAgentType::default()
         .without_deployment()
-        .build(local_dir.path().to_path_buf());
+        .build(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -123,22 +114,17 @@ fn test_invalid_config_executable_less_supervisor() {
     create_local_config(
         sub_agent_id.to_string(),
         local_config.to_string(),
-        local_dir.path().to_path_buf(),
+        dirs.local_dir(),
     );
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
-        .write(local_dir.path().to_path_buf());
+        .write(dirs.local_dir());
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
+    let sub_agent_instance_id = get_instance_id(&sub_agent_id, dirs.base_paths());
 
     // When a new incorrect config is received from OpAMP
     opamp_server.set_config_response(
@@ -150,8 +136,8 @@ fn test_invalid_config_executable_less_supervisor() {
     retry(60, Duration::from_secs(1), || {
         {
             // Then the remote config should be created in the remote filesystem.
-            let remote_file = remote_dir
-                .path()
+            let remote_file = dirs
+                .remote_dir()
                 .join(sub_agent_id.clone())
                 .join(build_config_name(STORE_KEY_OPAMP_DATA_CONFIG));
             if remote_file.exists() {
@@ -185,12 +171,11 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::new();
 
     let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
-    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
+    let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
     let agents = format!(
         r#"
   {sub_agent_id}:
@@ -200,7 +185,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
-        .write(local_dir.path().to_path_buf());
+        .write(dirs.local_dir());
 
     // And the custom-agent has local config values
 
@@ -208,19 +193,13 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
     create_local_config(
         sub_agent_id.to_string(),
         local_config.to_string(),
-        local_dir.path().to_path_buf(),
+        dirs.local_dir(),
     );
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
-
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
+    let sub_agent_instance_id = get_instance_id(&sub_agent_id, dirs.base_paths());
 
     let valid_remote_config = "fake_variable: valid from remote\n";
     opamp_server.set_config_response(sub_agent_instance_id.clone(), valid_remote_config);
@@ -244,7 +223,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
     retry(60, Duration::from_secs(1), || {
         // Then the remote config should be created in the remote filesystem.
         let Some(actual_remote_config) =
-            load_remote_config_content(&sub_agent_id, base_paths.clone())
+            load_remote_config_content(&sub_agent_id, dirs.base_paths())
         else {
             return Err("Persisted remote config should exist from previous step".into());
         };

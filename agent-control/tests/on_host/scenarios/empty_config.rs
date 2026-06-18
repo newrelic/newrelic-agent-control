@@ -1,3 +1,4 @@
+use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::on_host::tools::config::create_remote_config;
 use crate::{
     common::{
@@ -12,12 +13,11 @@ use crate::{
     },
 };
 use fake_opamp_server::FakeServer;
+use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
-use newrelic_agent_control::agent_control::{agent_id::AgentID, run::BasePaths};
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::thread;
 use std::time::Duration;
-use tempfile::tempdir;
 
 /// The agent-control is configured with on agent with local configuration and a remote configuration was also set for the
 /// corresponding sub-agent. After this, the configuration is set as empty which should fall-back to local
@@ -26,10 +26,9 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::new();
 
-    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
+    let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -40,7 +39,7 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
-        .write(local_dir.path().to_path_buf());
+        .write(dirs.local_dir());
 
     // And the custom-agent has local config values
     let agent_id = "nr-sleep-agent";
@@ -48,7 +47,7 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
     create_local_config(
         agent_id.to_string(),
         local_values_config.to_string(),
-        local_dir.path().to_path_buf(),
+        dirs.local_dir(),
     );
 
     // And the custom-agent has also remote config values
@@ -58,18 +57,14 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
     create_remote_config(
         agent_id.to_string(),
         remote_values_config.to_string(),
-        remote_dir.path().to_path_buf(),
+        dirs.remote_dir(),
     );
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
+    let sub_agent_instance_id =
+        get_instance_id(&AgentID::try_from(agent_id).unwrap(), dirs.base_paths());
 
     retry(60, Duration::from_secs(1), || {
         // Then the retrieved effective config should match the expected remote config
@@ -100,10 +95,9 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
     // Given a agent-control with a custom-agent with opamp configured.
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::new();
 
-    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
+    let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -115,22 +109,17 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
     let agent_id = "nr-sleep-agent";
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
-        .write(local_dir.path().to_path_buf());
+        .write(dirs.local_dir());
 
     // There is no local configuration for the sub-agent
-
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
 
     thread::sleep(Duration::from_secs(1));
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
+    let sub_agent_instance_id =
+        get_instance_id(&AgentID::try_from(agent_id).unwrap(), dirs.base_paths());
 
     // The supervisor will not start but the agent will be able to receive remote configurations
     retry(60, Duration::from_secs(1), || {
