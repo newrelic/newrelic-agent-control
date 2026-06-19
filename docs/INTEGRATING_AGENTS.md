@@ -387,6 +387,122 @@ Note that a Package version. Can be:
 > [!WARNING]
 > The package in the OCI repository **MUST** follow a specific [structure](./package_manager.md#package-structure).
 
+**Post-Download Hook:**
+
+The `post_download_hook` is an optional field that allows executing a custom script after the package is downloaded and extracted. This is useful for:
+- Installing system dependencies
+- Compiling native code
+- Performing system configuration
+- Validating installation requirements
+- Running setup scripts that cannot be handled through simple file extraction
+
+The hook runs with a hardcoded timeout of 300 seconds (5 minutes) and is not configurable. If the script exits with a non-zero status code, the package installation fails.
+
+```yaml
+  post_download_hook:
+    path: /bin/bash           # or just "bash" (searches in PATH)
+    args:
+      - /absolute/path/to/script.sh
+      - --arg1
+      - --arg2
+    env:
+      PACKAGE_VERSION: ${nr-var:version}
+      CUSTOM_VAR: some-value
+```
+
+Fields:
+- `path`: Path to the command/interpreter. Can be absolute (e.g., `/bin/bash`, `C:\Windows\System32\cmd.exe`) or relative (e.g., `bash`, `python3`, `cmd`) which will be searched in the system PATH. **Required**.
+- `args`: List of arguments passed to the command. The structure depends on your use case (see examples below). Can be empty for binaries that don't require arguments. **Required**.
+- `env`: Optional map of environment variables passed to the script process.
+
+The script execution environment includes:
+- `PACKAGE_DIR`: Automatically set to the package installation directory
+- Current working directory: Set to the package directory
+- `stdout`: Discarded (to avoid log noise)
+- `stderr`: Captured and logged on failure
+
+> [!NOTE]
+> On Unix systems, if `path` points to a file, it will be automatically made executable (`chmod +x`) before execution. This ensures scripts extracted from OCI packages work even if they don't have execute permissions in the archive.
+
+**Linux Examples:**
+
+```yaml
+# Using bash from PATH with absolute script path
+post_download_hook:
+  path: bash
+  args:
+    - /opt/newrelic/install.sh
+    - --check-dependencies
+  env:
+    AGENT_VERSION: ${nr-var:version}
+
+# Using absolute interpreter path
+post_download_hook:
+  path: /usr/bin/python3
+  args:
+    - /opt/newrelic/setup.py
+    - --install
+
+# Using relative script path (relative to package directory)
+post_download_hook:
+  path: bash
+  args:
+    - ./install.sh
+    - --verbose
+
+# Direct binary execution without arguments
+post_download_hook:
+  path: /usr/bin/validate-system
+  args: []
+```
+
+**Windows Examples:**
+
+```yaml
+# Using cmd.exe with /c flag
+post_download_hook:
+  path: cmd
+  args:
+    - /c
+    - C:\newrelic\install.bat
+    - --check-dependencies
+  env:
+    AGENT_VERSION: ${nr-var:version}
+
+# Using PowerShell
+post_download_hook:
+  path: powershell
+  args:
+    - -ExecutionPolicy
+    - Bypass
+    - -File
+    - C:\newrelic\setup.ps1
+
+# Direct batch script execution (Windows can execute .bat/.cmd directly)
+post_download_hook:
+  path: C:\newrelic\install.bat
+  args:
+    - --verbose
+```
+
+**Complete package example:**
+
+```yaml
+    packages:
+      ebpf-agent:
+        download:
+          oci:
+            repository: ${nr-var:oci.repository}
+            version: ${nr-var:version}
+        post_download_hook:
+          path: bash
+          args:
+            - ./install.sh
+            - --check-dependencies
+          env:
+            AGENT_VERSION: ${nr-var:version}
+```
+
 **Accessing Package Contents:**
 
 After installation, the package directory path is available via the reserved variable `${nr-sub:packages.<package-id>.dir}`, where `<package-id>` is the key used in the packages map.

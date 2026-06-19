@@ -1,10 +1,10 @@
-use std::{fmt::Display, str::FromStr};
-
 use oci_client::Reference;
 use serde::{Deserialize, Serialize};
+use std::{fmt::Display, str::FromStr};
 use url::Url;
 
 use crate::agent_control::config::Registry;
+use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env};
 
 const REPOSITORY_TOTAL_LENGTH_MAX: usize = 255;
 const TAG_TOTAL_LENGTH_MAX: usize = 128;
@@ -13,6 +13,8 @@ const TAG_TOTAL_LENGTH_MAX: usize = 128;
 pub struct Package {
     /// Download defines the supported repository sources for the packages.
     pub download: Download,
+    /// Post-download hook script to execute after downloading and extracting the package.
+    pub post_download_hook: Option<PostDownloadHook>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -26,6 +28,16 @@ pub struct Oci {
     pub repository: Repository,
     pub version: Version,
     pub public_key_url: Option<Url>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PostDownloadHook {
+    /// Absolute path to the command/executable (e.g., "/bin/bash", "/usr/bin/python3")
+    pub path: String,
+    /// Arguments passed to the executable on [`path`].
+    pub args: Args,
+    /// Environmental variables
+    pub env: Env,
 }
 
 const DEFAULT_TAG: &str = "latest";

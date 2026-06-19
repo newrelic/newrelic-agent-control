@@ -328,6 +328,7 @@ pub fn include_packages_variables(
         let package_data = PackageData {
             id: package_id.to_string(),
             oci: package.download.oci.clone(),
+            post_download_hook: package.post_download_hook.clone(),
         };
         let path =
             get_package_path(Path::new(remote_dir), &agent_id, &package_data).map_err(|e| {

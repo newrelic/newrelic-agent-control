@@ -170,6 +170,7 @@ fn verify_fake_agent_has_been_pulled(
                 version: reference.tag().unwrap().parse().unwrap(),
                 public_key_url: None,
             },
+            post_download_hook: None,
         },
     )
 }
@@ -187,6 +188,7 @@ fn verify_fake_ac_has_been_pulled(
                 version: reference.tag().unwrap().parse().unwrap(),
                 public_key_url: None,
             },
+            post_download_hook: None,
         },
     )
 }
