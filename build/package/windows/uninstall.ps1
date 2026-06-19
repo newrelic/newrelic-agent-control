@@ -11,6 +11,7 @@ if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Adm
 $serviceName = "newrelic-agent-control"
 $acDir = [IO.Path]::Combine($env:ProgramFiles, 'New Relic\newrelic-agent-control')
 $acExecPath = [IO.Path]::Combine($acDir, 'newrelic-agent-control.exe')
+$acKeysDir = [IO.Path]::Combine($acDir, 'keys')
 
 $markerPath = [IO.Path]::Combine($acDir, '.nr-ac-install')
 
@@ -31,6 +32,12 @@ if ($existingService) {
 if (Test-Path $acExecPath) {
     Write-Host "Deleting $acExecPath..."
     Remove-Item -Path $acExecPath -Force
+}
+
+# Remove the keys directory if exists
+if (Test-Path $acKeysDir) {
+    Write-Host "Removing keys directory..."
+    Remove-Item -Path $acKeysDir -Recurse -Force
 }
 
 if (Test-Path $markerPath) {
