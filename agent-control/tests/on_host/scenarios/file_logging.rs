@@ -123,7 +123,7 @@ fn run_file_logging_scenario(
     initial_message: &str,
     reload_file_logging: bool,
     reload_message: &str,
-) -> String {
+) -> TempBasePaths {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let dirs = TempBasePaths::new();
@@ -172,9 +172,7 @@ fn run_file_logging_scenario(
     // Give some time for the echo output to be captured in the log files
     std::thread::sleep(Duration::from_secs(5));
 
-    // Return the log_dir path as string
-    // We return agent_id so callers know where to look for logs
-    dirs.log_dir().to_string_lossy().to_string()
+    dirs
 }
 
 /// File logging enable/disable combinations with before and after reload checks
@@ -190,7 +188,7 @@ fn test_file_logging_reload(
 ) {
     let agent_id = format!("file-logging-agent-{first_run_enabled}-{second_run_enabled}");
 
-    let log_dir = run_file_logging_scenario(
+    let dirs = run_file_logging_scenario(
         &agent_id,
         first_run_enabled,
         first_run_message,
@@ -198,7 +196,7 @@ fn test_file_logging_reload(
         second_run_message,
     );
 
-    let log_dir_path = Path::new(&log_dir);
+    let log_dir_path = dirs.log_dir();
     let agent_logs_dir = log_dir_path.join(&agent_id);
     assert!(
         agent_logs_dir.exists(),
@@ -206,7 +204,7 @@ fn test_file_logging_reload(
     );
 
     let all_contents = retry(60, Duration::from_secs(1), || {
-        Ok(collect_stdout_logs(log_dir_path, &agent_id)?)
+        Ok(collect_stdout_logs(&log_dir_path, &agent_id)?)
     });
 
     // If the logs are enabled for the run the string must be found, same for disabled and not found
@@ -228,9 +226,9 @@ fn onhost_supervisor_reloading_keeps_file_logging_disabled() {
     let unique_str_2 = "keeps_disabled_run2";
     let agent_id = "test-agent-logs-always-disabled";
 
-    let log_dir = run_file_logging_scenario(agent_id, false, unique_str_1, false, unique_str_2);
+    let dirs = run_file_logging_scenario(agent_id, false, unique_str_1, false, unique_str_2);
 
-    let log_dir_path = Path::new(&log_dir);
+    let log_dir_path = dirs.log_dir();
     let agent_logs_dir = log_dir_path.join(agent_id);
     assert!(
         !agent_logs_dir.exists(),
