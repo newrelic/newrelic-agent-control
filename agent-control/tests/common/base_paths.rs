@@ -2,10 +2,6 @@ use newrelic_agent_control::agent_control::run::BasePaths;
 use std::path::PathBuf;
 use tempfile::{TempDir, tempdir};
 
-/// Owns three temporary directories for a test and exposes a ready-to-use [`BasePaths`].
-///
-/// The directories are removed when this struct is dropped. Keep it alive for the
-/// duration of the test — drop it only after agent-control has stopped.
 pub struct TempBasePaths {
     base_paths: BasePaths,
     local_dir: TempDir,
@@ -43,7 +39,6 @@ impl TempBasePaths {
         self.remote_dir.path().to_path_buf()
     }
 
-    #[allow(dead_code)]
     pub fn log_dir(&self) -> PathBuf {
         self.log_dir.path().to_path_buf()
     }
