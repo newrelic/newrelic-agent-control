@@ -8,7 +8,7 @@ use newrelic_agent_control::agent_control::version_updater::on_host::verify::{
 };
 use opamp_client::opamp::proto::any_value::Value;
 
-use crate::on_host::tools::base_paths::TempBasePaths;
+use crate::common::base_paths::TempBasePaths;
 use crate::{
     common::runtime::tokio_runtime, on_host::tools::config::AgentControlConfigBuilder,
     on_host::tools::instance_id::get_instance_id,

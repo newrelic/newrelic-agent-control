@@ -2,12 +2,12 @@ use std::time::Duration;
 
 use crate::{
     common::{
-        agent_control::start_agent_control_with_custom_config, health::check_latest_health_status,
-        retry::retry, runtime::tokio_runtime,
+        agent_control::start_agent_control_with_custom_config, base_paths::TempBasePaths,
+        health::check_latest_health_status, retry::retry, runtime::tokio_runtime,
     },
     on_host::tools::{
-        base_paths::TempBasePaths, config::AgentControlConfigBuilder,
-        custom_agent_type::CustomAgentType, instance_id::get_instance_id,
+        config::AgentControlConfigBuilder, custom_agent_type::CustomAgentType,
+        instance_id::get_instance_id,
     },
 };
 use fake_opamp_server::FakeServer;

@@ -1,10 +1,10 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{retry::retry, runtime::tokio_runtime};
 use crate::on_host::consts::NO_CONFIG;
-use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::on_host::tools::config::{AgentControlConfigBuilder, create_file, create_local_config};
 use crate::on_host::tools::config::{create_remote_config, load_remote_config_content};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;

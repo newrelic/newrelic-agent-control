@@ -1,9 +1,9 @@
 #![cfg(target_family = "unix")]
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::{retry::retry, runtime::tokio_runtime};
-use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::on_host::tools::config::AgentControlConfigBuilder;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;

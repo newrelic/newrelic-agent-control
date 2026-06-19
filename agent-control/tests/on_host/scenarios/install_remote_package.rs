@@ -2,11 +2,11 @@ use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::attributes::{
     check_identifying_attributes_contains_expected, convert_to_vec_key_value,
 };
+use crate::common::base_paths::TempBasePaths;
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::remote_config_status::check_latest_remote_config_status;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;

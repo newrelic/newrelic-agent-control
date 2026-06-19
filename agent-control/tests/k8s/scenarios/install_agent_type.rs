@@ -3,6 +3,7 @@ use crate::common::agent_control::{StartedAgentControl, start_agent_control_with
 use crate::common::attributes::{
     check_identifying_attributes_contains_expected, convert_to_vec_key_value,
 };
+use crate::common::base_paths::TempBasePaths;
 use crate::common::retry::{retry, retry_never};
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::{
@@ -18,7 +19,6 @@ use newrelic_agent_control::agent_control::defaults::OPAMP_SERVICE_VERSION;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
 };
-use crate::common::base_paths::TempBasePaths;
 use newrelic_agent_control::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;

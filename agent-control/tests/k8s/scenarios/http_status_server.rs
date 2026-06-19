@@ -1,4 +1,5 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::http_port::{available_port, status_server_url};
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
@@ -15,7 +16,6 @@ use newrelic_agent_control::agent_control::defaults::{
     CLUSTER_NAME_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY,
 };
-use crate::common::base_paths::TempBasePaths;
 use newrelic_agent_control::environment::Environment;
 use serde_json::json;
 use std::time::Duration;

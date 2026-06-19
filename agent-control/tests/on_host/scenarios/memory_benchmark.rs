@@ -1,8 +1,8 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::health::check_latest_health_status;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::on_host::tools::config::AgentControlConfigBuilder;
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;

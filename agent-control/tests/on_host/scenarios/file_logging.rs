@@ -2,10 +2,10 @@ use std::{fs, io, path::Path, time::Duration};
 
 use crate::{
     common::{
-        agent_control::start_agent_control_with_custom_config, retry::retry, runtime::tokio_runtime,
+        agent_control::start_agent_control_with_custom_config, base_paths::TempBasePaths,
+        retry::retry, runtime::tokio_runtime,
     },
     on_host::tools::{
-        base_paths::TempBasePaths,
         config::{AgentControlConfigBuilder, create_file, create_local_config},
         custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME,
         instance_id::get_instance_id,

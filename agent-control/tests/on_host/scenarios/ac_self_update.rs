@@ -1,10 +1,10 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::remote_config_status::check_latest_remote_config_status;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::retry::retry;
 use crate::common::retry::retry_never;
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::on_host::tools::config::AgentControlConfigBuilder;
 use crate::on_host::tools::fake_binary::assert_is_fake_binary;
 use crate::on_host::tools::fake_binary::build_fake_ac_binary;

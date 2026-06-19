@@ -1,12 +1,12 @@
 use super::tools::config::{create_file, create_local_config};
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::process_finder::find_processes_by_pattern;
 use crate::common::retry::retry;
 use crate::on_host::consts::AWS_VM_RESPONSE;
 use crate::on_host::consts::AZURE_VM_RESPONSE;
 use crate::on_host::consts::GCP_VM_RESPONSE;
 use crate::on_host::consts::NO_CONFIG;
-use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::on_host::tools::custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME;
 use httpmock::Method::GET;
 use httpmock::Method::PUT;

@@ -2,9 +2,9 @@ use crate::common::agent_control::{StartedAgentControl, start_agent_control_with
 use crate::common::attributes::{
     check_identifying_attributes_contains_expected, convert_to_vec_key_value,
 };
+use crate::common::base_paths::TempBasePaths;
 use crate::common::retry::{retry, retry_never};
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::on_host::tools::config::AgentControlConfigBuilder;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;

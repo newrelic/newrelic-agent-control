@@ -1,7 +1,7 @@
 use std::{fs::read_to_string, path::Path, time::Duration};
 
+use crate::common::base_paths::TempBasePaths;
 use crate::on_host::consts::NO_CONFIG;
-use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::{
     common::{
         agent_control::start_agent_control_with_custom_config, retry::retry, runtime::tokio_runtime,

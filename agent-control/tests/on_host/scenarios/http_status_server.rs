@@ -1,9 +1,9 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::http_port::{available_port, status_server_url};
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::consts::NO_CONFIG;
-use crate::on_host::tools::base_paths::TempBasePaths;
 use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use fake_opamp_server::FakeServer;
