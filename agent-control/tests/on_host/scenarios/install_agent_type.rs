@@ -4,13 +4,13 @@ use crate::common::attributes::{
 };
 use crate::common::retry::{retry, retry_never};
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::config::create_local_config;
+use crate::on_host::tools::config::AgentControlConfigBuilder;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_ID, DYNAMIC_AGENT_TYPES_DIR, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    DYNAMIC_AGENT_TYPES_DIR, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::{
@@ -77,28 +77,10 @@ fn start_agent_control_for_test(
     signer: &OCISigner,
     base_paths: &BasePaths,
 ) -> StartedAgentControl {
-    let config = format!(
-        r#"
-host_id: integration-test
-fleet_control:
-  endpoint: {}
-  poll_interval: 5s
-  signature_validation:
-    public_key_server_url: {}
-oci:
-  registry: "{OCI_TEST_REGISTRY_URL}"
-agent_types:
-  default_remote:
-    repository: test
-    signature_verification_enabled: true
-    public_key_url: {}
-agents: {{}}
-"#,
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        signer.jwks_url(),
-    );
-    create_local_config(AGENT_CONTROL_ID, config, base_paths.local_dir.clone());
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_oci_registry(OCI_TEST_REGISTRY_URL)
+        .with_agent_types(true, "test", signer.jwks_url().to_string())
+        .write(base_paths.local_dir.clone());
 
     start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST)
 }

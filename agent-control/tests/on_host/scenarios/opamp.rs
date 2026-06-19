@@ -4,9 +4,7 @@ use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{retry::retry, runtime::tokio_runtime};
 use crate::on_host::consts::NO_CONFIG;
-use crate::on_host::tools::config::{
-    create_agent_control_config, create_file, create_local_config,
-};
+use crate::on_host::tools::config::{AgentControlConfigBuilder, create_file, create_local_config};
 use crate::on_host::tools::config::{create_remote_config, load_remote_config_content};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
@@ -38,13 +36,8 @@ fn onhost_opamp_agent_control_local_effective_config() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    let agents = "{}";
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -85,13 +78,8 @@ fn onhost_opamp_agent_control_remote_effective_config() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    let agents = "{}";
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -177,13 +165,8 @@ fn onhost_opamp_agent_control_accepts_unknown_fields_on_remote_config() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    let agents = "{}";
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -248,12 +231,9 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 "#
     );
 
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents.to_string())
+        .write(local_dir.path().to_path_buf());
 
     // And the custom-agent has local config values
     let agent_id = "nr-sleep-agent";
@@ -320,12 +300,9 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
 "#
     );
 
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents.to_string())
+        .write(local_dir.path().to_path_buf());
 
     // And the custom-agent has local config values
     let agent_id = "nr-sleep-agent";
@@ -389,12 +366,9 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 "#
     );
 
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents.to_string())
+        .write(local_dir.path().to_path_buf());
 
     // And the custom-agent has empty config values
     let agent_id = "nr-sleep-agent";
@@ -474,12 +448,9 @@ agents:
 "#
     );
 
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents.to_string())
+        .write(local_dir.path().to_path_buf());
 
     let sub_agent_id = AgentID::try_from("no-executables").unwrap();
     let local_values_config = "fake_variable: valid local config\n";

@@ -11,7 +11,7 @@ use opamp_client::opamp::proto::any_value::Value;
 use tempfile::tempdir;
 
 use crate::{
-    common::runtime::tokio_runtime, on_host::tools::config::create_agent_control_config,
+    common::runtime::tokio_runtime, on_host::tools::config::AgentControlConfigBuilder,
     on_host::tools::instance_id::get_instance_id,
 };
 use fake_opamp_server::FakeServer;
@@ -27,14 +27,9 @@ fn test_verify_executor() {
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
     let opamp_server = FakeServer::start(tokio_runtime().handle());
-    let agents = "{}".to_string();
 
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents,
-        local_dir.path().to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .write(local_dir.path().to_path_buf());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -108,16 +103,11 @@ fn test_verify_executor_opamp_connectivity_failure() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    let unreachable_opamp_endpoint = "http://localhost:19999".to_string();
-    let unreachable_jwks_endpoint = "http://localhost:19999/jwks".to_string();
-    let agents = "{}".to_string();
+    let unreachable_opamp_endpoint = "http://localhost:19999";
+    let unreachable_jwks_endpoint = "http://localhost:19999/jwks";
 
-    create_agent_control_config(
-        unreachable_opamp_endpoint,
-        unreachable_jwks_endpoint,
-        agents,
-        local_dir.path().to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(unreachable_opamp_endpoint, unreachable_jwks_endpoint)
+        .write(local_dir.path().to_path_buf());
 
     let result = ProcessVerifyExecutor::default().execute(
         binary_path(),

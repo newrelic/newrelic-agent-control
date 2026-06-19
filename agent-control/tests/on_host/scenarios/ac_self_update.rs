@@ -4,7 +4,7 @@ use crate::common::remote_config_status::check_latest_remote_config_status_is_ex
 use crate::common::retry::retry;
 use crate::common::retry::retry_never;
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::config::create_local_config;
+use crate::on_host::tools::config::AgentControlConfigBuilder;
 use crate::on_host::tools::fake_binary::assert_is_fake_binary;
 use crate::on_host::tools::fake_binary::build_fake_ac_binary;
 use crate::on_host::tools::fake_binary::build_invalid_fake_ac_binary;
@@ -12,7 +12,6 @@ use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_ID;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_VERSION;
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
@@ -326,32 +325,14 @@ fn create_self_update_local_config(
     local_dir: &Path,
     signature_verification_enabled: bool,
 ) {
-    let config = format!(
-        r#"
-host_id: integration-test
-fleet_control:
-  endpoint: {}
-  poll_interval: 5s
-  signature_validation:
-    public_key_server_url: {}
-agents: {{}}
-oci:
-  registry: {OCI_TEST_REGISTRY_URL}
-self_update:
-  enabled: true
-  signature_verification_enabled: {signature_verification_enabled}
-  package:
-    download:
-      oci:
-        registry: {OCI_TEST_REGISTRY_URL}
-        repository: test
-        public_key_url: {}
-"#,
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        signer.jwks_url()
-    );
-    create_local_config(AGENT_CONTROL_ID, config, local_dir.to_path_buf());
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_oci_registry(OCI_TEST_REGISTRY_URL)
+        .with_self_update(
+            signature_verification_enabled,
+            "test",
+            signer.jwks_url().to_string(),
+        )
+        .write(local_dir.to_path_buf());
 }
 
 /// Pushes an invalid fake agent-control binary package to the OCI registry and signs it.

@@ -5,7 +5,7 @@ use crate::{
         agent_control::start_agent_control_with_custom_config, retry::retry, runtime::tokio_runtime,
     },
     on_host::tools::{
-        config::{create_agent_control_config, create_file, create_local_config},
+        config::{AgentControlConfigBuilder, create_file, create_local_config},
         custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME,
         instance_id::get_instance_id,
     },
@@ -145,12 +145,9 @@ fn run_file_logging_scenario(
     agent_type: "test/file_logging_agent:0.0.0"
 "#
     );
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents,
-        local_dir.to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents)
+        .write(local_dir.to_path_buf());
 
     // Provide the initial local config for the sub-agent
     create_local_config(

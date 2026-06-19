@@ -1,13 +1,12 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::config::create_local_config;
+use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_ID;
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::{
     AGENT_CONTROL_MODE_ON_HOST, OCI_TEST_REGISTRY_URL,
@@ -213,34 +212,13 @@ fn create_ac_local_config(
     local_dir: &Path,
     agents: impl Into<String>,
 ) {
-    let config = format!(
-        r#"
-agents: {}
-host_id: integration-test
-fleet_control:
-  endpoint: {}
-  poll_interval: 5s
-  signature_validation:
-    public_key_server_url: {}
-oci:
-  registry: "{OCI_TEST_REGISTRY_URL}"
-  auth:
-    basic:
-      username: {OCI_TEST_REGISTRY_BASIC_AUTH_USERNAME}
-      password: {OCI_TEST_REGISTRY_BASIC_AUTH_PASSWORD}
-self_update:
-  enabled: true
-  signature_verification_enabled: true
-  package:
-    download:
-      oci:
-        repository: test
-        public_key_url: {}
-"#,
-        agents.into(),
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        signer.jwks_url()
-    );
-    create_local_config(AGENT_CONTROL_ID, config, local_dir.to_path_buf());
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents)
+        .with_oci_registry(OCI_TEST_REGISTRY_URL)
+        .with_oci_basic_auth(
+            OCI_TEST_REGISTRY_BASIC_AUTH_USERNAME,
+            OCI_TEST_REGISTRY_BASIC_AUTH_PASSWORD,
+        )
+        .with_self_update(true, "test", signer.jwks_url().to_string())
+        .write(local_dir.to_path_buf());
 }

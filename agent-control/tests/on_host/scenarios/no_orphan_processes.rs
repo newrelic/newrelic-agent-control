@@ -4,7 +4,7 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::process_finder::find_processes_by_pattern;
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
+use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::run::BasePaths;
@@ -49,12 +49,9 @@ agents:
 "#
     );
 
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents,
-        local_dir.path().to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents)
+        .write(local_dir.path().to_path_buf());
 
     // Create local config to trigger the executable launch
     create_local_config(

@@ -3,9 +3,7 @@ use crate::common::http_port::{available_port, status_server_url};
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::consts::NO_CONFIG;
-use crate::on_host::tools::config::{
-    create_agent_control_config_with_status_server, create_local_config,
-};
+use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::defaults::{
@@ -43,14 +41,10 @@ fn test_http_status_endpoint_response() {
     );
 
     let status_server_port = available_port();
-    create_agent_control_config_with_status_server(
-        HOST_ID,
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents,
-        local_dir.path().to_path_buf(),
-        status_server_port,
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents)
+        .with_status_server(status_server_port)
+        .write(local_dir.path().to_path_buf());
 
     create_local_config(
         AGENT_ID.to_string(),

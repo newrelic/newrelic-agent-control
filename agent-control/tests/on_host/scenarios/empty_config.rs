@@ -6,7 +6,7 @@ use crate::{
         runtime::tokio_runtime,
     },
     on_host::tools::{
-        config::{create_agent_control_config, create_local_config},
+        config::{AgentControlConfigBuilder, create_local_config},
         custom_agent_type::CustomAgentType,
         instance_id::get_instance_id,
     },
@@ -38,12 +38,9 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
 "#
     );
 
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents.to_string())
+        .write(local_dir.path().to_path_buf());
 
     // And the custom-agent has local config values
     let agent_id = "nr-sleep-agent";
@@ -116,12 +113,9 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
     );
 
     let agent_id = "nr-sleep-agent";
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents.to_string(),
-        local_dir.path().to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents.to_string())
+        .write(local_dir.path().to_path_buf());
 
     // There is no local configuration for the sub-agent
 
