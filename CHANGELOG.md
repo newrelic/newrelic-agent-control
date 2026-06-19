@@ -16,6 +16,7 @@ Remember that the keywords that you can use are the following:
 
 ### Breaking
 - Replace filesystem in on-host agent-type definitions with an explicit, recursive, tagged-kind tree: every entry declares `kind: file | dir | dir_content_from_map`, and `dir` entries nest via `entries:`.
+- On-host filesystem entries now accept a `persistent` flag (default `false`): ephemeral entries are deleted on sub-agent stop, persistent entries survive until the agent is removed from the fleet. Reconciliation across writes is driven by a sidecar `.ac-managed-paths.json` manifest (reserved filename — agent types must not declare it) so paths Agent Control no longer owns are deleted while sub-agent-created files are preserved.
 ### enhancement
 - Added support for remote agent type retrieval.
 

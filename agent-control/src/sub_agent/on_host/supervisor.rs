@@ -70,6 +70,7 @@ where
     pub agent_identity: AgentIdentity,
     pub internal_publisher: EventPublisher<SubAgentInternalEvent>,
     pub logging_path: PathBuf,
+    pub filesystem: FileSystem,
 }
 
 pub struct NotStartedSupervisorOnHost<PM>
@@ -123,13 +124,15 @@ where
             .map_err(SupervisorError::RuntimeConfig)?
             .clone();
 
-        // Reuse supervisor inner fields
         let Self {
             agent_identity,
             package_manager,
             internal_publisher,
             thread_contexts,
             logging_path,
+            // Dropped on purpose; listed by name (not via `..`) so any future field
+            // added to the struct fails to compile here until it's explicitly threaded through.
+            filesystem: _,
         } = self;
 
         let installation_result = install_packages(
@@ -176,7 +179,11 @@ where
     }
 
     fn stop(self) -> Result<(), ThreadContextStopperError> {
-        stop_supervisor_threads(self.thread_contexts)
+        let stop_result = stop_supervisor_threads(self.thread_contexts);
+        if let Err(err) = self.filesystem.delete_ephemeral() {
+            warn!(?err, "filesystem ephemeral cleanup failed on stop");
+        }
+        stop_result
     }
 }
 
@@ -299,6 +306,7 @@ where
             agent_identity: self.agent_identity,
             internal_publisher: sub_agent_internal_publisher,
             logging_path: self.file_logging_path,
+            filesystem: self.filesystem,
         })
     }
 
@@ -739,6 +747,78 @@ pub mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_stop_runs_filesystem_delete_ephemeral() {
+        use crate::agent_type::agent_attributes::AgentAttributes;
+        use crate::agent_type::definition::Variables;
+        use crate::agent_type::runtime_config::on_host::filesystem::FileSystem as ParsedFileSystem;
+        use crate::agent_type::templates::Templateable;
+        use crate::agent_type::variable::Variable;
+        use crate::agent_type::variable::namespace::Namespace;
+
+        let tmp_dir = tempfile::TempDir::new().unwrap();
+        let yaml = r#"
+ephemeral.txt:
+  kind: file
+  text: e
+persistent.txt:
+  kind: file
+  text: p
+  persistent: true
+"#;
+        let variables = Variables::from_iter(vec![(
+            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+            Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+        )]);
+        let filesystem = serde_saphyr::from_str::<ParsedFileSystem>(yaml)
+            .unwrap()
+            .template_with(&variables)
+            .unwrap();
+
+        let agent_identity = AgentIdentity::from((
+            "stop-test-agent".to_owned().try_into().unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+
+        let supervisor = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            vec![],
+            OnHostHealthConfig::default(),
+            None,
+            get_empty_packages(),
+            MockPackageManager::new_arc(),
+            false,
+            PathBuf::default(),
+            filesystem,
+        );
+
+        let (publisher, _consumer) = pub_sub();
+        let started = supervisor.start(publisher).expect("start");
+
+        let ephemeral_path = tmp_dir.path().join("ephemeral.txt");
+        let persistent_path = tmp_dir.path().join("persistent.txt");
+        assert!(
+            ephemeral_path.exists(),
+            "spin_up should have written ephemeral.txt"
+        );
+        assert!(
+            persistent_path.exists(),
+            "spin_up should have written persistent.txt"
+        );
+
+        let stop_result = started.stop();
+        assert!(stop_result.is_ok(), "stop should succeed: {stop_result:?}");
+
+        assert!(
+            !ephemeral_path.exists(),
+            "stop should have removed the ephemeral file"
+        );
+        assert!(
+            persistent_path.exists(),
+            "stop should have left the persistent file alone"
+        );
     }
 
     #[test]

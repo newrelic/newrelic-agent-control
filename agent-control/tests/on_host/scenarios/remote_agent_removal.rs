@@ -158,6 +158,21 @@ agents:
         )
     });
 
+    // The sub-agent's filesystem directory must be deleted by ResourceCleaner
+    let agent_fs_dir = base_paths
+        .remote_dir
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(agent_id);
+    retry(60, Duration::from_secs(1), || {
+        if agent_fs_dir.exists() {
+            return Err(format!(
+                "agent filesystem dir still present at {agent_fs_dir:?} after removal"
+            )
+            .into());
+        }
+        Ok(())
+    });
+
     // 3. Add agent again
     opamp_server.set_config_response(ac_instance_id.clone(), agents_config_with_agent.as_str());
 
