@@ -321,28 +321,35 @@ deployment:
   filesystem:
     config:
       kind: dir
+      persistent: true
       entries:
         newrelic-infra.yaml:
           kind: file
+          persistent: true
           text: |-
             ${{nr-var:config_agent}}
     integrations.d:
       kind: dir
+      persistent: true
       entries:
         integration.yaml:
           kind: file
+          persistent: true
           text: |-
             ${{nr-var:config_integrations}}
     logging.d:
       kind: dir
+      persistent: true
       entries:
         logging.yaml:
           kind: file
+          persistent: true
           text: |-
             ${{nr-var:config_logging}}
     # This directory needs to persist across restarts for the infra agent
     newrelic-infra:
       kind: dir
+      persistent: true
       entries:
         newrelic-integrations:
           kind: dir
@@ -496,5 +503,364 @@ fn read_file_and_expect_content(
             path.as_ref().display(),
             e
         )),
+    }
+}
+
+#[test]
+fn ephemeral_entries_wiped_on_stop() {
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
+
+    let tempdir = tempdir().expect("failed to create temp dir");
+    let local_dir = tempdir.path().join("local");
+    let remote_dir = tempdir.path().join("remote");
+
+    let agent_id = "ephemeral-agent";
+
+    create_file(
+        format!(
+            r#"
+namespace: test
+name: ephemeral
+version: 0.0.0
+platform: host
+operating_system: {AGENT_CONTROL_MODE_ON_HOST}
+protocol_version: "1.0"
+variables: {{}}
+deployment:
+  filesystem:
+    ephemeral.txt:
+      kind: file
+      text: "ephemeral content"
+    persistent.txt:
+      kind: file
+      persistent: true
+      text: "persistent content"
+"#,
+        ),
+        local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
+    );
+
+    create_agent_control_config(
+        opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
+        format!("\n  {agent_id}:\n    agent_type: \"test/ephemeral:0.0.0\"\n"),
+        local_dir.to_path_buf(),
+    );
+    create_local_config(
+        agent_id.to_string(),
+        NO_CONFIG.to_string(),
+        local_dir.to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        local_dir: local_dir.to_path_buf(),
+        remote_dir: remote_dir.to_path_buf(),
+        log_dir: local_dir.to_path_buf(),
+    };
+
+    let ephemeral_path = base_paths
+        .remote_dir
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(agent_id)
+        .join("ephemeral.txt");
+    let persistent_path = base_paths
+        .remote_dir
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(agent_id)
+        .join("persistent.txt");
+
+    {
+        let _agent_control =
+            start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+        retry(30, Duration::from_secs(1), || {
+            read_file_and_expect_content(&ephemeral_path, "ephemeral content")?;
+            read_file_and_expect_content(&persistent_path, "persistent content")?;
+            Ok(())
+        });
+    }
+    // After AC drops the supervisor calls delete_ephemeral.
+    retry(30, Duration::from_secs(1), || {
+        if ephemeral_path.exists() {
+            return Err(format!("ephemeral file still on disk: {ephemeral_path:?}").into());
+        }
+        if !persistent_path.exists() {
+            return Err(
+                format!("persistent file should still be present: {persistent_path:?}").into(),
+            );
+        }
+        Ok(())
+    });
+}
+
+/// Full stop/restart-with-different-agent-type flow:
+///   1. AC boots with agent type A declaring a persistent file and a persistent `Dir`.
+///   2. AC stops. Persistent entries (and any agent-process-created files inside) persist.
+///   3. The agent-type is rewritten as agent type B without any of those entries.
+///   4. AC starts again. The sidecar-manifest diff finds the previously-managed paths absent
+///      from the new declared set and deletes them. The persistent Dir is removed via
+///      `remove_dir_all`, taking the agent-created file inside it with it as collateral.
+#[test]
+fn previously_persistent_entries_deleted_on_restart_with_new_agent_type() {
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
+
+    let tempdir = tempdir().expect("failed to create temp dir");
+    let local_dir = tempdir.path().join("local");
+    let remote_dir = tempdir.path().join("remote");
+
+    let agent_id = "swap-agent";
+    let agent_type_yaml_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
+
+    create_file(
+        format!(
+            r#"
+namespace: test
+name: swap
+version: 0.0.0
+platform: host
+operating_system: {AGENT_CONTROL_MODE_ON_HOST}
+protocol_version: "1.0"
+variables: {{}}
+deployment:
+  filesystem:
+    persistent.txt:
+      kind: file
+      persistent: true
+      text: "p"
+    drop-zone:
+      kind: dir
+      persistent: true
+"#,
+        ),
+        agent_type_yaml_path.clone(),
+    );
+    create_agent_control_config(
+        opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
+        format!("\n  {agent_id}:\n    agent_type: \"test/swap:0.0.0\"\n"),
+        local_dir.to_path_buf(),
+    );
+    create_local_config(
+        agent_id.to_string(),
+        NO_CONFIG.to_string(),
+        local_dir.to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        local_dir: local_dir.to_path_buf(),
+        remote_dir: remote_dir.to_path_buf(),
+        log_dir: local_dir.to_path_buf(),
+    };
+
+    let persistent_path = base_paths
+        .remote_dir
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(agent_id)
+        .join("persistent.txt");
+    let drop_zone_path = base_paths
+        .remote_dir
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(agent_id)
+        .join("drop-zone");
+    let runtime_file_path = drop_zone_path.join("runtime.log");
+
+    // Write agent type A's filesystem, drop a runtime file in the drop zone.
+    {
+        let _agent_control =
+            start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+        retry(30, Duration::from_secs(1), || {
+            read_file_and_expect_content(&persistent_path, "p")?;
+            if !drop_zone_path.is_dir() {
+                return Err(format!("drop zone missing: {drop_zone_path:?}").into());
+            }
+            Ok(())
+        });
+
+        std::fs::write(&runtime_file_path, "agent runtime data").unwrap();
+    }
+
+    // After AC stops, persistent entries (and the agent-created file in the drop zone) survive.
+    assert!(
+        persistent_path.exists(),
+        "persistent file should survive stop: {persistent_path:?}"
+    );
+    assert!(
+        runtime_file_path.exists(),
+        "agent-created file in drop zone should survive stop: {runtime_file_path:?}"
+    );
+
+    // Swap to agent type B: no filesystem entries at all.
+    create_file(
+        format!(
+            r#"
+namespace: test
+name: swap
+version: 0.0.0
+platform: host
+operating_system: {AGENT_CONTROL_MODE_ON_HOST}
+protocol_version: "1.0"
+variables: {{}}
+deployment:
+  filesystem: {{}}
+"#,
+        ),
+        agent_type_yaml_path,
+    );
+
+    // AC run: reconciliation against B's empty declared set wipes everything.
+    {
+        let _agent_control =
+            start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+        retry(30, Duration::from_secs(1), || {
+            if persistent_path.exists() {
+                return Err(format!(
+                    "previously-persistent file should be deleted: {persistent_path:?}"
+                )
+                .into());
+            }
+            if drop_zone_path.exists() {
+                return Err(format!(
+                    "formerly-persistent drop zone should be deleted: {drop_zone_path:?}"
+                )
+                .into());
+            }
+            if runtime_file_path.exists() {
+                return Err(format!(
+                    "agent-created file in formerly-persistent drop zone should be deleted: \
+                     {runtime_file_path:?}"
+                )
+                .into());
+            }
+            Ok(())
+        });
+    }
+}
+
+/// Sidecar-manifest reconciliation: when the agent type's `Dir.entries:` set changes between
+/// two AC runs, only the previously-declared (now-undeclared) entries are removed. The
+/// directory itself stays, and any agent-process-created file inside survives because it was
+/// never tracked in the manifest.
+#[test]
+fn agent_created_files_inside_persistent_dir_survive_sibling_removal() {
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
+
+    let tempdir = tempdir().expect("failed to create temp dir");
+    let local_dir = tempdir.path().join("local");
+    let remote_dir = tempdir.path().join("remote");
+
+    let agent_id = "sidecar-agent";
+    let agent_type_yaml_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
+
+    create_file(
+        format!(
+            r#"
+namespace: test
+name: sidecar
+version: 0.0.0
+platform: host
+operating_system: {AGENT_CONTROL_MODE_ON_HOST}
+protocol_version: "1.0"
+variables: {{}}
+deployment:
+  filesystem:
+    data:
+      kind: dir
+      persistent: true
+      entries:
+        managed.txt:
+          kind: file
+          persistent: true
+          text: "managed by AC"
+"#,
+        ),
+        agent_type_yaml_path.clone(),
+    );
+    create_agent_control_config(
+        opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
+        format!("\n  {agent_id}:\n    agent_type: \"test/sidecar:0.0.0\"\n"),
+        local_dir.to_path_buf(),
+    );
+    create_local_config(
+        agent_id.to_string(),
+        NO_CONFIG.to_string(),
+        local_dir.to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        local_dir: local_dir.to_path_buf(),
+        remote_dir: remote_dir.to_path_buf(),
+        log_dir: local_dir.to_path_buf(),
+    };
+
+    let data_dir = base_paths
+        .remote_dir
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(agent_id)
+        .join("data");
+    let managed_file = data_dir.join("managed.txt");
+    let runtime_file = data_dir.join("runtime.log");
+
+    {
+        let _agent_control =
+            start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+        retry(30, Duration::from_secs(1), || {
+            read_file_and_expect_content(&managed_file, "managed by AC")?;
+            Ok(())
+        });
+
+        std::fs::write(&runtime_file, "runtime").unwrap();
+    }
+
+    // Rewrite agent type to remove `managed.txt`; keep `data` declared.
+    create_file(
+        format!(
+            r#"
+namespace: test
+name: sidecar
+version: 0.0.0
+platform: host
+operating_system: {AGENT_CONTROL_MODE_ON_HOST}
+protocol_version: "1.0"
+variables: {{}}
+deployment:
+  filesystem:
+    data:
+      kind: dir
+      persistent: true
+"#,
+        ),
+        agent_type_yaml_path,
+    );
+
+    {
+        let _agent_control =
+            start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+        retry(30, Duration::from_secs(1), || {
+            if managed_file.exists() {
+                return Err(format!(
+                    "managed.txt should have been deleted (no longer in agent type): \
+                     {managed_file:?}"
+                )
+                .into());
+            }
+            if !runtime_file.exists() {
+                return Err(format!(
+                    "agent-created runtime.log should survive (never tracked by AC): \
+                     {runtime_file:?}"
+                )
+                .into());
+            }
+            if !data_dir.is_dir() {
+                return Err(
+                    format!("data dir should still exist (still declared): {data_dir:?}").into(),
+                );
+            }
+            Ok(())
+        });
     }
 }
