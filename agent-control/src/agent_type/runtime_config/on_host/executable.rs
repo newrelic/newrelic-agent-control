@@ -36,17 +36,10 @@ impl Templateable for Executable {
     type Output = rendered::Executable;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let args: Vec<String> = self
-            .args
-            .0
-            .into_iter()
-            .map(|arg| arg.template_with(variables))
-            .collect::<Result<Vec<String>, AgentTypeError>>()?;
-
         Ok(Self::Output {
             id: self.id.template_with(variables)?,
             path: self.path.template_with(variables)?,
-            args: rendered::Args(args),
+            args: self.args.template_with(variables)?,
             env: self.env.template_with(variables)?,
             restart_policy: self.restart_policy.template_with(variables)?,
         })
@@ -55,6 +48,18 @@ impl Templateable for Executable {
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 pub struct Args(pub Vec<TemplateableValue<String>>);
+
+impl Templateable for Args {
+    type Output = rendered::Args;
+
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        self.0
+            .into_iter()
+            .map(|arg| arg.template_with(variables))
+            .collect::<Result<Vec<String>, AgentTypeError>>()
+            .map(rendered::Args)
+    }
+}
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 pub struct Env(pub(super) HashMap<String, TemplateableValue<String>>);

@@ -119,18 +119,8 @@ impl Templateable for Oci {
 impl Templateable for PostDownloadHook {
     type Output = rendered::PostDownloadHook;
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        use crate::agent_type::runtime_config::on_host::executable::rendered::Args as RenderedArgs;
-
         let path = self.path.template_with(variables)?;
-
-        let args = RenderedArgs(
-            self.args
-                .0
-                .into_iter()
-                .map(|arg| arg.template_with(variables))
-                .collect::<Result<Vec<String>, AgentTypeError>>()?,
-        );
-
+        let args = self.args.template_with(variables)?;
         let env = self.env.template_with(variables)?;
 
         Ok(Self::Output { path, args, env })
