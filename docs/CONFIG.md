@@ -211,6 +211,21 @@ secrets_providers:
         engine: kv2
 ```
 
+### self_update
+
+Configures the on-host self-update mechanism.
+
+```yaml
+self_update:
+  enabled: false # Defaults to false. When true, Agent Control will attempt to self-update when Fleet Control pushes a new version.
+  signature_verification_enabled: true # Defaults to true. When false, package signature verification is skipped (not recommended for production).
+  package:
+    download:
+      oci:
+        repository: "newrelic/agent-control-artifacts" # OCI repository for Agent Control packages.
+        public_key_url: "https://..." # JWKS endpoint used to verify package signatures.
+```
+
 ### agent_packages
 
 This field configures packages behaviour.
