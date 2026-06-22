@@ -15,10 +15,12 @@ use crate::opamp::client_builder::PollInterval;
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
 use crate::secrets_provider::SecretsProvidersConfig;
+use crate::utils::retry::BackoffPolicy;
 use crate::values::yaml_config::YAMLConfig;
 use crate::{
     agent_type::agent_type_id::AgentTypeID, instrumentation::config::InstrumentationConfig,
 };
+use duration_str::deserialize_duration;
 use http::HeaderMap;
 use kube::api::TypeMeta;
 use oci_client::secrets::RegistryAuth;
@@ -26,6 +28,7 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::str::FromStr;
+use std::time::Duration;
 use thiserror::Error;
 use tracing::info;
 use url::Url;
@@ -101,12 +104,101 @@ pub struct SelfUpdateConfig {
     pub signature_verification_enabled: SignatureVerificationEnabled,
     /// Package configuration for the self-update mechanism in on-host environments
     pub package: AgentControlPackage,
+    /// how many failures we retry within a single self-update attempt, and the backoff between them
+    pub download_retry: DownloadRetryConfig,
+    /// When an upgrade to a given version fails, how long we wait before re-trying it
+    /// (and how many consecutive failures before we give up entirely until a version change)
+    pub upgrade_backoff: UpgradeBackoffConfig,
 }
 
 const DEFAULT_SELF_UPDATE_CONFIG_ENABLED: bool = false;
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_SELF_UPDATE_CONFIG_ENABLED)]
 pub struct SelfUpdateConfigEnabled(bool);
+
+const DEFAULT_DOWNLOAD_MAX_ATTEMPTS: usize = 3;
+const DEFAULT_DOWNLOAD_BASE_DELAY: Duration = Duration::from_secs(1);
+const DEFAULT_DOWNLOAD_MAX_DELAY: Duration = Duration::from_secs(30);
+const DEFAULT_DOWNLOAD_JITTER: bool = true;
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_DOWNLOAD_MAX_ATTEMPTS)]
+pub struct DownloadMaxAttempts(usize);
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_DOWNLOAD_BASE_DELAY)]
+pub struct DownloadBaseDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_DOWNLOAD_MAX_DELAY)]
+pub struct DownloadMaxDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_DOWNLOAD_JITTER)]
+pub struct DownloadJitter(bool);
+
+#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct DownloadRetryConfig {
+    pub max_attempts: DownloadMaxAttempts,
+    pub base_delay: DownloadBaseDelay,
+    pub max_delay: DownloadMaxDelay,
+    pub jitter: DownloadJitter,
+}
+
+impl From<&DownloadRetryConfig> for BackoffPolicy {
+    fn from(c: &DownloadRetryConfig) -> Self {
+        BackoffPolicy {
+            max_attempts: c.max_attempts.0,
+            base_delay: c.base_delay.0,
+            max_delay: c.max_delay.0,
+            jitter: c.jitter.0,
+        }
+    }
+}
+
+const DEFAULT_UPGRADE_MAX_FAILURES: u32 = 5;
+const DEFAULT_UPGRADE_BASE_DELAY: Duration = Duration::from_secs(30);
+const DEFAULT_UPGRADE_MAX_DELAY: Duration = Duration::from_secs(600);
+const DEFAULT_UPGRADE_JITTER: bool = true;
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_UPGRADE_MAX_FAILURES)]
+pub struct UpgradeMaxConsecutiveFailures(u32);
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_UPGRADE_BASE_DELAY)]
+pub struct UpgradeBaseDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_UPGRADE_MAX_DELAY)]
+pub struct UpgradeMaxDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_UPGRADE_JITTER)]
+pub struct UpgradeJitter(bool);
+
+#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+#[serde(default)]
+pub struct UpgradeBackoffConfig {
+    pub max_consecutive_failures: UpgradeMaxConsecutiveFailures,
+    pub base_delay: UpgradeBaseDelay,
+    pub max_delay: UpgradeMaxDelay,
+    pub jitter: UpgradeJitter,
+}
+
+impl From<&UpgradeBackoffConfig> for BackoffPolicy {
+    fn from(c: &UpgradeBackoffConfig) -> Self {
+        // The gate enforces the consecutive-failure cap via `policy.max_attempts`
+        // (see `BackoffGate::check`), so `max_consecutive_failures` maps onto it.
+        BackoffPolicy {
+            max_attempts: c.max_consecutive_failures.0 as usize,
+            base_delay: c.base_delay.0,
+            max_delay: c.max_delay.0,
+            jitter: c.jitter.0,
+        }
+    }
+}
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
 pub struct PackagesConfig {

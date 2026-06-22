@@ -6,6 +6,33 @@ use thiserror::Error;
 pub enum UpdaterError {
     #[error("update failed: {0}")]
     UpdateFailed(String),
+    /// The previous attempt to upgrade to this version failed; we are deliberately not hitting
+    /// the registry again until the cooldown elapses (or the version changes). The error message
+    /// is intentionally **stable across polls** so OpAMP `ConfigState::Failed` does not churn.
+    #[error("upgrade to {version} suppressed: {reason}")]
+    UpdateInCooldown {
+        version: String,
+        reason: CooldownReason,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CooldownReason {
+    /// Within the exponential-backoff cooldown window after a failed attempt.
+    Backoff,
+    /// Maximum consecutive failures reached; suppressed until the desired version changes.
+    CapReached,
+}
+
+impl std::fmt::Display for CooldownReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CooldownReason::Backoff => f.write_str("retrying after previous failure"),
+            CooldownReason::CapReached => {
+                f.write_str("max consecutive failures reached, waiting for new desired version")
+            }
+        }
+    }
 }
 
 /// A trait for updating the agent control version using a dynamic configuration.

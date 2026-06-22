@@ -12,6 +12,7 @@ use newrelic_agent_control::package::manager::PackageData;
 use newrelic_agent_control::package::oci::downloader::{
     OCIPackageArtifactDownloader, OCIPackageDownloader,
 };
+use newrelic_agent_control::utils::retry::BackoffPolicy;
 use oci_client::client::{ClientConfig, ClientProtocol};
 use oci_test_utils::{PackageMediaType, PackagePublisher, blob_digest};
 use std::str::FromStr;
@@ -131,7 +132,12 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
         Default::default(),
         false,
     )
-    .with_retries(4, Duration::from_millis(100));
+    .with_retry_policy(BackoffPolicy {
+        max_attempts: 4,
+        base_delay: Duration::from_millis(100),
+        max_delay: Duration::from_millis(100),
+        jitter: true,
+    });
 
     let package_data = PackageData {
         id: "test-package".to_string(),

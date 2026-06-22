@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use oci_client::Reference;
 use oci_client::secrets::RegistryAuth;
 use tracing::{debug, warn};
@@ -91,10 +89,10 @@ impl OCIAgentTypeArtifactDownloader {
         }
     }
 
-    /// Returns a new downloader with the provided retry configuration.
-    pub fn with_retries(self, retries: usize, retry_interval: Duration) -> Self {
+    /// Returns a new downloader with the provided retry policy.
+    pub fn with_retry_policy(self, policy: crate::utils::retry::BackoffPolicy) -> Self {
         Self {
-            fetcher: self.fetcher.with_retries(retries, retry_interval),
+            fetcher: self.fetcher.with_retry_policy(policy),
             ..self
         }
     }

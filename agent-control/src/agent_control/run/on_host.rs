@@ -46,6 +46,7 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
+use crate::utils::time::SystemClock;
 use crate::values::ConfigRepo;
 use fs::directory_manager::DirectoryManagerFs;
 use fs::file::LocalFile;
@@ -222,7 +223,8 @@ impl AgentControlRunner {
                     .self_update
                     .signature_verification_enabled
                     .into(),
-            ),
+            )
+            .with_retry_policy((&agent_control_config.self_update.download_retry).into()),
             DirectoryManagerFs,
             remote_dir.clone(),
         );
@@ -233,6 +235,8 @@ impl AgentControlRunner {
             agent_control_package_manager,
             ProcessVerifyExecutor::default(),
             agent_control_config.self_update.package.clone(),
+            agent_control_config.self_update.upgrade_backoff.clone(),
+            SystemClock,
         );
 
         AgentControl::new(

@@ -1,16 +1,23 @@
 pub mod verify;
 
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::config::{AgentControlDynamicConfig, AgentControlPackage};
+use crate::agent_control::config::{
+    AgentControlDynamicConfig, AgentControlPackage, UpgradeBackoffConfig,
+};
 use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
-use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
+use crate::agent_control::version_updater::updater::{
+    CooldownReason, UpdaterError, VersionUpdater,
+};
 use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;
 use crate::package::manager::{PackageData, PackageManager};
+use crate::utils::backoff_gate::{BackoffGate, GateDecision};
+use crate::utils::retry::BackoffPolicy;
+use crate::utils::time::Clock;
 use self_replacer::{BinarySelfReplacer, SelfReplacer};
 use thiserror::Error;
-use tracing::{debug, debug_span};
+use tracing::{debug, debug_span, warn};
 use url::Url;
 use verify::VerifyExecutor;
 
@@ -27,10 +34,11 @@ pub enum BuildError {
     InvalidReference(#[from] oci_client::ParseError),
 }
 
-pub struct OnHostACUpdater<P, V>
+pub struct OnHostACUpdater<P, V, C>
 where
     P: PackageManager,
     V: VerifyExecutor,
+    C: Clock,
 {
     ac_remote_update_enabled: bool,
     agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
@@ -38,12 +46,16 @@ where
     verify_executor: V,
     repository: Repository,
     pub_key_url: Url,
+    /// Throttles re-attempts at a failing upgrade so we don't hammer the registry every
+    /// OpAMP poll. Keyed by target [`Version`]: a new desired version resets the cooldown.
+    upgrade_gate: BackoffGate<Version, C>,
 }
 
-impl<P, V> VersionUpdater for OnHostACUpdater<P, V>
+impl<P, V, C> VersionUpdater for OnHostACUpdater<P, V, C>
 where
     P: PackageManager,
     V: VerifyExecutor,
+    C: Clock,
 {
     fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError> {
         if !self.ac_remote_update_enabled {
@@ -65,12 +77,97 @@ where
 
         if new_version.to_string() == AGENT_CONTROL_VERSION {
             debug!("Desired version is the same as current, skipping update");
+            self.upgrade_gate.reset();
             return Ok(());
+        }
+
+        // Cooldown gate: suppress re-attempts that are still within their backoff window, or
+        // that have exhausted the consecutive-failure budget, until the desired version changes.
+        if let Some(err) = self.cooldown_error(new_version) {
+            return Err(err);
         }
 
         debug!("Starting update process");
 
-        let package_data = self.get_package_data(new_version.clone());
+        match self.try_upgrade(new_version.clone()) {
+            Ok(()) => {
+                self.upgrade_gate.reset();
+                Ok(())
+            }
+            Err(e) => {
+                self.upgrade_gate.record_failure(new_version);
+                Err(e)
+            }
+        }
+    }
+}
+
+impl<P, V, C> OnHostACUpdater<P, V, C>
+where
+    P: PackageManager,
+    V: VerifyExecutor,
+    C: Clock,
+{
+    pub fn new(
+        ac_remote_update_enabled: bool,
+        agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
+        package_manager: P,
+        verify_executor: V,
+        package: AgentControlPackage,
+        backoff: UpgradeBackoffConfig,
+        clock: C,
+    ) -> Self {
+        Self {
+            ac_remote_update_enabled,
+            agent_control_internal_publisher,
+            package_manager,
+            verify_executor,
+            repository: package.download.oci.repository.clone(),
+            pub_key_url: package.download.oci.public_key_url.clone(),
+            // The gate owns the exponential-backoff-plus-jitter schedule (it never sleeps; it
+            // records a "next attempt" instant checked across OpAMP polls).
+            upgrade_gate: BackoffGate::new(BackoffPolicy::from(&backoff), clock),
+        }
+    }
+
+    /// Maps the generic gate verdict for `new_version` onto the OpAMP-facing [`UpdaterError`],
+    /// returning `Some(err)` when the upgrade should be suppressed and `None` to proceed.
+    fn cooldown_error(&self, new_version: &Version) -> Option<UpdaterError> {
+        match self.upgrade_gate.check(new_version) {
+            GateDecision::Proceed => None,
+            GateDecision::CapReached {
+                consecutive_failures,
+            } => {
+                warn!(
+                    version = %new_version,
+                    consecutive_failures,
+                    "Upgrade suppressed: max consecutive failures reached. \
+                     Waiting for desired version to change before retrying.",
+                );
+                Some(UpdaterError::UpdateInCooldown {
+                    version: new_version.to_string(),
+                    reason: CooldownReason::CapReached,
+                })
+            }
+            GateDecision::InCooldown {
+                consecutive_failures,
+            } => {
+                debug!(
+                    version = %new_version,
+                    consecutive_failures,
+                    "Upgrade suppressed: in backoff cooldown window.",
+                );
+                Some(UpdaterError::UpdateInCooldown {
+                    version: new_version.to_string(),
+                    reason: CooldownReason::Backoff,
+                })
+            }
+        }
+    }
+
+    /// Performs a single upgrade attempt: install → verify → self-replace → request restart.
+    fn try_upgrade(&self, new_version: Version) -> Result<(), UpdaterError> {
+        let package_data = self.get_package_data(new_version);
 
         let new_binary_path = self
             .package_manager
@@ -104,29 +201,6 @@ where
 
         Ok(())
     }
-}
-
-impl<P, V> OnHostACUpdater<P, V>
-where
-    P: PackageManager,
-    V: VerifyExecutor,
-{
-    pub fn new(
-        ac_remote_update_enabled: bool,
-        agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
-        package_manager: P,
-        verify_executor: V,
-        package: AgentControlPackage,
-    ) -> Self {
-        Self {
-            ac_remote_update_enabled,
-            agent_control_internal_publisher,
-            package_manager,
-            verify_executor,
-            repository: package.download.oci.repository.clone(),
-            pub_key_url: package.download.oci.public_key_url.clone(),
-        }
-    }
 
     fn get_package_data(&self, new_version: Version) -> PackageData {
         PackageData {
@@ -144,12 +218,19 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_control::config::AgentControlPackage;
+    use crate::agent_control::config::{
+        AgentControlPackage, UpgradeBaseDelay, UpgradeJitter, UpgradeMaxConsecutiveFailures,
+        UpgradeMaxDelay,
+    };
     use crate::event::channel::pub_sub;
     use crate::package::manager::tests::MockPackageManager;
+    use crate::package::oci::package_manager::OCIPackageManagerError;
+    use crate::utils::time::SystemClock;
     use mockall::mock;
     use std::path::Path;
     use std::str::FromStr;
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
 
     mock! {
         pub VerifyExecutorMock {}
@@ -158,40 +239,261 @@ mod tests {
         }
     }
 
-    type TestUpdater = OnHostACUpdater<MockPackageManager, MockVerifyExecutorMock>;
+    /// Test clock backed by `Arc<Mutex<Instant>>` so the test body can advance time
+    /// deterministically while the updater holds the clock by value.
+    #[derive(Clone)]
+    struct FakeClock(Arc<std::sync::Mutex<Instant>>);
 
-    fn new_test_updater(ac_remote_update_enabled: bool) -> TestUpdater {
+    impl FakeClock {
+        fn new(initial: Instant) -> Self {
+            Self(Arc::new(std::sync::Mutex::new(initial)))
+        }
+        fn advance(&self, by: Duration) {
+            *self.0.lock().unwrap() += by;
+        }
+    }
+
+    impl Clock for FakeClock {
+        fn now(&self) -> Instant {
+            *self.0.lock().unwrap()
+        }
+    }
+
+    type TestUpdater<C> = OnHostACUpdater<MockPackageManager, MockVerifyExecutorMock, C>;
+
+    fn no_jitter_backoff(base: Duration, max: Duration, max_failures: u32) -> UpgradeBackoffConfig {
+        UpgradeBackoffConfig {
+            base_delay: UpgradeBaseDelay::from(base),
+            max_delay: UpgradeMaxDelay::from(max),
+            max_consecutive_failures: UpgradeMaxConsecutiveFailures::from(max_failures),
+            jitter: UpgradeJitter::from(false),
+        }
+    }
+
+    fn install_failure(
+        _id: &AgentID,
+        _pkg: PackageData,
+    ) -> Result<crate::package::manager::InstalledPackageData, OCIPackageManagerError> {
+        Err(OCIPackageManagerError::Install(std::io::Error::other(
+            "simulated registry failure",
+        )))
+    }
+
+    fn new_test_updater_with<C: Clock>(backoff: UpgradeBackoffConfig, clock: C) -> TestUpdater<C> {
         let (publisher, _) = pub_sub();
         OnHostACUpdater::new(
-            ac_remote_update_enabled,
+            true,
             publisher,
             MockPackageManager::new(),
             MockVerifyExecutorMock::new(),
             AgentControlPackage::default(),
+            backoff,
+            clock,
         )
+    }
+
+    fn config_with_version(v: &str) -> AgentControlDynamicConfig {
+        AgentControlDynamicConfig {
+            version: Some(Version::from_str(v).unwrap()),
+            ..Default::default()
+        }
     }
 
     #[test]
     fn update_is_noop_when_remote_update_disabled() {
-        let updater = new_test_updater(false);
+        let (publisher, _) = pub_sub();
+        let updater: TestUpdater<SystemClock> = OnHostACUpdater::new(
+            false,
+            publisher,
+            MockPackageManager::new(),
+            MockVerifyExecutorMock::new(),
+            AgentControlPackage::default(),
+            UpgradeBackoffConfig::default(),
+            SystemClock,
+        );
         let config = AgentControlDynamicConfig::default();
         assert!(updater.update(&config).is_ok());
     }
 
     #[test]
     fn update_is_noop_when_version_not_specified() {
-        let updater = new_test_updater(true);
+        let updater = new_test_updater_with(UpgradeBackoffConfig::default(), SystemClock);
         let config = AgentControlDynamicConfig::default();
         assert!(updater.update(&config).is_ok());
     }
 
     #[test]
     fn update_is_noop_when_version_matches_current() {
-        let updater = new_test_updater(true);
+        let updater = new_test_updater_with(UpgradeBackoffConfig::default(), SystemClock);
         let config = AgentControlDynamicConfig {
             version: Some(Version::from_str(AGENT_CONTROL_VERSION).unwrap()),
             ..Default::default()
         };
         assert!(updater.update(&config).is_ok());
+    }
+
+    #[test]
+    fn first_failure_then_subsequent_call_within_window_is_suppressed() {
+        let clock = FakeClock::new(Instant::now());
+        let mut updater = new_test_updater_with(
+            no_jitter_backoff(Duration::from_secs(30), Duration::from_secs(600), 5),
+            clock.clone(),
+        );
+        // Exactly one real install attempt — second attempt MUST be suppressed.
+        updater
+            .package_manager
+            .expect_install()
+            .times(1)
+            .returning(install_failure);
+
+        let cfg = config_with_version("99.99.99");
+
+        let err = updater.update(&cfg).unwrap_err();
+        assert!(matches!(err, UpdaterError::UpdateFailed(_)), "{:?}", err);
+
+        let err = updater.update(&cfg).unwrap_err();
+        assert!(matches!(
+            err,
+            UpdaterError::UpdateInCooldown {
+                reason: CooldownReason::Backoff,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn cooldown_clears_after_window_elapses_and_re_attempts() {
+        let clock = FakeClock::new(Instant::now());
+        let mut updater = new_test_updater_with(
+            no_jitter_backoff(Duration::from_millis(100), Duration::from_secs(10), 5),
+            clock.clone(),
+        );
+        updater
+            .package_manager
+            .expect_install()
+            .times(2)
+            .returning(install_failure);
+
+        let cfg = config_with_version("99.99.99");
+
+        let _ = updater.update(&cfg).unwrap_err(); // attempt 1: fails
+        let err = updater.update(&cfg).unwrap_err();
+        assert!(matches!(
+            err,
+            UpdaterError::UpdateInCooldown {
+                reason: CooldownReason::Backoff,
+                ..
+            }
+        ));
+
+        clock.advance(Duration::from_secs(1));
+
+        // Attempt 2 fires (and fails again).
+        let err = updater.update(&cfg).unwrap_err();
+        assert!(matches!(err, UpdaterError::UpdateFailed(_)), "{:?}", err);
+    }
+
+    #[test]
+    fn cap_reached_suppresses_indefinitely() {
+        let clock = FakeClock::new(Instant::now());
+        let mut updater = new_test_updater_with(
+            no_jitter_backoff(Duration::from_millis(1), Duration::from_millis(1), 2),
+            clock.clone(),
+        );
+        // Exactly 2 install calls; never more.
+        updater
+            .package_manager
+            .expect_install()
+            .times(2)
+            .returning(install_failure);
+
+        let cfg = config_with_version("99.99.99");
+
+        let _ = updater.update(&cfg).unwrap_err();
+        clock.advance(Duration::from_secs(1));
+        let _ = updater.update(&cfg).unwrap_err();
+        clock.advance(Duration::from_secs(2));
+
+        for _ in 0..5 {
+            let err = updater.update(&cfg).unwrap_err();
+            assert!(matches!(
+                err,
+                UpdaterError::UpdateInCooldown {
+                    reason: CooldownReason::CapReached,
+                    ..
+                }
+            ));
+        }
+    }
+
+    #[test]
+    fn version_change_resets_cooldown_and_allows_immediate_attempt() {
+        let clock = FakeClock::new(Instant::now());
+        let mut updater = new_test_updater_with(
+            no_jitter_backoff(Duration::from_secs(60), Duration::from_secs(600), 5),
+            clock,
+        );
+        // Two real install calls — bad → bad-different.
+        updater
+            .package_manager
+            .expect_install()
+            .times(2)
+            .returning(install_failure);
+
+        let _ = updater
+            .update(&config_with_version("99.99.99"))
+            .unwrap_err();
+        // Without advancing the clock, a different version triggers a real attempt.
+        let _ = updater
+            .update(&config_with_version("88.88.88"))
+            .unwrap_err();
+    }
+
+    #[test]
+    fn reverting_to_current_version_short_circuits_even_when_capped() {
+        let clock = FakeClock::new(Instant::now());
+        let mut updater = new_test_updater_with(
+            no_jitter_backoff(Duration::from_millis(1), Duration::from_millis(1), 1),
+            clock.clone(),
+        );
+        updater
+            .package_manager
+            .expect_install()
+            .times(1)
+            .returning(install_failure);
+
+        let _ = updater
+            .update(&config_with_version("99.99.99"))
+            .unwrap_err();
+        clock.advance(Duration::from_secs(1));
+        let err = updater
+            .update(&config_with_version("99.99.99"))
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            UpdaterError::UpdateInCooldown {
+                reason: CooldownReason::CapReached,
+                ..
+            }
+        ));
+
+        let cfg = AgentControlDynamicConfig {
+            version: Some(Version::from_str(AGENT_CONTROL_VERSION).unwrap()),
+            ..Default::default()
+        };
+        assert!(updater.update(&cfg).is_ok());
+    }
+
+    #[test]
+    fn cooldown_error_message_is_stable_across_polls() {
+        let err1 = UpdaterError::UpdateInCooldown {
+            version: "99.99.99".into(),
+            reason: CooldownReason::Backoff,
+        };
+        let err2 = UpdaterError::UpdateInCooldown {
+            version: "99.99.99".into(),
+            reason: CooldownReason::Backoff,
+        };
+        assert_eq!(err1.to_string(), err2.to_string());
     }
 }
