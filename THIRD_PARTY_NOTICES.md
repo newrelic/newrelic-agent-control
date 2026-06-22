@@ -2343,13 +2343,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## serde_yaml <https://crates.io/crates/serde_yaml>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## sha1 <https://crates.io/crates/sha1>
 
 Distributed under the following license(s):
@@ -2838,12 +2831,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## unsafe-libyaml <https://crates.io/crates/unsafe-libyaml>
-
-Distributed under the following license(s):
-
-* MIT
-
 ## untrusted <https://crates.io/crates/untrusted>
 
 Distributed under the following license(s):
@@ -2851,13 +2838,6 @@ Distributed under the following license(s):
 * ISC
 
 ## url <https://crates.io/crates/url>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## utf-8 <https://crates.io/crates/utf-8>
 
 Distributed under the following license(s):
 
