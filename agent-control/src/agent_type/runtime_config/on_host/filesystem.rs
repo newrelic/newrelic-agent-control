@@ -63,9 +63,11 @@ pub enum FilesystemEntry {
         persistent: TemplateableValue<bool>,
     },
     /// A directory whose set of files is computed at deploy time from a `map[string]yaml`
-    /// variable. Map keys become filenames; values become file contents.
+    /// variable. The `source` is a string that templates to a YAML mapping; map keys become
+    /// filenames and map values become file contents (string values pass through, nested YAML is
+    /// serialized).
     DirContentFromMap {
-        source: TemplateableValue<DirEntriesMap>,
+        source: TemplateableValue<String>,
         #[serde(default)]
         persistent: TemplateableValue<bool>,
     },
@@ -98,11 +100,6 @@ impl From<SafePath> for PathBuf {
         value.0
     }
 }
-
-/// Helper carrying the rendered output of a `${nr-var:map[string]yaml}` source — exists
-/// to satisfy the orphan rule when implementing `Templateable` for `TemplateableValue<_>`.
-#[derive(Debug, Default, PartialEq, Clone)]
-pub struct DirEntriesMap(HashMap<SafePath, String>);
 
 impl Templateable for FileSystem {
     type Output = rendered::FileSystem;
@@ -151,12 +148,8 @@ impl Templateable for FilesystemEntry {
                 })
             }
             FilesystemEntry::DirContentFromMap { source, persistent } => {
-                let map = source.template_with(variables)?;
-                let files = map
-                    .0
-                    .into_iter()
-                    .map(|(k, c)| (PathBuf::from(k), c))
-                    .collect();
+                let templated = source.template_with(variables)?;
+                let files = project_dir_content_from_map(&templated)?;
                 Ok(rendered::RenderedEntry::DirContentFromMap {
                     files,
                     persistent: persistent.template_with(variables)?,
@@ -174,31 +167,31 @@ fn filesystem_agent_dir(variables: &Variables) -> Result<String, AgentTypeError>
     }
 }
 
-impl Templateable for TemplateableValue<DirEntriesMap> {
-    type Output = DirEntriesMap;
-
-    /// Templates the source string of a `dir_content_from_map` entry, then parses the result as a
-    /// YAML mapping `filename -> contents`. Empty templated string yields an empty map.
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let templated_string = self.template.template_with(variables)?;
-        let value: HashMap<SafePath, String> = if templated_string.is_empty() {
-            HashMap::new()
-        } else {
-            let map_string_value: HashMap<SafePath, serde_json::Value> =
-                serde_saphyr::from_str(&templated_string).map_err(|e| {
-                    AgentTypeError::ValueNotParseableFromString(format!(
-                        "Could not parse templated directory items as YAML: {e}"
-                    ))
-                })?;
-
-            map_string_value
-                .into_iter()
-                .map(|(k, v)| Ok((k, output_string(v)?)))
-                .collect::<Result<HashMap<_, _>, serde_saphyr::Error>>()?
-        };
-
-        Ok(DirEntriesMap(value))
+/// Parses the already-templated `source` string of a `dir_content_from_map` entry as a YAML
+/// mapping `SafePath -> contents-string` and converts the values to `String`. An empty
+/// `templated` source yields an empty map (the natural representation of a `map[string]yaml`
+/// variable with no entries or with an unresolved/missing default).
+///
+/// Keys are validated as [`SafePath`]s during YAML deserialization, so a source map whose keys
+/// try to escape the agent's filesystem dir (e.g. `/abs`, `..`, `foo/../bar`) is rejected at
+/// parse time, not after the fact.
+fn project_dir_content_from_map(
+    templated: &str,
+) -> Result<HashMap<PathBuf, String>, AgentTypeError> {
+    if templated.is_empty() {
+        return Ok(HashMap::new());
     }
+    let parsed: HashMap<SafePath, serde_json::Value> =
+        serde_saphyr::from_str(templated).map_err(|e| {
+            AgentTypeError::ValueNotParseableFromString(format!(
+                "Could not parse templated directory items as YAML: {e}"
+            ))
+        })?;
+    parsed
+        .into_iter()
+        .map(|(k, v)| Ok((PathBuf::from(k), output_string(v)?)))
+        .collect::<Result<HashMap<_, _>, serde_saphyr::Error>>()
+        .map_err(AgentTypeError::from)
 }
 
 /// Converts a serde_json::Value to a String. Strings pass through; other variants are serialized
@@ -892,6 +885,359 @@ new.txt:
         assert!(
             manifest_content.contains("new.txt"),
             "fresh manifest should track the new entry: {manifest_content}"
+        );
+    }
+
+    // The tests below drive and document the behavior of `dir_content_from_map`'s source
+    // projection. They live here so the parsing rules are part of the contract tested against
+    // the same parse → template → write pipeline that production code uses. The in-memory ones
+    // compare against an expected `rendered::FileSystem` value (the public surface of the
+    // renderer); the end-to-end ones assert the on-disk result after `write()`.
+
+    /// Empty `source:` literal templates to an empty map; no files are projected and no error
+    /// is raised. This is the natural representation of a `map[string]yaml` variable with no
+    /// entries after the templating step has produced an empty string.
+    #[test]
+    fn dir_content_from_map_empty_source_yields_no_files() {
+        let variables = Variables::from_iter(vec![(
+            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+            Variable::new_final_string_variable("/base/dir"),
+        )]);
+        let parsed = serde_saphyr::from_str::<FileSystem>(
+            r#"
+projected:
+  kind: dir_content_from_map
+  source: ""
+"#,
+        )
+        .unwrap();
+        let rendered = parsed.template_with(&variables).unwrap();
+        let expected = rendered::FileSystem::new(
+            PathBuf::from("/base/dir"),
+            HashMap::from([(
+                PathBuf::from("/base/dir/projected"),
+                RenderedEntry::DirContentFromMap {
+                    files: HashMap::new(),
+                    persistent: false,
+                },
+            )]),
+        );
+        assert_eq!(rendered, expected);
+    }
+
+    /// String values inside a `map[string]yaml` source pass through `output_string` unchanged
+    /// (the pass-through is what preserves the literal text the user wrote, including any
+    /// unusual whitespace).
+    #[test]
+    fn dir_content_from_map_string_values_pass_through() {
+        let variables = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable("/base/dir"),
+            ),
+            (
+                Namespace::Variable.namespaced_name("proj"),
+                Variable::new(
+                    String::default(),
+                    false,
+                    None,
+                    Some(HashMap::from([
+                        ("a.yaml".to_string(), Value::String("hello".to_string())),
+                        (
+                            "b.yaml".to_string(),
+                            Value::String("multi-line\ncontent\n".to_string()),
+                        ),
+                    ])),
+                ),
+            ),
+        ]);
+        let parsed = serde_saphyr::from_str::<FileSystem>(
+            r#"
+projected:
+  kind: dir_content_from_map
+  source: ${nr-var:proj}
+"#,
+        )
+        .unwrap();
+        let rendered = parsed.template_with(&variables).unwrap();
+        let expected = rendered::FileSystem::new(
+            PathBuf::from("/base/dir"),
+            HashMap::from([(
+                PathBuf::from("/base/dir/projected"),
+                RenderedEntry::DirContentFromMap {
+                    files: HashMap::from([
+                        (PathBuf::from("a.yaml"), "hello".to_string()),
+                        (PathBuf::from("b.yaml"), "multi-line\ncontent\n".to_string()),
+                    ]),
+                    persistent: false,
+                },
+            )]),
+        );
+        assert_eq!(rendered, expected);
+    }
+
+    /// Nested YAML values inside a `map[string]yaml` source are serialized back to YAML
+    /// strings, not JSON. The on-disk file body must be a YAML document, so the result has to
+    /// round-trip through `serde_saphyr` back to the same logical structure.
+    #[test]
+    fn dir_content_from_map_nested_yaml_values_are_serialized() {
+        let nested = Value::Object(serde_json::Map::from_iter([(
+            "integrations".to_string(),
+            Value::Array(vec![Value::Object(serde_json::Map::from_iter([
+                ("name".to_string(), Value::String("nri-mysql".to_string())),
+                (
+                    "env".to_string(),
+                    Value::Object(serde_json::Map::from_iter([(
+                        "HOSTNAME".to_string(),
+                        Value::String("localhost".to_string()),
+                    )])),
+                ),
+            ]))]),
+        )]));
+        let tmp_dir = TempDir::new().unwrap();
+        let variables = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+            ),
+            (
+                Namespace::Variable.namespaced_name("proj"),
+                Variable::new(
+                    String::default(),
+                    false,
+                    None,
+                    Some(HashMap::from([("nri-mysql.yaml".to_string(), nested.clone())])),
+                ),
+            ),
+        ]);
+        let parsed = serde_saphyr::from_str::<FileSystem>(
+            r#"
+projected:
+  kind: dir_content_from_map
+  source: ${nr-var:proj}
+"#,
+        )
+        .unwrap();
+        parsed
+            .template_with(&variables)
+            .unwrap()
+            .write(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
+        let body = std::fs::read_to_string(tmp_dir.path().join("projected/nri-mysql.yaml"))
+            .expect("nri-mysql.yaml should be written");
+        let parsed_body: serde_json::Value = serde_saphyr::from_str(&body)
+            .unwrap_or_else(|e| panic!("file body should be valid YAML: {e}, body: {body:?}"));
+        assert_eq!(parsed_body, nested);
+    }
+
+    /// A `source:` that templates to something that isn't a YAML mapping is rejected with a
+    /// clear, agent-type-level error. (The user almost certainly meant a `map[string]yaml`
+    /// variable and the wrong one is selected.)
+    #[test]
+    fn dir_content_from_map_rejects_non_map_source() {
+        let variables = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable("/base/dir"),
+            ),
+            (
+                Namespace::Variable.namespaced_name("scalar"),
+                Variable::new_final_string_variable("just a string, not a map"),
+            ),
+        ]);
+        let parsed = serde_saphyr::from_str::<FileSystem>(
+            r#"
+projected:
+  kind: dir_content_from_map
+  source: ${nr-var:scalar}
+"#,
+        )
+        .unwrap();
+        let err = parsed.template_with(&variables).unwrap_err();
+        match &err {
+            AgentTypeError::ValueNotParseableFromString(msg) => {
+                assert!(
+                    msg.contains("Could not parse templated directory items as YAML"),
+                    "unexpected error message: {msg}"
+                );
+            }
+            other => panic!("expected ValueNotParseableFromString, got {other:?}"),
+        }
+    }
+
+    /// Keys in the projected `map[string]yaml` go through `SafePath` validation at parse time
+    /// of the templated string. Absolute and `..`-containing keys are rejected so a hostile or
+    /// misconfigured map can't make AC write outside the agent's filesystem dir.
+    #[rstest]
+    #[case::absolute_key(r#""/abs": "x""#, "is not relative")]
+    #[case::parent_dir_key(r#""../escape": "x""#, "invalid component")]
+    fn dir_content_from_map_rejects_unsafe_path_in_source_keys(
+        #[case] bad_map_value: &str,
+        #[case] expected_substr: &str,
+    ) {
+        // The user provides a string variable that resolves to a YAML map with the bad key.
+        let variables = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable("/base/dir"),
+            ),
+            (
+                Namespace::Variable.namespaced_name("bad_map"),
+                Variable::new_final_string_variable(bad_map_value),
+            ),
+        ]);
+        let parsed = serde_saphyr::from_str::<FileSystem>(
+            r#"
+projected:
+  kind: dir_content_from_map
+  source: ${nr-var:bad_map}
+"#,
+        )
+        .unwrap();
+        let err = parsed.template_with(&variables).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains(expected_substr),
+            "expected error mentioning `{expected_substr}`, got: {msg}"
+        );
+    }
+
+    /// `persistent: true` on a `dir_content_from_map` entry is still threaded into the rendered
+    /// tree. This proves the refactor preserved the persistence contract — the `persistent`
+    /// field is no longer co-located with a source-parsing wrapper, but its semantics are
+    /// unchanged.
+    #[test]
+    fn dir_content_from_map_persistent_flag_threads_through() {
+        let variables = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable("/base/dir"),
+            ),
+            (
+                Namespace::Variable.namespaced_name("proj"),
+                Variable::new(
+                    String::default(),
+                    false,
+                    None,
+                    Some(HashMap::from([(
+                        "a.yaml".to_string(),
+                        Value::String("a".to_string()),
+                    )])),
+                ),
+            ),
+        ]);
+        let parsed = serde_saphyr::from_str::<FileSystem>(
+            r#"
+projected:
+  kind: dir_content_from_map
+  source: ${nr-var:proj}
+  persistent: true
+"#,
+        )
+        .unwrap();
+        let rendered = parsed.template_with(&variables).unwrap();
+        let expected = rendered::FileSystem::new(
+            PathBuf::from("/base/dir"),
+            HashMap::from([(
+                PathBuf::from("/base/dir/projected"),
+                RenderedEntry::DirContentFromMap {
+                    files: HashMap::from([(PathBuf::from("a.yaml"), "a".to_string())]),
+                    persistent: true,
+                },
+            )]),
+        );
+        assert_eq!(rendered, expected);
+    }
+
+    /// End-to-end: `dir_content_from_map` still reconciles correctly against the sidecar
+    /// manifest. This is the parity test for the refactor — it runs the full parse → template
+    /// → write → second-write flow and asserts the manifest diff picks up the right stale
+    /// paths. Mirrors the upstream `reconciles_against_current_declared_set` test but
+    /// exercises the `dir_content_from_map` branch in isolation.
+    #[test]
+    fn dir_content_from_map_manifest_diff_removes_only_undeclared_keys() {
+        let tmp_dir = TempDir::new().unwrap();
+        let variables_full = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+            ),
+            (
+                Namespace::Variable.namespaced_name("proj"),
+                Variable::new(
+                    String::default(),
+                    false,
+                    None,
+                    Some(HashMap::from([
+                        ("a.yaml".to_string(), Value::String("A".to_string())),
+                        ("b.yaml".to_string(), Value::String("B".to_string())),
+                    ])),
+                ),
+            ),
+        ]);
+        let yaml = r#"
+projected:
+  kind: dir_content_from_map
+  source: ${nr-var:proj}
+"#;
+        serde_saphyr::from_str::<FileSystem>(yaml)
+            .unwrap()
+            .template_with(&variables_full)
+            .unwrap()
+            .write(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(tmp_dir.path().join("projected/a.yaml")).unwrap(),
+            "A"
+        );
+        assert_eq!(
+            std::fs::read_to_string(tmp_dir.path().join("projected/b.yaml")).unwrap(),
+            "B"
+        );
+
+        // Drop `b.yaml` from the source map and re-template. The manifest diff removes
+        // `b.yaml`; `a.yaml` stays (and any agent-process-created file in `projected/` would
+        // also stay, since it was never in the manifest).
+        let runtime_file = tmp_dir.path().join("projected/agent-state.log");
+        std::fs::write(&runtime_file, "agent data").unwrap();
+
+        let variables_narrowed = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+            ),
+            (
+                Namespace::Variable.namespaced_name("proj"),
+                Variable::new(
+                    String::default(),
+                    false,
+                    None,
+                    Some(HashMap::from([(
+                        "a.yaml".to_string(),
+                        Value::String("A-v2".to_string()),
+                    )])),
+                ),
+            ),
+        ]);
+        serde_saphyr::from_str::<FileSystem>(yaml)
+            .unwrap()
+            .template_with(&variables_narrowed)
+            .unwrap()
+            .write(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(tmp_dir.path().join("projected/a.yaml")).unwrap(),
+            "A-v2",
+            "declared file updated to new content"
+        );
+        assert!(
+            !tmp_dir.path().join("projected/b.yaml").exists(),
+            "no-longer-declared key removed by manifest diff"
+        );
+        assert!(
+            runtime_file.exists(),
+            "agent-process-created file survives (not in manifest)"
         );
     }
 }

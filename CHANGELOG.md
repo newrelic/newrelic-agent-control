@@ -19,6 +19,7 @@ Remember that the keywords that you can use are the following:
 - On-host filesystem entries now accept a `persistent` flag (default `false`): ephemeral entries are deleted on sub-agent stop, persistent entries survive until the agent is removed from the fleet. Reconciliation across writes is driven by a sidecar `.ac-managed-paths.json` manifest (reserved filename — agent types must not declare it) so paths Agent Control no longer owns are deleted while sub-agent-created files are preserved.
 ### enhancement
 - Added support for remote agent type retrieval.
+- Refactored `dir_content_from_map` source parsing: the private `DirEntriesMap` helper is gone. `FilesystemEntry::DirContentFromMap.source` is now `TemplateableValue<String>` (templated by the existing blanket impl) and the YAML-parse + value-to-string conversion is in a single helper. No user-visible change.
 
 ## v1.17.0 - 2026-06-16
 
