@@ -79,9 +79,9 @@ where
             return Ok(());
         }
 
-        // Cooldown gate: suppress re-attempts that are still within their backoff window, or
-        // that have exhausted the consecutive-failure budget, until the desired version changes.
-        // When it permits an attempt the gate runs the upgrade and tracks success/failure itself.
+        // Cooldown gate: suppress re-attempts that are still within their backoff window, until the
+        // window elapses (or the desired version changes). When it permits an attempt the gate runs
+        // the upgrade and tracks success/failure itself.
         match self.upgrade_gate.guarded(new_version, || {
             debug!("Starting update process");
             self.try_upgrade(new_version.clone())
@@ -89,6 +89,18 @@ where
             Ok(result) => result,
             Err(suppression) => Err(self.suppressed_error(new_version, suppression)),
         }
+    }
+
+    fn retry(&self) -> Result<(), UpdaterError> {
+        // The gate's tracked key is the last version we tried to reach; if it is cleared there is
+        // nothing pending, otherwise re-drive the normal `update` path for that version.
+        let Some(version) = self.upgrade_gate.current_key() else {
+            return Ok(());
+        };
+        self.update(&AgentControlDynamicConfig {
+            version: Some(version),
+            ..Default::default()
+        })
     }
 }
 
@@ -375,36 +387,46 @@ mod tests {
     }
 
     #[test]
-    fn cap_reached_suppresses_indefinitely() {
+    fn cap_is_reported_but_keeps_probing_after_window() {
         let clock = FakeClock::new(Instant::now());
         let mut updater = new_test_updater_with(
-            no_jitter_backoff(Duration::from_millis(1), Duration::from_millis(1), 2),
+            no_jitter_backoff(Duration::from_secs(30), Duration::from_secs(30), 2),
             clock.clone(),
         );
-        // Exactly 2 install calls; never more.
+        // The cap is a reporting threshold, not a hard stop: a probe still fires after each
+        // window elapses. We expect 3 real install attempts (the 3rd happens *after* the cap).
         updater
             .package_manager
             .expect_install()
-            .times(2)
+            .times(3)
             .returning(install_failure);
 
         let cfg = config_with_version("99.99.99");
 
+        // Attempt 1, then suppressed within the window.
         let _ = updater.update(&cfg).unwrap_err();
-        clock.advance(Duration::from_secs(1));
-        let _ = updater.update(&cfg).unwrap_err();
-        clock.advance(Duration::from_secs(2));
+        assert!(matches!(
+            updater.update(&cfg).unwrap_err(),
+            UpdaterError::UpdateInCooldown {
+                reason: Suppression::InCooldown { .. },
+                ..
+            }
+        ));
 
-        for _ in 0..5 {
-            let err = updater.update(&cfg).unwrap_err();
-            assert!(matches!(
-                err,
-                UpdaterError::UpdateInCooldown {
-                    reason: Suppression::CapReached { .. },
-                    ..
-                }
-            ));
-        }
+        // Attempt 2 reaches the cap; within the window it now reports CapReached.
+        clock.advance(Duration::from_secs(31));
+        let _ = updater.update(&cfg).unwrap_err();
+        assert!(matches!(
+            updater.update(&cfg).unwrap_err(),
+            UpdaterError::UpdateInCooldown {
+                reason: Suppression::CapReached { .. },
+                ..
+            }
+        ));
+
+        // Once the window elapses the gate probes again despite being capped.
+        clock.advance(Duration::from_secs(31));
+        let _ = updater.update(&cfg).unwrap_err();
     }
 
     #[test]
@@ -434,7 +456,7 @@ mod tests {
     fn reverting_to_current_version_short_circuits_even_when_capped() {
         let clock = FakeClock::new(Instant::now());
         let mut updater = new_test_updater_with(
-            no_jitter_backoff(Duration::from_millis(1), Duration::from_millis(1), 1),
+            no_jitter_backoff(Duration::from_secs(60), Duration::from_secs(600), 1),
             clock.clone(),
         );
         updater
@@ -446,7 +468,7 @@ mod tests {
         let _ = updater
             .update(&config_with_version("99.99.99"))
             .unwrap_err();
-        clock.advance(Duration::from_secs(1));
+        // Still inside the backoff window, so the cap is reported and no second install fires.
         let err = updater
             .update(&config_with_version("99.99.99"))
             .unwrap_err();
@@ -481,5 +503,45 @@ mod tests {
             },
         };
         assert_eq!(err1.to_string(), err2.to_string());
+    }
+
+    #[test]
+    fn retry_is_noop_when_nothing_is_pending() {
+        // No update() has run, so the gate has no tracked version — retry must not touch install.
+        let updater = new_test_updater_with(UpgradeBackoffConfig::default(), SystemClock);
+        assert!(updater.retry().is_ok());
+    }
+
+    #[test]
+    fn retry_re_attempts_the_pending_version_after_the_window() {
+        let clock = FakeClock::new(Instant::now());
+        let mut updater = new_test_updater_with(
+            no_jitter_backoff(Duration::from_secs(30), Duration::from_secs(30), 5),
+            clock.clone(),
+        );
+        // One install from update(), one from the post-window retry() probe.
+        updater
+            .package_manager
+            .expect_install()
+            .times(2)
+            .returning(install_failure);
+
+        // A failed update() leaves the desired version pending in the gate.
+        let _ = updater
+            .update(&config_with_version("99.99.99"))
+            .unwrap_err();
+
+        // Within the window, retry() is suppressed and does not hit the registry.
+        assert!(matches!(
+            updater.retry().unwrap_err(),
+            UpdaterError::UpdateInCooldown {
+                reason: Suppression::InCooldown { .. },
+                ..
+            }
+        ));
+
+        // After the window, retry() drives a fresh attempt against the pending version.
+        clock.advance(Duration::from_secs(31));
+        let _ = updater.retry().unwrap_err();
     }
 }

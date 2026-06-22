@@ -25,7 +25,7 @@ fn cooldown_reason(reason: &Suppression) -> &'static str {
     match reason {
         Suppression::InCooldown { .. } => "retrying after previous failure",
         Suppression::CapReached { .. } => {
-            "max consecutive failures reached, waiting for new desired version"
+            "max consecutive failures reached, retrying at the maximum backoff interval"
         }
     }
 }
@@ -42,6 +42,13 @@ pub trait VersionUpdater {
     /// Returns `Ok(())` if the desired version has been successfully communicated
     /// to the external controller, or an `UpdaterError` if the update fails.
     fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError>;
+
+    /// Re-attempts the most recently requested upgrade, if one is still pending. Driven by a
+    /// periodic heartbeat so a transient registry outage recovers without a new desired version
+    /// being pushed. Defaults to a no-op for updaters without a retry concept.
+    fn retry(&self) -> Result<(), UpdaterError> {
+        Ok(())
+    }
 }
 
 pub struct NoOpUpdater;

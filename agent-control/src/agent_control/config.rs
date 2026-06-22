@@ -106,9 +106,25 @@ pub struct SelfUpdateConfig {
     pub package: AgentControlPackage,
     /// how many failures we retry within a single self-update attempt, and the backoff between them
     pub download_retry: DownloadRetryConfig,
-    /// When an upgrade to a given version fails, how long we wait before re-trying it
-    /// (and how many consecutive failures before we give up entirely until a version change)
+    /// When an upgrade to a given version fails, how long we wait before re-trying it (and how
+    /// many consecutive failures before we escalate to a louder "capped" report). The upgrade is
+    /// re-attempted indefinitely at `max_delay`, so a transient registry outage recovers on its
+    /// own once it clears.
     pub upgrade_backoff: UpgradeBackoffConfig,
+}
+
+impl SelfUpdateConfig {
+    /// Whether the self remote update mechanism is enabled.
+    pub fn enabled(&self) -> bool {
+        self.enabled.0
+    }
+
+    /// Heartbeat interval for re-driving a pending self-update (see
+    /// [`crate::agent_control::version_updater::updater::VersionUpdater::retry`]). Reuses the
+    /// upgrade backoff base delay
+    pub fn retry_heartbeat(&self) -> Duration {
+        self.upgrade_backoff.base_delay.0.max(Duration::from_secs(1))
+    }
 }
 
 const DEFAULT_SELF_UPDATE_CONFIG_ENABLED: bool = false;
@@ -189,8 +205,6 @@ pub struct UpgradeBackoffConfig {
 
 impl From<&UpgradeBackoffConfig> for BackoffPolicy {
     fn from(c: &UpgradeBackoffConfig) -> Self {
-        // The gate enforces the consecutive-failure cap via `policy.max_attempts`
-        // (see `BackoffGate::check`), so `max_consecutive_failures` maps onto it.
         BackoffPolicy {
             max_attempts: c.max_consecutive_failures.0 as usize,
             base_delay: c.base_delay.0,

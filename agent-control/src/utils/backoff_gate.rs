@@ -3,27 +3,16 @@ use crate::utils::time::{Clock, SystemClock};
 use std::sync::Mutex;
 use std::time::Instant;
 
-/// The gate's verdict for a given key: attempt the operation now, or suppress it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GateDecision {
-    /// No active cooldown — the caller should attempt the operation.
-    Proceed,
-    /// Suppressed: the backoff cooldown window after the last failure has not elapsed yet.
-    InCooldown { consecutive_failures: u32 },
-    /// Suppressed: `max_attempts` consecutive failures reached; stays suppressed until the key
-    /// changes (or [`BackoffGate::reset`] is called).
-    CapReached { consecutive_failures: u32 },
-}
-
-/// Why the gate withheld an attempt. Mirrors the suppressed variants of [`GateDecision`] without
-/// the `Proceed` case, so it can never appear on the "ran the operation" path. Returned as the
-/// error of [`BackoffGate::guarded`].
+/// Why the gate withheld an attempt. This is the suppressed outcome of [`BackoffGate::check`]
+/// (which returns `None` to mean "proceed") and the error type of [`BackoffGate::guarded`], so a
+/// "proceed" case can never appear on the "ran the operation" path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Suppression {
     /// The backoff cooldown window after the last failure has not elapsed yet.
     InCooldown { consecutive_failures: u32 },
-    /// `max_attempts` consecutive failures reached; stays suppressed until the key changes
-    /// (or [`BackoffGate::reset`] is called).
+    /// Suppressed within the current backoff window, with the `max_attempts` consecutive-failure
+    /// threshold crossed. The gate keeps probing once the window elapses; this variant only
+    /// escalates how the suppression is reported.
     CapReached { consecutive_failures: u32 },
 }
 
@@ -45,15 +34,8 @@ impl<K> Default for GateState<K> {
     }
 }
 
-/// A thread-safe gate that throttles repeated attempts at a fallible operation keyed by `K`.
-///
-/// The operation is identified by a key (e.g. a target version). When an attempt for a key
-/// fails, [`BackoffGate::record_failure`] schedules the next permitted attempt using the
-/// exponential-backoff-plus-jitter schedule of the configured [`BackoffPolicy`]. Until that
-/// instant passes, [`BackoffGate::check`] returns [`GateDecision::InCooldown`]. After
-/// `policy.max_attempts` consecutive failures the gate returns [`GateDecision::CapReached`]
-/// and stays there until the key changes (a new key implicitly resets the gate) or
-/// [`BackoffGate::reset`] is called.
+/// A thread-safe gate that throttles repeated attempts at a fallible operation
+/// keyed by `K` (e.g. a target version
 pub struct BackoffGate<K, C = SystemClock> {
     policy: BackoffPolicy,
     clock: C,
@@ -73,29 +55,34 @@ where
         }
     }
 
-    /// Inspects the gate for `key`, returning whether the caller should proceed or suppress.
+    /// Inspects the gate for `key`: returns `None` when the caller should proceed, or
+    /// `Some(reason)` when the attempt should be suppressed.
     ///
     /// If `key` differs from the last-seen key the gate resets first, so switching targets
     /// always permits an immediate attempt.
-    pub fn check(&self, key: &K) -> GateDecision {
+    pub fn check(&self, key: &K) -> Option<Suppression> {
         let mut state = self.state.lock().expect("backoff-gate lock poisoned");
         Self::reset_if_key_changed(&mut state, key);
 
-        if (state.consecutive_failures as usize) >= self.policy.max_attempts {
-            return GateDecision::CapReached {
-                consecutive_failures: state.consecutive_failures,
-            };
-        }
-
+        // Within the current backoff window → suppress, escalating the reported reason once the
+        // consecutive-failure threshold has been crossed.
         if let Some(t) = state.next_attempt_at
             && self.clock.now() < t
         {
-            return GateDecision::InCooldown {
-                consecutive_failures: state.consecutive_failures,
-            };
+            let consecutive_failures = state.consecutive_failures;
+            return Some(if (consecutive_failures as usize) >= self.policy.max_attempts {
+                Suppression::CapReached {
+                    consecutive_failures,
+                }
+            } else {
+                Suppression::InCooldown {
+                    consecutive_failures,
+                }
+            });
         }
 
-        GateDecision::Proceed
+        // Proceed with the operation (download).
+        None
     }
 
     /// Records a failed attempt for `key`, incrementing the consecutive-failure count and
@@ -115,6 +102,16 @@ where
         *self.state.lock().expect("backoff-gate lock poisoned") = GateState::default();
     }
 
+    /// The key the gate is currently tracking (the last key seen via [`check`](Self::check) or
+    /// [`record_failure`](Self::record_failure)), or `None` if the gate is unused or was reset.
+    pub fn current_key(&self) -> Option<K> {
+        self.state
+            .lock()
+            .expect("backoff-gate lock poisoned")
+            .key
+            .clone()
+    }
+
     /// Runs `op` for `key` through the gate.
     ///
     /// When the gate permits an attempt the operation runs: the gate is [reset](Self::reset) on
@@ -126,7 +123,7 @@ where
         F: FnOnce() -> Result<T, E>,
     {
         match self.check(key) {
-            GateDecision::Proceed => {
+            None => {
                 let result = op();
                 if result.is_ok() {
                     self.reset();
@@ -135,16 +132,7 @@ where
                 }
                 Ok(result)
             }
-            GateDecision::InCooldown {
-                consecutive_failures,
-            } => Err(Suppression::InCooldown {
-                consecutive_failures,
-            }),
-            GateDecision::CapReached {
-                consecutive_failures,
-            } => Err(Suppression::CapReached {
-                consecutive_failures,
-            }),
+            Some(suppression) => Err(suppression),
         }
     }
 
@@ -203,45 +191,66 @@ mod tests {
     #[test]
     fn proceeds_when_no_failures() {
         let (gate, _clock) = gate(Duration::from_secs(1), Duration::from_secs(10), 5);
-        assert_eq!(gate.check(&"v1"), GateDecision::Proceed);
+        assert_eq!(gate.check(&"v1"), None);
     }
 
     #[test]
     fn suppresses_within_cooldown_window_then_re_attempts() {
         let (gate, clock) = gate(Duration::from_secs(30), Duration::from_secs(600), 5);
 
-        assert_eq!(gate.check(&"v1"), GateDecision::Proceed);
+        assert_eq!(gate.check(&"v1"), None);
         gate.record_failure(&"v1");
 
         assert_eq!(
             gate.check(&"v1"),
-            GateDecision::InCooldown {
+            Some(Suppression::InCooldown {
                 consecutive_failures: 1
-            }
+            })
         );
 
         // base_delay is 30s with no jitter; advancing past it re-opens the gate.
         clock.advance(Duration::from_secs(31));
-        assert_eq!(gate.check(&"v1"), GateDecision::Proceed);
+        assert_eq!(gate.check(&"v1"), None);
     }
 
     #[test]
-    fn cap_reached_suppresses_indefinitely() {
-        let (gate, clock) = gate(Duration::from_millis(1), Duration::from_millis(1), 2);
+    fn cap_is_reported_but_not_terminal() {
+        let (gate, clock) = gate(Duration::from_secs(30), Duration::from_secs(30), 2);
 
+        // One failure: below the cap, suppressed only within the window.
         gate.record_failure(&"v1");
-        clock.advance(Duration::from_secs(1));
-        gate.record_failure(&"v1");
-        clock.advance(Duration::from_secs(1));
+        assert_eq!(
+            gate.check(&"v1"),
+            Some(Suppression::InCooldown {
+                consecutive_failures: 1
+            })
+        );
+        clock.advance(Duration::from_secs(31));
+        assert_eq!(gate.check(&"v1"), None);
 
-        for _ in 0..5 {
-            assert_eq!(
-                gate.check(&"v1"),
-                GateDecision::CapReached {
-                    consecutive_failures: 2
-                }
-            );
-        }
+        // Second failure: cap reached — reported as CapReached *within* the window...
+        gate.record_failure(&"v1");
+        assert_eq!(
+            gate.check(&"v1"),
+            Some(Suppression::CapReached {
+                consecutive_failures: 2
+            })
+        );
+
+        // ...but the cap is not terminal: once the window elapses the gate probes again.
+        clock.advance(Duration::from_secs(31));
+        assert_eq!(gate.check(&"v1"), None);
+    }
+
+    #[test]
+    fn current_key_tracks_last_key_and_clears_on_reset() {
+        let (gate, _clock) = gate(Duration::from_secs(60), Duration::from_secs(600), 5);
+
+        assert_eq!(gate.current_key(), None);
+        gate.record_failure(&"v1");
+        assert_eq!(gate.current_key(), Some("v1"));
+        gate.reset();
+        assert_eq!(gate.current_key(), None);
     }
 
     #[test]
@@ -251,12 +260,12 @@ mod tests {
         gate.record_failure(&"v1");
         assert_eq!(
             gate.check(&"v1"),
-            GateDecision::InCooldown {
+            Some(Suppression::InCooldown {
                 consecutive_failures: 1
-            }
+            })
         );
         // A different key clears the cooldown without advancing the clock.
-        assert_eq!(gate.check(&"v2"), GateDecision::Proceed);
+        assert_eq!(gate.check(&"v2"), None);
     }
 
     #[test]
@@ -265,7 +274,7 @@ mod tests {
 
         gate.record_failure(&"v1");
         gate.reset();
-        assert_eq!(gate.check(&"v1"), GateDecision::Proceed);
+        assert_eq!(gate.check(&"v1"), None);
     }
 
     #[test]
@@ -275,18 +284,18 @@ mod tests {
         // First failure: 10s window.
         gate.record_failure(&"v1");
         clock.advance(Duration::from_secs(10));
-        assert_eq!(gate.check(&"v1"), GateDecision::Proceed);
+        assert_eq!(gate.check(&"v1"), None);
 
         // Second failure: 20s window — still suppressed after only 10s.
         gate.record_failure(&"v1");
         clock.advance(Duration::from_secs(10));
         assert_eq!(
             gate.check(&"v1"),
-            GateDecision::InCooldown {
+            Some(Suppression::InCooldown {
                 consecutive_failures: 2
-            }
+            })
         );
         clock.advance(Duration::from_secs(11));
-        assert_eq!(gate.check(&"v1"), GateDecision::Proceed);
+        assert_eq!(gate.check(&"v1"), None);
     }
 }
