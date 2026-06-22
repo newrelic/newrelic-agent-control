@@ -14,6 +14,9 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+### bugfix
+- On-host self-update: an empty `version: ""` pushed from Fleet Control now behaves the same as an absent `version` field (no-op, no update attempted). Previously it silently triggered a pull of the `:latest` OCI tag.
+
 ### enhancement
 - Hardens service restart policies on Linux and Windows (systemd rate limiting: 5 restarts max in 60s) to prevent
   crash-looping from saturating CPU.
