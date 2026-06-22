@@ -1,4 +1,5 @@
 use crate::agent_control::config::AgentControlDynamicConfig;
+use crate::utils::backoff_gate::Suppression;
 use thiserror::Error;
 
 /// Represents errors that can occur during the update process of the agent control version.
@@ -7,30 +8,24 @@ pub enum UpdaterError {
     #[error("update failed: {0}")]
     UpdateFailed(String),
     /// The previous attempt to upgrade to this version failed; we are deliberately not hitting
-    /// the registry again until the cooldown elapses (or the version changes). The error message
-    /// is intentionally **stable across polls** so OpAMP `ConfigState::Failed` does not churn.
-    #[error("upgrade to {version} suppressed: {reason}")]
+    /// the registry again until the cooldown elapses (or the version changes). The message is
+    /// derived from the [`Suppression`] *variant* only (not its failure count), so it is
+    /// intentionally **stable across polls** and OpAMP `ConfigState::Failed` does not churn.
+    #[error("upgrade to {version} suppressed: {}", cooldown_reason(reason))]
     UpdateInCooldown {
         version: String,
-        reason: CooldownReason,
+        reason: Suppression,
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CooldownReason {
-    /// Within the exponential-backoff cooldown window after a failed attempt.
-    Backoff,
-    /// Maximum consecutive failures reached; suppressed until the desired version changes.
-    CapReached,
-}
-
-impl std::fmt::Display for CooldownReason {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CooldownReason::Backoff => f.write_str("retrying after previous failure"),
-            CooldownReason::CapReached => {
-                f.write_str("max consecutive failures reached, waiting for new desired version")
-            }
+/// Domain wording for a suppressed upgrade. Lives here (not in the agnostic gate) because the
+/// phrasing — "desired version" — is agent-control/OpAMP vocabulary. Deliberately ignores the
+/// failure count so the rendered message stays stable across polls.
+fn cooldown_reason(reason: &Suppression) -> &'static str {
+    match reason {
+        Suppression::InCooldown { .. } => "retrying after previous failure",
+        Suppression::CapReached { .. } => {
+            "max consecutive failures reached, waiting for new desired version"
         }
     }
 }

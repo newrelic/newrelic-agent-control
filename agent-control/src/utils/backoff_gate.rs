@@ -15,6 +15,18 @@ pub enum GateDecision {
     CapReached { consecutive_failures: u32 },
 }
 
+/// Why the gate withheld an attempt. Mirrors the suppressed variants of [`GateDecision`] without
+/// the `Proceed` case, so it can never appear on the "ran the operation" path. Returned as the
+/// error of [`BackoffGate::guarded`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Suppression {
+    /// The backoff cooldown window after the last failure has not elapsed yet.
+    InCooldown { consecutive_failures: u32 },
+    /// `max_attempts` consecutive failures reached; stays suppressed until the key changes
+    /// (or [`BackoffGate::reset`] is called).
+    CapReached { consecutive_failures: u32 },
+}
+
 #[derive(Debug)]
 struct GateState<K> {
     key: Option<K>,
@@ -101,6 +113,39 @@ where
     /// Clears all failure state (e.g. after a successful attempt).
     pub fn reset(&self) {
         *self.state.lock().expect("backoff-gate lock poisoned") = GateState::default();
+    }
+
+    /// Runs `op` for `key` through the gate.
+    ///
+    /// When the gate permits an attempt the operation runs: the gate is [reset](Self::reset) on
+    /// `Ok` and a failure is [recorded](Self::record_failure) on `Err`, and the operation's own
+    /// result is returned wrapped in `Ok`. When the gate is in cooldown or has reached its cap,
+    /// `op` is not run and the [`Suppression`] verdict is returned as `Err`.
+    pub fn guarded<T, E, F>(&self, key: &K, op: F) -> Result<Result<T, E>, Suppression>
+    where
+        F: FnOnce() -> Result<T, E>,
+    {
+        match self.check(key) {
+            GateDecision::Proceed => {
+                let result = op();
+                if result.is_ok() {
+                    self.reset();
+                } else {
+                    self.record_failure(key);
+                }
+                Ok(result)
+            }
+            GateDecision::InCooldown {
+                consecutive_failures,
+            } => Err(Suppression::InCooldown {
+                consecutive_failures,
+            }),
+            GateDecision::CapReached {
+                consecutive_failures,
+            } => Err(Suppression::CapReached {
+                consecutive_failures,
+            }),
+        }
     }
 
     fn reset_if_key_changed(state: &mut GateState<K>, key: &K) {

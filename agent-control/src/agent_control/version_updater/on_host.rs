@@ -5,14 +5,12 @@ use crate::agent_control::config::{
     AgentControlDynamicConfig, AgentControlPackage, UpgradeBackoffConfig,
 };
 use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
-use crate::agent_control::version_updater::updater::{
-    CooldownReason, UpdaterError, VersionUpdater,
-};
+use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
 use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;
 use crate::package::manager::{PackageData, PackageManager};
-use crate::utils::backoff_gate::{BackoffGate, GateDecision};
+use crate::utils::backoff_gate::{BackoffGate, Suppression};
 use crate::utils::retry::BackoffPolicy;
 use crate::utils::time::Clock;
 use self_replacer::{BinarySelfReplacer, SelfReplacer};
@@ -83,21 +81,13 @@ where
 
         // Cooldown gate: suppress re-attempts that are still within their backoff window, or
         // that have exhausted the consecutive-failure budget, until the desired version changes.
-        if let Some(err) = self.cooldown_error(new_version) {
-            return Err(err);
-        }
-
-        debug!("Starting update process");
-
-        match self.try_upgrade(new_version.clone()) {
-            Ok(()) => {
-                self.upgrade_gate.reset();
-                Ok(())
-            }
-            Err(e) => {
-                self.upgrade_gate.record_failure(new_version);
-                Err(e)
-            }
+        // When it permits an attempt the gate runs the upgrade and tracks success/failure itself.
+        match self.upgrade_gate.guarded(new_version, || {
+            debug!("Starting update process");
+            self.try_upgrade(new_version.clone())
+        }) {
+            Ok(result) => result,
+            Err(suppression) => Err(self.suppressed_error(new_version, suppression)),
         }
     }
 }
@@ -130,38 +120,29 @@ where
         }
     }
 
-    /// Maps the generic gate verdict for `new_version` onto the OpAMP-facing [`UpdaterError`],
-    /// returning `Some(err)` when the upgrade should be suppressed and `None` to proceed.
-    fn cooldown_error(&self, new_version: &Version) -> Option<UpdaterError> {
-        match self.upgrade_gate.check(new_version) {
-            GateDecision::Proceed => None,
-            GateDecision::CapReached {
+    /// Logs and maps a gate [`Suppression`] verdict for `new_version` onto the OpAMP-facing
+    /// [`UpdaterError`].
+    fn suppressed_error(&self, new_version: &Version, suppression: Suppression) -> UpdaterError {
+        match suppression {
+            Suppression::CapReached {
                 consecutive_failures,
-            } => {
-                warn!(
-                    version = %new_version,
-                    consecutive_failures,
-                    "Upgrade suppressed: max consecutive failures reached. \
-                     Waiting for desired version to change before retrying.",
-                );
-                Some(UpdaterError::UpdateInCooldown {
-                    version: new_version.to_string(),
-                    reason: CooldownReason::CapReached,
-                })
-            }
-            GateDecision::InCooldown {
+            } => warn!(
+                version = %new_version,
                 consecutive_failures,
-            } => {
-                debug!(
-                    version = %new_version,
-                    consecutive_failures,
-                    "Upgrade suppressed: in backoff cooldown window.",
-                );
-                Some(UpdaterError::UpdateInCooldown {
-                    version: new_version.to_string(),
-                    reason: CooldownReason::Backoff,
-                })
-            }
+                "Upgrade suppressed: max consecutive failures reached. \
+                 Waiting for desired version to change before retrying.",
+            ),
+            Suppression::InCooldown {
+                consecutive_failures,
+            } => debug!(
+                version = %new_version,
+                consecutive_failures,
+                "Upgrade suppressed: in backoff cooldown window.",
+            ),
+        }
+        UpdaterError::UpdateInCooldown {
+            version: new_version.to_string(),
+            reason: suppression,
         }
     }
 
@@ -355,7 +336,7 @@ mod tests {
         assert!(matches!(
             err,
             UpdaterError::UpdateInCooldown {
-                reason: CooldownReason::Backoff,
+                reason: Suppression::InCooldown { .. },
                 ..
             }
         ));
@@ -381,7 +362,7 @@ mod tests {
         assert!(matches!(
             err,
             UpdaterError::UpdateInCooldown {
-                reason: CooldownReason::Backoff,
+                reason: Suppression::InCooldown { .. },
                 ..
             }
         ));
@@ -419,7 +400,7 @@ mod tests {
             assert!(matches!(
                 err,
                 UpdaterError::UpdateInCooldown {
-                    reason: CooldownReason::CapReached,
+                    reason: Suppression::CapReached { .. },
                     ..
                 }
             ));
@@ -472,7 +453,7 @@ mod tests {
         assert!(matches!(
             err,
             UpdaterError::UpdateInCooldown {
-                reason: CooldownReason::CapReached,
+                reason: Suppression::CapReached { .. },
                 ..
             }
         ));
@@ -486,13 +467,18 @@ mod tests {
 
     #[test]
     fn cooldown_error_message_is_stable_across_polls() {
+        // Same variant, different failure counts: the rendered message must not change.
         let err1 = UpdaterError::UpdateInCooldown {
             version: "99.99.99".into(),
-            reason: CooldownReason::Backoff,
+            reason: Suppression::InCooldown {
+                consecutive_failures: 1,
+            },
         };
         let err2 = UpdaterError::UpdateInCooldown {
             version: "99.99.99".into(),
-            reason: CooldownReason::Backoff,
+            reason: Suppression::InCooldown {
+                consecutive_failures: 3,
+            },
         };
         assert_eq!(err1.to_string(), err2.to_string());
     }
