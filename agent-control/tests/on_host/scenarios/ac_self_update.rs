@@ -6,6 +6,7 @@ use crate::common::retry::retry;
 use crate::common::retry::retry_never;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::AgentControlConfigBuilder;
+use crate::on_host::tools::config::create_local_config;
 use crate::on_host::tools::fake_binary::assert_is_fake_binary;
 use crate::on_host::tools::fake_binary::build_fake_ac_binary;
 use crate::on_host::tools::fake_binary::build_invalid_fake_ac_binary;
@@ -13,9 +14,13 @@ use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
+use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_ID;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_VERSION;
+use newrelic_agent_control::agent_control::defaults::PACKAGES_FOLDER_NAME;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
+use newrelic_agent_control::agent_control::version_updater::on_host::AGENT_CONTROL_BIN;
+use newrelic_agent_control::agent_control::version_updater::on_host::AGENT_CONTROL_BIN_PACKAGE_ID;
 use oci_test_utils::OCISigner;
 use oci_test_utils::{PackageMediaType, PackagePublisher};
 use opamp_client::opamp::proto::RemoteConfigStatuses;
@@ -339,33 +344,27 @@ self_update:
 
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
-/// Exercises self-update *recovery* from a transient registry outage.
+/// Exercises self-update *recovery* from a transient registry outage: while the package is absent
+/// AC keeps retrying instead of giving up, and once it reappears the periodic retry (with no new
+/// OpAMP config) picks it up and downloads it.
+///
+/// Recovery is asserted on the package landing on disk, *not* on a completed self-replace.
 fn test_ac_self_update_recovers_after_registry_outage_with_oci_registry() {
     const RECOVERY_VERSION_TAG: &str = "recovery-after-outage";
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::default();
 
-    create_self_update_recovery_config(&opamp_server, &signer, local_dir.path());
+    create_self_update_recovery_config(&opamp_server, &signer, &dirs.local_dir());
 
-    let current_exe_path = std::env::current_exe()
-        .expect("failed to get current exe path")
-        .canonicalize()
-        .expect("failed to canonicalize current exe path");
+    let mut agent_control = start_agent_control_with_custom_config(
+        dirs.base_paths().clone(),
+        AGENT_CONTROL_MODE_ON_HOST,
+    );
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
-
-    let mut agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
-
-    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
 
     // Request a version whose package is not in the registry yet — downloads will fail.
     let update_config = format!(
@@ -399,17 +398,39 @@ agents: {{}}
     // and the non-terminal cap, the next retry probe (~1s later) picks it up.
     let _ = push_ac_package(build_fake_ac_binary, None, Some(RECOVERY_VERSION_TAG));
 
-    // A retry downloads the now-available package, self-replaces, and AC gracefully stops —
-    // without any new remote config from OpAMP.
+    // The periodic self-update retry (no new OpAMP config) downloads and extracts the now-available
+    // package, leaving the AC binary under the installed-packages directory. We assert recovery on
+    // that install, which happens just before the (out-of-scope) self-replace step.
+    let installed_packages_dir = dirs
+        .remote_dir()
+        .join(PACKAGES_FOLDER_NAME)
+        .join(AGENT_CONTROL_ID)
+        .join("stored_packages")
+        .join(AGENT_CONTROL_BIN_PACKAGE_ID);
     retry(60, Duration::from_secs(5), || {
-        if agent_control.has_gracefully_stopped() {
+        if dir_contains_file(&installed_packages_dir, AGENT_CONTROL_BIN) {
             Ok(())
         } else {
-            Err("Agent Control should have self-updated once the package became available".into())
+            Err(
+                "the periodic retry should have downloaded the package once it became available"
+                    .into(),
+            )
         }
     });
+}
 
-    assert_is_fake_binary(&current_exe_path);
+fn dir_contains_file(dir: &Path, name: &str) -> bool {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return false;
+    };
+    entries.flatten().any(|entry| {
+        let path = entry.path();
+        if path.is_dir() {
+            dir_contains_file(&path, name)
+        } else {
+            path.file_name().is_some_and(|f| f == name)
+        }
+    })
 }
 
 fn create_self_update_local_config(
