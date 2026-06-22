@@ -2,7 +2,9 @@
 
 ## Defining a sub-agent workload
 
-Currently, the supported workloads that AC is able to manage are hard-coded into the program. However, it is intended that the AC team or external teams can easily add new supported agents to it, so we have exposed a way to specify how to run, configure, manage and check the health of a workload in the form of a YAML file. This file describes what we call an **agent type definition**. In some places of the codebase, we might refer to the workload created for a certain agent type as an **agent type instance**.
+AC manages a workload by reading a description of how to run, configure, manage and check the health of it, in the form of a YAML file. This file describes what we call an **agent type definition**. In some places of the codebase, we might refer to the workload created for a certain agent type as an **agent type instance**.
+
+A set of agent type definitions is shipped built into AC, but the AC team or external teams can also add new supported agents without rebuilding AC. See [Where agent type definitions come from](#where-agent-type-definitions-come-from) for the sources AC resolves definitions from and their precedence.
 
 Each agent type definition targets a single `(platform, operating_system)` pair. The `platform` is either `host` or `kubernetes`; `operating_system` is required when `platform: host` (`linux` or `windows`) and must not be set when `platform: kubernetes`. An agent that supports more than one such pair (for example, the Infrastructure Agent which runs on host Linux, host Windows and Kubernetes) is defined by **one YAML file per pair**, all sharing the same `namespace`, `name` and `version`. At startup, Agent Control loads only the definitions whose `platform` (and `operating_system`, when `platform: host`) match the binary it's running in.
 
@@ -637,6 +639,20 @@ Key-value pairs of the [Kubernetes Objects](https://kubernetes.io/docs/concepts/
 Most of Agent Control sub-agents currently deploy [Flux](https://fluxcd.io) CRs which end up in helm chart installation.
 
 You can check an [existing agent type with a Kubernetes deployment](../agent-control/agent-type-registry/newrelic/kubernetes-com.newrelic.infrastructure-0.1.0.yaml) as an example. This file includes all necessary Flux CR configurations required for Agent Control to manage sub-agent deployments effectively. It serves as a comprehensive reference for understanding the integration and deployment process.
+
+## Where agent type definitions come from
+
+Before AC can create a sub-agent, it must resolve the agent type referenced in your config (for example `newrelic/com.newrelic.infrastructure:0.1.0`) to an actual definition. AC looks for that definition in three sources, in a fixed order of precedence. The **first source that provides a matching definition wins**, so the order is:
+
+1. **Custom (local) definitions** — highest precedence. These are YAML files you place in AC's dynamic agent types directory (on-host: `/etc/newrelic-agent-control/dynamic-agent-types`), read from disk at startup. A custom definition whose id matches a built-in one **overrides** the built-in. If two custom files declare the same id, the one whose file name sorts last wins.
+
+   > Custom definitions are intended for **development and testing only**, not for production use. They are a way to iterate on a definition locally before it is shipped as an embedded definition or published to a remote registry.
+2. **Embedded (built-in) definitions** — the agent types shipped with AC. They are compiled into the binary, so they are always available with no network or filesystem dependency. The currently embedded definitions are listed in the [agent type registry](../agent-control/agent-type-registry/README.md).
+3. **Remote definitions** — lowest precedence. If the agent type is not found locally, AC fetches it from an OCI registry.
+
+Only definitions that target the environment of the running binary are considered: the on-host binary only sees `host` definitions matching its operating system, and the Kubernetes binary only sees `kubernetes` definitions (see [Agent Type Metadata](#agent-type-metadata)). A definition that targets a different platform is treated as not found, so the lookup falls through to the next source.
+
+This precedence is what makes the custom directory useful for development: you can add a brand-new agent type, or iterate on and override an existing one, simply by dropping a file there — without rebuilding AC or editing the embedded registry — while still falling back to the built-in and remote sources for everything else. For a step-by-step walkthrough of adding a custom on-host agent type, see the [development guide in the agent type overview](../agent-control/src/agent_type/README.md#development).
 
 ## Applying configurations
 
