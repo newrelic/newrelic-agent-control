@@ -48,7 +48,7 @@ resource-detection = { path = "../resource-detection" }
 self-replacer = { path = "../self-replacer" }
 
 # K8S subagent dependencies
-kube = { version = "3.1.0", default-features = false, features = [
+kube = { version = "4.0.0", default-features = false, features = [
   "config",
   "runtime",
   "derive",
