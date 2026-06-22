@@ -70,15 +70,17 @@ where
             && self.clock.now() < t
         {
             let consecutive_failures = state.consecutive_failures;
-            return Some(if (consecutive_failures as usize) >= self.policy.max_attempts {
-                Suppression::CapReached {
-                    consecutive_failures,
-                }
-            } else {
-                Suppression::InCooldown {
-                    consecutive_failures,
-                }
-            });
+            return Some(
+                if (consecutive_failures as usize) >= self.policy.max_attempts {
+                    Suppression::CapReached {
+                        consecutive_failures,
+                    }
+                } else {
+                    Suppression::InCooldown {
+                        consecutive_failures,
+                    }
+                },
+            );
         }
 
         // Proceed with the operation (download).
@@ -182,7 +184,11 @@ mod tests {
         }
     }
 
-    fn gate(base: Duration, max: Duration, max_attempts: usize) -> (BackoffGate<&'static str, FakeClock>, FakeClock) {
+    fn gate(
+        base: Duration,
+        max: Duration,
+        max_attempts: usize,
+    ) -> (BackoffGate<&'static str, FakeClock>, FakeClock) {
         let clock = FakeClock::new(Instant::now());
         let gate = BackoffGate::new(policy(base, max, max_attempts), clock.clone());
         (gate, clock)

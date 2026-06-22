@@ -123,7 +123,10 @@ impl SelfUpdateConfig {
     /// [`crate::agent_control::version_updater::updater::VersionUpdater::retry`]). Reuses the
     /// upgrade backoff base delay
     pub fn retry_heartbeat(&self) -> Duration {
-        self.upgrade_backoff.base_delay.0.max(Duration::from_secs(1))
+        self.upgrade_backoff
+            .base_delay
+            .0
+            .max(Duration::from_secs(1))
     }
 }
 
