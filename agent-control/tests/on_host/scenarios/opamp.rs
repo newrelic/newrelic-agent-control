@@ -32,7 +32,7 @@ fn onhost_opamp_agent_control_local_effective_config() {
     // Given a agent-control without agents and opamp configured.
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
@@ -66,7 +66,7 @@ fn onhost_opamp_agent_control_remote_effective_config() {
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
@@ -146,7 +146,7 @@ fn onhost_opamp_agent_control_accepts_unknown_fields_on_remote_config() {
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
@@ -196,7 +196,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 
@@ -260,7 +260,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
 
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 
@@ -321,7 +321,7 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 
@@ -379,7 +379,7 @@ fn onhost_executable_less_reports_local_effective_config() {
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let health_file_path = dirs.local_dir().join("health_file.yaml");
     // Add custom agent_type to registry

@@ -45,7 +45,7 @@ fn k8s_local_agent_type_shadows_remote_registry_with_oci_registry() {
 
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     write_agent_type_to_local_dir(&dirs.local_dir());
 
@@ -70,7 +70,7 @@ fn k8s_local_miss_resolves_via_remote_registry_with_oci_registry() {
 
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     push_agent_type_to_registry(&signer);
 

@@ -24,7 +24,7 @@ fn binary_path() -> &'static Path {
 fn test_verify_executor() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
@@ -95,7 +95,7 @@ fn test_verify_executor_opamp_connectivity_failure() {
     let unreachable_opamp_endpoint = "http://localhost:19999";
     let unreachable_jwks_endpoint = "http://localhost:19999/jwks";
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     AgentControlConfigBuilder::basic(unreachable_opamp_endpoint, unreachable_jwks_endpoint)
         .write(dirs.local_dir());

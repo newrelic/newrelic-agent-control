@@ -9,8 +9,8 @@ pub struct TempBasePaths {
     log_dir: TempDir,
 }
 
-impl TempBasePaths {
-    pub fn new() -> Self {
+impl Default for TempBasePaths {
+    fn default() -> Self {
         let local_dir = tempdir().expect("failed to create local temp dir");
         let remote_dir = tempdir().expect("failed to create remote temp dir");
         let log_dir = tempdir().expect("failed to create log temp dir");
@@ -26,7 +26,9 @@ impl TempBasePaths {
             log_dir,
         }
     }
+}
 
+impl TempBasePaths {
     pub fn base_paths(&self) -> BasePaths {
         self.base_paths.clone()
     }

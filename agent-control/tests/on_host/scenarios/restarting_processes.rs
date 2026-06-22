@@ -21,7 +21,7 @@ use nix::{
 #[test]
 fn killing_subprocess_with_signal_restarts() -> Result<(), Box<dyn std::error::Error>> {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     // Create a custom agent type with long-running sleep processes
     let agent_type_builder = CustomAgentType::empty().with_variables(

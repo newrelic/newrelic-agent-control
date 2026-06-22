@@ -35,7 +35,7 @@ const DEFAULT_NAME: &str = "name";
 fn test_attributes_from_non_existing_agent_type() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
     let agent_id = "test-agent";
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let agents = format!(
         r#"
@@ -114,7 +114,7 @@ fn test_attributes_from_non_existing_agent_type() {
 #[cfg_attr(target_family = "windows", case::without_regex(|local_dir| {CustomAgentType::default().with_version(Some(r#"{"path": "cmd", "args": ["/C","set","/p=1.0.0<nul"]}"#)).build(local_dir)}))]
 fn test_attributes_from_an_existing_agent_type(#[case] get_agent_type: impl Fn(PathBuf) -> String) {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     // Add custom agent_type to registry
     let sleep_agent_type = get_agent_type(dirs.local_dir());

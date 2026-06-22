@@ -26,7 +26,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
@@ -96,7 +96,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 fn test_invalid_config_executable_less_supervisor() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
     let sub_agent_id = AgentID::try_from("test-agent").unwrap();
 
     let agent_type = CustomAgentType::default()
@@ -171,7 +171,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 

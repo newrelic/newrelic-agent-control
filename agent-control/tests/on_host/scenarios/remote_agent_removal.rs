@@ -24,7 +24,7 @@ fn onhost_opamp_agent_control_remote_config_add_remove_add_agent() {
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());

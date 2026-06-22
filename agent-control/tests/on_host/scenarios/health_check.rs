@@ -19,7 +19,7 @@ use std::time::Duration;
 fn test_file_health_without_supervisor() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
     let sub_agent_id = AgentID::try_from("test-agent").unwrap();
 
     let health_file_path = dirs.local_dir().join("health_file.yaml");
@@ -123,7 +123,7 @@ fn test_http_health_without_supervisor() {
         then.status(200).body(r#"healthy-message"#);
     });
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
     let sub_agent_id = AgentID::try_from("test-agent").unwrap();
 
     let health_config = format!(

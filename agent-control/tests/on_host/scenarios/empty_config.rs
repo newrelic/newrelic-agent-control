@@ -26,7 +26,7 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 
@@ -95,7 +95,7 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
     // Given a agent-control with a custom-agent with opamp configured.
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 

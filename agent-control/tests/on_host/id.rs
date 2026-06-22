@@ -168,7 +168,7 @@ fn test_gcp_cloud_id() {
 /// tests that nr-ac:host_id and nr-sub:agent_id are correctly replaced in the agent type.
 #[test]
 fn test_sub_sa_vars() {
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     #[cfg(target_family = "unix")]
     create_file(

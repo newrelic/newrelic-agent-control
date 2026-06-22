@@ -34,7 +34,7 @@ fn test_agent_remote_package_with_auth_oci_registry() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let agent_type = CustomAgentType::default()
         .with_packages(Some(
@@ -81,7 +81,7 @@ fn test_agent_remote_package_with_auth_oci_registry() {
 #[test]
 #[ignore = "needs oci registry with basic auth (use *with_auth_oci_registry suffix)"]
 fn test_ac_self_update_with_auth_oci_registry() {
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let signer = OCISigner::start(tokio_runtime().handle().clone());

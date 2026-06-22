@@ -19,7 +19,7 @@ use newrelic_agent_control::agent_control::{
 fn onhost_subagent_multiple_executables_some_failed_launching() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     // Add custom agent_type to registry
     let sleep_agent_type = CustomAgentType::default()
@@ -65,7 +65,7 @@ agents:
 fn onhost_subagent_multiple_executables_some_commands_failed_after_max_retries() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     // Add custom agent_type to registry
     let sleep_agent_type = CustomAgentType::default()

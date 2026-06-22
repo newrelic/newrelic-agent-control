@@ -36,7 +36,7 @@ const REPORTED_VERSION: &str = "1.2.3";
 fn test_local_agent_type_shadows_remote_registry_with_oci_registry() {
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
     write_agent_type_to_local_dir(&dirs.local_dir());
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
@@ -55,7 +55,7 @@ fn test_local_miss_resolves_via_remote_registry_with_oci_registry() {
     push_agent_type_to_registry(&signer);
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let mut agent_control =
         start_agent_control_for_test(&opamp_server, &signer, &dirs.base_paths());

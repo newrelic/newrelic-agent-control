@@ -19,7 +19,7 @@ fn test_memory_on_agent_substitution_and_version_update() {
     // 150 MiB (Bloat Protection) 120 MiB is the actual max happening on first iteration
     let max_memory_limit = 150 * 1024 * 1024;
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
     let agent_id = "nr-sleep-agent";
 
     let packages_config = format!(

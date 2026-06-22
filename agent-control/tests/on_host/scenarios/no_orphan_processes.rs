@@ -18,7 +18,7 @@ use std::time::Duration;
 fn test_no_orphan_processes_after_agent_control_stops() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     // Create a custom agent type with a long-running sleep process
     #[cfg(target_family = "unix")]

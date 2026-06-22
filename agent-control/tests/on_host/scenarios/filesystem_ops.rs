@@ -21,7 +21,7 @@ use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_H
 fn writes_filesystem_entries() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let expected_file_contents = "Hello, world!";
     let agent_id = "test-agent";
@@ -86,7 +86,7 @@ deployment:
 fn complete_render_and_and_write_files_and_dirs() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let agent_id = "test-agent";
 
@@ -258,7 +258,7 @@ some_mapstringyaml:
 fn filesystem_persists_across_restarts() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let agent_id = "test-agent";
     let config_content = "license_key: test_key\nlog_level: info\n";

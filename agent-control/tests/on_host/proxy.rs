@@ -29,7 +29,7 @@ fn proxy_onhost_opamp_agent_control_local_effective_config() {
 
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
     // Setup proxy env variables
     let proxy_url =
         env::var("TESTING_PROXY_URL").expect("Required TESTING_PROXY_URL env var not defined");

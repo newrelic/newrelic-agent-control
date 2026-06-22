@@ -126,7 +126,7 @@ fn run_file_logging_scenario(
 ) -> TempBasePaths {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     // Write the agent type definition
     create_file(

@@ -54,7 +54,7 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
 
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
     let agent_id = "nr-sleep-agent";
 
     #[cfg(target_os = "windows")]
@@ -156,7 +156,7 @@ fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
 
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
     let agent_id = "nr-sleep-agent";
 
     #[cfg(target_os = "windows")]

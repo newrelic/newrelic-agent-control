@@ -36,7 +36,7 @@ fn test_ac_self_update_with_oci_registry() {
 
     let new_version_tag = push_signed_fake_ac_package(&signer);
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), true);
 
@@ -89,7 +89,7 @@ fn test_ac_self_update_fails_for_unsigned_package_with_oci_registry() {
 
     let new_version_tag = push_unsigned_fake_ac_package();
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), true);
 
@@ -145,7 +145,7 @@ fn test_ac_self_update_does_nothing_for_same_version_with_oci_registry() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), true);
 
@@ -190,7 +190,7 @@ fn test_ac_self_update_fails_for_missing_version_with_oci_registry() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     // Disables signature verification to make sure the test reaches the package fetch step, which should fail for a non-existent version.
     create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), false);
@@ -246,7 +246,7 @@ fn test_ac_self_update_fails_when_binary_verification_fails_with_oci_registry() 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let new_version_tag = push_signed_invalid_fake_ac_package(&signer);
 

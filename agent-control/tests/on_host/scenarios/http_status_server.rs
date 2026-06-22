@@ -27,7 +27,7 @@ fn test_http_status_endpoint_response() {
     const HOST_ID: &str = "integration-test";
 
     let opamp_server = FakeServer::start(tokio_runtime().handle());
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
     let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 
     let agents = format!(

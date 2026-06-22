@@ -18,7 +18,7 @@ use std::time::Duration;
 fn onhost_ac_multiconfig_agents_append() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 
@@ -84,7 +84,7 @@ fn onhost_ac_multiconfig_agents_append() {
 fn onhost_ac_multiconfig_agents_append_fails() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 
@@ -128,7 +128,7 @@ fn onhost_ac_multiconfig_agents_append_fails() {
 fn onhost_sub_agent_multiconfig() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     let sleep_agent_type = CustomAgentType::default()
         .with_variables(

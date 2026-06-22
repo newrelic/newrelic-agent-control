@@ -34,7 +34,7 @@ fn test_k8s_http_status_endpoint_response() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
-    let dirs = TempBasePaths::new();
+    let dirs = TempBasePaths::default();
 
     // Copy the k8s custom agent type into the dynamic agent types directory
     let agent_type_file_path = dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME);
