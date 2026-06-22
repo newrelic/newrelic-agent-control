@@ -272,7 +272,8 @@ impl Command {
                 bootstrap_config
                     .self_instrumentation
                     .clone()
-                    .with_proxy_config(bootstrap_config.proxy.clone()),
+                    .with_proxy_config(bootstrap_config.proxy.clone())
+                    .with_region_endpoint(&bootstrap_config.region),
             );
         let tracer = try_init_tracing(tracing_config)
             .map_err(|e| format!("Error on Agent Control tracing initialization: {e}"))?;

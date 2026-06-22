@@ -3,6 +3,7 @@ use http::Uri;
 use nr_auth::{
     parameters::Environments, system_identity::input_data::environment::NewRelicEnvironment,
 };
+use serde::Deserialize;
 
 const OPAMP_ENDPOINT_US: &str = "https://opamp.service.newrelic.com/v1/opamp";
 const OPAMP_ENDPOINT_EU: &str = "https://opamp.service.eu.newrelic.com/v1/opamp";
@@ -27,13 +28,21 @@ const OTLP_URL_US: &str = "otlp.nr-data.net";
 /// Represents the supported region and defines related fields. It cannot wrap the [Environments] enum
 /// due to clap limitations. Re-defining the enum is simpler than extending and using some mapping
 /// tool such as [clap::builder::TypedValueParser::map].
-#[derive(Debug, Copy, Clone, PartialEq, clap::ValueEnum)]
+#[derive(Debug, Copy, Clone, PartialEq, Deserialize, clap::ValueEnum)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum Region {
     US,
     EU,
     JP,
     #[value(alias = "stg")]
+    #[serde(alias = "stg")]
     STAGING,
+}
+
+impl Default for Region {
+    fn default() -> Self {
+        Region::US
+    }
 }
 
 impl From<Region> for Environments {
@@ -91,6 +100,18 @@ impl Region {
     pub fn token_renewal_endpoint(&self) -> Uri {
         NewRelicEnvironment::from(self.to_owned()).token_renewal_endpoint()
     }
+}
+
+/// Returns the OTLP HTTP/protobuf endpoint URL (port 4318) for the given region.
+/// Used to set the self-instrumentation endpoint when not explicitly configured.
+pub fn otlp_endpoint_for_region(region: &Region) -> String {
+    let host = match region {
+        Region::US => OTLP_URL_US,
+        Region::EU => OTLP_URL_EU,
+        Region::JP => OTLP_URL_JP,
+        Region::STAGING => OTLP_URL_STAGING,
+    };
+    format!("https://{}:4318", host)
 }
 
 #[cfg(test)]
@@ -177,5 +198,14 @@ mod tests {
             region.otel_endpoint().to_string(),
             expected_endpoint.to_string()
         );
+    }
+
+    #[rstest]
+    #[case(Region::US, "https://otlp.nr-data.net:4318")]
+    #[case(Region::EU, "https://otlp.eu01.nr-data.net:4318")]
+    #[case(Region::JP, "https://otlp.jp.nr-data.net:4318")]
+    #[case(Region::STAGING, "https://staging-otlp.nr-data.net:4318")]
+    fn test_otlp_endpoint_for_region(#[case] region: Region, #[case] expected: &str) {
+        assert_eq!(otlp_endpoint_for_region(&region), expected);
     }
 }

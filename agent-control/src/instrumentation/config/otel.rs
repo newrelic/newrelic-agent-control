@@ -6,7 +6,12 @@ use std::{collections::HashMap, fmt::Debug, time::Duration};
 use url::Url;
 use wrapper_with_default::WrapperWithDefault;
 
+use crate::cli::common::region::{Region, otlp_endpoint_for_region};
 use crate::http::config::ProxyConfig;
+
+/// Sentinel URL used as a placeholder when no explicit OTLP endpoint is configured.
+/// Replaced at startup by the region-derived endpoint via [`OtelConfig::with_region_endpoint`].
+const ENDPOINT_SENTINEL: &str = "https://fake";
 
 /// Default timeout for HTTP client.
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -68,6 +73,24 @@ impl OtelConfig {
     /// Returns a new configuration including proxy config
     pub fn with_proxy_config(self, proxy: ProxyConfig) -> Self {
         Self { proxy, ..self }
+    }
+
+    /// Returns a new configuration with the endpoint resolved from the region.
+    ///
+    /// Only applies when the current endpoint equals the sentinel value [`ENDPOINT_SENTINEL`]
+    /// (`"https://fake"`), meaning no explicit endpoint was configured. In that case the endpoint
+    /// is derived from the region using [`otlp_endpoint_for_region`] (HTTP/protobuf, port 4318).
+    /// If an explicit endpoint is already set, this is a no-op.
+    pub fn with_region_endpoint(self, region: &Region) -> Self {
+        if self.endpoint.as_str().trim_end_matches('/') == ENDPOINT_SENTINEL {
+            let url = otlp_endpoint_for_region(region);
+            Self {
+                endpoint: url.parse().expect("valid OTLP URL"),
+                ..self
+            }
+        } else {
+            self
+        }
     }
 
     /// Returns a new configuration including custom_attributes
@@ -303,5 +326,42 @@ logs:
             serde_saphyr::from_str::<OtelConfig>(EXAMPLE_FULLY_POPULATED_OPENTELEMETRY_CONFIG)
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn test_endpoint_resolves_from_region() {
+        use crate::cli::common::region::Region;
+        let config = OtelConfig::default(); // uses "https://fake" endpoint
+        let config = config.with_region_endpoint(&Region::US);
+        assert_eq!(config.endpoint.host_str(), Some("otlp.nr-data.net"));
+    }
+
+    #[test]
+    fn test_explicit_endpoint_not_overridden() {
+        use crate::cli::common::region::Region;
+        let config: OtelConfig = serde_saphyr::from_str(
+            "endpoint: https://custom.endpoint:4318\nmetrics:\n  enabled: true",
+        )
+        .unwrap();
+        let config = config.with_region_endpoint(&Region::US);
+        assert_eq!(config.endpoint.host_str(), Some("custom.endpoint"));
+    }
+
+    #[test]
+    fn test_region_endpoint_eu() {
+        use crate::cli::common::region::Region;
+        let config = OtelConfig::default();
+        let config = config.with_region_endpoint(&Region::EU);
+        assert_eq!(config.endpoint.host_str(), Some("otlp.eu01.nr-data.net"));
+        assert_eq!(config.endpoint.port(), Some(4318));
+    }
+
+    #[test]
+    fn test_region_endpoint_jp() {
+        use crate::cli::common::region::Region;
+        let config = OtelConfig::default();
+        let config = config.with_region_endpoint(&Region::JP);
+        assert_eq!(config.endpoint.host_str(), Some("otlp.jp.nr-data.net"));
+        assert_eq!(config.endpoint.port(), Some(4318));
     }
 }

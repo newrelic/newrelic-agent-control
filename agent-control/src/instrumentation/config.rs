@@ -7,6 +7,7 @@
 //! instrumentation: # application self-instrumentaiton
 //! ```
 
+use crate::cli::common::region::Region;
 use crate::http::config::ProxyConfig;
 use serde::Deserialize;
 
@@ -27,6 +28,18 @@ impl InstrumentationConfig {
             opentelemetry: self
                 .opentelemetry
                 .map(|otel_config| otel_config.with_proxy_config(proxy)),
+        }
+    }
+
+    /// Resolves the OTLP endpoint from the region when no explicit endpoint is configured.
+    ///
+    /// Delegates to [`otel::OtelConfig::with_region_endpoint`]; see that method for details.
+    /// Has no effect if `opentelemetry` is `None`.
+    pub fn with_region_endpoint(self, region: &Region) -> Self {
+        Self {
+            opentelemetry: self
+                .opentelemetry
+                .map(|otel_config| otel_config.with_region_endpoint(region)),
         }
     }
 }

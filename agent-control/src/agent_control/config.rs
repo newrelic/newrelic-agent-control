@@ -16,6 +16,7 @@ use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
 use crate::secrets_provider::SecretsProvidersConfig;
 use crate::values::yaml_config::YAMLConfig;
+use crate::cli::common::region::Region;
 use crate::{
     agent_type::agent_type_id::AgentTypeID, instrumentation::config::InstrumentationConfig,
 };
@@ -30,6 +31,10 @@ use thiserror::Error;
 use tracing::info;
 use url::Url;
 use wrapper_with_default::WrapperWithDefault;
+
+fn default_region() -> Region {
+    Region::US
+}
 
 /// AgentControlConfig represents the configuration for the agent control.
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
@@ -56,6 +61,10 @@ pub struct AgentControlConfig {
 
     #[serde(default)]
     pub proxy: ProxyConfig,
+
+    /// New Relic region for endpoint derivation. Defaults to US.
+    #[serde(default = "default_region")]
+    pub region: Region,
 
     #[serde(default)]
     pub self_instrumentation: InstrumentationConfig,
