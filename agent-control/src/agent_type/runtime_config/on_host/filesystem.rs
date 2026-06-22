@@ -1006,7 +1006,10 @@ projected:
                     String::default(),
                     false,
                     None,
-                    Some(HashMap::from([("nri-mysql.yaml".to_string(), nested.clone())])),
+                    Some(HashMap::from([(
+                        "nri-mysql.yaml".to_string(),
+                        nested.clone(),
+                    )])),
                 ),
             ),
         ]);
