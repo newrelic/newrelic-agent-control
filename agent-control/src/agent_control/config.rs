@@ -277,10 +277,18 @@ pub struct AgentControlDynamicConfig {
     )]
     pub version: Option<Version>,
     /// chart_version represent the AC chart version that needs to be executed.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "deserialize_chart_version"
+    )]
     pub chart_version: Option<String>,
     /// cd_chart_version represent the agent control cd chart version that needs to be executed.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "deserialize_chart_version"
+    )]
     pub cd_chart_version: Option<String>,
 }
 
@@ -394,6 +402,17 @@ where
         Some(v) => Version::from_str(v)
             .map(Some)
             .map_err(|e| de::Error::custom(e.to_string())),
+    }
+}
+
+fn deserialize_chart_version<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: Option<String> = Option::deserialize(deserializer)?;
+    match s.as_deref() {
+        None | Some("") => Ok(None),
+        Some(v) => Ok(Some(v.to_string())),
     }
 }
 
