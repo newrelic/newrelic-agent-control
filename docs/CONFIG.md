@@ -74,7 +74,7 @@ This configuration field enables and sets up the remote configuration features o
 fleet_control:
   endpoint: https://opamp.service.newrelic.com/v1/opamp # Fleet control endpoint.
   auth_config:
-    token_url: https://system-identity-oauth.service.newrelic.com/oauth2/token # Endpoint to obtain access token
+    token_url: https://system-identity-oauth.service.newrelic.com/oauth2/token # Endpoint to obtain access token
     client_id: "some-client-id" # Auth client id associated with the private key
     provider: "local" # Local auth provider which will load the provided key from 'private_key_path'
     private_key_path: "/private/key/path" # Path to the private key corresponding to the client-id.
@@ -82,7 +82,7 @@ fleet_control:
   fleet_id: "some-id" # Fleet identifier.
   signature_validation:
     enabled: true # Defaults to true, allows disabling the signature validation.
-    public_key_server_url: "https://publickeys.newrelic.com/signing/blob-management/global/agentconfiguration" # Server to obtain the public key for signature validation.
+    public_key_server_url: "https://publickeys.newrelic.com/signing/blob-management/global/agentconfiguration" # Server to obtain the public key for signature validation.
 ```
 
 ### proxy
@@ -108,30 +108,35 @@ Configuring a proxy in Agent Control does not automatically configure the same p
 
 The only exception is the infrastructure agent, which will inherit the proxy settings from Agent Control whenever the configuration is generated via the Cli.
 
-### server
-
-Agent Control status server allows consulting the status of Agent Control and any controlled agent. It can be configured as follows:
-
-```yaml
-server:
-  port: 51200 # Port for the status server. Defaults to 51200.
-  host: "127.0.0.1" # Host for the status server. Defaults to '127.0.0.1'.
-  enabled: true # The status server is enabled by default
-```
-
-### health_check
-
-Configuration fields to set-up Agent Control health-check
-
-```yaml
-health_check:
-  interval: 120s # Defaults to 30s
-  initial_delay: 120s # Defaults to 30s
-```
-
 ### self_instrumentation
 
-Agent Control can be configured to instrument itself and report logs and metrics through OpenTelemetry. If proxy is configured globally it will also apply to self-instrumentation.
+Enables Agent Control to send its own observability data (metrics, logs, traces) directly to New Relic via OTLP — no Infra agent or Fluent Bit required. If a proxy is configured globally it will also apply to self-instrumentation.
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `opentelemetry.endpoint` | URL | yes | — | OTLP HTTP endpoint. US: `https://otlp.nr-data.net:4318`. EU: `https://otlp.eu01.nr-data.net:4318`. JP: `https://otlp.jp.nr-data.net:4318`. Staging: `https://staging-otlp.nr-data.net:4318` |
+| `opentelemetry.headers.api-key` | string | yes | — | New Relic license key (ingest key) |
+| `opentelemetry.metrics.enabled` | bool | no | `false` | Send Agent Control metrics to New Relic |
+| `opentelemetry.logs.enabled` | bool | no | `false` | Send Agent Control logs to New Relic |
+| `opentelemetry.traces.enabled` | bool | no | `false` | Send Agent Control traces to New Relic |
+
+Minimal working example:
+
+```yaml
+self_instrumentation:
+  opentelemetry:
+    endpoint: https://otlp.nr-data.net:4318
+    headers:
+      api-key: YOUR_LICENSE_KEY_HERE
+    metrics:
+      enabled: true
+    logs:
+      enabled: true
+    traces:
+      enabled: true
+```
+
+Additional options:
 
 ```yaml
 self_instrumentation:
@@ -142,13 +147,34 @@ self_instrumentation:
     client_timeout: 10s # Timeout for performing requests, defaults to 30s.
     custom_attributes: {} # Attributes to be decorated in all metrics and logs
     metrics:
-      enabled: true # Defaults to false.
-      interval: 120s # Interval to report metrics, it defaults to 60s.
+      enabled: true # Defaults to false.
+      interval: 120s # Interval to report metrics, it defaults to 60s.
     logs:
       enabled: true # Defaults to false.
       batch_config:
         scheduled_delay: 30s # Set the scheduled delay for batch export of logs. Defaults to 30s.
-        max_size: 512 # Se the maximum number of logs to process in a single batch. Defaults to 512.
+        max_size: 512 # Set the maximum number of logs to process in a single batch. Defaults to 512.
+```
+
+### server
+
+Agent Control status server allows consulting the status of Agent Control and any controlled agent. It can be configured as follows:
+
+```yaml
+server:
+  port: 51200 # Port for the status server. Defaults to 51200.
+  host: "127.0.0.1" # Host for the status server. Defaults to '127.0.0.1'.
+  enabled: true # The status server is enabled by default
+```
+
+### health_check
+
+Configuration fields to set-up Agent Control health-check
+
+```yaml
+health_check:
+  interval: 120s # Defaults to 30s
+  initial_delay: 120s # Defaults to 30s
 ```
 
 ### host_id
@@ -163,7 +189,7 @@ host where Agent Control is running. Order of precedence:
 This applies for on-host environments only:
 
 ```yaml
-host_id: "some-host-id" # Defaults to "" (no host set).
+host_id: "some-host-id" # Defaults to "" (no host set).
 ```
 
 ### k8s
@@ -172,7 +198,7 @@ The `k8s` configuration field applies for k8s environments only and are automati
 
 ```yaml
 k8s:
-  cluster_name: "some-cluster-name" # Required, used to identify the cluster in Fleet Control.
+  cluster_name: "some-cluster-name" # Required, used to identify the cluster in Fleet Control.
   namespace: "default" # Required, namespace where all resources managed by Agent Control will be created.
   namespace_agents: "default-agents" # Required, namespace where all sub-agents managed by Agent Control will be created.
   current_chart_version: "0.0.50-dev" # Chart version used to deploy agent-control, it will be reported to Fleet Control and used to check if a remote update should be applied.
