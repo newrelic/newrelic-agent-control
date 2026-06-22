@@ -56,6 +56,12 @@ impl Oci {
             (None, Some(digest)) => {
                 Ok(Reference::with_digest(registry_str, repository_str, digest))
             }
+
+            // We should never reach this case.
+            // For sub-agents, the version is always required. If the version is empty, it should be caught during validation.
+            // For Agent Control, the version is optional. If the version isn't configured, or it's an empty string,
+            // we don't update and this function is never called.
+            // This error is here as a defensive programming measure to catch any unexpected cases where the version is empty.
             (None, None) => Err(InvalidVersion("version cannot be empty".to_string())),
         }
     }
