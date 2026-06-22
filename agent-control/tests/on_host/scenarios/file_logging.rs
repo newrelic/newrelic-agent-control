@@ -2,7 +2,8 @@ use std::{fs, io, path::Path, time::Duration};
 
 use crate::{
     common::{
-        agent_control::start_agent_control_with_custom_config, retry::retry, runtime::tokio_runtime,
+        agent_control::start_agent_control_with_custom_config, base_paths::TempBasePaths,
+        retry::retry, runtime::tokio_runtime,
     },
     on_host::tools::{
         config::{AgentControlConfigBuilder, create_file, create_local_config},
@@ -11,13 +12,11 @@ use crate::{
     },
 };
 use fake_opamp_server::FakeServer;
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::{
     agent_id::AgentID, defaults::STDOUT_LOG_FILE_NAME_SUFFIX,
 };
 use rstest::rstest;
-use tempfile::tempdir;
 
 #[cfg(target_family = "unix")]
 const LOGGING_AGENT_TYPE_YAML: &str = r#"
@@ -124,18 +123,15 @@ fn run_file_logging_scenario(
     initial_message: &str,
     reload_file_logging: bool,
     reload_message: &str,
-) -> (tempfile::TempDir, String) {
+) -> TempBasePaths {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let tempdir = tempdir().expect("failed to create temp dir");
-    let local_dir = tempdir.path().join("local");
-    let remote_dir = tempdir.path().join("remote");
-    let log_dir = tempdir.path().join("logs");
+    let dirs = TempBasePaths::default();
 
     // Write the agent type definition
     create_file(
         LOGGING_AGENT_TYPE_YAML.to_string(),
-        local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
+        dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
 
     // Configure agent control with the agent
@@ -147,7 +143,7 @@ fn run_file_logging_scenario(
     );
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
-        .write(local_dir.to_path_buf());
+        .write(dirs.local_dir());
 
     // Provide the initial local config for the sub-agent
     create_local_config(
@@ -155,19 +151,14 @@ fn run_file_logging_scenario(
         format!(
             "message: \"{initial_message}\"\nenable_file_logging: \"{initial_file_logging}\"\n"
         ),
-        local_dir.to_path_buf(),
+        dirs.local_dir(),
     );
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.to_path_buf(),
-        remote_dir: remote_dir.to_path_buf(),
-        log_dir: log_dir.to_path_buf(),
-    };
-
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
+    let sub_agent_instance_id =
+        get_instance_id(&AgentID::try_from(agent_id).unwrap(), dirs.base_paths());
 
     // Give some time for the echo output to be captured in the log files
     std::thread::sleep(Duration::from_secs(5));
@@ -181,9 +172,7 @@ fn run_file_logging_scenario(
     // Give some time for the echo output to be captured in the log files
     std::thread::sleep(Duration::from_secs(5));
 
-    // Return tempdir (to keep it alive) and the log_dir path as string
-    // We return agent_id so callers know where to look for logs
-    (tempdir, log_dir.to_string_lossy().to_string())
+    dirs
 }
 
 /// File logging enable/disable combinations with before and after reload checks
@@ -199,7 +188,7 @@ fn test_file_logging_reload(
 ) {
     let agent_id = format!("file-logging-agent-{first_run_enabled}-{second_run_enabled}");
 
-    let (_tempdir, log_dir) = run_file_logging_scenario(
+    let dirs = run_file_logging_scenario(
         &agent_id,
         first_run_enabled,
         first_run_message,
@@ -207,7 +196,7 @@ fn test_file_logging_reload(
         second_run_message,
     );
 
-    let log_dir_path = Path::new(&log_dir);
+    let log_dir_path = dirs.log_dir();
     let agent_logs_dir = log_dir_path.join(&agent_id);
     assert!(
         agent_logs_dir.exists(),
@@ -215,7 +204,7 @@ fn test_file_logging_reload(
     );
 
     let all_contents = retry(60, Duration::from_secs(1), || {
-        Ok(collect_stdout_logs(log_dir_path, &agent_id)?)
+        Ok(collect_stdout_logs(&log_dir_path, &agent_id)?)
     });
 
     // If the logs are enabled for the run the string must be found, same for disabled and not found
@@ -237,10 +226,9 @@ fn onhost_supervisor_reloading_keeps_file_logging_disabled() {
     let unique_str_2 = "keeps_disabled_run2";
     let agent_id = "test-agent-logs-always-disabled";
 
-    let (_tempdir, log_dir) =
-        run_file_logging_scenario(agent_id, false, unique_str_1, false, unique_str_2);
+    let dirs = run_file_logging_scenario(agent_id, false, unique_str_1, false, unique_str_2);
 
-    let log_dir_path = Path::new(&log_dir);
+    let log_dir_path = dirs.log_dir();
     let agent_logs_dir = log_dir_path.join(agent_id);
     assert!(
         !agent_logs_dir.exists(),

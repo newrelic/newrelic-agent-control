@@ -1,4 +1,5 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::remote_config_status::check_latest_remote_config_status;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::retry::retry;
@@ -13,7 +14,6 @@ use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_VERSION;
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use oci_test_utils::OCISigner;
@@ -34,28 +34,23 @@ fn test_ac_self_update_with_oci_registry() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
-
     let new_version_tag = push_signed_fake_ac_package(&signer);
 
-    create_self_update_local_config(&opamp_server, &signer, local_dir.path(), true);
+    let dirs = TempBasePaths::default();
+
+    create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), true);
 
     let current_exe_path = std::env::current_exe()
         .expect("failed to get current exe path")
         .canonicalize()
         .expect("failed to canonicalize current exe path");
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
+    let mut agent_control = start_agent_control_with_custom_config(
+        dirs.base_paths().clone(),
+        AGENT_CONTROL_MODE_ON_HOST,
+    );
 
-    let mut agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
-
-    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
 
     let update_config = format!(
         r#"
@@ -92,23 +87,18 @@ fn test_ac_self_update_fails_for_unsigned_package_with_oci_registry() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
-
     let new_version_tag = push_unsigned_fake_ac_package();
 
-    create_self_update_local_config(&opamp_server, &signer, local_dir.path(), true);
+    let dirs = TempBasePaths::default();
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
+    create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), true);
 
-    let mut agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+    let mut agent_control = start_agent_control_with_custom_config(
+        dirs.base_paths().clone(),
+        AGENT_CONTROL_MODE_ON_HOST,
+    );
 
-    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
 
     let update_config = format!(
         r#"
@@ -155,21 +145,16 @@ fn test_ac_self_update_does_nothing_for_same_version_with_oci_registry() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::default();
 
-    create_self_update_local_config(&opamp_server, &signer, local_dir.path(), true);
+    create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), true);
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
+    let mut agent_control = start_agent_control_with_custom_config(
+        dirs.base_paths().clone(),
+        AGENT_CONTROL_MODE_ON_HOST,
+    );
 
-    let mut agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
-
-    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
 
     // Requesting the same version that is already running — AC skips the update without
     // contacting the OCI registry.
@@ -205,22 +190,17 @@ fn test_ac_self_update_fails_for_missing_version_with_oci_registry() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::default();
 
     // Disables signature verification to make sure the test reaches the package fetch step, which should fail for a non-existent version.
-    create_self_update_local_config(&opamp_server, &signer, local_dir.path(), false);
+    create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), false);
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
+    let mut agent_control = start_agent_control_with_custom_config(
+        dirs.base_paths().clone(),
+        AGENT_CONTROL_MODE_ON_HOST,
+    );
 
-    let mut agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
-
-    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths().clone());
 
     // This tag does not exist in the registry — the package fetch will fail.
     let update_config = r#"
@@ -266,23 +246,18 @@ fn test_ac_self_update_fails_when_binary_verification_fails_with_oci_registry() 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::default();
 
     let new_version_tag = push_signed_invalid_fake_ac_package(&signer);
 
-    create_self_update_local_config(&opamp_server, &signer, local_dir.path(), true);
+    create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), true);
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
+    let mut agent_control = start_agent_control_with_custom_config(
+        dirs.base_paths().clone(),
+        AGENT_CONTROL_MODE_ON_HOST,
+    );
 
-    let mut agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
-
-    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths().clone());
 
     let update_config = format!(
         r#"

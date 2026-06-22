@@ -1,4 +1,5 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
@@ -7,7 +8,6 @@ use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::{
     AGENT_CONTROL_MODE_ON_HOST, OCI_TEST_REGISTRY_URL,
 };
@@ -31,11 +31,10 @@ const OCI_TEST_REGISTRY_BASIC_AUTH_PASSWORD: &str = "fake-password";
 #[test]
 #[ignore = "needs oci registry with basic auth (use *with_auth_oci_registry suffix)"]
 fn test_agent_remote_package_with_auth_oci_registry() {
-    let local_dir = tempdir().unwrap();
-    let remote_dir = tempdir().unwrap();
-
     let opamp_server = FakeServer::start(tokio_runtime().handle());
     let signer = OCISigner::start(tokio_runtime().handle().clone());
+
+    let dirs = TempBasePaths::default();
 
     let agent_type = CustomAgentType::default()
         .with_packages(Some(
@@ -52,7 +51,7 @@ fn test_agent_remote_package_with_auth_oci_registry() {
             )
             .as_str(),
         ))
-        .build(local_dir.path().to_path_buf());
+        .build(dirs.local_dir());
 
     let package_reference = push_fake_package_with_basic_auth(&signer);
     let package_tag = package_reference.tag().unwrap().to_string();
@@ -62,33 +61,27 @@ fn test_agent_remote_package_with_auth_oci_registry() {
     create_local_config(
         agent_id.as_str(),
         format!("fake_variable: '{package_tag}'").to_string(),
-        local_dir.path().to_path_buf(),
+        dirs.local_dir(),
     );
     create_ac_local_config(
         &opamp_server,
         &signer,
-        local_dir.path(),
+        &dirs.local_dir(),
         format!(r#"{{ "{AGENT_ID}": {{ "agent_type": "{agent_type}" }} }}"#),
     );
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
     retry(60, Duration::from_secs(1), || {
-        verify_fake_agent_has_been_pulled(remote_dir.path(), &package_reference)
+        verify_fake_agent_has_been_pulled(&dirs.remote_dir(), &package_reference)
     });
 }
 
 #[test]
 #[ignore = "needs oci registry with basic auth (use *with_auth_oci_registry suffix)"]
 fn test_ac_self_update_with_auth_oci_registry() {
-    let local_dir = tempdir().unwrap();
-    let remote_dir = tempdir().unwrap();
+    let dirs = TempBasePaths::default();
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let signer = OCISigner::start(tokio_runtime().handle().clone());
@@ -96,17 +89,12 @@ fn test_ac_self_update_with_auth_oci_registry() {
     let package_reference = push_fake_package_with_basic_auth(&signer);
     let package_tag = package_reference.tag().unwrap().to_string();
 
-    create_ac_local_config(&opamp_server, &signer, local_dir.path(), "{}");
+    create_ac_local_config(&opamp_server, &signer, &dirs.local_dir(), "{}");
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
 
     let update_config = format!(
         r#"
@@ -119,7 +107,7 @@ agents: {{}}
 
     // We just verify the package has been pulled, other scenarios are covered in ac_self_update.rs
     retry(60, Duration::from_secs(1), || {
-        verify_fake_ac_has_been_pulled(remote_dir.path(), &package_reference)
+        verify_fake_ac_has_been_pulled(&dirs.remote_dir(), &package_reference)
     });
 }
 

@@ -3,6 +3,7 @@ use crate::common::agent_control::{StartedAgentControl, start_agent_control_with
 use crate::common::attributes::{
     check_identifying_attributes_contains_expected, convert_to_vec_key_value,
 };
+use crate::common::base_paths::TempBasePaths;
 use crate::common::retry::{retry, retry_never};
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::{
@@ -18,7 +19,6 @@ use newrelic_agent_control::agent_control::defaults::OPAMP_SERVICE_VERSION;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
 };
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::k8s::AGENT_CONTROL_MODE_K8S;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
@@ -45,9 +45,9 @@ fn k8s_local_agent_type_shadows_remote_registry_with_oci_registry() {
 
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
-    let tmp_dir = tempdir().expect("failed to create local temp dir");
+    let dirs = TempBasePaths::default();
 
-    write_agent_type_to_local_dir(tmp_dir.path());
+    write_agent_type_to_local_dir(&dirs.local_dir());
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let mut agent_control = start_agent_control_for_test(
@@ -55,7 +55,7 @@ fn k8s_local_agent_type_shadows_remote_registry_with_oci_registry() {
         &signer,
         &namespace,
         k8s.client.clone(),
-        tmp_dir.path(),
+        &dirs,
         "broken-url",
     );
 
@@ -70,7 +70,7 @@ fn k8s_local_miss_resolves_via_remote_registry_with_oci_registry() {
 
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
-    let tmp_dir = tempdir().expect("failed to create local temp dir");
+    let dirs = TempBasePaths::default();
 
     push_agent_type_to_registry(&signer);
 
@@ -80,7 +80,7 @@ fn k8s_local_miss_resolves_via_remote_registry_with_oci_registry() {
         &signer,
         &namespace,
         k8s.client.clone(),
-        tmp_dir.path(),
+        &dirs,
         OCI_TEST_REGISTRY_URL,
     );
 
@@ -93,7 +93,7 @@ fn start_agent_control_for_test(
     signer: &OCISigner,
     namespace: &str,
     k8s_client: kube::Client,
-    local_dir: &Path,
+    dirs: &TempBasePaths,
     oci_registry: &str,
 ) -> StartedAgentControl {
     let config = format!(
@@ -130,7 +130,8 @@ agents: {{}}
         config.clone(),
     ));
 
-    let local = local_dir
+    let local = dirs
+        .local_dir()
         .join(FOLDER_NAME_LOCAL_DATA)
         .join(AGENT_CONTROL_ID);
     std::fs::create_dir_all(&local).unwrap();
@@ -147,14 +148,7 @@ agents: {{}}
         crate::k8s::tools::agent_control::DUMMY_PRIVATE_KEY.to_string(),
     );
 
-    start_agent_control_with_custom_config(
-        BasePaths {
-            local_dir: local_dir.to_path_buf(),
-            remote_dir: local_dir.join("remote").to_path_buf(),
-            log_dir: local_dir.join("log").to_path_buf(),
-        },
-        AGENT_CONTROL_MODE_K8S,
-    )
+    start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_K8S)
 }
 
 fn push_agent_type_to_registry(signer: &OCISigner) -> oci_client::Reference {

@@ -1,4 +1,5 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::consts::NO_CONFIG;
@@ -9,10 +10,8 @@ use fake_opamp_server::FakeServer;
 use httpmock::Method::GET;
 use httpmock::MockServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use std::time::Duration;
-use tempfile::tempdir;
 
 /// Given a agent-control with a sub-agent without supervised executables, it should be able to
 /// read the health status from the file and send it to the opamp server.
@@ -20,11 +19,10 @@ use tempfile::tempdir;
 fn test_file_health_without_supervisor() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::default();
     let sub_agent_id = AgentID::try_from("test-agent").unwrap();
 
-    let health_file_path = local_dir.path().join("health_file.yaml");
+    let health_file_path = dirs.local_dir().join("health_file.yaml");
     let health_config = format!(
         r#"
 interval: 1s
@@ -38,7 +36,7 @@ file:
 
     let agent_type = CustomAgentType::empty()
         .with_health(Some(&health_config))
-        .build(local_dir.path().to_path_buf());
+        .build(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -50,21 +48,16 @@ file:
     create_local_config(
         sub_agent_id.to_string(),
         NO_CONFIG.to_string(),
-        local_dir.path().into(),
+        dirs.local_dir(),
     );
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
-        .write(local_dir.path().to_path_buf());
+        .write(dirs.local_dir());
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let agent_control_instance_id = get_instance_id(&sub_agent_id, base_paths);
+    let agent_control_instance_id = get_instance_id(&sub_agent_id, dirs.base_paths());
 
     create_file(
         r#"
@@ -130,8 +123,7 @@ fn test_http_health_without_supervisor() {
         then.status(200).body(r#"healthy-message"#);
     });
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::default();
     let sub_agent_id = AgentID::try_from("test-agent").unwrap();
 
     let health_config = format!(
@@ -148,7 +140,7 @@ http:
 
     let agent_type = CustomAgentType::empty()
         .with_health(Some(&health_config))
-        .build(local_dir.path().to_path_buf());
+        .build(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -159,24 +151,17 @@ http:
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
-        .write(local_dir.path().to_path_buf());
+        .write(dirs.local_dir());
     create_local_config(
         sub_agent_id.to_string(),
         NO_CONFIG.to_string(),
-        local_dir.path().into(),
+        dirs.local_dir(),
     );
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
-    let base_paths = base_paths.clone();
-
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let agent_control_instance_id = get_instance_id(&sub_agent_id, base_paths);
+    let agent_control_instance_id = get_instance_id(&sub_agent_id, dirs.base_paths());
 
     retry(30, Duration::from_secs(1), || {
         if let Some(health_status) =

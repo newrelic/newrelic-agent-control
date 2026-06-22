@@ -1,15 +1,14 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::process_finder::find_processes_by_pattern;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use fake_opamp_server::FakeServer;
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use std::thread;
 use std::time::Duration;
-use tempfile::tempdir;
 
 #[cfg(target_family = "unix")]
 use nix::{
@@ -22,8 +21,7 @@ use nix::{
 #[test]
 fn killing_subprocess_with_signal_restarts() -> Result<(), Box<dyn std::error::Error>> {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
-    let local_dir = tempdir()?;
-    let remote_dir = tempdir()?;
+    let dirs = TempBasePaths::default();
 
     // Create a custom agent type with long-running sleep processes
     let agent_type_builder = CustomAgentType::empty().with_variables(
@@ -99,7 +97,7 @@ duration-2:
 "#,
     ));
 
-    let agent_type = agent_type_builder.build(local_dir.path().to_path_buf());
+    let agent_type = agent_type_builder.build(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -111,7 +109,7 @@ agents:
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
-        .write(local_dir.path().to_path_buf());
+        .write(dirs.local_dir());
 
     // Create local config to trigger the executable launch
     create_local_config(
@@ -120,18 +118,12 @@ agents:
 duration-2: "2000000"
 "#
         .to_string(),
-        local_dir.path().to_path_buf(),
+        dirs.local_dir(),
     );
-
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
 
     // Start Agent Control
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths, AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
     // Find the process id of both sleep/timeout commands
     // It is expected that only one such process is found!

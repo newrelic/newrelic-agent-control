@@ -1,5 +1,6 @@
 use super::tools::config::{create_file, create_local_config};
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::process_finder::find_processes_by_pattern;
 use crate::common::retry::retry;
 use crate::on_host::consts::AWS_VM_RESPONSE;
@@ -13,7 +14,6 @@ use httpmock::MockServer;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
 };
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::http::client::HttpClient;
 use newrelic_agent_control::http::config::{HttpConfig, ProxyConfig};
@@ -23,7 +23,6 @@ use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use resource_detection::system::detector::SystemDetector;
 use std::time::Duration;
-use tempfile::tempdir;
 
 const UNRESPONSIVE_METADATA_ENDPOINT: &str = "http://localhost:9999";
 
@@ -169,8 +168,7 @@ fn test_gcp_cloud_id() {
 /// tests that nr-ac:host_id and nr-sub:agent_id are correctly replaced in the agent type.
 #[test]
 fn test_sub_sa_vars() {
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::default();
 
     #[cfg(target_family = "unix")]
     create_file(
@@ -194,7 +192,7 @@ deployment:
         - ${nr-sub:agent_id}
     "#
         .to_string(),
-        local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),
+        dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
 
     #[cfg(target_family = "windows")]
@@ -221,11 +219,11 @@ deployment:
         - --agent_id=${nr-sub:agent_id}
     "#
         .to_string(),
-        local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),
+        dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
 
-    let sa_config_path = local_dir
-        .path()
+    let sa_config_path = dirs
+        .local_dir()
         .join(FOLDER_NAME_LOCAL_DATA)
         .join(AGENT_CONTROL_ID)
         .join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG));
@@ -239,16 +237,10 @@ agents:
         .to_string(),
         sa_config_path.clone(),
     );
-    create_local_config("test-agent", NO_CONFIG.to_string(), local_dir.path().into());
-
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
+    create_local_config("test-agent", NO_CONFIG.to_string(), dirs.local_dir());
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths, AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
     retry(30, Duration::from_secs(1), || {
         // Check that the process is running with this exact command

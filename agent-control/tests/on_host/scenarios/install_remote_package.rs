@@ -2,6 +2,7 @@ use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::attributes::{
     check_identifying_attributes_contains_expected, convert_to_vec_key_value,
 };
+use crate::common::base_paths::TempBasePaths;
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::remote_config_status::check_latest_remote_config_status;
 use crate::common::retry::retry;
@@ -13,15 +14,15 @@ use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use oci_test_utils::OCISigner;
 use oci_test_utils::{PackageMediaType, PackagePublisher};
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use opamp_client::opamp::proto::any_value::Value;
+use std::path::PathBuf;
 use std::time::Duration;
-use tempfile::{TempDir, tempdir};
+use tempfile::tempdir;
 
 #[cfg(not(target_os = "windows"))]
 const FILE_LINUX: &str = "sleep60.sh";
@@ -53,7 +54,7 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
 
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
+    let dirs = TempBasePaths::default();
     let agent_id = "nr-sleep-agent";
 
     #[cfg(target_os = "windows")]
@@ -62,7 +63,7 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
     let platform = Platform::Linux;
 
     let sleep_agent_type = create_agent_type(
-        &local_dir,
+        dirs.local_dir(),
         agent_id,
         &platform,
         &signer.jwks_url().to_string(),
@@ -73,17 +74,10 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
     let updated_version = push_testing_package_platform(&platform, PCK_VERSION_2, Some(&signer));
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_oci_registry(OCI_TEST_REGISTRY_URL)
-        .write(local_dir.path().to_path_buf());
-
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
+        .write(dirs.local_dir());
 
     // We create a local config, we are setting the variable fake_variable defined in the
     // custom_agent_type for other tests to set the version.
@@ -94,13 +88,13 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
     create_local_config(
         agent_id.to_string(),
         format!("fake_variable: '{version}'").to_string(),
-        local_dir.path().to_path_buf(),
+        dirs.local_dir(),
     );
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
 
     let agent_a = format!(
         r#"
@@ -113,7 +107,7 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
     opamp_server.set_config_response(ac_instance_id.clone(), agent_a);
 
     let sleep_instance_id =
-        get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths.clone());
+        get_instance_id(&AgentID::try_from(agent_id).unwrap(), dirs.base_paths());
 
     retry(60, Duration::from_secs(1), || {
         let expected_identifying_attributes = convert_to_vec_key_value(Vec::from([(
@@ -162,7 +156,7 @@ fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
 
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
+    let dirs = TempBasePaths::default();
     let agent_id = "nr-sleep-agent";
 
     #[cfg(target_os = "windows")]
@@ -171,7 +165,7 @@ fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
     let platform = Platform::Linux;
 
     let sleep_agent_type = create_agent_type(
-        &local_dir,
+        dirs.local_dir(),
         agent_id,
         &platform,
         &signer.jwks_url().to_string(),
@@ -181,22 +175,15 @@ fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
     let version = push_testing_package_platform(&platform, VERSION, None);
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_oci_registry(OCI_TEST_REGISTRY_URL)
-        .write(local_dir.path().to_path_buf());
-
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
+        .write(dirs.local_dir());
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
 
     let agents = format!(
         r#"
@@ -208,7 +195,7 @@ fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
     opamp_server.set_config_response(ac_instance_id.clone(), agents);
 
     let sleep_instance_id =
-        get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths.clone());
+        get_instance_id(&AgentID::try_from(agent_id).unwrap(), dirs.base_paths());
     // The agent-type use 'fake_variable' to get the agent version
     let sleep_agent_cfg = format!("fake_variable: '{version}'").to_string();
     opamp_server.set_config_response(sleep_instance_id.clone(), sleep_agent_cfg);
@@ -298,7 +285,7 @@ impl Platform {
 }
 
 fn create_agent_type(
-    local_dir: &TempDir,
+    local_dir: PathBuf,
     agent_id: &str,
     platform: &Platform,
     public_key_url: &str,
@@ -346,7 +333,7 @@ fn create_agent_type(
         .with_executables(Some(&executables))
         .with_version(Some(&version_config))
         .with_packages(Some(&packages_config))
-        .build(local_dir.path().to_path_buf())
+        .build(local_dir)
 }
 
 /// Push and signs the package containing the platform-specific binary to be used in the custom agent

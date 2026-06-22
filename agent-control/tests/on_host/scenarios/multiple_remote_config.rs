@@ -1,4 +1,5 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{retry::retry, runtime::tokio_runtime};
@@ -7,35 +8,27 @@ use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::opamp::remote_config::AGENT_CONFIG_PREFIX;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::collections::HashMap;
 use std::time::Duration;
-use tempfile::tempdir;
 
 #[test]
 fn onhost_ac_multiconfig_agents_append() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::default();
 
-    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
+    let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .write(local_dir.path().to_path_buf());
+        .write(dirs.local_dir());
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
 
     let agent_a = format!(
         r#"
@@ -91,23 +84,17 @@ fn onhost_ac_multiconfig_agents_append() {
 fn onhost_ac_multiconfig_agents_append_fails() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::default();
 
-    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
+    let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .write(local_dir.path().to_path_buf());
+        .write(dirs.local_dir());
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
 
     let config = format!(
         r#"
@@ -141,8 +128,7 @@ fn onhost_ac_multiconfig_agents_append_fails() {
 fn onhost_sub_agent_multiconfig() {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let dirs = TempBasePaths::default();
 
     let sleep_agent_type = CustomAgentType::default()
         .with_variables(
@@ -157,7 +143,7 @@ fn onhost_sub_agent_multiconfig() {
       required: true
     "#,
         )
-        .build(local_dir.path().to_path_buf());
+        .build(dirs.local_dir());
 
     let agent_id = "nr-sleep-agent";
     let agents = format!(
@@ -169,17 +155,13 @@ fn onhost_sub_agent_multiconfig() {
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
-        .write(local_dir.path().to_path_buf());
+        .write(dirs.local_dir());
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
-    let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
+    let sub_agent_instance_id =
+        get_instance_id(&AgentID::try_from(agent_id).unwrap(), dirs.base_paths());
 
     let var_a = "var_a: a".to_string();
     let var_b = "var_b: b".to_string();

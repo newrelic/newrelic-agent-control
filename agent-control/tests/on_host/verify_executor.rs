@@ -3,13 +3,12 @@ use std::path::Path;
 use assert_matches::assert_matches;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::EXECUTION_MODE_ATTRIBUTE_KEY;
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::version_updater::on_host::verify::{
     ProcessVerifyExecutor, VerifyError, VerifyExecutor,
 };
 use opamp_client::opamp::proto::any_value::Value;
-use tempfile::tempdir;
 
+use crate::common::base_paths::TempBasePaths;
 use crate::{
     common::runtime::tokio_runtime, on_host::tools::config::AgentControlConfigBuilder,
     on_host::tools::instance_id::get_instance_id,
@@ -23,27 +22,20 @@ fn binary_path() -> &'static Path {
 
 #[test]
 fn test_verify_executor() {
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
-
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .write(local_dir.path().to_path_buf());
+    let dirs = TempBasePaths::default();
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .write(dirs.local_dir());
 
     let result = ProcessVerifyExecutor::default().execute(
         binary_path(),
         &[
             "--local-dir",
-            local_dir.path().to_str().unwrap(),
+            dirs.local_dir().to_str().unwrap(),
             "--remote-dir",
-            remote_dir.path().to_str().unwrap(),
+            dirs.remote_dir().to_str().unwrap(),
             "verify",
         ],
     );
@@ -55,7 +47,7 @@ fn test_verify_executor() {
     );
 
     // Verify that execution.mode attribute was sent to OpAMP server
-    let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, base_paths);
+    let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
     let attributes = opamp_server
         .get_attributes(agent_control_instance_id.clone())
         .expect("Agent Control attributes not found in OpAMP server");
@@ -100,22 +92,21 @@ fn test_verify_executor_read_config_error() {
 
 #[test]
 fn test_verify_executor_opamp_connectivity_failure() {
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
-
     let unreachable_opamp_endpoint = "http://localhost:19999";
     let unreachable_jwks_endpoint = "http://localhost:19999/jwks";
 
+    let dirs = TempBasePaths::default();
+
     AgentControlConfigBuilder::basic(unreachable_opamp_endpoint, unreachable_jwks_endpoint)
-        .write(local_dir.path().to_path_buf());
+        .write(dirs.local_dir());
 
     let result = ProcessVerifyExecutor::default().execute(
         binary_path(),
         &[
             "--local-dir",
-            local_dir.path().to_str().unwrap(),
+            dirs.local_dir().to_str().unwrap(),
             "--remote-dir",
-            remote_dir.path().to_str().unwrap(),
+            dirs.remote_dir().to_str().unwrap(),
             "verify",
         ],
     );

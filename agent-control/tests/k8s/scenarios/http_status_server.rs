@@ -1,4 +1,5 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::http_port::{available_port, status_server_url};
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
@@ -15,11 +16,9 @@ use newrelic_agent_control::agent_control::defaults::{
     CLUSTER_NAME_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY,
 };
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::environment::Environment;
 use serde_json::json;
 use std::time::Duration;
-use tempfile::tempdir;
 
 /// The /status endpoint should return the expected response shape in k8s mode:
 /// - fleet fields reflect the configured OpAMP connection
@@ -35,10 +34,10 @@ fn test_k8s_http_status_endpoint_response() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
-    let tmp_dir = tempdir().expect("failed to create local temp dir");
+    let dirs = TempBasePaths::default();
 
     // Copy the k8s custom agent type into the dynamic agent types directory
-    let agent_type_file_path = tmp_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME);
+    let agent_type_file_path = dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME);
     std::fs::create_dir_all(agent_type_file_path.parent().unwrap()).unwrap();
     std::fs::copy(CUSTOM_AGENT_TYPE_PATH, &agent_type_file_path).unwrap();
 
@@ -56,7 +55,7 @@ fn test_k8s_http_status_endpoint_response() {
         &opamp_server.endpoint(),
         &opamp_server.jwks_endpoint(),
         status_server_port,
-        tmp_dir.path(),
+        &dirs.local_dir(),
         &agents,
     );
 
@@ -76,14 +75,7 @@ fn test_k8s_http_status_endpoint_response() {
         DUMMY_PRIVATE_KEY.to_string(),
     );
 
-    let _ac = start_agent_control_with_custom_config(
-        BasePaths {
-            local_dir: tmp_dir.path().to_path_buf(),
-            remote_dir: tmp_dir.path().join("remote"),
-            log_dir: tmp_dir.path().join("log"),
-        },
-        Environment::K8s,
-    );
+    let _ac = start_agent_control_with_custom_config(dirs.base_paths(), Environment::K8s);
 
     let expected_fleet = json!({
         "enabled": true,

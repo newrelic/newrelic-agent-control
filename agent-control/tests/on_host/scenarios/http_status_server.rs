@@ -1,4 +1,5 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::base_paths::TempBasePaths;
 use crate::common::http_port::{available_port, status_server_url};
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
@@ -12,11 +13,9 @@ use newrelic_agent_control::agent_control::defaults::{
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY,
     OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
-use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use serde_json::json;
 use std::time::Duration;
-use tempfile::tempdir;
 
 /// The /status endpoint should return the expected response shape:
 /// - fleet fields reflect the configured OpAMP connection
@@ -28,10 +27,8 @@ fn test_http_status_endpoint_response() {
     const HOST_ID: &str = "integration-test";
 
     let opamp_server = FakeServer::start(tokio_runtime().handle());
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
-
-    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
+    let dirs = TempBasePaths::default();
+    let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -44,20 +41,15 @@ fn test_http_status_endpoint_response() {
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
         .with_status_server(status_server_port)
-        .write(local_dir.path().to_path_buf());
+        .write(dirs.local_dir());
 
     create_local_config(
         AGENT_ID.to_string(),
         NO_CONFIG.to_string(),
-        local_dir.path().into(),
+        dirs.local_dir(),
     );
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
-    let _ac = start_agent_control_with_custom_config(base_paths, AGENT_CONTROL_MODE_ON_HOST);
+    let _ac = start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
     let expected_fleet = json!({
         "enabled": true,
