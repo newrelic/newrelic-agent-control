@@ -74,6 +74,9 @@ bytes = "1.12.0"
 opentelemetry = { version = "0.32.0" }
 opentelemetry_sdk = { version = "0.32.1" }
 tracing-opentelemetry = "0.33.0"
+# reqwest-blocking-client (not reqwest-rustls/async): the PeriodicReader background
+# thread uses futures_executor::block_on, which has no Tokio context. The async
+# reqwest client requires Tokio and would panic or deadlock from that thread.
 opentelemetry-otlp = { version = "0.32.0", features = ["reqwest-blocking-client"] }
 opentelemetry-http = { version = "0.32.0", features = ["reqwest-blocking"] }
 opentelemetry-appender-tracing = { version = "0.32.0" }

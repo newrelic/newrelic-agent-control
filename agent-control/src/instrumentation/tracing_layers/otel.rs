@@ -19,7 +19,10 @@ use thiserror::Error;
 use tracing_opentelemetry::MetricsLayer;
 use tracing_subscriber::{EnvFilter, Layer};
 
-const SERVICE_NAME: &str = "agent-control-self-instrumentation";
+/// Prefix for the service.name OTLP attribute.
+/// The full name is `SERVICE_NAME_PREFIX-<hostname>` so each AC instance
+/// appears as a distinct service in NR (e.g. `agent-control-my-host`).
+const SERVICE_NAME_PREFIX: &str = "agent-control";
 
 /// Enumerates the possible error building OpenTelemetry providers.
 #[derive(Debug, Error)]
@@ -95,21 +98,21 @@ impl OtelLayers {
             .map(|(k, v)| KeyValue::new(k.clone(), v.clone()))
             .collect();
 
-        // Add critical resource attributes for entity registration.
         // host.name / service.instance.id: use a proper syscall instead of an env var so the
         // value is always accurate regardless of whether $HOSTNAME is set in the environment.
-        match get_hostname() {
-            Ok(hostname) => {
-                tracing::debug!(host_name = %hostname, "added host.name");
-                // Use hostname for both host.name and service.instance.id
-                // (stable machine name = best available per-instance key on-host)
-                attributes.push(KeyValue::new("host.name", hostname.clone()));
-                attributes.push(KeyValue::new("service.instance.id", hostname));
+        // The hostname is also used to build the service.name below.
+        let hostname = match get_hostname() {
+            Ok(h) => {
+                tracing::debug!(host_name = %h, "added host.name");
+                attributes.push(KeyValue::new("host.name", h.clone()));
+                attributes.push(KeyValue::new("service.instance.id", h.clone()));
+                Some(h)
             }
             Err(e) => {
                 tracing::warn!(error = %e, "could not detect hostname for OTLP resource attributes");
+                None
             }
-        }
+        };
 
         // host.id: stable machine identifier from /etc/machine-id (Linux) or registry (Windows).
         // Allows distinguishing two machines with the same hostname.
@@ -155,8 +158,15 @@ impl OtelLayers {
         attributes.push(KeyValue::new("entity.type", "NRAgentControl"));
         tracing::debug!("added entity type: NRAgentControl");
 
+        // service.name: "agent-control-<hostname>" so each instance is a distinct
+        // service in NR. Falls back to the prefix alone when hostname is unavailable.
+        let service_name = hostname
+            .as_deref()
+            .map(|h| format!("{SERVICE_NAME_PREFIX}-{h}"))
+            .unwrap_or_else(|| SERVICE_NAME_PREFIX.to_string());
+
         let resource = Resource::builder()
-            .with_service_name(SERVICE_NAME)
+            .with_service_name(service_name)
             .with_attributes(attributes)
             .build();
 
@@ -296,7 +306,7 @@ impl OtelLayers {
             tracing::debug!("creating traces layer");
             guard._traces_provider = Some(traces_provider.clone());
             let layer =
-                tracing_opentelemetry::layer().with_tracer(traces_provider.tracer(SERVICE_NAME));
+                tracing_opentelemetry::layer().with_tracer(traces_provider.tracer(SERVICE_NAME_PREFIX));
             layers.push(Box::new(layer.with_filter(traces_filter)));
         }
 
@@ -309,19 +319,11 @@ impl OtelLayers {
             // Without this, if no tracing events reach MetricsLayer before the first
             // tick, the PeriodicReader finds no instruments and skips the HTTP call.
             use opentelemetry::metrics::MeterProvider as _;
-            let meter = metrics_provider.meter(SERVICE_NAME);
+            let meter = metrics_provider.meter(SERVICE_NAME_PREFIX);
             let startup_counter = meter.i64_up_down_counter("agent_control.starts").build();
             startup_counter.add(1, &[]);
             // Store in guard so the instrument stays registered for the lifetime of the process.
             guard._startup_counter = Some(startup_counter);
-
-            // Prime the PeriodicReader with an immediate flush so the first export
-            // fires at startup rather than waiting up to 60s. The sleep gives the
-            // background thread time to register itself before we flush.
-            std::thread::sleep(std::time::Duration::from_millis(200));
-            if let Err(e) = metrics_provider.force_flush() {
-                tracing::warn!(error = %e, "initial OTLP metrics flush failed — check endpoint and api-key");
-            }
 
             let layer = MetricsLayer::new(metrics_provider.clone());
             layers.push(Box::new(
