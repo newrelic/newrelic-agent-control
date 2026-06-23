@@ -80,8 +80,14 @@ deployment:
       kind: dir_content_from_map
       source: ${nr-var:config_logging}
     # this is needed in order to create the logging integration directory expected by fluentBit
-    newrelic-infra/newrelic-integrations/logging:
+    newrelic-infra:
       kind: dir
+      entries:
+        newrelic-integrations:
+          kind: dir
+          entries:
+            logging:
+              kind: dir
   executables:
     - id: newrelic-infra
       path: ${nr-sub:packages.infra-agent.dir}\\newrelic-infra.exe

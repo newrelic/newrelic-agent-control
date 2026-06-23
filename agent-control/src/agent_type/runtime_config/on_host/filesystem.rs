@@ -186,8 +186,7 @@ fn output_string(value: serde_json::Value) -> Result<String, serde_saphyr::Error
     }
 }
 
-/// Validates that a file entry path is relative and does not escape its base directory.
-/// Returns a comma-separated list of error messages, if any.
+/// Validates that a file entry path is a single, relative, non-escaping leaf segment.
 fn validate_file_entry_path(path: &Path) -> Result<(), String> {
     let mut errors = Vec::new();
 
@@ -199,12 +198,35 @@ fn validate_file_entry_path(path: &Path) -> Result<(), String> {
     if let Err(e) = check_basedir_escape_safety(path) {
         errors.push(e);
     }
+    // Each key must be a single leaf segment, not a sub-path.
+    if let Err(e) = check_single_segment(path) {
+        errors.push(e);
+    }
 
     if errors.is_empty() {
         Ok(())
     } else {
         Err(errors.join(", "))
     }
+}
+
+/// Rejects multi-segment keys (e.g. `newrelic-infra/newrelic-integrations/logging`) so a nested
+/// tree must be spelled out with explicit `kind: dir` + `entries:` levels. Only the `Normal`
+/// components are counted; `.` (`CurDir`) is ignored. Escaping components (`..`, root, Windows
+/// prefixes) are handled by [`check_basedir_escape_safety`].
+fn check_single_segment(path: &Path) -> Result<(), String> {
+    let normal_segments = path
+        .components()
+        .filter(|c| matches!(c, Component::Normal(_)))
+        .count();
+    if normal_segments > 1 {
+        return Err(format!(
+            "path `{}` must be a single path segment (a leaf); declare nested directories \
+             explicitly with `kind: dir` and `entries:`",
+            path.display()
+        ));
+    }
+    Ok(())
 }
 
 /// Rejects paths that traverse outside their base directory (e.g. `./../../some_path`) so that
@@ -255,7 +277,7 @@ mod tests {
         )]);
 
         let fs_input = FileSystem(HashMap::from([(
-            PathBuf::from("config/newrelic.yaml").try_into().unwrap(),
+            PathBuf::from("newrelic.yaml").try_into().unwrap(),
             FilesystemEntry::File {
                 text: TemplateableValue::from_template("hello".to_string()),
             },
@@ -264,7 +286,7 @@ mod tests {
         let rendered = fs_input.template_with(&variables).unwrap();
 
         let expected = rendered::FileSystem(HashMap::from([(
-            PathBuf::from("/base/dir/config/newrelic.yaml"),
+            PathBuf::from("/base/dir/newrelic.yaml"),
             RenderedEntry::File("hello".to_string()),
         )]));
         assert_eq!(rendered, expected);
@@ -293,8 +315,10 @@ mod tests {
 
     #[rstest]
     #[case::single_segment("config", true)]
-    #[case::multi_segment("agent/data", true)]
-    #[case::dot_segment("agent/./data", true)]
+    #[case::single_segment_curdir("./config", true)]
+    // Multi-segment keys are rejected: nested dirs must be declared with `kind: dir` + `entries:`.
+    #[case::multi_segment("agent/data", false)]
+    #[case::dot_segment("agent/./data", false)]
     #[case::windows_style_path(r"some\\windows\\style\\path", true)]
     #[case::absolute("/etc", false)]
     #[case::dotdot("agent/../escape", false)]
