@@ -146,8 +146,8 @@ agents:
     });
 
     // The sub-agent's filesystem directory must be deleted by ResourceCleaner
-    let agent_fs_dir = base_paths
-        .remote_dir
+    let agent_fs_dir = dirs
+        .remote_dir()
         .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id);
     retry(60, Duration::from_secs(1), || {
