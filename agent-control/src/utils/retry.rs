@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 
@@ -35,8 +36,7 @@ where
 /// `jitter = true` randomizes each wait somewhere between zero and the computed value.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BackoffPolicy {
-    // `0` is treated as `1`.
-    pub max_attempts: usize,
+    pub max_attempts: NonZeroUsize,
     pub base_delay: Duration,
     pub max_delay: Duration,
     pub jitter: bool,
@@ -81,7 +81,7 @@ pub fn retry_with_backoff<F, T, E>(policy: &BackoffPolicy, mut f: F) -> Result<T
 where
     F: FnMut() -> Result<T, E>,
 {
-    let attempts = policy.max_attempts.max(1);
+    let attempts = policy.max_attempts.get();
     let mut last_err = None;
     for attempt in 1..=attempts {
         match f() {
@@ -151,7 +151,7 @@ mod tests {
     #[test]
     fn delay_schedule_exponential_capped() {
         let p = BackoffPolicy {
-            max_attempts: 5,
+            max_attempts: NonZeroUsize::new(5).unwrap(),
             base_delay: Duration::from_secs(1),
             max_delay: Duration::from_secs(4),
             jitter: false,
@@ -169,7 +169,7 @@ mod tests {
     fn retry_with_backoff_succeeds_after_transient_failures() {
         let attempts = Cell::new(0u32);
         let policy = BackoffPolicy {
-            max_attempts: 4,
+            max_attempts: NonZeroUsize::new(4).unwrap(),
             base_delay: Duration::from_millis(1),
             max_delay: Duration::from_millis(5),
             jitter: false,
@@ -190,7 +190,7 @@ mod tests {
     fn retry_with_backoff_gives_up_after_max_attempts() {
         let attempts = Cell::new(0u32);
         let policy = BackoffPolicy {
-            max_attempts: 3,
+            max_attempts: NonZeroUsize::new(3).unwrap(),
             base_delay: Duration::from_millis(1),
             max_delay: Duration::from_millis(5),
             jitter: false,
@@ -204,28 +204,12 @@ mod tests {
     }
 
     #[test]
-    fn retry_with_backoff_zero_attempts_runs_once() {
-        let attempts = Cell::new(0u32);
-        let policy = BackoffPolicy {
-            max_attempts: 0,
-            base_delay: Duration::from_millis(1),
-            max_delay: Duration::from_millis(1),
-            jitter: false,
-        };
-        let _: Result<(), &str> = retry_with_backoff(&policy, || {
-            attempts.set(attempts.get() + 1);
-            Err("e")
-        });
-        assert_eq!(attempts.get(), 1);
-    }
-
-    #[test]
     fn retry_with_backoff_no_sleep_after_final_attempt() {
         // Three attempts with 50ms base — without the "skip sleep on last attempt" guard,
         // a permanently-failing call would sleep ~150ms. With it, ~50+100=150ms is the upper
         // bound for the 1st+2nd inter-attempt sleeps; we just assert it's well under 4× base.
         let policy = BackoffPolicy {
-            max_attempts: 3,
+            max_attempts: NonZeroUsize::new(3).unwrap(),
             base_delay: Duration::from_millis(20),
             max_delay: Duration::from_millis(40),
             jitter: false,

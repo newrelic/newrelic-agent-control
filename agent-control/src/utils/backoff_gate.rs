@@ -69,7 +69,7 @@ where
         match state.next_attempt_at {
             Some(t)
                 if self.clock.now() < t
-                    && (state.consecutive_failures as usize) >= self.policy.max_attempts =>
+                    && (state.consecutive_failures as usize) >= self.policy.max_attempts.get() =>
             {
                 Some(SuppressionReason::CapReached {
                     consecutive_failures: state.consecutive_failures,
@@ -148,6 +148,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::num::NonZeroUsize;
     use std::sync::Arc;
     use std::time::Duration;
 
@@ -173,7 +174,8 @@ mod tests {
 
     fn policy(base: Duration, max: Duration, max_attempts: usize) -> BackoffPolicy {
         BackoffPolicy {
-            max_attempts,
+            max_attempts: NonZeroUsize::new(max_attempts)
+                .expect("test policy max_attempts non-zero"),
             base_delay: base,
             max_delay: max,
             jitter: false,

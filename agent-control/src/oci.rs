@@ -1,5 +1,6 @@
 //! This module provides an [oci_client] wrapper.
 
+use std::num::NonZeroUsize;
 use std::time::Duration;
 use std::{path::Path, sync::Arc};
 
@@ -28,7 +29,7 @@ pub use error::OciClientError;
 /// Default no-retry policy: a single attempt, no backoff.
 fn default_no_retry_policy() -> BackoffPolicy {
     BackoffPolicy {
-        max_attempts: 1,
+        max_attempts: NonZeroUsize::MIN,
         base_delay: Duration::ZERO,
         max_delay: Duration::ZERO,
         jitter: false,

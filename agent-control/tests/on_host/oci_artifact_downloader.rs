@@ -133,7 +133,7 @@ fn test_download_artifact_from_local_registry_using_proxy_with_retries_with_oci_
         false,
     )
     .with_retry_policy(BackoffPolicy {
-        max_attempts: 4,
+        max_attempts: std::num::NonZeroUsize::new(4).unwrap(),
         base_delay: Duration::from_millis(100),
         max_delay: Duration::from_millis(100),
         jitter: true,

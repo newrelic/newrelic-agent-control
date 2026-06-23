@@ -27,6 +27,7 @@ use oci_client::secrets::RegistryAuth;
 use serde::{Deserialize, Deserializer, Serialize, de};
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::num::NonZeroUsize;
 use std::str::FromStr;
 use std::time::Duration;
 use thiserror::Error;
@@ -142,7 +143,7 @@ const DEFAULT_DOWNLOAD_JITTER: bool = true;
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_DOWNLOAD_MAX_ATTEMPTS)]
-pub struct DownloadMaxAttempts(usize);
+pub struct DownloadMaxAttempts(#[serde(deserialize_with = "deserialize_non_zero_usize")] usize);
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_DOWNLOAD_BASE_DELAY)]
@@ -168,7 +169,8 @@ pub struct DownloadRetryConfig {
 impl From<&DownloadRetryConfig> for BackoffPolicy {
     fn from(c: &DownloadRetryConfig) -> Self {
         BackoffPolicy {
-            max_attempts: c.max_attempts.0,
+            max_attempts: NonZeroUsize::new(c.max_attempts.0)
+                .expect("download max_attempts is validated non-zero at deserialization"),
             base_delay: c.base_delay.0,
             max_delay: c.max_delay.0,
             jitter: c.jitter.0,
@@ -183,7 +185,9 @@ const DEFAULT_UPGRADE_JITTER: bool = true;
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_UPGRADE_MAX_FAILURES)]
-pub struct UpgradeMaxConsecutiveFailures(u32);
+pub struct UpgradeMaxConsecutiveFailures(
+    #[serde(deserialize_with = "deserialize_non_zero_u32")] u32,
+);
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_UPGRADE_BASE_DELAY)]
@@ -206,10 +210,36 @@ pub struct UpgradeBackoffConfig {
     pub jitter: UpgradeJitter,
 }
 
+/// Deserializes a `u32` rejecting `0`, so retry/backoff attempt counts are guaranteed `>= 1`
+/// (a [`NonZeroUsize`] downstream) at the config boundary rather than silently coerced later.
+fn deserialize_non_zero_u32<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+    match u32::deserialize(deserializer)? {
+        0 => Err(Error::custom("must be greater than zero")),
+        v => Ok(v),
+    }
+}
+
+/// Deserializes a `usize` rejecting `0`. See [`deserialize_non_zero_u32`].
+fn deserialize_non_zero_usize<'de, D>(deserializer: D) -> Result<usize, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+    match usize::deserialize(deserializer)? {
+        0 => Err(Error::custom("must be greater than zero")),
+        v => Ok(v),
+    }
+}
+
 impl From<&UpgradeBackoffConfig> for BackoffPolicy {
     fn from(c: &UpgradeBackoffConfig) -> Self {
         BackoffPolicy {
-            max_attempts: c.max_consecutive_failures.0 as usize,
+            max_attempts: NonZeroUsize::new(c.max_consecutive_failures.0 as usize)
+                .expect("max_consecutive_failures is validated non-zero at deserialization"),
             base_delay: c.base_delay.0,
             max_delay: c.max_delay.0,
             jitter: c.jitter.0,
@@ -1034,6 +1064,22 @@ agents: {}
     fn dynamic_config_invalid_version_fails_to_deserialize() {
         let yaml = "agents: {}\nversion: \"invalid-version; rm -rf /\"\n";
         assert!(serde_saphyr::from_str::<AgentControlDynamicConfig>(yaml).is_err());
+    }
+
+    #[test]
+    fn backoff_attempt_counts_reject_zero() {
+        // `BackoffPolicy` requires `max_attempts >= 1` (NonZeroUsize); the boundary rejects a
+        // configured `0` at deserialization rather than silently coercing it to 1.
+        assert!(
+            serde_saphyr::from_str::<UpgradeBackoffConfig>("max_consecutive_failures: 0").is_err()
+        );
+        assert!(
+            serde_saphyr::from_str::<UpgradeBackoffConfig>("max_consecutive_failures: 1").is_ok()
+        );
+        assert!(serde_saphyr::from_str::<DownloadRetryConfig>("max_attempts: 0").is_err());
+        assert!(serde_saphyr::from_str::<DownloadRetryConfig>("max_attempts: 1").is_ok());
+        // Omitting the field falls back to the (non-zero) default.
+        assert!(serde_saphyr::from_str::<UpgradeBackoffConfig>("{}").is_ok());
     }
 
     #[test]

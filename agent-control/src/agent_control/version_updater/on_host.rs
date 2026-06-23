@@ -86,11 +86,12 @@ where
         // Cooldown gate: suppress re-attempts that are still within their backoff window, until the
         // window elapses (or the desired version changes). When it permits an attempt the gate runs
         // the upgrade and tracks success/failure itself.
-        self.upgrade_gate.guarded(new_version, || {
-            debug!("Starting update process");
-            self.try_upgrade(new_version.clone())
-        })
-        .map_err(|e| self.suppressed_error(new_version, e))?
+        self.upgrade_gate
+            .guarded(new_version, || {
+                debug!("Starting update process");
+                self.try_upgrade(new_version.clone())
+            })
+            .map_err(|e| self.suppressed_error(new_version, e))?
     }
 
     fn retry(&self) -> Result<(), UpdaterError> {
@@ -98,10 +99,10 @@ where
         // nothing pending, otherwise re-drive the normal `update` path for that version.
         let version = self.upgrade_gate.current_key();
         if version.is_some() {
-          self.update(&AgentControlDynamicConfig {
-            version,
-            ..Default::default()
-          })
+            self.update(&AgentControlDynamicConfig {
+                version,
+                ..Default::default()
+            })
         } else {
             Ok(())
         }
@@ -138,7 +139,11 @@ where
 
     /// Logs and maps a gate [`SuppressionReason`] verdict for `new_version` onto the OpAMP-facing
     /// [`UpdaterError`].
-    fn suppressed_error(&self, new_version: &Version, suppression: SuppressionReason) -> UpdaterError {
+    fn suppressed_error(
+        &self,
+        new_version: &Version,
+        suppression: SuppressionReason,
+    ) -> UpdaterError {
         match suppression {
             SuppressionReason::CapReached {
                 consecutive_failures,
