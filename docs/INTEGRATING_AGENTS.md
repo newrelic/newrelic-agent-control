@@ -409,7 +409,8 @@ filesystem:
   newrelic-infra.yaml:
     kind: file
     persistent: true
-    text: ${nr-var:config_agent}
+    text: |
+      ${nr-var:config_agent}
 
   config:
     kind: dir
@@ -430,7 +431,8 @@ filesystem:
         source: ${nr-var:config_integrations}
       newrelic-infra.yaml:
         kind: file
-        text: ${nr-var:config_agent}
+        text: |
+          ${nr-var:config_agent}
 ```
 
 ###### Worked examples
