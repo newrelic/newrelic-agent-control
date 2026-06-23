@@ -315,16 +315,13 @@ impl OtelLayers {
             // Store in guard so the instrument stays registered for the lifetime of the process.
             guard._startup_counter = Some(startup_counter);
 
-            // Force an immediate export — now that we have an instrument, the provider
-            // has something to collect. Also verifies endpoint/key connectivity at startup.
-            std::thread::sleep(std::time::Duration::from_millis(300));
-            let t0 = std::time::Instant::now();
-            let flush_result = metrics_provider.force_flush();
-            let elapsed_ms = t0.elapsed().as_millis();
-            eprintln!(
-                "[AC] OTLP metrics force_flush result: {:?} elapsed_ms={}",
-                flush_result, elapsed_ms
-            );
+            // Prime the PeriodicReader with an immediate flush so the first export
+            // fires at startup rather than waiting up to 60s. The sleep gives the
+            // background thread time to register itself before we flush.
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            if let Err(e) = metrics_provider.force_flush() {
+                tracing::warn!(error = %e, "initial OTLP metrics flush failed — check endpoint and api-key");
+            }
 
             let layer = MetricsLayer::new(metrics_provider.clone());
             layers.push(Box::new(
