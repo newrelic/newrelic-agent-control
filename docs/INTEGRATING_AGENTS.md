@@ -366,6 +366,21 @@ files can be templated, so a directory contains an arbitrary number of files (a 
 
 Every directory and every file is declared with a `kind`, and directory trees are built recursively via an `entries:` field. A directory's contents can also be templated from a `map[string]yaml` variable using `kind: dir_content_from_map`, the map's keys become filenames and the values become file contents.
 
+Each key names a single entry at its own level — it must be a single path segment (a leaf), not a slash-separated sub-path. A nested directory has to be spelled out level by level with explicit `kind: dir` + `entries:` blocks; a key such as `newrelic-infra/newrelic-integrations/logging` is rejected. Declare it as:
+
+```yaml
+newrelic-infra:
+  kind: dir
+  entries:
+    newrelic-integrations:
+      kind: dir
+      entries:
+        logging:
+          kind: dir
+```
+
+This applies to projected filenames too: the keys of a `map[string]yaml` used by `dir_content_from_map` must also be single segments.
+
 The example below uses these variables:
 
 ```yaml
@@ -494,7 +509,7 @@ agent/integrations.d/
 | Field        | Required | Default | Description                                                  |
 |--------------|----------|---------|--------------------------------------------------------------|
 | `kind`       | yes      | —       | Must be `dir`.                                               |
-| `entries`    | no       | `{}`    | Map of child entries (any kind). Recursive.                  |
+| `entries`    | no       | `{}`    | Map of child entries (any kind). Recursive. Each key must be a single path segment, not a sub-path. |
 | `persistent` | no       | `false` | If `true`, this directory and its tree survive cleanup.      |
 
 **`dir_content_from_map`** — a directory whose set of files is computed at deploy time from a `map[string]yaml` variable. The map's keys become filenames; the values become file contents.
