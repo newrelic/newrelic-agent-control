@@ -157,3 +157,76 @@ log:
 
 #[cfg(target_family = "unix")]
 const LOG_SECTION: &str = "";
+
+// ── uninstall ──────────────────────────────────────────────────────────────
+
+#[test]
+fn uninstall_dry_run_succeeds_without_root() {
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
+    cmd.args(["uninstall", "--dry-run"]);
+    cmd.assert().success();
+}
+
+#[test]
+fn uninstall_dry_run_output_lists_expected_paths() {
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
+    cmd.args(["uninstall", "--dry-run"]);
+    let output = cmd.output().expect("failed to run CLI");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("/var/lib/newrelic-agent-control"), "missing state dir");
+    assert!(stdout.contains("/etc/newrelic-agent-control"), "missing config dir");
+    assert!(stdout.contains("newrelic-agent-control"), "missing binary path");
+}
+
+#[test]
+fn uninstall_dry_run_keep_config_omits_config_dir() {
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
+    cmd.args(["uninstall", "--dry-run", "--keep-config"]);
+    let output = cmd.output().expect("failed to run CLI");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // State dir should still appear
+    assert!(stdout.contains("/var/lib/newrelic-agent-control"), "missing state dir");
+    // Config dir should NOT appear
+    assert!(
+        !stdout.contains("Would remove config directory"),
+        "config dir should be kept"
+    );
+}
+
+// ── update ─────────────────────────────────────────────────────────────────
+
+#[test]
+fn update_dry_run_succeeds() {
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
+    cmd.args(["update", "--version", "1.17.0", "--dry-run"]);
+    cmd.assert().success();
+}
+
+#[test]
+fn update_dry_run_output_mentions_version_and_registry() {
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
+    cmd.args(["update", "--version", "1.17.0", "--dry-run"]);
+    let output = cmd.output().expect("failed to run CLI");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("1.17.0"), "missing version in dry-run output");
+    assert!(
+        stdout.contains("newrelic/agent-control-artifacts"),
+        "missing OCI repo in dry-run output"
+    );
+}
+
+#[test]
+fn update_missing_version_flag_fails() {
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
+    cmd.args(["update", "--dry-run"]);
+    // --version is required; clap should exit with an error
+    cmd.assert().failure();
+}
+
+#[test]
+fn update_version_ending_in_at_sign_fails() {
+    // The Version type rejects strings ending with '@' (digest separator).
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
+    cmd.args(["update", "--version", "1.17.0@", "--dry-run"]);
+    cmd.assert().failure();
+}
