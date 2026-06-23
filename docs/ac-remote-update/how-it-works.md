@@ -6,7 +6,7 @@ Remote update is a capability of Agent Control that enable updating its version 
 
 | System     | Supported |
 |------------|-----------|
-| OnHost     | ❌        |
+| OnHost     | ✅        |
 | Kubernetes | ✅        |
 
 ### Kubernetes
@@ -28,6 +28,33 @@ Flux it's a project of the [CNCF](https://www.cncf.io/) with their own roadmap. 
 Flux is wrapped in the `agent-control-cd` chart, which is used internally. The client doesn't interact with it directly. The version of this chart is what we allow updating, instead of the Flux version. Hence, we control the versions of flux that can be installed. For now, we don't support flux version with breaking changes. **Migrations** are not automated.
 
 ## How it works
+
+### On-host
+
+Fleet Control pushes a remote config containing a `version` field. Agent Control downloads the specified OCI artifact, verifies its signature, self-replaces its binary, and restarts.
+
+#### `version` field (remote config)
+
+The `version` field controls which version Agent Control should upgrade to.
+
+An absent `version` and an empty `version: ""` are both treated as no-ops — neither will trigger an update. This prevents accidental fleet-wide upgrades caused by pushing an unset version field.
+
+Valid version formats follow OCI distribution-spec rules:
+- Tag only: `v1.2.3`, `latest`, `1.0.0-alpha`
+- Digest only: `@sha256:<64 hex chars>`
+- Tag + digest (pinned): `v1.2.3@sha256:<64 hex chars>`
+
+#### Happy path
+
+1. Fleet Control sends a remote config with a `version` field via OpAMP.
+2. Agent Control validates the version (absent or empty → no-op; invalid format → error).
+3. Agent Control downloads the OCI artifact for the specified version and verifies its signature.
+4. Agent Control self-replaces its binary and publishes a restart event.
+5. The process manager restarts Agent Control with the new binary.
+
+#### Configuration
+
+Self-update must be explicitly enabled. See the [`self_update` configuration](../CONFIG.md#self_update) for details.
 
 ### Kubernetes
 

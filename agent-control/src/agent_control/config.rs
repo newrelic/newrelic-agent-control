@@ -22,7 +22,7 @@ use crate::{
 use http::HeaderMap;
 use kube::api::TypeMeta;
 use oci_client::secrets::RegistryAuth;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::str::FromStr;
@@ -270,13 +270,25 @@ const AGENTS_KEY: &str = "agents";
 pub struct AgentControlDynamicConfig {
     pub agents: SubAgentsMap,
     /// version represent the AC version that needs to be executed.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "deserialize_version"
+    )]
     pub version: Option<Version>,
     /// chart_version represent the AC chart version that needs to be executed.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "deserialize_chart_version"
+    )]
     pub chart_version: Option<String>,
     /// cd_chart_version represent the agent control cd chart version that needs to be executed.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "deserialize_chart_version"
+    )]
     pub cd_chart_version: Option<String>,
 }
 
@@ -377,6 +389,30 @@ impl TryFrom<YAMLConfig> for AgentControlDynamicConfig {
             .map_err(|e| AgentControlConfigError(format!("deserializing: {e}")))?;
         serde_saphyr::from_str(&value_string)
             .map_err(|e| AgentControlConfigError(format!("serializing: {e}")))
+    }
+}
+
+fn deserialize_version<'de, D>(deserializer: D) -> Result<Option<Version>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: Option<String> = Option::deserialize(deserializer)?;
+    match s.as_deref() {
+        None | Some("") => Ok(None),
+        Some(v) => Version::from_str(v)
+            .map(Some)
+            .map_err(|e| de::Error::custom(e.to_string())),
+    }
+}
+
+fn deserialize_chart_version<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: Option<String> = Option::deserialize(deserializer)?;
+    match s.as_deref() {
+        None | Some("") => Ok(None),
+        Some(v) => Ok(Some(v.to_string())),
     }
 }
 
@@ -878,8 +914,16 @@ agents: {}
     }
 
     #[test]
+    fn dynamic_config_empty_version_deserializes_as_none() {
+        let config =
+            serde_saphyr::from_str::<AgentControlDynamicConfig>("agents: {}\nversion: \"\"\n")
+                .expect("empty version should deserialize successfully");
+        assert_eq!(config.version, None);
+    }
+
+    #[test]
     fn dynamic_config_invalid_version_fails_to_deserialize() {
-        let yaml = "agents: {}\nversion: invalid-version; rm -rf /\n";
+        let yaml = "agents: {}\nversion: \"invalid-version; rm -rf /\"\n";
         assert!(serde_saphyr::from_str::<AgentControlDynamicConfig>(yaml).is_err());
     }
 

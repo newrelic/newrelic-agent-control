@@ -40,22 +40,29 @@ pub struct PostDownloadHook {
     pub env: Env,
 }
 
-const DEFAULT_TAG: &str = "latest";
-
 impl Oci {
-    pub fn to_reference(&self, registry: &Registry) -> Reference {
+    pub fn to_reference(&self, registry: &Registry) -> Result<Reference, InvalidVersion> {
         let registry_str = registry.to_string();
         let repository_str = self.repository.to_string();
 
         match self.version.tag_and_digest() {
-            (Some(tag), Some(digest)) => {
-                Reference::with_tag_and_digest(registry_str, repository_str, tag, digest)
+            (Some(tag), Some(digest)) => Ok(Reference::with_tag_and_digest(
+                registry_str,
+                repository_str,
+                tag,
+                digest,
+            )),
+            (Some(tag), None) => Ok(Reference::with_tag(registry_str, repository_str, tag)),
+            (None, Some(digest)) => {
+                Ok(Reference::with_digest(registry_str, repository_str, digest))
             }
-            (Some(tag), None) => Reference::with_tag(registry_str, repository_str, tag),
-            (None, Some(digest)) => Reference::with_digest(registry_str, repository_str, digest),
-            (None, None) => {
-                Reference::with_tag(registry_str, repository_str, DEFAULT_TAG.to_owned())
-            }
+
+            // We should never reach this case.
+            // For sub-agents, the version is always required. If the version is empty, it should be caught during validation.
+            // For Agent Control, the version is optional. If the version isn't configured, or it's an empty string,
+            // we don't update and this function is never called.
+            // This error is here as a defensive programming measure to catch any unexpected cases where the version is empty.
+            (None, None) => Err(InvalidVersion("version cannot be empty".to_string())),
         }
     }
 }
@@ -147,6 +154,10 @@ impl FromStr for Version {
     type Err = InvalidVersion;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            return Err(InvalidVersion("version cannot be empty".to_string()));
+        }
+
         if s.ends_with('@') {
             return Err(InvalidVersion("version cannot end with '@'".to_string()));
         }
@@ -235,6 +246,7 @@ mod tests {
     }
 
     #[rstest]
+    #[case("")]
     #[case("v1.0.0@")]
     #[case("v1.0.0@sha256:123")]
     #[case("v1.0.0@invaliddigest")]
@@ -277,7 +289,6 @@ mod tests {
             "v1.0.0@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
             "docker.io/nr/test:v1.0.0@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         )]
-        #[case::without_tag_or_digest("docker.io", "nr/test", "", "docker.io/nr/test:latest")]
         fn test_to_reference(
             #[case] registry: &str,
             #[case] repository: &str,
@@ -290,8 +301,19 @@ mod tests {
                 version: Version::from_str(version).unwrap(),
                 public_key_url: None,
             };
-            let reference = oci.to_reference(&registry);
+            let reference = oci.to_reference(&registry).unwrap();
             assert_eq!(expected_whole, reference.whole());
+        }
+
+        #[test]
+        fn test_to_reference_empty_version_returns_error() {
+            let registry = Registry::from_str("docker.io").unwrap();
+            let oci = Oci {
+                repository: Repository::from_str("nr/test").unwrap(),
+                version: Version(String::new()),
+                public_key_url: None,
+            };
+            assert!(oci.to_reference(&registry).is_err());
         }
     }
 }

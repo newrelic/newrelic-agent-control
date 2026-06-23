@@ -47,7 +47,10 @@ impl OCIPackageDownloader for OCIPackageArtifactDownloader {
             "Downloading from repository '{}' with version '{}'",
             package_data.oci.repository, package_data.oci.version
         );
-        let base_reference = package_data.oci.to_reference(&self.registry);
+        let base_reference = package_data
+            .oci
+            .to_reference(&self.registry)
+            .map_err(|e| OciClientError::FetchArtifact(format!("building OCI reference: {e}")))?;
         let public_key_url = self.should_verify_signature(&package_data.oci.public_key_url);
         self.fetcher.fetch(
             &base_reference,
