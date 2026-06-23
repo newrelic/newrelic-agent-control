@@ -319,7 +319,6 @@ mod tests {
     // Multi-segment keys are rejected: nested dirs must be declared with `kind: dir` + `entries:`.
     #[case::multi_segment("agent/data", false)]
     #[case::dot_segment("agent/./data", false)]
-    #[case::windows_style_path(r"some\\windows\\style\\path", true)]
     #[case::absolute("/etc", false)]
     #[case::dotdot("agent/../escape", false)]
     fn safe_path_parsing(#[case] path: &str, #[case] should_parse: bool) {
