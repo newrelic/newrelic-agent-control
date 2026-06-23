@@ -82,13 +82,11 @@ where
         // Cooldown gate: suppress re-attempts that are still within their backoff window, until the
         // window elapses (or the desired version changes). When it permits an attempt the gate runs
         // the upgrade and tracks success/failure itself.
-        match self.upgrade_gate.guarded(new_version, || {
+        self.upgrade_gate.guarded(new_version, || {
             debug!("Starting update process");
             self.try_upgrade(new_version.clone())
-        }) {
-            Ok(result) => result,
-            Err(suppression) => Err(self.suppressed_error(new_version, suppression)),
-        }
+        })
+        .map_err(|e| self.suppressed_error(new_version, e))?
     }
 
     fn retry(&self) -> Result<(), UpdaterError> {
