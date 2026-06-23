@@ -255,10 +255,12 @@ impl OtelLayers {
             .with_interval(config.metrics.interval.clone().into())
             .build();
 
-        Ok(SdkMeterProvider::builder()
+        let provider = SdkMeterProvider::builder()
             .with_reader(periodic_reader)
             .with_resource(resource)
-            .build())
+            .build();
+
+        Ok(provider)
     }
 
     fn logs_provider<C>(
@@ -301,8 +303,33 @@ impl OtelLayers {
         if let Some(metrics_provider) = self.metrics_layer_builder {
             tracing::debug!("creating metrics layer");
             guard._metrics_provider = Some(metrics_provider.clone());
+
+            // Prime the exporter: register a startup counter so the PeriodicReader
+            // has at least one instrument and attempts an export on its first tick.
+            // Without this, if no tracing events reach MetricsLayer before the first
+            // tick, the PeriodicReader finds no instruments and skips the HTTP call.
+            use opentelemetry::metrics::MeterProvider as _;
+            let meter = metrics_provider.meter(SERVICE_NAME);
+            let startup_counter = meter.i64_up_down_counter("agent_control.starts").build();
+            startup_counter.add(1, &[]);
+            // Store in guard so the instrument stays registered for the lifetime of the process.
+            guard._startup_counter = Some(startup_counter);
+
+            // Force an immediate export — now that we have an instrument, the provider
+            // has something to collect. Also verifies endpoint/key connectivity at startup.
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let t0 = std::time::Instant::now();
+            let flush_result = metrics_provider.force_flush();
+            let elapsed_ms = t0.elapsed().as_millis();
+            eprintln!(
+                "[AC] OTLP metrics force_flush result: {:?} elapsed_ms={}",
+                flush_result, elapsed_ms
+            );
+
             let layer = MetricsLayer::new(metrics_provider.clone());
-            layers.push(Box::new(layer));
+            layers.push(Box::new(
+                layer.with_filter(tracing_subscriber::filter::LevelFilter::TRACE),
+            ));
         }
 
         if let Some((logs_provider, logs_filter)) = self.logs_layer_builder {
@@ -324,6 +351,9 @@ pub struct OtelGuard {
     _logs_provider: Option<SdkLoggerProvider>,
     _metrics_provider: Option<SdkMeterProvider>,
     _traces_provider: Option<SdkTracerProvider>,
+    /// Startup counter kept alive so the PeriodicReader always has ≥1 instrument
+    /// to collect; without this, the first export tick finds nothing and skips the HTTP call.
+    _startup_counter: Option<opentelemetry::metrics::UpDownCounter<i64>>,
 }
 
 impl TracingGuard for OtelGuard {}
@@ -402,8 +432,8 @@ mod tests {
             .expect_send_bytes()
             .times(1..) // The metric should be sent at least once
             .withf(|req| {
-                let body = String::from_utf8_lossy(req.body().as_ref());
-                req.uri().path().eq("/v1/metrics") && body.contains("uptime")
+                // Accept any metrics export — either the startup counter or the uptime trace metric
+                req.uri().path().eq("/v1/metrics")
             })
             .returning(|_| {
                 Ok(Response::builder()

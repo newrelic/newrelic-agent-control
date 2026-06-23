@@ -125,8 +125,10 @@ pub fn try_init_tracing(config: TracingConfig) -> Result<Vec<TracingGuardBox>, T
     } else {
         tracing::debug!("no opentelemetry config found - self-instrumentation disabled");
     }
+    let otel_enabled = config.instrumentation_config.opentelemetry.is_some();
     try_init_tracing_subscriber(layers)?;
     debug!("tracing_subscriber initialized successfully");
+    tracing::info!(self_instrumentation_otlp_enabled = otel_enabled, "tracing initialized");
 
     Ok(guards)
 }

@@ -74,8 +74,8 @@ bytes = "1.12.0"
 opentelemetry = { version = "0.32.0" }
 opentelemetry_sdk = { version = "0.32.1" }
 tracing-opentelemetry = "0.33.0"
-opentelemetry-otlp = { version = "0.32.0", features = ["reqwest-rustls"] }
-opentelemetry-http = { version = "0.32.0" }
+opentelemetry-otlp = { version = "0.32.0", features = ["reqwest-blocking-client"] }
+opentelemetry-http = { version = "0.32.0", features = ["reqwest-blocking"] }
 opentelemetry-appender-tracing = { version = "0.32.0" }
 async-trait = "0.1.89"
 flate2 = "1.1.9"
