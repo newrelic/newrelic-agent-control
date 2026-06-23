@@ -1,6 +1,6 @@
 use crate::utils::retry::BackoffPolicy;
 use crate::utils::time::{Clock, SystemClock};
-use std::sync::Mutex;
+use std::cell::RefCell;
 use std::time::Instant;
 
 /// Why the gate withheld an attempt. This is the suppressed outcome of [`BackoffGate::check`]
@@ -39,7 +39,7 @@ impl<K> Default for GateState<K> {
 pub struct BackoffGate<K, C = SystemClock> {
     policy: BackoffPolicy,
     clock: C,
-    state: Mutex<GateState<K>>,
+    state: RefCell<GateState<K>>,
 }
 
 impl<K, C> BackoffGate<K, C>
@@ -51,7 +51,7 @@ where
         Self {
             policy,
             clock,
-            state: Mutex::new(GateState::default()),
+            state: RefCell::new(GateState::default()),
         }
     }
 
@@ -61,7 +61,7 @@ where
     /// If `key` differs from the last-seen key the gate resets first, so switching targets
     /// always permits an immediate attempt.
     pub fn check(&self, key: &K) -> Option<SuppressionReason> {
-        let mut state = self.state.lock().expect("backoff-gate lock poisoned");
+        let mut state = self.state.borrow_mut();
         Self::reset_if_key_changed(&mut state, key);
 
         // Within the current backoff window → suppress, escalating the reported reason once the
@@ -86,7 +86,7 @@ where
     /// Records a failed attempt for `key`, incrementing the consecutive-failure count and
     /// scheduling the next permitted attempt per the backoff schedule.
     pub fn record_failure(&self, key: &K) {
-        let mut state = self.state.lock().expect("backoff-gate lock poisoned");
+        let mut state = self.state.borrow_mut();
         // The key may have changed between `check` and now if another caller ran; only count
         // failures against the key we were actually told failed.
         Self::reset_if_key_changed(&mut state, key);
@@ -97,17 +97,13 @@ where
 
     /// Clears all failure state (e.g. after a successful attempt).
     pub fn reset(&self) {
-        *self.state.lock().expect("backoff-gate lock poisoned") = GateState::default();
+        *self.state.borrow_mut() = GateState::default();
     }
 
     /// The key the gate is currently tracking (the last key seen via [`check`](Self::check) or
     /// [`record_failure`](Self::record_failure)), or `None` if the gate is unused or was reset.
     pub fn current_key(&self) -> Option<K> {
-        self.state
-            .lock()
-            .expect("backoff-gate lock poisoned")
-            .key
-            .clone()
+        self.state.borrow().key.clone()
     }
 
     /// Runs `op` for `key` through the gate.
@@ -149,7 +145,7 @@ where
 mod tests {
     use super::*;
     use std::num::NonZeroUsize;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
     /// Test clock backed by `Arc<Mutex<Instant>>` so a test can advance time deterministically
