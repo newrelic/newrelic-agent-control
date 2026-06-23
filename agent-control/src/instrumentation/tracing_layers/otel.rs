@@ -12,6 +12,9 @@ use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::logs::{BatchLogProcessor, SdkLoggerProvider};
 use opentelemetry_sdk::metrics::{PeriodicReader, SdkMeterProvider};
 use opentelemetry_sdk::trace::{BatchSpanProcessor, SdkTracerProvider};
+use resource_detection::Detector;
+use resource_detection::system::detector::SystemDetector;
+use resource_detection::system::hostname::get_hostname;
 use thiserror::Error;
 use tracing_opentelemetry::MetricsLayer;
 use tracing_subscriber::{EnvFilter, Layer};
@@ -92,20 +95,41 @@ impl OtelLayers {
             .map(|(k, v)| KeyValue::new(k.clone(), v.clone()))
             .collect();
 
-        // Add critical resource attributes for entity registration
-        // service.instance.id: Unique identifier for this instance
-        if let Ok(instance_name) = std::env::var("INSTANCE_NAME") {
-            tracing::debug!(service_instance_id = %instance_name, "added service.instance.id from INSTANCE_NAME");
-            attributes.push(KeyValue::new("service.instance.id", instance_name));
-        } else if let Ok(hostname) = std::env::var("HOSTNAME") {
-            tracing::debug!(service_instance_id = %hostname, "added service.instance.id from HOSTNAME");
-            attributes.push(KeyValue::new("service.instance.id", hostname));
+        // Add critical resource attributes for entity registration.
+        // host.name / service.instance.id: use a proper syscall instead of an env var so the
+        // value is always accurate regardless of whether $HOSTNAME is set in the environment.
+        match get_hostname() {
+            Ok(hostname) => {
+                tracing::debug!(host_name = %hostname, "added host.name");
+                // Use hostname for both host.name and service.instance.id
+                // (stable machine name = best available per-instance key on-host)
+                attributes.push(KeyValue::new("host.name", hostname.clone()));
+                attributes.push(KeyValue::new("service.instance.id", hostname));
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "could not detect hostname for OTLP resource attributes");
+            }
         }
 
-        // host.name: Hostname for entity correlation
-        if let Ok(hostname) = std::env::var("HOSTNAME") {
-            tracing::debug!(host_name = %hostname, "added host.name");
-            attributes.push(KeyValue::new("host.name", hostname));
+        // host.id: stable machine identifier from /etc/machine-id (Linux) or registry (Windows).
+        // Allows distinguishing two machines with the same hostname.
+        match SystemDetector::default().detect() {
+            Ok(resource) => {
+                if let Some(machine_id) =
+                    resource.get(resource_detection::Key::from(resource_detection::system::MACHINE_ID_KEY))
+                {
+                    let machine_id = String::from(machine_id);
+                    tracing::debug!(host_id = %machine_id, "added host.id");
+                    attributes.push(KeyValue::new("host.id", machine_id));
+                } else {
+                    // Non-fatal: host.id not available on all platforms (e.g. some container envs)
+                    tracing::debug!("host.id not available, skipping");
+                }
+            }
+            Err(e) => {
+                // Non-fatal: host.id not available on all platforms (e.g. some container envs)
+                tracing::debug!(error = %e, "host.id not available, skipping");
+            }
         }
 
         // Standard OpenTelemetry semantic conventions for service
@@ -411,5 +435,34 @@ mod tests {
             trace!(monotonic_counter.uptime = 42);
             std::thread::sleep(Duration::from_secs(2));
         });
+    }
+
+    /// Verify that building OtelLayers with host detection (get_hostname + SystemDetector)
+    /// does not panic. The resource-detection crate has its own unit tests for the
+    /// individual detectors; here we only assert that the happy-path wiring compiles and runs.
+    #[test]
+    fn test_try_new_with_client_host_attributes_does_not_panic() {
+        let mut mock_http_client = MockOtelHttpClient::new();
+        mock_http_client
+            .expect_send_bytes()
+            .returning(|_| {
+                Ok(Response::builder()
+                    .status(200)
+                    .body(opentelemetry_http::Bytes::default())
+                    .unwrap())
+            });
+
+        let result = OtelLayers::try_new_with_client(
+            &OtelConfig {
+                logs: LogsConfig {
+                    enabled: true,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            mock_http_client,
+        );
+
+        assert!(result.is_ok(), "OtelLayers::try_new_with_client should not fail: {:?}", result.err());
     }
 }
