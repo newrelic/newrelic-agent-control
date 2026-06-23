@@ -55,6 +55,10 @@ where
     V: VerifyExecutor,
     C: Clock,
 {
+    /// Only `config.version` is consumed from the dynamic config. This contract is what
+    /// lets [`retry`](Self::retry) reconstruct a config from just the gate's tracked version.
+    /// If `update` ever starts reading additional dynamic-config fields, that reconstruction must
+    /// be revisited (or replaced with a stored snapshot of the last config) to not use defaults.
     fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError> {
         if !self.ac_remote_update_enabled {
             debug!("Remote update is disabled, skipping update process");
@@ -222,7 +226,7 @@ mod tests {
     use mockall::mock;
     use std::path::Path;
     use std::str::FromStr;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
     mock! {
@@ -235,7 +239,7 @@ mod tests {
     /// Test clock backed by `Arc<Mutex<Instant>>` so the test body can advance time
     /// deterministically while the updater holds the clock by value.
     #[derive(Clone)]
-    struct FakeClock(Arc<std::sync::Mutex<Instant>>);
+    struct FakeClock(Arc<Mutex<Instant>>);
 
     impl FakeClock {
         fn new(initial: Instant) -> Self {
