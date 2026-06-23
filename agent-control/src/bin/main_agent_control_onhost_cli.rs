@@ -2,6 +2,8 @@ use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, error::ErrorKind};
 use newrelic_agent_control::cli::on_host::migrate_folders;
+use newrelic_agent_control::cli::on_host::uninstall::{self, UninstallArgs};
+use newrelic_agent_control::cli::on_host::update::{self, UpdateArgs};
 use newrelic_agent_control::cli::{common::logs, on_host::config_gen};
 use tracing::{Level, error};
 
@@ -24,6 +26,16 @@ enum Commands {
     GenerateConfig(config_gen::Args),
     /// Migrates legacy on-host directories (>v1.4.0) to the new layout. Intended to be run by post-installation package scripts only.
     FilesBackwardsCompatibilityMigrationFromV120,
+    /// Uninstall Agent Control and all managed agents from this host.
+    ///
+    /// Stops the service, removes all OCI-installed managed agent packages, removes
+    /// binaries, and (unless --keep-config) removes configuration and state directories.
+    Uninstall(UninstallArgs),
+    /// Update Agent Control to the specified version using the OCI registry.
+    ///
+    /// This bypasses Fleet Control release channels and is intended only as a break-glass
+    /// operation for installations not managed by Fleet Control.
+    Update(UpdateArgs),
 }
 
 fn main() -> ExitCode {
@@ -45,6 +57,8 @@ fn main() -> ExitCode {
             }
         },
         Commands::FilesBackwardsCompatibilityMigrationFromV120 => migrate_folders::migrate(),
+        Commands::Uninstall(args) => uninstall::run(args),
+        Commands::Update(args) => update::run(args),
     };
 
     if let Err(err) = result {
