@@ -43,9 +43,12 @@ pub trait VersionUpdater {
     /// to the external controller, or an `UpdaterError` if the update fails.
     fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError>;
 
-    /// Re-attempts the most recently requested upgrade, if one is still pending. Driven by a
-    /// periodic heartbeat so a transient registry outage recovers without a new desired version
-    /// being pushed. Defaults to a no-op for updaters without a retry concept.
+    /// Re-attempts a previously-requested upgrade that has not yet succeeded, without waiting for a
+    /// new desired version to be pushed. Driven by a periodic heartbeat so a transient registry
+    /// outage can recover on its own.
+    ///
+    /// Whether an upgrade is "still pending" is implementation-defined and evaluated by the
+    /// implementer, the default below is the noop fallback
     fn retry(&self) -> Result<(), UpdaterError> {
         Ok(())
     }
