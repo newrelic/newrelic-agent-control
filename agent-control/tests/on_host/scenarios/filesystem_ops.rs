@@ -510,9 +510,7 @@ fn read_file_and_expect_content(
 fn ephemeral_entries_wiped_on_stop() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let tempdir = tempdir().expect("failed to create temp dir");
-    let local_dir = tempdir.path().join("local");
-    let remote_dir = tempdir.path().join("remote");
+    let dirs = TempBasePaths::default();
 
     let agent_id = "ephemeral-agent";
 
@@ -537,26 +535,17 @@ deployment:
       text: "persistent content"
 "#,
         ),
-        local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
+        dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
 
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        format!("\n  {agent_id}:\n    agent_type: \"test/ephemeral:0.0.0\"\n"),
-        local_dir.to_path_buf(),
-    );
-    create_local_config(
-        agent_id.to_string(),
-        NO_CONFIG.to_string(),
-        local_dir.to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(format!(
+            "\n  {agent_id}:\n    agent_type: \"test/ephemeral:0.0.0\"\n"
+        ))
+        .write(dirs.local_dir());
+    create_local_config(agent_id.to_string(), NO_CONFIG.to_string(), dirs.local_dir());
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.to_path_buf(),
-        remote_dir: remote_dir.to_path_buf(),
-        log_dir: local_dir.to_path_buf(),
-    };
+    let base_paths = dirs.base_paths();
 
     let ephemeral_path = base_paths
         .remote_dir
@@ -604,12 +593,10 @@ deployment:
 fn previously_persistent_entries_deleted_on_restart_with_new_agent_type() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let tempdir = tempdir().expect("failed to create temp dir");
-    let local_dir = tempdir.path().join("local");
-    let remote_dir = tempdir.path().join("remote");
+    let dirs = TempBasePaths::default();
 
     let agent_id = "swap-agent";
-    let agent_type_yaml_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
+    let agent_type_yaml_path = dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME);
 
     create_file(
         format!(
@@ -634,23 +621,14 @@ deployment:
         ),
         agent_type_yaml_path.clone(),
     );
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        format!("\n  {agent_id}:\n    agent_type: \"test/swap:0.0.0\"\n"),
-        local_dir.to_path_buf(),
-    );
-    create_local_config(
-        agent_id.to_string(),
-        NO_CONFIG.to_string(),
-        local_dir.to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(format!(
+            "\n  {agent_id}:\n    agent_type: \"test/swap:0.0.0\"\n"
+        ))
+        .write(dirs.local_dir());
+    create_local_config(agent_id.to_string(), NO_CONFIG.to_string(), dirs.local_dir());
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.to_path_buf(),
-        remote_dir: remote_dir.to_path_buf(),
-        log_dir: local_dir.to_path_buf(),
-    };
+    let base_paths = dirs.base_paths();
 
     let persistent_path = base_paths
         .remote_dir
@@ -746,12 +724,10 @@ deployment:
 fn agent_created_files_inside_persistent_dir_survive_sibling_removal() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    let tempdir = tempdir().expect("failed to create temp dir");
-    let local_dir = tempdir.path().join("local");
-    let remote_dir = tempdir.path().join("remote");
+    let dirs = TempBasePaths::default();
 
     let agent_id = "sidecar-agent";
-    let agent_type_yaml_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
+    let agent_type_yaml_path = dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME);
 
     create_file(
         format!(
@@ -777,23 +753,14 @@ deployment:
         ),
         agent_type_yaml_path.clone(),
     );
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        format!("\n  {agent_id}:\n    agent_type: \"test/sidecar:0.0.0\"\n"),
-        local_dir.to_path_buf(),
-    );
-    create_local_config(
-        agent_id.to_string(),
-        NO_CONFIG.to_string(),
-        local_dir.to_path_buf(),
-    );
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(format!(
+            "\n  {agent_id}:\n    agent_type: \"test/sidecar:0.0.0\"\n"
+        ))
+        .write(dirs.local_dir());
+    create_local_config(agent_id.to_string(), NO_CONFIG.to_string(), dirs.local_dir());
 
-    let base_paths = BasePaths {
-        local_dir: local_dir.to_path_buf(),
-        remote_dir: remote_dir.to_path_buf(),
-        log_dir: local_dir.to_path_buf(),
-    };
+    let base_paths = dirs.base_paths();
 
     let data_dir = base_paths
         .remote_dir
