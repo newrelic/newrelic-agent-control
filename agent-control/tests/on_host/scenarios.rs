@@ -14,6 +14,7 @@ mod multiple_remote_config;
 mod no_orphan_processes;
 mod oci_auth;
 mod opamp;
+mod postdownload_hook;
 mod remote_agent_removal;
 mod restarting_processes;
 mod self_instrumentation_otel;
