@@ -66,25 +66,21 @@ where
 
         // Within the current backoff window → suppress, escalating the reported reason once the
         // consecutive-failure threshold has been crossed.
-        if let Some(t) = state.next_attempt_at
-            && self.clock.now() < t
-        {
-            let consecutive_failures = state.consecutive_failures;
-            return Some(
-                if (consecutive_failures as usize) >= self.policy.max_attempts {
-                    SuppressionReason::CapReached {
-                        consecutive_failures,
-                    }
-                } else {
-                    SuppressionReason::InCooldown {
-                        consecutive_failures,
-                    }
-                },
-            );
+        match state.next_attempt_at {
+            Some(t)
+                if self.clock.now() < t
+                    && (state.consecutive_failures as usize) >= self.policy.max_attempts =>
+            {
+                Some(SuppressionReason::CapReached {
+                    consecutive_failures: state.consecutive_failures,
+                })
+            }
+            Some(t) if self.clock.now() < t => Some(SuppressionReason::InCooldown {
+                consecutive_failures: state.consecutive_failures,
+            }),
+            // Outside the backoff window (or no attempt scheduled): proceed with the operation.
+            _ => None,
         }
-
-        // Proceed with the operation (download).
-        None
     }
 
     /// Records a failed attempt for `key`, incrementing the consecutive-failure count and
