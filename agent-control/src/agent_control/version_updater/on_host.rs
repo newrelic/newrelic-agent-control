@@ -94,13 +94,15 @@ where
     fn retry(&self) -> Result<(), UpdaterError> {
         // The gate's tracked key is the last version we tried to reach; if it is cleared there is
         // nothing pending, otherwise re-drive the normal `update` path for that version.
-        let Some(version) = self.upgrade_gate.current_key() else {
-            return Ok(());
-        };
-        self.update(&AgentControlDynamicConfig {
-            version: Some(version),
+        let version = self.upgrade_gate.current_key();
+        if version.is_some() {
+          self.update(&AgentControlDynamicConfig {
+            version,
             ..Default::default()
-        })
+          })
+        } else {
+            Ok(())
+        }
     }
 }
 
