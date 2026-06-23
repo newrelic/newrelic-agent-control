@@ -10,7 +10,7 @@ use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Reposit
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;
 use crate::package::manager::{PackageData, PackageManager};
-use crate::utils::backoff_gate::{BackoffGate, Suppression};
+use crate::utils::backoff_gate::{BackoffGate, SuppressionReason};
 use crate::utils::retry::BackoffPolicy;
 use crate::utils::time::Clock;
 use self_replacer::{BinarySelfReplacer, SelfReplacer};
@@ -136,11 +136,11 @@ where
         }
     }
 
-    /// Logs and maps a gate [`Suppression`] verdict for `new_version` onto the OpAMP-facing
+    /// Logs and maps a gate [`SuppressionReason`] verdict for `new_version` onto the OpAMP-facing
     /// [`UpdaterError`].
-    fn suppressed_error(&self, new_version: &Version, suppression: Suppression) -> UpdaterError {
+    fn suppressed_error(&self, new_version: &Version, suppression: SuppressionReason) -> UpdaterError {
         match suppression {
-            Suppression::CapReached {
+            SuppressionReason::CapReached {
                 consecutive_failures,
             } => warn!(
                 version = %new_version,
@@ -148,7 +148,7 @@ where
                 "Upgrade suppressed: max consecutive failures reached. \
                  Waiting for desired version to change before retrying.",
             ),
-            Suppression::InCooldown {
+            SuppressionReason::InCooldown {
                 consecutive_failures,
             } => debug!(
                 version = %new_version,
@@ -352,7 +352,7 @@ mod tests {
         assert!(matches!(
             err,
             UpdaterError::UpdateInCooldown {
-                reason: Suppression::InCooldown { .. },
+                reason: SuppressionReason::InCooldown { .. },
                 ..
             }
         ));
@@ -378,7 +378,7 @@ mod tests {
         assert!(matches!(
             err,
             UpdaterError::UpdateInCooldown {
-                reason: Suppression::InCooldown { .. },
+                reason: SuppressionReason::InCooldown { .. },
                 ..
             }
         ));
@@ -412,7 +412,7 @@ mod tests {
         assert!(matches!(
             updater.update(&cfg).unwrap_err(),
             UpdaterError::UpdateInCooldown {
-                reason: Suppression::InCooldown { .. },
+                reason: SuppressionReason::InCooldown { .. },
                 ..
             }
         ));
@@ -423,7 +423,7 @@ mod tests {
         assert!(matches!(
             updater.update(&cfg).unwrap_err(),
             UpdaterError::UpdateInCooldown {
-                reason: Suppression::CapReached { .. },
+                reason: SuppressionReason::CapReached { .. },
                 ..
             }
         ));
@@ -479,7 +479,7 @@ mod tests {
         assert!(matches!(
             err,
             UpdaterError::UpdateInCooldown {
-                reason: Suppression::CapReached { .. },
+                reason: SuppressionReason::CapReached { .. },
                 ..
             }
         ));
@@ -496,13 +496,13 @@ mod tests {
         // Same variant, different failure counts: the rendered message must not change.
         let err1 = UpdaterError::UpdateInCooldown {
             version: "99.99.99".into(),
-            reason: Suppression::InCooldown {
+            reason: SuppressionReason::InCooldown {
                 consecutive_failures: 1,
             },
         };
         let err2 = UpdaterError::UpdateInCooldown {
             version: "99.99.99".into(),
-            reason: Suppression::InCooldown {
+            reason: SuppressionReason::InCooldown {
                 consecutive_failures: 3,
             },
         };
@@ -539,7 +539,7 @@ mod tests {
         assert!(matches!(
             updater.retry().unwrap_err(),
             UpdaterError::UpdateInCooldown {
-                reason: Suppression::InCooldown { .. },
+                reason: SuppressionReason::InCooldown { .. },
                 ..
             }
         ));

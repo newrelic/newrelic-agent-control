@@ -7,7 +7,7 @@ use std::time::Instant;
 /// (which returns `None` to mean "proceed") and the error type of [`BackoffGate::guarded`], so a
 /// "proceed" case can never appear on the "ran the operation" path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Suppression {
+pub enum SuppressionReason {
     /// The backoff cooldown window after the last failure has not elapsed yet.
     InCooldown { consecutive_failures: u32 },
     /// Suppressed within the current backoff window, with the `max_attempts` consecutive-failure
@@ -60,7 +60,7 @@ where
     ///
     /// If `key` differs from the last-seen key the gate resets first, so switching targets
     /// always permits an immediate attempt.
-    pub fn check(&self, key: &K) -> Option<Suppression> {
+    pub fn check(&self, key: &K) -> Option<SuppressionReason> {
         let mut state = self.state.lock().expect("backoff-gate lock poisoned");
         Self::reset_if_key_changed(&mut state, key);
 
@@ -72,11 +72,11 @@ where
             let consecutive_failures = state.consecutive_failures;
             return Some(
                 if (consecutive_failures as usize) >= self.policy.max_attempts {
-                    Suppression::CapReached {
+                    SuppressionReason::CapReached {
                         consecutive_failures,
                     }
                 } else {
-                    Suppression::InCooldown {
+                    SuppressionReason::InCooldown {
                         consecutive_failures,
                     }
                 },
@@ -119,8 +119,8 @@ where
     /// When the gate permits an attempt the operation runs: the gate is [reset](Self::reset) on
     /// `Ok` and a failure is [recorded](Self::record_failure) on `Err`, and the operation's own
     /// result is returned wrapped in `Ok`. When the gate is in cooldown or has reached its cap,
-    /// `op` is not run and the [`Suppression`] verdict is returned as `Err`.
-    pub fn guarded<T, E, F>(&self, key: &K, op: F) -> Result<Result<T, E>, Suppression>
+    /// `op` is not run and the [`SuppressionReason`] verdict is returned as `Err`.
+    pub fn guarded<T, E, F>(&self, key: &K, op: F) -> Result<Result<T, E>, SuppressionReason>
     where
         F: FnOnce() -> Result<T, E>,
     {
@@ -209,7 +209,7 @@ mod tests {
 
         assert_eq!(
             gate.check(&"v1"),
-            Some(Suppression::InCooldown {
+            Some(SuppressionReason::InCooldown {
                 consecutive_failures: 1
             })
         );
@@ -227,7 +227,7 @@ mod tests {
         gate.record_failure(&"v1");
         assert_eq!(
             gate.check(&"v1"),
-            Some(Suppression::InCooldown {
+            Some(SuppressionReason::InCooldown {
                 consecutive_failures: 1
             })
         );
@@ -238,7 +238,7 @@ mod tests {
         gate.record_failure(&"v1");
         assert_eq!(
             gate.check(&"v1"),
-            Some(Suppression::CapReached {
+            Some(SuppressionReason::CapReached {
                 consecutive_failures: 2
             })
         );
@@ -266,7 +266,7 @@ mod tests {
         gate.record_failure(&"v1");
         assert_eq!(
             gate.check(&"v1"),
-            Some(Suppression::InCooldown {
+            Some(SuppressionReason::InCooldown {
                 consecutive_failures: 1
             })
         );
@@ -297,7 +297,7 @@ mod tests {
         clock.advance(Duration::from_secs(10));
         assert_eq!(
             gate.check(&"v1"),
-            Some(Suppression::InCooldown {
+            Some(SuppressionReason::InCooldown {
                 consecutive_failures: 2
             })
         );

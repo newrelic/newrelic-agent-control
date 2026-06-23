@@ -1,5 +1,5 @@
 use crate::agent_control::config::AgentControlDynamicConfig;
-use crate::utils::backoff_gate::Suppression;
+use crate::utils::backoff_gate::SuppressionReason;
 use thiserror::Error;
 
 /// Represents errors that can occur during the update process of the agent control version.
@@ -9,22 +9,22 @@ pub enum UpdaterError {
     UpdateFailed(String),
     /// The previous attempt to upgrade to this version failed; we are deliberately not hitting
     /// the registry again until the cooldown elapses (or the version changes). The message is
-    /// derived from the [`Suppression`] *variant* only (not its failure count), so it is
+    /// derived from the [`SuppressionReason`] *variant* only (not its failure count), so it is
     /// intentionally **stable across polls** and OpAMP `ConfigState::Failed` does not churn.
     #[error("upgrade to {version} suppressed: {}", cooldown_reason(reason))]
     UpdateInCooldown {
         version: String,
-        reason: Suppression,
+        reason: SuppressionReason,
     },
 }
 
 /// Domain wording for a suppressed upgrade. Lives here (not in the agnostic gate) because the
 /// phrasing — "desired version" — is agent-control/OpAMP vocabulary. Deliberately ignores the
 /// failure count so the rendered message stays stable across polls.
-fn cooldown_reason(reason: &Suppression) -> &'static str {
+fn cooldown_reason(reason: &SuppressionReason) -> &'static str {
     match reason {
-        Suppression::InCooldown { .. } => "retrying after previous failure",
-        Suppression::CapReached { .. } => {
+        SuppressionReason::InCooldown { .. } => "retrying after previous failure",
+        SuppressionReason::CapReached { .. } => {
             "max consecutive failures reached, retrying at the maximum backoff interval"
         }
     }
