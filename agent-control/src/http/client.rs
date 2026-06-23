@@ -216,15 +216,20 @@ impl opentelemetry_http::HttpClient for HttpClient {
         let (parts, body) = request.into_parts();
         let req_vec = Request::from_parts(parts, Vec::from(body));
 
-        // IMPORTANT: Wrap blocking HTTP call in spawn_blocking to avoid blocking the async runtime
-        // The OpenTelemetry SDK runs exports on tokio's async runtime, but our HttpClient uses
-        // reqwest's blocking API. Without spawn_blocking, this blocks the async executor thread,
-        // causing exports to hang silently.
         let client = self.clone();
-        let response_vec = tokio::task::spawn_blocking(move || client.send(req_vec))
-            .await
-            .map_err(|join_err| Box::new(join_err) as HttpError)?
-            .map_err(|http_err| Box::new(http_err) as HttpError)?;
+        // When called from a Tokio async context (e.g. the main runtime), use spawn_blocking
+        // so the blocking reqwest call does not starve the executor.
+        // When called from a non-Tokio thread (e.g. the OTel BatchProcessor OS thread),
+        // call send() directly — it is synchronous and safe to block there.
+        let response_vec = match tokio::runtime::Handle::try_current() {
+            Ok(_) => tokio::task::spawn_blocking(move || client.send(req_vec))
+                .await
+                .map_err(|join_err| Box::new(join_err) as HttpError)?
+                .map_err(|http_err| Box::new(http_err) as HttpError)?,
+            Err(_) => client
+                .send(req_vec)
+                .map_err(|http_err| Box::new(http_err) as HttpError)?,
+        };
 
         let (parts, body) = response_vec.into_parts();
         Ok(Response::from_parts(parts, Bytes::from(body)))
