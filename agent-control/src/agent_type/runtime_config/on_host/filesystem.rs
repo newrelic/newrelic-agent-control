@@ -700,6 +700,11 @@ projected:
             .write(&LocalFile, &DirectoryManagerFs)
             .unwrap();
 
+        assert!(tmp_dir.path().join("A.txt").exists());
+        assert!(tmp_dir.path().join("persistent-dir/old.txt").exists());
+        assert!(tmp_dir.path().join("projected/a.yaml").exists());
+        assert!(tmp_dir.path().join("projected/b.yaml").exists());
+
         // Sub-agent process writes runtime files. None of these are in any manifest, so the
         // sidecar diff must leave them alone on the next reconciliation.
         let runtime_top = tmp_dir.path().join("agent-runtime.log");
