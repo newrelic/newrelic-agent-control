@@ -3,7 +3,9 @@ use clap::Args;
 use std::io::Write as _;
 use std::path::Path;
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(target_family = "unix")]
+use std::time::Instant;
 use tracing::{info, warn};
 
 #[cfg(target_family = "unix")]
@@ -25,6 +27,7 @@ const AC_SERVICE_NAME: &str = "newrelic-agent-control";
 const SYSTEMD_UNIT: &str = "/etc/systemd/system/newrelic-agent-control.service";
 
 /// Maximum time to wait for the service to stop before proceeding.
+#[cfg(target_family = "unix")]
 const SERVICE_STOP_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Arguments for the `uninstall` subcommand.
@@ -69,7 +72,11 @@ pub fn run(args: UninstallArgs) -> Result<(), CliError> {
     // Remove state dir — contains all OCI-installed managed agent packages.
     // These agents are NOT tracked by the system package manager and must be
     // removed explicitly here.
-    remove_path(REMOTE_DATA_DIR, "state directory (managed agent packages)", args.dry_run);
+    remove_path(
+        REMOTE_DATA_DIR,
+        "state directory (managed agent packages)",
+        args.dry_run,
+    );
 
     if !args.keep_config {
         remove_path(LOCAL_DATA_DIR, "config directory", args.dry_run);

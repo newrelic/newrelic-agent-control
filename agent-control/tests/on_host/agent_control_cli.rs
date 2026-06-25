@@ -173,9 +173,18 @@ fn uninstall_dry_run_output_lists_expected_paths() {
     cmd.args(["uninstall", "--dry-run"]);
     let output = cmd.output().expect("failed to run CLI");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("/var/lib/newrelic-agent-control"), "missing state dir");
-    assert!(stdout.contains("/etc/newrelic-agent-control"), "missing config dir");
-    assert!(stdout.contains("newrelic-agent-control"), "missing binary path");
+    assert!(
+        stdout.contains("/var/lib/newrelic-agent-control"),
+        "missing state dir"
+    );
+    assert!(
+        stdout.contains("/etc/newrelic-agent-control"),
+        "missing config dir"
+    );
+    assert!(
+        stdout.contains("newrelic-agent-control"),
+        "missing binary path"
+    );
 }
 
 #[test]
@@ -185,7 +194,10 @@ fn uninstall_dry_run_keep_config_omits_config_dir() {
     let output = cmd.output().expect("failed to run CLI");
     let stdout = String::from_utf8_lossy(&output.stdout);
     // State dir should still appear
-    assert!(stdout.contains("/var/lib/newrelic-agent-control"), "missing state dir");
+    assert!(
+        stdout.contains("/var/lib/newrelic-agent-control"),
+        "missing state dir"
+    );
     // Config dir should NOT appear
     assert!(
         !stdout.contains("Would remove config directory"),
@@ -208,7 +220,10 @@ fn update_dry_run_output_mentions_version_and_registry() {
     cmd.args(["update", "--version", "99.0.0", "--dry-run"]);
     let output = cmd.output().expect("failed to run CLI");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("99.0.0"), "missing version in dry-run output");
+    assert!(
+        stdout.contains("99.0.0"),
+        "missing version in dry-run output"
+    );
     assert!(
         stdout.contains("newrelic/agent-control-artifacts"),
         "missing OCI repo in dry-run output"

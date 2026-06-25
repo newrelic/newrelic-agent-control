@@ -1,9 +1,11 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::Registry;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, AC_OCI_PACKAGE_DEFAULT_REPOSITORY, AC_OCI_PACKAGE_PUBLIC_KEY_URL,
+    AC_OCI_PACKAGE_DEFAULT_REPOSITORY, AC_OCI_PACKAGE_PUBLIC_KEY_URL, AGENT_CONTROL_VERSION,
 };
-use crate::agent_control::version_updater::on_host::{AGENT_CONTROL_BIN, AGENT_CONTROL_BIN_PACKAGE_ID};
+use crate::agent_control::version_updater::on_host::{
+    AGENT_CONTROL_BIN, AGENT_CONTROL_BIN_PACKAGE_ID,
+};
 use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
 use crate::cli::common::error::CliError;
 use crate::http::config::ProxyConfig;

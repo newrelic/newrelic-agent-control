@@ -18,6 +18,7 @@ Remember that the keywords that you can use are the following:
 - On-host self-update: an empty `version: ""` pushed from Fleet Control now behaves the same as an absent `version` field (no-op, no update attempted). Previously it silently triggered a pull of the `:latest` OCI tag.
 
 ### enhancement
+- Added `uninstall` and `update --version <semver>` subcommands to `newrelic-agent-control-cli` for on-host installations not managed by Fleet Control. `uninstall` stops the service, removes all OCI-managed agent packages, and removes binaries. `update` performs an OCI-based self-replace with signature verification enabled by default.
 - Hardens service restart policies on Linux and Windows (systemd rate limiting: 5 restarts max in 60s) to prevent
   crash-looping from saturating CPU.
 - Added support for remote agent type retrieval.
