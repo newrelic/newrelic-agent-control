@@ -26,7 +26,8 @@ fn writes_filesystem_entries() {
     let expected_file_contents = "Hello, world!";
     let agent_id = "test-agent";
     let dir_entry = "example-filepath";
-    let file_path = "randomdir/randomfile.txt";
+    let nested_dir = "randomdir";
+    let file_name = "randomfile.txt";
 
     create_file(
         format!(
@@ -43,9 +44,12 @@ deployment:
     {dir_entry}:
       kind: dir
       entries:
-        {file_path}:
-          kind: file
-          text: "{expected_file_contents}"
+        {nested_dir}:
+          kind: dir
+          entries:
+            {file_name}:
+              kind: file
+              text: "{expected_file_contents}"
 "#,
         ),
         dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -75,7 +79,8 @@ deployment:
         .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
         .join(dir_entry)
-        .join(file_path);
+        .join(nested_dir)
+        .join(file_name);
 
     retry(30, Duration::from_secs(1), || {
         read_file_and_expect_content(&search_path, expected_file_contents)?;
@@ -147,16 +152,22 @@ variables:
     required: true
 deployment:
   filesystem:
-    randomdir:
+    parent_randomdir:
       kind: dir
       entries:
-        "{yaml_file_path}":
-          kind: file
-          text: |-
-            ${{nr-var:yaml_file_contents}}
-        "{string_file_path}":
-          kind: file
-          text: "Some string contents with a rendered variable: ${{nr-var:some_string}}"
+        randomdir:
+          kind: dir
+          entries:
+            randomfile.yaml:
+              kind: file
+              text: |-
+                ${{nr-var:yaml_file_contents}}
+        randomdir-2:
+          kind: dir
+          entries:
+            some_string.txt:
+              kind: file
+              text: "Some string contents with a rendered variable: ${{nr-var:some_string}}"
     {dir_path}:
       kind: dir
       entries:
@@ -217,13 +228,13 @@ some_mapstringyaml:
         .remote_dir()
         .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
-        .join("randomdir")
+        .join("parent_randomdir")
         .join(yaml_file_path);
     let string_search_path = dirs
         .remote_dir()
         .join(AGENT_FILESYSTEM_FOLDER_NAME)
         .join(agent_id)
-        .join("randomdir")
+        .join("parent_randomdir")
         .join(string_file_path);
     let dir_search_path = dirs
         .remote_dir()
@@ -330,8 +341,14 @@ deployment:
           text: |-
             ${{nr-var:config_logging}}
     # This directory needs to persist across restarts for the infra agent
-    newrelic-infra/newrelic-integrations/logging:
+    newrelic-infra:
       kind: dir
+      entries:
+        newrelic-integrations:
+          kind: dir
+          entries:
+            logging:
+              kind: dir
 "#,
         ),
         dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
