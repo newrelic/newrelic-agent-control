@@ -84,9 +84,18 @@ impl OtelConfig {
     pub fn with_region_endpoint(self, region: &Region) -> Self {
         if self.endpoint.as_str().trim_end_matches('/') == ENDPOINT_SENTINEL {
             let url = otlp_endpoint_for_region(region);
-            Self {
-                endpoint: url.parse().expect("valid OTLP URL"),
-                ..self
+            match url.parse() {
+                Ok(endpoint) => Self { endpoint, ..self },
+                Err(e) => {
+                    // Should never happen with hardcoded constants, but log rather than panic
+                    // so a future Region variant with a typo doesn't crash the agent at startup.
+                    tracing::error!(
+                        url = %url,
+                        error = %e,
+                        "OTLP endpoint URL for region is invalid; self-instrumentation disabled"
+                    );
+                    self
+                }
             }
         } else {
             self

@@ -368,16 +368,20 @@ where
                         if was_cancelled {
                             break;
                         }
+                        info!(%agent_id, %exec_id, "Executable not running");
+                        // Process ran and exited — record as a normal stop.
+                        metrics::record_agent_stopped(&agent_type, "exit");
                     }
                     Err(err) => {
                         warn!(%agent_id, %exec_id, "Launching executable: {err}");
                         debug!(%agent_id, %exec_id, "Error launching executable, marking as unhealthy");
                         health_handler.publish_unhealthy(format!("Error launching process: {err}"));
+                        info!(%agent_id, %exec_id, "Executable not running");
+                        // Launch failed before the process ran — use distinct reason
+                        // so dashboards can distinguish failed starts from normal exits.
+                        metrics::record_agent_stopped(&agent_type, "launch_error");
                     }
                 }
-
-                info!(%agent_id, %exec_id, "Executable not running");
-                metrics::record_agent_stopped(&agent_type, "exit");
 
                 if !restart_policy.should_retry() {
                     warn!(%agent_id, %exec_id, "Restart policy exceeded, executable won't restart anymore");

@@ -1,4 +1,5 @@
 use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
+use crate::instrumentation::metrics as ac_metrics;
 use crate::http::client::{HttpBuildError, HttpClient};
 use crate::http::config::HttpConfig;
 use crate::instrumentation::config::otel::OtelConfig;
@@ -274,6 +275,9 @@ impl OtelLayers {
         // can use `opentelemetry::global::meter("agent-control")` without
         // holding a direct reference to the provider.
         opentelemetry::global::set_meter_provider(provider.clone());
+        // Register in the metrics module so flush() can call force_flush()
+        // before process self-replacement (exec-based restart bypasses Drop).
+        ac_metrics::register_provider(provider.clone());
 
         Ok(provider)
     }
@@ -323,11 +327,15 @@ impl OtelLayers {
             // has at least one instrument and attempts an export on its first tick.
             // Without this, if no tracing events reach MetricsLayer before the first
             // tick, the PeriodicReader finds no instruments and skips the HTTP call.
+            // Use u64_counter (monotonic) not UpDownCounter — NR treats them differently.
             use opentelemetry::metrics::MeterProvider as _;
             let meter = metrics_provider.meter(SERVICE_NAME_PREFIX);
-            let startup_counter = meter.i64_up_down_counter("agent_control.starts").build();
+            let startup_counter = meter.u64_counter("agent_control.starts").build();
             startup_counter.add(1, &[]);
             // Store in guard so the instrument stays registered for the lifetime of the process.
+            // Must be listed BEFORE _metrics_provider in OtelGuard so it's dropped first;
+            // Rust drops fields in declaration order and the counter must be released
+            // before the provider calls try_shutdown() to avoid a stale-instrument warning.
             guard._startup_counter = Some(startup_counter);
 
             let layer = MetricsLayer::new(metrics_provider.clone());
@@ -349,15 +357,52 @@ impl OtelLayers {
 }
 
 /// Keeps a reference to the OpenTelemetry providers to avoid shutting down the underlying reporters while telemetry
-/// is emitted.
-#[derive(Default)]
+/// is emitted. When dropped, shuts down all providers in dependency order.
+///
+/// **Field drop order matters**: Rust drops fields in declaration order.
+/// The startup counter must come first so it releases its instrument handle
+/// before the provider calls try_shutdown(), avoiding a stale-instrument warning.
+/// Traces/logs providers come before metrics so the MetricsLayer outlives them.
 pub struct OtelGuard {
+    /// Startup counter — drop first, before the provider shuts down.
+    _startup_counter: Option<opentelemetry::metrics::Counter<u64>>,
+    _traces_provider: Option<SdkTracerProvider>,
     _logs_provider: Option<SdkLoggerProvider>,
     _metrics_provider: Option<SdkMeterProvider>,
-    _traces_provider: Option<SdkTracerProvider>,
-    /// Startup counter kept alive so the PeriodicReader always has ≥1 instrument
-    /// to collect; without this, the first export tick finds nothing and skips the HTTP call.
-    _startup_counter: Option<opentelemetry::metrics::UpDownCounter<i64>>,
+}
+
+impl Default for OtelGuard {
+    fn default() -> Self {
+        Self {
+            _startup_counter: None,
+            _traces_provider: None,
+            _logs_provider: None,
+            _metrics_provider: None,
+        }
+    }
+}
+
+impl Drop for OtelGuard {
+    fn drop(&mut self) {
+        // Explicit shutdown in reverse-dependency order with error visibility.
+        // Fields are dropped by Rust after this fn returns (in declaration order),
+        // but the try_shutdown() calls here flush buffered telemetry synchronously.
+        if let Some(p) = &self._traces_provider {
+            if let Err(e) = p.force_flush() {
+                tracing::warn!(error = %e, "failed to flush traces on shutdown");
+            }
+        }
+        if let Some(p) = &self._metrics_provider {
+            if let Err(e) = p.force_flush() {
+                tracing::warn!(error = %e, "failed to flush metrics on shutdown");
+            }
+        }
+        // Replace the global meter provider with a no-op so any record_* calls
+        // that race shutdown silently drop rather than writing to a shut-down provider.
+        opentelemetry::global::set_meter_provider(
+            opentelemetry_sdk::metrics::SdkMeterProvider::default(),
+        );
+    }
 }
 
 impl TracingGuard for OtelGuard {}

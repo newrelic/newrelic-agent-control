@@ -101,6 +101,11 @@ where
 
         debug!("Agent Control binary replaced, stopping to allow the new version to start");
         metrics::record_update_succeeded("agent-control", AGENT_CONTROL_VERSION, &new_version.to_string());
+        // Flush OTLP metrics before the process image is replaced by exec().
+        // Normal Rust drop/shutdown is bypassed on exec, so the PeriodicReader
+        // background thread would be killed before its next scheduled export.
+        // A synchronous flush here ensures the succeeded metric is actually exported.
+        metrics::flush();
         self.agent_control_internal_publisher
             .publish(AgentControlInternalEvent::SelfUpdateRestartRequested())
             .map_err(|e| UpdaterError::UpdateFailed(format!("publishing stop request: {e}")))?;

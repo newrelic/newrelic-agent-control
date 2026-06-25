@@ -467,7 +467,7 @@ where
 
         // The updater is responsible for determining the current version and deciding whether an update is necessary.
         if let Err(e) = self.version_updater.update(&new_dynamic_config) {
-            metrics::record_update_failed("agent-control", "update_failed");
+            metrics::record_update_failed("agent-control", e.error_code());
             return Err(e.into());
         }
 
