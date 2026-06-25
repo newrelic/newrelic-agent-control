@@ -231,6 +231,10 @@ fn validate_file_entry_path(path: &Path) -> Result<(), String> {
     if let Err(e) = check_single_segment(path) {
         errors.push(e);
     }
+    // Keys must not collide with AC's reserved sidecar-manifest filename.
+    if let Err(e) = check_not_reserved(path) {
+        errors.push(e);
+    }
 
     if errors.is_empty() {
         Ok(())
@@ -253,6 +257,24 @@ fn check_single_segment(path: &Path) -> Result<(), String> {
          explicitly with `kind: dir` and `entries:`",
         path.display()
     ))
+}
+
+/// Rejects the reserved sidecar-manifest filename at any level. Agent Control writes its
+/// managed-paths manifest at `<base_dir>/.ac-managed-paths.json`; an entry declaring that name
+/// would collide with (and corrupt) AC's own reconciliation bookkeeping.
+fn check_not_reserved(path: &Path) -> Result<(), String> {
+    let collides = path.components().any(|c| {
+        matches!(c, Component::Normal(name)
+            if name.to_str() == Some(rendered::MANAGED_PATHS_MANIFEST_FILENAME))
+    });
+    if collides {
+        return Err(format!(
+            "path `{}` uses the reserved filename `{}`",
+            path.display(),
+            rendered::MANAGED_PATHS_MANIFEST_FILENAME
+        ));
+    }
+    Ok(())
 }
 
 /// Rejects paths that traverse outside their base directory (e.g. `./../../some_path`) so that
@@ -368,6 +390,40 @@ mod tests {
             parsed.is_ok(),
             should_parse,
             "input: {yaml}, parsed: {parsed:?}"
+        );
+    }
+
+    #[test]
+    fn rejects_reserved_manifest_filename() {
+        let reserved = rendered::MANAGED_PATHS_MANIFEST_FILENAME;
+
+        // Top-level key.
+        let top_level = format!(
+            r#"
+"{reserved}":
+  kind: file
+  text: x
+"#
+        );
+        assert!(
+            serde_saphyr::from_str::<FileSystem>(&top_level).is_err(),
+            "reserved filename must be rejected at the top level"
+        );
+
+        // Nested under a dir's `entries:` — rejected at any level.
+        let nested = format!(
+            r#"
+somedir:
+  kind: dir
+  entries:
+    "{reserved}":
+      kind: file
+      text: x
+"#
+        );
+        assert!(
+            serde_saphyr::from_str::<FileSystem>(&nested).is_err(),
+            "reserved filename must be rejected at nested levels"
         );
     }
 

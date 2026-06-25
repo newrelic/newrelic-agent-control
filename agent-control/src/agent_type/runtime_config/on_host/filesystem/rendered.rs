@@ -2,7 +2,7 @@
 use fs::{directory_manager::DirectoryManager, file::writer::FileWriter};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use thiserror::Error;
 use tracing::{trace, warn};
 
@@ -10,8 +10,8 @@ use tracing::{trace, warn};
 /// The manifest records the absolute paths AC wrote on the previous successful write event so
 /// the next write can compute "previously managed but no longer declared → delete".
 ///
-/// Reserved name: agent-type definitions cannot declare a path with this exact filename at any
-/// level. The filesystem parser validates this at parse time.
+/// Reserved name: agent-type definitions cannot declare an entry with this exact filename at any
+/// level.
 pub const MANAGED_PATHS_MANIFEST_FILENAME: &str = ".ac-managed-paths.json";
 
 /// Rendered filesystem tree, ready to be materialized on disk.
@@ -71,7 +71,7 @@ impl FileSystem {
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
         let manifest_path = self.manifest_path();
-        let prev_declared = read_manifest(&manifest_path);
+        let prev_declared = read_manifest(&manifest_path, &self.base_dir);
         let curr_declared = self.collect_declared_paths();
 
         // Reconcile: delete paths AC owned previously but no longer declares.
@@ -143,7 +143,9 @@ fn collect_recursive(path: &Path, entry: &RenderedEntry, declared: &mut HashSet<
     }
 }
 
-fn read_manifest(path: &Path) -> HashSet<PathBuf> {
+/// Reads the managed-paths manifest at `path`, returning only entries that are safe to act on:
+/// paths genuinely contained in `base_dir`.
+fn read_manifest(path: &Path, base_dir: &Path) -> HashSet<PathBuf> {
     let raw = match std::fs::read(path) {
         Ok(b) => b,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return HashSet::new(),
@@ -156,13 +158,32 @@ fn read_manifest(path: &Path) -> HashSet<PathBuf> {
             return HashSet::new();
         }
     };
-    match serde_json::from_slice::<ManagedPathsManifest>(&raw) {
-        Ok(m) => m.managed_paths.into_iter().collect(),
+    let managed_paths = match serde_json::from_slice::<ManagedPathsManifest>(&raw) {
+        Ok(m) => m.managed_paths,
         Err(err) => {
             warn!(?err, ?path, "managed-paths manifest is malformed, ignoring");
-            HashSet::new()
+            return HashSet::new();
         }
-    }
+    };
+    managed_paths
+        .into_iter()
+        .filter(|p| {
+            // Never let the manifest mark itself for deletion.
+            if p == path {
+                return false;
+            }
+            let within = is_within_base(p, base_dir);
+            if !within {
+                warn!(?p, ?base_dir, "ignoring out-of-base managed-paths entry");
+            }
+            within
+        })
+        .collect()
+}
+
+fn is_within_base(path: &Path, base_dir: &Path) -> bool {
+    let has_escape = path.components().any(|c| matches!(c, Component::ParentDir));
+    !has_escape && path.is_absolute() && path.starts_with(base_dir)
 }
 
 fn write_manifest(path: &Path, declared: &HashSet<PathBuf>) -> Result<(), std::io::Error> {
@@ -290,3 +311,70 @@ fn delete_ephemeral_recursive(
 #[derive(Debug, Error)]
 #[error("file system entries error: {0}")]
 pub struct FileSystemEntriesError(String);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    // In-base paths are accepted.
+    #[case::file_in_base("/base/dir/file.txt", true)]
+    #[case::nested_in_base("/base/dir/a/b/c.txt", true)]
+    #[case::base_itself("/base/dir", true)]
+    // Outside the base dir.
+    #[case::unrelated_absolute("/etc/passwd", false)]
+    #[case::parent_of_base("/base", false)]
+    // Lexical-prefix confusion: a sibling sharing a name prefix must not pass.
+    #[case::sibling_prefix("/base/dirsuffix/x.txt", false)]
+    // `..` traversal that resolves outside base but would pass a naive `starts_with`.
+    #[case::parent_traversal("/base/dir/../escape.txt", false)]
+    // Relative paths can't be reasoned about safely.
+    #[case::relative("relative/path.txt", false)]
+    fn is_within_base_only_accepts_contained_absolute_paths(
+        #[case] path: &str,
+        #[case] expected: bool,
+    ) {
+        assert_eq!(
+            is_within_base(Path::new(path), Path::new("/base/dir")),
+            expected
+        );
+    }
+
+    #[test]
+    fn read_manifest_drops_untrusted_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        let base_dir = dir.path().to_path_buf();
+        let manifest_path = base_dir.join(MANAGED_PATHS_MANIFEST_FILENAME);
+
+        let keep_1 = base_dir.join("keep.txt");
+        let keep_2 = base_dir.join("sub").join("deep.txt");
+
+        let manifest = ManagedPathsManifest {
+            managed_paths: vec![
+                keep_1.clone(),
+                keep_2.clone(),
+                // Out of base: a tampered manifest must not turn these into deletions.
+                PathBuf::from("/etc/passwd"),
+                base_dir.join("..").join("..").join("escape.txt"),
+                PathBuf::from("relative.txt"),
+                // The manifest must never list (and thus delete) itself.
+                manifest_path.clone(),
+            ],
+        };
+        std::fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+
+        let result = read_manifest(&manifest_path, &base_dir);
+
+        assert_eq!(result, HashSet::from([keep_1, keep_2]));
+    }
+
+    #[test]
+    fn read_manifest_missing_file_is_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let base_dir = dir.path().to_path_buf();
+        let manifest_path = base_dir.join(MANAGED_PATHS_MANIFEST_FILENAME);
+
+        assert!(read_manifest(&manifest_path, &base_dir).is_empty());
+    }
+}
