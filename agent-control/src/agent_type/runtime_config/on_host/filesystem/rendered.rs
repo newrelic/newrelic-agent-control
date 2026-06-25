@@ -291,28 +291,38 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
+    // `path_from_root` is joined onto an OS-appropriate absolute root when `absolute` is true.
     #[rstest]
     // In-base paths are accepted.
-    #[case::file_in_base("/base/dir/file.txt", true)]
-    #[case::nested_in_base("/base/dir/a/b/c.txt", true)]
-    #[case::base_itself("/base/dir", true)]
+    #[case::file_in_base("base/dir/file.txt", true, true)]
+    #[case::nested_in_base("base/dir/a/b/c.txt", true, true)]
+    #[case::base_itself("base/dir", true, true)]
     // Outside the base dir.
-    #[case::unrelated_absolute("/etc/passwd", false)]
-    #[case::parent_of_base("/base", false)]
+    #[case::unrelated_absolute("etc/passwd", true, false)]
+    #[case::parent_of_base("base", true, false)]
     // Lexical-prefix confusion: a sibling sharing a name prefix must not pass.
-    #[case::sibling_prefix("/base/dirsuffix/x.txt", false)]
+    #[case::sibling_prefix("base/dirsuffix/x.txt", true, false)]
     // `..` traversal that resolves outside base but would pass a naive `starts_with`.
-    #[case::parent_traversal("/base/dir/../escape.txt", false)]
+    #[case::parent_traversal("base/dir/../escape.txt", true, false)]
     // Relative paths can't be reasoned about safely.
-    #[case::relative("relative/path.txt", false)]
+    #[case::relative("relative/path.txt", false, false)]
     fn is_within_base_only_accepts_contained_absolute_paths(
-        #[case] path: &str,
+        #[case] path_from_root: &str,
+        #[case] absolute: bool,
         #[case] expected: bool,
     ) {
-        assert_eq!(
-            is_within_base(Path::new(path), Path::new("/base/dir")),
-            expected
-        );
+        #[cfg(windows)]
+        const ABS_ROOT: &str = "C:\\";
+        #[cfg(not(windows))]
+        const ABS_ROOT: &str = "/";
+
+        let base = Path::new(ABS_ROOT).join("base").join("dir");
+        let path = if absolute {
+            Path::new(ABS_ROOT).join(path_from_root)
+        } else {
+            PathBuf::from(path_from_root)
+        };
+        assert_eq!(is_within_base(&path, &base), expected);
     }
 
     #[test]
