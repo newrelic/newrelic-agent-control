@@ -1,6 +1,7 @@
 pub mod verify;
 
 use crate::agent_control::agent_id::AgentID;
+use crate::instrumentation::metrics;
 use crate::agent_control::config::{AgentControlDynamicConfig, AgentControlPackage};
 use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
@@ -69,6 +70,7 @@ where
         }
 
         debug!("Starting update process");
+        metrics::record_update_attempted("agent-control", &new_version.to_string());
 
         let package_data = self.get_package_data(new_version.clone());
 
@@ -98,6 +100,7 @@ where
         })?;
 
         debug!("Agent Control binary replaced, stopping to allow the new version to start");
+        metrics::record_update_succeeded("agent-control", AGENT_CONTROL_VERSION, &new_version.to_string());
         self.agent_control_internal_publisher
             .publish(AgentControlInternalEvent::SelfUpdateRestartRequested())
             .map_err(|e| UpdaterError::UpdateFailed(format!("publishing stop request: {e}")))?;

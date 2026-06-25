@@ -1,4 +1,5 @@
 use crate::agent_control::config::{AgentControlDynamicConfig, helmrelease_v2_type_meta};
+use crate::instrumentation::metrics;
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
 use crate::k8s::client::K8sObjectKey;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
@@ -166,6 +167,7 @@ impl<C: K8sClient> K8sACUpdater<C> {
         }
 
         info!(%component_name, %version, %current_version, "Performing update");
+        metrics::record_update_attempted(&component_name.to_string(), version);
 
         let labels = self.get_helm_release_labels(release_name)?;
         let patch_to_apply = self.create_helm_release_patch(version, labels);
@@ -177,10 +179,12 @@ impl<C: K8sClient> K8sACUpdater<C> {
                 patch_to_apply,
             )
             .map_err(|err| {
+                metrics::record_update_failed(&component_name.to_string(), "helm_patch_failed");
                 UpdaterError::UpdateFailed(format!(
                     "error applying patch to HelmRelease '{release_name}' for '{component_name}': {err}",
                 ))
             })?;
+        metrics::record_update_succeeded(&component_name.to_string(), &current_version, version);
         Ok(())
     }
 

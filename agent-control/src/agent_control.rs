@@ -13,6 +13,7 @@ pub mod uptime_report;
 pub mod version_updater;
 
 use crate::agent_control::defaults::AGENT_CONTROL_ID;
+use crate::instrumentation::metrics;
 use crate::agent_control::run::GracefulShutdownReason;
 use crate::checkers::health::health_checker::{HealthChecker, spawn_health_checker};
 use crate::checkers::health::with_start_time::HealthWithStartTime;
@@ -465,7 +466,10 @@ where
             .map_err(|err| AgentControlError::RemoteConfigValidator(err.to_string()))?;
 
         // The updater is responsible for determining the current version and deciding whether an update is necessary.
-        self.version_updater.update(&new_dynamic_config)?;
+        if let Err(e) = self.version_updater.update(&new_dynamic_config) {
+            metrics::record_update_failed("agent-control", "update_failed");
+            return Err(e.into());
+        }
 
         // It stores the remote config and then apply it for these reasons:
         // - The apply mechanism does not handle any rollback in case any failure but instead attempts to apply as much as
