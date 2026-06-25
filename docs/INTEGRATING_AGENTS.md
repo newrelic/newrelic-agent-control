@@ -524,11 +524,11 @@ agent/integrations.d/
 
 **`dir`** — an explicitly declared directory. Its children, if any, live under `entries:`.
 
-| Field        | Required | Default | Description                                                  |
-|--------------|----------|---------|--------------------------------------------------------------|
-| `kind`       | yes      | —       | Must be `dir`.                                               |
-| `entries`    | no       | `{}`    | Map of child entries (any kind). Recursive. Each key must be a single path segment, not a sub-path. |
-| `persistent` | no       | `false` | If `true`, this directory and its tree survive cleanup.      |
+| Field        | Required | Default | Description                                                                                                                                                |
+|--------------|----------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`       | yes      | —       | Must be `dir`.                                                                                                                                             |
+| `entries`    | no       | `{}`    | Map of child entries (any kind). Recursive. Each key must be a single path segment, not a sub-path.                                                        |
+| `persistent` | no       | `false` | If `true`, this directory survives stop. Not inherited, each child is judged by its own `persistent` flag (see [Persistence](#persistence-in-filesystem)). |
 
 **`dir_content_from_map`** — a directory whose set of files is computed at deploy time from a `map[string]yaml` variable. The map's keys become filenames; the values become file contents.
 
@@ -546,6 +546,8 @@ Every `file`, `dir`, and `dir_content_from_map` entry accepts a boolean `persist
 - **The sidecar manifest** drives reconciliation on every write event. Anything Agent Control wrote on the previous successful write is recorded in the manifest. On the next write, Agent Control diffs the manifest against the new declared set: paths it owned previously and no longer owns are deleted; paths it never owned are left alone.
 
 The flag does **not** shield the entry from intentional removal: if you delete an entry from the agent type (or remove a key from a `dir_content_from_map` source map), the manifest diff catches it and the on-disk path is deleted on the next write event.
+
+**`persistent` applies per entry and does not cascade to children.** On stop, cleanup walks the declared tree: a persistent entry is kept and the walk descends into its children, while an ephemeral entry is deleted together with its entire on-disk subtree (a recursive `remove_dir_all`, which stops the walk there). So a nested path survives stop only if **every declared node on the path is `persistent: true`**.
 
 ###### Sidecar manifest
 
