@@ -7,7 +7,7 @@ use crate::agent_type::runtime_config::{
 };
 use std::collections::HashMap;
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OnHost {
     pub executables: Vec<Executable>,
     pub enable_file_logging: bool,

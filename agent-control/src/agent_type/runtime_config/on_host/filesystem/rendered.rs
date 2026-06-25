@@ -18,7 +18,7 @@ pub const MANAGED_PATHS_MANIFEST_FILENAME: &str = ".ac-managed-paths.json";
 /// Top-level keys (`entries`) are absolute paths under `base_dir`; children inside a `Dir` are
 /// kept relative to their parent — recursion in [`FileSystem::write`] joins them onto the parent
 /// path.
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FileSystem {
     pub(super) base_dir: PathBuf,
     pub(super) entries: HashMap<PathBuf, RenderedEntry>,
@@ -50,6 +50,14 @@ impl FileSystem {
         Self { base_dir, entries }
     }
 
+    #[cfg(test)]
+    pub(crate) fn test_empty() -> Self {
+        let base_dir = tempfile::tempdir()
+            .expect("create temp dir for test FileSystem")
+            .keep();
+        Self::new(base_dir, HashMap::new())
+    }
+
     /// Reconciles the on-disk state under `base_dir` against the current declared tree, then
     /// writes the declared tree, then updates the sidecar manifest.
     pub fn write(
@@ -57,10 +65,6 @@ impl FileSystem {
         file_writer: &impl FileWriter,
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
-        // `FileSystem::default()` produces an empty `base_dir` so we don't want to write a manifest
-        if self.base_dir.as_os_str().is_empty() {
-            return Ok(());
-        }
         let manifest_path = self.manifest_path();
         let prev_declared = read_manifest(&manifest_path);
         let curr_declared = self.collect_declared_paths();

@@ -687,7 +687,7 @@ pub mod tests {
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
-            FileSystem::default(),
+            FileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -733,7 +733,7 @@ pub mod tests {
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
-            FileSystem::default(),
+            FileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -848,7 +848,7 @@ persistent.txt:
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
-            FileSystem::default(),
+            FileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -898,7 +898,7 @@ persistent.txt:
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
-            FileSystem::default(),
+            FileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -948,7 +948,7 @@ persistent.txt:
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
-            FileSystem::default(),
+            FileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -993,7 +993,7 @@ persistent.txt:
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
-            FileSystem::default(),
+            FileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1057,7 +1057,7 @@ persistent.txt:
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
-            FileSystem::default(),
+            FileSystem::test_empty(),
         );
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1238,7 +1238,7 @@ persistent.txt:
             Arc::new(MockPackageManager::new()),
             true,
             logging_path.clone(),
-            FileSystem::default(),
+            FileSystem::test_empty(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1273,7 +1273,7 @@ persistent.txt:
             enable_file_logging: true,
             health: OnHostHealthConfig::default(),
             version: None,
-            filesystem: FileSystem::default(),
+            filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
 
@@ -1366,7 +1366,7 @@ persistent.txt:
             Arc::new(MockPackageManager::new()),
             false,
             logging_path.clone(),
-            FileSystem::default(),
+            FileSystem::test_empty(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1401,7 +1401,7 @@ persistent.txt:
             enable_file_logging: true,
             health: OnHostHealthConfig::default(),
             version: None,
-            filesystem: FileSystem::default(),
+            filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
 
@@ -1492,7 +1492,7 @@ persistent.txt:
             Arc::new(MockPackageManager::new()),
             true,
             logging_path.clone(),
-            FileSystem::default(),
+            FileSystem::test_empty(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1527,7 +1527,7 @@ persistent.txt:
             enable_file_logging: false,
             health: OnHostHealthConfig::default(),
             version: None,
-            filesystem: FileSystem::default(),
+            filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
 
@@ -1619,7 +1619,7 @@ persistent.txt:
             Arc::new(MockPackageManager::new()),
             false,
             logging_path.clone(),
-            FileSystem::default(),
+            FileSystem::test_empty(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1654,7 +1654,7 @@ persistent.txt:
             enable_file_logging: false,
             health: OnHostHealthConfig::default(),
             version: None,
-            filesystem: FileSystem::default(),
+            filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
 
