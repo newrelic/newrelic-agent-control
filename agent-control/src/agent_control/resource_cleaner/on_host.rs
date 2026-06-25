@@ -210,8 +210,8 @@ mod tests {
         assert!(cleaner.clean(&id, &any_type_id()).is_ok());
     }
 
-    /// `delete` on a missing dir is a no-op per the trait contract — `OnHostCleaner` doesn't
-    /// pre-check existence; it just delegates.
+    /// When the directory manager's `delete` fails, `clean` propagates the error rather than
+    /// swallowing it, annotating it with `agent filesystem directory` for context.
     #[test]
     fn clean_propagates_directory_manager_delete_error() {
         let id = agent_id("foo-agent");
