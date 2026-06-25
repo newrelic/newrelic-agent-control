@@ -8,7 +8,7 @@ use crate::agent_type::runtime_config::{
 use std::collections::HashMap;
 
 /// On-host deployment configuration after templating.
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OnHost {
     /// The executables to supervise.
     pub executables: Vec<Executable>,
