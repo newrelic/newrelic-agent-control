@@ -346,16 +346,19 @@ deployment:
           persistent: true
           text: |-
             ${{nr-var:config_logging}}
-    # This directory needs to persist across restarts for the infra agent
+    # This directory needs to persist across restarts for the infra agent. Every level down to
+    # the leaf must be persistent: an ephemeral ancestor is wiped (with its whole subtree) on stop.
     newrelic-infra:
       kind: dir
       persistent: true
       entries:
         newrelic-integrations:
           kind: dir
+          persistent: true
           entries:
             logging:
               kind: dir
+              persistent: true
 "#,
         ),
         dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
