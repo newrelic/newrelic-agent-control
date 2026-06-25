@@ -270,6 +270,11 @@ impl OtelLayers {
             .with_resource(resource)
             .build();
 
+        // Expose via the global OTel API so call sites throughout the binary
+        // can use `opentelemetry::global::meter("agent-control")` without
+        // holding a direct reference to the provider.
+        opentelemetry::global::set_meter_provider(provider.clone());
+
         Ok(provider)
     }
 

@@ -1,3 +1,4 @@
+use crate::instrumentation::metrics;
 use super::effective_config::{error::EffectiveConfigError, loader::LoadEffectiveConfig};
 use crate::agent_control::agent_id::AgentID;
 use crate::opamp::remote_config::{
@@ -132,12 +133,15 @@ where
             "remote config received: {:?}", &remote_config
         );
 
+        metrics::record_remote_config_received();
+
         Ok(self
             .publisher
             .publish(OpAMPEvent::RemoteConfigReceived(remote_config))?)
     }
 
     fn publish_on_connect(&self) {
+        metrics::record_opamp_connected();
         let _ = self
             .publisher
             .publish(OpAMPEvent::Connected)
@@ -150,6 +154,7 @@ where
     }
 
     fn publish_on_connect_failed(&self, err: &ConnectionError) {
+        metrics::record_opamp_disconnected();
         let (code, reason) = if let HTTPClientError(UnsuccessfulResponse(code, reason)) = &err {
             (Some(*code), reason.clone())
         } else {

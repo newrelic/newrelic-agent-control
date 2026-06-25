@@ -1,5 +1,6 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConfig;
+use crate::instrumentation::metrics;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::{
     FileSystem, FileSystemEntriesError,
 };
@@ -310,6 +311,7 @@ where
         let mut restart_policy = executable_data.restart_policy.clone();
         let exec_data = executable_data.clone();
         let agent_id = self.agent_identity.id.clone();
+        let agent_type = self.agent_identity.agent_type_id.to_string();
         let log_to_file = self.file_logging_enable;
         let logging_path = self.file_logging_path.clone();
 
@@ -338,6 +340,7 @@ where
                 let health_handler = HealthHandler::new(exec_id.clone(), health_publisher.clone());
 
                 info!(%agent_id, %exec_id, "Starting executable");
+                metrics::record_agent_started(&agent_type);
                 let command = CommandOSNotStarted::new(
                     agent_id.clone(),
                     &exec_data,
@@ -374,6 +377,7 @@ where
                 }
 
                 info!(%agent_id, %exec_id, "Executable not running");
+                metrics::record_agent_stopped(&agent_type, "exit");
 
                 if !restart_policy.should_retry() {
                     warn!(%agent_id, %exec_id, "Restart policy exceeded, executable won't restart anymore");
@@ -383,6 +387,7 @@ where
                 }
 
                 i += 1;
+                metrics::record_agent_restarted(&agent_type);
                 let restart_cancelled = wait_restart(&mut restart_policy, i, &stop_consumer);
                 if restart_cancelled {
                     break;
