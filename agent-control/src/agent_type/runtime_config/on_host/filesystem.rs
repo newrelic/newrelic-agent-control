@@ -212,7 +212,7 @@ fn validate_file_entry_path(path: &Path) -> Result<(), String> {
 
 /// A key must be exactly one `Normal` path segment (a leaf). This rejects multi-segment keys
 /// (e.g. `newrelic-infra/newrelic-integrations/logging` — declare nested trees explicitly with
-/// `kind: dir` + `entries:`) and also non-canonical single-segment spellings such as `./config`. 
+/// `kind: dir` + `entries:`) and also non-canonical single-segment spellings such as `./config`.
 /// Escaping components (`..`, root, Windows prefixes) are handled by `check_basedir_escape_safety`.
 fn check_single_segment(path: &Path) -> Result<(), String> {
     let mut components = path.components();
