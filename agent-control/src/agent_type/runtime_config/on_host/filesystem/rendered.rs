@@ -74,7 +74,7 @@ impl FileSystem {
             .iter()
             .filter(|p| !curr_declared.contains(*p))
             .collect();
-        // Sort by depth descending so we delete leaves first; saves directory-not-empty churn.
+        // Deepest first, so a dir's stale children are gone before we remove the dir.
         stale.sort_by_key(|p| std::cmp::Reverse(p.components().count()));
         for path in stale {
             if path.exists()

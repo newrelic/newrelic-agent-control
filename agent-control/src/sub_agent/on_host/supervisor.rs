@@ -130,9 +130,7 @@ where
             internal_publisher,
             thread_contexts,
             logging_path,
-            // Dropped on purpose; listed by name (not via `..`) so any future field
-            // added to the struct fails to compile here until it's explicitly threaded through.
-            filesystem: _,
+            ..
         } = self;
 
         let installation_result = install_packages(
