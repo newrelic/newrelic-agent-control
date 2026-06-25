@@ -543,7 +543,11 @@ deployment:
             "\n  {agent_id}:\n    agent_type: \"test/ephemeral:0.0.0\"\n"
         ))
         .write(dirs.local_dir());
-    create_local_config(agent_id.to_string(), NO_CONFIG.to_string(), dirs.local_dir());
+    create_local_config(
+        agent_id.to_string(),
+        NO_CONFIG.to_string(),
+        dirs.local_dir(),
+    );
 
     let base_paths = dirs.base_paths();
 
@@ -626,7 +630,11 @@ deployment:
             "\n  {agent_id}:\n    agent_type: \"test/swap:0.0.0\"\n"
         ))
         .write(dirs.local_dir());
-    create_local_config(agent_id.to_string(), NO_CONFIG.to_string(), dirs.local_dir());
+    create_local_config(
+        agent_id.to_string(),
+        NO_CONFIG.to_string(),
+        dirs.local_dir(),
+    );
 
     let base_paths = dirs.base_paths();
 
@@ -758,7 +766,11 @@ deployment:
             "\n  {agent_id}:\n    agent_type: \"test/sidecar:0.0.0\"\n"
         ))
         .write(dirs.local_dir());
-    create_local_config(agent_id.to_string(), NO_CONFIG.to_string(), dirs.local_dir());
+    create_local_config(
+        agent_id.to_string(),
+        NO_CONFIG.to_string(),
+        dirs.local_dir(),
+    );
 
     let base_paths = dirs.base_paths();
 
