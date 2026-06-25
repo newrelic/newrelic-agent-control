@@ -238,8 +238,8 @@ fn write_entry(
     entry: &RenderedEntry,
 ) -> Result<(), FileSystemEntriesError> {
     match entry {
-        RenderedEntry::File(content) => write_file(file_writer, dir_manager, path, content),
-        RenderedEntry::Dir(children) => {
+        RenderedEntry::File { content, .. } => write_file(file_writer, dir_manager, path, content),
+        RenderedEntry::Dir { children, .. } => {
             ensure_dir(dir_manager, path)?;
             for (sub_path, child) in children {
                 let child_path = path.join(sub_path);
@@ -248,30 +248,10 @@ fn write_entry(
             }
             Ok(())
         }
-        RenderedEntry::DirContentFromMap(files) => {
+        RenderedEntry::DirContentFromMap { files, .. } => {
             ensure_dir(dir_manager, path)?;
             for (file_name, content) in files {
                 write_file(file_writer, dir_manager, &path.join(file_name), content)?;
-            }
-            Ok(())
-        }
-        RenderedEntry::DirContentFromMap { files, .. } => {
-            dir_manager.create(path).map_err(|err| {
-                FileSystemEntriesError(format!("creating directory {path:?}: {err}"))
-            })?;
-            for (file_name, content) in files {
-                let file_path = path.join(file_name);
-                let parent = file_path.parent().ok_or_else(|| {
-                    FileSystemEntriesError(format!("{} has no parent dir", file_path.display()))
-                })?;
-                dir_manager.create(parent).map_err(|err| {
-                    FileSystemEntriesError(format!("creating directory {parent:?}: {err}"))
-                })?;
-                file_writer
-                    .write(&file_path, content.to_owned())
-                    .map_err(|err| {
-                        FileSystemEntriesError(format!("creating file {file_path:?}: {err}"))
-                    })?;
             }
             Ok(())
         }
