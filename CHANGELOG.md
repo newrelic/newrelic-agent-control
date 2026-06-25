@@ -22,6 +22,7 @@ Remember that the keywords that you can use are the following:
   crash-looping from saturating CPU.
 - Added support for remote agent type retrieval.
 - add post-download script support for OCI packages.
+- Replace filesystem in on-host agent-type definitions with an explicit, recursive, tagged-kind tree: every entry declares `kind: file | dir | dir_content_from_map`, and `dir` entries nest via `entries:`.
 
 ## v1.17.0 - 2026-06-16
 

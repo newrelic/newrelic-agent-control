@@ -70,8 +70,12 @@ deployment:
     regex: \d+\.\d+\.\d+
   filesystem:
     otel-config:
-      config.yaml: |
-        ${nr-var:config}
+      kind: dir
+      entries:
+        config.yaml:
+          kind: file
+          text: |
+            ${nr-var:config}
   executables:
     - # Important to note the binary name is nrdot-collector matching the new nrdot binary
       id: nrdot-collector

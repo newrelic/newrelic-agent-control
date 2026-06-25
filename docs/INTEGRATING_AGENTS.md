@@ -221,10 +221,18 @@ deployment:
           version: ${nr-var:version}
   filesystem:
     config:
-      newrelic-infra.yaml: |
-        ${nr-var:config_agent}
-    integrations.d: ${nr-var:config_integrations}
-    logging.d: ${nr-var:config_logging}
+      kind: dir
+      entries:
+        newrelic-infra.yaml:
+          kind: file
+          text: |
+            ${nr-var:config_agent}
+    integrations.d:
+      kind: dir_content_from_map
+      source: ${nr-var:config_integrations}
+    logging.d:
+      kind: dir_content_from_map
+      source: ${nr-var:config_logging}
   executables:
     - id: newrelic-infra
       path: ${nr-sub:packages.infra-agent.dir}/newrelic-infra
@@ -263,10 +271,18 @@ deployment:
           version: ${nr-var:version}
   filesystem:
     config:
-      newrelic-infra.yaml: |
-        ${nr-var:config_agent}
-    integrations.d: ${nr-var:config_integrations}
-    logging.d: ${nr-var:config_logging}
+      kind: dir
+      entries:
+        newrelic-infra.yaml:
+          kind: file
+          text: |
+            ${nr-var:config_agent}
+    integrations.d:
+      kind: dir_content_from_map
+      source: ${nr-var:config_integrations}
+    logging.d:
+      kind: dir_content_from_map
+      source: ${nr-var:config_logging}
   executables:
     - id: newrelic-infra
       path: ${nr-sub:packages.infra-agent.dir}\\newrelic-infra.exe
@@ -364,9 +380,198 @@ The files can be hardcoded, with the contents possibly containing templates, or 
 files can be templated, so a directory contains an arbitrary number of files (a place to use a
 `map[string]yaml` variable type). **The paths cannot be templated individually.**
 
+Every directory and every file is declared with a `kind`, and directory trees are built recursively via an `entries:` field. A directory's contents can also be templated from a `map[string]yaml` variable using `kind: dir_content_from_map`, the map's keys become filenames and the values become file contents.
+
+Each key names a single entry at its own level — it must be a single path segment (a leaf), not a slash-separated sub-path. A nested directory has to be spelled out level by level with explicit `kind: dir` + `entries:` blocks; a key such as `newrelic-infra/newrelic-integrations/logging` is rejected. Declare it as:
+
+```yaml
+newrelic-infra:
+  kind: dir
+  entries:
+    newrelic-integrations:
+      kind: dir
+      entries:
+        logging:
+          kind: dir
+```
+
+This applies to projected filenames too: the keys of a `map[string]yaml` used by `dir_content_from_map` must also be single segments.
+
+The example below uses these variables:
+
+```yaml
+variables:
+  config_agent:
+    description: "Newrelic infra configuration"
+    type: yaml
+    required: false
+    default: ""
+  config_integrations:
+    description: "map of YAML configs for the OHIs"
+    type: map[string]yaml
+    required: false
+    default: {}
+  config_logging:
+    description: "map of YAML config for logging"
+    type: map[string]yaml
+    required: false
+    default: {}
+```
+
+And this `filesystem` block:
+
+```yaml
+filesystem:
+  newrelic-infra.yaml:
+    kind: file
+    persistent: true
+    text: |
+      ${nr-var:config_agent}
+
+  config:
+    kind: dir
+    persistent: true
+
+  logging.d:
+    kind: dir_content_from_map
+    source: ${nr-var:config_logging}
+
+  agent:
+    kind: dir
+    entries:
+      data:
+        kind: dir
+        persistent: true
+      integrations.d:
+        kind: dir_content_from_map
+        source: ${nr-var:config_integrations}
+      newrelic-infra.yaml:
+        kind: file
+        text: |
+          ${nr-var:config_agent}
+```
+
+###### Worked examples
+
+Given these user-supplied values:
+
+```yaml
+config_agent: |
+  license_key: REDACTED
+  log:
+    level: info
+
+config_integrations:
+  nri-mysql.yaml: |
+    integrations:
+      - name: nri-mysql
+        env:
+          HOSTNAME: localhost
+  nri-redis.yaml: |
+    integrations:
+      - name: nri-redis
+        env:
+          HOSTNAME: localhost
+
+config_logging:
+  syslog.yaml: |
+    logs:
+      - name: syslog
+        file: /var/log/syslog
+```
+
+The runtime produces the following on disk under `${nr-sub:filesystem_agent_dir}`. Each kind is shown in isolation.
+
+**`kind: file`**: single file rendered from the templated `text:` field. `persistent: true` means it survives `ResourceCleaner` on teardown.
+
+```
+newrelic-infra.yaml      ← contents from ${nr-var:config_agent}
+```
+
+**`kind: dir`**: an explicitly declared directory. With no `entries:` it's just an (optionally persistent) empty directory; with `entries:` it builds a tree, where each child is itself any of the three kinds, including another `dir`, so recursion is uniform.
+
+```
+config/                  ← empty, persistent
+
+agent/
+├── data/                ← empty, persistent
+├── integrations.d/      ← projected from config_integrations (see below)
+│   ├── nri-mysql.yaml
+│   └── nri-redis.yaml
+└── newrelic-infra.yaml  ← contents from ${nr-var:config_agent}
+```
+
+**`kind: dir_content_from_map`**: a directory whose entries are projected from a `map[string]yaml` variable at deploy time. Map keys become filenames; map values become file bodies.
+
+```
+logging.d/
+└── syslog.yaml          ← contents from config_logging["syslog.yaml"]
+
+agent/integrations.d/
+├── nri-mysql.yaml       ← contents from config_integrations["nri-mysql.yaml"]
+└── nri-redis.yaml       ← contents from config_integrations["nri-redis.yaml"]
+```
+
+###### Entry kinds reference
+
+**`file`** — a single file with literal or templated content.
+
+| Field        | Required | Default | Description                                                  |
+|--------------|----------|---------|--------------------------------------------------------------|
+| `kind`       | yes      | —       | Must be `file`.                                              |
+| `text`       | yes      | —       | File body. May reference `${nr-var:…}` / `${nr-sub:…}`.      |
+| `persistent` | no       | `false` | If `true`, survives `ResourceCleaner`.                       |
+
+**`dir`** — an explicitly declared directory. Its children, if any, live under `entries:`.
+
+| Field        | Required | Default | Description                                                  |
+|--------------|----------|---------|--------------------------------------------------------------|
+| `kind`       | yes      | —       | Must be `dir`.                                               |
+| `entries`    | no       | `{}`    | Map of child entries (any kind). Recursive. Each key must be a single path segment, not a sub-path. |
+| `persistent` | no       | `false` | If `true`, this directory and its tree survive cleanup.      |
+
+**`dir_content_from_map`** — a directory whose set of files is computed at deploy time from a `map[string]yaml` variable. The map's keys become filenames; the values become file contents.
+
+| Field        | Required | Default | Description                                                  |
+|--------------|----------|---------|--------------------------------------------------------------|
+| `kind`       | yes      | —       | Must be `dir_content_from_map`.                              |
+| `source`     | yes      | —       | Reference to a `map[string]yaml` variable (`${nr-var:…}`).   |
+| `persistent` | no       | `false` | If `true`, files projected here are not removed on cleanup.  |
+
+##### Persistence in Filesystem
+
+Every `file`, `dir`, and `dir_content_from_map` entry accepts a boolean `persistent:` (default `false`). Two independent mechanisms govern lifecycle:
+
+- **The `persistent` flag** controls whether the entry's on-disk path is wiped on sub-agent stop. Ephemeral entries are deleted on stop; persistent entries are kept.
+- **The sidecar manifest** drives reconciliation on every write event. Anything Agent Control wrote on the previous successful write is recorded in the manifest. On the next write, Agent Control diffs the manifest against the new declared set: paths it owned previously and no longer owns are deleted; paths it never owned are left alone.
+
+The flag does **not** shield the entry from intentional removal: if you delete an entry from the agent type (or remove a key from a `dir_content_from_map` source map), the manifest diff catches it and the on-disk path is deleted on the next write event.
+
+###### Sidecar manifest
+
+After every successful write, Agent Control writes `.ac-managed-paths.json` inside the sub-agent's filesystem directory listing the absolute paths it just wrote. This filename is **reserved** — agent types must not declare it.
+
+The manifest is the source of truth for "what Agent Control owns." Files the sub-agent process creates at runtime are never in the manifest, so they're invisible to reconciliation: they survive every write event, every sub-agent restart, and every config update. They're only removed if some declared ancestor directory is itself removed from the agent type (the `remove_dir_all` of the parent takes them as collateral) or if the agent is removed from the fleet.
+
+###### Lifecycle
+
+- **Ephemeral (`persistent: false`, default).** On sub-agent stop, the entry's on-disk path is deleted.
+- **Persistent (`persistent: true`).** On sub-agent stop, the entry's on-disk path is preserved.
+- **Removed from fleet.** When an agent is removed from the fleet config (via remote config or by being absent at AC startup after a previous deploy), its entire filesystem directory is deleted by `ResourceCleaner`. The `persistent` flag is bypassed.
+
+| Event              | Ephemeral (`persistent: false`)           | Persistent (`persistent: true`)                        |
+|--------------------|-------------------------------------------|--------------------------------------------------------|
+| Agent start        | Reconcile (manifest diff) + write         | Reconcile (manifest diff) + write                      |
+| Agent stop         | Path deleted                              | Path kept                                              |
+| Agent restart      | Reconcile + write                         | Reconcile + write                                      |
+| Config update      | Reconcile + write                         | Reconcile + write                                      |
+| Removed from fleet | Filesystem dir deleted by ResourceCleaner | Filesystem dir deleted by ResourceCleaner              |
+
+In all the "Reconcile + write" rows, agent-process-created files survive (not in the manifest, not declared, not deleted).
+
 ##### `packages`
 
-Defines OCI packages containing the executables and data to be downloaded and installed for the sub-agent. 
+Defines OCI packages containing the executables and data to be downloaded and installed for the sub-agent.
 This is a map where keys are package identifiers and values contain package metadata and download configuration.
 
 The value yaml look like:
@@ -380,9 +585,9 @@ The value yaml look like:
 ```
 
 Note that a Package version. Can be:
-  - A tag (`:v1.0.0`)
-  - A digest (`@sha256:...`)
-  - Both tag and digest (`:v1.0.0@sha256:...`), when both are specified the digest takes precedence.
+- A tag (`:v1.0.0`)
+- A digest (`@sha256:...`)
+- Both tag and digest (`:v1.0.0@sha256:...`), when both are specified the digest takes precedence.
 
 `public_key_url` is an optional field, when not configured signature verifications is skipped and logged with warn level.
 
@@ -635,7 +840,7 @@ Key-value pairs of the [Kubernetes Objects](https://kubernetes.io/docs/concepts/
   - `namespace`, a string.
   - `labels`: key-value pair of strings representing Kubernetes labels.
 - And a collection of arbitrary fields representing the actual data (e.g. the `spec`) of the object.
-  
+
 Most of Agent Control sub-agents currently deploy [Flux](https://fluxcd.io) CRs which end up in helm chart installation.
 
 You can check an [existing agent type with a Kubernetes deployment](../agent-control/agent-type-registry/newrelic/kubernetes-com.newrelic.infrastructure-0.1.0.yaml) as an example. This file includes all necessary Flux CR configurations required for Agent Control to manage sub-agent deployments effectively. It serves as a comprehensive reference for understanding the integration and deployment process.
@@ -662,12 +867,12 @@ The first time it runs, whether it's using static configs or when already runnin
 2. Attempt to assemble the actual, effective config that the sub-agent will have.
 3. If the assembly is successful, attempt to deploy (spawn process or create Kubernetes resources) the sub-agent using the effective config.
 4. Once the sub-agent is deployed:
-    - Perform regular health checks.
-    - Restart it if it crashes, according to the configured restart policy (for on-host).
-    - Assure that the resources match the ones defined in the agent-type (for k8s).
+  - Perform regular health checks.
+  - Restart it if it crashes, according to the configured restart policy (for on-host).
+  - Assure that the resources match the ones defined in the agent-type (for k8s).
 5. If Fleet Control is enabled, the supervisor will listen for incoming remote configs different from the one currently in use:
-    - When receiving one, the supervisor will stop its workload and restart from step 1 again.
-    - If an empty config is passed it means that this agent should be retired, so the supervisor will just stop its workload and exit.
+  - When receiving one, the supervisor will stop its workload and restart from step 1 again.
+  - If an empty config is passed it means that this agent should be retired, so the supervisor will just stop its workload and exit.
 6. On failure of assembly or deployment, the supervisor will be kept alive, but will report itself as unhealthy. If FC is enabled, this offers the user the possibility of pushing a new remote config, in case the sub-agent was left in a bad state due to receiving an invalid one.
 
 Agent Control itself shares much of the behavior of a supervisor, that's how, if FC is enabled, it can receive remote configs (mainly the desired list of sub-agents) and apply them.
