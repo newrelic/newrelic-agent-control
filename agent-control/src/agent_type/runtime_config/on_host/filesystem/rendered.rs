@@ -15,6 +15,7 @@ pub struct FileSystem(pub(super) HashMap<PathBuf, RenderedEntry>);
 pub enum RenderedEntry {
     File(String),
     Dir(HashMap<PathBuf, RenderedEntry>),
+    DirContentFromMap(HashMap<PathBuf, String>),
 }
 
 impl FileSystem {
@@ -30,6 +31,35 @@ impl FileSystem {
     }
 }
 
+/// Creates `dir` (and any missing parents), with error context. Safe if it already exists.
+fn ensure_dir(
+    dir_manager: &impl DirectoryManager,
+    dir: &Path,
+) -> Result<(), FileSystemEntriesError> {
+    trace!("Creating directory {}", dir.display());
+    dir_manager
+        .create(dir)
+        .map_err(|err| FileSystemEntriesError(format!("creating directory {dir:?}: {err}")))
+}
+
+/// Writes `content` to `path`, creating its parent directory first. Overwrites an existing file.
+fn write_file(
+    file_writer: &impl FileWriter,
+    dir_manager: &impl DirectoryManager,
+    path: &Path,
+    content: &str,
+) -> Result<(), FileSystemEntriesError> {
+    trace!("Writing filesystem entry to {}", path.display());
+    // We ensure the parent exists even if the dir is declared independently.
+    let parent = path
+        .parent()
+        .ok_or_else(|| FileSystemEntriesError(format!("{} has no parent dir", path.display())))?;
+    ensure_dir(dir_manager, parent)?;
+    file_writer
+        .write(path, content.to_owned())
+        .map_err(|err| FileSystemEntriesError(format!("creating file {path:?}: {err}")))
+}
+
 fn write_entry(
     file_writer: &impl FileWriter,
     dir_manager: &impl DirectoryManager,
@@ -37,26 +67,20 @@ fn write_entry(
     entry: &RenderedEntry,
 ) -> Result<(), FileSystemEntriesError> {
     match entry {
-        RenderedEntry::File(content) => {
-            trace!("Writing filesystem entry to {}", path.display());
-            let parent = path.parent().ok_or_else(|| {
-                FileSystemEntriesError(format!("{} has no parent dir", path.display()))
-            })?;
-            // safe even if the dir already exists.
-            dir_manager.create(parent).map_err(|err| {
-                FileSystemEntriesError(format!("creating directory {parent:?}: {err}"))
-            })?;
-            // Will overwrite the file if it already exists.
-            file_writer
-                .write(path, content.to_owned())
-                .map_err(|err| FileSystemEntriesError(format!("creating file {path:?}: {err}")))
-        }
+        RenderedEntry::File(content) => write_file(file_writer, dir_manager, path, content),
         RenderedEntry::Dir(children) => {
-            dir_manager.create(path).map_err(|err| {
-                FileSystemEntriesError(format!("creating directory {path:?}: {err}"))
-            })?;
+            ensure_dir(dir_manager, path)?;
             for (sub_path, child) in children {
-                write_entry(file_writer, dir_manager, &path.join(sub_path), child)?;
+                let child_path = path.join(sub_path);
+                trace!("Recursing into child entry {}", child_path.display());
+                write_entry(file_writer, dir_manager, &child_path, child)?;
+            }
+            Ok(())
+        }
+        RenderedEntry::DirContentFromMap(files) => {
+            ensure_dir(dir_manager, path)?;
+            for (file_name, content) in files {
+                write_file(file_writer, dir_manager, &path.join(file_name), content)?;
             }
             Ok(())
         }

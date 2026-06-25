@@ -129,12 +129,12 @@ impl Templateable for FilesystemEntry {
             }
             FilesystemEntry::DirContentFromMap { source } => {
                 let map = source.template_with(variables)?;
-                let children = map
+                let files = map
                     .0
                     .into_iter()
-                    .map(|(k, content)| (PathBuf::from(k), rendered::RenderedEntry::File(content)))
+                    .map(|(k, content)| (PathBuf::from(k), content))
                     .collect();
-                Ok(rendered::RenderedEntry::Dir(children))
+                Ok(rendered::RenderedEntry::DirContentFromMap(files))
             }
         }
     }
@@ -210,23 +210,20 @@ fn validate_file_entry_path(path: &Path) -> Result<(), String> {
     }
 }
 
-/// Rejects multi-segment keys (e.g. `newrelic-infra/newrelic-integrations/logging`) so a nested
-/// tree must be spelled out with explicit `kind: dir` + `entries:` levels. Only the `Normal`
-/// components are counted; `.` (`CurDir`) is ignored. Escaping components (`..`, root, Windows
-/// prefixes) are handled by [`check_basedir_escape_safety`].
+/// A key must be exactly one `Normal` path segment (a leaf). This rejects multi-segment keys
+/// (e.g. `newrelic-infra/newrelic-integrations/logging` — declare nested trees explicitly with
+/// `kind: dir` + `entries:`) and also non-canonical single-segment spellings such as `./config`. 
+/// Escaping components (`..`, root, Windows prefixes) are handled by `check_basedir_escape_safety`.
 fn check_single_segment(path: &Path) -> Result<(), String> {
-    let normal_segments = path
-        .components()
-        .filter(|c| matches!(c, Component::Normal(_)))
-        .count();
-    if normal_segments > 1 {
-        return Err(format!(
-            "path `{}` must be a single path segment (a leaf); declare nested directories \
-             explicitly with `kind: dir` and `entries:`",
-            path.display()
-        ));
+    let mut components = path.components();
+    if let (Some(Component::Normal(_)), None) = (components.next(), components.next()) {
+        return Ok(());
     }
-    Ok(())
+    Err(format!(
+        "path `{}` must be a single path segment (a leaf); declare nested directories \
+         explicitly with `kind: dir` and `entries:`",
+        path.display()
+    ))
 }
 
 /// Rejects paths that traverse outside their base directory (e.g. `./../../some_path`) so that
@@ -315,7 +312,8 @@ mod tests {
 
     #[rstest]
     #[case::single_segment("config", true)]
-    #[case::single_segment_curdir("./config", true)]
+    // `./config` is a non-canonical spelling of `config` (distinct map key, same on-disk path).
+    #[case::leading_curdir("./config", false)]
     // Multi-segment keys are rejected: nested dirs must be declared with `kind: dir` + `entries:`.
     #[case::multi_segment("agent/data", false)]
     #[case::dot_segment("agent/./data", false)]
