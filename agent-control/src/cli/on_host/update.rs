@@ -1,9 +1,9 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::Registry;
 use crate::agent_control::defaults::{
-    AC_OCI_PACKAGE_DEFAULT_REPOSITORY, AC_OCI_PACKAGE_PUBLIC_KEY_URL,
+    AGENT_CONTROL_VERSION, AC_OCI_PACKAGE_DEFAULT_REPOSITORY, AC_OCI_PACKAGE_PUBLIC_KEY_URL,
 };
-use crate::agent_control::version_updater::on_host::AGENT_CONTROL_BIN;
+use crate::agent_control::version_updater::on_host::{AGENT_CONTROL_BIN, AGENT_CONTROL_BIN_PACKAGE_ID};
 use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
 use crate::cli::common::error::CliError;
 use crate::http::config::ProxyConfig;
@@ -34,6 +34,10 @@ pub struct UpdateArgs {
     /// Show what would happen without making any changes.
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Skip OCI signature verification. Not recommended for production use.
+    #[arg(long, hide = true)]
+    pub skip_verify: bool,
 }
 
 /// Run the update subcommand.
@@ -55,19 +59,36 @@ pub fn run(args: UpdateArgs) -> Result<(), CliError> {
     let public_key_url = Url::parse(AC_OCI_PACKAGE_PUBLIC_KEY_URL)
         .map_err(|e| CliError::Command(format!("invalid public key URL: {e}")))?;
 
+    let signature_verification = !args.skip_verify;
+
     if args.dry_run {
-        println!(
-            "Dry-run: would download Agent Control {version} from \
-             {AC_OCI_PACKAGE_DEFAULT_REPOSITORY} and self-replace the running binary."
-        );
+        let idempotent = version.to_string() == AGENT_CONTROL_VERSION;
+        if idempotent {
+            println!("Agent Control is already at version {version} — this would be a no-op.");
+        } else {
+            println!(
+                "Dry-run: would download Agent Control {version} from \
+                 {AC_OCI_PACKAGE_DEFAULT_REPOSITORY} (sig-verify={signature_verification}) \
+                 and self-replace the running binary."
+            );
+        }
         return Ok(());
+    }
+
+    // Idempotency: skip if already at the requested version.
+    if version.to_string() == AGENT_CONTROL_VERSION {
+        println!("Agent Control is already at version {version}. Nothing to do.");
+        return Ok(());
+    }
+
+    if args.skip_verify {
+        tracing::warn!("Signature verification disabled via --skip-verify. Use with caution.");
     }
 
     info!("Downloading Agent Control {version} from OCI registry");
 
     let package_data = PackageData {
-        id: crate::agent_control::version_updater::on_host::AGENT_CONTROL_BIN_PACKAGE_ID
-            .to_string(),
+        id: AGENT_CONTROL_BIN_PACKAGE_ID.to_string(),
         oci: Oci {
             repository,
             version: version.clone(),
@@ -88,7 +109,7 @@ pub fn run(args: UpdateArgs) -> Result<(), CliError> {
         oci_client,
         Registry::default(),
         None, // no auth — public registry
-        false, // signature verification — disabled for CLI break-glass path
+        signature_verification,
     );
 
     let remote_dir = PathBuf::from(REMOTE_DATA_DIR);
@@ -99,6 +120,19 @@ pub fn run(args: UpdateArgs) -> Result<(), CliError> {
         .map_err(|e| CliError::Command(format!("OCI install failed: {e}")))?;
 
     let new_binary = installed.installation_path.join(AGENT_CONTROL_BIN);
+
+    // Verify the downloaded binary is executable before self-replacing.
+    #[cfg(target_family = "unix")]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let meta = std::fs::metadata(&new_binary)
+            .map_err(|e| CliError::Command(format!("downloaded binary not readable: {e}")))?;
+        if meta.permissions().mode() & 0o111 == 0 {
+            return Err(CliError::Command(
+                "downloaded binary has no execute permission".into(),
+            ));
+        }
+    }
 
     info!(
         "Binary downloaded to {}. Performing self-replace.",

@@ -198,17 +198,17 @@ fn uninstall_dry_run_keep_config_omits_config_dir() {
 #[test]
 fn update_dry_run_succeeds() {
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
-    cmd.args(["update", "--version", "1.17.0", "--dry-run"]);
+    cmd.args(["update", "--version", "99.0.0", "--dry-run"]);
     cmd.assert().success();
 }
 
 #[test]
 fn update_dry_run_output_mentions_version_and_registry() {
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
-    cmd.args(["update", "--version", "1.17.0", "--dry-run"]);
+    cmd.args(["update", "--version", "99.0.0", "--dry-run"]);
     let output = cmd.output().expect("failed to run CLI");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("1.17.0"), "missing version in dry-run output");
+    assert!(stdout.contains("99.0.0"), "missing version in dry-run output");
     assert!(
         stdout.contains("newrelic/agent-control-artifacts"),
         "missing OCI repo in dry-run output"
@@ -229,4 +229,29 @@ fn update_version_ending_in_at_sign_fails() {
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
     cmd.args(["update", "--version", "1.17.0@", "--dry-run"]);
     cmd.assert().failure();
+}
+
+#[test]
+fn update_dry_run_idempotency_message_shown_when_same_version() {
+    // When the requested version matches the running binary, dry-run should
+    // report a no-op rather than a download.
+    use std::env;
+    let current = env!("AGENT_CONTROL_VERSION");
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
+    cmd.args(["update", "--version", current, "--dry-run"]);
+    let output = cmd.output().expect("failed to run CLI");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("no-op") || stdout.contains("already at version"),
+        "expected idempotency message, got: {stdout}"
+    );
+    assert!(output.status.success(), "expected exit 0");
+}
+
+#[test]
+fn uninstall_dry_run_accepts_yes_flag() {
+    // --yes should not break dry-run (it skips the confirmation prompt).
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
+    cmd.args(["uninstall", "--dry-run", "--yes"]);
+    cmd.assert().success();
 }

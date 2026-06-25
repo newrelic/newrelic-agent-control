@@ -1,7 +1,9 @@
 use crate::cli::common::error::CliError;
 use clap::Args;
+use std::io::Write as _;
 use std::path::Path;
 use std::process::Command;
+use std::time::{Duration, Instant};
 use tracing::{info, warn};
 
 #[cfg(target_family = "unix")]
@@ -22,6 +24,9 @@ const AC_SERVICE_NAME: &str = "newrelic-agent-control";
 #[cfg(target_family = "unix")]
 const SYSTEMD_UNIT: &str = "/etc/systemd/system/newrelic-agent-control.service";
 
+/// Maximum time to wait for the service to stop before proceeding.
+const SERVICE_STOP_TIMEOUT: Duration = Duration::from_secs(30);
+
 /// Arguments for the `uninstall` subcommand.
 #[derive(Debug, Args)]
 pub struct UninstallArgs {
@@ -32,6 +37,10 @@ pub struct UninstallArgs {
     /// Show what would be removed without making any changes.
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Skip the confirmation prompt (for automation / CI).
+    #[arg(long)]
+    pub yes: bool,
 }
 
 /// Run the uninstall subcommand.
@@ -39,11 +48,22 @@ pub struct UninstallArgs {
 /// Stops the Agent Control daemon, removes all OCI-installed managed agents, removes
 /// the binaries and service unit, and (unless --keep-config) removes config/state dirs.
 pub fn run(args: UninstallArgs) -> Result<(), CliError> {
+    // Root check — every step below requires elevated privileges on a real system.
+    #[cfg(target_family = "unix")]
+    if !args.dry_run {
+        require_root()?;
+    }
+
     if args.dry_run {
         println!("Dry-run: no changes will be made.\n");
     }
 
-    stop_service(args.dry_run);
+    // Confirm before doing anything destructive.
+    if !args.dry_run && !args.yes {
+        confirm_uninstall(args.keep_config)?;
+    }
+
+    stop_service_and_wait(args.dry_run);
     disable_service(args.dry_run);
 
     // Remove state dir — contains all OCI-installed managed agent packages.
@@ -72,7 +92,52 @@ pub fn run(args: UninstallArgs) -> Result<(), CliError> {
     Ok(())
 }
 
-fn stop_service(dry_run: bool) {
+/// Require the process to be running as root (UID 0).
+#[cfg(target_family = "unix")]
+fn require_root() -> Result<(), CliError> {
+    let output = Command::new("id")
+        .arg("-u")
+        .output()
+        .map_err(|e| CliError::Precondition(format!("cannot determine current user: {e}")))?;
+    let uid = String::from_utf8_lossy(&output.stdout);
+    if uid.trim() != "0" {
+        return Err(CliError::Precondition(
+            "uninstall requires root privileges. Run with sudo.".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Prompt the user for confirmation before a destructive uninstall.
+fn confirm_uninstall(keep_config: bool) -> Result<(), CliError> {
+    println!("This will:");
+    println!("  • Stop and disable the Agent Control service");
+    println!("  • Remove all OCI-installed managed agent packages");
+    if !keep_config {
+        println!("  • Remove /etc/newrelic-agent-control (pass --keep-config to skip)");
+    }
+    println!("  • Remove /var/lib/newrelic-agent-control");
+    println!("  • Remove the Agent Control binaries");
+    println!();
+    print!("Continue? [y/N] ");
+    std::io::stdout()
+        .flush()
+        .map_err(|e| CliError::Command(format!("stdout flush: {e}")))?;
+
+    let mut input = String::new();
+    std::io::stdin()
+        .read_line(&mut input)
+        .map_err(|e| CliError::Command(format!("reading input: {e}")))?;
+
+    if input.trim().eq_ignore_ascii_case("y") || input.trim().eq_ignore_ascii_case("yes") {
+        Ok(())
+    } else {
+        Err(CliError::Command("Uninstall cancelled.".into()))
+    }
+}
+
+/// Stop the service and poll until it is actually inactive (or timeout).
+fn stop_service_and_wait(dry_run: bool) {
     if dry_run {
         println!("[dry-run] Would stop service: {AC_SERVICE_NAME}");
         return;
@@ -85,9 +150,34 @@ fn stop_service(dry_run: bool) {
             .args(["stop", AC_SERVICE_NAME])
             .status();
         match status {
-            Ok(s) if s.success() => info!("Service stopped"),
-            Ok(s) => warn!("systemctl stop exited with status {s}; continuing"),
-            Err(e) => warn!("Failed to run systemctl stop: {e}; continuing"),
+            Ok(s) if s.success() => info!("systemctl stop returned success"),
+            Ok(s) => warn!("systemctl stop exited with status {s}; will still wait"),
+            Err(e) => warn!("Failed to run systemctl stop: {e}; will still wait"),
+        }
+
+        // Wait for the service to become inactive before removing binaries.
+        let deadline = Instant::now() + SERVICE_STOP_TIMEOUT;
+        loop {
+            let active = Command::new("systemctl")
+                .args(["is-active", "--quiet", AC_SERVICE_NAME])
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+
+            if !active {
+                info!("Service is no longer active");
+                break;
+            }
+
+            if Instant::now() >= deadline {
+                warn!(
+                    "Service did not stop within {}s; proceeding anyway",
+                    SERVICE_STOP_TIMEOUT.as_secs()
+                );
+                break;
+            }
+
+            std::thread::sleep(Duration::from_millis(500));
         }
     }
 
@@ -100,6 +190,8 @@ fn stop_service(dry_run: bool) {
             Ok(s) => warn!("sc stop exited with status {s}; continuing"),
             Err(e) => warn!("Failed to run sc stop: {e}; continuing"),
         }
+        // Give the SCM a moment to clean up.
+        std::thread::sleep(Duration::from_secs(2));
     }
 }
 
