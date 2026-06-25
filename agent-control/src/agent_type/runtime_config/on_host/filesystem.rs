@@ -786,8 +786,8 @@ projected:
         );
     }
 
-    /// `delete_ephemeral` removes ephemeral entries' on-disk paths but leaves persistent ones
-    /// alone. A persistent child of an ephemeral parent is wiped along with the parent.
+    /// `delete_ephemeral` removes ephemeral entries' on-disk paths (files and directories) but
+    /// leaves persistent ones alone.
     #[test]
     fn delete_ephemeral_clears_only_non_persistent() {
         let tmp_dir = TempDir::new().unwrap();

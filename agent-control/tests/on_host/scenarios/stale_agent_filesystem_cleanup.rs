@@ -27,6 +27,13 @@ fn stale_agent_filesystem_cleanup_on_startup() {
     std::fs::write(kept_dir.join("placeholder.txt"), "placeholder").unwrap();
 
     AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(
+            r#"
+  configured-agent:
+    agent_type: "test/test:0.0.0"
+"#
+            .to_string(),
+        )
         .write(dirs.local_dir());
 
     let _agent_control =
@@ -42,4 +49,9 @@ fn stale_agent_filesystem_cleanup_on_startup() {
         }
         Ok(())
     });
+
+    assert!(
+        kept_dir.exists(),
+        "configured agent's filesystem dir should be preserved: {kept_dir:?}"
+    );
 }
