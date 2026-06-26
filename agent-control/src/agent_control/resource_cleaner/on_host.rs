@@ -243,7 +243,7 @@ mod tests {
         let cleaner = OnHostCleaner::new(
             Arc::new(instance_id_storer),
             Arc::new(config_repo),
-            fs_base(),
+            PathBuf::new(),
             Arc::new(dir_manager),
         );
 
