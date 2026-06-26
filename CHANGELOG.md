@@ -18,6 +18,8 @@ Remember that the keywords that you can use are the following:
 - On-host self-update: an empty `version: ""` pushed from Fleet Control now behaves the same as an absent `version` field (no-op, no update attempted). Previously it silently triggered a pull of the `:latest` OCI tag.
 
 ### enhancement
+- Adds exponential backoff + jitter retries to OCI artifact fetches via a new `BackoffPolicy`
+  (configurable under `self_update.download_retry`), replacing the old `with_retries(usize, Duration)` API.
 - Hardens service restart policies on Linux and Windows (systemd rate limiting: 5 restarts max in 60s) to prevent
   crash-looping from saturating CPU.
 - Added support for remote agent type retrieval.

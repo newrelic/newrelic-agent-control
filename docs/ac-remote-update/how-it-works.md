@@ -133,3 +133,45 @@ If there's any error, Agent Control will send `Failed` status. If everything wen
 The rolling update is an [strategy](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy) implemented by kubernetes that incrementally replaces old pods with new ones. It's done in such a way, that old pods will be kept alive if new ones can't be started. Kubernetes assures it with [Liveness and Startup probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/).
 
 ![](./images/rolling-update.png)
+
+## Onhost Remote Update resilience: retry and backoff
+
+The on-host self-update is driven by the desired version in the OpAMP remote config and is re-evaluated on every poll. To not re-attempt a failing upgrade on every poll, hammering the OCI registry, the updater uses exponential backoff with jitter.
+
+- **Download retry**: within a single attempt the OCI download is retried up to `max_attempts`, *sleeping* between tries, to absorb transient blips.
+- **Upgrade backoff**: when a whole attempt fails, a non-sleeping cooldown gate keyed by target version suppresses re-attempts across polls; after `max_consecutive_failures` it only escalates logging (not terminal) and keeps probing every `max_delay`, and a new desired version resets it.
+
+Config — `self_update.download_retry`:
+
+| Field          | Default | Meaning |
+|----------------|---------|---------|
+| `max_attempts` | `3`     | Total download attempts (validated `>= 1`). |
+| `base_delay`   | `1s`    | First backoff delay; doubles each retry. |
+| `max_delay`    | `30s`   | Cap on the per-retry delay. |
+| `jitter`       | `true`  | Randomize each delay within `[0, computed]`. |
+
+Config — `self_update.upgrade_backoff`:
+
+| Field                      | Default | Meaning |
+|----------------------------|---------|---------|
+| `max_consecutive_failures` | `5`     | Consecutive failures before suppression is reported as "capped" (validated `>= 1`). Not a hard stop. |
+| `base_delay`               | `30s`   | First cooldown window; doubles each consecutive failure. |
+| `max_delay`                | `600s`  | Cap on the cooldown window (the steady-state retry cadence during a sustained outage). |
+| `jitter`                   | `true`  | Randomize each cooldown within `[0, computed]`. |
+
+Example configuration (values shown are the defaults):
+
+```yaml
+self_update:
+  enabled: true
+  download_retry:
+    max_attempts: 3
+    base_delay: 1s
+    max_delay: 30s
+    jitter: true
+  upgrade_backoff:
+    max_consecutive_failures: 5
+    base_delay: 30s
+    max_delay: 600s
+    jitter: true
+```

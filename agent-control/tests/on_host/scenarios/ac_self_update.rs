@@ -6,6 +6,7 @@ use crate::common::retry::retry;
 use crate::common::retry::retry_never;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::AgentControlConfigBuilder;
+use crate::on_host::tools::config::create_local_config;
 use crate::on_host::tools::fake_binary::assert_is_fake_binary;
 use crate::on_host::tools::fake_binary::build_fake_ac_binary;
 use crate::on_host::tools::fake_binary::build_invalid_fake_ac_binary;
@@ -13,9 +14,13 @@ use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
+use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_ID;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_VERSION;
+use newrelic_agent_control::agent_control::defaults::PACKAGES_FOLDER_NAME;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
+use newrelic_agent_control::agent_control::version_updater::on_host::AGENT_CONTROL_BIN;
+use newrelic_agent_control::agent_control::version_updater::on_host::AGENT_CONTROL_BIN_PACKAGE_ID;
 use oci_test_utils::OCISigner;
 use oci_test_utils::{PackageMediaType, PackagePublisher};
 use opamp_client::opamp::proto::RemoteConfigStatuses;
@@ -294,6 +299,140 @@ agents: {{}}
     });
 }
 
+/// Local config for the recovery scenario: self-update enabled with a deliberately fast,
+/// jitter-free backoff so the test reaches the failure cap and the periodic retry within seconds.
+/// The download retry is set to a single attempt so each failing probe returns quickly.
+fn create_self_update_recovery_config(
+    opamp_server: &FakeServer,
+    signer: &OCISigner,
+    local_dir: &Path,
+) {
+    let config = format!(
+        r#"
+host_id: integration-test
+fleet_control:
+  endpoint: {}
+  poll_interval: 1s
+  signature_validation:
+    public_key_server_url: {}
+agents: {{}}
+oci:
+  registry: {OCI_TEST_REGISTRY_URL}
+self_update:
+  enabled: true
+  signature_verification_enabled: false
+  download_retry:
+    max_attempts: 1
+  upgrade_backoff:
+    base_delay: 1s
+    max_delay: 1s
+    max_consecutive_failures: 2
+    jitter: false
+  package:
+    download:
+      oci:
+        registry: {OCI_TEST_REGISTRY_URL}
+        repository: test
+        public_key_url: {}
+"#,
+        opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
+        signer.jwks_url()
+    );
+    create_local_config(AGENT_CONTROL_ID, config, local_dir.to_path_buf());
+}
+
+#[test]
+#[ignore = "needs oci registry (use *with_oci_registry suffix)"]
+/// Exercises self-update *recovery* from a transient registry outage: while the package is absent
+/// AC keeps retrying instead of giving up, and once it reappears the periodic retry (with no new
+/// OpAMP config) picks it up and downloads it.
+///
+/// Recovery is asserted on the package landing on disk, *not* on a completed self-replace.
+fn test_ac_self_update_recovers_after_registry_outage_with_oci_registry() {
+    const RECOVERY_VERSION_TAG: &str = "recovery-after-outage";
+
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
+    let signer = OCISigner::start(tokio_runtime().handle().clone());
+
+    let dirs = TempBasePaths::default();
+
+    create_self_update_recovery_config(&opamp_server, &signer, &dirs.local_dir());
+
+    let mut agent_control = start_agent_control_with_custom_config(
+        dirs.base_paths().clone(),
+        AGENT_CONTROL_MODE_ON_HOST,
+    );
+
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
+
+    // Request a version whose package is not in the registry yet — downloads will fail.
+    let update_config = format!(
+        r#"
+version: "{}"
+agents: {{}}
+"#,
+        RECOVERY_VERSION_TAG
+    );
+    opamp_server.set_config_response(ac_instance_id.clone(), update_config);
+
+    // The download fails (version absent) and AC reports a Failed config status. Reporting that
+    // status acks the hash, after which the fake server stops re-sending the config — so from here
+    // on, only the periodic self-update retry can drive another attempt.
+    retry(60, Duration::from_secs(5), || {
+        check_latest_remote_config_status(&opamp_server, &ac_instance_id, |status| {
+            if status.status != RemoteConfigStatuses::Failed as i32 {
+                return Err(format!("expected Failed status, got: {}", status.status).into());
+            }
+            Ok(())
+        })
+    });
+
+    // Nothing to download yet, so AC must still be running (retrying), not stopped.
+    assert!(
+        !agent_control.has_gracefully_stopped(),
+        "Agent Control should keep running and retrying while the package is unavailable"
+    );
+
+    // The registry "comes back": publish the package under the requested tag. With base_delay=1s
+    // and the non-terminal cap, the next retry probe (~1s later) picks it up.
+    let _ = push_ac_package(build_fake_ac_binary, None, Some(RECOVERY_VERSION_TAG));
+
+    // The periodic self-update retry (no new OpAMP config) downloads and extracts the now-available
+    // package, leaving the AC binary under the installed-packages directory. We assert recovery on
+    // that install, which happens just before the (out-of-scope) self-replace step.
+    let installed_packages_dir = dirs
+        .remote_dir()
+        .join(PACKAGES_FOLDER_NAME)
+        .join(AGENT_CONTROL_ID)
+        .join("stored_packages")
+        .join(AGENT_CONTROL_BIN_PACKAGE_ID);
+    retry(60, Duration::from_secs(5), || {
+        if dir_contains_file(&installed_packages_dir, AGENT_CONTROL_BIN) {
+            Ok(())
+        } else {
+            Err(
+                "the periodic retry should have downloaded the package once it became available"
+                    .into(),
+            )
+        }
+    });
+}
+
+fn dir_contains_file(dir: &Path, name: &str) -> bool {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return false;
+    };
+    entries.flatten().any(|entry| {
+        let path = entry.path();
+        if path.is_dir() {
+            dir_contains_file(&path, name)
+        } else {
+            path.file_name().is_some_and(|f| f == name)
+        }
+    })
+}
+
 fn create_self_update_local_config(
     opamp_server: &FakeServer,
     signer: &OCISigner,
@@ -313,20 +452,27 @@ fn create_self_update_local_config(
 /// Pushes an invalid fake agent-control binary package to the OCI registry and signs it.
 /// The binary will fail verification (`verify` exits 1 with a structured message).
 fn push_signed_invalid_fake_ac_package(signer: &OCISigner) -> String {
-    push_ac_package(build_invalid_fake_ac_binary, Some(signer))
+    push_ac_package(build_invalid_fake_ac_binary, Some(signer), None)
 }
 
 /// Pushes a fake agent-control binary package to the OCI registry and signs it.
 fn push_signed_fake_ac_package(signer: &OCISigner) -> String {
-    push_ac_package(build_fake_ac_binary, Some(signer))
+    push_ac_package(build_fake_ac_binary, Some(signer), None)
 }
 
 /// Pushes a fake agent-control binary package to the OCI registry without signing it.
 fn push_unsigned_fake_ac_package() -> String {
-    push_ac_package(build_fake_ac_binary, None)
+    push_ac_package(build_fake_ac_binary, None, None)
 }
 
-fn push_ac_package(build: fn() -> (TempDir, PathBuf), signer: Option<&OCISigner>) -> String {
+/// Pushes a package, returning the resulting tag. When `tag` is `Some`, the package is published
+/// under that exact tag (so a test can request a version *before* its package exists, then make it
+/// available); otherwise a unique tag is generated.
+fn push_ac_package(
+    build: fn() -> (TempDir, PathBuf),
+    signer: Option<&OCISigner>,
+    tag: Option<&str>,
+) -> String {
     let dir = tempdir().unwrap();
     let (_binary_dir, binary_path) = build();
 
@@ -344,8 +490,11 @@ fn push_ac_package(build: fn() -> (TempDir, PathBuf), signer: Option<&OCISigner>
         (path, PackageMediaType::Zip)
     };
 
-    let reference = PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
-        .push(&path, media_type);
+    let publisher = PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL);
+    let reference = match tag {
+        Some(tag) => publisher.push_with_tag(&path, media_type, tag),
+        None => publisher.push(&path, media_type),
+    };
     if let Some(signer) = signer {
         signer.sign_artifact(&reference);
     }

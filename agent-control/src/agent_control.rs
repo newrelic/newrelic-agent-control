@@ -35,7 +35,7 @@ use agent_id::AgentID;
 use config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentsMap, sub_agents_difference};
 use config_repository::repository::AgentControlDynamicConfigRepository;
 use config_validator::DynamicConfigValidator;
-use crossbeam::channel::never;
+use crossbeam::channel::{never, tick};
 use crossbeam::select;
 use error::{AgentControlError, BuildingSubagentErrors};
 use opamp_client::StartedClient;
@@ -294,6 +294,15 @@ where
 
         let mut current_dynamic_config = self.initial_config.dynamic.clone();
 
+        // Heartbeat that re-drives a pending self-update so a transient registry outage recovers
+        // without a new desired version from Fleet. Inactive unless self-update is enabled.
+        let self_update_config = &self.initial_config.self_update;
+        let self_update_retry_ticker = if self_update_config.enabled() {
+            tick(self_update_config.retry_heartbeat())
+        } else {
+            never()
+        };
+
         // Count the received remote configs during execution
         let mut remote_config_count = 0;
         loop {
@@ -366,6 +375,13 @@ where
                     break GracefulShutdownReason::ExternalRequested;
                 },
                 recv(uptime_reporter.receiver()) -> _tick => { let _ = uptime_reporter.report(); },
+                recv(&self_update_retry_ticker) -> _tick => {
+                    let span = info_span!("self_update_retry", id=AGENT_CONTROL_ID);
+                    let _span_guard = span.enter();
+                    if let Err(err) = self.version_updater.retry() {
+                        debug!(error_msg = %err, "Scheduled self-update retry suppressed or failed");
+                    }
+                },
             }
         }
     }

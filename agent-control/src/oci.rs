@@ -1,10 +1,11 @@
 //! This module provides an [oci_client] wrapper.
 
+use std::num::NonZeroUsize;
 use std::time::Duration;
 use std::{path::Path, sync::Arc};
 
 use crate::agent_control::config::OciAuth;
-use crate::utils::retry::retry;
+use crate::utils::retry::{BackoffPolicy, retry_with_backoff};
 use crate::{http::config::ProxyConfig, signature::public_key_fetcher::PublicKeyFetcher};
 
 use futures::TryStreamExt;
@@ -25,7 +26,13 @@ mod signature_verification;
 
 pub use error::OciClientError;
 
-const DEFAULT_RETRIES: usize = 0;
+/// Default no-retry policy: a single attempt, no backoff.
+const DEFAULT_NO_RETRY_POLICY: BackoffPolicy = BackoffPolicy {
+    max_attempts: NonZeroUsize::MIN,
+    base_delay: Duration::ZERO,
+    max_delay: Duration::ZERO,
+    jitter: false,
+};
 
 /// [oci_client::Client] wrapper with extended functionality.
 /// It also wraps all _async_ operations using the underlying runtime, all functions will
@@ -184,8 +191,7 @@ impl Client {
 pub struct OciArtifactFetcher {
     client: Client,
     auth: RegistryAuth,
-    max_retries: usize,
-    retry_interval: Duration,
+    policy: BackoffPolicy,
 }
 
 impl OciArtifactFetcher {
@@ -197,18 +203,14 @@ impl OciArtifactFetcher {
                 .as_ref()
                 .map(RegistryAuth::from)
                 .unwrap_or(RegistryAuth::Anonymous),
-            max_retries: DEFAULT_RETRIES,
-            retry_interval: Duration::default(),
+            policy: DEFAULT_NO_RETRY_POLICY,
         }
     }
 
-    /// Returns a new fetcher with the provided retry configuration.
-    pub fn with_retries(self, retries: usize, retry_interval: Duration) -> Self {
-        Self {
-            max_retries: retries,
-            retry_interval,
-            ..self
-        }
+    /// Returns a new fetcher with the provided retry policy. For a fixed-interval policy, set
+    /// `base_delay == max_delay` and `jitter == false` on the [BackoffPolicy].
+    pub fn with_retry_policy(self, policy: BackoffPolicy) -> Self {
+        Self { policy, ..self }
     }
 
     /// Resolves the reference (verifying its signature when `public_key_url` is `Some`) and fetches
@@ -223,7 +225,7 @@ impl OciArtifactFetcher {
         public_key_url: Option<&Url>,
         fetch_artifact: impl Fn(&Client, &Reference, &RegistryAuth) -> Result<T, OciClientError>,
     ) -> Result<T, OciClientError> {
-        retry(self.max_retries, self.retry_interval, || {
+        retry_with_backoff(&self.policy, || {
             let reference = self.verified_reference(base_reference, public_key_url)?;
 
             fetch_artifact(&self.client, &reference, &self.auth)

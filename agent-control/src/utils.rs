@@ -1,3 +1,4 @@
+pub mod backoff_gate;
 pub mod binary_metadata;
 pub mod env_var;
 pub mod extract;

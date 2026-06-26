@@ -1,4 +1,5 @@
 use crate::agent_control::config::AgentControlDynamicConfig;
+use crate::utils::backoff_gate::SuppressionReason;
 use thiserror::Error;
 
 /// Represents errors that can occur during the update process of the agent control version.
@@ -6,6 +7,27 @@ use thiserror::Error;
 pub enum UpdaterError {
     #[error("update failed: {0}")]
     UpdateFailed(String),
+    /// The previous attempt to upgrade to this version failed; we are deliberately not hitting
+    /// the registry again until the cooldown elapses (or the version changes). The message is
+    /// derived from the [`SuppressionReason`] *variant* only (not its failure count), so it is
+    /// intentionally **stable across polls** and OpAMP `ConfigState::Failed` does not churn.
+    #[error("upgrade to {version} suppressed: {}", cooldown_reason(reason))]
+    UpdateInCooldown {
+        version: String,
+        reason: SuppressionReason,
+    },
+}
+
+/// Domain wording for a suppressed upgrade. Lives here (not in the agnostic gate) because the
+/// phrasing — "desired version" — is agent-control/OpAMP vocabulary. Deliberately ignores the
+/// failure count so the rendered message stays stable across polls.
+fn cooldown_reason(reason: &SuppressionReason) -> &'static str {
+    match reason {
+        SuppressionReason::InCooldown { .. } => "retrying after previous failure",
+        SuppressionReason::CapReached { .. } => {
+            "max consecutive failures reached, retrying at the maximum backoff interval"
+        }
+    }
 }
 
 /// A trait for updating the agent control version using a dynamic configuration.
@@ -20,6 +42,16 @@ pub trait VersionUpdater {
     /// Returns `Ok(())` if the desired version has been successfully communicated
     /// to the external controller, or an `UpdaterError` if the update fails.
     fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError>;
+
+    /// Re-attempts a previously-requested upgrade that has not yet succeeded, without waiting for a
+    /// new desired version to be pushed. Driven by a periodic heartbeat so a transient registry
+    /// outage can recover on its own.
+    ///
+    /// Whether an upgrade is "still pending" is implementation-defined and evaluated by the
+    /// implementer, the default below is the noop fallback
+    fn retry(&self) -> Result<(), UpdaterError> {
+        Ok(())
+    }
 }
 
 pub struct NoOpUpdater;
