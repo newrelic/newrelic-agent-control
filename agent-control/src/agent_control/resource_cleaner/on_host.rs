@@ -80,7 +80,8 @@ where
 
     /// At startup, reclaims the resources of any agent that is no longer in the agents config.
     pub fn purge_stale_agents<'a>(&self, configured_agent_ids: impl IntoIterator<Item = &'a str>) {
-        let mut skip: HashSet<String> = configured_agent_ids.into_iter().map(String::from).collect();
+        let mut skip: HashSet<String> =
+            configured_agent_ids.into_iter().map(String::from).collect();
         skip.extend(RESERVED_AGENT_IDS.iter().map(|id| id.to_string()));
 
         let mut names: HashSet<String> = HashSet::new();
@@ -341,7 +342,10 @@ mod tests {
         dir_manager.should_list(&fs_base(), vec![]);
         dir_manager.should_list(
             &fleet_base(),
-            vec![fleet_base().join(AGENT_CONTROL_ID), fleet_base().join("orphan")],
+            vec![
+                fleet_base().join(AGENT_CONTROL_ID),
+                fleet_base().join("orphan"),
+            ],
         );
         dir_manager.should_delete(&fs_base().join("orphan"));
 
