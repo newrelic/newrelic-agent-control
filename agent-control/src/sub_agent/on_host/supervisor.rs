@@ -315,6 +315,11 @@ where
     ) -> Result<StartedSupervisorOnHost<PM>, SupervisorError> {
         let (health_publisher, health_consumer) = pub_sub();
 
+        // Ensure all ephemeral entries are removed before start in case it didn't work on stop.
+        if let Err(err) = self.filesystem.delete_ephemeral() {
+            warn!(?err, "filesystem ephemeral cleanup failed on start");
+        }
+
         self.filesystem
             .write(&LocalFile, &DirectoryManagerFs)
             .map_err(SupervisorError::FileSystem)?;
@@ -631,10 +636,16 @@ pub mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::STDOUT_LOG_FILE_NAME_SUFFIX;
     use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::agent_type::agent_attributes::AgentAttributes;
+    use crate::agent_type::definition::Variables;
     use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env, Executable};
+    use crate::agent_type::runtime_config::on_host::filesystem::FileSystem as ParsedFileSystem;
     use crate::agent_type::runtime_config::on_host::rendered::OnHost;
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
     use crate::agent_type::runtime_config::restart_policy::rendered::RestartPolicyConfig;
+    use crate::agent_type::templates::Templateable;
+    use crate::agent_type::variable::Variable;
+    use crate::agent_type::variable::namespace::Namespace;
     use crate::checkers::health::health_checker::HEALTH_CHECKER_THREAD_NAME;
     use crate::event::channel::pub_sub;
     use crate::package::manager::tests::MockPackageManager;
@@ -644,9 +655,7 @@ pub mod tests {
     use crate::sub_agent::supervisor::Supervisor;
     use serde::Deserialize;
     use std::collections::HashMap;
-    use std::fs;
-    use std::thread;
-    use std::time::{Duration, Instant};
+    use std::{fs, thread, time::{Duration, Instant}};
     use tracing_test::traced_test;
 
     fn get_empty_packages() -> RenderedPackages {
@@ -787,13 +796,6 @@ pub mod tests {
 
     #[test]
     fn test_stop_runs_filesystem_delete_ephemeral() {
-        use crate::agent_type::agent_attributes::AgentAttributes;
-        use crate::agent_type::definition::Variables;
-        use crate::agent_type::runtime_config::on_host::filesystem::FileSystem as ParsedFileSystem;
-        use crate::agent_type::templates::Templateable;
-        use crate::agent_type::variable::Variable;
-        use crate::agent_type::variable::namespace::Namespace;
-
         let tmp_dir = tempfile::TempDir::new().unwrap();
         let yaml = r#"
 ephemeral.txt:
@@ -855,6 +857,65 @@ persistent.txt:
             persistent_path.exists(),
             "stop should have left the persistent file alone"
         );
+    }
+
+    #[test]
+    fn test_start_resets_ephemeral_entries_before_write() {
+
+        let tmp_dir = tempfile::TempDir::new().unwrap();
+        let yaml = r#"
+ephemeral-dir:
+  kind: dir
+persistent.txt:
+  kind: file
+  text: p
+  persistent: true
+"#;
+        let variables = Variables::from_iter(vec![(
+            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+            Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+        )]);
+        let filesystem = serde_saphyr::from_str::<ParsedFileSystem>(yaml)
+            .unwrap()
+            .template_with(&variables)
+            .unwrap();
+
+        // Simulate leftover state from an ungraceful previous run (stop-time cleanup skipped):
+        // an agent-created file inside the ephemeral dir.
+        let stale_file = tmp_dir.path().join("ephemeral-dir").join("stale.txt");
+        fs::create_dir_all(stale_file.parent().unwrap()).unwrap();
+        fs::write(&stale_file, "stale").unwrap();
+        assert!(stale_file.exists());
+
+        let agent_identity = AgentIdentity::from((
+            "start-test-agent".to_owned().try_into().unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+        let supervisor = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            vec![],
+            OnHostHealthConfig::default(),
+            None,
+            get_empty_packages(),
+            MockPackageManager::new_arc(),
+            false,
+            PathBuf::default(),
+            filesystem,
+        );
+
+        let (publisher, _consumer) = pub_sub();
+        let started = supervisor.start(publisher).expect("start");
+
+        // The ephemeral dir is wiped before the write, so leftover content is gone; the dir itself
+        // is re-created by the write, and the persistent entry is present.
+        assert!(
+            !stale_file.exists(),
+            "startup should have removed stale content from the ephemeral dir"
+        );
+        assert!(tmp_dir.path().join("ephemeral-dir").is_dir());
+        assert!(tmp_dir.path().join("persistent.txt").exists());
+
+        let _ = started.stop();
     }
 
     #[test]

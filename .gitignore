@@ -60,5 +60,5 @@ coverage/
 # zig compiler
 .zig-cache/
 
-# Sidecar manifest written by Agent Control's filesystem rendering.
+# manifest written by Agent Control's filesystem rendering.
 .ac-managed-paths.json

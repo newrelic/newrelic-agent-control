@@ -6,7 +6,7 @@ use std::path::{Component, Path, PathBuf};
 use thiserror::Error;
 use tracing::{trace, warn};
 
-/// Filename of the sidecar manifest Agent Control writes inside each sub-agent's filesystem dir.
+/// Filename of the manifest Agent Control writes inside each sub-agent's filesystem dir.
 /// The manifest records the absolute paths AC wrote on the previous successful write event so
 /// the next write can compute "previously managed but no longer declared → delete".
 ///
@@ -53,14 +53,6 @@ struct ManagedPathsManifest {
 impl FileSystem {
     pub(super) fn new(base_dir: PathBuf, entries: HashMap<PathBuf, RenderedEntry>) -> Self {
         Self { base_dir, entries }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn test_empty() -> Self {
-        let base_dir = tempfile::tempdir()
-            .expect("create temp dir for test FileSystem")
-            .keep();
-        Self::new(base_dir, HashMap::new())
     }
 
     /// Reconciles the on-disk state under `base_dir` against the current declared tree, then
@@ -174,7 +166,7 @@ fn read_manifest(path: &Path, base_dir: &Path) -> HashSet<PathBuf> {
             }
             let within = is_within_base(p, base_dir);
             if !within {
-                warn!(?p, ?base_dir, "ignoring out-of-base managed-paths entry");
+                warn!(?p, ?base_dir, "An agent is not allowed to modify files outside it's isolated filesystem. Ignoring path.");
             }
             within
         })
@@ -296,6 +288,15 @@ pub struct FileSystemEntriesError(String);
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    impl FileSystem {
+        pub(crate) fn test_empty() -> Self {
+            let base_dir = tempfile::tempdir()
+                .expect("create temp dir for test FileSystem")
+                .keep();
+            Self::new(base_dir, HashMap::new())
+        }
+    }
 
     // `path_from_root` is joined onto an OS-appropriate absolute root when `absolute` is true.
     #[rstest]

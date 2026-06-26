@@ -231,7 +231,7 @@ fn validate_file_entry_path(path: &Path) -> Result<(), String> {
     if let Err(e) = check_single_segment(path) {
         errors.push(e);
     }
-    // Keys must not collide with AC's reserved sidecar-manifest filename.
+    // Keys must not collide with AC's reserved manifest filename.
     if let Err(e) = check_not_reserved(path) {
         errors.push(e);
     }
@@ -259,7 +259,7 @@ fn check_single_segment(path: &Path) -> Result<(), String> {
     ))
 }
 
-/// Rejects the reserved sidecar-manifest filename at any level. Agent Control writes its
+/// Rejects the reserved manifest filename at any level. Agent Control writes its
 /// managed-paths manifest at `<base_dir>/.ac-managed-paths.json`; an entry declaring that name
 /// would collide with (and corrupt) AC's own reconciliation bookkeeping.
 fn check_not_reserved(path: &Path) -> Result<(), String> {
@@ -657,7 +657,7 @@ persistent-map:
         }
     }
 
-    /// Reconciliation diffs the sidecar manifest against the current declared set.
+    /// Reconciliation diffs the manifest against the current declared set.
     #[test]
     fn reconciles_against_current_declared_set() {
         let tmp_dir = TempDir::new().unwrap();
@@ -706,7 +706,7 @@ projected:
         assert!(tmp_dir.path().join("projected/b.yaml").exists());
 
         // Sub-agent process writes runtime files. None of these are in any manifest, so the
-        // sidecar diff must leave them alone on the next reconciliation.
+        // manifest diff must leave them alone on the next reconciliation.
         let runtime_top = tmp_dir.path().join("agent-runtime.log");
         let runtime_in_dir = tmp_dir.path().join("persistent-dir/cache.db");
         let runtime_in_projected = tmp_dir.path().join("projected/agent-state.log");

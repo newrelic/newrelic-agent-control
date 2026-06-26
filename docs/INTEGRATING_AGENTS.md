@@ -482,7 +482,7 @@ config_logging:
 
 The runtime produces the following on disk under `${nr-sub:filesystem_agent_dir}`. Each kind is shown in isolation.
 
-**`kind: file`**: single file rendered from the templated `text:` field. `persistent: true` means it survives `ResourceCleaner` on teardown.
+**`kind: file`**: single file rendered from the templated `text:` field. `persistent: true` keeps it across sub-agent stop and restarts.
 
 ```
 newrelic-infra.yaml      ← contents from ${nr-var:config_agent}
@@ -520,7 +520,7 @@ agent/integrations.d/
 |--------------|----------|---------|--------------------------------------------------------------|
 | `kind`       | yes      | —       | Must be `file`.                                              |
 | `text`       | yes      | —       | File body. May reference `${nr-var:…}` / `${nr-sub:…}`.      |
-| `persistent` | no       | `false` | If `true`, survives `ResourceCleaner`.                       |
+| `persistent` | no       | `false` | If `true`, survives sub-agent stop/restart.                  |
 
 **`dir`** — an explicitly declared directory. Its children, if any, live under `entries:`.
 
@@ -528,7 +528,7 @@ agent/integrations.d/
 |--------------|----------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `kind`       | yes      | —       | Must be `dir`.                                                                                                                                             |
 | `entries`    | no       | `{}`    | Map of child entries (any kind). Recursive. Each key must be a single path segment, not a sub-path.                                                        |
-| `persistent` | no       | `false` | If `true`, this directory survives stop. Not inherited, each child is judged by its own `persistent` flag (see [Persistence](#persistence-in-filesystem)). |
+| `persistent` | no       | `false` | If `true`, this directory survives stop/restart. Not inherited, each child is judged by its own `persistent` flag (see [Persistence](#persistence-in-filesystem)). |
 
 **`dir_content_from_map`** — a directory whose set of files is computed at deploy time from a `map[string]yaml` variable. The map's keys become filenames; the values become file contents.
 
@@ -542,14 +542,14 @@ agent/integrations.d/
 
 Every `file`, `dir`, and `dir_content_from_map` entry accepts a boolean `persistent:` (default `false`). Two independent mechanisms govern lifecycle:
 
-- **The `persistent` flag** controls whether the entry's on-disk path is wiped on sub-agent stop. Ephemeral entries are deleted on stop; persistent entries are kept.
-- **The sidecar manifest** drives reconciliation on every write event. Anything Agent Control wrote on the previous successful write is recorded in the manifest. On the next write, Agent Control diffs the manifest against the new declared set: paths it owned previously and no longer owns are deleted; paths it never owned are left alone.
+- **The `persistent` flag** controls whether the entry's on-disk path is wiped when the tree is cleaned: on sub-agent stop, and just before every (re)write of the tree (start, restart, and config apply). Ephemeral entries are wiped at those points; persistent entries are kept. Wiping before each write means leftover ephemeral content never carries across — even after an ungraceful shutdown (crash/SIGKILL) that skipped the stop-time cleanup.
+- **The manifest** drives reconciliation on every write event. Anything Agent Control wrote on the previous successful write is recorded in the manifest. On the next write, Agent Control diffs the manifest against the new declared set: paths it owned previously and no longer owns are deleted; paths it never owned are left alone.
 
 The flag does **not** shield the entry from intentional removal: if you delete an entry from the agent type (or remove a key from a `dir_content_from_map` source map), the manifest diff catches it and the on-disk path is deleted on the next write event.
 
-**`persistent` applies per entry and does not cascade to children.** On stop, cleanup walks the declared tree: a persistent entry is kept and the walk descends into its children, while an ephemeral entry is deleted together with its entire on-disk subtree (a recursive `remove_dir_all`, which stops the walk there). So a nested path survives stop only if **every declared node on the path is `persistent: true`**.
+**`persistent` applies per entry and does not cascade to children.** When cleaning (on stop, and before each (re)write), cleanup walks the declared tree: a persistent entry is kept and the walk descends into its children, while an ephemeral entry is deleted together with its entire on-disk subtree (a recursive `remove_dir_all`, which stops the walk there). So a nested path survives cleanup only if **every declared node on the path is `persistent: true`**.
 
-###### Sidecar manifest
+###### Manifest
 
 After every successful write, Agent Control writes `.ac-managed-paths.json` inside the sub-agent's filesystem directory listing the absolute paths it just wrote. This filename is **reserved** — agent types must not declare it.
 
@@ -557,19 +557,19 @@ The manifest is the source of truth for "what Agent Control owns." Files the sub
 
 ###### Lifecycle
 
-- **Ephemeral (`persistent: false`, default).** On sub-agent stop, the entry's on-disk path is deleted.
-- **Persistent (`persistent: true`).** On sub-agent stop, the entry's on-disk path is preserved.
+- **Ephemeral (`persistent: false`, default).** Wiped on sub-agent stop, and again just before every (re)write of the tree (start, restart, config apply); the declared entry itself is then re-created by the write. Leftover content (including files the agent created inside an ephemeral directory) never carries across a restart, even an ungraceful one.
+- **Persistent (`persistent: true`).** Kept on stop and across (re)writes; only `write` re-renders its declared content.
 - **Removed from fleet.** When an agent is removed from the fleet config (via remote config or by being absent at AC startup after a previous deploy), its entire filesystem directory is deleted by `ResourceCleaner`. The `persistent` flag is bypassed.
 
-| Event              | Ephemeral (`persistent: false`)           | Persistent (`persistent: true`)                        |
-|--------------------|-------------------------------------------|--------------------------------------------------------|
-| Agent start        | Reconcile (manifest diff) + write         | Reconcile (manifest diff) + write                      |
-| Agent stop         | Path deleted                              | Path kept                                              |
-| Agent restart      | Reconcile + write                         | Reconcile + write                                      |
-| Config update      | Reconcile + write                         | Reconcile + write                                      |
-| Removed from fleet | Filesystem dir deleted by ResourceCleaner | Filesystem dir deleted by ResourceCleaner              |
+| Event              | Ephemeral (`persistent: false`)                 | Persistent (`persistent: true`)           |
+|--------------------|-------------------------------------------------|-------------------------------------------|
+| Agent start        | Wiped, then reconcile (manifest diff) + write   | Kept; reconcile (manifest diff) + write   |
+| Agent stop         | Path deleted                                    | Path kept                                 |
+| Agent restart      | Wiped, then reconcile + write                   | Kept; reconcile + write                   |
+| Config update      | Wiped, then reconcile + write                   | Kept; reconcile + write                   |
+| Removed from fleet | Filesystem dir deleted by ResourceCleaner       | Filesystem dir deleted by ResourceCleaner |
 
-In all the "Reconcile + write" rows, agent-process-created files survive (not in the manifest, not declared, not deleted).
+Agent-process-created files survive a reconcile + write (they're not in the manifest and not declared) **except** files inside an *ephemeral* directory, which are wiped along with it on stop and before each (re)write. To keep agent-created content across restarts, place it under a `persistent` directory.
 
 ##### `packages`
 
