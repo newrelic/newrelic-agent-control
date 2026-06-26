@@ -49,6 +49,13 @@ enum LinuxScenarios {
     /// Tests self-update functionality by installing Agent Control from current branch and verifying that AC updates itself,
     /// when instructed via OpAMP, to the latest published tag.
     SelfUpdateCurrentToLatest(InstallationArgs),
+    /// Installs a sub-agent whose OCI package defines a `post_download_hook`, and verifies (via a
+    /// filesystem marker written by the hook) that the hook runs after the package is downloaded
+    /// and that the agent starts afterwards.
+    PostDownloadHookSuccess(InstallationArgs),
+    /// Installs a sub-agent whose OCI package defines a failing `post_download_hook`, and verifies
+    /// that the hook runs but the agent is not started because the hook returns a non-zero exit code.
+    PostDownloadHookFailure(InstallationArgs),
 }
 
 #[derive(Debug, clap::Subcommand)]
