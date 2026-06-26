@@ -27,14 +27,12 @@ mod signature_verification;
 pub use error::OciClientError;
 
 /// Default no-retry policy: a single attempt, no backoff.
-fn default_no_retry_policy() -> BackoffPolicy {
-    BackoffPolicy {
-        max_attempts: NonZeroUsize::MIN,
-        base_delay: Duration::ZERO,
-        max_delay: Duration::ZERO,
-        jitter: false,
-    }
-}
+const DEFAULT_NO_RETRY_POLICY: BackoffPolicy = BackoffPolicy {
+    max_attempts: NonZeroUsize::MIN,
+    base_delay: Duration::ZERO,
+    max_delay: Duration::ZERO,
+    jitter: false,
+};
 
 /// [oci_client::Client] wrapper with extended functionality.
 /// It also wraps all _async_ operations using the underlying runtime, all functions will
@@ -205,7 +203,7 @@ impl OciArtifactFetcher {
                 .as_ref()
                 .map(RegistryAuth::from)
                 .unwrap_or(RegistryAuth::Anonymous),
-            policy: default_no_retry_policy(),
+            policy: DEFAULT_NO_RETRY_POLICY,
         }
     }
 
