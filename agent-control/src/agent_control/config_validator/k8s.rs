@@ -1,3 +1,5 @@
+//! Kubernetes-specific dynamic config validation (release-name vs. agent-id collisions).
+
 use crate::agent_control::config::AgentControlDynamicConfig;
 
 use super::{DynamicConfigValidator, DynamicConfigValidatorError};
@@ -44,6 +46,8 @@ impl<V: DynamicConfigValidator> DynamicConfigValidator for K8sReleaseNamesConfig
 }
 
 impl<V: DynamicConfigValidator> K8sReleaseNamesConfigValidator<V> {
+    /// Wraps an inner validator, additionally rejecting agent ids that collide with the given
+    /// Agent Control / CD release names.
     pub fn new(inner: V, ac_release_name: Option<String>, cd_release_name: Option<String>) -> Self {
         Self {
             inner,

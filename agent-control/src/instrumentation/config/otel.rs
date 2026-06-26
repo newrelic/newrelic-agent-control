@@ -1,3 +1,5 @@
+//! Configuration to report Agent Control self-instrumentation (metrics and logs) through OpenTelemetry.
+
 use duration_str::deserialize_duration;
 use opentelemetry_sdk::logs;
 use serde::{Deserialize, Serialize};

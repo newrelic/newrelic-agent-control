@@ -1,3 +1,4 @@
+//! Version extraction from a Flux HelmRelease resource.
 use crate::checkers::version::AgentVersion;
 use crate::checkers::version::{VersionCheckError, VersionChecker};
 use crate::k8s::client::K8sObjectKey;
@@ -10,6 +11,7 @@ use tracing::debug;
 
 const LATEST_REVISION: &str = "*";
 
+/// Retrieves the chart version of a Flux HelmRelease resource.
 #[derive(Debug)]
 pub struct HelmReleaseVersionChecker<C: K8sClient = SyncK8sClient> {
     k8s_client: Arc<C>,
@@ -23,6 +25,7 @@ pub struct HelmReleaseVersionChecker<C: K8sClient = SyncK8sClient> {
 }
 
 impl<C: K8sClient> HelmReleaseVersionChecker<C> {
+    /// Builds a version checker for the HelmRelease identified by `release_name` and `namespace`.
     pub fn new(
         k8s_client: Arc<C>,
         type_meta: TypeMeta,
@@ -148,6 +151,7 @@ fn from_history(helm_data: &Map<String, Value>) -> Option<String> {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
     use crate::agent_control::config::helmrelease_v2_type_meta;

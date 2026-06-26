@@ -1,3 +1,5 @@
+//! Event loop that updates the shared [`Status`] from Agent Control and sub-agent events.
+
 use crate::agent_control::http_server::status::{Status, SubAgentStatus, build_agent_attributes};
 use crate::event::{AgentControlEvent, SubAgentEvent};
 use std::sync::Arc;

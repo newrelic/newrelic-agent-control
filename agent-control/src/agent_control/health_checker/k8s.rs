@@ -1,3 +1,5 @@
+//! Kubernetes health-checker for Agent Control, covering the AC and CD (Flux) Helm releases.
+
 use crate::agent_control::config::{K8sConfig, helmrelease_v2_type_meta};
 use crate::checkers::health::health_checker::{HealthChecker, HealthCheckerError};
 use crate::checkers::health::k8s::health_checker::{
@@ -8,8 +10,11 @@ use crate::checkers::health::with_start_time::HealthWithStartTime;
 use crate::k8s::client::K8sClient;
 use std::{sync::Arc, time::SystemTime};
 
+/// The health-checker variants used for Agent Control in Kubernetes.
 pub enum HealthCheckerVariants<C: K8sClient> {
+    /// Checks the health of the AC/CD Helm releases.
     K8s(K8sHealthChecker<K8sResourceHealthChecker<C>>),
+    /// Always-healthy checker used when CD is disabled.
     NoOp(NoOpHealthChecker),
 }
 

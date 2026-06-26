@@ -1,3 +1,4 @@
+//! Uninstalls the Agent Control release and its owned resources from Kubernetes.
 use crate::agent_control::config::{
     default_group_version_kinds, helmrelease_v2_type_meta, helmrepository_type_meta,
     instrumentation_v1beta3_type_meta,
@@ -12,17 +13,19 @@ use clap::Parser;
 use kube::api::TypeMeta;
 use std::collections::HashSet;
 
+/// Arguments for the Agent Control uninstall command.
 #[derive(Debug, Clone, Parser)]
 pub struct AgentControlUninstallData {
-    /// namespace were the agent control agents were running
+    /// Namespace where the Agent Control agents were running.
     #[arg(long)]
     pub namespace_agents: String,
 
-    /// Name of the Helm release
+    /// Name of the Helm release.
     #[arg(long)]
     pub release_name: String,
 }
 
+/// Removes the Agent Control custom resources and all owned objects from the given namespaces.
 pub fn uninstall_agent_control(
     namespace: &str,
     uninstall_data: &AgentControlUninstallData,

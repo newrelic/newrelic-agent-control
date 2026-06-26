@@ -1,3 +1,4 @@
+//! Builds the dynamic objects that install the Agent Control Helm release on Kubernetes.
 use kube::api::DynamicObject;
 use tracing::debug;
 
@@ -19,9 +20,10 @@ use crate::{
 
 /// Implementation of [`DynamicObjectListBuilder`] for generating the dynamic object lists corresponding to the Agent Control resources.
 ///
-/// To be applied via [`install_or_upgrade`](super::install_or_upgrade).
+/// To be applied via [`apply_resources`](super::apply_resources).
 pub struct InstallAgentControl;
 
+/// Name of the HelmRepository created for the Agent Control release.
 pub const REPOSITORY_NAME: &str = AGENT_CONTROL_ID;
 
 impl DynamicObjectListBuilder for InstallAgentControl {

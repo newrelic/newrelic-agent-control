@@ -1,3 +1,4 @@
+//! Downloads Agent Packages from an OCI registry, optionally verifying their signature.
 use crate::agent_control::config::OciAuth;
 use crate::agent_control::config::Registry;
 use crate::oci::artifact_definitions::LocalAgentPackage;
@@ -12,6 +13,7 @@ use url::Url;
 
 /// An interface for downloading Agent Packages from an OCI registry.
 pub trait OCIPackageDownloader: Send + Sync {
+    /// Downloads the package described by `package_data` into `destination_dir`.
     fn download(
         &self,
         package_data: &PackageData,
@@ -19,6 +21,7 @@ pub trait OCIPackageDownloader: Send + Sync {
     ) -> Result<LocalAgentPackage, OciClientError>;
 }
 
+/// Downloads agent package artifacts from an OCI registry.
 // This is expected to be thread-safe since it is used in the package manager.
 // Make sure that we are not writing to disk to the same location from multiple threads.
 // This implementation avoids that since each download is expected to be done in a separate package directory.
@@ -128,6 +131,7 @@ impl OCIPackageArtifactDownloader {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use std::str::FromStr;
 

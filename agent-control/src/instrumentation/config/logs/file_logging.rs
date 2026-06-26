@@ -1,3 +1,5 @@
+//! Configuration and setup for reporting Agent Control logs to rotating files.
+
 use super::config::LoggingConfigError;
 use crate::agent_control::defaults::{AGENT_CONTROL_ID, AGENT_CONTROL_LOG_FILENAME};
 use serde::{Deserialize, Serialize};

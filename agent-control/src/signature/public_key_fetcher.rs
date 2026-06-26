@@ -1,3 +1,5 @@
+//! Fetches public keys from a remote JWKS endpoint for signature verification.
+
 use crate::http::client::HttpClient;
 use crate::signature::public_key::PublicKey;
 use http::Request;
@@ -6,6 +8,7 @@ use thiserror::Error;
 use tracing::warn;
 use url::Url;
 
+/// Error returned when fetching or parsing public keys from the JWKS endpoint fails.
 #[derive(Error, Debug)]
 #[error("fetching public key: {0}")]
 pub struct PubKeyFetcherError(String);
@@ -17,6 +20,7 @@ pub struct PublicKeyFetcher {
 }
 
 impl PublicKeyFetcher {
+    /// Creates a fetcher that issues requests with the given `http_client`.
     pub fn new(http_client: HttpClient) -> Self {
         Self { http_client }
     }
@@ -90,20 +94,29 @@ impl PublicKeyFetcher {
 /// Represents the payload returned by the JWKS endpoint.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PubKeyPayload {
+    /// The list of keys (JWKs) returned by the endpoint.
     pub keys: Vec<KeyData>,
 }
 
+/// A single JSON Web Key (JWK) entry from the JWKS payload.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KeyData {
+    /// Key type (`kty`); only `OKP` is supported.
     pub kty: String,
+    /// Optional algorithm (`alg`) the key is intended for.
     pub alg: Option<String>,
+    /// Intended key use (`use`); only `sig` is supported.
     pub r#use: String,
+    /// Key id (`kid`) identifying this key.
     pub kid: String,
+    /// Base64url-encoded public key bytes (`x`).
     pub x: String,
+    /// Curve (`crv`); only `Ed25519` is supported.
     pub crv: String,
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
     use crate::http::config::HttpConfig;

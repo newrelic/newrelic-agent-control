@@ -1,3 +1,6 @@
+//! Time helpers: Unix-epoch/`SystemTime` conversions and a [`Clock`] abstraction over monotonic time
+//! so tests can substitute a fake clock.
+
 use std::time::{Duration, Instant, SystemTime};
 
 /// Converts a unix epoch timestamp in nanoseconds to a `SystemTime`.
@@ -19,9 +22,11 @@ pub fn unix_timestamp_from_sys_time(time: SystemTime) -> u64 {
 
 /// Monotonic time source — abstracted from [Instant::now] so tests can substitute a fake clock.
 pub trait Clock: Send + Sync {
+    /// Returns the current monotonic instant.
     fn now(&self) -> Instant;
 }
 
+/// [`Clock`] implementation backed by [`Instant::now`].
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SystemClock;
 

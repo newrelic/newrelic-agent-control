@@ -1,3 +1,4 @@
+//! Health-check configuration for on-host agents after templating.
 use std::collections::HashMap;
 
 use crate::agent_type::runtime_config::health_config::{
@@ -5,6 +6,7 @@ use crate::agent_type::runtime_config::health_config::{
 };
 use crate::checkers::health::health_checker::{HealthCheckInterval, InitialDelay};
 
+/// Rendered on-host health-check configuration.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct OnHostHealthConfig {
     /// The duration to wait between health checks.

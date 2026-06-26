@@ -1,3 +1,4 @@
+//! Annotations used to identify and track ownership of agent-control Kubernetes resources.
 use crate::agent_type::agent_type_id::AgentTypeID;
 use std::collections::BTreeMap;
 
@@ -12,6 +13,7 @@ const OWNED_BY_SUB_AGENT: &str = "sub-agent";
 pub struct Annotations(BTreeMap<String, String>);
 
 impl Annotations {
+    /// Builds annotations holding the agent type id.
     pub fn new_agent_type_id_annotation(agent_type: &AgentTypeID) -> Self {
         Self(BTreeMap::from([(
             AGENT_TYPE_ID_ANNOTATION_KEY.to_string(),
@@ -19,6 +21,7 @@ impl Annotations {
         )]))
     }
 
+    /// Builds annotations marking the resource as owned by agent-control.
     pub fn new_agent_control_owned() -> Self {
         Self(BTreeMap::from([(
             OWNED_BY_ANNOTATION_KEY.to_string(),
@@ -33,6 +36,7 @@ impl Annotations {
         )]))
     }
 
+    /// Builds annotations marking the resource as owned by agent-control and holding its agent type id.
     pub fn new_agent_control_owned_with_type(agent_type_id: &AgentTypeID) -> Self {
         let base = Self::new_agent_control_owned().0;
         let with_agent_id = Self::new_agent_type_id_annotation(agent_type_id).0;
@@ -40,6 +44,7 @@ impl Annotations {
         Self(merged)
     }
 
+    /// Builds annotations marking the resource as owned by a sub-agent and holding its agent type id.
     pub fn new_sub_agent_owned_with_type(agent_type_id: &AgentTypeID) -> Self {
         let base = Self::new_subagent_owned().0;
         let with_agent_id = Self::new_agent_type_id_annotation(agent_type_id).0;
@@ -47,23 +52,28 @@ impl Annotations {
         Self(merged)
     }
 
+    /// Returns the annotations as a key-value map.
     pub fn get(&self) -> BTreeMap<String, String> {
         self.0.clone()
     }
 }
 
+/// Returns the agent type id annotation value, if present.
 pub fn get_agent_type_id_value(annotations: &BTreeMap<String, String>) -> Option<&String> {
     annotations.get(AGENT_TYPE_ID_ANNOTATION_KEY)
 }
 
+/// Returns the owned-by annotation value, if present.
 pub fn get_owned_by_value(annotations: &BTreeMap<String, String>) -> Option<&String> {
     annotations.get(OWNED_BY_ANNOTATION_KEY)
 }
 
+/// Returns true if the annotations mark the resource as owned by agent-control.
 pub fn is_owned_by_agent_control(annotations: &BTreeMap<String, String>) -> bool {
     get_owned_by_value(annotations).is_some_and(|v| v == OWNED_BY_AGENT_CONTROL)
 }
 
+/// Returns true if the annotations mark the resource as owned by a sub-agent.
 pub fn is_owned_by_sub_agent(annotations: &BTreeMap<String, String>) -> bool {
     get_owned_by_value(annotations).is_some_and(|v| v == OWNED_BY_SUB_AGENT)
 }

@@ -4,6 +4,9 @@ Welcome to the Agent Control codebase! This is intended to be an entry point for
 
 If you are a new team member for Agent Control or even New Relic as a whole, or from another team wanting to integrate your product or agent with New Relic Control, keep reading! If you are acquainted with Agent Control already and want to push changes to the codebase, please read [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
+> **Rust API reference:** the rendered `rustdoc` for the workspace crates is published at
+> <https://newrelic.github.io/newrelic-agent-control/>. Build it locally with `make doc-open`.
+
 ## General overview
 
 ### What is Agent Control?

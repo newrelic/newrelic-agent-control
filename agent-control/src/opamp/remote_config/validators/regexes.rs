@@ -1,3 +1,4 @@
+//! Regex-based validator that rejects remote configs containing denied patterns.
 use super::RemoteConfigValidator;
 use crate::agent_control::defaults::AGENT_TYPE_NAME_INFRA_AGENT;
 use crate::agent_type::agent_type_id::AgentTypeID;
@@ -7,11 +8,14 @@ use regex::Regex;
 use std::collections::HashMap;
 use thiserror::Error;
 
+/// Errors produced by the regex validator.
 #[derive(Error, Debug)]
 pub enum RegexValidatorError {
+    /// A denied pattern was found in the configuration.
     #[error("invalid config: restricted values detected in the config: {0} is not allowed")]
     InvalidConfig(String),
 
+    /// A validation regex failed to compile.
     #[error("error compiling regex: {0}")]
     RegexError(#[from] regex::Error),
 }
@@ -127,6 +131,7 @@ impl Default for RegexValidator {
 //       path: '/path/to/my-custom-auth-json'
 //       args: ["--domain", "myDomain", "--other_param", "otherValue"]
 //       ttl: 24h
+/// Matches a `command:` field (including hex-escaped variants) used for arbitrary command execution.
 pub static REGEX_COMMAND_FIELD: &str =
     r"(c|\\x63)(o|\\x6f)(m|\\x6d)(m|\\x6d)(a|\\x61)(n|\\x6e)(d|\\x64)\s*:";
 
@@ -135,6 +140,7 @@ pub static REGEX_COMMAND_FIELD: &str =
 // Example:
 // - name: my-integration
 //   exec: /usr/bin/python /opt/integrations/my-script.py --host=127.0.0.1
+/// Matches an `exec:` field (including hex-escaped variants) used for arbitrary command execution.
 pub static REGEX_EXEC_FIELD: &str = r"(e|\\x65)(x|\\x78)(e|\\x65)(c|\\x63)\s*:";
 
 // deny specific binary paths (i.e. nri-apache)
@@ -151,9 +157,11 @@ pub static REGEX_EXEC_FIELD: &str = r"(e|\\x65)(x|\\x78)(e|\\x65)(c|\\x63)\s*:";
 //     # BINARY_PATH: ""
 // (?i:exp)       case-insensitive
 // (?flags:exp)   set flags for exp (non-capturing)
+/// Matches a `binary_path` field (case-insensitive, including hex-escaped variants).
 pub static REGEX_BINARY_PATH_FIELD: &str = r"(?i:(b|\\x62)(i|\\x69)(n|\\x6e)(a|\\x61)(r|\\x72)(y|\\x79)(_|\x5f)(p|\\x70)(a|\\x61)(t|\\x74)(h|\\x68))";
 
 // deny using nri-flex
+/// Matches usage of the `nri-flex` integration (including hex-escaped variants).
 pub static REGEX_NRI_FLEX: &str =
     r"(n|\\x6e)(r|\\x72)(i|\\x69)(\-|\\x2d)(f|\\x66)(l|\\x6c)(e|\\x65)(x|\\x78)";
 
@@ -163,6 +171,7 @@ pub static REGEX_NRI_FLEX: &str =
 // Example:
 // proxy: http://{{PROXY_HOST}}:8080
 // proxy: ${nr-env:HTTP_PROXY}
+/// Matches environment-variable placeholders in a `proxy` field (infra-agent or agent-control syntax).
 pub static REGEX_PROXY_ENV_VAR: &str = r"(?i:(p|\\x70)(r|\\x72)(o|\\x6f)(x|\\x78)(y|\\x79))\s*:.*(\{\{|\$\{(n|\\x6e)(r|\\x72)(\-|\\x2d)(e|\\x65)(n|\\x6e)(v|\\x76):)";
 
 #[cfg(test)]

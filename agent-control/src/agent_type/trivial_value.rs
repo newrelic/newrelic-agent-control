@@ -1,3 +1,4 @@
+//! A single configuration value as resolved from an agent type variable's spec.
 use std::{
     collections::HashMap as Map,
     fmt::{Display, Formatter},
@@ -9,13 +10,19 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum TrivialValue {
+    /// A string value.
     String(String),
+    /// A boolean value.
     Bool(bool),
+    /// A numeric value.
     Number(serde_json::Number),
+    /// An arbitrary YAML value.
     #[serde(skip)]
     Yaml(serde_json::Value),
+    /// A map of string keys to string values.
     #[serde(skip)]
     MapStringString(Map<String, String>),
+    /// A map of string keys to arbitrary YAML values.
     #[serde(skip)]
     MapStringYaml(Map<String, serde_json::Value>),
 }

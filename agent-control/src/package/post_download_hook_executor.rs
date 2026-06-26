@@ -1,3 +1,4 @@
+//! Executes a package's post-download hook command after extraction, enforcing a timeout.
 use std::io::{Error as IoError, ErrorKind, Read};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -14,17 +15,25 @@ use {
     std::path::Path,
 };
 
+/// Errors that can occur while executing a post-download hook.
 #[derive(thiserror::Error, Debug)]
 pub enum PostDownloadHookExecutionError {
+    /// The configured hook command could not be found.
     #[error("command not found: {path}")]
-    CommandNotFound { path: String },
+    CommandNotFound {
+        /// Path of the command that could not be found.
+        path: String,
+    },
 
+    /// The hook command could not be spawned.
     #[error("failed to spawn command '{0}': {1}")]
     SpawnFailed(String, #[source] IoError),
 
+    /// The hook ran but exited with a non-zero status.
     #[error("script execution failed with exit code {0:?}\nstderr: {1}")]
     ExecutionFailed(Option<i32>, String),
 
+    /// The hook did not complete within the allotted time.
     #[error("post-download hook timed out after {0:?}")]
     Timeout(Duration),
 }
@@ -41,15 +50,18 @@ fn make_executable_if_exists(path: &str) {
     }
 }
 
+/// Runs a package's post-download hook within its installation directory.
 pub struct PostDownloadHookExecutor {
     package_dir: PathBuf,
 }
 
 impl PostDownloadHookExecutor {
+    /// Creates an executor that runs hooks inside `package_dir`.
     pub fn new(package_dir: PathBuf) -> Self {
         Self { package_dir }
     }
 
+    /// Executes the given post-download hook, returning an error on failure or timeout.
     pub fn execute(
         &self,
         post_download_hook: &PostDownloadHook,

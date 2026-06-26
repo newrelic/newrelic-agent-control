@@ -1,3 +1,5 @@
+//! Spawns reader/forwarder threads that fan out an executable's output lines to its loggers.
+
 use super::logger::Logger;
 use crate::{
     event::broadcaster::unbounded::UnboundedBroadcast, utils::threads::spawn_named_thread,

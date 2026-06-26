@@ -1,3 +1,5 @@
+//! Secrets providers: retrieve secrets from various sources (env vars, files, Kubernetes, Vault).
+
 pub mod env;
 pub mod file;
 pub mod k8s_secret;
@@ -37,20 +39,26 @@ use std::sync::Arc;
 /// ```
 #[derive(Debug, Default, Clone, PartialEq, Deserialize)]
 pub struct SecretsProvidersConfig {
+    /// Optional configuration for the HashiCorp Vault provider.
     pub vault: Option<VaultConfig>,
 }
 
+/// Errors returned by the configured secrets providers.
 #[derive(Debug, thiserror::Error)]
 pub enum SecretsProvidersError {
+    /// The Vault provider failed.
     #[error("vault provider failed: {0}")]
     VaultError(#[from] VaultError),
 
+    /// The Kubernetes secret provider failed.
     #[error("k8s secret provider failed: {0}")]
     K8sSecretProviderError(#[from] K8sSecretProviderError),
 
+    /// The environment variable provider failed.
     #[error("env var provider failed: {0}")]
     EnvError(#[from] EnvError),
 
+    /// The file secret provider failed.
     #[error("file secret provider failed: {0}")]
     FileError(#[from] FileSecretProviderError),
 }
@@ -59,6 +67,7 @@ pub enum SecretsProvidersError {
 ///
 /// Defines common operations among the different secrets providers.
 pub trait SecretsProvider {
+    /// Error type returned when retrieving a secret fails.
     type Error: std::error::Error;
 
     /// Gets a secret
@@ -74,9 +83,13 @@ pub trait SecretsProvider {
 /// This is a decision the implementer of the provider must make. This entails creating a variant
 /// represented as a [HashMap].
 pub enum SecretsProviderType<C: K8sClient = SyncK8sClient> {
+    /// Secrets retrieved from HashiCorp Vault.
     Vault(Vault),
+    /// Secrets retrieved from Kubernetes secrets.
     K8sSecret(K8sSecretProvider<C>),
+    /// Secrets retrieved from the local filesystem.
     File(FileSecretProvider),
+    /// Secrets retrieved from environment variables.
     Env(Env),
 }
 
@@ -96,9 +109,11 @@ impl<C: K8sClient> SecretsProvider for SecretsProviderType<C> {
 /// Collection of [SecretsProviderType]s.
 pub type SecretsProviders<C = SyncK8sClient> = Registry<SecretsProviderType<C>>;
 
+/// A collection of secrets providers keyed by [`Namespace`].
 pub struct Registry<S: SecretsProvider>(HashMap<Namespace, S>);
 
 impl<S: SecretsProvider> Registry<S> {
+    /// Returns `true` if no providers are registered.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -111,6 +126,7 @@ impl Default for Registry<SecretsProviderType> {
 }
 
 impl Registry<SecretsProviderType> {
+    /// Registers the environment variable provider.
     pub fn with_env(mut self) -> Self {
         self.0.insert(
             Namespace::EnvironmentVariable,
@@ -119,6 +135,7 @@ impl Registry<SecretsProviderType> {
         self
     }
 
+    /// Registers the Kubernetes secret provider backed by the given client.
     pub fn with_k8s_secret(mut self, k8s_client: Arc<SyncK8sClient>) -> Self {
         self.0.insert(
             Namespace::K8sSecret,
@@ -127,6 +144,7 @@ impl Registry<SecretsProviderType> {
         self
     }
 
+    /// Registers the file secret provider.
     pub fn with_file(mut self) -> Self {
         self.0.insert(
             Namespace::File,
@@ -135,6 +153,7 @@ impl Registry<SecretsProviderType> {
         self
     }
 
+    /// Registers providers derived from the given configuration (currently Vault).
     pub fn with_config(
         mut self,
         config: SecretsProvidersConfig,

@@ -1,3 +1,5 @@
+//! Logging configuration for Agent Control: levels, filters, output format and file options.
+
 use super::file_logging::FileLoggingConfig;
 use super::format::LoggingFormat;
 use serde::{Deserialize, Serialize, Serializer};
@@ -19,16 +21,22 @@ const SPAN_ATTRIBUTES_MAX_LEVEL: &Level = &Level::INFO;
 /// An enum representing possible errors during the logging initialization.
 #[derive(Error, Debug)]
 pub enum LoggingConfigError {
+    /// A filtering directive could not be parsed.
     #[error("invalid directive '{directive}' in '{field_name}': {err}")]
     InvalidDirective {
+        /// The directive that failed to parse.
         directive: String,
+        /// The configuration field the directive came from.
         field_name: String,
+        /// The underlying parsing error.
         err: String,
     },
 
+    /// The configured logging file path is not valid.
     #[error("invalid logging file path: {0}")]
     InvalidFilePath(String),
 
+    /// File logging could not be configured.
     #[error("configuring file logging: {0}")]
     FileLoggingConfig(String),
 }
@@ -57,7 +65,7 @@ pub struct LoggingConfig {
 
 impl LoggingConfig {
     /// Returns the configured filter according to the corresponding fields. The filter will also allow
-    /// any span whose level doesn't exceed [SPAN_ATTRIBUTES_MAX_LEVEL].
+    /// any span whose level doesn't exceed `SPAN_ATTRIBUTES_MAX_LEVEL`.
     pub fn filter(&self) -> Result<impl Filter<Registry> + use<>, LoggingConfigError> {
         let configured_logs_filter = self.logging_filter()?;
 
@@ -70,6 +78,7 @@ impl LoggingConfig {
         Ok(filter)
     }
 
+    /// Returns the span events to format: spans are shown on close when `show_spans` is set, otherwise none.
     pub fn fmt_span_events(&self) -> FmtSpan {
         if self.show_spans {
             FmtSpan::CLOSE // Show a line when the span is close, including busy and idle time

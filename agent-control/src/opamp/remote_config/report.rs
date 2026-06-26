@@ -1,3 +1,4 @@
+//! Reporting the application state of a remote configuration back to the OpAMP server.
 use crate::opamp::remote_config::Hash;
 use opamp_client::opamp::proto::RemoteConfigStatus;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
@@ -5,6 +6,7 @@ use opamp_client::{ClientError, StartedClient};
 
 use crate::opamp::remote_config::hash::ConfigState;
 
+/// Reports the given configuration state and hash to the OpAMP server.
 pub fn report_state<C: StartedClient>(
     state: ConfigState,
     hash: Hash,

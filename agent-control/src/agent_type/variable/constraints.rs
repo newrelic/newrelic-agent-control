@@ -1,3 +1,5 @@
+//! Startup-loaded constraints that agent type variable definitions can reference (e.g. allowed
+//! variant lists).
 use std::collections::HashMap;
 
 use serde::Deserialize;
@@ -18,6 +20,7 @@ pub struct VariableConstraints {
 pub struct VariantsConstraints(HashMap<String, SupportedValues>);
 
 impl VariantsConstraints {
+    /// Returns the supported values configured for the given key, if any.
     pub fn get(&self, key: &str) -> Option<&SupportedValues> {
         self.0.get(key)
     }

@@ -1,3 +1,4 @@
+//! Health checker that reads the agent's health from a file.
 use std::fs;
 use std::path::PathBuf;
 
@@ -10,11 +11,13 @@ use crate::checkers::health::health_checker::{
 use crate::checkers::health::with_start_time::HealthWithStartTime;
 use crate::utils::time::sys_time_from_unix_timestamp;
 
+/// Reads health from a file written by the agent.
 pub struct FileHealthChecker {
     file_path: PathBuf,
 }
 
 impl FileHealthChecker {
+    /// Builds a checker reading health from the given file path.
     pub fn new(file_path: PathBuf) -> Self {
         Self { file_path }
     }

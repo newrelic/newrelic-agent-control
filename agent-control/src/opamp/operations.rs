@@ -1,3 +1,4 @@
+//! OpAMP operations: assembling start settings and agent descriptions, and stopping the client.
 use super::{client_builder::OpAMPClientBuilderError, instance_id::getter::InstanceIDGetter};
 use crate::agent_control::defaults::{
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SUPERVISOR_KEY,
@@ -12,6 +13,8 @@ use opamp_client::{
 use std::collections::HashMap;
 use tracing::info;
 
+/// Builds the OpAMP [`StartSettings`] for a sub-agent, injecting the parent agent control instance
+/// id as a non-identifying attribute.
 pub fn sub_agent_start_settings<IG: InstanceIDGetter>(
     instance_id_getter: &IG,
     agent_identity: &AgentIdentity,

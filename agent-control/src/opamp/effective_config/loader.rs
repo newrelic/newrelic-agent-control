@@ -1,3 +1,4 @@
+//! Effective-configuration loader trait, builder, and dispatch enum.
 use super::agent_control::AgentControlEffectiveConfigLoader;
 use super::error::LoaderError;
 use super::sub_agent::SubAgentEffectiveConfigLoader;
@@ -19,9 +20,12 @@ pub trait LoadEffectiveConfig: Send + Sync + 'static {
     fn load(&self) -> Result<ConfigurationMap, LoaderError>;
 }
 
+/// Builds an effective-configuration loader for a given agent.
 pub trait BuildEffectiveConfigLoader {
+    /// The loader type produced by this builder.
     type Loader: LoadEffectiveConfig;
 
+    /// Builds a loader for the provided agent id.
     fn build(&self, agent_id: AgentID) -> Self::Loader;
 }
 
@@ -37,6 +41,7 @@ impl<Y> EffectiveConfigLoaderBuilder<Y>
 where
     Y: ConfigRepository,
 {
+    /// Creates a builder reading configuration from the given repository.
     pub fn new(yaml_config_repository: Arc<Y>) -> Self {
         Self {
             yaml_config_repository,
@@ -68,7 +73,9 @@ pub enum EffectiveConfigLoader<Y>
 where
     Y: ConfigRepository,
 {
+    /// Loader for the agent control's effective configuration.
     AgentControl(AgentControlEffectiveConfigLoader<Y>),
+    /// Loader for a sub-agent's effective configuration.
     SubAgent(SubAgentEffectiveConfigLoader<Y>),
 }
 
@@ -85,6 +92,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use mockall::mock;
 

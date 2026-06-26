@@ -54,6 +54,7 @@ impl VariableDefinition {
 }
 
 impl Variable {
+    /// Builds a string variable already populated with its final value.
     pub fn new_final_string_variable(final_value: impl ToString) -> Self {
         Self {
             description: String::new(),
@@ -68,18 +69,22 @@ impl Variable {
         }
     }
 
+    /// Returns whether this variable must be provided with a value.
     pub fn is_required(&self) -> bool {
         self.variable_type.is_required()
     }
 
+    /// Returns the variable's final value (its set value, or its default), if any.
     pub fn get_final_value(&self) -> Option<TrivialValue> {
         self.variable_type.get_final_value()
     }
 
+    /// Sets the variable's final value from the given YAML value, validating it against the type.
     pub fn merge_with_yaml_value(&mut self, yaml: serde_json::Value) -> Result<(), AgentTypeError> {
         self.variable_type.merge_with_yaml_value(yaml)
     }
 
+    /// Returns the variable's type.
     pub fn kind(&self) -> &VariableType {
         &self.variable_type
     }

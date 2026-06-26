@@ -1,3 +1,4 @@
+//! Builds and starts the OpAMP HTTP client, wiring callbacks, effective-config loader and HTTP client.
 use super::callbacks::AgentCallbacks;
 use super::effective_config::loader::BuildEffectiveConfigLoader;
 use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
@@ -18,25 +19,33 @@ use wrapper_with_default::WrapperWithDefault;
 
 /// Default poll interval for the OpAMP http managed client
 pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(30);
+/// Interval between OpAMP poll requests, defaulting to [`DEFAULT_POLL_INTERVAL`].
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_POLL_INTERVAL)]
 pub struct PollInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
+/// Errors that can occur while building or starting the OpAMP client.
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
+    /// The OpAMP client could not be created.
     #[error("OpAMP client: {0}")]
     NotStartedClientError(#[from] NotStartedClientError),
 
+    /// The agent's instance id could not be obtained.
     #[error("error getting agent instance id: {0}")]
     GetInstanceIDError(#[from] GetterError),
 
+    /// The underlying HTTP client could not be built.
     #[error("error building http client: {0}")]
     HttpClientBuilderError(#[from] HttpClientBuilderError),
 }
 
+/// Builds and starts an OpAMP client for a given agent identity and start settings.
 pub trait BuildOpAMPClient {
+    /// The started OpAMP client type produced by this builder.
     type Client: StartedClient + 'static;
 
+    /// Builds the OpAMP client, starts it, and returns it along with its event consumer.
     fn build_and_start(
         &self,
         agent_identity: AgentIdentity,
@@ -51,6 +60,8 @@ type NotStartedOpAMPClient<B, C> = NotStartedHttpClient<
     >,
 >;
 
+/// Default [`BuildOpAMPClient`] implementation backed by an HTTP client builder and an
+/// effective-config loader builder.
 pub struct OpAMPClientBuilder<C, B>
 where
     B: BuildEffectiveConfigLoader,
@@ -67,6 +78,8 @@ where
     B: BuildEffectiveConfigLoader,
     C: HttpClientBuilder,
 {
+    /// Creates a builder with the given poll interval, HTTP client builder and effective-config
+    /// loader builder.
     pub fn new(
         poll_interval: PollInterval,
         http_client_builder: C,
@@ -80,6 +93,7 @@ where
         }
     }
 
+    /// Returns the builder with the OpAMP client's startup check disabled.
     pub fn with_startup_check_disabled(self) -> Self {
         Self {
             disable_startup_check: true,
@@ -87,6 +101,7 @@ where
         }
     }
 
+    /// Builds the (not yet started) OpAMP client and returns it with its event consumer.
     pub fn build(
         &self,
         agent_identity: AgentIdentity,
@@ -131,6 +146,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub(crate) mod tests {
     use mockall::{Sequence, mock, predicate};
     use opamp_client::{

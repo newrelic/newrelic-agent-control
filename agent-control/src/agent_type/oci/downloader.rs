@@ -1,3 +1,4 @@
+//! Downloads agent type definitions from a configured OCI remote.
 use oci_client::Reference;
 use oci_client::secrets::RegistryAuth;
 use tracing::{debug, warn};
@@ -141,6 +142,7 @@ impl OCIAgentTypeArtifactDownloader {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
     use crate::agent_type::agent_type_id::AgentTypeID;

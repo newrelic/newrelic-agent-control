@@ -1,3 +1,4 @@
+//! A registry decorator that memoizes successful agent type lookups.
 use std::collections::HashMap;
 use std::sync::RwLock;
 
@@ -17,6 +18,7 @@ pub struct CachingRegistry<R: AgentTypeRegistry> {
 }
 
 impl<R: AgentTypeRegistry> CachingRegistry<R> {
+    /// Wraps an inner registry, caching its successful lookups.
     pub fn new(inner: R) -> Self {
         Self {
             inner,

@@ -20,14 +20,19 @@ use super::fields::{Fields, FieldsDefinition};
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(tag = "type")]
 pub enum VariableTypeDefinition {
+    /// A string-typed variable.
     #[serde(rename = "string")]
     String(StringFieldsDefinition),
+    /// A boolean-typed variable.
     #[serde(rename = "bool")]
     Bool(FieldsDefinition<bool>),
+    /// A number-typed variable.
     #[serde(rename = "number")]
     Number(FieldsDefinition<serde_json::Number>),
+    /// A `map[string]yaml`-typed variable.
     #[serde(rename = "map[string]yaml")]
     MapStringYaml(FieldsDefinition<HashMap<String, serde_json::Value>>),
+    /// A yaml-typed variable.
     #[serde(rename = "yaml")]
     Yaml(YamlFieldsDefinition),
 }
@@ -35,10 +40,15 @@ pub enum VariableTypeDefinition {
 /// [VariableTypeDefinition] including information known at runtime.
 #[derive(Debug, PartialEq, Clone)]
 pub enum VariableType {
+    /// A string-typed variable.
     String(StringFields),
+    /// A boolean-typed variable.
     Bool(Fields<bool>),
+    /// A number-typed variable.
     Number(Fields<serde_json::Number>),
+    /// A `map[string]yaml`-typed variable.
     MapStringYaml(Fields<HashMap<String, serde_json::Value>>),
+    /// A yaml-typed variable.
     Yaml(Fields<serde_json::Value>),
 }
 

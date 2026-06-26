@@ -1,3 +1,4 @@
+//! Sub-agent attributes used to build the reserved variables that template an agent type.
 use super::variable::{Variable, namespace::Namespace};
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::AGENT_FILESYSTEM_FOLDER_NAME;
@@ -14,15 +15,21 @@ pub struct AgentAttributes {
     remote_dir: PathBuf,
 }
 
+/// Error returned when [`AgentAttributes`] cannot be created.
 #[derive(Debug, Error)]
 #[error("Failed to create AgentAttributes: {0}")]
 pub struct AgentAttributesCreateError(String);
 
 impl AgentAttributes {
+    /// Variable name holding the sub-agent id.
     pub const VARIABLE_SUB_AGENT_ID: &'static str = "agent_id";
+    /// Variable name holding the sub-agent's dedicated filesystem directory.
     pub const VARIABLE_FILESYSTEM_AGENT_DIR: &'static str = "filesystem_agent_dir";
+    /// Variable name holding the sub-agent's remote directory.
     pub const VARIABLE_REMOTE_DIR: &'static str = "remote_dir";
 
+    /// Builds [`AgentAttributes`] for a sub-agent. Returns an error if the given id is a reserved
+    /// (non sub-agent) id.
     pub fn try_new(
         agent_id: AgentID,
         remote_dir: PathBuf,

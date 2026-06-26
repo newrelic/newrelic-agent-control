@@ -1,3 +1,6 @@
+//! Extracts tar.gz and zip archives into a destination directory, sanitizing entry paths to prevent
+//! writes outside the target.
+
 use flate2::read::GzDecoder;
 use std::fs::File;
 use std::path::Path;
@@ -6,6 +9,7 @@ use thiserror::Error;
 use tracing::debug;
 use zip::ZipArchive;
 
+/// Error returned when an archive cannot be opened, read, or extracted.
 #[derive(Debug, Error)]
 #[error("extract error: {0}")]
 pub struct ExtractError(String);
@@ -41,6 +45,7 @@ pub fn extract_zip(zip_path: &Path, destination: &Path) -> Result<(), ExtractErr
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
     use assert_matches::assert_matches;

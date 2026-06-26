@@ -1,3 +1,4 @@
+//! Key-aware signature verifier store that refreshes its verifying key when the key id changes.
 use aws_lc_rs::digest;
 use base64::{Engine, prelude::BASE64_STANDARD};
 use std::sync::Mutex;
@@ -101,6 +102,7 @@ impl VerifierStore {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use crate::{
         http::{client::HttpClient, config::HttpConfig},

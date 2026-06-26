@@ -1,3 +1,4 @@
+//! GUID extraction from a Kubernetes New Relic Instrumentation resource's status.
 use crate::checkers::guid::{EntityGuid, GuidCheckError, GuidChecker};
 use crate::k8s::client::K8sObjectKey;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
@@ -6,12 +7,15 @@ use serde::Deserialize;
 use std::sync::Arc;
 use tracing::warn;
 
+/// The subset of an Instrumentation resource's status holding entity GUIDs.
 #[derive(Debug, Default, Deserialize, PartialEq)]
 pub struct InstrumentationGuid {
+    /// Entity GUIDs reported in the resource status (`entityGUIDs`).
     #[serde(default, rename = "entityGUIDs")]
     pub entity_guids: Vec<String>,
 }
 
+/// Retrieves the entity GUID from a specific Instrumentation resource.
 #[derive(Debug)]
 pub struct K8sGuidInstrumentation<C: K8sClient = SyncK8sClient> {
     k8s_client: Arc<C>,
@@ -25,6 +29,7 @@ pub struct K8sGuidInstrumentation<C: K8sClient = SyncK8sClient> {
 }
 
 impl<C: K8sClient> K8sGuidInstrumentation<C> {
+    /// Builds a checker for the Instrumentation identified by `type_meta`, `name` and `namespace`.
     pub fn new(
         k8s_client: Arc<C>,
         type_meta: TypeMeta,

@@ -1,3 +1,5 @@
+//! Actix-based status HTTP server: serves the `/status` endpoint and updates status from events.
+
 use crate::agent_control::config::OpAMPClientConfig;
 use crate::agent_control::http_server::StatusServerError;
 use crate::agent_control::http_server::config::{DEFAULT_WORKERS, ServerConfig};
@@ -34,6 +36,8 @@ impl std::fmt::Display for JoinHandleErrors {
     }
 }
 
+/// Runs the status HTTP server: spawns the event processor that keeps the shared `Status` up to
+/// date and the Actix server serving it, shutting both down gracefully when the consumers close.
 pub async fn run_status_server(
     server_config: ServerConfig,
     agent_control_event_consumer: tokio::sync::mpsc::UnboundedReceiver<AgentControlEvent>,

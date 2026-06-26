@@ -25,6 +25,7 @@ use std::{
 use tracing::warn;
 
 const CERT_EXTENSION: &str = "pem";
+/// Blocking HTTP client used across Agent Control, wrapping a configured [`reqwest`] client.
 #[derive(Debug, Clone)]
 pub struct HttpClient {
     client: Client,
@@ -62,6 +63,9 @@ impl HttpClient {
         Ok(Self { client })
     }
 
+    /// Sends the request and returns the response, mapping a non-success status code to
+    /// [`HttpResponseError::UnsuccessfulResponse`] and transport failures to the matching
+    /// [`HttpResponseError`] variant.
     pub fn send(
         &self,
         request: Request<Vec<u8>>,
@@ -87,12 +91,16 @@ impl HttpClient {
     }
 }
 
+/// Errors that can occur while sending a request or processing its response.
 #[derive(thiserror::Error, Debug)]
 pub enum HttpResponseError {
+    /// The response body could not be read.
     #[error("could read response body: {0}")]
     ReadingResponse(String),
+    /// The response value could not be constructed from the received data.
     #[error("could build response: {0}")]
     BuildingResponse(String),
+    /// The request could not be constructed before sending.
     #[error("could build request: {0}")]
     BuildingRequest(String),
     /// Represents a response that was received, but had a non-successful status code.
@@ -101,19 +109,25 @@ pub enum HttpResponseError {
         String::from_utf8_lossy(body)
     )]
     UnsuccessfulResponse {
+        /// The non-success HTTP status code returned by the server.
         status_code: StatusCode,
+        /// The raw response body.
         body: Vec<u8>,
     },
+    /// The connection to the host could not be established (firewall/proxy/routing).
     #[error(
         "connection error: could not connect to the host. this is often caused by a firewall, proxy, or network routing issue. original error: {0}"
     )]
     ConnectError(#[source] ReqwestError),
+    /// The request timed out.
     #[error("timeout error: the request timed out. original error: {0}")]
     TimeoutError(#[source] ReqwestError),
+    /// The host name could not be resolved via DNS.
     #[error(
         "dns resolution error: could not resolve the host. please check your dns configuration. original error: {0}"
     )]
     DnsError(#[source] ReqwestError),
+    /// Any other transport-level error.
     #[error("generic transport error: {0}")]
     GenericTransportError(#[source] ReqwestError),
 }
@@ -249,12 +263,20 @@ fn try_build_response(res: BlockingResponse) -> Result<HttpResponse<Vec<u8>>, Ht
     Ok(response)
 }
 
+/// Errors that can occur while building the HTTP client (including certificate loading).
 #[derive(thiserror::Error, Debug)]
 pub enum HttpBuildError {
+    /// The underlying client builder failed (e.g. invalid proxy URL).
     #[error("could not build the http client: {0}")]
     ClientBuilder(String),
+    /// Certificates could not be loaded from the given path.
     #[error("could not load certificates from {path}: {err}")]
-    CertificateError { path: String, err: String },
+    CertificateError {
+        /// The path the certificates were being loaded from.
+        path: String,
+        /// The underlying error message.
+        err: String,
+    },
 }
 
 /// Tries to extract certificates from the provided `ca_bundle_file` and `ca_bundle_dir` paths.

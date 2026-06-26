@@ -1,3 +1,6 @@
+//! Assembles an [EffectiveAgent] (rendered runtime configuration) from an agent identity and
+//! its YAML config, resolving the agent type, variables, and secrets.
+
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::registry::{AgentTypeRegistry, AgentTypeRegistryError};
@@ -18,22 +21,30 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use thiserror::Error;
 
+/// Errors produced while assembling an [EffectiveAgent].
 #[derive(Error, Debug)]
 pub enum EffectiveAgentsAssemblerError {
+    /// A generic assembly failure with a descriptive message.
     #[error("error assembling agents: {0}")]
     EffectiveAgentsAssemblerError(String),
+    /// The agent type could not be retrieved from the registry.
     #[error("error assembling agents: {0}")]
     Registry(#[from] AgentTypeRegistryError),
+    /// YAML (de)serialization failed.
     #[error("error assembling agents: {0}")]
     SerializationError(#[from] serde_saphyr::Error),
+    /// A value could not be converted to/from JSON.
     #[error("error assembling agents: {0}")]
     ValueConversionError(#[from] serde_json::Error),
+    /// The agent type definition was invalid.
     #[error("error assembling agents: {0}")]
     AgentTypeError(#[from] AgentTypeError),
+    /// Secret variables could not be loaded.
     #[error("error loading secrets: {0}")]
     SecretVariablesError(#[from] SecretVariablesError),
 }
 
+/// An agent with its identity and fully rendered runtime configuration.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectiveAgent {
     agent_identity: AgentIdentity,
@@ -96,6 +107,7 @@ impl TryFrom<EffectiveAgent> for K8s {
     }
 }
 
+/// Assembles an [EffectiveAgent] from an agent identity and its YAML configuration.
 pub trait EffectiveAgentsAssembler {
     /// Assemble an [EffectiveAgent] from an [AgentIdentity]. The implementer is responsible for
     /// getting the AgentType and all needed values to render the Runtime config.
@@ -107,12 +119,12 @@ pub trait EffectiveAgentsAssembler {
 }
 
 /// Implements [EffectiveAgentsAssembler] and is responsible for:
-/// - Getting [AgentType] from [AgentTypeRegistry]
-/// - Getting Local or Remote configs from [ConfigRepository]
-/// - Rendering the [Runtime] configuration of an Agent
+/// - Getting [`AgentType`](crate::agent_type::definition::AgentType) from [AgentTypeRegistry]
+/// - Getting Local or Remote configs from [`ConfigRepository`](crate::values::config_repository::ConfigRepository)
+/// - Rendering the [`Runtime`](crate::agent_type::runtime_config::Runtime) configuration of an Agent
 ///
 /// Important: Assembling an Agent may mutate the state of external resources by creating
-/// or removing configs when the Runtime is [Renderer].
+/// or removing configs when the `Runtime` is rendered.
 pub struct LocalEffectiveAgentsAssembler<R>
 where
     R: AgentTypeRegistry,
@@ -128,6 +140,8 @@ impl<R> LocalEffectiveAgentsAssembler<R>
 where
     R: AgentTypeRegistry,
 {
+    /// Creates an assembler from an agent-type registry, template renderer, variable constraints,
+    /// secrets providers, and the remote configuration directory.
     pub fn new(
         registry: Arc<R>,
         renderer: TemplateRenderer,
@@ -186,6 +200,7 @@ where
 ////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub(crate) mod tests {
 
     use super::*;

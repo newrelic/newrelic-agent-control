@@ -1,3 +1,4 @@
+//! Restart policy and backoff strategy configuration for on-host executables.
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
@@ -37,37 +38,47 @@ pub(super) const DEFAULT_BACKOFF_DELAY: Duration = Duration::from_secs(2);
 pub(super) const DEFAULT_BACKOFF_MAX_RETRIES: usize = 0;
 pub(super) const DEFAULT_BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 
+/// The delay applied before retrying a failed execution.
 #[derive(Debug, Deserialize, PartialEq, Clone, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_BACKOFF_DELAY)]
 pub struct BackoffDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 impl BackoffDelay {
+    /// Builds a delay of the given number of seconds.
     pub fn from_secs(value: u64) -> Self {
         Self(Duration::from_secs(value))
     }
 }
 
+/// The interval after the last retry before retries reset.
 #[derive(Debug, Deserialize, PartialEq, Clone, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_BACKOFF_LAST_RETRY_INTERVAL)]
 pub struct BackoffLastRetryInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 impl BackoffLastRetryInterval {
+    /// Builds an interval of the given number of seconds.
     pub fn from_secs(value: u64) -> Self {
         Self(Duration::from_secs(value))
     }
 }
 
+/// The maximum number of retries before giving up.
 #[derive(Debug, Deserialize, PartialEq, Clone, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_BACKOFF_MAX_RETRIES)]
 pub struct MaxRetries(usize);
 
+/// Backoff strategy configuration controlling how failed executions are retried.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(default)]
 pub struct BackoffStrategyConfig {
+    /// The kind of backoff applied between retries.
     #[serde(rename = "type")]
     pub backoff_type: TemplateableValue<BackoffStrategyType>,
+    /// The delay before retrying.
     pub backoff_delay: TemplateableValue<BackoffDelay>,
+    /// The maximum number of retries.
     pub max_retries: TemplateableValue<MaxRetries>,
+    /// The interval after the last retry.
     pub last_retry_interval: TemplateableValue<BackoffLastRetryInterval>,
 }
 
@@ -90,12 +101,16 @@ impl Templateable for BackoffStrategyConfig {
     }
 }
 
+/// The kind of backoff applied between retries.
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 #[serde(rename_all = "lowercase", tag = "type")]
 pub enum BackoffStrategyType {
+    /// A constant delay between retries.
     #[default]
     Fixed,
+    /// A delay growing linearly with the number of retries.
     Linear,
+    /// A delay growing exponentially with the number of retries.
     Exponential,
 }
 

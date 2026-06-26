@@ -1,3 +1,5 @@
+//! Retrieves the OpAMP authentication secret from a file on the host.
+
 use std::path::PathBuf;
 
 use crate::agent_control::config::OpAMPClientConfig;
@@ -9,10 +11,13 @@ use crate::secrets_provider::SecretsProvider;
 /// Helper struct to determine the path and retrieve the secret using the File provider.
 pub struct OnHostSecretRetriever<P> {
     opamp_config: Option<OpAMPClientConfig>,
+    /// Directory holding the default private key file when no explicit path is configured.
     pub local_dir: PathBuf,
+    /// Provider used to read the secret contents from disk.
     pub provider: P,
 }
 
+/// Error returned when retrieving the secret from a file fails.
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
 pub struct OnHostRetrieverError(String);
@@ -21,6 +26,8 @@ impl<P> OnHostSecretRetriever<P>
 where
     P: SecretsProvider,
 {
+    /// Creates a retriever that reads the private key file, preferring the path in
+    /// `opamp_config` when present and falling back to `local_dir`.
     pub fn new(
         opamp_config: Option<OpAMPClientConfig>,
         local_dir: impl Into<PathBuf>,

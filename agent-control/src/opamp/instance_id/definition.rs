@@ -1,3 +1,4 @@
+//! Definition of the OpAMP [`InstanceID`] and the [`InstanceIdentifiers`] trait.
 use opamp_client::operation::instance_uid::InstanceUid;
 use serde::{Deserialize, Serialize, Serializer};
 use std::{
@@ -69,6 +70,7 @@ impl From<InstanceID> for Vec<u8> {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::{InstanceID, InstanceIdentifiers};
     use opamp_client::operation::instance_uid::InstanceUid;

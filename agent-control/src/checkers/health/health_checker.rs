@@ -1,3 +1,4 @@
+//! The core health-checking trait, health value types, and the health-checker thread.
 use crate::agent_control::agent_id::AgentID;
 use crate::checkers::health::events::HealthEventPublisher;
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
@@ -13,57 +14,78 @@ use std::time::{Duration, SystemTime, SystemTimeError};
 use tracing::{debug, info_span};
 use wrapper_with_default::WrapperWithDefault;
 
+/// Name used for the spawned health-checker thread.
 pub const HEALTH_CHECKER_THREAD_NAME: &str = "health_checker";
 
 const DEFAULT_HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(60);
 const DEFAULT_INITIAL_DELAY: Duration = Duration::ZERO;
 
+/// Point in time at which a health status was determined.
 pub type StatusTime = SystemTime;
 
+/// Interval between consecutive health checks (defaults to 60s).
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_HEALTH_CHECK_INTERVAL)]
 pub struct HealthCheckInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
+/// Delay before the first health check is performed (defaults to zero).
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_INITIAL_DELAY)]
 pub struct InitialDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
+/// The health of an agent: either healthy or unhealthy.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Health {
+    /// The agent is healthy.
     Healthy(Healthy),
+    /// The agent is unhealthy.
     Unhealthy(Unhealthy),
 }
 
+/// Errors that can occur while checking an agent's health.
 #[derive(thiserror::Error, Debug)]
 pub enum HealthCheckerError {
+    /// A generic health-check error.
     #[error("{0}")]
     Generic(String),
+    /// The system clock returned an error.
     #[error("system time error {0}")]
     SystemTime(#[from] SystemTimeError),
 
+    /// A required field is missing from a Kubernetes object.
     #[error("{kind}/{name} misses field '{field}'")]
     MissingK8sObjectField {
+        /// The kind of the Kubernetes object.
         kind: String,
+        /// The name of the Kubernetes object.
         name: String,
+        /// The missing field path.
         field: String,
     },
 
+    /// A Kubernetes object is invalid.
     #[error("{kind}/{name} is invalid: {err}")]
     InvalidK8sObject {
+        /// The kind of the Kubernetes object.
         kind: String,
+        /// The name of the Kubernetes object.
         name: String,
+        /// The validation error.
         err: String,
     },
 
+    /// An error from the Kubernetes client.
     #[error("k8s error: {0}")]
     K8sError(#[from] k8s::Error),
 }
 
 impl Health {
+    /// Returns `true` if the health is healthy.
     pub fn is_healthy(&self) -> bool {
         matches!(self, Health::Healthy { .. })
     }
 
+    /// Returns the last error if the health is unhealthy, `None` otherwise.
     pub fn last_error(&self) -> Option<&str> {
         if let Health::Unhealthy(unhealthy) = self {
             Some(unhealthy.last_error())
@@ -72,6 +94,7 @@ impl Health {
         }
     }
 
+    /// Returns the agent-specific status message.
     pub fn status(&self) -> &str {
         match self {
             Health::Healthy(healthy) => healthy.status(),
@@ -79,6 +102,7 @@ impl Health {
         }
     }
 
+    /// Returns the time at which the status was determined.
     pub fn status_time(&self) -> StatusTime {
         match self {
             Health::Healthy(healthy) => healthy.status_time(),
@@ -147,10 +171,12 @@ impl Healthy {
         }
     }
 
+    /// Returns a copy with the given status message.
     pub fn with_status(self, status: String) -> Self {
         Self { status, ..self }
     }
 
+    /// Returns a copy with the given status time.
     pub fn with_status_time(self, status_time: StatusTime) -> Self {
         Self {
             status_time,
@@ -158,10 +184,12 @@ impl Healthy {
         }
     }
 
+    /// Returns the status message.
     pub fn status(&self) -> &str {
         &self.status
     }
 
+    /// Returns the time at which the status was determined.
     pub fn status_time(&self) -> StatusTime {
         self.status_time
     }
@@ -205,6 +233,7 @@ impl Unhealthy {
         }
     }
 
+    /// Returns a copy with the given status time.
     pub fn with_status_time(self, status_time: StatusTime) -> Self {
         Self {
             status_time,
@@ -212,18 +241,22 @@ impl Unhealthy {
         }
     }
 
+    /// Returns a copy with the given status message.
     pub fn with_status(self, status: String) -> Self {
         Self { status, ..self }
     }
 
+    /// Returns the status message.
     pub fn status(&self) -> &str {
         &self.status
     }
 
+    /// Returns the last error message.
     pub fn last_error(&self) -> &str {
         &self.last_error
     }
 
+    /// Returns the time at which the status was determined.
     pub fn status_time(&self) -> StatusTime {
         self.status_time
     }
@@ -320,6 +353,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use std::time::{Duration, UNIX_EPOCH};
 

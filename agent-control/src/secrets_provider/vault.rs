@@ -1,3 +1,5 @@
+//! Secrets provider that reads secrets from HashiCorp Vault (KV1 and KV2 engines).
+
 use super::SecretsProvider;
 use crate::http::client::{HttpBuildError, HttpClient, HttpResponseError};
 use crate::http::config::{HttpConfig, ProxyConfig};
@@ -19,15 +21,19 @@ const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Enumerates the possible errors that can occur when interacting with Vault.
 #[derive(Debug, Error)]
 pub enum VaultError {
+    /// The Vault HTTP client could not be built.
     #[error("could not build the vault http client: {0}")]
     HttpClient(#[from] HttpBuildError),
 
+    /// A header value (e.g. the Vault token) was invalid.
     #[error("invalid header: {0}")]
     InvalidHeaderValue(#[from] InvalidHeaderValue),
 
+    /// The mount and path for the secret source could not be parsed.
     #[error("could not parse mount and path for secret source: {0}")]
     ParseError(#[from] ParseError),
 
+    /// The JSON config or response could not be deserialized.
     #[error(
         "error deserializing the JSON config. Check your Vault endpoint URL (is /v1/ missing?): {0}"
     )]
@@ -37,24 +43,31 @@ pub enum VaultError {
     #[error("could not build the HTTP client: {0}")]
     BuildingError(String),
 
+    /// An HTTP transport error occurred.
     #[error("http transport error: {0}")]
     HttpTransportError(String),
 
+    /// The response body could not be deserialized.
     #[error("unable to deserialize body: {0}")]
     DeserializeError(String),
 
+    /// The secret path did not match the expected `source:mount:path:name` format.
     #[error("secret path '{0}' does not have a valid format 'source:mount:path:name'")]
     IncorrectSecretPath(String),
 
+    /// The requested secret source was not configured.
     #[error("secret source not found")]
     SourceNotFound,
 
+    /// The secret was not found in the specified source.
     #[error("secret not found in the specified source")]
     NotFound,
 
+    /// The source URL could not be reached.
     #[error("source url can't be reached: {0}")]
     ConnectionFailed(String),
 
+    /// A generic, unclassified Vault error.
     #[error("{0}")]
     GenericError(String),
 }
@@ -62,9 +75,13 @@ pub enum VaultError {
 /// Represents a path to a secret in Vault, including source, mount, path, and name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VaultSecretPath {
+    /// Name of the configured Vault source.
     pub source: String,
+    /// Vault secret engine mount point.
     pub mount: String,
+    /// Path of the secret within the mount.
     pub path: String,
+    /// Name of the key within the secret.
     pub name: String,
 }
 
@@ -93,7 +110,9 @@ impl FromStr for VaultSecretPath {
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")] // Automatically handle lowercase conversion
 pub enum SecretEngine {
+    /// Original key-value engine (version 1).
     Kv1,
+    /// Versioned key-value engine (version 2).
     Kv2,
 }
 
@@ -154,6 +173,7 @@ struct KV2DataField {
     data: HashMap<String, String>,
 }
 
+/// A configured Vault source: a normalized base URL, token, and secret engine.
 pub struct VaultSource {
     url: Url,
     token: String,
@@ -176,6 +196,7 @@ impl VaultSource {
     }
 }
 
+/// Configuration for the Vault provider: a set of named sources and HTTP client settings.
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct VaultConfig {
     pub(crate) sources: HashMap<String, VaultSourceConfig>,
@@ -184,6 +205,7 @@ pub struct VaultConfig {
     #[serde(default)]
     pub(crate) client_timeout: ClientTimeout,
 
+    /// Proxy configuration used by the Vault HTTP client.
     #[serde(skip)]
     pub proxy_config: ProxyConfig,
 }
@@ -283,6 +305,7 @@ impl SecretsProvider for Vault {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
     use crate::secrets_provider::vault::VaultConfig;

@@ -1,3 +1,5 @@
+//! Single-instance guard: caches the running Agent Control PID in a file to prevent concurrent runs.
+
 use crate::agent_control::defaults::PID_FILE_NAME;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file::LocalFile;
@@ -9,17 +11,22 @@ use thiserror::Error;
 
 const PROC_PATH: &str = "/proc";
 
+/// Errors produced while reading or writing the PID cache file.
 #[derive(Error, Debug)]
 pub enum PIDCacheError {
+    /// The configured PID file path has no parent directory.
     #[error("invalid PID file path")]
     InvalidFilePath,
 
+    /// Failed to create the directory holding the PID file.
     #[error("directory error: {0}")]
     DirectoryError(io::Error),
 
+    /// Failed to write the PID file.
     #[error("file error: {0}")]
     SaveError(io::Error),
 
+    /// A PID file already exists for a process that appears to be running.
     #[error("pid-file already exists. Can't guarantee that no other agent-control is running.")]
     RunningProcessAlreadyCached,
 }
@@ -37,6 +44,7 @@ where
 }
 
 impl PIDCache {
+    /// Builds a [`PIDCache`] storing its file in the given data directory.
     pub fn from_data_dir(data_dir: &Path) -> Self {
         Self {
             file_rw: LocalFile,
@@ -92,6 +100,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
     use fs::directory_manager::mock::MockDirectoryManager;

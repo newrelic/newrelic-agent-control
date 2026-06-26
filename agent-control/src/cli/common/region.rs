@@ -29,9 +29,13 @@ const OTLP_URL_US: &str = "otlp.nr-data.net";
 /// tool such as [clap::builder::TypedValueParser::map].
 #[derive(Debug, Copy, Clone, PartialEq, clap::ValueEnum)]
 pub enum Region {
+    /// United States region.
     US,
+    /// European Union region.
     EU,
+    /// Japan region.
     JP,
+    /// Staging environment (aliased as `stg`).
     #[value(alias = "stg")]
     STAGING,
 }
@@ -54,6 +58,7 @@ impl From<Region> for NewRelicEnvironment {
 }
 
 impl Region {
+    /// Returns the OpAMP endpoint for this region.
     pub fn opamp_endpoint(&self) -> Uri {
         match &self {
             Self::US => OPAMP_ENDPOINT_US,
@@ -65,6 +70,7 @@ impl Region {
         .expect("known uris should be valid")
     }
 
+    /// Returns the public-key (JWKS) endpoint used for signature validation in this region.
     pub fn public_key_endpoint(&self) -> Uri {
         match &self {
             Self::US => PUBLIC_KEY_ENDPOINT_US,
@@ -76,6 +82,7 @@ impl Region {
         .expect("known uris should be valid")
     }
 
+    /// Returns the OTLP exporter endpoint for this region.
     pub fn otel_endpoint(&self) -> Uri {
         let host = match &self {
             Self::US => OTLP_URL_US,
@@ -87,7 +94,7 @@ impl Region {
         endpoint.parse().expect("known uris should be valid")
     }
 
-    // Helper to obtain the token renewal endpoint that is also needed in Agent Control configuration
+    /// Returns the token renewal endpoint for this region, also needed in Agent Control configuration.
     pub fn token_renewal_endpoint(&self) -> Uri {
         NewRelicEnvironment::from(self.to_owned()).token_renewal_endpoint()
     }

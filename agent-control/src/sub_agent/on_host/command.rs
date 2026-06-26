@@ -1,3 +1,5 @@
+//! OS process management for on-host executables: spawning, logging, restart policy, and shutdown.
+
 pub mod command_os;
 pub mod error;
 pub mod executable_data;

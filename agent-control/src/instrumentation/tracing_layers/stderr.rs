@@ -1,3 +1,5 @@
+//! Builds the [`tracing_subscriber`] layer that reports logs to standard error.
+
 use crate::instrumentation::config::logs::config::{LoggingConfig, LoggingConfigError};
 use crate::instrumentation::config::logs::format::Formatter;
 use crate::instrumentation::tracing::LayerBox;

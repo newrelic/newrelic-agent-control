@@ -1,3 +1,5 @@
+//! Logger targets (stdout, stderr, file) that consume executable output lines on dedicated threads.
+
 use super::file_logger::FileLogger;
 use crate::agent_control::agent_id::AgentID;
 use crate::utils::threads::spawn_named_thread;

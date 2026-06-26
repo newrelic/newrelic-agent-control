@@ -1,3 +1,5 @@
+//! Kubernetes supervisor: applies an agent's k8s objects and runs its health, version, and GUID checkers.
+
 use crate::agent_control::defaults::{
     APM_APPLICATION_ID, OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
 };
@@ -32,22 +34,35 @@ use tracing::{debug, info, info_span, trace, warn};
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
 const SUPERVISOR_THREAD_NAME: &str = "supervisor";
 
+/// Errors produced while building, starting, applying, or stopping a Kubernetes supervisor.
 #[derive(Debug, Error)]
 pub enum SupervisorError {
+    /// The Kubernetes client returned an error.
     #[error("the kube client returned an error: {0}")]
     K8s(#[from] crate::k8s::error::K8sError),
+    /// The k8s resources could not be built from the configuration.
     #[error("building k8s resources: {0}")]
     K8sConfig(String),
+    /// The incoming effective agent configuration is invalid.
     #[error("the incoming configuration has errors: {0}")]
     IncomingConfig(EffectiveAgentsAssemblerError),
+    /// The previous supervisor could not be stopped before applying a new configuration.
     #[error("error stopping previous supervisor: {0}")]
     StoppingPreviousSupervisor(ThreadContextStopperError),
+    /// The effective agent is missing its k8s runtime configuration.
     #[error("missing runtime configuration: {0}")]
     RuntimeConfig(EffectiveAgentsAssemblerError),
+    /// A configured object's type is not in the supported resource list.
     #[error("unsupported Kubernetes object with api_version '{api_version}' and kind '{kind}'")]
-    UnsupportedK8sObject { api_version: String, kind: String },
+    UnsupportedK8sObject {
+        /// The unsupported object's API version.
+        api_version: String,
+        /// The unsupported object's kind.
+        kind: String,
+    },
 }
 
+/// A Kubernetes supervisor ready to be started.
 #[derive(Debug, Clone)]
 pub struct NotStartedSupervisorK8s<C: K8sClient = SyncK8sClient> {
     pub(super) agent_identity: AgentIdentity,
@@ -97,6 +112,7 @@ impl<C: K8sClient> SupervisorStarter for NotStartedSupervisorK8s<C> {
 }
 
 impl<C: K8sClient> NotStartedSupervisorK8s<C> {
+    /// Creates a not-started supervisor for the given agent identity, k8s client, and configuration.
     pub fn new(agent_identity: AgentIdentity, k8s_client: Arc<C>, k8s_config: K8s) -> Self {
         Self {
             agent_identity,
@@ -106,6 +122,7 @@ impl<C: K8sClient> NotStartedSupervisorK8s<C> {
         }
     }
 
+    /// Builds the [DynamicObject]s for all configured k8s objects, applying default labels and annotations.
     pub fn build_dynamic_objects(&self) -> Result<Vec<DynamicObject>, SupervisorError> {
         self.k8s_config
             .objects
@@ -180,6 +197,7 @@ impl<C: K8sClient> NotStartedSupervisorK8s<C> {
         NotStartedThreadContext::new(SUPERVISOR_THREAD_NAME, callback).start()
     }
 
+    /// Spawns the health checker thread, or returns `None` if health checks are disabled or unsupported.
     pub fn start_health_check(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
@@ -210,6 +228,7 @@ impl<C: K8sClient> NotStartedSupervisorK8s<C> {
         ))
     }
 
+    /// Spawns the agent version checker thread, or returns `None` if it cannot be configured.
     pub fn start_version_checker(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
@@ -232,6 +251,7 @@ impl<C: K8sClient> NotStartedSupervisorK8s<C> {
         ))
     }
 
+    /// Spawns the APM GUID checker thread, or returns `None` if it cannot be configured.
     pub fn start_guid_checker(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
@@ -270,6 +290,7 @@ impl<C: K8sClient> NotStartedSupervisorK8s<C> {
     }
 }
 
+/// A running Kubernetes supervisor managing its reconcile and checker threads.
 pub struct StartedSupervisorK8s<C: K8sClient = SyncK8sClient> {
     pub(super) thread_contexts: Vec<StartedThreadContext>,
     pub(super) agent_identity: AgentIdentity,
@@ -338,6 +359,7 @@ impl<C: K8sClient> Supervisor for StartedSupervisorK8s<C> {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;

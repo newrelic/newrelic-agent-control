@@ -1,3 +1,5 @@
+//! The [`ConfigRepository`] trait for loading and persisting agent configurations.
+
 use crate::agent_control::agent_id::AgentID;
 use crate::resource_ownership::ResourceOwnership;
 use crate::values::config::{Config, RemoteConfig};
@@ -7,21 +9,29 @@ use opamp_client::operation::capabilities::Capabilities;
 use thiserror::Error;
 use tracing::debug;
 
+/// Errors returned by [`ConfigRepository`] operations.
 #[derive(Error, Debug, Clone)]
 pub enum ConfigRepositoryError {
+    /// Failed to load configuration values.
     #[error("error loading values: {0}")]
     LoadError(String),
+    /// Failed to store configuration values.
     #[error("error storing values: {0}")]
     StoreError(String),
+    /// Failed to delete configuration values.
     #[error("error deleting values: {0}")]
     DeleteError(String),
+    /// Failed to update the hash state because no remote config exists.
     #[error("error updating hash, no remote config to update: {0}")]
     UpdateHashStateError(String),
 }
 
+/// Loads, stores, and deletes agent local and remote configurations.
 pub trait ConfigRepository: Send + Sync + 'static {
+    /// Loads the local configuration for the given agent, if any.
     fn load_local(&self, agent_id: &AgentID) -> Result<Option<Config>, ConfigRepositoryError>;
 
+    /// Loads the remote configuration for the given agent, if remote management is enabled.
     fn load_remote(
         &self,
         agent_id: &AgentID,
@@ -45,6 +55,7 @@ pub trait ConfigRepository: Send + Sync + 'static {
         self.load_local(agent_id)
     }
 
+    /// Stores the remote configuration for the given agent.
     fn store_remote(
         &self,
         agent_id: &AgentID,
@@ -52,11 +63,13 @@ pub trait ConfigRepository: Send + Sync + 'static {
         remote_config: &RemoteConfig,
     ) -> Result<(), ConfigRepositoryError>;
 
+    /// Returns the stored remote configuration for the given agent, if any.
     fn get_remote_config(
         &self,
         agent_id: &AgentID,
     ) -> Result<Option<RemoteConfig>, ConfigRepositoryError>;
 
+    /// Updates the state of the stored remote configuration for the given agent.
     fn update_state(
         &self,
         agent_id: &AgentID,
@@ -64,10 +77,12 @@ pub trait ConfigRepository: Send + Sync + 'static {
         state: ConfigState,
     ) -> Result<(), ConfigRepositoryError>;
 
+    /// Deletes the remote configuration for the given agent.
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ConfigRepositoryError>;
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use std::collections::HashMap;
     use std::sync::Mutex;

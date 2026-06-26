@@ -1,3 +1,4 @@
+//! Namespaces used to prefix agent type variable names (e.g. `nr-var`, `nr-env`, `nr-vault`).
 use std::fmt::Display;
 
 /// Holds the variable name prefixed with the namespace.
@@ -7,20 +8,28 @@ pub type NamespacedVariableName = String;
 /// Namespace defines the supported namespace names for variables definition.
 #[derive(PartialEq, Eq, Hash)]
 pub enum Namespace {
+    /// Variables defined in the agent type.
     Variable,
+    /// Attributes related to the sub-agent.
     SubAgent,
+    /// Attributes related to the agent-control.
     AgentControl,
 
     // Below variables are "secret" variables.
     // These are loaded every time a remote config is received.
+    /// Environment variables.
     EnvironmentVariable,
+    /// Secrets retrieved from a HashiCorp Vault.
     Vault,
+    /// Secrets retrieved from a file.
     File,
+    /// Secrets retrieved from Kubernetes Secrets.
     K8sSecret,
 }
 
 impl Namespace {
     const PREFIX: &'static str = "nr-";
+    /// Separator between a namespace prefix and the variable name.
     pub const PREFIX_NS_SEPARATOR: &'static str = ":";
 
     /// Encapsulates the variables defined in the agent-type
@@ -38,10 +47,12 @@ impl Namespace {
     const K8S_SECRET: &'static str = "kubesec";
     const FILE_SECRET: &'static str = "file";
 
+    /// Prefixes `name` with this namespace, producing a [`NamespacedVariableName`].
     pub fn namespaced_name(&self, name: impl AsRef<str>) -> NamespacedVariableName {
         format!("{}{}{}", self, Self::PREFIX_NS_SEPARATOR, name.as_ref())
     }
 
+    /// Returns whether the given namespaced name belongs to a secret namespace.
     pub fn is_secret_variable(s: &str) -> bool {
         [
             Namespace::Vault,

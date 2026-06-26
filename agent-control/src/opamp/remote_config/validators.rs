@@ -1,3 +1,4 @@
+//! Remote configuration validators (signature and regex) and their static-dispatch enum.
 pub mod regexes;
 pub mod signature;
 
@@ -10,8 +11,10 @@ use thiserror::Error;
 
 /// Represents a validator for config remote
 pub trait RemoteConfigValidator {
+    /// Error type returned when validation fails.
     type Err: Display;
 
+    /// Validates the remote config for the given agent identity.
     fn validate(
         &self,
         agent_identity: &AgentIdentity,
@@ -26,7 +29,9 @@ pub struct SupportedRemoteConfigValidatorError(String);
 
 /// Variants of Implementations of [RemoteConfigValidator] to facilitate Static Dispatch.
 pub enum SupportedRemoteConfigValidator {
+    /// Validates remote config signatures.
     Signature(Arc<SignatureValidator>),
+    /// Validates remote config content against denied-pattern regexes.
     Regex(RegexValidator),
 }
 
@@ -49,6 +54,7 @@ impl RemoteConfigValidator for SupportedRemoteConfigValidator {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
     use mockall::{mock, predicate};

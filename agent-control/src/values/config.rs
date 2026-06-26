@@ -1,3 +1,5 @@
+//! Configuration value types: the local/remote [`Config`] enum and its variants.
+
 use crate::opamp::remote_config::hash::{ConfigState, Hash};
 use crate::values::yaml_config::YAMLConfig;
 use serde::{Deserialize, Serialize};
@@ -6,7 +8,9 @@ use serde::{Deserialize, Serialize};
 /// and the Remote Config including also the hash and status.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Config {
+    /// A configuration sourced locally, wrapping a [`YAMLConfig`].
     LocalConfig(LocalConfig),
+    /// A configuration received remotely, including its hash and state.
     RemoteConfig(RemoteConfig),
 }
 
@@ -17,6 +21,7 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Returns the underlying [`YAMLConfig`] regardless of the variant.
     pub fn get_yaml_config(&self) -> &YAMLConfig {
         match self {
             Config::LocalConfig(local_config) => &local_config.0,
@@ -24,6 +29,7 @@ impl Config {
         }
     }
 
+    /// Returns the config hash for a remote config, or `None` for a local config.
     pub fn get_hash(&self) -> Option<&Hash> {
         match self {
             Config::LocalConfig(_) => None,
@@ -31,6 +37,7 @@ impl Config {
         }
     }
 
+    /// Returns the config state for a remote config, or `None` for a local config.
     pub fn get_state(&self) -> Option<&ConfigState> {
         match self {
             Config::LocalConfig(_) => None,
@@ -38,6 +45,7 @@ impl Config {
         }
     }
 
+    /// Returns the [`LocalConfig`] if this is a local config, otherwise `None`.
     pub fn local_config(&self) -> Option<&LocalConfig> {
         match self {
             Config::LocalConfig(local_config) => Some(local_config),
@@ -45,6 +53,7 @@ impl Config {
         }
     }
 
+    /// Returns the [`RemoteConfig`] if this is a remote config, otherwise `None`.
     pub fn remote_config(&self) -> Option<&RemoteConfig> {
         match self {
             Config::LocalConfig(_) => None,
@@ -71,6 +80,7 @@ impl From<Config> for Option<RemoteConfig> {
     }
 }
 
+/// A locally-sourced configuration, wrapping a [`YAMLConfig`].
 #[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
 pub struct LocalConfig(YAMLConfig);
 
@@ -80,33 +90,42 @@ impl From<YAMLConfig> for LocalConfig {
     }
 }
 
+/// A remotely-received configuration along with its hash and application state.
 #[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
 pub struct RemoteConfig {
+    /// The configuration values.
     pub config: YAMLConfig,
+    /// Hash identifying this remote configuration.
     pub hash: Hash,
+    /// Current application state of the configuration.
     #[serde(flatten)]
     pub state: ConfigState,
 }
 
 impl RemoteConfig {
+    /// Returns true if the configuration has been applied.
     pub fn is_applied(&self) -> bool {
         self.state.is_applied()
     }
 
+    /// Returns true if the configuration is currently being applied.
     pub fn is_applying(&self) -> bool {
         self.state.is_applying()
     }
 
+    /// Returns true if applying the configuration failed.
     pub fn is_failed(&self) -> bool {
         self.state.is_failed()
     }
 
+    /// Returns the configuration with its state replaced by the given one.
     pub fn with_state(self, state: ConfigState) -> Self {
         Self { state, ..self }
     }
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
 
     use rstest::rstest;

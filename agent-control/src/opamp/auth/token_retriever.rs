@@ -1,3 +1,4 @@
+//! Access-token retriever implementations for the OpAMP HTTP client.
 use super::config::AuthConfig;
 use crate::http::client::HttpBuildError;
 use crate::http::client::HttpClient;
@@ -17,14 +18,18 @@ use thiserror::Error;
 
 const DEFAULT_AUTHENTICATOR_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Errors that can occur while building a [`TokenRetrieverImpl`].
 #[derive(Error, Debug)]
 pub enum TokenRetrieverImplError {
+    /// The JWT signer could not be built.
     #[error("building JWT signer: {0}")]
     JwtSignerBuildError(#[from] JwtSignerImplError),
 
+    /// The underlying HTTP client could not be built.
     #[error("error building http client: {0}")]
     HTTPBuildingClientError(String),
 
+    /// The provided authentication configuration was invalid.
     #[error("configuration error: {0}")]
     ConfigurationError(String),
 }
@@ -36,7 +41,9 @@ type TokenRetrieverHttp =
 /// Enumerates all implementations for `TokenRetriever` for static dispatching reasons.
 #[allow(clippy::large_enum_variant)]
 pub enum TokenRetrieverImpl {
+    /// HTTP-based token retriever that fetches and caches access tokens.
     HttpTR(TokenRetrieverHttp),
+    /// No-op token retriever that returns a default (empty) token.
     Noop(TokenRetrieverNoop),
 }
 
@@ -52,6 +59,8 @@ impl TokenRetriever for TokenRetrieverImpl {
 }
 
 impl TokenRetrieverImpl {
+    /// Builds a token retriever from the optional auth config; returns the no-op variant when no
+    /// config is provided, otherwise an HTTP retriever signing requests with the secret's private key.
     pub fn try_build<R>(
         auth_config: Option<AuthConfig>,
         secret_retriever: &R,

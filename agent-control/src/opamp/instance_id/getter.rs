@@ -1,3 +1,4 @@
+//! Retrieval of an OpAMP [`InstanceID`] for an agent, creating and persisting it when needed.
 use crate::opamp::instance_id::storer::StorerError;
 use crate::{agent_control::agent_id::AgentID, opamp::instance_id::storer::InstanceIDStorer};
 use serde::{Deserialize, Serialize};
@@ -7,21 +8,27 @@ use tracing::debug;
 
 use super::{InstanceID, definition::InstanceIdentifiers};
 
-// IDGetter returns an InstanceID for a specific agentID.
+/// Returns an [`InstanceID`] for a specific agent id.
 pub trait InstanceIDGetter {
+    /// Returns the instance id for the given agent.
     fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError>;
 }
 
+/// Errors produced while getting an instance id.
 #[derive(Error, Debug)]
 pub enum GetterError {
+    /// The underlying storer failed.
     #[error("storer error: {0}")]
     Storer(#[from] StorerError),
 
+    /// Error variant used by the mock getter in tests.
     #[cfg(test)]
     #[error("mock getter error")]
     MockGetterError,
 }
 
+/// [`InstanceIDGetter`] that returns the stored id for an agent, creating one bound to the
+/// configured identifiers when none is stored or the stored identifiers differ.
 pub struct InstanceIDWithIdentifiersGetter<S>
 where
     S: InstanceIDStorer,
@@ -35,6 +42,7 @@ impl<S> InstanceIDWithIdentifiersGetter<S>
 where
     S: InstanceIDStorer,
 {
+    /// Creates a getter backed by the given storer and bound to the provided identifiers.
     pub fn new(storer: Arc<S>, identifiers: S::Identifiers) -> Self {
         Self {
             storer: Mutex::new(storer),
@@ -75,13 +83,17 @@ where
     }
 }
 
+/// Persisted instance id together with the identifiers it was created for.
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub struct DataStored<I: InstanceIdentifiers> {
+    /// The persisted instance id.
     pub instance_id: InstanceID,
+    /// The identifiers the instance id is bound to.
     pub identifiers: I,
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use std::sync::Arc;
     use std::time::Duration;

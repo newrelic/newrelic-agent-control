@@ -1,3 +1,6 @@
+//! Core of the Agent Control: the supervisor runtime that builds, runs and reconciles sub-agents,
+//! handles OpAMP remote configuration, reports health and uptime, and drives self-updates.
+
 pub mod agent_id;
 pub mod config;
 pub mod config_repository;
@@ -50,6 +53,9 @@ use version_updater::updater::VersionUpdater;
 type BuilderStartedSubAgent<S> =
     <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent;
 
+/// Agent Control supervisor runtime. Generic over the sub-agent builder, the OpAMP client, the
+/// dynamic-config repository, the remote/dynamic config validators, the resource cleaner, the
+/// version updater and the health-checker builder used to assemble the running supervisor.
 pub struct AgentControl<S, O, SL, RV, DV, RC, VU, HC, HCB>
 where
     O: StartedClient,
@@ -91,6 +97,7 @@ where
     HC: HealthChecker + Send + 'static,
     HCB: Fn(SystemTime) -> Option<HC>,
 {
+    /// Builds a new [`AgentControl`] from its collaborators and the initial configuration.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         opamp_client: Option<O>,
@@ -128,6 +135,9 @@ where
         }
     }
 
+    /// Starts the supervisor: builds and runs the configured sub-agents, reconciles the persisted
+    /// remote configuration, spawns the health-checker, applies any pending self-update, and then
+    /// processes events until a graceful shutdown is requested, returning the shutdown reason.
     pub fn run(self) -> Result<GracefulShutdownReason, AgentControlError> {
         let ac_startup_span = info_span!("start_agent_control", id = AGENT_CONTROL_ID);
         let _ac_startup_span_guard = ac_startup_span.enter();
@@ -595,6 +605,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 mod tests {
     use super::AgentControl;
     use super::agent_id::AgentID;

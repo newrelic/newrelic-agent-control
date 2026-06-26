@@ -1,3 +1,4 @@
+//! Logging setup for the CLI commands.
 use std::path::PathBuf;
 
 use tracing::Level;

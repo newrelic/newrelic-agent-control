@@ -1,3 +1,5 @@
+//! Public keys used to verify remote-config signatures, and the supported signing algorithm.
+
 use crate::signature::public_key_fetcher::KeyData;
 use aws_lc_rs::signature::UnparsedPublicKey;
 use base64::Engine;
@@ -6,14 +8,18 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::debug;
 
+/// Errors that can occur while parsing a public key or verifying a signature.
 #[derive(Error, Debug)]
 pub enum PubKeyError {
+    /// The key material could not be parsed into a supported public key.
     #[error("parsing PubKey: {0}")]
     ParsePubKey(String),
 
+    /// The signature did not validate against the message and public key.
     #[error("validating signature: {0}")]
     ValidatingSignature(String),
 
+    /// The key or signature uses an algorithm this crate does not support.
     #[error("unsupported algorithm: {0}")]
     UnsupportedAlgorithm(String),
 }
@@ -23,6 +29,7 @@ pub enum PubKeyError {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "&str")]
 pub enum SigningAlgorithm {
+    /// Ed25519 (with SHA-512 as the digest algorithm).
     ED25519,
 }
 
@@ -47,6 +54,7 @@ impl AsRef<str> for SigningAlgorithm {
     }
 }
 
+/// A parsed public key together with its key id, used to verify signatures.
 #[derive(Debug, Clone)]
 pub struct PublicKey {
     public_key: UnparsedPublicKey<Vec<u8>>,
@@ -54,10 +62,12 @@ pub struct PublicKey {
 }
 
 impl PublicKey {
+    /// Returns the key id (the JWKS `kid`) identifying this public key.
     pub fn key_id(&self) -> &str {
         self.key_id.as_str()
     }
 
+    /// Verifies `signature` over `msg` with this public key, returning an error if invalid.
     pub fn verify_signature(&self, msg: &[u8], signature: &[u8]) -> Result<(), PubKeyError> {
         self.public_key.verify(msg, signature).map_err(|_| {
             PubKeyError::ValidatingSignature(format!("with key id {}", self.key_id,))
@@ -106,6 +116,7 @@ impl TryFrom<&KeyData> for PublicKey {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
     use crate::signature::public_key_fetcher::PubKeyPayload;

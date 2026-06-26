@@ -2,7 +2,7 @@
 //!
 //! The reasoning behind this is that the Agent Control will be able to run different types of agents, and each type of agent will have its own configuration. Supporting generic agent functionalities, the user can both define its own agent types and provide a config that implement this agent type, and the New Relic Agent Control will spawn a Supervisor which will be able to run it.
 //!
-//! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
+//! See [`template_with`](super::templates::Templateable::template_with) for a flowchart of the dataflow that ends in the final, enriched structure.
 
 use super::{
     agent_type_id::AgentTypeID,
@@ -38,8 +38,11 @@ use tracing::{debug, warn};
 /// with precise error messages.
 #[derive(Debug, PartialEq, Clone)]
 pub struct AgentTypeDefinition {
+    /// Identity and environment metadata.
     pub metadata: AgentTypeMetadata,
+    /// The variable definitions, still in their raw tree form.
     pub variables: VariableDefinitionTree,
+    /// The deployment/runtime configuration.
     pub runtime_config: Runtime,
 }
 
@@ -84,12 +87,16 @@ impl<'de> Deserialize<'de> for RawAgentTypeDefinition {
     }
 }
 
+/// Errors produced while parsing an [`AgentTypeDefinition`] from raw YAML.
 #[derive(Error, Debug)]
 pub enum AgentTypeDefinitionParseError {
+    /// The file's `protocol_version` is missing or incompatible.
     #[error("incompatible protocol version: {0}")]
     ProtocolVersion(#[from] ProtocolVersionError),
+    /// The content is not valid YAML.
     #[error("invalid agent type yaml: {0}")]
     Yaml(#[from] serde_saphyr::Error),
+    /// The YAML is valid but does not form a valid agent type definition.
     #[error("invalid agent type definition: {0}")]
     Definition(#[from] serde_json::Error),
 }
@@ -104,6 +111,7 @@ impl AgentTypeDefinition {
         Ok(definition)
     }
 
+    /// Returns the agent type id.
     pub fn agent_type_id(&self) -> &AgentTypeID {
         &self.metadata.id
     }
@@ -119,10 +127,13 @@ impl AgentTypeDefinition {
     }
 }
 
+/// Errors produced while validating an agent type's platform/operating-system metadata.
 #[derive(Error, Debug, PartialEq)]
 pub enum AgentTypeMetadataError {
+    /// `operating_system` is required for a host platform but was not provided.
     #[error("operating_system is required when platform is host")]
     MissingOperatingSystem,
+    /// `operating_system` was provided for a kubernetes platform, where it is not allowed.
     #[error("operating_system must not be set when platform is kubernetes")]
     UnexpectedOperatingSystem,
 }
@@ -144,7 +155,9 @@ enum OperatingSystem {
 /// Holds the identity plus extra metadata that identifies a [AgentTypeDefinition]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentTypeMetadata {
+    /// The fully-qualified agent type id.
     pub id: AgentTypeID,
+    /// The environment the agent type targets.
     pub environment: Environment,
 }
 
@@ -196,13 +209,18 @@ impl<'de> Deserialize<'de> for AgentTypeMetadata {
 /// renderer consumes: `variables` is a [VariableTree] ready to be filled with values.
 #[derive(Debug, PartialEq, Clone)]
 pub struct AgentType {
+    /// The fully-qualified agent type id.
     pub agent_type_id: AgentTypeID,
+    /// The variable tree, ready to be filled with values.
     pub variables: VariableTree,
+    /// The deployment/runtime configuration.
     pub runtime_config: Runtime,
 }
 
+/// A variable tree whose leaves are runtime [`Variable`]s.
 pub type VariableTree = VarTree<Variable>;
 
+/// A variable tree whose leaves are static [`VariableDefinition`]s.
 pub type VariableDefinitionTree = VarTree<VariableDefinition>;
 
 impl VariableDefinitionTree {
@@ -298,6 +316,8 @@ impl From<VariableTree> for Variables {
 
 // TODO refactor Variables into a struct with methods
 
+/// Adds a reserved `${nr-sub:packages.<id>.dir}` variable for each rendered package, pointing at
+/// the directory where the package is stored on disk.
 pub fn include_packages_variables(
     mut variables: Variables,
     packages: &RenderedPackages,
@@ -348,6 +368,7 @@ pub fn include_packages_variables(
     Ok(variables)
 }
 
+/// Returns the final value of the sub-agent variable with the given name, if present.
 pub fn get_sub_agent_variable(variables: &Variables, variable_name: &str) -> Option<String> {
     let key = Namespace::SubAgent.namespaced_name(variable_name);
     variables
@@ -357,6 +378,7 @@ pub fn get_sub_agent_variable(variables: &Variables, variable_name: &str) -> Opt
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
     use crate::agent_type::protocol_version::SUPPORTED_PROTOCOL_VERSION;

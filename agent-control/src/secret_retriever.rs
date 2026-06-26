@@ -1,3 +1,5 @@
+//! Retrieval of the OpAMP authentication secret (the private key) across environments.
+
 pub mod k8s;
 pub mod on_host;
 /// Abstraction for retrieving the OpAMP authentication secret (Private Key).
@@ -5,6 +7,7 @@ pub mod on_host;
 /// This trait allows unifying the secret retrieval logic regardless of the
 /// execution environment (Kubernetes or On-Host).
 pub trait OpampSecretRetriever {
+    /// Error type returned when retrieval fails.
     type Error: std::error::Error;
     /// Retrieves the content of the secret (the private key).
     ///
@@ -14,6 +17,7 @@ pub trait OpampSecretRetriever {
     fn retrieve(&self) -> Result<String, Self::Error>;
 }
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod test_mocks {
     use crate::secrets_provider::SecretsProvider;
     use mockall::mock;

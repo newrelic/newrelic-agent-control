@@ -8,12 +8,15 @@ use opamp_client::http::HttpClientError;
 use opamp_client::http::http_client::HttpClient as OpampHttpClient;
 use url::Url;
 
+/// Errors produced by the OpAMP HTTP client.
 #[derive(thiserror::Error, Debug)]
 pub enum OpAMPHttpClientError {
+    /// The authorization headers could not be built.
     #[error("could not build auth headers: {0}")]
     AuthorizationHeadersError(String),
 }
 
+/// OpAMP HTTP client that signs each request with a token from the token retriever.
 pub struct HttpOpAMPClient<T: TokenRetriever> {
     client: HttpClient,
     url: Url,
@@ -96,6 +99,7 @@ impl From<OpAMPHttpClientError> for HttpClientError {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
 
     use assert_matches::assert_matches;

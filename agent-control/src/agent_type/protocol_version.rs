@@ -27,24 +27,33 @@ include!(concat!(
     env!("GENERATED_PROTOCOL_VERSION_FILE")
 ));
 
+/// Errors produced while reading or validating an agent type's `protocol_version`.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ProtocolVersionError {
+    /// The required `protocol_version` field is absent.
     #[error("missing required field protocol_version")]
     Missing,
+    /// The `protocol_version` is not a quoted `MAJOR.MINOR` string.
     #[error("invalid protocol_version \"{0}\": expected a quoted MAJOR.MINOR string")]
     InvalidFormat(String),
+    /// The major version differs from the supported one (a breaking schema change).
     #[error(
         "unsupported protocol_version {target}: incompatible major version (this agent control supports {supported})"
     )]
     IncompatibleMajor {
+        /// The version declared by the file.
         target: ProtocolVersion,
+        /// The version supported by this Agent Control.
         supported: ProtocolVersion,
     },
+    /// The minor version is newer than the supported one under the same major.
     #[error(
         "unsupported protocol_version {target}: newer than supported (this agent control supports up to {supported})"
     )]
     TooNew {
+        /// The version declared by the file.
         target: ProtocolVersion,
+        /// The version supported by this Agent Control.
         supported: ProtocolVersion,
     },
 }

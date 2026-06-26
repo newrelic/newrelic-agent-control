@@ -1,3 +1,5 @@
+//! Identifiers for Agent Control and its sub-agents, with validation following RFC 1035 label names.
+
 use crate::agent_control::defaults::{AGENT_CONTROL_ID, RESERVED_AGENT_IDS};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -14,11 +16,14 @@ const AGENT_ID_MAX_LENGTH: usize = 32;
 /// start with alphabetic, and end with alphanumeric,
 /// following [RFC 1035 Label names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names).
 pub enum AgentID {
+    /// Identifier of the Agent Control itself.
     AgentControl,
+    /// Identifier of a sub-agent.
     SubAgent(SubAgentID),
 }
 
 impl AgentID {
+    /// Returns the identifier as a string slice.
     pub fn as_str(&self) -> &str {
         match self {
             Self::AgentControl => AGENT_CONTROL_ID,
@@ -68,6 +73,7 @@ impl AsRef<Path> for AgentID {
 pub struct SubAgentID(String);
 
 impl SubAgentID {
+    /// Returns the sub-agent identifier as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -106,12 +112,15 @@ impl AsRef<Path> for SubAgentID {
     }
 }
 
+/// Errors building an [`AgentID`] or [`SubAgentID`].
 #[derive(Error, Debug)]
 pub enum AgentIDError {
+    /// The provided string does not satisfy the identifier format rules.
     #[error(
         "AgentID must contain 32 characters at most, contain lowercase alphanumeric characters or dashes only, start with alphabetic, and end with alphanumeric"
     )]
     InvalidFormat,
+    /// The provided string matches a reserved identifier.
     #[error("AgentID '{0}' is reserved")]
     Reserved(String),
 }

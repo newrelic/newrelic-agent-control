@@ -1,3 +1,4 @@
+//! The aggregate on-host health checker and its per-source variants.
 use super::exec::ExecHealthChecker;
 use super::file::FileHealthChecker;
 use super::http::HttpHealthChecker;
@@ -8,11 +9,16 @@ use crate::event::channel::EventConsumer;
 use crate::http::client::HttpClient;
 use std::path::PathBuf;
 
+/// A single on-host health-check source.
 pub enum OnHostHealthChecker {
+    /// Health from supervised executables.
     Exec(ExecHealthChecker),
+    /// Health from an HTTP endpoint.
     Http(HttpHealthChecker),
+    /// Health read from a file.
     File(FileHealthChecker),
 }
+/// Aggregates the configured on-host health sources, reporting the first unhealthy result.
 pub struct OnHostHealthCheckers {
     health_checkers: Vec<OnHostHealthChecker>,
     start_time: StartTime,

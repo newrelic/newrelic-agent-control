@@ -29,7 +29,9 @@ pub struct VarTree<T>(pub(crate) HashMap<String, Tree<T>>);
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
 pub enum Tree<T> {
+    /// A leaf node holding a value of type `T`.
     End(T),
+    /// An intermediate node mapping names to subtrees.
     Mapping(HashMap<String, Self>),
 }
 

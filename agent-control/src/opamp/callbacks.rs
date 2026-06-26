@@ -1,3 +1,4 @@
+//! OpAMP client callbacks: process server messages and publish [`OpAMPEvent`]s.
 use super::effective_config::{error::EffectiveConfigError, loader::LoadEffectiveConfig};
 use crate::agent_control::agent_id::AgentID;
 use crate::opamp::remote_config::{
@@ -27,17 +28,22 @@ use std::string::FromUtf8Error;
 use thiserror::Error;
 use tracing::{debug, error, trace};
 
+/// Errors produced while handling OpAMP callbacks.
 #[derive(Debug, Error)]
 pub enum AgentCallbacksError {
+    /// A remote config could not be deserialized.
     #[error("deserialization error: {0}")]
     DeserializationError(#[from] OpampRemoteConfigError),
 
+    /// A config hash or body was not valid UTF-8.
     #[error("invalid UTF-8 sequence: {0}")]
     UTF8(#[from] FromUtf8Error),
 
+    /// An OpAMP event could not be published.
     #[error("unable to publish OpAMP event")]
     PublishEventError(#[from] EventPublisherError),
 
+    /// The effective configuration could not be loaded.
     #[error("unable to get effective config: {0}")]
     EffectiveConfigError(#[from] EffectiveConfigError),
 }
@@ -56,6 +62,7 @@ impl<C> AgentCallbacks<C>
 where
     C: LoadEffectiveConfig,
 {
+    /// Creates callbacks for the given agent that publish events on the provided publisher.
     pub fn new(
         agent_id: AgentID,
         publisher: EventPublisher<OpAMPEvent>,

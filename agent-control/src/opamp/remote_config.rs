@@ -1,3 +1,4 @@
+//! Remote configuration received via OpAMP: its model, configuration map, hashes, and validators.
 use crate::agent_control::agent_id::AgentID;
 use crate::opamp::remote_config::hash::ConfigState;
 use crate::opamp::remote_config::{hash::Hash, signature::SignatureData};
@@ -26,23 +27,30 @@ pub const AGENT_CONFIG_OVERRIDE_PREFIX: &str = "override.agentConfig";
 /// Contains identifying metadata and the actual configuration values
 #[derive(Debug, PartialEq, Clone)]
 pub struct OpampRemoteConfig {
+    /// Identifier of the agent this configuration targets.
     pub agent_id: AgentID,
+    /// Hash identifying this configuration version.
     pub hash: Hash,
+    /// Application state of this configuration.
     pub state: ConfigState,
     signatures: Option<Signatures>,
     config_map: ConfigurationMap,
 }
 
+/// Errors produced while parsing or inspecting a remote configuration.
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum OpampRemoteConfigError {
+    /// A configuration body was not valid UTF-8.
     #[error("invalid UTF-8 sequence: {0}")]
     UTF8(#[from] FromUtf8Error),
 
+    /// The configuration was structurally invalid for the given hash.
     #[error("invalid config for hash '{0}': {1}")]
     InvalidConfig(String, String),
 }
 
 impl OpampRemoteConfig {
+    /// Creates a remote config with the given agent, hash, state and configuration map.
     pub fn new(
         agent_id: AgentID,
         hash: Hash,
@@ -135,6 +143,7 @@ impl OpampRemoteConfig {
 pub struct ConfigurationMap(HashMap<String, String>);
 
 impl ConfigurationMap {
+    /// Creates a configuration map from the given key-value pairs.
     pub fn new(config_map: HashMap<String, String>) -> Self {
         Self(config_map)
     }

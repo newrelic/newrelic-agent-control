@@ -1,3 +1,4 @@
+//! HelmRelease (Flux) health checker.
 use crate::checkers::health::health_checker::{
     HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
@@ -43,6 +44,7 @@ pub struct K8sHealthHelmRelease<C: K8sClient = SyncK8sClient> {
 }
 
 impl<C: K8sClient> K8sHealthHelmRelease<C> {
+    /// Builds a health checker for the HelmRelease identified by `type_meta`, `name` and `namespace`.
     pub fn new(
         k8s_client: Arc<C>,
         type_meta: TypeMeta,
@@ -190,6 +192,7 @@ impl<C: K8sClient> HealthChecker for K8sHealthHelmRelease<C> {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
     use crate::agent_control::config::helmrelease_v2_type_meta;

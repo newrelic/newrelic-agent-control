@@ -1,3 +1,5 @@
+//! Spawns and supervises the status HTTP server thread, wiring it to Agent Control events.
+
 use crate::agent_control::config::OpAMPClientConfig;
 use crate::agent_control::http_server::StatusServerError;
 use crate::agent_control::http_server::async_bridge::run_async_sync_bridge;
@@ -31,6 +33,7 @@ pub struct StartedHttpServer {
 }
 
 impl Runner {
+    /// Builds a runner holding everything needed to start the status server.
     pub fn new(
         config: ServerConfig,
         runtime: Arc<Runtime>,

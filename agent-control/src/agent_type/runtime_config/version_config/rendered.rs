@@ -1,12 +1,14 @@
+//! Version-check configuration for on-host agents after templating.
 use regex::Regex;
 
 use crate::agent_type::runtime_config::on_host::executable::rendered::Args;
 
+/// Rendered on-host version-check configuration.
 #[derive(Debug, Clone)]
 pub struct OnHostVersionConfig {
     /// Path to the binary from which we want to check the version.
     pub path: String,
-    // Command arguments.
+    /// Command arguments.
     pub args: Args,
     /// The regex expression to get the version from the command output.
     ///

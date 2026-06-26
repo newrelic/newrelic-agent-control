@@ -39,7 +39,9 @@ use std::{error::Error, marker::Sized};
 /// * `Starter` - The type representing a not-started supervisor ready to be started.
 /// * `Error` - The error type returned when building the starter fails
 pub trait SupervisorBuilder {
+    /// The not-yet-started supervisor produced by [`build_supervisor`](Self::build_supervisor).
     type Starter: SupervisorStarter;
+    /// Error returned when building the starter fails.
     type Error: Error;
 
     /// Builds a supervisor starter from the given effective agent configuration.
@@ -69,7 +71,9 @@ pub trait SupervisorBuilder {
 /// * `Supervisor` - The type representing the running supervisor
 /// * `Error` - The error type returned when starting the supervisor fails
 pub trait SupervisorStarter {
+    /// The running supervisor produced by [`start`](Self::start).
     type Supervisor: Supervisor;
+    /// Error returned when starting the supervisor fails.
     type Error: Error;
 
     /// Starts the supervisor, consuming this starter.
@@ -105,7 +109,9 @@ pub trait SupervisorStarter {
 /// * `ApplyError` - The error type returned when applying configuration changes fails
 /// * `StopError` - The error type returned when stopping fails
 pub trait Supervisor: Sized {
+    /// Error returned when applying a new configuration fails.
     type ApplyError: Error;
+    /// Error returned when stopping the supervisor fails.
     type StopError: Error;
 
     /// Applies a new effective agent configuration to the running supervisor.
@@ -142,6 +148,7 @@ pub trait Supervisor: Sized {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub(crate) mod tests {
     use super::*;
     use mockall::{mock, predicate};

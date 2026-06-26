@@ -1,3 +1,4 @@
+//! Pipe functions applicable to templated string values (e.g. `indent`).
 use regex::Regex;
 use std::sync::OnceLock;
 use thiserror::Error;
@@ -15,10 +16,13 @@ fn template_functions_re() -> &'static Regex {
 /// Error type for function parsing and application.
 #[derive(Error, Debug)]
 pub enum FunctionError {
+    /// Applying the function to a value failed.
     #[error("applying function: {0}")]
     Applying(String),
+    /// Parsing the function definition failed.
     #[error("parsing function: {0}")]
     Parsing(String),
+    /// The function name is not supported.
     #[error("not supported function: {0}")]
     UnknownFunctionName(String),
 }
@@ -28,7 +32,7 @@ pub trait Function {
     /// Applies the function to a given string value.
     fn apply(&self, value: String) -> Result<String, FunctionError>;
     /// Parses a string value to create an instance of the function.
-    /// [FunctionError::ParsingName] Error is returned in case the name
+    /// [FunctionError::UnknownFunctionName] Error is returned in case the name
     /// doesn't match with the Function name.
     fn parse(value: &str) -> Result<Self, FunctionError>
     where
@@ -59,6 +63,7 @@ impl Function for Indent {
 /// Holds the possible functions that can be applied to a string and will output a string
 #[derive(Debug, PartialEq)]
 pub enum SupportedFunction {
+    /// The `indent` function.
     Indent(Indent),
 }
 impl SupportedFunction {

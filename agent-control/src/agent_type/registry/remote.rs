@@ -1,3 +1,4 @@
+//! A registry that resolves agent types by pulling them from a remote OCI registry.
 use super::{AgentTypeRegistry, AgentTypeRegistryError};
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::agent_type::definition::{AgentTypeDefinition, AgentTypeMetadata};
@@ -16,6 +17,7 @@ pub struct RemoteRegistry<D> {
 }
 
 impl<D: OCIAgentTypeDownloader> RemoteRegistry<D> {
+    /// Builds a remote registry for the given running environment and downloader.
     pub fn new(environment: Environment, downloader: D) -> Self {
         Self {
             environment,

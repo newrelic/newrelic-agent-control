@@ -1,3 +1,5 @@
+//! An unbounded broadcast channel that fans out each event to all subscribers.
+
 use crossbeam::channel::{Receiver, Sender, unbounded};
 use std::sync::{Arc, Mutex};
 

@@ -1,3 +1,4 @@
+//! On-host deployment configuration: executables, filesystem, packages and check settings.
 use super::health_config::OnHostHealthConfig;
 use super::templateable_value::TemplateableValue;
 use super::version_config::OnHostVersionConfig;

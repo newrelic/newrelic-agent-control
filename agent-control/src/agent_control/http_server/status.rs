@@ -1,3 +1,5 @@
+//! Serializable status model exposed by the `/status` endpoint (Agent Control, fleet and agents).
+
 use crate::agent_control::agent_id::AgentID;
 
 use crate::agent_type::agent_type_id::AgentTypeID;
@@ -82,6 +84,7 @@ pub struct AgentControlStatus {
 }
 
 impl AgentControlStatus {
+    /// Updates this status from a health report, setting the healthy flag, last error and status.
     pub fn set_health(&mut self, health: HealthWithStartTime) {
         match Health::from(health) {
             Health::Healthy(healthy) => {
@@ -286,6 +289,7 @@ fn time_to_unix_timestamp(time: SystemTime) -> u64 {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use std::collections::HashMap;
 

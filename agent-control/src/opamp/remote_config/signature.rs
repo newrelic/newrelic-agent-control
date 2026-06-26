@@ -1,3 +1,4 @@
+//! Remote configuration signatures carried in OpAMP custom messages and their parsing.
 use crate::signature::public_key::SigningAlgorithm;
 use opamp_client::opamp::proto::CustomMessage;
 use serde::{Deserialize, Serialize};
@@ -23,9 +24,9 @@ pub const SIGNATURE_CUSTOM_MESSAGE_TYPE: &str = "newrelicRemoteConfigSignature";
 /// The signed message is consist in the remote config standard encoded base64 sha256 of the config body, which is signed
 /// with the private key and algorithm specified in the custom_message.
 /// Public key is distributed in JWKS format in the following endpoints:
-/// https://staging-publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json
-/// https://publickeys.eu.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json
-/// https://publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json
+/// <https://staging-publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json>
+/// <https://publickeys.eu.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json>
+/// <https://publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json>
 ///
 /// Example:
 /// ```json
@@ -56,6 +57,7 @@ pub const SIGNATURE_CUSTOM_MESSAGE_TYPE: &str = "newrelicRemoteConfigSignature";
 /// ```
 #[derive(Debug, Serialize, PartialEq, Clone)]
 pub struct Signatures {
+    /// Signature data keyed by configuration identifier.
     #[serde(flatten)]
     pub signatures: HashMap<ConfigID, SignatureData>,
 }
@@ -107,7 +109,7 @@ impl<'de> Deserialize<'de> for Signatures {
 }
 
 /// SignatureFields holds all the fields that make up the signature data. It allows us to represent the signature
-/// data before validation ([RawSignatureData], where the signing algorithm is a string) and after validation
+/// data before validation (`RawSignatureData`, where the signing algorithm is a string) and after validation
 /// [SignatureData] (where the signing algorithm is represented by the [SigningAlgorithm] type).
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -140,14 +142,17 @@ impl TryFrom<RawSignatureData> for SignatureData {
 }
 
 impl SignatureData {
+    /// Returns the signature bytes (base64-encoded text as bytes).
     pub fn signature(&self) -> &[u8] {
         self.signature.as_bytes()
     }
 
+    /// Returns the signing algorithm.
     pub fn signature_algorithm(&self) -> &SigningAlgorithm {
         &self.signing_algorithm
     }
 
+    /// Returns the public key identifier.
     pub fn key_id(&self) -> &str {
         &self.key_id
     }
@@ -157,12 +162,16 @@ impl SignatureData {
 /// This key links signature data to its associated configuration in the remote config map.
 pub type ConfigID = String;
 
+/// Errors produced while parsing a signature custom message.
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum SignatureError {
+    /// The custom message capability did not match the expected signature capability.
     #[error("invalid config signature capability")]
     InvalidCapability,
+    /// The custom message type did not match the expected signature type.
     #[error("invalid config signature type")]
     InvalidType,
+    /// The signature payload could not be parsed.
     #[error("invalid config signature data: {0}")]
     InvalidData(String),
 }
@@ -186,6 +195,7 @@ impl TryFrom<&CustomMessage> for Signatures {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::SignatureData;
     use super::Signatures;

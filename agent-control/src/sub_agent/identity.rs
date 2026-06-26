@@ -1,16 +1,22 @@
+//! Sub-agent identity: the pairing of an [AgentID] with its [AgentTypeID].
+
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE};
 use crate::agent_type::agent_type_id::AgentTypeID;
 use std::fmt::{Display, Formatter};
 
+/// Attribute key used to identify an agent by its id.
 pub const ID_ATTRIBUTE_NAME: &str = "id";
 
 const AC_AGENT_TYPE_VERSION: &str = "0.1.0";
 
 // This could be SubAgentIdentity
+/// Identifies a sub-agent by its id and agent type.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AgentIdentity {
+    /// The agent's unique id.
     pub id: AgentID,
+    /// The agent's type id (namespace, name, version).
     pub agent_type_id: AgentTypeID,
 }
 
@@ -55,6 +61,7 @@ impl Display for AgentIdentity {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
 

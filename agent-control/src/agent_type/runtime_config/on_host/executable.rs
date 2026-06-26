@@ -1,3 +1,4 @@
+//! On-host executable definition: binary path, arguments, environment and restart policy.
 use std::collections::HashMap;
 
 use serde::Deserialize;
@@ -46,8 +47,12 @@ impl Templateable for Executable {
     }
 }
 
+/// Command-line arguments, each a templateable value.
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
-pub struct Args(pub Vec<TemplateableValue<String>>);
+pub struct Args(
+    /// The argument list.
+    pub Vec<TemplateableValue<String>>,
+);
 
 impl Templateable for Args {
     type Output = rendered::Args;
@@ -61,6 +66,7 @@ impl Templateable for Args {
     }
 }
 
+/// Environment variables passed to the executable, each value templateable.
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 pub struct Env(pub(super) HashMap<String, TemplateableValue<String>>);
 

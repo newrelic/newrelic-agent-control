@@ -1,3 +1,4 @@
+//! Kubernetes GUID checker built from a set of resources, plus the thread that runs it.
 use crate::agent_control::config::instrumentation_v1beta3_type_meta;
 use crate::agent_type::guid_config::{GuidCheckerInitialDelay, GuidCheckerInterval};
 use crate::checkers::guid::k8s::resources::instrumentation::K8sGuidInstrumentation;
@@ -17,13 +18,18 @@ use std::sync::Arc;
 use std::thread::sleep;
 use tracing::{debug, info, info_span, warn};
 
+/// Base name used for the spawned GUID-checker thread.
 pub const GUID_CHECKER_THREAD_NAME: &str = "guid_checker";
 
+/// GUID checker that retrieves the agent's entity GUID from a Kubernetes Instrumentation resource.
 pub struct K8sGuidChecker<C: K8sClient = SyncK8sClient> {
     instrumentation_checker: K8sGuidInstrumentation<C>,
 }
 
 impl<C: K8sClient> K8sGuidChecker<C> {
+    /// Builds a checker from the first Instrumentation resource found in `resources`.
+    ///
+    /// Returns `Ok(None)` when no Instrumentation resource is present.
     pub fn new(
         k8s_client: Arc<C>,
         resources: Arc<Vec<DynamicObject>>,

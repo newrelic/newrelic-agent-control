@@ -1,3 +1,6 @@
+//! Default [`AgentControlConfigLoader`]/[`AgentControlDynamicConfigRepository`] implementation that
+//! merges local files, environment overrides and remote (OpAMP) configuration.
+
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{
     AgentControlConfig, AgentControlConfigError, AgentControlDynamicConfig,
@@ -17,6 +20,8 @@ use opamp_client::operation::capabilities::Capabilities;
 use std::sync::Arc;
 use tracing::warn;
 
+/// Configuration store backed by a [`ConfigRepository`] that loads the Agent Control config from
+/// local files plus environment overrides, applying remote dynamic config on top when present.
 pub struct AgentControlConfigStore<Y>
 where
     Y: ConfigRepository,
@@ -81,6 +86,7 @@ impl<V> AgentControlConfigStore<V>
 where
     V: ConfigRepository,
 {
+    /// Builds a store backed by the given values repository for the Agent Control identity.
     pub fn new(values_repository: Arc<V>) -> Self {
         let config_builder = Config::builder();
 

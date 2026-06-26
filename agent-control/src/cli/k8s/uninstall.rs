@@ -1,3 +1,4 @@
+//! Uninstalls Agent Control resources from Kubernetes, with retrying deletion helpers.
 use std::time::Duration;
 
 use either::Either;

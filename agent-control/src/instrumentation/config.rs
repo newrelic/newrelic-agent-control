@@ -22,6 +22,7 @@ pub struct InstrumentationConfig {
 }
 
 impl InstrumentationConfig {
+    /// Returns a new configuration with the given proxy applied to the OpenTelemetry config, if any.
     pub fn with_proxy_config(self, proxy: ProxyConfig) -> Self {
         Self {
             opentelemetry: self

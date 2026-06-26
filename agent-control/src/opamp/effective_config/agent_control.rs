@@ -1,3 +1,4 @@
+//! Effective-configuration loader for the agent control itself.
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -28,6 +29,7 @@ impl<Y> AgentControlEffectiveConfigLoader<Y>
 where
     Y: ConfigRepository,
 {
+    /// Creates a loader reading the agent control config from the given repository.
     pub fn new(yaml_config_repository: Arc<Y>) -> Self {
         Self {
             yaml_config_repository,
@@ -52,8 +54,10 @@ struct AgentControlEffectiveConfig {
     cd_chart_version: Option<String>,
 }
 
+/// Errors produced while building the agent control effective configuration.
 #[derive(Debug, Error)]
 pub enum AgentControlEffectiveConfigError {
+    /// The stored values could not be converted into the effective config.
     #[error("processing agent-control effective config: {0}")]
     Conversion(String),
 }

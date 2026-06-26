@@ -1,7 +1,10 @@
+//! Error types for effective-configuration loading.
 use thiserror::Error;
 
+/// Errors surfaced while obtaining the effective configuration.
 #[derive(Debug, Error)]
 pub enum EffectiveConfigError {
+    /// An error originating from the configuration loader.
     #[error(transparent)]
     Loader(LoaderError),
 }

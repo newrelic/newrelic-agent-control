@@ -1,3 +1,5 @@
+//! Bridges synchronous Agent Control events onto async channels consumed by the status server.
+
 use crate::event::channel::EventConsumer;
 use crate::event::{AgentControlEvent, SubAgentEvent};
 use crate::utils::threads::spawn_named_thread;

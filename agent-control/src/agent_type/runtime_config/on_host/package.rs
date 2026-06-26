@@ -1,3 +1,4 @@
+//! On-host package definitions: OCI download sources and optional post-download hooks.
 use std::str::FromStr;
 
 use crate::agent_type::definition::Variables;
@@ -20,14 +21,17 @@ pub(super) struct Package {
     pub post_download_hook: Option<PostDownloadHook>,
 }
 
+/// Identifier of a package within an agent type.
 pub type PackageID = String;
 
+/// Supported download sources for a package.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Download {
     /// OCI repository definition
     pub oci: Oci,
 }
 
+/// OCI download source for a package.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Oci {
     /// Repository name.
@@ -39,6 +43,7 @@ pub struct Oci {
     pub public_key_url: Option<TemplateableValue<String>>,
 }
 
+/// A hook executed after a package has been downloaded and extracted.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct PostDownloadHook {
     /// Path to the command/executable to run.

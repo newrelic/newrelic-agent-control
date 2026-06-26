@@ -1,3 +1,5 @@
+//! OS-level command wrapper with not-started/started states, output streaming, and shutdown handling.
+
 use tracing::warn;
 
 use crate::agent_control::agent_id::AgentID;
@@ -25,6 +27,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started/Sync Command
 ////////////////////////////////////////////////////////////////////////////////////
+/// A configured but not-yet-spawned OS command.
 pub struct CommandOSNotStarted {
     cmd: Command,
     agent_id: AgentID,
@@ -32,6 +35,7 @@ pub struct CommandOSNotStarted {
     logging_path: PathBuf,
     shutdown_timeout: Duration,
 }
+/// A spawned OS command process with its loggers and (on Windows) job object.
 pub struct CommandOSStarted {
     agent_id: AgentID,
     process: Child,
@@ -46,6 +50,7 @@ pub struct CommandOSStarted {
 // Not Started Command OS
 ////////////////////////////////////////////////////////////////////////////////////
 impl CommandOSNotStarted {
+    /// Creates a not-started command for the given executable, configuring stdio pipes and logging.
     pub fn new(
         agent_id: AgentID,
         executable_data: &ExecutableData,
@@ -67,6 +72,7 @@ impl CommandOSNotStarted {
         }
     }
 
+    /// Spawns the process, setting up file loggers and (on Windows) a job object.
     pub fn start(mut self) -> Result<CommandOSStarted, CommandError> {
         let agent_id = self.agent_id;
         let loggers = if self.logs_to_file {
@@ -111,10 +117,12 @@ impl CommandOSNotStarted {
 ////////////////////////////////////////////////////////////////////////////////////
 
 impl CommandOSStarted {
+    /// Returns the process id of the running command.
     pub fn get_pid(&self) -> u32 {
         self.process.id()
     }
 
+    /// Returns whether the process is still running.
     pub fn is_running(&mut self) -> bool {
         self.process.try_wait().is_ok_and(|v| v.is_none())
     }
@@ -166,6 +174,7 @@ impl CommandOSStarted {
         true
     }
 
+    /// Stops the process, attempting a graceful shutdown and forcing a kill after the timeout.
     pub fn shutdown(&mut self) -> Result<(), CommandError> {
         // Attempt a graceful shutdown (platform-dependent).
         let graceful_shutdown_result = self.graceful_shutdown();

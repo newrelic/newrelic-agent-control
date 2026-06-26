@@ -1,3 +1,4 @@
+//! Extraction and loading of secret variables referenced from a sub-agent configuration.
 use std::collections::{HashMap, HashSet};
 
 use crate::{
@@ -72,11 +73,19 @@ impl TryFrom<YAMLConfig> for SecretVariables {
     }
 }
 
+/// Errors produced while extracting or loading secret variables.
 #[derive(thiserror::Error, Debug)]
 pub enum SecretVariablesError {
+    /// A secret could not be loaded from its provider.
     #[error("failed to load secret {path}: {err_msg}")]
-    SecretsLoadError { path: String, err_msg: String },
+    SecretsLoadError {
+        /// The secret path that failed to load.
+        path: String,
+        /// The underlying error message.
+        err_msg: String,
+    },
 
+    /// The YAML config could not be parsed.
     #[error("failed to parse yaml config")]
     YamlParseError,
 }

@@ -1,9 +1,11 @@
+//! The rendered runtime configuration produced after templating an agent type.
 use crate::agent_type::runtime_config::{k8s::K8s, on_host::rendered::OnHost};
 
 /// The runtime definition of an agent type after it has been completely rendered by the
 /// templating process.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Runtime {
+    /// The rendered deployment instructions.
     pub deployment: Deployment,
 }
 
@@ -11,11 +13,14 @@ pub struct Runtime {
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum Deployment {
+    /// An on-host deployment.
     Host(OnHost),
+    /// A Kubernetes deployment.
     K8s(K8s),
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 impl Deployment {
     pub fn on_host(self) -> OnHost {
         match self {

@@ -1,3 +1,5 @@
+//! Windows Job Object wrapper for terminating a process and its descendants as a group.
+
 use crate::sub_agent::on_host::command::error::CommandError;
 use std::os::windows::io::AsRawHandle;
 use std::process::Child;

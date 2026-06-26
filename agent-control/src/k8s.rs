@@ -1,3 +1,5 @@
+//! Kubernetes integration for agent-control: clients, reflectors, stores and helpers
+//! to manage cluster resources.
 pub use error::K8sError as Error;
 pub mod annotations;
 pub mod client;

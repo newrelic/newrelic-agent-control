@@ -1,3 +1,4 @@
+//! Builds the dynamic objects that install the Flux (agent-control-cd) Helm release on Kubernetes.
 use std::collections::BTreeMap;
 
 use kube::api::DynamicObject;
@@ -16,9 +17,10 @@ use crate::{
 
 /// Implementation of [`DynamicObjectListBuilder`] for generating the dynamic object lists corresponding to the Agent Control resources.
 ///
-/// To be applied via [`install_or_upgrade`](super::install_or_upgrade).
+/// To be applied via [`apply_resources`](super::apply_resources).
 pub struct InstallFlux;
 
+/// Name of the HelmRepository created for the Flux (agent-control-cd) release.
 pub const HELM_REPOSITORY_NAME: &str = "agent-control-cd";
 
 impl DynamicObjectListBuilder for InstallFlux {

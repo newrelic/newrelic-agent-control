@@ -1,3 +1,5 @@
+//! File logging for executable output, using a daily-rotating appender and a thread-local subscriber.
+
 use std::{io::Write, path::Path};
 use thiserror::Error;
 use tracing::{level_filters::LevelFilter, subscriber::DefaultGuard};
@@ -10,6 +12,7 @@ use tracing_subscriber::{
     fmt::format::{DefaultFields, Format, Full},
 };
 
+/// Error produced while building a file logger.
 #[derive(Debug, Error)]
 #[error("{0}")]
 pub struct FileLoggerError(String);
@@ -42,17 +45,20 @@ impl FileSystemLoggers {
     }
 }
 
+/// A tracing subscriber that writes executable output to a rotating file.
 pub struct FileLogger {
     file_subscriber: FmtSubscriber<DefaultFields, Format<Full, ()>, LevelFilter, NonBlocking>,
     _guard: WorkerGuard,
 }
 
+/// Guard that keeps thread-local file logging active until dropped, then restores the global logger.
 pub struct SubAgentLoggerGuard {
     _default_guard: DefaultGuard,
     _worker_guard: WorkerGuard,
 }
 
 impl FileLogger {
+    /// Creates a file logger writing to the given appender (no ANSI, target, level, or timestamps).
     pub fn new(appender: impl Write + Send + 'static) -> Self {
         let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
         let file_subscriber = tracing_subscriber::fmt()
