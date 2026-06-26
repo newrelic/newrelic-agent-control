@@ -28,27 +28,35 @@ const TEMP_PREFIX: &str = "__temp__";
 /// Errors that can occur during self-replacement operations.
 #[derive(Debug, Error)]
 pub enum ReplaceError {
+    /// The path of the currently running executable could not be determined.
     #[error("failed to determine current executable path: {0}")]
     CurrentExeNotFound(#[source] io::Error),
 
+    /// No file exists at the path provided for the replacement binary.
     #[error("new binary not found at {0}")]
     NewBinaryNotFound(String),
 
+    /// Backing up the current binary before replacing it failed.
     #[error("failed to create backup: {0}")]
     BackupCreationFailed(#[source] io::Error),
 
+    /// Renaming the new binary over the current binary path failed.
     #[error("failed to replace binary: {0}")]
     ReplaceFailed(#[source] io::Error),
 
+    /// Restoring the original binary from its backup after a failed replacement failed.
     #[error("failed to restore backup: {0}")]
     BackupRestoreFailed(#[source] io::Error),
 
+    /// Reading the current binary's file metadata (e.g. its permissions) failed.
     #[error("failed to read file metadata: {0}")]
     Metadata(#[source] io::Error),
 
+    /// Copying the new binary into a temporary file next to the current binary failed.
     #[error("failed to copy new binary to temporary location: {0}")]
     TempCopyFailed(#[source] io::Error),
 
+    /// The current executable path has no parent directory to place the temporary file in.
     #[error("current executable has no parent directory")]
     NoParentDirectory,
 }
