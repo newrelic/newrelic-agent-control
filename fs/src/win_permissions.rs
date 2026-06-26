@@ -11,6 +11,7 @@ use windows_sys::Win32::Security::{
     PROTECTED_DACL_SECURITY_INFORMATION, SECURITY_MAX_SID_SIZE, WinBuiltinAdministratorsSid,
 };
 
+/// Error returned when setting Windows file permissions (ACLs) fails.
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
 pub struct PermissionError(String);
@@ -100,6 +101,7 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use windows_sys::Win32::{
         Foundation::ERROR_SUCCESS,

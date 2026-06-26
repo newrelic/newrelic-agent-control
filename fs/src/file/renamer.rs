@@ -3,7 +3,9 @@ use std::fs::rename;
 use std::io;
 use std::path::Path;
 
+/// Renames (moves) a file on disk.
 pub trait FileRenamer {
+    /// Renames the file at `file_path` to `rename_path`.
     fn rename(&self, file_path: &Path, rename_path: &Path) -> io::Result<()>;
 }
 
@@ -24,6 +26,7 @@ impl FileRenamer for LocalFile {
 }
 
 #[cfg(feature = "mocks")]
+#[allow(missing_docs)] // test-support code
 pub mod mock {
     use crate::mock::MockLocalFile;
     use mockall::predicate;
@@ -43,6 +46,7 @@ pub mod mock {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
 
     use super::*;

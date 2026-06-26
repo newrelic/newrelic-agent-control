@@ -1,10 +1,25 @@
+//! Filesystem helpers used across Agent Control.
+//!
+//! Provides small, mockable abstractions over the filesystem operations Agent Control
+//! performs: reading, writing, renaming and deleting files ([`file`](mod@file)), creating and
+//! removing directories ([`directory_manager`]), and path validation ([`utils`]). On
+//! Windows it also exposes ACL helpers (`win_permissions`).
+
+#![deny(missing_docs)]
+
+/// Creating and removing directories on disk.
 pub mod directory_manager;
+/// Reading, writing, renaming and deleting files on disk.
 pub mod file;
+/// Path validation and the shared filesystem error type.
 pub mod utils;
+/// Windows-only helpers for restricting file permissions via ACLs.
 #[cfg(target_family = "windows")]
 pub mod win_permissions;
 
+/// `mockall`-generated mocks of the file traits, enabled by the `mocks` feature.
 #[cfg(feature = "mocks")]
+#[allow(missing_docs)] // generated mock implementations
 pub mod mock {
     use std::io;
     use std::path::Path;

@@ -4,6 +4,7 @@ use std::io;
 use std::path::Path;
 use tracing::instrument;
 
+/// Creates and removes directories on disk.
 pub trait DirectoryManager: Send + Sync {
     /// create will create a folder
     fn create(&self, path: &Path) -> io::Result<()>;
@@ -13,7 +14,9 @@ pub trait DirectoryManager: Send + Sync {
     fn delete(&self, path: &Path) -> io::Result<()>;
 }
 
-// This is expected to be thread-safe since it is used in the package manager
+/// [`DirectoryManager`] implementation backed by the real filesystem.
+///
+/// This is expected to be thread-safe since it is used in the package manager.
 pub struct DirectoryManagerFs;
 
 impl DirectoryManager for DirectoryManagerFs {
@@ -68,6 +71,7 @@ impl DirectoryManagerFs {
 // Mock
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(feature = "mocks")]
+#[allow(missing_docs)] // test-support code
 pub mod mock {
     use super::*;
     use mockall::{mock, predicate};
@@ -119,6 +123,7 @@ pub mod mock {
 // TESTS
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::DirectoryManagerFs;
     use crate::directory_manager::DirectoryManager;
