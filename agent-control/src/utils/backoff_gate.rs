@@ -34,7 +34,7 @@ impl<K> Default for GateState<K> {
     }
 }
 
-/// A thread-safe gate that throttles repeated attempts at a fallible operation
+/// A gate that throttles repeated attempts at a fallible operation
 /// keyed by `K` (e.g. a target version
 pub struct BackoffGate<K, C = SystemClock> {
     policy: BackoffPolicy,
