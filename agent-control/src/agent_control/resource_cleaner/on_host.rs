@@ -17,8 +17,8 @@ use super::{ResourceCleaner, ResourceCleanerError};
 
 /// On-host implementation of [`ResourceCleaner`] that wipes a sub-agent's fleet data by
 /// delegating to the same storers that wrote it, also recursively deletes the sub-agent's
-/// dedicated filesystem directory, the `persistent` flag is bypassed here because fleet removal
-/// is final.
+/// dedicated filesystem directory, the `persistent` flag is bypassed here because the agent
+/// has been removed from the fleet.
 pub struct OnHostCleaner<S, C, D>
 where
     S: InstanceIDStorer,
