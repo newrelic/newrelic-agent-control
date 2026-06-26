@@ -40,9 +40,117 @@ pub enum RenderedEntry {
     },
 }
 
+impl RenderedEntry {
+    fn persistent(&self) -> bool {
+        match self {
+            Self::File { persistent, .. }
+            | Self::Dir { persistent, .. }
+            | Self::DirContentFromMap { persistent, .. } => *persistent,
+        }
+    }
+
+    /// Inserts this entry's path and all of its descendants' paths into `declared`.
+    fn collect_declared(&self, path: &Path, declared: &mut HashSet<PathBuf>) {
+        declared.insert(path.to_path_buf());
+        match self {
+            Self::File { .. } => {}
+            Self::Dir { children, .. } => {
+                for (sub, child) in children {
+                    child.collect_declared(&path.join(sub), declared);
+                }
+            }
+            Self::DirContentFromMap { files, .. } => {
+                for sub in files.keys() {
+                    declared.insert(path.join(sub));
+                }
+            }
+        }
+    }
+
+    /// Materializes this entry (and its subtree) on disk at `path`.
+    fn write(
+        &self,
+        path: &Path,
+        file_writer: &impl FileWriter,
+        dir_manager: &impl DirectoryManager,
+    ) -> Result<(), FileSystemEntriesError> {
+        match self {
+            Self::File { content, .. } => write_file(file_writer, dir_manager, path, content),
+            Self::Dir { children, .. } => {
+                ensure_dir(dir_manager, path)?;
+                for (sub_path, child) in children {
+                    let child_path = path.join(sub_path);
+                    trace!("Recursing into child entry {}", child_path.display());
+                    child.write(&child_path, file_writer, dir_manager)?;
+                }
+                Ok(())
+            }
+            Self::DirContentFromMap { files, .. } => {
+                ensure_dir(dir_manager, path)?;
+                for (file_name, content) in files {
+                    write_file(file_writer, dir_manager, &path.join(file_name), content)?;
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// Deletes this entry's on-disk path if it is ephemeral. A persistent directory is kept, but
+    /// the walk recurses so ephemeral descendants are still cleaned; an ephemeral ancestor is
+    /// removed recursively, taking any persistent descendants with it.
+    fn delete_ephemeral(&self, path: &Path) -> Result<(), FileSystemEntriesError> {
+        if !self.persistent() {
+            if path.exists() {
+                delete_path(path)
+                    .inspect_err(|err| warn!(?err, ?path, "delete_ephemeral failed"))?;
+            }
+            return Ok(());
+        }
+        // Persistent: keep this node, but its children may still be ephemeral.
+        if let Self::Dir { children, .. } = self {
+            for (sub, child) in children {
+                child.delete_ephemeral(&path.join(sub))?;
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct ManagedPathsManifest {
     managed_paths: Vec<PathBuf>,
+}
+
+impl ManagedPathsManifest {
+    /// Loads the manifest at `path`. A missing or malformed file creates an empty manifest (logged)
+    fn load(path: &Path) -> Self {
+        let raw = match std::fs::read(path) {
+            Ok(b) => b,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Self::default(),
+            Err(err) => {
+                warn!(
+                    ?err,
+                    ?path,
+                    "failed to read managed-paths manifest, ignoring"
+                );
+                return Self::default();
+            }
+        };
+        serde_json::from_slice(&raw).unwrap_or_else(|err| {
+            warn!(?err, ?path, "managed-paths manifest is malformed, ignoring");
+            Self::default()
+        })
+    }
+
+    /// Serializes the manifest to `path`, creating its parent directory if needed.
+    fn save(&self, path: &Path) -> Result<(), std::io::Error> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let body = serde_json::to_vec(self)
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
+        std::fs::write(path, body)
+    }
 }
 
 impl FileSystem {
@@ -58,7 +166,7 @@ impl FileSystem {
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
         let manifest_path = self.manifest_path();
-        let prev_declared = read_manifest(&manifest_path, &self.base_dir);
+        let prev_declared = self.read_manifest();
         let curr_declared = self.collect_declared_paths();
 
         // Reconcile: delete paths AC owned previously but no longer declares.
@@ -77,10 +185,13 @@ impl FileSystem {
         }
 
         for (path, entry) in &self.entries {
-            write_entry(file_writer, dir_manager, path, entry)?;
+            entry.write(path, file_writer, dir_manager)?;
         }
 
-        if let Err(err) = write_manifest(&manifest_path, &curr_declared) {
+        let mut managed_paths: Vec<PathBuf> = curr_declared.iter().cloned().collect();
+        managed_paths.sort();
+        let manifest = ManagedPathsManifest { managed_paths };
+        if let Err(err) = manifest.save(&manifest_path) {
             warn!(
                 ?err,
                 ?manifest_path,
@@ -95,7 +206,7 @@ impl FileSystem {
     /// A persistent entry whose ancestor is ephemeral is wiped along with the ancestor
     pub fn delete_ephemeral(&self) -> Result<(), FileSystemEntriesError> {
         for (path, entry) in &self.entries {
-            delete_ephemeral_recursive(path, entry)?;
+            entry.delete_ephemeral(path)?;
         }
         Ok(())
     }
@@ -107,65 +218,30 @@ impl FileSystem {
     fn collect_declared_paths(&self) -> HashSet<PathBuf> {
         let mut declared = HashSet::new();
         for (path, entry) in &self.entries {
-            collect_recursive(path, entry, &mut declared);
+            entry.collect_declared(path, &mut declared);
         }
         declared
     }
-}
 
-fn collect_recursive(path: &Path, entry: &RenderedEntry, declared: &mut HashSet<PathBuf>) {
-    declared.insert(path.to_path_buf());
-    match entry {
-        RenderedEntry::File { .. } => {}
-        RenderedEntry::Dir { children, .. } => {
-            for (sub, child) in children {
-                collect_recursive(&path.join(sub), child, declared);
-            }
-        }
-        RenderedEntry::DirContentFromMap { files, .. } => {
-            for sub in files.keys() {
-                declared.insert(path.join(sub));
-            }
-        }
+    /// Reads the managed-paths manifest, returning only entries that are contained in `base_dir`
+    fn read_manifest(&self) -> HashSet<PathBuf> {
+        let manifest_path = self.manifest_path();
+        ManagedPathsManifest::load(&manifest_path)
+            .managed_paths
+            .into_iter()
+            .filter(|p| {
+                // Never let the manifest mark itself for deletion.
+                if p == &manifest_path {
+                    return false;
+                }
+                let within = is_within_base(p, &self.base_dir);
+                if !within {
+                    warn!(?p, base_dir = ?self.base_dir, "An agent is not allowed to modify files outside its isolated filesystem. Ignoring path.");
+                }
+                within
+            })
+            .collect()
     }
-}
-
-/// Reads the managed-paths manifest at `path`, returning only entries that are safe to act on:
-/// paths genuinely contained in `base_dir`.
-fn read_manifest(path: &Path, base_dir: &Path) -> HashSet<PathBuf> {
-    let raw = match std::fs::read(path) {
-        Ok(b) => b,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return HashSet::new(),
-        Err(err) => {
-            warn!(
-                ?err,
-                ?path,
-                "failed to read managed-paths manifest, ignoring"
-            );
-            return HashSet::new();
-        }
-    };
-    let managed_paths = match serde_json::from_slice::<ManagedPathsManifest>(&raw) {
-        Ok(m) => m.managed_paths,
-        Err(err) => {
-            warn!(?err, ?path, "managed-paths manifest is malformed, ignoring");
-            return HashSet::new();
-        }
-    };
-    managed_paths
-        .into_iter()
-        .filter(|p| {
-            // Never let the manifest mark itself for deletion.
-            if p == path {
-                return false;
-            }
-            let within = is_within_base(p, base_dir);
-            if !within {
-                warn!(?p, ?base_dir, "An agent is not allowed to modify files outside it's isolated filesystem. Ignoring path.");
-            }
-            within
-        })
-        .collect()
 }
 
 /// Returns `true` only when `path` is genuinely contained in `base_dir`: an absolute path, with no
@@ -177,19 +253,8 @@ fn is_within_base(path: &Path, base_dir: &Path) -> bool {
     !has_escape && path.is_absolute() && path.starts_with(base_dir)
 }
 
-fn write_manifest(path: &Path, declared: &HashSet<PathBuf>) -> Result<(), std::io::Error> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let mut managed_paths: Vec<PathBuf> = declared.iter().cloned().collect();
-    managed_paths.sort();
-    let body = serde_json::to_vec(&ManagedPathsManifest { managed_paths })
-        .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
-    std::fs::write(path, body)
-}
-
 fn delete_path(path: &Path) -> Result<(), FileSystemEntriesError> {
-    trace!("Deleting stale managed path {}", path.display());
+    trace!("Deleting path {}", path.display());
     let res = if path.is_dir() {
         std::fs::remove_dir_all(path)
     } else {
@@ -225,57 +290,6 @@ fn write_file(
     file_writer
         .write(path, content.to_owned())
         .map_err(|err| FileSystemEntriesError(format!("creating file {path:?}: {err}")))
-}
-
-fn write_entry(
-    file_writer: &impl FileWriter,
-    dir_manager: &impl DirectoryManager,
-    path: &Path,
-    entry: &RenderedEntry,
-) -> Result<(), FileSystemEntriesError> {
-    match entry {
-        RenderedEntry::File { content, .. } => write_file(file_writer, dir_manager, path, content),
-        RenderedEntry::Dir { children, .. } => {
-            ensure_dir(dir_manager, path)?;
-            for (sub_path, child) in children {
-                let child_path = path.join(sub_path);
-                trace!("Recursing into child entry {}", child_path.display());
-                write_entry(file_writer, dir_manager, &child_path, child)?;
-            }
-            Ok(())
-        }
-        RenderedEntry::DirContentFromMap { files, .. } => {
-            ensure_dir(dir_manager, path)?;
-            for (file_name, content) in files {
-                write_file(file_writer, dir_manager, &path.join(file_name), content)?;
-            }
-            Ok(())
-        }
-    }
-}
-
-fn delete_ephemeral_recursive(
-    path: &Path,
-    entry: &RenderedEntry,
-) -> Result<(), FileSystemEntriesError> {
-    let persistent = match entry {
-        RenderedEntry::File { persistent, .. }
-        | RenderedEntry::Dir { persistent, .. }
-        | RenderedEntry::DirContentFromMap { persistent, .. } => *persistent,
-    };
-    if !persistent {
-        if path.exists() {
-            delete_path(path).inspect_err(|err| warn!(?err, ?path, "delete_ephemeral failed"))?;
-        }
-        return Ok(());
-    }
-    // Children may still be ephemeral.
-    if let RenderedEntry::Dir { children, .. } = entry {
-        for (sub, child) in children {
-            delete_ephemeral_recursive(&path.join(sub), child)?;
-        }
-    }
-    Ok(())
 }
 
 #[derive(Debug, Error)]
@@ -353,7 +367,7 @@ mod tests {
         };
         std::fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
 
-        let result = read_manifest(&manifest_path, &base_dir);
+        let result = FileSystem::new(base_dir, HashMap::new()).read_manifest();
 
         assert_eq!(result, HashSet::from([keep_1, keep_2]));
     }
@@ -362,8 +376,11 @@ mod tests {
     fn read_manifest_missing_file_is_empty() {
         let dir = tempfile::tempdir().unwrap();
         let base_dir = dir.path().to_path_buf();
-        let manifest_path = base_dir.join(MANAGED_PATHS_MANIFEST_FILENAME);
 
-        assert!(read_manifest(&manifest_path, &base_dir).is_empty());
+        assert!(
+            FileSystem::new(base_dir, HashMap::new())
+                .read_manifest()
+                .is_empty()
+        );
     }
 }
