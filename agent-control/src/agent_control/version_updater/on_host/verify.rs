@@ -46,7 +46,8 @@ pub struct CommandResult {
 }
 
 /// Abstraction for executing the verification command. For testing purposes.
-pub trait VerifyExecutor {
+/// `Send` is required because the self-update worker runs `execute` on a background thread.
+pub trait VerifyExecutor: Send {
     /// Runs the verification command for the given binary and arguments.
     fn execute(&self, binary_path: &Path, args: &[&str]) -> Result<(), VerifyError>;
 }

@@ -28,7 +28,10 @@ use crate::event::{
 use crate::opamp::attributes::update_opamp_attributes;
 use crate::opamp::remote_config::report::report_state;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
-use crate::opamp::remote_config::{OpampRemoteConfig, OpampRemoteConfigError, hash::ConfigState};
+use crate::opamp::remote_config::{
+    OpampRemoteConfig, OpampRemoteConfigError,
+    hash::{ConfigState, Hash},
+};
 use crate::sub_agent::{
     NotStartedSubAgent, SubAgentBuilder, collection::StartedSubAgents, identity::AgentIdentity,
 };
@@ -47,7 +50,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, error, info, info_span, instrument, trace, warn};
 use uptime_report::UptimeReporter;
-use version_updater::updater::VersionUpdater;
+use version_updater::updater::{UpdateOutcome, VersionUpdater};
 
 /// Type alias for a [crate::sub_agent::StartedSubAgent] corresponding to a [SubAgentBuilder].
 type BuilderStartedSubAgent<S> =
@@ -304,6 +307,11 @@ where
 
         let mut current_dynamic_config = self.initial_config.dynamic.clone();
 
+        // Hash of the remote config whose on-host self-update is downloading/verifying in the
+        // background. Held in `Applying` until the worker reports success (→ `Applied`, just before
+        // restart) or failure (→ `Failed`). `None` when no async self-update is in flight.
+        let mut pending_self_update_hash: Option<Hash> = None;
+
         // Heartbeat that re-drives a pending self-update so a transient registry outage recovers
         // without a new desired version from Fleet. Inactive unless self-update is enabled.
         let self_update_config = &self.initial_config.self_update;
@@ -333,9 +341,14 @@ where
                                     trace!(monotonic_counter.remote_configs_received = remote_config_count);
 
                                     match self.handle_remote_config(remote_config, &mut sub_agents, &current_dynamic_config) {
-                                        Ok(new_dynamic_config) => {
+                                        Ok((new_dynamic_config, maybe_self_update_hash)) => {
                                             // A new config has been applied from remote, so we update the current to this.
-                                            current_dynamic_config = new_dynamic_config
+                                            current_dynamic_config = new_dynamic_config;
+                                            // If it kicked off an async self-update, remember its hash so the
+                                            // worker's completion can flip the reported state to Applied/Failed.
+                                            if let Some(hash) = maybe_self_update_hash {
+                                                pending_self_update_hash = Some(hash);
+                                            }
                                         }
                                         Err(err) => {
                                             error!(error_msg = %err,"Error processing remote config")
@@ -368,9 +381,31 @@ where
                                 },
                                 AgentControlInternalEvent::SelfUpdateRestartRequested() => {
                                     debug!("Stopping Agent Control to apply self-update");
+                                    // The async upgrade succeeded; report the in-flight config as Applied
+                                    // before restarting so Fleet Control sees the final state.
+                                    if let Some(hash) = pending_self_update_hash.take()
+                                        && let Some(opamp_client) = &self.opamp_client
+                                    {
+                                        let _ = self.sa_dynamic_config_store.update_state(ConfigState::Applied);
+                                        let _ = report_state(ConfigState::Applied, hash, opamp_client)
+                                            .inspect_err(|e| error!(error = %e, "reporting self-update Applied state"));
+                                    }
                                     self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
                                     sub_agents.stop();
                                     break GracefulShutdownReason::SelfUpdate;
+                                }
+                                AgentControlInternalEvent::SelfUpdateFailed { error_message } => {
+                                    warn!(error_msg = %error_message, "Self-update attempt failed");
+                                    // Flip the in-flight config from Applying to Failed so Fleet Control
+                                    // sees the outcome; the gate cooldown was already recorded by the worker.
+                                    if let Some(hash) = pending_self_update_hash.take()
+                                        && let Some(opamp_client) = &self.opamp_client
+                                    {
+                                        let config_state = ConfigState::Failed { error_message };
+                                        let _ = self.sa_dynamic_config_store.update_state(config_state.clone());
+                                        let _ = report_state(config_state, hash, opamp_client)
+                                            .inspect_err(|e| error!(error = %e, "reporting self-update Failed state"));
+                                    }
                                 }}
                         },
                     }
@@ -407,7 +442,7 @@ where
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
         current_dynamic_config: &AgentControlDynamicConfig,
-    ) -> Result<AgentControlDynamicConfig, AgentControlError> {
+    ) -> Result<(AgentControlDynamicConfig, Option<Hash>), AgentControlError> {
         let Some(opamp_client) = &self.opamp_client else {
             unreachable!("got remote config without OpAMP being enabled");
         };
@@ -442,12 +477,20 @@ where
                 report_state(config_state, opamp_remote_config.hash, opamp_client)?;
                 Err(err)
             }
-            Ok(new_dynamic_config) => {
+            Ok((new_dynamic_config, UpdateOutcome::Dispatched)) => {
+                // An async self-update is downloading/verifying in the background. Keep the config
+                // in `Applying` (reported above); the worker's completion flips it to
+                // Applied/Failed via the `SelfUpdateRestartRequested`/`SelfUpdateFailed` events.
+                // The hash is returned so the event loop can correlate that completion.
+                opamp_client.update_effective_config()?;
+                Ok((new_dynamic_config, Some(opamp_remote_config.hash)))
+            }
+            Ok((new_dynamic_config, UpdateOutcome::NoOp)) => {
                 self.sa_dynamic_config_store
                     .update_state(ConfigState::Applied)?;
                 report_state(ConfigState::Applied, opamp_remote_config.hash, opamp_client)?;
                 opamp_client.update_effective_config()?;
-                Ok(new_dynamic_config)
+                Ok((new_dynamic_config, None))
             }
         }
     }
@@ -459,7 +502,7 @@ where
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
         current_dynamic_config: &AgentControlDynamicConfig,
-    ) -> Result<AgentControlDynamicConfig, AgentControlError> {
+    ) -> Result<(AgentControlDynamicConfig, UpdateOutcome), AgentControlError> {
         // Fail if the remote config has already identified as failed.
         if let Some(err) = opamp_remote_config.state.error_message().cloned() {
             // TODO seems like this error should be sent by the remote config itself
@@ -491,7 +534,9 @@ where
             .map_err(|err| AgentControlError::RemoteConfigValidator(err.to_string()))?;
 
         // The updater is responsible for determining the current version and deciding whether an update is necessary.
-        self.version_updater.update(&new_dynamic_config)?;
+        // On-host self-update dispatches asynchronously and returns `Dispatched`; the caller keeps
+        // the config in `Applying` until the worker reports success/failure.
+        let update_outcome = self.version_updater.update(&new_dynamic_config)?;
 
         // It stores the remote config and then apply it for these reasons:
         // - The apply mechanism does not handle any rollback in case any failure but instead attempts to apply as much as
@@ -516,7 +561,7 @@ where
             running_sub_agents,
         )?;
 
-        Ok(new_dynamic_config)
+        Ok((new_dynamic_config, update_outcome))
     }
 
     /// Applies the remote configuration for agents.
@@ -1243,7 +1288,7 @@ agents:
             &mut running_sub_agents,
             &current_dynamic_config,
         );
-        assert_matches!(result, Ok(dynamic_config) => {
+        assert_matches!(result, Ok((dynamic_config, _)) => {
             assert!(dynamic_config != current_dynamic_config);
             assert_eq!(dynamic_config.agents.len(), 1);
             assert_eq!(dynamic_config.agents.into_iter().next().unwrap().0, local_identities[0].id);
@@ -1369,7 +1414,7 @@ agents:
             &current_dynamic_config,
         );
 
-        assert_matches!(result, Ok(dynamic_config) => {
+        assert_matches!(result, Ok((dynamic_config, _)) => {
             assert_eq!(dynamic_config.agents.len(), 3);
             assert_eq!(
                 dynamic_config.agents.keys().map(|k| k.to_string()).collect::<HashSet<String>>(),

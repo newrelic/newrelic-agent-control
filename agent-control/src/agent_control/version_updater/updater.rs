@@ -35,6 +35,21 @@ fn cooldown_reason(reason: &SuppressionReason) -> &'static str {
     }
 }
 
+/// Outcome of a successful (non-erroring) [`VersionUpdater::update`] call.
+///
+/// Lets the caller report the right OpAMP config state without knowing whether the updater works
+/// synchronously (K8s) or dispatches asynchronous work (on-host self-update).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateOutcome {
+    /// Nothing to do, or the update was applied synchronously. The config can be reported as
+    /// `Applied`.
+    NoOp,
+    /// An asynchronous upgrade was accepted and is now in progress. The config should be reported
+    /// as `Applying`; the final `Applied`/`Failed` state is reported later when the work finishes
+    /// (success → restart, failure → `SelfUpdateFailed` event).
+    Dispatched,
+}
+
 /// A trait for updating the agent control version using a dynamic configuration.
 ///
 /// Implementers of this trait are responsible for notifying an external controller
@@ -44,9 +59,9 @@ pub trait VersionUpdater {
     /// Verifies if the agent control version should be updated based on the provided configuration and
     /// attempts to update the desired agent control version.
     ///
-    /// Returns `Ok(())` if the desired version has been successfully communicated
-    /// to the external controller, or an `UpdaterError` if the update fails.
-    fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError>;
+    /// Returns the [`UpdateOutcome`] (whether work was dispatched asynchronously or there was
+    /// nothing to do / it was applied synchronously), or an `UpdaterError` if the update fails.
+    fn update(&self, config: &AgentControlDynamicConfig) -> Result<UpdateOutcome, UpdaterError>;
 
     /// Re-attempts a previously-requested upgrade that has not yet succeeded, without waiting for a
     /// new desired version to be pushed. Driven by a periodic heartbeat so a transient registry
@@ -63,8 +78,8 @@ pub trait VersionUpdater {
 pub struct NoOpUpdater;
 
 impl VersionUpdater for NoOpUpdater {
-    fn update(&self, _config: &AgentControlDynamicConfig) -> Result<(), UpdaterError> {
-        Ok(())
+    fn update(&self, _config: &AgentControlDynamicConfig) -> Result<UpdateOutcome, UpdaterError> {
+        Ok(UpdateOutcome::NoOp)
     }
 }
 
@@ -77,15 +92,15 @@ pub mod tests {
     mock! {
         pub VersionUpdater {}
         impl VersionUpdater for VersionUpdater {
-            fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError>;
+            fn update(&self, config: &AgentControlDynamicConfig) -> Result<UpdateOutcome, UpdaterError>;
         }
     }
 
     impl MockVersionUpdater {
-        /// Returns a mock that always returns `Ok()` regardless of the times it is called
+        /// Returns a mock that always returns `Ok(UpdateOutcome::NoOp)` regardless of the times it is called
         pub fn new_no_op() -> Self {
             let mut mock = Self::new();
-            mock.expect_update().returning(|_| Ok(()));
+            mock.expect_update().returning(|_| Ok(UpdateOutcome::NoOp));
             mock
         }
     }
