@@ -68,7 +68,7 @@ opentelemetry-semantic-conventions = { version = "0.32.1", features = [
   "semconv_experimental",
 ] }
 http-serde = "2.1.1"
-config = { version = "0.15.24", features = ["yaml"] }
+config = { version = "0.15.25", features = ["yaml"] }
 aws-lc-rs = { workspace = true }
 bytes = "1.12.0"
 opentelemetry = { version = "0.32.0" }
