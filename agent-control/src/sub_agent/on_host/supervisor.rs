@@ -635,8 +635,8 @@ pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::STDOUT_LOG_FILE_NAME_SUFFIX;
-    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_attributes::AgentAttributes;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::definition::Variables;
     use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env, Executable};
     use crate::agent_type::runtime_config::on_host::filesystem::FileSystem as ParsedFileSystem;
@@ -655,7 +655,10 @@ pub mod tests {
     use crate::sub_agent::supervisor::Supervisor;
     use serde::Deserialize;
     use std::collections::HashMap;
-    use std::{fs, thread, time::{Duration, Instant}};
+    use std::{
+        fs, thread,
+        time::{Duration, Instant},
+    };
     use tracing_test::traced_test;
 
     fn get_empty_packages() -> RenderedPackages {
@@ -861,7 +864,6 @@ persistent.txt:
 
     #[test]
     fn test_start_resets_ephemeral_entries_before_write() {
-
         let tmp_dir = tempfile::TempDir::new().unwrap();
         let yaml = r#"
 ephemeral-dir:

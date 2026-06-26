@@ -173,6 +173,10 @@ fn read_manifest(path: &Path, base_dir: &Path) -> HashSet<PathBuf> {
         .collect()
 }
 
+/// Returns `true` only when `path` is genuinely contained in `base_dir`: an absolute path, with no
+/// `..` traversal, that lies under `base_dir`. Used to vet manifest entries before acting on them,
+/// since the manifest is read from an agent-writable location and must not be trusted to point
+/// outside the agent's own directory.
 fn is_within_base(path: &Path, base_dir: &Path) -> bool {
     let has_escape = path.components().any(|c| matches!(c, Component::ParentDir));
     !has_escape && path.is_absolute() && path.starts_with(base_dir)
