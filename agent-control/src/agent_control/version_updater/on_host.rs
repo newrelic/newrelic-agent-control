@@ -79,6 +79,9 @@ struct UpdateController<C: Clock> {
     gate: BackoffGate<Version, C>,
     state: WorkerState,
     in_flight: Option<Version>,
+    /// Latest desired version requested while an attempt was in flight. Dispatched when the
+    /// in-flight attempt finishes so rapid-fire configs converge to the newest target (F-10).
+    desired: Option<Version>,
     job_tx: EventPublisher<Job>,
 }
 
@@ -88,6 +91,7 @@ impl<C: Clock> UpdateController<C> {
             gate,
             state: WorkerState::Idle,
             in_flight: None,
+            desired: None,
             job_tx,
         }
     }
@@ -95,12 +99,19 @@ impl<C: Clock> UpdateController<C> {
     /// Decides whether to dispatch an upgrade to `version`. Never blocks.
     ///
     /// - In flight, same version: no-op (F-18 — don't enqueue a duplicate download).
-    /// - In flight, different version: not started here (Phase 1 has no convergence); it will be
-    ///   re-driven on a later idle poll or by the retry heartbeat.
+    /// - In flight, different version: recorded as the latest desired target (F-10) and dispatched
+    ///   when the in-flight attempt finishes; the newest request wins.
     /// - Idle: consult the cooldown gate; if it permits, mark in-flight and enqueue the job.
     fn dispatch(&mut self, version: Version) -> Result<UpdateOutcome, SuppressionReason> {
         match self.state {
-            WorkerState::InFlight => Ok(UpdateOutcome::Dispatched),
+            WorkerState::InFlight => {
+                // Single-flight: only remember a *different* version (a re-push of the in-flight
+                // one is a no-op). The newest desired version overwrites any earlier one.
+                if self.in_flight.as_ref() != Some(&version) {
+                    self.desired = Some(version);
+                }
+                Ok(UpdateOutcome::Dispatched)
+            }
             WorkerState::Idle => match self.gate.check(&version) {
                 Some(reason) => Err(reason),
                 None => {
@@ -115,16 +126,33 @@ impl<C: Clock> UpdateController<C> {
         }
     }
 
-    /// Records the worker's result for `version` and returns the controller to `Idle`.
+    /// Records the worker's result for `version` and returns the controller to `Idle`. On a failed
+    /// attempt, if a newer version was requested meanwhile it is dispatched immediately (F-10).
     fn record_result(&mut self, version: &Version, outcome: &AttemptOutcome) {
-        match outcome {
-            AttemptOutcome::Completed => self.gate.reset(),
-            AttemptOutcome::Failed(_) => self.gate.record_failure(version),
-            // Shutting down: leave the gate untouched so we don't record a spurious failure.
-            AttemptOutcome::Aborted => {}
-        }
         self.state = WorkerState::Idle;
         self.in_flight = None;
+        match outcome {
+            // Success: a restart is imminent; nothing to converge.
+            AttemptOutcome::Completed => {
+                self.gate.reset();
+                self.desired = None;
+            }
+            // Shutting down: leave the gate untouched (no spurious failure) and don't converge.
+            AttemptOutcome::Aborted => {
+                self.desired = None;
+            }
+            AttemptOutcome::Failed(_) => {
+                self.gate.record_failure(version);
+                // F-10 convergence: dispatch the newest desired version now (a new gate key resets
+                // the cooldown) instead of waiting for the next poll. A re-request of the
+                // just-failed version stays under cooldown and is left to the retry heartbeat.
+                if let Some(next) = self.desired.take()
+                    && &next != version
+                {
+                    let _ = self.dispatch(next);
+                }
+            }
+        }
     }
 
     fn reset_gate(&self) {
@@ -520,16 +548,67 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_different_version_in_flight_is_not_started() {
-        // Phase 1: no convergence — a different version mid-flight isn't started now.
+    fn dispatch_different_version_in_flight_is_recorded_as_desired() {
+        // F-10: a different version mid-flight isn't started now, but is remembered as `desired`.
         let (mut ctrl, job_rx) =
             controller(Duration::from_secs(30), Duration::from_secs(600), 5, FakeClock::new(Instant::now()));
 
         ctrl.dispatch(ver("99.99.99")).unwrap();
         assert_eq!(next_job(&job_rx), Some(ver("99.99.99")));
         assert_eq!(ctrl.dispatch(ver("88.88.88")), Ok(UpdateOutcome::Dispatched));
-        assert_eq!(next_job(&job_rx), None);
+        assert_eq!(next_job(&job_rx), None); // not started while the first is in flight
         assert_eq!(ctrl.in_flight, Some(ver("99.99.99")));
+        assert_eq!(ctrl.desired, Some(ver("88.88.88")));
+    }
+
+    #[test]
+    fn converges_to_desired_after_failure() {
+        // F-10: when the in-flight attempt fails, the newer desired version is dispatched.
+        let (mut ctrl, job_rx) =
+            controller(Duration::from_secs(30), Duration::from_secs(600), 5, FakeClock::new(Instant::now()));
+
+        ctrl.dispatch(ver("99.99.99")).unwrap();
+        assert_eq!(next_job(&job_rx), Some(ver("99.99.99")));
+        ctrl.dispatch(ver("88.88.88")).unwrap(); // recorded as desired
+
+        ctrl.record_result(&ver("99.99.99"), &AttemptOutcome::Failed("boom".into()));
+
+        // The desired version is dispatched immediately (a new gate key resets the cooldown).
+        assert_eq!(next_job(&job_rx), Some(ver("88.88.88")));
+        assert_eq!(ctrl.in_flight, Some(ver("88.88.88")));
+        assert_eq!(ctrl.desired, None);
+    }
+
+    #[test]
+    fn latest_desired_version_wins() {
+        // F-10: the newest request overwrites an earlier desired version.
+        let (mut ctrl, job_rx) =
+            controller(Duration::from_secs(30), Duration::from_secs(600), 5, FakeClock::new(Instant::now()));
+
+        ctrl.dispatch(ver("99.99.99")).unwrap();
+        let _ = next_job(&job_rx);
+        ctrl.dispatch(ver("88.88.88")).unwrap();
+        ctrl.dispatch(ver("77.77.77")).unwrap(); // overwrites 88.88.88
+        assert_eq!(ctrl.desired, Some(ver("77.77.77")));
+
+        ctrl.record_result(&ver("99.99.99"), &AttemptOutcome::Failed("boom".into()));
+        assert_eq!(next_job(&job_rx), Some(ver("77.77.77")));
+    }
+
+    #[test]
+    fn success_does_not_converge() {
+        // On success a restart is imminent, so a desired version is dropped (not dispatched).
+        let (mut ctrl, job_rx) =
+            controller(Duration::from_secs(30), Duration::from_secs(600), 5, FakeClock::new(Instant::now()));
+
+        ctrl.dispatch(ver("99.99.99")).unwrap();
+        let _ = next_job(&job_rx);
+        ctrl.dispatch(ver("88.88.88")).unwrap(); // desired
+
+        ctrl.record_result(&ver("99.99.99"), &AttemptOutcome::Completed);
+        assert_eq!(next_job(&job_rx), None);
+        assert_eq!(ctrl.desired, None);
+        assert!(!ctrl.is_in_flight());
     }
 
     #[test]
