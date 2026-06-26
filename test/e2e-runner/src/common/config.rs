@@ -83,7 +83,7 @@ pub fn update_config_for_debug_logging(config_path: &str) {
     update_config(config_path, DEBUG_LOGGING_CONFIG)
 }
 
-/// Writes a file [LOCAL_CONFIG_FILE_NAME] containing the provided `content` in the provided `config_dir`.
+/// Writes a file `LOCAL_CONFIG_FILE_NAME` containing the provided `content` in the provided `config_dir`.
 pub fn write_agent_local_config(config_dir: &str, content: String) {
     let path = PathBuf::from(config_dir);
     fs::create_dir_all(path.parent().unwrap()).unwrap_or_else(|err| {
