@@ -7,7 +7,7 @@ use crate::common::retry::{retry, retry_never};
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::AgentControlConfigBuilder;
 use crate::on_host::tools::instance_id::get_instance_id;
-use crate::on_host::tools::oci_package_manager::{TestDataHelper, push_dummy_test_package};
+use crate::on_host::tools::oci_package_manager::{TestDataHelper, push_test_package};
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
@@ -94,7 +94,13 @@ fn push_agent_type_to_registry(signer: &OCISigner) -> oci_client::Reference {
 
     signer.sign_artifact(&reference);
 
-    push_dummy_test_package(signer, AGENT_TYPE_VERSION, OCI_TEST_REGISTRY_URL);
+    push_test_package(
+        signer,
+        AGENT_TYPE_VERSION,
+        OCI_TEST_REGISTRY_URL,
+        "dummy.txt",
+        "dummy package content",
+    );
 
     reference
 }

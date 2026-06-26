@@ -9,6 +9,7 @@ use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
+use crate::on_host::tools::oci_package_manager::push_test_package;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
@@ -118,7 +119,17 @@ fn test_attributes_from_an_existing_agent_type_with_oci_registry() {
     let version = "1.0.0";
     let agent_id = "attributes-test-agent";
 
-    push_test_package_with_sleep_script(&signer, version, OCI_TEST_REGISTRY_URL);
+    #[cfg(target_family = "unix")]
+    let (script_name, script_content) = ("sleep.sh", "#!/bin/bash\nsleep 60\n");
+    #[cfg(target_family = "windows")]
+    let (script_name, script_content) = ("sleep.ps1", "Start-Sleep -Seconds 60\n");
+    push_test_package(
+        &signer,
+        version,
+        OCI_TEST_REGISTRY_URL,
+        script_name,
+        script_content,
+    );
 
     let packages = format!(
         r#"
@@ -261,63 +272,4 @@ agents:
         )?;
         Ok(())
     })
-}
-
-fn push_test_package_with_sleep_script(signer: &OCISigner, version: &str, registry_url: &str) {
-    use oci_test_utils::PackagePublisher;
-    use std::fs::File;
-    use tempfile::tempdir;
-
-    let source_dir = tempdir().unwrap();
-    let archive_dir = tempdir().unwrap();
-
-    #[cfg(target_family = "unix")]
-    {
-        let script_content = r#"#!/bin/bash
-sleep 60
-"#;
-        let script_path = source_dir.path().join("sleep.sh");
-        std::fs::write(&script_path, script_content).unwrap();
-
-        let archive_path = archive_dir.path().join("package.tar.gz");
-        let tar_gz = File::create(&archive_path).unwrap();
-        let enc = flate2::write::GzEncoder::new(tar_gz, flate2::Compression::default());
-        let mut tar = tar::Builder::new(enc);
-        tar.append_path_with_name(&script_path, "sleep.sh").unwrap();
-        tar.into_inner().unwrap().finish().unwrap();
-
-        let reference = PackagePublisher::new(tokio_runtime().handle().clone(), registry_url)
-            .push_with_tag(
-                &archive_path,
-                oci_test_utils::PackageMediaType::TarGz,
-                version,
-            );
-        signer.sign_artifact(&reference);
-    }
-
-    #[cfg(target_family = "windows")]
-    {
-        let script_content = r#"Start-Sleep -Seconds 60
-"#;
-        let script_path = source_dir.path().join("sleep.ps1");
-        std::fs::write(&script_path, script_content).unwrap();
-
-        let archive_path = archive_dir.path().join("package.zip");
-        let file = File::create(&archive_path).unwrap();
-        let mut zip = zip::ZipWriter::new(file);
-        let options = zip::write::SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
-        zip.start_file("sleep.ps1", options).unwrap();
-        let mut script_file = File::open(&script_path).unwrap();
-        std::io::copy(&mut script_file, &mut zip).unwrap();
-        zip.finish().unwrap();
-
-        let reference = PackagePublisher::new(tokio_runtime().handle().clone(), registry_url)
-            .push_with_tag(
-                &archive_path,
-                oci_test_utils::PackageMediaType::Zip,
-                version,
-            );
-        signer.sign_artifact(&reference);
-    }
 }

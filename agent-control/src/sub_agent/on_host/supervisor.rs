@@ -262,59 +262,46 @@ where
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) {
-        debug!(
-            agent_type=%self.agent_identity.agent_type_id,
-            packages_count=%self.packages_config.len(),
-            "check_subagent_version called"
-        );
-
-        // Get version from OCI package configuration
-        // TODO: For complex OHIs with multiple packages, we need a better strategy
-        // to determine which version to report (e.g., mark a primary package in agent type definition)
-        let version = self
-            .packages_config
-            .iter()
-            .min_by_key(|(id, _)| *id)
-            .map(|(id, pkg)| {
-                let version_str = pkg.download.oci.version.to_string();
-                debug!(
-                    agent_type=%self.agent_identity.agent_type_id,
-                    package_id=%id,
-                    version=%version_str,
-                    "Found package version from OCI config"
-                );
-                version_str
-            });
-
-        if let Some(version) = version {
-            info!(
-                agent_type=%self.agent_identity.agent_type_id,
-                version=%version,
-                "Agent version determined from OCI package"
-            );
-
-            info!(
-                agent_type=%self.agent_identity.agent_type_id,
-                version=%version,
-                "Publishing AgentAttributesUpdated event"
-            );
-
-            publish_update_attributes_event(
-                &sub_agent_internal_publisher,
-                SubAgentInternalEvent::AgentAttributesUpdated(AgentDescription {
-                    identifying_attributes: HashMap::from([(
-                        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-                        version.into(),
-                    )]),
-                    ..Default::default()
-                }),
-            );
-        } else {
+        // Report the version from the OCI package configuration.
+        // `packages_config` is a HashMap, so we pick by the lowest package id to get a stable
+        // result (iteration order is not deterministic). Today agent types have a single package;
+        // TODO: for complex OHIs with multiple packages we need a deliberate strategy to choose
+        // which version to report (e.g. mark a primary package in the agent type definition).
+        let Some((package_id, package)) = self.packages_config.iter().min_by_key(|(id, _)| *id)
+        else {
             warn!(
                 agent_type=%self.agent_identity.agent_type_id,
                 "Unable to determine agent version: no packages configured"
             );
+            return;
+        };
+
+        if self.packages_config.len() > 1 {
+            warn!(
+                agent_type=%self.agent_identity.agent_type_id,
+                packages_count=%self.packages_config.len(),
+                "Multiple packages configured; reporting the version of the package with the lowest id"
+            );
         }
+
+        let version = package.download.oci.version.to_string();
+        info!(
+            agent_type=%self.agent_identity.agent_type_id,
+            package_id=%package_id,
+            version=%version,
+            "Agent version determined from OCI package; publishing AgentAttributesUpdated event"
+        );
+
+        publish_update_attributes_event(
+            &sub_agent_internal_publisher,
+            SubAgentInternalEvent::AgentAttributesUpdated(AgentDescription {
+                identifying_attributes: HashMap::from([(
+                    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+                    version.into(),
+                )]),
+                ..Default::default()
+            }),
+        );
     }
 
     fn spin_up(

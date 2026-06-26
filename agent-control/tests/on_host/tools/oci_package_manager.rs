@@ -115,52 +115,46 @@ impl TestDataHelper {
     }
 }
 
-/// Pushes a dummy test package to the OCI registry with the specified version.
-/// The package is signed with the provided signer so it can be downloaded by agent types
-/// with signature verification enabled.
+/// Pushes a test package containing a single file (`filename` with `content`) to the OCI registry
+/// under `version`. The package is signed with the provided signer so it can be downloaded by
+/// agent types with signature verification enabled.
+///
+/// The archive is a `tar.gz` on Unix and a `zip` on Windows.
 ///
 /// # Arguments
 /// * `signer` - The OCI signer to sign the artifact
 /// * `version` - The version tag for the package (e.g., "1.2.3")
 /// * `registry_url` - The OCI registry URL
-#[cfg(target_family = "unix")]
-pub fn push_dummy_test_package(signer: &OCISigner, version: &str, registry_url: &str) {
+/// * `filename` - Name of the file stored inside the package (e.g., "dummy.txt", "sleep.sh")
+/// * `content` - Content of that file
+pub fn push_test_package(
+    signer: &OCISigner,
+    version: &str,
+    registry_url: &str,
+    filename: &str,
+    content: &str,
+) {
     use oci_test_utils::PackageMediaType;
 
     let source_dir = tempdir().unwrap();
     let archive_dir = tempdir().unwrap();
-    let archive = archive_dir.path().join("package.tar.gz");
 
-    TestDataHelper::compress_tar_gz(
-        source_dir.path(),
-        &archive,
-        "dummy package content",
-        "dummy.txt",
-    );
+    #[cfg(target_family = "unix")]
+    let (archive, media_type) = {
+        let archive = archive_dir.path().join("package.tar.gz");
+        TestDataHelper::compress_tar_gz(source_dir.path(), &archive, content, filename);
+        (archive, PackageMediaType::TarGz)
+    };
 
-    let reference = PackagePublisher::new(tokio_runtime().handle().clone(), registry_url)
-        .push_with_tag(&archive, PackageMediaType::TarGz, version);
-
-    signer.sign_artifact(&reference);
-}
-
-#[cfg(target_family = "windows")]
-pub fn push_dummy_test_package(signer: &OCISigner, version: &str, registry_url: &str) {
-    use oci_test_utils::PackageMediaType;
-
-    let source_dir = tempdir().unwrap();
-    let archive_dir = tempdir().unwrap();
-    let archive = archive_dir.path().join("package.zip");
-
-    TestDataHelper::compress_zip(
-        source_dir.path(),
-        &archive,
-        "dummy package content",
-        "dummy.txt",
-    );
+    #[cfg(target_family = "windows")]
+    let (archive, media_type) = {
+        let archive = archive_dir.path().join("package.zip");
+        TestDataHelper::compress_zip(source_dir.path(), &archive, content, filename);
+        (archive, PackageMediaType::Zip)
+    };
 
     let reference = PackagePublisher::new(tokio_runtime().handle().clone(), registry_url)
-        .push_with_tag(&archive, PackageMediaType::Zip, version);
+        .push_with_tag(&archive, media_type, version);
 
     signer.sign_artifact(&reference);
 }
