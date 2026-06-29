@@ -864,4 +864,139 @@ version: 0.0.1
             ),
         }
     }
+
+    #[test]
+    fn unknown_fields_in_k8s_definition_are_discarded() {
+        let with_unknown_fields =
+            AgentTypeDefinition::from_slice(k8s_definition(true).as_bytes()).unwrap();
+        let without_unknown_fields =
+            AgentTypeDefinition::from_slice(k8s_definition(false).as_bytes()).unwrap();
+
+        assert_eq!(with_unknown_fields, without_unknown_fields);
+    }
+
+    #[rstest]
+    #[case::linux(Environment::Linux)]
+    #[case::windows(Environment::Windows)]
+    fn unknown_fields_in_host_definition_are_discarded(#[case] expected_environment: Environment) {
+        let with_unknown_fields =
+            AgentTypeDefinition::from_slice(host_definition(expected_environment, true).as_bytes())
+                .unwrap();
+        let without_unknown_fields = AgentTypeDefinition::from_slice(
+            host_definition(expected_environment, false).as_bytes(),
+        )
+        .unwrap();
+
+        assert_eq!(with_unknown_fields, without_unknown_fields);
+    }
+
+    /// Builds a Kubernetes agent-type definition. When `with_unknown_fields` is true, an unknown
+    /// field is injected at every struct level so the parse result can be compared against the
+    /// clean definition to prove unknown fields are discarded.
+    fn k8s_definition(with_unknown_fields: bool) -> String {
+        let unknown = if with_unknown_fields {
+            "unknown_field: should_be_ignored"
+        } else {
+            ""
+        };
+        format!(
+            r#"
+name: fake_agent
+namespace: fake_namespace
+version: 0.0.1
+protocol_version: "{SUPPORTED_PROTOCOL_VERSION}"
+platform: kubernetes
+{unknown}
+variables:
+  group:
+    name:
+      description: "Name of the agent"
+      type: string
+      required: false
+      default: fake_value
+      {unknown}
+deployment:
+  {unknown}
+  objects:
+    cr1:
+      apiVersion: fake.group/v1beta1
+      kind: FakeKind
+      metadata:
+        name: fake-object
+        namespace: fake-object-namespace
+  health:
+    interval: 30s
+    initial_delay: 10s
+    {unknown}
+    checks:
+      - name: fake-check
+        namespace: fake-check-namespace
+        kind: Deployment
+        {unknown}
+"#
+        )
+    }
+
+    /// Builds an on-host agent-type definition. When `with_unknown_fields` is true, an unknown
+    /// field is injected at every struct level so the parse result can be compared against the
+    /// clean definition to prove unknown fields are discarded.
+    fn host_definition(environment: Environment, with_unknown_fields: bool) -> String {
+        let unknown = if with_unknown_fields {
+            "unknown_field: should_be_ignored"
+        } else {
+            ""
+        };
+        format!(
+            r#"
+name: fake_agent
+namespace: fake_namespace
+version: 0.0.1
+protocol_version: "{SUPPORTED_PROTOCOL_VERSION}"
+platform: host
+operating_system: {environment}
+{unknown}
+variables:
+  group:
+    name:
+      description: "Name of the agent"
+      type: string
+      required: false
+      default: fake_value
+      {unknown}
+deployment:
+  {unknown}
+  health:
+    interval: 3s
+    initial_delay: 3s
+    timeout: 10s
+    {unknown}
+    http:
+      path: /healthz
+      port: 8080
+      {unknown}
+  executables:
+    - id: fake_bin
+      path: /bin/fake_bin
+      {unknown}
+      restart_policy:
+        {unknown}
+        backoff_strategy:
+          type: fixed
+          backoff_delay: 1s
+          max_retries: 3
+          last_retry_interval: 30s
+          {unknown}
+  packages:
+    fake_package:
+      {unknown}
+      download:
+        {unknown}
+        oci:
+          repository: fake-repo
+          public_key: fake-key
+          version: 1.2.3
+          {unknown}
+"#
+        )
+    }
 }

@@ -32,7 +32,6 @@ pub struct K8sObject {
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-#[serde(deny_unknown_fields)]
 pub struct K8sObjectMeta {
     #[serde(default)]
     pub labels: BTreeMap<String, String>,
