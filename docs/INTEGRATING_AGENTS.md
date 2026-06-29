@@ -22,13 +22,12 @@ Agent Types are versioned to ensure compatibility with a given configuration val
 
 Separately from the agent type `version`, every definition must declare a top-level `protocol_version`. This is **not** a metadata field — it is parsed on its own and versions the **agent-type schema language itself**: the set of fields and their meaning that Agent Control knows how to parse, *including the shape of the metadata block described here*. It is decoupled from both the agent type `version` (semver) and the Agent Control release version. It is a quoted `MAJOR.MINOR` string (for example `"1.0"`); the value **must be quoted**, otherwise YAML interprets `0.1` as a float and the field is rejected.
 
-Because it gates the rest of the document, Agent Control reads and validates `protocol_version` first, at the registry ingestion boundary, *before* the metadata and the other sections are interpreted. Each Agent Control release understands a single maximum protocol version. The compatibility rules are:
+Because it gates the rest of the document, Agent Control reads and validates `protocol_version` first, at the registry ingestion boundary, *before* the metadata and the other sections are interpreted. Each Agent Control release understands a single maximum protocol version, and the `protocol_version` is treated as a single ordered `MAJOR.MINOR` value. The compatibility rules are:
 
-- Different `major` (in either direction): rejected. A major bump is a breaking schema change.
-- Same `major`, higher `minor`: rejected. The file is newer than this Agent Control understands.
-- Same `major`, equal or lower `minor`: accepted. Minor bumps are additive and backward-compatible.
+- Newer than supported (higher `major`, or same `major` with a higher `minor`): rejected. The file is newer than this Agent Control understands.
+- Equal to or older than supported: accepted. Agent Control understands every protocol version up to and including the supported one.
 
-For example, an Agent Control that supports protocol version `1.6` accepts `1.0`..=`1.6`, rejects `1.7` (too new), and rejects `0.9` and `2.0` (wrong major).
+For example, an Agent Control that supports protocol version `1.6` accepts everything up to `1.6` (including `0.9` and `1.0`..=`1.6`) and rejects anything newer (`1.7`, `2.0`, ...).
 
 The `platform` field is required, and `operating_system` is required when `platform: host`. The supported combinations are:
 
