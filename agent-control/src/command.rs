@@ -135,6 +135,8 @@ pub struct RunnerContext {
     pub running_mode: Environment,
     /// The consuming end of the internal application event bus.
     pub application_event_consumer: EventConsumer<ApplicationEvent>,
+    /// Overrides the binary that on-host self-update replaces. `None` means the current executable.
+    pub self_replace_target: Option<std::path::PathBuf>,
 }
 
 impl Command {
@@ -285,6 +287,8 @@ impl Command {
                 base_paths,
                 running_mode,
                 application_event_consumer,
+                // None uses the current running executable.
+                self_replace_target: None,
             },
             tracer,
             #[cfg(target_family = "windows")]

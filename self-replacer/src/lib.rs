@@ -17,6 +17,6 @@ pub trait SelfReplacer {
     /// Error type returned when a replacement attempt fails.
     type Error: std::error::Error;
 
-    /// Replaces the currently running binary with the binary at `new_bin`.
-    fn self_replace(new_bin: impl AsRef<Path>) -> Result<(), Self::Error>;
+    /// Replaces the replacer's configured target binary with the binary at `new_bin`.
+    fn self_replace(&self, new_bin: impl AsRef<Path>) -> Result<(), Self::Error>;
 }

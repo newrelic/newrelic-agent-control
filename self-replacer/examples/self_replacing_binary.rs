@@ -28,7 +28,8 @@ fn main() {
         // Perform self-replacement
         let new_binary_path = &args[2];
 
-        let result = BinarySelfReplacer::self_replace(new_binary_path);
+        let result =
+            BinarySelfReplacer::new().and_then(|replacer| replacer.self_replace(new_binary_path));
 
         match result {
             Ok(()) => {

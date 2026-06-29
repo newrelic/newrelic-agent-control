@@ -55,6 +55,7 @@ use fs::file::LocalFile;
 use opamp_client::http::StartedHttpClient;
 use opamp_client::http::client::OpAMPHttpClient;
 use opamp_client::operation::settings::{AgentDescription, DescriptionValueType, StartSettings};
+use self_replacer::BinarySelfReplacer;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -236,11 +237,18 @@ impl AgentControlRunner {
             remote_dir.clone(),
         );
 
+        let self_replacer = match self.self_replace_target {
+            Some(target) => BinarySelfReplacer::with_target(target),
+            None => BinarySelfReplacer::new()
+                .map_err(|e| RunError(format!("resolving self-replace target: {e}")))?,
+        };
+
         let self_updater = OnHostACUpdater::new(
             agent_control_config.self_update.enabled.into(),
             agent_control_internal_publisher.clone(),
             agent_control_package_manager,
             ProcessVerifyExecutor::default(),
+            self_replacer,
             agent_control_config.self_update.package.clone(),
             agent_control_config.self_update.upgrade_backoff.clone(),
             SystemClock,

@@ -62,17 +62,43 @@ pub enum ReplaceError {
 }
 
 /// Platform-agnostic self-replacer implementation.
+/// Holds the path of the binary to replace.
 #[derive(Debug)]
-pub struct BinarySelfReplacer;
+pub struct BinarySelfReplacer {
+    target: PathBuf,
+}
+
+impl BinarySelfReplacer {
+    /// Builds a replacer targeting the currently running executable.
+    /// Canonicalize resolves symlinks on both platforms.
+    pub fn new() -> Result<Self, ReplaceError> {
+        let target = std::env::current_exe()
+            .and_then(|p| p.canonicalize())
+            .map_err(ReplaceError::CurrentExeNotFound)?;
+
+        debug!(
+            target = %target.display(),
+            "Current executable path",
+        );
+
+        Ok(Self { target })
+    }
+
+    /// Builds a replacer targeting an explicit binary path instead of the running executable.
+    pub fn with_target(target: PathBuf) -> Self {
+        Self { target }
+    }
+}
 
 impl SelfReplacer for BinarySelfReplacer {
     type Error = ReplaceError;
 
-    fn self_replace(new_bin: impl AsRef<Path>) -> Result<(), Self::Error> {
+    fn self_replace(&self, new_bin: impl AsRef<Path>) -> Result<(), Self::Error> {
         let new_bin = new_bin.as_ref();
 
         debug!(
             new_bin = %new_bin.display(),
+            target = %self.target.display(),
             "Starting binary self-replacement",
         );
 
@@ -82,18 +108,7 @@ impl SelfReplacer for BinarySelfReplacer {
             ));
         }
 
-        // Get current executable path
-        // Canonicalize resolves symlinks on both platforms
-        let current_exe = std::env::current_exe()
-            .and_then(|p| p.canonicalize())
-            .map_err(ReplaceError::CurrentExeNotFound)?;
-
-        debug!(
-            current_exe = %current_exe.display(),
-            "Current executable path",
-        );
-
-        replace_binary(&current_exe, new_bin)
+        replace_binary(&self.target, new_bin)
     }
 }
 
@@ -300,7 +315,8 @@ mod tests {
         let new_bin = temp_dir.path().join("program-new");
 
         // Don't create new_bin - it should not exist
-        let result = BinarySelfReplacer::self_replace(&new_bin);
+        let result =
+            BinarySelfReplacer::with_target(temp_dir.path().join("program")).self_replace(&new_bin);
         // Should fail with NewBinaryNotFound at the early validation check
         assert_matches!(result, Err(ReplaceError::NewBinaryNotFound(_)));
     }

@@ -105,7 +105,8 @@ fn test_rollback_on_invalid_path() {
         test_dir.join("does_not_exist")
     };
 
-    let result = BinarySelfReplacer::self_replace(&non_existent);
+    let result =
+        BinarySelfReplacer::with_target(original_binary.clone()).self_replace(&non_existent);
 
     assert!(result.is_err(), "Should fail when new binary doesn't exist");
 

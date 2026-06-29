@@ -1,4 +1,5 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::agent_control::start_agent_control_with_self_replace_target;
 use crate::common::base_paths::TempBasePaths;
 use crate::common::remote_config_status::check_latest_remote_config_status;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
@@ -45,14 +46,15 @@ fn test_ac_self_update_with_oci_registry() {
 
     create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), true);
 
-    let current_exe_path = std::env::current_exe()
-        .expect("failed to get current exe path")
-        .canonicalize()
-        .expect("failed to canonicalize current exe path");
+    // AC runs in-process here, so the running executable is the shared test-harness binary.
+    // Self-update replaces a disposable copy of it instead, so the replace can't race other
+    // in-process tests over the live runner (which fails with ERROR_ACCESS_DENIED on Windows).
+    let (_self_replace_target_dir, self_replace_target) = copy_current_exe();
 
-    let mut agent_control = start_agent_control_with_custom_config(
+    let mut agent_control = start_agent_control_with_self_replace_target(
         dirs.base_paths().clone(),
         AGENT_CONTROL_MODE_ON_HOST,
+        self_replace_target.clone(),
     );
 
     let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
@@ -83,7 +85,20 @@ agents: {{}}
         }
     });
 
-    assert_is_fake_binary(&current_exe_path);
+    assert_is_fake_binary(&self_replace_target);
+}
+
+/// Copies the running test binary to a throwaway file inside a fresh temp dir, returning the
+/// dir (which must be kept alive) and the path to the copy.
+fn copy_current_exe() -> (TempDir, PathBuf) {
+    let current_exe = std::env::current_exe()
+        .expect("failed to get current exe path")
+        .canonicalize()
+        .expect("failed to canonicalize current exe path");
+    let dir = tempdir().expect("failed to create temp dir for self-replace target");
+    let copy = dir.path().join(AGENT_CONTROL_BIN);
+    std::fs::copy(&current_exe, &copy).expect("failed to copy current exe");
+    (dir, copy)
 }
 
 #[test]
@@ -359,9 +374,12 @@ fn test_ac_self_update_recovers_after_registry_outage_with_oci_registry() {
 
     create_self_update_recovery_config(&opamp_server, &signer, &dirs.local_dir());
 
-    let mut agent_control = start_agent_control_with_custom_config(
+    let (_self_replace_target_dir, self_replace_target) = copy_current_exe();
+
+    let mut agent_control = start_agent_control_with_self_replace_target(
         dirs.base_paths().clone(),
         AGENT_CONTROL_MODE_ON_HOST,
+        self_replace_target,
     );
 
     let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
