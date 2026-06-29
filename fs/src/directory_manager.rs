@@ -232,6 +232,36 @@ pub mod tests {
     }
 
     #[test]
+    fn test_list_missing_path_returns_empty() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let missing = tempdir.path().join("does_not_exist");
+        let directory_manager = DirectoryManagerFs;
+
+        let result = directory_manager.list(&missing).unwrap();
+
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_list_returns_immediate_children() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let directory_manager = DirectoryManagerFs;
+
+        let child_dir = tempdir.path().join("child_dir");
+        directory_manager.create(&child_dir).unwrap();
+        let child_file = tempdir.path().join("child_file");
+        std::fs::write(&child_file, b"contents").unwrap();
+        std::fs::write(child_dir.join("grandchild"), b"contents").unwrap();
+
+        let mut result = directory_manager.list(tempdir.path()).unwrap();
+        result.sort();
+
+        let mut expected = vec![child_dir, child_file];
+        expected.sort();
+        assert_eq!(expected, result);
+    }
+
+    #[test]
     #[ignore = "requires windows administrator"]
     fn test_folder_deletion() {
         // Prepare temp path and folder name

@@ -83,9 +83,11 @@ where
 
     /// At startup, reclaims the resources of any agent that is no longer in the agents config.
     pub fn purge_stale_agents<'a>(&self, configured_agent_ids: impl IntoIterator<Item = &'a str>) {
-        let mut skip: HashSet<String> =
-            configured_agent_ids.into_iter().map(String::from).collect();
-        skip.extend(RESERVED_AGENT_IDS.iter().map(|id| id.to_string()));
+        let skip: HashSet<String> = configured_agent_ids
+            .into_iter()
+            .map(String::from)
+            .chain(RESERVED_AGENT_IDS.iter().map(|id| id.to_string()))
+            .collect();
 
         let mut names: HashSet<String> = HashSet::new();
         names.extend(self.agent_dir_names(&self.agent_filesystem_base));
@@ -111,17 +113,13 @@ where
 
     /// Lists the immediate child directory names under `base` (the per-agent subdirectories).
     /// A missing `base` yields no names; a listing error is logged and treated as empty.
-    fn agent_dir_names(&self, base: &Path) -> Vec<String> {
-        match self.dir_manager.list(base) {
-            Ok(entries) => entries
-                .iter()
-                .filter_map(|p| p.file_name().and_then(|n| n.to_str()).map(String::from))
-                .collect(),
-            Err(err) => {
-                warn!(?err, ?base, "cannot list agent directory for stale cleanup");
-                Vec::new()
-            }
-        }
+    fn agent_dir_names(&self, base: &Path) -> impl Iterator<Item = String> {
+        self.dir_manager
+            .list(base)
+            .inspect_err(|err| warn!(?err, ?base, "cannot list agent directory for stale cleanup"))
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|p| p.file_name().and_then(|n| n.to_str()).map(String::from))
     }
 }
 

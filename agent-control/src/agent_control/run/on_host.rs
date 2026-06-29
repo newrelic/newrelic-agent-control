@@ -61,7 +61,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tracing::info;
+use tracing::{debug, info};
 
 /// Agent Control variable name carrying the host id.
 pub const HOST_ID_VARIABLE_NAME: &str = "host_id";
@@ -127,6 +127,7 @@ impl AgentControlRunner {
             fleet_data_base,
             dir_manager,
         );
+        debug!("Removing stale agents from the filesystem");
         resource_cleaner.purge_stale_agents(
             agent_control_config
                 .dynamic
