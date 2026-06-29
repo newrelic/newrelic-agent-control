@@ -1,4 +1,5 @@
 use fs::directory_manager::DirectoryManager;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -9,6 +10,7 @@ use tracing::{debug, instrument, warn};
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::RESERVED_AGENT_IDS;
 use crate::agent_type::agent_type_id::AgentTypeID;
+use crate::agent_type::runtime_config::on_host::filesystem::rendered::MANAGED_PATHS_MANIFEST_FILENAME;
 use crate::opamp::instance_id::storer::{InstanceIDStorer, StorerError};
 use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
 
@@ -29,8 +31,16 @@ where
     instance_id_storer: Arc<S>,
     config_repo: Arc<C>,
     agent_filesystem_base: PathBuf,
+    agent_shared_filesystem_base: PathBuf,
     fleet_data_base: PathBuf,
     dir_manager: Arc<D>,
+}
+
+/// Mirrors the shape of [`rendered::ManagedPathsManifest`] — duplicated here to avoid making that
+/// type `pub` just for the cleaner's use.
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct ManagedPathsManifest {
+    managed_paths: Vec<PathBuf>,
 }
 
 impl<S, C, D> OnHostCleaner<S, C, D>
@@ -43,6 +53,7 @@ where
         instance_id_storer: Arc<S>,
         config_repo: Arc<C>,
         agent_filesystem_base: PathBuf,
+        agent_shared_filesystem_base: PathBuf,
         fleet_data_base: PathBuf,
         dir_manager: Arc<D>,
     ) -> Self {
@@ -50,13 +61,15 @@ where
             instance_id_storer,
             config_repo,
             agent_filesystem_base,
+            agent_shared_filesystem_base,
             fleet_data_base,
             dir_manager,
         }
     }
 
     /// Deletes all on-disk resources Agent Control owns for `agent_id`: its stored remote config,
-    /// its OpAMP instance id, and its dedicated filesystem directory.
+    /// its OpAMP instance id, any shared-filesystem paths the agent declared, and its dedicated
+    /// filesystem directory.
     fn remove_agent_resources(&self, agent_id: &AgentID) -> Result<(), OnHostCleanerError> {
         debug!(%agent_id, "Cleaning remote config data");
         self.config_repo
@@ -69,6 +82,8 @@ where
             .map_err(OnHostCleanerError::InstanceId)?;
 
         let fs_dir = self.agent_filesystem_base.join(agent_id);
+        self.delete_shared_filesystem_paths(&fs_dir, &self.agent_shared_filesystem_base, agent_id);
+
         debug!(%agent_id, path = ?fs_dir, "Cleaning agent filesystem directory");
         self.dir_manager
             .delete(&fs_dir)
@@ -76,6 +91,49 @@ where
                 path: fs_dir,
                 source: err,
             })
+    }
+
+    /// Reads the agent's managed-paths manifest and deletes any paths that fall under
+    /// `shared_base` (i.e. paths the agent wrote into the shared-filesystem directory).
+    fn delete_shared_filesystem_paths(
+        &self,
+        fs_dir: &Path,
+        shared_base: &Path,
+        agent_id: &AgentID,
+    ) {
+        let manifest_path = fs_dir.join(MANAGED_PATHS_MANIFEST_FILENAME);
+        let raw = match std::fs::read(&manifest_path) {
+            Ok(b) => b,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return,
+            Err(err) => {
+                warn!(?err, ?manifest_path, %agent_id, "failed to read managed-paths manifest during cleanup");
+                return;
+            }
+        };
+        let manifest: ManagedPathsManifest = match serde_json::from_slice(&raw) {
+            Ok(m) => m,
+            Err(err) => {
+                warn!(?err, ?manifest_path, %agent_id, "managed-paths manifest is malformed, skipping shared cleanup");
+                return;
+            }
+        };
+
+        for path in &manifest.managed_paths {
+            if !path.starts_with(shared_base) {
+                continue;
+            }
+            debug!(%agent_id, ?path, "Deleting shared filesystem path");
+            let res = if path.is_dir() {
+                std::fs::remove_dir_all(path)
+            } else {
+                std::fs::remove_file(path)
+            };
+            if let Err(err) = res {
+                if err.kind() != std::io::ErrorKind::NotFound {
+                    warn!(?err, ?path, %agent_id, "failed to delete shared filesystem path during cleanup");
+                }
+            }
+        }
     }
 
     /// At startup, reclaims the resources of any agent that is no longer in the agents config.
@@ -216,6 +274,7 @@ mod tests {
             Arc::new(instance_id_storer),
             Arc::new(config_repo),
             fs_base(),
+            PathBuf::new(),
             fleet_base(),
             Arc::new(dir_manager),
         );
@@ -244,6 +303,7 @@ mod tests {
             Arc::new(instance_id_storer),
             Arc::new(config_repo),
             fs_base(),
+            PathBuf::new(),
             fleet_base(),
             Arc::new(dir_manager),
         );
@@ -266,12 +326,17 @@ mod tests {
             Arc::new(config_repo),
             PathBuf::new(),
             PathBuf::new(),
+            PathBuf::new(),
             Arc::new(dir_manager),
         );
 
         let result = cleaner.clean(&AgentID::AgentControl, &any_type_id());
 
         assert!(result.is_err());
+    }
+
+    fn shared_base() -> PathBuf {
+        PathBuf::from("/var/lib/newrelic-agent-control/shared-filesystem")
     }
 
     fn cleaner(
@@ -283,6 +348,7 @@ mod tests {
             Arc::new(instance_id_storer),
             Arc::new(config_repo),
             fs_base(),
+            shared_base(),
             fleet_base(),
             Arc::new(dir_manager),
         )

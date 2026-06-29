@@ -3,7 +3,8 @@ use crate::agent_control::config::{AgentControlConfig, OpAMPClientConfig};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, AGENT_FILESYSTEM_FOLDER_NAME, EXECUTION_MODE_ATTRIBUTE_KEY,
+    AGENT_CONTROL_VERSION, AGENT_FILESYSTEM_FOLDER_NAME, AGENT_SHARED_FILESYSTEM_FOLDER_NAME,
+    EXECUTION_MODE_ATTRIBUTE_KEY,
     FLEET_ID_ATTRIBUTE_KEY, FOLDER_NAME_FLEET_DATA, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE, default_capabilities,
     default_custom_capabilities,
@@ -109,12 +110,14 @@ impl AgentControlRunner {
             InstanceIDWithIdentifiersGetter::new(instance_id_storer.clone(), identifiers.clone());
 
         let agent_filesystem_base = remote_dir.join(AGENT_FILESYSTEM_FOLDER_NAME);
+        let agent_shared_filesystem_base = remote_dir.join(AGENT_SHARED_FILESYSTEM_FOLDER_NAME);
         let fleet_data_base = remote_dir.join(FOLDER_NAME_FLEET_DATA);
         let dir_manager = Arc::new(DirectoryManagerFs);
         let resource_cleaner = OnHostCleaner::new(
             instance_id_storer,
             yaml_config_repository.clone(),
             agent_filesystem_base,
+            agent_shared_filesystem_base,
             fleet_data_base,
             dir_manager,
         );

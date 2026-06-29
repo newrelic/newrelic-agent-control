@@ -1,6 +1,8 @@
 use super::variable::{Variable, namespace::Namespace};
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::AGENT_FILESYSTEM_FOLDER_NAME;
+use crate::agent_control::defaults::{
+    AGENT_FILESYSTEM_FOLDER_NAME, AGENT_SHARED_FILESYSTEM_FOLDER_NAME,
+};
 use std::{collections::HashMap, path::PathBuf};
 use thiserror::Error;
 use tracing::debug;
@@ -11,6 +13,7 @@ pub struct AgentAttributes {
     /// sub-agent Agent ID
     agent_id: String,
     agent_filesystem_dir: PathBuf,
+    agent_shared_filesystem_dir: PathBuf,
     remote_dir: PathBuf,
 }
 
@@ -21,6 +24,7 @@ pub struct AgentAttributesCreateError(String);
 impl AgentAttributes {
     pub const VARIABLE_SUB_AGENT_ID: &'static str = "agent_id";
     pub const VARIABLE_FILESYSTEM_AGENT_DIR: &'static str = "filesystem_agent_dir";
+    pub const VARIABLE_SHARED_FILESYSTEM_DIR: &'static str = "shared_filesystem_dir";
     pub const VARIABLE_REMOTE_DIR: &'static str = "remote_dir";
 
     pub fn try_new(
@@ -31,10 +35,13 @@ impl AgentAttributes {
             let agent_filesystem_dir = remote_dir
                 .join(AGENT_FILESYSTEM_FOLDER_NAME)
                 .join(&agent_id);
+            let agent_shared_filesystem_dir =
+                remote_dir.join(AGENT_SHARED_FILESYSTEM_FOLDER_NAME);
             debug!(id = %agent_id, "filesystem directory path set to {}", agent_filesystem_dir.display());
             Ok(Self {
                 agent_id: agent_id.to_string(),
                 agent_filesystem_dir,
+                agent_shared_filesystem_dir,
                 remote_dir,
             })
         } else {
@@ -52,6 +59,12 @@ impl AgentAttributes {
             (
                 Namespace::SubAgent.namespaced_name(Self::VARIABLE_FILESYSTEM_AGENT_DIR),
                 Variable::new_final_string_variable(self.agent_filesystem_dir.to_string_lossy()),
+            ),
+            (
+                Namespace::SubAgent.namespaced_name(Self::VARIABLE_SHARED_FILESYSTEM_DIR),
+                Variable::new_final_string_variable(
+                    self.agent_shared_filesystem_dir.to_string_lossy(),
+                ),
             ),
             (
                 Namespace::SubAgent.namespaced_name(Self::VARIABLE_REMOTE_DIR),

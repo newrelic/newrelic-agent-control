@@ -97,6 +97,7 @@ pub const STORE_KEY_INSTANCE_ID: &StoreKey = "instance_id";
 pub const DYNAMIC_AGENT_TYPES_DIR: &str = "dynamic-agent-types";
 pub const INSTANCE_ID_FILENAME: &str = "instance_id.yaml";
 pub const AGENT_FILESYSTEM_FOLDER_NAME: &str = "filesystem";
+pub const AGENT_SHARED_FILESYSTEM_FOLDER_NAME: &str = "shared-filesystem";
 pub const PACKAGES_FOLDER_NAME: &str = "packages";
 pub const AGENT_CONTROL_LOG_FILENAME: &str = "newrelic-agent-control.log";
 pub const STDOUT_LOG_FILE_NAME_SUFFIX: &str = "stdout.log";

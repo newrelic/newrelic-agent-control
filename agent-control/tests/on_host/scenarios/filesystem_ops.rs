@@ -12,7 +12,9 @@ use crate::{
     },
 };
 use fake_opamp_server::FakeServer;
-use newrelic_agent_control::agent_control::defaults::AGENT_FILESYSTEM_FOLDER_NAME;
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_FILESYSTEM_FOLDER_NAME, AGENT_SHARED_FILESYSTEM_FOLDER_NAME,
+};
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 
 /// An on-host agent definition that includes filesystem entries should result in the entries being
@@ -486,6 +488,201 @@ config_logging:
             // Verify the test file created in the persistent directory still exists
             read_file_and_expect_content(&test_file_path, "test\n")?;
 
+            Ok(())
+        });
+    }
+}
+
+/// An agent type with `shared: true` top-level entries writes those entries into the cross-agent
+/// `shared-filesystem/` directory, while non-shared entries land in the agent's own
+/// `filesystem/{agent_id}/` directory as normal.
+#[test]
+fn shared_entries_written_to_shared_filesystem_dir() {
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
+
+    let dirs = TempBasePaths::default();
+
+    let agent_id = "shared-writer-agent";
+
+    create_file(
+        format!(
+            r#"
+namespace: test
+name: shared_writer
+version: 0.0.0
+platform: host
+operating_system: {AGENT_CONTROL_MODE_ON_HOST}
+protocol_version: "1.0"
+variables: {{}}
+deployment:
+  filesystem:
+    private.txt:
+      kind: file
+      text: "private content"
+    shared.txt:
+      kind: file
+      shared: true
+      text: "shared content"
+    shared-dir:
+      kind: dir
+      shared: true
+      entries:
+        nested.txt:
+          kind: file
+          text: "nested shared content"
+
+          # Ignored because `shared` is only accepted in the top level
+          shared: true
+          # Ignored because it doesn't exist anywhere in the filesystem spec
+          whatever_other_field: 2
+"#,
+        ),
+        dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
+    );
+
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(format!(
+            "\n  {agent_id}:\n    agent_type: \"test/shared_writer:0.0.0\"\n"
+        ))
+        .write(dirs.local_dir());
+    create_local_config(
+        agent_id.to_string(),
+        NO_CONFIG.to_string(),
+        dirs.local_dir(),
+    );
+
+    let _agent_control =
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
+
+    // Non-shared entry lands in filesystem/{agent_id}/
+    let private_path = dirs
+        .remote_dir()
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(agent_id)
+        .join("private.txt");
+
+    // Shared entries land directly in shared-filesystem/ (no agent_id subdirectory)
+    let shared_file_path = dirs
+        .remote_dir()
+        .join(AGENT_SHARED_FILESYSTEM_FOLDER_NAME)
+        .join("shared.txt");
+    let shared_nested_path = dirs
+        .remote_dir()
+        .join(AGENT_SHARED_FILESYSTEM_FOLDER_NAME)
+        .join("shared-dir")
+        .join("nested.txt");
+
+    retry(30, Duration::from_secs(1), || {
+        read_file_and_expect_content(&private_path, "private content")?;
+        read_file_and_expect_content(&shared_file_path, "shared content")?;
+        read_file_and_expect_content(&shared_nested_path, "nested shared content")?;
+        Ok(())
+    });
+}
+
+/// When an agent that declared shared-filesystem entries is removed from the fleet config,
+/// the next AC startup purges those shared paths via the agent's managed-paths manifest.
+#[test]
+fn shared_entries_cleaned_up_when_agent_removed() {
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
+
+    let dirs = TempBasePaths::default();
+
+    let agent_id = "shared-cleanup-agent";
+    let agent_type_yaml_path = dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME);
+
+    create_file(
+        format!(
+            r#"
+namespace: test
+name: shared_cleanup
+version: 0.0.0
+platform: host
+operating_system: {AGENT_CONTROL_MODE_ON_HOST}
+protocol_version: "1.0"
+variables: {{}}
+deployment:
+  filesystem:
+    private.txt:
+      kind: file
+      persistent: true
+      text: "private"
+    shared.txt:
+      kind: file
+      shared: true
+      persistent: true
+      text: "shared"
+"#,
+        ),
+        agent_type_yaml_path,
+    );
+
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(format!(
+            "\n  {agent_id}:\n    agent_type: \"test/shared_cleanup:0.0.0\"\n"
+        ))
+        .write(dirs.local_dir());
+    create_local_config(
+        agent_id.to_string(),
+        NO_CONFIG.to_string(),
+        dirs.local_dir(),
+    );
+
+    let base_paths = dirs.base_paths();
+
+    let private_path = base_paths
+        .remote_dir
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(agent_id)
+        .join("private.txt");
+    let shared_path = base_paths
+        .remote_dir
+        .join(AGENT_SHARED_FILESYSTEM_FOLDER_NAME)
+        .join("shared.txt");
+
+    // First run: both files are created.
+    {
+        let _agent_control =
+            start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+        retry(30, Duration::from_secs(1), || {
+            read_file_and_expect_content(&private_path, "private")?;
+            read_file_and_expect_content(&shared_path, "shared")?;
+            Ok(())
+        });
+    }
+
+    assert!(
+        private_path.exists(),
+        "private file should survive stop (persistent): {private_path:?}"
+    );
+    assert!(
+        shared_path.exists(),
+        "shared file should survive stop (persistent): {shared_path:?}"
+    );
+
+    // Remove the agent from the fleet config. AC will purge stale agent resources on next startup,
+    // which includes deleting the shared-filesystem paths recorded in the agent's manifest.
+    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .write(dirs.local_dir());
+
+    {
+        let _agent_control =
+            start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
+
+        retry(30, Duration::from_secs(1), || {
+            if private_path.exists() {
+                return Err(format!(
+                    "private file should have been deleted with agent: {private_path:?}"
+                )
+                .into());
+            }
+            if shared_path.exists() {
+                return Err(format!(
+                    "shared file should have been deleted when agent was removed: {shared_path:?}"
+                )
+                .into());
+            }
             Ok(())
         });
     }

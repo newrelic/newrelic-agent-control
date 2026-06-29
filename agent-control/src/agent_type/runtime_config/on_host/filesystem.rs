@@ -26,6 +26,7 @@ use crate::agent_type::{
 };
 use serde::Deserialize;
 use serde::de::Error;
+use serde::de::Unexpected;
 
 pub mod rendered;
 
@@ -35,7 +36,44 @@ pub mod rendered;
 /// Every entry is tagged with a `kind:`. `dir` entries may contain further entries under
 /// `entries:`, recursively.
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
-pub struct FileSystem(HashMap<SafePath, FilesystemEntry>);
+pub struct FileSystem(HashMap<SafePath, TopLevelFilesystemEntry>);
+
+/// A top-level entry in the `filesystem:` map. Wraps a [`FilesystemEntry`] and adds fields that
+/// are only meaningful at the top level:
+///
+/// - `shared`: when `true`, the entry is written to the cross-agent shared filesystem directory
+///   (`shared-filesystem/`) instead of the agent's own isolated directory (`filesystem/{id}/`).
+///   Only valid at the top level; nested entries inside `dir` or `dir_content_from_map` inherit
+///   the destination of their top-level ancestor.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TopLevelFilesystemEntry {
+    pub shared: bool,
+    pub entry: FilesystemEntry,
+}
+
+impl<'de> serde::Deserialize<'de> for TopLevelFilesystemEntry {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // Deserialize into a raw Value first so we can extract `shared` before delegating to the
+        // tagged enum deserializer for the rest of the fields.
+        let mut map = serde_json::Map::deserialize(deserializer)?;
+
+        let shared = match map.remove("shared") {
+            None => false,
+            Some(serde_json::Value::Bool(b)) => b,
+            Some(other) => {
+                return Err(D::Error::invalid_value(
+                    Unexpected::Other(&format!("{other}")),
+                    &"a boolean",
+                ));
+            }
+        };
+
+        let entry = FilesystemEntry::deserialize(serde_json::Value::Object(map))
+            .map_err(D::Error::custom)?;
+
+        Ok(TopLevelFilesystemEntry { shared, entry })
+    }
+}
 
 /// One entry in a filesystem tree. The `kind` discriminator selects which fields are required.
 /// Every variant carries a `persistent` flag (default `false`):
@@ -109,15 +147,17 @@ impl Templateable for FileSystem {
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         let base_dir = PathBuf::from(filesystem_agent_dir(variables)?);
+        let shared_base_dir = PathBuf::from(shared_filesystem_dir(variables)?);
 
         let entries = self
             .0
             .into_iter()
-            .map(|(key, entry)| {
-                // The only place we construct a final-on-disk path: prepend the sub-agent's
-                // dedicated filesystem dir to the user-provided relative top-level key.
-                let path = base_dir.join(&key);
-                Ok((path, entry.template_with(variables)?))
+            .map(|(key, top)| {
+                // Route the entry to the shared or agent-specific base dir based on the `shared`
+                // flag, then prepend that base dir to the user-provided relative top-level key.
+                let dir = if top.shared { &shared_base_dir } else { &base_dir };
+                let path = dir.join(&key);
+                Ok((path, top.entry.template_with(variables)?))
             })
             .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
 
@@ -168,6 +208,15 @@ impl Templateable for FilesystemEntry {
 
 fn filesystem_agent_dir(variables: &Variables) -> Result<String, AgentTypeError> {
     let key = Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR);
+    match variables.get(&key).and_then(Variable::get_final_value) {
+        Some(TrivialValue::String(s)) => Ok(s.clone()),
+        _ => Err(AgentTypeError::MissingValue(key)),
+    }
+}
+
+fn shared_filesystem_dir(variables: &Variables) -> Result<String, AgentTypeError> {
+    let key =
+        Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR);
     match variables.get(&key).and_then(Variable::get_final_value) {
         Some(TrivialValue::String(s)) => Ok(s.clone()),
         _ => Err(AgentTypeError::MissingValue(key)),
@@ -314,18 +363,32 @@ mod tests {
         assert!(validation(&check_basedir_escape_safety(path)));
     }
 
+    fn base_dir_variables(base_dir: &str) -> Variables {
+        Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable(base_dir),
+            ),
+            (
+                Namespace::SubAgent
+                    .namespaced_name(AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR),
+                Variable::new_final_string_variable("/shared"),
+            ),
+        ])
+    }
+
     #[test]
     fn templates_top_level_file() {
-        let variables = Variables::from_iter(vec![(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-            Variable::new_final_string_variable("/base/dir"),
-        )]);
+        let variables = base_dir_variables("/base/dir");
 
         let fs_input = FileSystem(HashMap::from([(
             PathBuf::from("newrelic.yaml").try_into().unwrap(),
-            FilesystemEntry::File {
-                text: TemplateableValue::from_template("hello".to_string()),
-                persistent: TemplateableValue::default(),
+            TopLevelFilesystemEntry {
+                shared: false,
+                entry: FilesystemEntry::File {
+                    text: TemplateableValue::from_template("hello".to_string()),
+                    persistent: TemplateableValue::default(),
+                },
             },
         )]));
 
@@ -345,13 +408,56 @@ mod tests {
     }
 
     #[test]
+    fn templates_shared_entry_to_shared_dir() {
+        let variables = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable("/agent/dir"),
+            ),
+            (
+                Namespace::SubAgent
+                    .namespaced_name(AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR),
+                Variable::new_final_string_variable("/shared"),
+            ),
+        ]);
+
+        let fs_input = FileSystem(HashMap::from([(
+            PathBuf::from("shared.yaml").try_into().unwrap(),
+            TopLevelFilesystemEntry {
+                shared: true,
+                entry: FilesystemEntry::File {
+                    text: TemplateableValue::from_template("content".to_string()),
+                    persistent: TemplateableValue::default(),
+                },
+            },
+        )]));
+
+        let rendered = fs_input.template_with(&variables).unwrap();
+
+        let expected = rendered::FileSystem::new(
+            PathBuf::from("/agent/dir"),
+            HashMap::from([(
+                PathBuf::from("/shared/shared.yaml"),
+                RenderedEntry::File {
+                    content: "content".to_string(),
+                    persistent: false,
+                },
+            )]),
+        );
+        assert_eq!(rendered, expected);
+    }
+
+    #[test]
     fn templating_fails_without_filesystem_agent_dir_variable() {
         let variables = Variables::default();
         let fs_input = FileSystem(HashMap::from([(
             PathBuf::from("any").try_into().unwrap(),
-            FilesystemEntry::Dir {
-                entries: HashMap::new(),
-                persistent: TemplateableValue::default(),
+            TopLevelFilesystemEntry {
+                shared: false,
+                entry: FilesystemEntry::Dir {
+                    entries: HashMap::new(),
+                    persistent: TemplateableValue::default(),
+                },
             },
         )]));
 
@@ -362,6 +468,35 @@ mod tests {
             format!(
                 "missing value for key: {}",
                 Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR)
+            )
+        );
+    }
+
+    #[test]
+    fn templating_fails_without_shared_filesystem_dir_variable() {
+        let variables = Variables::from_iter(vec![(
+            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+            Variable::new_final_string_variable("/base"),
+        )]);
+        let fs_input = FileSystem(HashMap::from([(
+            PathBuf::from("any").try_into().unwrap(),
+            TopLevelFilesystemEntry {
+                shared: true,
+                entry: FilesystemEntry::Dir {
+                    entries: HashMap::new(),
+                    persistent: TemplateableValue::default(),
+                },
+            },
+        )]));
+
+        let err = fs_input.template_with(&variables).unwrap_err();
+        assert!(matches!(err, AgentTypeError::MissingValue(_)));
+        assert_eq!(
+            err.to_string(),
+            format!(
+                "missing value for key: {}",
+                Namespace::SubAgent
+                    .namespaced_name(AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR)
             )
         );
     }
@@ -472,6 +607,11 @@ agent:
                 Variable::new_final_string_variable(base_dir),
             ),
             (
+                Namespace::SubAgent
+                    .namespaced_name(AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR),
+                Variable::new_final_string_variable("/shared"),
+            ),
+            (
                 Namespace::Variable.namespaced_name("config_agent"),
                 Variable::new_final_string_variable("license_key: REDACTED\n"),
             ),
@@ -513,22 +653,35 @@ agent:
         let parsed = serde_saphyr::from_str::<FileSystem>(FILESYSTEM_EXAMPLE).unwrap();
         assert_eq!(parsed.0.len(), 4);
 
-        let file_entry = parsed
+        let file_entry = &parsed
             .0
             .get(&SafePath(PathBuf::from("newrelic-infra.yaml")))
-            .unwrap();
+            .unwrap()
+            .entry;
         assert!(matches!(file_entry, FilesystemEntry::File { .. }));
 
-        let empty_dir = parsed.0.get(&SafePath(PathBuf::from("config"))).unwrap();
+        let empty_dir = &parsed
+            .0
+            .get(&SafePath(PathBuf::from("config")))
+            .unwrap()
+            .entry;
         assert!(matches!(empty_dir, FilesystemEntry::Dir { entries, .. } if entries.is_empty()));
 
-        let dir_from_map = parsed.0.get(&SafePath(PathBuf::from("logging.d"))).unwrap();
+        let dir_from_map = &parsed
+            .0
+            .get(&SafePath(PathBuf::from("logging.d")))
+            .unwrap()
+            .entry;
         assert!(matches!(
             dir_from_map,
             FilesystemEntry::DirContentFromMap { .. }
         ));
 
-        let nested_dir = parsed.0.get(&SafePath(PathBuf::from("agent"))).unwrap();
+        let nested_dir = &parsed
+            .0
+            .get(&SafePath(PathBuf::from("agent")))
+            .unwrap()
+            .entry;
         let FilesystemEntry::Dir { entries, .. } = nested_dir else {
             panic!("expected agent to be a Dir, got {nested_dir:?}");
         };
@@ -632,21 +785,21 @@ persistent-map:
         let parsed = serde_saphyr::from_str::<FileSystem>(yaml).unwrap();
         let key = |k: &str| SafePath(PathBuf::from(k));
 
-        match parsed.0.get(&key("default-file")).unwrap() {
+        match &parsed.0.get(&key("default-file")).unwrap().entry {
             FilesystemEntry::File { persistent, .. } => {
                 assert_eq!(persistent.template, "");
             }
             other => panic!("unexpected variant: {other:?}"),
         }
-        match parsed.0.get(&key("persistent-file")).unwrap() {
+        match &parsed.0.get(&key("persistent-file")).unwrap().entry {
             FilesystemEntry::File { persistent, .. } => assert_eq!(persistent.template, "true"),
             other => panic!("unexpected variant: {other:?}"),
         }
-        match parsed.0.get(&key("persistent-dir")).unwrap() {
+        match &parsed.0.get(&key("persistent-dir")).unwrap().entry {
             FilesystemEntry::Dir { persistent, .. } => assert_eq!(persistent.template, "true"),
             other => panic!("unexpected variant: {other:?}"),
         }
-        match parsed.0.get(&key("persistent-map")).unwrap() {
+        match &parsed.0.get(&key("persistent-map")).unwrap().entry {
             FilesystemEntry::DirContentFromMap { persistent, .. } => {
                 assert_eq!(persistent.template, "true");
             }
@@ -683,6 +836,11 @@ projected:
             (
                 Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
                 Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+            ),
+            (
+                Namespace::SubAgent
+                    .namespaced_name(AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR),
+                Variable::new_final_string_variable("/shared"),
             ),
             (
                 Namespace::Variable.namespaced_name("proj"),
@@ -729,6 +887,11 @@ projected:
             (
                 Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
                 Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+            ),
+            (
+                Namespace::SubAgent
+                    .namespaced_name(AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR),
+                Variable::new_final_string_variable("/shared"),
             ),
             (
                 Namespace::Variable.namespaced_name("proj"),
@@ -809,10 +972,17 @@ persistent-dir:
   kind: dir
   persistent: true
 "#;
-        let variables = Variables::from_iter(vec![(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-            Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
-        )]);
+        let variables = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+            ),
+            (
+                Namespace::SubAgent
+                    .namespaced_name(AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR),
+                Variable::new_final_string_variable("/shared"),
+            ),
+        ]);
         let templated = serde_saphyr::from_str::<FileSystem>(yaml)
             .unwrap()
             .template_with(&variables)
@@ -846,10 +1016,17 @@ agent:
       kind: dir
       persistent: true
 "#;
-        let variables = Variables::from_iter(vec![(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-            Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
-        )]);
+        let variables = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+            ),
+            (
+                Namespace::SubAgent
+                    .namespaced_name(AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR),
+                Variable::new_final_string_variable("/shared"),
+            ),
+        ]);
 
         serde_saphyr::from_str::<FileSystem>(config_a)
             .unwrap()
@@ -907,10 +1084,17 @@ unrelated.txt:
         #[case] overwrite_with: Option<&str>,
     ) {
         let tmp_dir = TempDir::new().unwrap();
-        let variables = Variables::from_iter(vec![(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-            Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
-        )]);
+        let variables = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+            ),
+            (
+                Namespace::SubAgent
+                    .namespaced_name(AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR),
+                Variable::new_final_string_variable("/shared"),
+            ),
+        ]);
 
         let first_yaml = r#"
 keep.txt:

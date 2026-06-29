@@ -772,10 +772,17 @@ persistent.txt:
   text: p
   persistent: true
 "#;
-        let variables = Variables::from_iter(vec![(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-            Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
-        )]);
+        let variables = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+            ),
+            (
+                Namespace::SubAgent
+                    .namespaced_name(AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR),
+                Variable::new_final_string_variable("/shared"),
+            ),
+        ]);
         let filesystem = serde_saphyr::from_str::<ParsedFileSystem>(yaml)
             .unwrap()
             .template_with(&variables)
@@ -836,10 +843,17 @@ persistent.txt:
   text: p
   persistent: true
 "#;
-        let variables = Variables::from_iter(vec![(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-            Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
-        )]);
+        let variables = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+            ),
+            (
+                Namespace::SubAgent
+                    .namespaced_name(AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR),
+                Variable::new_final_string_variable("/shared"),
+            ),
+        ]);
         let filesystem = serde_saphyr::from_str::<ParsedFileSystem>(yaml)
             .unwrap()
             .template_with(&variables)

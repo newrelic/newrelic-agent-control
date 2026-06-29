@@ -203,6 +203,10 @@ packages:
             Variable::new_final_string_variable("/filesystem"),
         );
         vars.insert(
+            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR),
+            Variable::new_final_string_variable("/shared-filesystem"),
+        );
+        vars.insert(
             Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_REMOTE_DIR),
             Variable::new_final_string_variable("remote"),
         );
