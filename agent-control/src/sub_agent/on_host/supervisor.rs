@@ -189,6 +189,9 @@ where
             onhost_config.filesystem,
         );
 
+        // No explicit file deletion is needed on apply: spin_up reconciles the filesystem. Its
+        // `write` removes any path AC owned under the previous config but no longer declares, and
+        // its `delete_ephemeral` freshens ephemeral state before re-rendering.
         let new_started_supervisor = starter.spin_up(internal_publisher)?;
 
         Ok(new_started_supervisor)
