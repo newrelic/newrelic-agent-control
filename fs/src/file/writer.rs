@@ -5,7 +5,10 @@ use std::path::Path;
 use std::{fs, io};
 use tracing::instrument;
 
+/// Writes a file to disk.
 pub trait FileWriter {
+    /// Writes `buf` to the file at `path`, creating or truncating it. On Unix the file
+    /// permissions are set to `600`.
     fn write(&self, path: &Path, buf: String) -> io::Result<()>;
 }
 
@@ -49,6 +52,7 @@ impl LocalFile {
 }
 
 #[cfg(feature = "mocks")]
+#[allow(missing_docs)] // test-support code
 pub mod mock {
     ////////////////////////////////////////////////////////////////////////////////////
     // Mock
@@ -92,6 +96,7 @@ pub mod mock {
 // TESTS
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
     use std::fs;

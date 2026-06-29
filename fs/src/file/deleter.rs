@@ -3,7 +3,9 @@ use std::fs::remove_file;
 use std::io;
 use std::path::Path;
 
+/// Deletes a file from disk.
 pub trait FileDeleter {
+    /// Deletes the file at `file_path`. Deleting a non-existent file is not an error.
     fn delete(&self, file_path: &Path) -> io::Result<()>;
 }
 
@@ -21,6 +23,7 @@ impl FileDeleter for LocalFile {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
 

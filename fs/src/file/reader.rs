@@ -3,6 +3,7 @@ use std::fs::{self, read_dir};
 use std::io;
 use std::path::{Path, PathBuf};
 
+/// Reads files and directory entries from disk.
 pub trait FileReader {
     /// Read the contents of file_path and return them as string.
     ///
@@ -79,6 +80,7 @@ fn fallback_decode_windows_1252(data: &[u8]) -> io::Result<String> {
 // Mock
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(feature = "mocks")]
+#[allow(missing_docs)] // test-support code
 pub mod mock {
     use super::*;
     use crate::mock::MockLocalFile;
@@ -128,6 +130,7 @@ pub mod mock {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)] // test-support code
 pub mod tests {
     use super::*;
 
