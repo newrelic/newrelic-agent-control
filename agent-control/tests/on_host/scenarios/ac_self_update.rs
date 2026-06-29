@@ -417,8 +417,9 @@ agents: {{}}
     let _ = push_ac_package(build_fake_ac_binary, None, Some(RECOVERY_VERSION_TAG));
 
     // The periodic self-update retry (no new OpAMP config) downloads and extracts the now-available
-    // package, leaving the AC binary under the installed-packages directory. We assert recovery on
-    // that install, which happens just before the (out-of-scope) self-replace step.
+    // package into its installed-package directory. We assert recovery on that install directory
+    // landing because the self-replace step moves the binary out of `stored_packages` onto the
+    // self-replace target.
     let installed_packages_dir = dirs
         .remote_dir()
         .join(PACKAGES_FOLDER_NAME)
@@ -426,7 +427,7 @@ agents: {{}}
         .join("stored_packages")
         .join(AGENT_CONTROL_BIN_PACKAGE_ID);
     retry(60, Duration::from_secs(5), || {
-        if dir_contains_file(&installed_packages_dir, AGENT_CONTROL_BIN) {
+        if dir_contains_subdir(&installed_packages_dir) {
             Ok(())
         } else {
             Err(
@@ -437,18 +438,12 @@ agents: {{}}
     });
 }
 
-fn dir_contains_file(dir: &Path, name: &str) -> bool {
+/// Whether `dir` exists and contains at least one subdirectory.
+fn dir_contains_subdir(dir: &Path) -> bool {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return false;
     };
-    entries.flatten().any(|entry| {
-        let path = entry.path();
-        if path.is_dir() {
-            dir_contains_file(&path, name)
-        } else {
-            path.file_name().is_some_and(|f| f == name)
-        }
-    })
+    entries.flatten().any(|entry| entry.path().is_dir())
 }
 
 fn create_self_update_local_config(
