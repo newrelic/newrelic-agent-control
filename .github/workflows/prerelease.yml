@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: newrelic/rust-licenses-noticer@9d9bb4a5137f7c9d528b4ada1f505866947feccf # v1
+      - uses: newrelic/rust-licenses-noticer@aafd951d814aa31bbe4a5b463fd52ba208905562 # v1.0.4
         with:
           template-file: THIRD_PARTY_NOTICES.md.tmpl
 
