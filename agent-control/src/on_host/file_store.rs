@@ -29,8 +29,8 @@ use crate::{
 
 /// [`DataStore`] implementation that persists agent data to the local filesystem.
 ///
-/// Generic over the file reader/writer (`F`) and directory manager (`D`) so it can be unit
-/// tested with mocks; use [`FileStore::new_local_fs`] for the real filesystem-backed store.
+/// Generic over the file reader/writer (`F`) and directory manager (`D`); use
+/// [`FileStore::new_local_fs`] for the real filesystem-backed store.
 pub struct FileStore<F, D>
 where
     D: DirectoryManager,
@@ -257,7 +257,7 @@ pub fn build_config_name(name: &str) -> String {
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 mod tests {
     use std::{collections::HashMap, io, path::PathBuf, sync::Arc};
 
