@@ -118,7 +118,7 @@ impl PackagePublisher {
         self.push_with_tag(file, kind, &unique_tag())
     }
 
-    /// Same as [`push`] but uses `tag` instead of a generated unique tag.
+    /// Same as [`Self::push`] but uses `tag` instead of a generated unique tag.
     pub fn push_with_tag<A: ArtifactKind>(&self, file: &Path, kind: A, tag: &str) -> Reference {
         self.runtime_handle.block_on(async {
             self.push_async(

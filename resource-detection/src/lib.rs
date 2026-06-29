@@ -6,7 +6,7 @@
 //! and possibly is part of a Deployment which also has a name. All three of
 //! these attributes can be included in the `Resource`.
 
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 
 use cloud::aws::detector::AWSDetectorError;
 use std::collections::HashMap;

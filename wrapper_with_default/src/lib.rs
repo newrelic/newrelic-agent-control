@@ -1,10 +1,18 @@
+//! Provides the [`WrapperWithDefault`] derive macro, which generates [`Default`] and
+//! [`From`] implementations for newtype wrappers around an inner type, using a
+//! caller-supplied constant as the default value.
+//!
+//! See the [`WrapperWithDefault`] derive macro for usage and the attributes it accepts.
+
+#![deny(missing_docs)]
+
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Path, parse_macro_input, spanned::Spanned};
 
 /// Procedural derive macro to make easier the implementation of wrappers setting a default value.
 /// It automatically generates the [Default] implementation with the provided `wrapper_default_value` (which should
-/// be a constant pointing to the desired default value) and the [From<T>] implementation to convert from/into
+/// be a constant pointing to the desired default value) and the [`From`] implementation to convert from/into
 /// the wrapped type.
 #[proc_macro_derive(WrapperWithDefault, attributes(wrapper_default_value))]
 pub fn wrapper_with_default(input: TokenStream) -> TokenStream {
