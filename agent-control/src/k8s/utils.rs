@@ -186,7 +186,7 @@ pub fn retain_not_null(mapping: &mut Map<String, Value>) {
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use k8s_openapi::api::apps::v1::{DaemonSet, Deployment};

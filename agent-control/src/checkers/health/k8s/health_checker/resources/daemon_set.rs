@@ -141,7 +141,7 @@ fn is_daemon_set_update_strategy_rolling_update(
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use crate::checkers::health::health_checker::{Healthy, Unhealthy};

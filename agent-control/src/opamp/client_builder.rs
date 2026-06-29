@@ -146,7 +146,7 @@ where
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub(crate) mod tests {
     use mockall::{Sequence, mock, predicate};
     use opamp_client::{

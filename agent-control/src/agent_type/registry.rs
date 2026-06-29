@@ -163,7 +163,7 @@ impl<R: AgentTypeRegistry> AgentTypeRegistry for Registry<R> {
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use assert_matches::assert_matches;

@@ -289,7 +289,7 @@ fn time_to_unix_timestamp(time: SystemTime) -> u64 {
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub mod tests {
     use std::collections::HashMap;
 

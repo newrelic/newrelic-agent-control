@@ -20,7 +20,7 @@ pub enum Deployment {
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 impl Deployment {
     pub fn on_host(self) -> OnHost {
         match self {

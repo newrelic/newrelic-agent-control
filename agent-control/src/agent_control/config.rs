@@ -938,7 +938,7 @@ pub fn default_group_version_kinds_no_flux() -> Vec<TypeMeta> {
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use crate::opamp::remote_config::hash::Hash;

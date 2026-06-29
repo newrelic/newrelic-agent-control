@@ -57,7 +57,7 @@ impl<T> TemplateableValue<T> {
         self.template.is_empty()
     }
     #[cfg(test)]
-    #[allow(missing_docs)] // test-support code
+    #[allow(missing_docs)]
     pub fn from_template(s: String) -> Self {
         Self {
             value: None,
@@ -65,7 +65,7 @@ impl<T> TemplateableValue<T> {
         }
     }
     #[cfg(test)]
-    #[allow(missing_docs)] // test-support code
+    #[allow(missing_docs)]
     pub fn with_template(self, s: String) -> Self {
         Self {
             template: s,

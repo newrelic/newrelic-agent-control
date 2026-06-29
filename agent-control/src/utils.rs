@@ -12,5 +12,5 @@ pub mod threads;
 pub mod time;
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub mod test_runtime;

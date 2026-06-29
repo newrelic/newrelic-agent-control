@@ -192,7 +192,7 @@ impl<C: K8sClient> HealthChecker for K8sHealthHelmRelease<C> {
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use crate::agent_control::config::helmrelease_v2_type_meta;

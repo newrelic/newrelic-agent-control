@@ -70,7 +70,7 @@ impl From<InstanceID> for Vec<u8> {
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub mod tests {
     use super::{InstanceID, InstanceIdentifiers};
     use opamp_client::operation::instance_uid::InstanceUid;

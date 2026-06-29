@@ -82,7 +82,7 @@ pub trait ConfigRepository: Send + Sync + 'static {
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub mod tests {
     use std::collections::HashMap;
     use std::sync::Mutex;

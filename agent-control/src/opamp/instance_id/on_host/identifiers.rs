@@ -199,7 +199,7 @@ where
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub mod tests {
     use crate::opamp::instance_id::on_host::identifiers::{
         Identifiers, IdentifiersProvider, IdentifiersProviderError,

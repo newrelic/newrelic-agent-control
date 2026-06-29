@@ -195,7 +195,7 @@ impl TryFrom<&CustomMessage> for Signatures {
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub mod tests {
     use super::SignatureData;
     use super::Signatures;

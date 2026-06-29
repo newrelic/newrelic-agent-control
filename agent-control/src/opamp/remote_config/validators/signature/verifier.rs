@@ -102,7 +102,7 @@ impl VerifierStore {
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub mod tests {
     use crate::{
         http::{client::HttpClient, config::HttpConfig},

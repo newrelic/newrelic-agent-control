@@ -247,7 +247,7 @@ fn build_nr_auth_proxy_config(
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub mod tests {
     use assert_matches::assert_matches;
     use http::header::AUTHORIZATION;

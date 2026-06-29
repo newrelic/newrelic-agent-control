@@ -112,7 +112,7 @@ impl From<HttpBuildError> for HttpClientBuilderError {
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub(crate) mod tests {
     use assert_matches::assert_matches;
     use http::Response;

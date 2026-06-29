@@ -251,7 +251,7 @@ where
 }
 
 #[cfg(test)]
-#[allow(missing_docs)] // test-support code
+#[allow(missing_docs)]
 pub mod tests {
     use crate::agent_type::runtime_config::k8s::{K8sHealthCheckDefinition, K8sHealthResourceKind};
     use crate::checkers::health::health_checker::HealthChecker;
