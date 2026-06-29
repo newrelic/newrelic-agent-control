@@ -25,6 +25,7 @@ Remember that the keywords that you can use are the following:
 - Added support for remote agent type definition retrieval from OCI registries.
 - Agent type definitions now tolerate unknown fields for forward compatibility.
 - Replace filesystem in on-host agent-type definitions with an explicit, recursive, tagged-kind tree: every entry declares `kind: file | dir | dir_content_from_map`, and `dir` entries nest via `entries:`.
+- Added support to set a different self-update binary target.
 
 ## v1.17.0 - 2026-06-16
 
