@@ -109,69 +109,91 @@ impl Default for RegexValidator {
 }
 
 // Infra Agent Integrations (OHI)
-// deny any config for integrations that contains discovery command
-// https://github.com/newrelic/infrastructure-agent/blob/1.55.1/pkg/databind/internal/discovery/command.go#L14
-// Example:
-//     discovery:
-//       command:
-//         # Use the following optional arguments:
-//         # --namespaces: Comma separated list of namespaces to discover pods on
-//         # --tls: Use secure (TLS) connection
-//         # --port: Port used to connect to the kubelet. Default is 10255
-//         exec: /var/db/newrelic-infra/nri-discovery-kubernetes
-//         match:
-//           label.app: mysql
-//
-// deny any config for the Infra Agent custom secret management command
-// https://docs.newrelic.com/docs/infrastructure/host-integrations/installation/secrets-management/#custom-commands
-// Example:
-// variables:
-//   myToken:
-//     command:
-//       path: '/path/to/my-custom-auth-json'
-//       args: ["--domain", "myDomain", "--other_param", "otherValue"]
-//       ttl: 24h
+
 /// Matches a `command:` field (including hex-escaped variants) used for arbitrary command execution.
+///
+/// Denies any config for integrations that contains a discovery command (see the
+/// [infrastructure-agent discovery source]):
+///
+/// ```yaml
+/// discovery:
+///   command:
+///     # Use the following optional arguments:
+///     # --namespaces: Comma separated list of namespaces to discover pods on
+///     # --tls: Use secure (TLS) connection
+///     # --port: Port used to connect to the kubelet. Default is 10255
+///     exec: /var/db/newrelic-infra/nri-discovery-kubernetes
+///     match:
+///       label.app: mysql
+/// ```
+///
+/// It also denies the Infra Agent [custom secret management command]:
+///
+/// ```yaml
+/// variables:
+///   myToken:
+///     command:
+///       path: '/path/to/my-custom-auth-json'
+///       args: ["--domain", "myDomain", "--other_param", "otherValue"]
+///       ttl: 24h
+/// ```
+///
+/// [infrastructure-agent discovery source]: https://github.com/newrelic/infrastructure-agent/blob/1.55.1/pkg/databind/internal/discovery/command.go#L14
+/// [custom secret management command]: https://docs.newrelic.com/docs/infrastructure/host-integrations/installation/secrets-management/#custom-commands
 pub static REGEX_COMMAND_FIELD: &str =
     r"(c|\\x63)(o|\\x6f)(m|\\x6d)(m|\\x6d)(a|\\x61)(n|\\x6e)(d|\\x64)\s*:";
 
-// deny integrations arbitrary command execution
-// https://docs.newrelic.com/docs/infrastructure/host-integrations/infrastructure-integrations-sdk/specifications/host-integrations-standard-configuration-format/#exec
-// Example:
-// - name: my-integration
-//   exec: /usr/bin/python /opt/integrations/my-script.py --host=127.0.0.1
 /// Matches an `exec:` field (including hex-escaped variants) used for arbitrary command execution.
+///
+/// Denies integrations performing arbitrary command execution (see the
+/// [host integration `exec` specification]):
+///
+/// ```yaml
+/// - name: my-integration
+///   exec: /usr/bin/python /opt/integrations/my-script.py --host=127.0.0.1
+/// ```
+///
+/// [host integration `exec` specification]: https://docs.newrelic.com/docs/infrastructure/host-integrations/infrastructure-integrations-sdk/specifications/host-integrations-standard-configuration-format/#exec
 pub static REGEX_EXEC_FIELD: &str = r"(e|\\x65)(x|\\x78)(e|\\x65)(c|\\x63)\s*:";
 
-// deny specific binary paths (i.e. nri-apache)
-// https://github.com/newrelic/nri-apache/blob/v1.12.6/apache-config.yml.sample#L35
-// Example:
-// - name: nri-apache
-//   env:
-//     INVENTORY: "true"
-//     # status_url is used to identify the monitored entity to which the inventory will be attached.
-//     STATUS_URL: http://127.0.0.1/server-status?auto
-//
-//     # binary_path is used to specify the path of the apache binary file (i.e. "C:\Apache\bin\httpd.exe").
-//     # By default the integration automatically discovers the binary on "/usr/sbin/httpd" or "/usr/sbin/apache2ctl". Use this setting for any other location.
-//     # BINARY_PATH: ""
-// (?i:exp)       case-insensitive
-// (?flags:exp)   set flags for exp (non-capturing)
 /// Matches a `binary_path` field (case-insensitive, including hex-escaped variants).
+///
+/// Denies specific binary paths (e.g. `nri-apache`, see its [config sample]):
+///
+/// ```yaml
+/// - name: nri-apache
+///   env:
+///     INVENTORY: "true"
+///     # status_url is used to identify the monitored entity to which the inventory will be attached.
+///     STATUS_URL: http://127.0.0.1/server-status?auto
+///
+///     # binary_path is used to specify the path of the apache binary file (i.e. "C:\Apache\bin\httpd.exe").
+///     # By default the integration automatically discovers the binary on "/usr/sbin/httpd" or
+///     # "/usr/sbin/apache2ctl". Use this setting for any other location.
+///     # BINARY_PATH: ""
+/// ```
+///
+/// The regex uses the inline flags `(?i:exp)` (case-insensitive) and `(?flags:exp)` (set flags for
+/// `exp`, non-capturing).
+///
+/// [config sample]: https://github.com/newrelic/nri-apache/blob/v1.12.6/apache-config.yml.sample#L35
 pub static REGEX_BINARY_PATH_FIELD: &str = r"(?i:(b|\\x62)(i|\\x69)(n|\\x6e)(a|\\x61)(r|\\x72)(y|\\x79)(_|\x5f)(p|\\x70)(a|\\x61)(t|\\x74)(h|\\x68))";
 
-// deny using nri-flex
 /// Matches usage of the `nri-flex` integration (including hex-escaped variants).
+///
+/// Denies using `nri-flex`.
 pub static REGEX_NRI_FLEX: &str =
     r"(n|\\x6e)(r|\\x72)(i|\\x69)(\-|\\x2d)(f|\\x66)(l|\\x6c)(e|\\x65)(x|\\x78)";
 
-// deny environment variable syntax in proxy configuration
-// This prevents using {{VAR_NAME}} (infra agent syntax) or ${nr-env:VAR_NAME} (agent control syntax)
-// in the proxy field.
-// Example:
-// proxy: http://{{PROXY_HOST}}:8080
-// proxy: ${nr-env:HTTP_PROXY}
 /// Matches environment-variable placeholders in a `proxy` field (infra-agent or agent-control syntax).
+///
+/// Denies environment-variable syntax in the proxy configuration. This prevents using `{{VAR_NAME}}`
+/// (infra-agent syntax) or `${nr-env:VAR_NAME}` (agent-control syntax) in the `proxy` field:
+///
+/// ```yaml
+/// proxy: http://{{PROXY_HOST}}:8080
+/// proxy: ${nr-env:HTTP_PROXY}
+/// ```
 pub static REGEX_PROXY_ENV_VAR: &str = r"(?i:(p|\\x70)(r|\\x72)(o|\\x6f)(x|\\x78)(y|\\x79))\s*:.*(\{\{|\$\{(n|\\x6e)(r|\\x72)(\-|\\x2d)(e|\\x65)(n|\\x6e)(v|\\x76):)";
 
 #[cfg(test)]
