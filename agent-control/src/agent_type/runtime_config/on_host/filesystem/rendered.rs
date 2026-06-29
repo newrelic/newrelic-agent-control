@@ -41,16 +41,16 @@ pub enum RenderedEntry {
     /// A directory whose files were projected from a map (filename to content).
     DirContentFromMap {
         files: HashMap<PathBuf, String>,
-        persistent: bool,
     },
 }
 
 impl RenderedEntry {
     fn persistent(&self) -> bool {
         match self {
-            Self::File { persistent, .. }
-            | Self::Dir { persistent, .. }
-            | Self::DirContentFromMap { persistent, .. } => *persistent,
+            Self::File { persistent, .. } | Self::Dir { persistent, .. } => *persistent,
+            // `dir_content_from_map` has no persistent flag: Agent Control re-renders its
+            // projected files on every write, so it is always treated as ephemeral.
+            Self::DirContentFromMap { .. } => false,
         }
     }
 

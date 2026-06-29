@@ -482,7 +482,7 @@ config_logging:
 
 The runtime produces the following on disk under `${nr-sub:filesystem_agent_dir}`. Each kind is shown in isolation.
 
-**`kind: file`**: single file rendered from the templated `text:` field. `persistent: true` keeps it across sub-agent stop and restarts.
+**`kind: file`**: single file rendered from the templated `text:` field. `persistent: true` keeps it across agent-control stop and restarts.
 
 ```
 newrelic-infra.yaml      ← contents from ${nr-var:config_agent}
@@ -532,15 +532,14 @@ agent/integrations.d/
 
 **`dir_content_from_map`** — a directory whose set of files is computed at deploy time from a `map[string]yaml` variable. The map's keys become filenames; the values become file contents.
 
-| Field        | Required | Default | Description                                                  |
-|--------------|----------|---------|--------------------------------------------------------------|
-| `kind`       | yes      | —       | Must be `dir_content_from_map`.                              |
-| `source`     | yes      | —       | Reference to a `map[string]yaml` variable (`${nr-var:…}`).   |
-| `persistent` | no       | `false` | If `true`, files projected here are not removed on cleanup.  |
+| Field        | Required | Default | Description                                                                                                            |
+|--------------|----------|---------|------------------------------------------------------------------------------------------------------------------------|
+| `kind`       | yes      | —       | Must be `dir_content_from_map`.                                                                                        |
+| `source`     | yes      | —       | Reference to a `map[string]yaml` variable (`${nr-var:…}`).                                                             |
 
 ##### Persistence in Filesystem
 
-Every `file`, `dir`, and `dir_content_from_map` entry accepts a boolean `persistent:` (default `false`). Two independent mechanisms govern lifecycle:
+Every `file` and `dir` entry accepts a boolean `persistent:` (default `false`). Two independent mechanisms govern lifecycle:
 
 - **The `persistent` flag** controls whether the entry's on-disk path is wiped when the tree is cleaned: on sub-agent stop, and just before every (re)write of the tree (start, restart, and config apply). Ephemeral entries are wiped at those points; persistent entries are kept. Wiping before each write means leftover ephemeral content never carries across — even after an ungraceful shutdown (crash/SIGKILL) that skipped the stop-time cleanup.
 - **The manifest** drives reconciliation on every write event. Anything Agent Control wrote on the previous successful write is recorded in the manifest. On the next write, Agent Control diffs the manifest against the new declared set: paths it owned previously and no longer owns are deleted; paths it never owned are left alone.
@@ -549,11 +548,52 @@ The flag does **not** shield the entry from intentional removal: if you delete a
 
 **`persistent` applies per entry and does not cascade to children.** When cleaning (on stop, and before each (re)write), cleanup walks the declared tree: a persistent entry is kept and the walk descends into its children, while an ephemeral entry is deleted together with its entire on-disk subtree (a recursive `remove_dir_all`, which stops the walk there). So a nested path survives cleanup only if **every declared node on the path is `persistent: true`**.
 
+**`dir_content_from_map` has no `persistent` flag.** Agent Control owns and re-renders the projected files on every write, so it is always ephemeral. A `persistent:` key left in the YAML is silently ignored, so older configs still parse.
+
 ###### Manifest
 
 After every successful write, Agent Control writes `.ac-managed-paths.json` inside the sub-agent's filesystem directory listing the absolute paths it just wrote. This filename is **reserved** — agent types must not declare it.
 
 The manifest is the source of truth for "what Agent Control owns." Files the sub-agent process creates at runtime are never in the manifest, so they're invisible to reconciliation: they survive every write event, every sub-agent restart, and every config update. They're only removed if some declared ancestor directory is itself removed from the agent type (the `remove_dir_all` of the parent takes them as collateral) or if the agent is removed from the fleet.
+
+**The manifest stores rendered paths, not agent-type declarations.** Reconciliation runs on the tree *after* variable substitution, so the manifest records the concrete absolute paths Agent Control actually wrote. This matters most for `dir_content_from_map`: the agent type only names the directory and a `source:` variable, but at render time each map key is expanded into its own file path, and every one of those paths is recorded individually in the manifest.
+
+As a result, removing a key from the source map is reconciled exactly like deleting a literal entry from the agent type: the rendered path is in the previous manifest but absent from the new declared set, so it is deleted on the next write.
+
+**Example.** Agent type:
+
+```yaml
+filesystem:
+  integrations.d:
+    kind: dir_content_from_map
+    source: ${nr-var:config_integrations}
+```
+
+The `config_integrations` variable (a `map[string]yaml`) supplied at deploy time:
+
+```yaml
+config_integrations:
+  nri-mysql.yaml: |
+    integrations:
+      - name: nri-mysql
+  nri-redis.yaml: |
+    integrations:
+      - name: nri-redis
+```
+
+With `${nr-sub:filesystem_agent_dir}` resolving to `/var/lib/newrelic-agent-control/filesystem/nr-infra`, the write produces `integrations.d/nri-mysql.yaml` and `integrations.d/nri-redis.yaml`, and the resulting `.ac-managed-paths.json` is:
+
+```json
+{
+  "managed_paths": [
+    "/var/lib/newrelic-agent-control/filesystem/nr-infra/integrations.d",
+    "/var/lib/newrelic-agent-control/filesystem/nr-infra/integrations.d/nri-mysql.yaml",
+    "/var/lib/newrelic-agent-control/filesystem/nr-infra/integrations.d/nri-redis.yaml"
+  ]
+}
+```
+
+Note the directory plus one entry per rendered map key, it's the variable's *content* that lands in the manifest, not the `source:` reference. If the next deploy drops `nri-redis.yaml` from `config_integrations`, the new declared set no longer contains `…/integrations.d/nri-redis.yaml` while the previous manifest still does, so that file is deleted on the next write.
 
 ###### Lifecycle
 

@@ -38,11 +38,14 @@ pub mod rendered;
 pub struct FileSystem(HashMap<SafePath, FilesystemEntry>);
 
 /// One entry in a filesystem tree. The `kind` discriminator selects which fields are required.
-/// Every variant carries a `persistent` flag (default `false`):
+/// The `file` and `dir` variants carry a `persistent` flag (default `false`):
 ///
 /// - `persistent: false` (ephemeral): the entry's on-disk tree is deleted on sub-agent stop.
 /// - `persistent: true`: the entry survives sub-agent stop and restart; it is only deleted when
 ///   the agent is removed from the fleet.
+///
+/// `dir_content_from_map` has no `persistent` flag: its projected files are re-rendered on every
+/// write, so it is always ephemeral.
 ///
 /// Independently of the flag, every write event reconciles the on-disk state against the current
 /// declared set, anything no longer declared in the agent type is deleted.
@@ -69,8 +72,6 @@ pub enum FilesystemEntry {
     DirContentFromMap {
         /// The (templated) `map[string]yaml` source whose keys/values become files.
         source: TemplateableValue<DirEntriesMap>,
-        #[serde(default)]
-        persistent: TemplateableValue<bool>,
     },
 }
 
@@ -153,17 +154,14 @@ impl Templateable for FilesystemEntry {
                     persistent: persistent.template_with(variables)?,
                 })
             }
-            FilesystemEntry::DirContentFromMap { source, persistent } => {
+            FilesystemEntry::DirContentFromMap { source } => {
                 let map = source.template_with(variables)?;
                 let files = map
                     .0
                     .into_iter()
                     .map(|(k, content)| (PathBuf::from(k), content))
                     .collect();
-                Ok(rendered::RenderedEntry::DirContentFromMap {
-                    files,
-                    persistent: persistent.template_with(variables)?,
-                })
+                Ok(rendered::RenderedEntry::DirContentFromMap { files })
             }
         }
     }
@@ -627,7 +625,7 @@ persistent-file:
 persistent-dir:
   kind: dir
   persistent: true
-persistent-map:
+map-with-ignored-persistent:
   kind: dir_content_from_map
   source: ${nr-var:m}
   persistent: true
@@ -649,10 +647,8 @@ persistent-map:
             FilesystemEntry::Dir { persistent, .. } => assert_eq!(persistent.template, "true"),
             other => panic!("unexpected variant: {other:?}"),
         }
-        match parsed.0.get(&key("persistent-map")).unwrap() {
-            FilesystemEntry::DirContentFromMap { persistent, .. } => {
-                assert_eq!(persistent.template, "true");
-            }
+        match parsed.0.get(&key("map-with-ignored-persistent")).unwrap() {
+            FilesystemEntry::DirContentFromMap { .. } => {}
             other => panic!("unexpected variant: {other:?}"),
         }
     }
