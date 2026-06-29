@@ -155,9 +155,12 @@ pub enum OnHostCleanerError {
     /// Failed to delete the stored remote configuration.
     #[error("failed to delete stored remote config: {0}")]
     RemoteConfig(#[source] ConfigRepositoryError),
+    /// Failed to delete agent filesystem directory.
     #[error("failed to delete agent filesystem directory {path:?}: {source}")]
     Filesystem {
+        /// The path in the filesystem that couldn't be deleted.
         path: PathBuf,
+        /// The io error.
         #[source]
         source: std::io::Error,
     },

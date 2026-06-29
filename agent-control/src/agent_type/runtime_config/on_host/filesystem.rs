@@ -56,6 +56,7 @@ pub enum FilesystemEntry {
     File {
         /// The file's (possibly templated) content.
         text: TemplateableValue<String>,
+        /// The persistency attribute marking it's lifecicle.
         #[serde(default)]
         persistent: TemplateableValue<bool>,
     },
@@ -64,6 +65,7 @@ pub enum FilesystemEntry {
         /// The directory's child entries.
         #[serde(default)]
         entries: HashMap<SafePath, FilesystemEntry>,
+        /// The persistency attribute marking it's lifecicle.
         #[serde(default)]
         persistent: TemplateableValue<bool>,
     },

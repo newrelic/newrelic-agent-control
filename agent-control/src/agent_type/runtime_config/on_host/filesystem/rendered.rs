@@ -30,16 +30,21 @@ pub struct FileSystem {
 pub enum RenderedEntry {
     /// A file with the given content.
     File {
+        /// The rendered content from the file.
         content: String,
+        /// The persistency attribute marking it's lifecicle.
         persistent: bool,
     },
     /// A directory containing child entries keyed by their relative path.
     Dir {
+        /// The dictionary containing each children path and the entry.
         children: HashMap<PathBuf, RenderedEntry>,
+        /// The persistency attribute marking it's lifecicle.
         persistent: bool,
     },
     /// A directory whose files were projected from a map (filename to content).
     DirContentFromMap {
+        /// The dictionary containing all file paths and their content.
         files: HashMap<PathBuf, String>,
     },
 }

@@ -89,6 +89,7 @@ where
     pub internal_publisher: EventPublisher<SubAgentInternalEvent>,
     /// Directory where executable output is logged when file logging is enabled.
     pub logging_path: PathBuf,
+    /// The agent's filesystem.
     pub filesystem: FileSystem,
 }
 
