@@ -1,3 +1,6 @@
+//! Configuration types for Agent Control: the full [`AgentControlConfig`], its remotely-mutable
+//! [`AgentControlDynamicConfig`], OCI/self-update/package settings and Kubernetes-specific options.
+
 use super::agent_id::AgentID;
 use super::http_server::config::ServerConfig;
 use super::uptime_report::UptimeReportConfig;
@@ -38,9 +41,11 @@ use wrapper_with_default::WrapperWithDefault;
 /// AgentControlConfig represents the configuration for the agent control.
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 pub struct AgentControlConfig {
+    /// Logging configuration.
     #[serde(default)]
     pub log: LoggingConfig,
 
+    /// Identifier of the host running Agent Control.
     #[serde(default)]
     pub host_id: String,
 
@@ -55,18 +60,23 @@ pub struct AgentControlConfig {
     #[serde(default)]
     pub k8s: Option<K8sConfig>,
 
+    /// Local status HTTP server configuration.
     #[serde(default)]
     pub server: ServerConfig,
 
+    /// Proxy configuration for outbound connections.
     #[serde(default)]
     pub proxy: ProxyConfig,
 
+    /// Self-instrumentation (telemetry about Agent Control itself) configuration.
     #[serde(default)]
     pub self_instrumentation: InstrumentationConfig,
 
+    /// Uptime report configuration.
     #[serde(default)]
     pub uptime_report: UptimeReportConfig,
 
+    /// Health-checker configuration.
     #[serde(default)]
     pub health_check: AgentControlHealthCheckerConfig,
 
@@ -91,11 +101,12 @@ pub struct AgentControlConfig {
     pub oci: OciConfig,
 
     /// Configuration for the agent type registry remote source.
-    /// Reuses the global `oci` registry/auth; see [AgentTypeRegistryConfig].
+    /// Reuses the global `oci` registry/auth; see [AgentTypeConfig].
     #[serde(default)]
     pub agent_types: AgentTypeConfig,
 }
 
+/// Configuration for the on-host self-update mechanism.
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
 #[serde(default)]
 pub struct SelfUpdateConfig {
@@ -132,6 +143,7 @@ impl SelfUpdateConfig {
 }
 
 const DEFAULT_SELF_UPDATE_CONFIG_ENABLED: bool = false;
+/// Whether the self-update mechanism is enabled (defaults to `false`).
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_SELF_UPDATE_CONFIG_ENABLED)]
 pub struct SelfUpdateConfigEnabled(bool);
@@ -141,28 +153,37 @@ const DEFAULT_DOWNLOAD_BASE_DELAY: Duration = Duration::from_secs(1);
 const DEFAULT_DOWNLOAD_MAX_DELAY: Duration = Duration::from_secs(30);
 const DEFAULT_DOWNLOAD_JITTER: bool = true;
 
+/// Maximum number of download attempts within a single self-update attempt (must be non-zero).
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_DOWNLOAD_MAX_ATTEMPTS)]
 pub struct DownloadMaxAttempts(#[serde(deserialize_with = "deserialize_non_zero_usize")] usize);
 
+/// Base delay between download retries.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_DOWNLOAD_BASE_DELAY)]
 pub struct DownloadBaseDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
+/// Maximum delay between download retries.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_DOWNLOAD_MAX_DELAY)]
 pub struct DownloadMaxDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
+/// Whether jitter is applied to download retry delays.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_DOWNLOAD_JITTER)]
 pub struct DownloadJitter(bool);
 
+/// Retry/backoff configuration for self-update downloads.
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct DownloadRetryConfig {
+    /// Maximum number of download attempts.
     pub max_attempts: DownloadMaxAttempts,
+    /// Base delay between retries.
     pub base_delay: DownloadBaseDelay,
+    /// Maximum delay between retries.
     pub max_delay: DownloadMaxDelay,
+    /// Whether jitter is applied to retry delays.
     pub jitter: DownloadJitter,
 }
 
@@ -183,30 +204,39 @@ const DEFAULT_UPGRADE_BASE_DELAY: Duration = Duration::from_secs(30);
 const DEFAULT_UPGRADE_MAX_DELAY: Duration = Duration::from_secs(600);
 const DEFAULT_UPGRADE_JITTER: bool = true;
 
+/// Number of consecutive failed upgrades before escalating to a louder "capped" report (non-zero).
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_UPGRADE_MAX_FAILURES)]
 pub struct UpgradeMaxConsecutiveFailures(
     #[serde(deserialize_with = "deserialize_non_zero_u32")] u32,
 );
 
+/// Base delay between upgrade retries.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_UPGRADE_BASE_DELAY)]
 pub struct UpgradeBaseDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
+/// Maximum delay between upgrade retries.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_UPGRADE_MAX_DELAY)]
 pub struct UpgradeMaxDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
+/// Whether jitter is applied to upgrade retry delays.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_UPGRADE_JITTER)]
 pub struct UpgradeJitter(bool);
 
+/// Backoff configuration for re-attempting a failed Agent Control upgrade.
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct UpgradeBackoffConfig {
+    /// Consecutive failures before escalating the report.
     pub max_consecutive_failures: UpgradeMaxConsecutiveFailures,
+    /// Base delay between retries.
     pub base_delay: UpgradeBaseDelay,
+    /// Maximum delay between retries.
     pub max_delay: UpgradeMaxDelay,
+    /// Whether jitter is applied to retry delays.
     pub jitter: UpgradeJitter,
 }
 
@@ -247,23 +277,29 @@ impl From<&UpgradeBackoffConfig> for BackoffPolicy {
     }
 }
 
+/// Configuration related to host agent packages.
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
 pub struct PackagesConfig {
     /// Indicates whether package signature verification is enabled or not
     pub signature_verification_enabled: SignatureVerificationEnabled,
 }
 
+/// OCI registry configuration shared by Agent Control and agent package pulls.
 #[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq)]
 pub struct OciConfig {
+    /// Registry host (defaults to the public registry).
     #[serde(default)]
     pub registry: Registry,
+    /// Optional registry authentication.
     pub auth: Option<OciAuth>,
 }
 
+/// Error returned when a [`Registry`] string is invalid.
 #[derive(thiserror::Error, Debug)]
 #[error("{0}")]
 pub struct InvalidRegistry(String);
 
+/// OCI registry host (a URL or hostname).
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Registry(String);
 
@@ -292,9 +328,12 @@ impl FromStr for Registry {
     }
 }
 
+/// Authentication method for an OCI registry.
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub enum OciAuth {
+    /// HTTP basic authentication.
     Basic(BasicAuth),
+    /// Bearer-token authentication.
     Bearer(BearerAuth),
 }
 
@@ -319,14 +358,19 @@ impl<'de> Deserialize<'de> for OciAuth {
     }
 }
 
+/// Username/password credentials for basic OCI authentication.
 #[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct BasicAuth {
+    /// Registry username.
     pub username: String,
+    /// Registry password.
     pub password: String,
 }
 
+/// Bearer-token credentials for OCI authentication.
 #[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct BearerAuth {
+    /// Bearer token.
     pub token: String,
 }
 
@@ -342,6 +386,7 @@ impl From<&OciAuth> for RegistryAuth {
 }
 
 const DEFAULT_SIGNATURE_VERIFICATION_ENABLED: bool = true;
+/// Whether package/agent-type signature verification is enabled (defaults to `true`).
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_SIGNATURE_VERIFICATION_ENABLED)]
 pub struct SignatureVerificationEnabled(bool);
@@ -393,10 +438,15 @@ impl TryFrom<YAMLConfig> for AgentControlConfig {
     }
 }
 
+/// Error produced while parsing or merging Agent Control configuration.
 #[derive(Error, Debug)]
 #[error("{0}")]
-pub struct AgentControlConfigError(pub String);
+pub struct AgentControlConfigError(
+    /// Human-readable error description.
+    pub String,
+);
 
+/// Map of sub-agent identifiers to their configuration.
 pub type SubAgentsMap = HashMap<AgentID, SubAgentConfig>;
 
 /// Key for the agents section in the configuration.
@@ -407,6 +457,7 @@ const AGENTS_KEY: &str = "agents";
 /// The dynamic configuration can be changed remotely.
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub struct AgentControlDynamicConfig {
+    /// Sub-agents to supervise, keyed by their identifier.
     pub agents: SubAgentsMap,
     /// version represent the AC version that needs to be executed.
     #[serde(
@@ -565,13 +616,16 @@ pub fn sub_agents_difference<'a>(
         .filter(|(agent_id, _)| !new_sub_agents.contains_key(agent_id))
 }
 
+/// Configuration of a single sub-agent.
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct SubAgentConfig {
+    /// The agent type identifier this sub-agent is an instance of.
     #[serde(serialize_with = "AgentTypeID::serialize_fqn")]
     #[serde(deserialize_with = "AgentTypeID::deserialize_fqn")]
     pub agent_type: AgentTypeID,
 }
 
+/// Reference to a Kubernetes Secret holding authentication credentials.
 #[derive(Clone, Debug, Deserialize, PartialEq, Default)]
 pub struct AuthSecret {
     /// The name of the Kubernetes Secret resource.
@@ -585,6 +639,7 @@ pub struct AuthSecret {
     pub secret_key_name: String,
 }
 
+/// Configuration for the OpAMP (Fleet Control) client.
 #[derive(Debug, PartialEq, Clone)]
 pub struct OpAMPClientConfig {
     /// OpAMP server endpoint.
@@ -746,8 +801,10 @@ impl<'de> Deserialize<'de> for K8sConfig {
     }
 }
 
+/// Package source used by the on-host self-update mechanism.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct AgentControlPackage {
+    /// How to download the Agent Control package.
     pub download: Download,
 }
 impl Default for AgentControlPackage {
@@ -765,11 +822,14 @@ impl Default for AgentControlPackage {
     }
 }
 
+/// Download source for a package.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct Download {
+    /// OCI download source.
     pub oci: Oci,
 }
 
+/// OCI download source (repository plus signing key).
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct Oci {
     /// Repository name.
@@ -778,6 +838,7 @@ pub struct Oci {
     pub public_key_url: Url,
 }
 
+/// [`TypeMeta`] for a Flux `HelmRelease` (v2).
 pub fn helmrelease_v2_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
@@ -785,6 +846,7 @@ pub fn helmrelease_v2_type_meta() -> TypeMeta {
     }
 }
 
+/// [`TypeMeta`] for the New Relic `Instrumentation` CRD (v1beta3).
 pub fn instrumentation_v1beta3_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "newrelic.com/v1beta3".to_string(),
@@ -792,6 +854,7 @@ pub fn instrumentation_v1beta3_type_meta() -> TypeMeta {
     }
 }
 
+/// [`TypeMeta`] for a Flux `HelmRepository`.
 pub fn helmrepository_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "source.toolkit.fluxcd.io/v1".to_string(),
@@ -799,6 +862,7 @@ pub fn helmrepository_type_meta() -> TypeMeta {
     }
 }
 
+/// [`TypeMeta`] for a Flux `HelmChart`.
 pub fn helmchart_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "source.toolkit.fluxcd.io/v1".to_string(),
@@ -806,6 +870,7 @@ pub fn helmchart_type_meta() -> TypeMeta {
     }
 }
 
+/// [`TypeMeta`] for a Kubernetes `StatefulSet`.
 pub fn statefulset_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "apps/v1".to_string(),
@@ -813,6 +878,7 @@ pub fn statefulset_type_meta() -> TypeMeta {
     }
 }
 
+/// [`TypeMeta`] for a Kubernetes `DaemonSet`.
 pub fn daemonset_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "apps/v1".to_string(),
@@ -820,6 +886,7 @@ pub fn daemonset_type_meta() -> TypeMeta {
     }
 }
 
+/// [`TypeMeta`] for a Kubernetes `Deployment`.
 pub fn deployment_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "apps/v1".to_string(),
@@ -827,6 +894,7 @@ pub fn deployment_type_meta() -> TypeMeta {
     }
 }
 
+/// [`TypeMeta`] for a Kubernetes `Secret`.
 pub fn secret_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "v1".to_string(),
@@ -834,6 +902,7 @@ pub fn secret_type_meta() -> TypeMeta {
     }
 }
 
+/// [`TypeMeta`] for a Kubernetes `ConfigMap`.
 pub fn configmap_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "v1".to_string(),
@@ -841,6 +910,7 @@ pub fn configmap_type_meta() -> TypeMeta {
     }
 }
 
+/// Default set of resource types Agent Control watches and garbage-collects (includes Flux types).
 pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     // In flux health check we are currently supporting just a single helm_release_type_meta
     // Each time we support a new version we should decide if and how to support retrieving its health
@@ -857,6 +927,7 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     ]
 }
 
+/// Default set of resource types when CD/Flux is disabled (excludes Flux and Instrumentation types).
 pub fn default_group_version_kinds_no_flux() -> Vec<TypeMeta> {
     vec![
         secret_type_meta(),
@@ -867,6 +938,7 @@ pub fn default_group_version_kinds_no_flux() -> Vec<TypeMeta> {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use crate::opamp::remote_config::hash::Hash;

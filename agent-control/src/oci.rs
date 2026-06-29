@@ -45,6 +45,9 @@ pub struct Client {
 }
 
 impl Client {
+    /// Builds a [`Client`] from the given OCI client and proxy configuration, applying the proxy
+    /// settings and constructing the public-key fetcher used for signature verification. Async
+    /// operations are driven on the provided `runtime`.
     pub fn try_new(
         client_config: ClientConfig,
         proxy_config: ProxyConfig,
@@ -157,7 +160,7 @@ impl Client {
     ///
     /// The expected signature format follows Cosign's specification, :
     /// - Signatures are stored as separate artifacts in the same registry (the signature reference can be derived from
-    ///   the provided `reference` through, see [signature_verification::triangulate] for details).
+    ///   the provided `reference` through, see `signature_verification::triangulate` for details).
     /// - Each signature is a JSON payload (Simple Signing format) containing a `critical` section with the
     ///   manifest digest of the signed artifact
     /// - The signature itself is base64-encoded in the layer's annotations under `dev.cosignproject.cosign/signature`
@@ -255,6 +258,7 @@ impl OciArtifactFetcher {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use assert_matches::assert_matches;

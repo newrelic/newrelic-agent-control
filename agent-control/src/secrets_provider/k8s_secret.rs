@@ -1,3 +1,5 @@
+//! Secrets provider that reads secrets from Kubernetes secrets.
+
 use std::sync::Arc;
 
 use thiserror::Error;
@@ -5,6 +7,7 @@ use thiserror::Error;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::secrets_provider::SecretsProvider;
 
+/// Error returned when a Kubernetes secret cannot be resolved.
 #[derive(Debug, Error)]
 #[error("resolving k8s secret: {0}")]
 pub struct K8sSecretProviderError(String);
@@ -23,6 +26,7 @@ impl K8sSecretProvider {
 }
 
 impl<C: K8sClient> K8sSecretProvider<C> {
+    /// Creates a new [`K8sSecretProvider`] backed by the given Kubernetes client.
     pub fn new(k8s_client: Arc<C>) -> Self {
         K8sSecretProvider { k8s_client }
     }
@@ -53,7 +57,7 @@ pub struct K8sSecretPath {
     key: String,
 }
 
-/// Converts a format like <namespace>:<name>:<key> into a [K8sSecretPath].
+/// Converts a format like `<namespace>:<name>:<key>` into a [K8sSecretPath].
 impl TryFrom<&str> for K8sSecretPath {
     type Error = K8sSecretProviderError;
     fn try_from(value: &str) -> Result<Self, Self::Error> {

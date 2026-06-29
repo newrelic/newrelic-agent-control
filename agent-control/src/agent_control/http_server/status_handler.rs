@@ -1,3 +1,5 @@
+//! Actix handler serving the current [`Status`] as JSON on the `/status` endpoint.
+
 use crate::agent_control::http_server::status::Status;
 use actix_web::http::header::ContentType;
 use actix_web::web::Data;

@@ -1,3 +1,5 @@
+//! On-host resource cleaner that wipes a removed sub-agent's fleet data and OpAMP instance id.
+
 use std::sync::Arc;
 
 use thiserror::Error;
@@ -26,6 +28,7 @@ where
     S: InstanceIDStorer,
     C: ConfigRepository,
 {
+    /// Builds a cleaner delegating to the given instance-id storer and config repository.
     pub fn new(instance_id_storer: Arc<S>, config_repo: Arc<C>) -> Self {
         Self {
             instance_id_storer,
@@ -63,12 +66,16 @@ where
     }
 }
 
+/// Errors produced by the [`OnHostCleaner`].
 #[derive(Debug, Error)]
 pub enum OnHostCleanerError {
+    /// Cleanup was attempted for the reserved Agent Control id.
     #[error("attempted to clean up resources for Agent Control")]
     AgentControlId,
+    /// Failed to delete the stored OpAMP instance id.
     #[error("failed to delete stored instance id: {0}")]
     InstanceId(#[source] StorerError),
+    /// Failed to delete the stored remote configuration.
     #[error("failed to delete stored remote config: {0}")]
     RemoteConfig(#[source] ConfigRepositoryError),
 }

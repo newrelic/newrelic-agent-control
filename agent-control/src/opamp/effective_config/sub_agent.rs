@@ -1,3 +1,4 @@
+//! Effective-configuration loader for a sub-agent.
 use super::error::LoaderError;
 use super::loader::LoadEffectiveConfig;
 use crate::agent_control::agent_id::AgentID;
@@ -21,6 +22,7 @@ impl<Y> SubAgentEffectiveConfigLoader<Y>
 where
     Y: ConfigRepository,
 {
+    /// Creates a loader for the given sub-agent reading config from the repository.
     pub fn new(agent_id: AgentID, yaml_config_repository: Arc<Y>) -> Self {
         Self {
             agent_id,

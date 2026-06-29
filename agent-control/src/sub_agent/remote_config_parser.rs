@@ -1,3 +1,5 @@
+//! Parsing and validation of OpAMP remote configurations into a [RemoteConfig].
+
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::sub_agent::identity::AgentIdentity;
@@ -8,12 +10,16 @@ use tracing::debug;
 
 type ErrorMessage = String;
 
+/// Errors produced while parsing or validating a remote configuration.
 #[derive(Debug, Error, Clone)]
 pub enum RemoteConfigParserError {
+    /// A configured validator rejected the configuration.
     #[error("remote configuration with validation errors: {0}")]
     Validation(ErrorMessage),
+    /// The configuration arrived already marked as failed and cannot be loaded.
     #[error("remote configuration cannot be loaded: {0}")]
     RemoteConfigLoad(String),
+    /// The configuration values are malformed (invalid YAML, duplicate keys, etc.).
     #[error("remote configuration with invalid values: {0}")]
     InvalidValues(String),
 }
@@ -21,6 +27,8 @@ pub enum RemoteConfigParserError {
 /// Defines how to parse the OpAMP remote configuration in order to validate it and extract
 /// the RemoteConfig with the corresponding values as [YAMLConfig] and Hash with status.
 pub trait RemoteConfigParser {
+    /// Parses and validates the remote configuration, returning the resulting [RemoteConfig],
+    /// `None` when the configuration is empty (reset-to-local), or an error if it is invalid.
     fn parse(
         &self,
         agent_identity: AgentIdentity,
@@ -28,6 +36,7 @@ pub trait RemoteConfigParser {
     ) -> Result<Option<RemoteConfig>, RemoteConfigParserError>;
 }
 
+/// A [RemoteConfigParser] that runs a sequence of [RemoteConfigValidator]s before extracting values.
 pub struct AgentRemoteConfigParser<V> {
     remote_config_validators: Vec<V>,
 }
@@ -36,6 +45,7 @@ impl<V> AgentRemoteConfigParser<V>
 where
     V: RemoteConfigValidator,
 {
+    /// Creates a parser from the given list of remote-config validators.
     pub fn new(remote_config_validators: Vec<V>) -> Self {
         AgentRemoteConfigParser {
             remote_config_validators,
@@ -149,6 +159,7 @@ pub fn extract_remote_config_values(
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use std::collections::HashMap;
 

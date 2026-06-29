@@ -1,19 +1,25 @@
+//! Error type shared by the CLI commands and its mapping to process exit codes.
 use std::process::ExitCode;
 
 use crate::instrumentation::tracing::TracingError;
 use thiserror::Error;
 
+/// Errors that can occur while running a CLI command.
 #[derive(Debug, Error)]
 pub enum CliError {
+    /// Logging/tracing initialization failed.
     #[error("failed to initialize logs: {0}")]
     Tracing(#[from] TracingError),
 
+    /// A precondition required to start the command was not met.
     #[error("failed to start the command: {0}")]
     Precondition(String),
 
+    /// The command itself failed while executing.
     #[error("{0}")]
     Command(String),
 
+    /// A filesystem operation failed.
     #[error("file system error: {0}")]
     FileSystemError(String),
 }

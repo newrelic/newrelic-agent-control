@@ -1,3 +1,5 @@
+//! Wiring and entry point for running Agent Control in an on-host environment.
+
 use crate::agent_control::AgentControl;
 use crate::agent_control::config::{AgentControlConfig, OpAMPClientConfig};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
@@ -59,12 +61,16 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::info;
 
+/// Agent Control variable name carrying the host id.
 pub const HOST_ID_VARIABLE_NAME: &str = "host_id";
+/// Local OCI registry URL used by tests (debug builds only).
 #[cfg(debug_assertions)]
 pub const OCI_TEST_REGISTRY_URL: &str = "localhost:5001";
 
+/// Execution environment for the on-host run mode (current target).
 #[cfg(target_family = "windows")]
 pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Windows;
+/// Execution environment for the on-host run mode (current target).
 #[cfg(target_family = "unix")]
 pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Linux;
 
@@ -81,6 +87,7 @@ type OnHostOpAMPClient = StartedHttpClient<
 type OnHostOpAMPConsumer = EventConsumer<OpAMPEvent>;
 
 impl AgentControlRunner {
+    /// Runs Agent Control in on-host mode until a graceful shutdown is requested.
     pub fn run_onhost(self) -> Result<GracefulShutdownReason, RunError> {
         let local_dir = self.base_paths.local_dir;
         let remote_dir = self.base_paths.remote_dir;
@@ -261,6 +268,7 @@ impl AgentControlRunner {
     }
 }
 
+/// Resolves the on-host instance [`Identifiers`] (host id, hostname, fleet id) from the config.
 pub fn ac_identifiers(config: &AgentControlConfig) -> Result<Identifiers, RunError> {
     let fleet_id = config
         .fleet_control
@@ -281,6 +289,7 @@ pub fn ac_identifiers(config: &AgentControlConfig) -> Result<Identifiers, RunErr
     Ok(identifiers)
 }
 
+/// Builds the on-host OpAMP client builder from the OpAMP/proxy config and config repository.
 pub fn opamp_client_builder(
     local_dir: PathBuf,
     opamp_config: OpAMPClientConfig,
@@ -331,6 +340,7 @@ pub fn build_ac_onhost_agent_description(
     )
 }
 
+/// Builds and starts the Agent Control on-host OpAMP client, returning it and its event consumer.
 pub fn start_ac_opamp_client(
     builder: &OnHostOpAMPClientBuilder,
     agent_identity: AgentIdentity,

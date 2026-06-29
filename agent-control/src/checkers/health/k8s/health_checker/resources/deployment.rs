@@ -1,3 +1,4 @@
+//! Deployment health checker.
 use super::{
     ResourceFilter, check_health_for_items, flux_release_filter, missing_field_error, name_filter,
 };
@@ -10,6 +11,7 @@ use crate::k8s::utils as client_utils;
 use k8s_openapi::api::apps::v1::Deployment;
 use std::sync::Arc;
 
+/// Health checker for Deployment workloads, selected by name or Flux release label.
 #[derive(Debug)]
 pub struct K8sHealthDeployment<C: K8sClient = SyncK8sClient> {
     k8s_client: Arc<C>,
@@ -81,6 +83,7 @@ impl K8sHealthDeployment {
 }
 
 impl<C: K8sClient> K8sHealthDeployment<C> {
+    /// Builds a Deployment health checker for the given namespace and selection filter.
     pub fn new(
         k8s_client: Arc<C>,
         filter: ResourceFilter,

@@ -1,3 +1,5 @@
+//! Configuration types for the HTTP client (timeouts, proxy, and CA certificates).
+
 use http::Uri;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::env::{self, VarError};
@@ -7,6 +9,8 @@ use std::time::Duration;
 
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// Configuration for building an [`HttpClient`](super::client::HttpClient): timeouts, proxy
+/// settings, and whether to capture TLS info.
 #[derive(Clone)]
 pub struct HttpConfig {
     pub(crate) timeout: Duration,
@@ -26,6 +30,8 @@ impl Default for HttpConfig {
 }
 
 impl HttpConfig {
+    /// Creates a config with the given request `timeout`, connection `conn_timeout` and `proxy`
+    /// settings (TLS info capture disabled).
     pub fn new(timeout: Duration, conn_timeout: Duration, proxy: ProxyConfig) -> Self {
         Self {
             timeout,
@@ -34,6 +40,7 @@ impl HttpConfig {
             tls_info: false,
         }
     }
+    /// Returns a copy of this config with TLS info capture enabled.
     pub fn with_tls_info(self) -> Self {
         Self {
             tls_info: true,
@@ -44,8 +51,10 @@ impl HttpConfig {
 const HTTP_PROXY_ENV_NAME: &str = "HTTP_PROXY";
 const HTTPS_PROXY_ENV_NAME: &str = "HTTPS_PROXY";
 
+/// Errors produced while resolving the proxy configuration.
 #[derive(thiserror::Error, Debug)]
 pub enum ProxyError {
+    /// The configured proxy URL was not a valid URI.
     #[error("invalid proxy url '{0}': {1}")]
     InvalidUrl(String, String),
 }
@@ -127,7 +136,7 @@ impl ProxyUrl {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
 pub struct ProxyConfig {
     /// Proxy URL proxy:
-    /// <protocol>://<user>:<password>@<host>:<port>
+    /// `<protocol>://<user>:<password>@<host>:<port>`
     /// (All parts except host are optional)
     #[serde(default)]
     url: ProxyUrl,
@@ -143,14 +152,17 @@ pub struct ProxyConfig {
 }
 
 impl ProxyConfig {
+    /// Returns the directory path containing CA certificates (`.pem` files) to trust.
     pub fn ca_bundle_dir(&self) -> &Path {
         self.ca_bundle_dir.as_path()
     }
 
+    /// Returns the path to a single CA certificate file (PEM) to trust.
     pub fn ca_bundle_file(&self) -> &Path {
         self.ca_bundle_file.as_path()
     }
 
+    /// Returns whether the `HTTP_PROXY`/`HTTPS_PROXY` environment variables are ignored.
     pub fn ignore_system_proxy(&self) -> bool {
         self.ignore_system_proxy
     }

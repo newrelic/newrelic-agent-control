@@ -1,3 +1,5 @@
+//! OCI tagging for agent type artifacts and the downloader used to pull them from a remote
+//! registry.
 pub mod downloader;
 
 use crate::agent_type::agent_type_id::AgentTypeID;
@@ -25,6 +27,7 @@ impl AgentTypeTag {
         ))
     }
 
+    /// Returns the tag as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }

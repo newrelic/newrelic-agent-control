@@ -1,3 +1,5 @@
+//! Traits for loading and persisting Agent Control configuration.
+
 use crate::agent_control::config::{
     AgentControlConfig, AgentControlConfigError, AgentControlDynamicConfig,
 };
@@ -7,6 +9,7 @@ use crate::values::config::RemoteConfig;
 /// AgentControlConfigLoader loads a whole AgentControlConfig
 #[cfg_attr(test, mockall::automock)]
 pub trait AgentControlConfigLoader {
+    /// Loads the full Agent Control configuration.
     fn load(&self) -> Result<AgentControlConfig, AgentControlConfigError>;
 }
 

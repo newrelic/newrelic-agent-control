@@ -1,3 +1,4 @@
+//! CLI command that registers a System Identity and stores it as a Kubernetes Secret.
 use kube::api::{DynamicObject, ObjectMeta};
 use nr_auth::key::{
     generation::{KeyPair, KeyType, PublicKeyPem},

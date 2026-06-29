@@ -1,3 +1,5 @@
+//! On-host self-update [`VersionUpdater`]: downloads, verifies and self-replaces the AC binary.
+
 pub mod verify;
 
 use crate::agent_control::agent_id::AgentID;
@@ -19,19 +21,26 @@ use tracing::{debug, debug_span, warn};
 use url::Url;
 use verify::VerifyExecutor;
 
+/// File name of the Agent Control binary on the current target.
 #[cfg(target_family = "unix")]
 pub const AGENT_CONTROL_BIN: &str = "newrelic-agent-control";
+/// File name of the Agent Control binary on the current target.
 #[cfg(target_family = "windows")]
 pub const AGENT_CONTROL_BIN: &str = "newrelic-agent-control.exe";
 
+/// Package id used when downloading the Agent Control binary package.
 pub const AGENT_CONTROL_BIN_PACKAGE_ID: &str = "agent_control_bin";
 
+/// Error building the on-host updater from package configuration.
 #[derive(Debug, Error)]
 pub enum BuildError {
+    /// The package config contained an invalid OCI reference.
     #[error("invalid OCI reference in package config: {0}")]
     InvalidReference(#[from] oci_client::ParseError),
 }
 
+/// On-host [`VersionUpdater`] that installs and self-replaces the Agent Control binary, with a
+/// backoff gate throttling re-attempts at a failing upgrade.
 pub struct OnHostACUpdater<P, V, C>
 where
     P: PackageManager,
@@ -115,6 +124,8 @@ where
     V: VerifyExecutor,
     C: Clock,
 {
+    /// Builds the updater from the self-update toggle, event publisher, collaborators, package
+    /// source, backoff configuration and clock.
     pub fn new(
         ac_remote_update_enabled: bool,
         agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,

@@ -1,3 +1,6 @@
+//! Detects whether the current process is running with elevated privileges (root on Unix,
+//! an elevated token on Windows).
+
 #[cfg(target_family = "windows")]
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 #[cfg(target_family = "windows")]
@@ -7,10 +10,12 @@ use windows_sys::Win32::Security::{
 #[cfg(target_family = "windows")]
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
+/// Error returned when the process elevation status could not be determined (Windows only).
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
 pub struct IsElevatedError(String);
 
+/// Returns `true` if the current process is running with elevated privileges.
 pub fn is_elevated() -> Result<bool, IsElevatedError> {
     #[cfg(target_family = "unix")]
     return Ok(nix::unistd::Uid::effective().is_root());

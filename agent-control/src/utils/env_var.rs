@@ -1,3 +1,5 @@
+//! Loads environment variables into the current process from a validated YAML mapping file.
+
 use fs::file::LocalFile;
 use fs::file::reader::FileReader;
 use std::collections::HashMap;

@@ -1,3 +1,5 @@
+//! Kubernetes [`VersionUpdater`] that patches the AC and CD HelmReleases to their desired versions.
+
 use crate::agent_control::config::{AgentControlDynamicConfig, helmrelease_v2_type_meta};
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
 use crate::k8s::client::K8sObjectKey;
@@ -8,9 +10,12 @@ use std::fmt;
 use std::sync::Arc;
 use tracing::{debug, info};
 
+/// A component whose Helm release version the updater can manage.
 #[derive(Debug, Clone, Copy)]
 pub enum Component {
+    /// The Agent Control deployment.
     AgentControl,
+    /// The Flux/CD deployment.
     FluxCD,
 }
 
@@ -22,6 +27,7 @@ impl fmt::Display for Component {
         }
     }
 }
+/// [`VersionUpdater`] for Kubernetes: updates the Agent Control and CD HelmRelease chart versions.
 pub struct K8sACUpdater<C: K8sClient = SyncK8sClient> {
     ac_remote_update_enabled: bool,
     cd_remote_update_enabled: bool,
@@ -76,6 +82,7 @@ impl<C: K8sClient> VersionUpdater for K8sACUpdater<C> {
 }
 
 impl<C: K8sClient> K8sACUpdater<C> {
+    /// Builds the updater from remote-update toggles, the k8s client and release/version details.
     pub fn new(
         ac_remote_update: bool,
         cd_remote_update: bool,

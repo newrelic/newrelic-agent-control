@@ -1,3 +1,4 @@
+//! Helpers for working with Kubernetes objects and metadata.
 use super::Error;
 use crate::k8s::error::K8sError;
 use k8s_openapi::{
@@ -35,7 +36,9 @@ use serde_json::{Map, Value};
 /// ```
 #[derive(Debug, PartialEq)]
 pub enum IntOrPercentage {
+    /// An absolute integer value.
     Int(i32),
+    /// A percentage expressed as a fraction (e.g. `0.5` for 50%).
     Percentage(f32),
 }
 
@@ -79,7 +82,7 @@ impl IntOrPercentage {
     ///
     /// This function mimics a missing function from apimachinery that rust does not have but
     /// go-client has:
-    /// https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#GetScaledValueFromIntOrPercent
+    /// <https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#GetScaledValueFromIntOrPercent>
     ///
     /// ```
     /// use newrelic_agent_control::k8s::utils::IntOrPercentage;
@@ -131,6 +134,7 @@ where
         .ok_or_else(|| Error::MissingName(K::KIND.to_string()))
 }
 
+/// Returns a human-readable representation of the object's apiVersion and kind.
 pub fn display_type(type_meta: &TypeMeta) -> String {
     format!(
         "apiVersion: {} kind: {}",
@@ -138,6 +142,7 @@ pub fn display_type(type_meta: &TypeMeta) -> String {
     )
 }
 
+/// Returns the object's `.metadata.name`, erroring if it is missing.
 pub fn get_name(obj: &DynamicObject) -> Result<String, K8sError> {
     obj.metadata
         .clone()
@@ -145,6 +150,7 @@ pub fn get_name(obj: &DynamicObject) -> Result<String, K8sError> {
         .ok_or(K8sError::MissingResourceName)
 }
 
+/// Returns the object's `.metadata.namespace`, erroring if it is missing.
 pub fn get_namespace(obj: &DynamicObject) -> Result<String, K8sError> {
     obj.metadata
         .clone()
@@ -152,10 +158,12 @@ pub fn get_namespace(obj: &DynamicObject) -> Result<String, K8sError> {
         .ok_or(K8sError::MissingResourceNamespace)
 }
 
+/// Returns the object's type metadata, erroring if it is missing.
 pub fn get_type_meta(obj: &DynamicObject) -> Result<TypeMeta, K8sError> {
     obj.types.clone().ok_or(K8sError::MissingResourceKind)
 }
 
+/// Returns the object's `.spec.targetNamespace`, if present.
 pub fn get_target_namespace(obj: &DynamicObject) -> Option<String> {
     obj.data.get("spec").and_then(|spec| {
         spec.get("targetNamespace")
@@ -178,6 +186,7 @@ pub fn retain_not_null(mapping: &mut Map<String, Value>) {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use k8s_openapi::api::apps::v1::{DaemonSet, Deployment};

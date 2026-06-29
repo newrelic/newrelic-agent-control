@@ -1,3 +1,5 @@
+//! Builders for on-host sub-agents and their supervisors.
+
 use crate::agent_control::defaults::{
     HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
@@ -24,6 +26,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
+/// Builds [SubAgent]s configured for on-host execution, wiring up the OpAMP client and supervisor.
 pub struct OnHostSubAgentBuilder<O, I, B, R, Y, A>
 where
     O: BuildOpAMPClient,
@@ -113,11 +116,14 @@ where
     }
 }
 
+/// Builds [NotStartedSupervisorOnHost] supervisors from an effective agent's on-host configuration.
 pub struct SupervisorBuilderOnHost<PM>
 where
     PM: PackageManager,
 {
+    /// Directory where executable output is logged when file logging is enabled.
     pub logging_path: PathBuf,
+    /// Package manager used to install agent packages.
     pub package_manager: Arc<PM>,
 }
 

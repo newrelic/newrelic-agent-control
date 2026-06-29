@@ -1,3 +1,8 @@
+//! Ownership tracking for resources Agent Control manages in its data store.
+//!
+//! Distinguishes resources owned by Agent Control itself from those owned by sub-agents,
+//! so that cleanup and reconciliation only affect the intended resources.
+
 use crate::agent_type::agent_type_id::AgentTypeID;
 
 /// Represents ownership of a resource in Agent Control's data store.

@@ -42,15 +42,20 @@ pub struct FileSystem(HashMap<SafePath, FilesystemEntry>);
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FilesystemEntry {
     /// A single file with literal or templated content.
-    File { text: TemplateableValue<String> },
+    File {
+        /// The file's (possibly templated) content.
+        text: TemplateableValue<String>,
+    },
     /// An explicitly declared directory. Children, if any, live under `entries:`.
     Dir {
+        /// The directory's child entries.
         #[serde(default)]
         entries: HashMap<SafePath, FilesystemEntry>,
     },
     /// A directory whose set of files is computed at deploy time from a `map[string]yaml`
     /// variable. Map keys become filenames; values become file contents.
     DirContentFromMap {
+        /// The (templated) `map[string]yaml` source whose keys/values become files.
         source: TemplateableValue<DirEntriesMap>,
     },
 }

@@ -3,22 +3,31 @@
 use oci_client::errors::{OciDistributionError, OciErrorCode};
 use thiserror::Error;
 
+/// Errors produced by the OCI client when pulling and verifying artifacts.
 #[derive(Debug, Error)]
 pub enum OciClientError {
+    /// The OCI client could not be constructed (e.g. invalid configuration).
     #[error("could not build the OCI client: {0}")]
     Build(String),
+    /// Pulling the image manifest from the registry failed.
     #[error("failure pulling image manifest: {0}")]
     PullManifest(OciErrorMessage),
+    /// Pulling a blob from the registry failed.
     #[error("failure pulling blob: {0}")]
     PullBlob(OciErrorMessage),
+    /// The generated image reference was not a valid OCI reference.
     #[error("invalid reference format generated: {0}")]
     InvalidReference(String),
+    /// Signature verification of the artifact failed.
     #[error("signature verification failed: {0}")]
     Verify(String),
+    /// Fetching the public key used for verification failed.
     #[error("failed to fetch public key: {0}")]
     KeyFetch(String),
+    /// Fetching the artifact failed.
     #[error("failed to fetch artifact: {0}")]
     FetchArtifact(String),
+    /// All download attempts (including retries) were exhausted.
     #[error("download attempts exceeded, last error: {0}")]
     AttemptsExceeded(String),
 }

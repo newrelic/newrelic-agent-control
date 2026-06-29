@@ -9,10 +9,12 @@ use serde::Serialize;
 /// See <https://github.com/clap-rs/clap/issues/4746> for details.
 #[derive(Debug, Default, Clone, PartialEq, Serialize, clap::Args)]
 pub struct ProxyConfig {
+    /// URL of the proxy to route outbound requests through.
     #[serde(skip_serializing_if = "is_none_or_empty_string", rename = "url")]
     #[arg(long, required = false)]
     pub proxy_url: Option<String>,
 
+    /// Directory holding the CA bundle used to validate the proxy.
     #[serde(
         skip_serializing_if = "is_none_or_empty_string",
         rename = "ca_bundle_dir"
@@ -20,6 +22,7 @@ pub struct ProxyConfig {
     #[arg(long, required = false)]
     pub proxy_ca_bundle_dir: Option<String>,
 
+    /// File holding the CA bundle used to validate the proxy.
     #[serde(
         skip_serializing_if = "is_none_or_empty_string",
         rename = "ca_bundle_file"
@@ -34,6 +37,7 @@ pub struct ProxyConfig {
 }
 
 impl ProxyConfig {
+    /// Returns `true` when no proxy settings have been provided.
     pub fn is_empty(&self) -> bool {
         [
             self.proxy_url.as_ref(),

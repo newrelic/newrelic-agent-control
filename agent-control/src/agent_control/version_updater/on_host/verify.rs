@@ -1,3 +1,5 @@
+//! Dry-run verification of a downloaded Agent Control binary before self-replacing.
+
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::path::Path;
@@ -16,9 +18,11 @@ const POLL_INTERVAL: Duration = Duration::from_secs(2);
 /// Errors that can occur while running the verification subprocess.
 #[derive(Debug, Error)]
 pub enum VerifyError {
+    /// The verification subprocess could not be spawned or waited on.
     #[error("dry-run check of new version failed due to subprocess error: {0}")]
     SubProcessError(String),
 
+    /// The verification subprocess did not finish within the timeout.
     #[error("dry-run check of new version timed out after {0:?}")]
     Timeout(Duration),
 
@@ -37,15 +41,17 @@ pub enum VerifyError {
 /// Output written by the verify command to stdout.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CommandResult {
+    /// Human-readable result message written by the verify command.
     pub message: String,
 }
 
 /// Abstraction for executing the verification command. For testing purposes.
 pub trait VerifyExecutor {
+    /// Runs the verification command for the given binary and arguments.
     fn execute(&self, binary_path: &Path, args: &[&str]) -> Result<(), VerifyError>;
 }
 
-/// Timeout for the verification subprocess, defaulting to [`DEFAULT_VERIFY_TIMEOUT`].
+/// Timeout for the verification subprocess, defaulting to `DEFAULT_VERIFY_TIMEOUT`.
 #[derive(Debug, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_VERIFY_TIMEOUT)]
 pub struct VerifyTimeout(Duration);
@@ -67,6 +73,7 @@ pub struct ProcessVerifyExecutor {
 }
 
 impl ProcessVerifyExecutor {
+    /// Builds an executor with the given verification timeout.
     pub fn new(timeout: impl Into<VerifyTimeout>) -> Self {
         Self {
             timeout: timeout.into(),

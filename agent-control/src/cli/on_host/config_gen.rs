@@ -23,6 +23,7 @@ use tracing::info;
 
 pub mod config;
 
+/// Environment variable name used to pass the New Relic license key to the agents.
 pub const NR_LICENSE_ENV_VAR: &str = "NEW_RELIC_LICENSE_KEY";
 const OTLP_ENDPOINT_ENV_VAR: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
 
@@ -71,7 +72,7 @@ pub struct Args {
     env_vars_file_path: Option<PathBuf>,
 }
 
-/// Valid data to create a SystemIdentity, represent [SystemIdentityArgs] after validation.
+/// Valid data to create a SystemIdentity, represent `SystemIdentityArgs` after validation.
 #[derive(Debug)]
 pub struct SystemIdentitySpec {
     /// Data to get or create the System Identity to be used by Agent Control
@@ -84,7 +85,10 @@ pub struct SystemIdentitySpec {
 #[derive(Debug)]
 pub enum SystemIdentityData {
     /// The Identity already exists
-    Existing { auth_client_id: String },
+    Existing {
+        /// Client ID of the already-provisioned system identity.
+        auth_client_id: String,
+    },
     /// The identity needs to be provisioned
     Provision(ParentAuthMethod),
 }
@@ -92,9 +96,13 @@ pub enum SystemIdentityData {
 /// Represents fleet parameters to generate configuration depending of it its enabled or not.
 #[derive(Debug)]
 pub enum FleetParams {
+    /// Fleet Control is disabled; no fleet configuration is generated.
     FleetDisabled,
+    /// Fleet Control is enabled with the given fleet ID and system identity.
     FleetEnabled {
+        /// Identifier of the fleet this instance belongs to.
         fleet_id: String,
+        /// System identity used to authenticate against Fleet Control.
         identity: SystemIdentitySpec,
     },
 }

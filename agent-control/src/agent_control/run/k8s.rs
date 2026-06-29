@@ -1,3 +1,5 @@
+//! Wiring and entry point for running Agent Control in a Kubernetes environment.
+
 use crate::agent_control::AgentControl;
 use crate::agent_control::config::{K8sConfig, helmrelease_v2_type_meta};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
@@ -54,13 +56,18 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, error, info, warn};
 
+/// Agent Control variable name carrying the namespace where AC resources live.
 pub const NAMESPACE_VARIABLE_NAME: &str = "namespace";
+/// Agent Control variable name carrying the namespace where agents run.
 pub const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
 
+/// Execution environment for the Kubernetes run mode.
 pub const AGENT_CONTROL_MODE_K8S: Environment = Environment::K8s;
+/// OpAMP custom capability signalling this AC is not managed by an agent-control-cd deployment.
 pub const K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY: &str = "com.newrelic.k8s_config_only_agents";
 
 impl AgentControlRunner {
+    /// Runs Agent Control in Kubernetes mode until a graceful shutdown is requested.
     pub fn run_k8s(self) -> Result<GracefulShutdownReason, RunError> {
         let k8s_config = self.bootstrap_config.k8s.clone().ok_or(RunError(
             "k8s config missing while running on k8s".to_string(),
@@ -336,6 +343,8 @@ pub fn build_ac_opamp_start_settings(
     })
 }
 
+/// Builds the OpAMP non-identifying attributes for Agent Control on Kubernetes (hostname, fleet id,
+/// cluster name and CD-related flags).
 pub fn agent_control_opamp_non_identifying_attributes(
     identifiers: &Identifiers,
     k8s_config: &K8sConfig,

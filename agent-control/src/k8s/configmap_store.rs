@@ -1,3 +1,4 @@
+//! ConfigMap-backed persistent store for agent data such as instance ids and configs.
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tracing::debug;
@@ -21,6 +22,7 @@ pub struct ConfigMapStore<C: K8sClient = SyncK8sClient> {
 }
 
 impl ConfigMapStore {
+    /// Builds the ConfigMap name for an agent from the given prefix.
     pub fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
         format!("{prefix}-{agent_id}")
     }
@@ -137,6 +139,7 @@ impl<C: K8sClient> DataStore for ConfigMapStore<C> {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;

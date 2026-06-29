@@ -1,3 +1,4 @@
+//! Health checkers for Kubernetes resources and the aggregate `K8sHealthChecker`.
 use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta3_type_meta};
 use crate::agent_type::runtime_config::k8s::{K8sHealthCheckDefinition, K8sHealthResourceKind};
 use crate::checkers::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
@@ -12,19 +13,26 @@ use resources::{
 use std::sync::Arc;
 use tracing::trace;
 
+/// Per-resource health-check implementations and shared helpers.
 pub mod resources;
 
 // This label selector is added in post-render and present no matter the chart we are installing
 // https://github.com/fluxcd/helm-controller/blob/main/CHANGELOG.md#090
+/// Flux label key (`helm.toolkit.fluxcd.io/name`) identifying the workloads of a Helm release.
 pub const LABEL_RELEASE_FLUX: &str = "helm.toolkit.fluxcd.io/name";
 
 /// This enum wraps all the health check implementations related to a Kubernetes resource.
 #[derive(Debug)]
 pub enum K8sResourceHealthChecker<C: K8sClient = SyncK8sClient> {
+    /// Health checker for a Flux HelmRelease custom resource.
     HelmRelease(K8sHealthHelmRelease<C>),
+    /// Health checker for a New Relic Instrumentation custom resource.
     NewRelic(K8sHealthNRInstrumentation<C>),
+    /// Health checker for a StatefulSet.
     StatefulSet(K8sHealthStatefulSet<C>),
+    /// Health checker for a DaemonSet.
     DaemonSet(K8sHealthDaemonSet<C>),
+    /// Health checker for a Deployment.
     Deployment(K8sHealthDeployment<C>),
 }
 
@@ -215,6 +223,7 @@ impl<C: K8sClient> K8sHealthChecker<K8sResourceHealthChecker<C>> {
         })
     }
 
+    /// Builds a [`K8sHealthChecker`] from a ready-made list of resource health checkers.
     pub fn new(health_checkers: Vec<K8sResourceHealthChecker<C>>, start_time: StartTime) -> Self {
         Self {
             health_checkers,
@@ -242,6 +251,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use crate::agent_type::runtime_config::k8s::{K8sHealthCheckDefinition, K8sHealthResourceKind};
     use crate::checkers::health::health_checker::HealthChecker;

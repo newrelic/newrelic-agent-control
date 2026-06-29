@@ -1,3 +1,4 @@
+//! Kubernetes reflectors maintaining read-only caches of cluster objects.
 use super::error::K8sError;
 use futures::StreamExt;
 use kube::runtime::watcher::Config;
@@ -137,10 +138,12 @@ where
         )))
     }
 
+    /// Returns the current cached objects.
     pub fn list(&self) -> Vec<Arc<K>> {
         self.reader.state()
     }
 
+    /// Returns true while the writer task is still running.
     pub fn is_running(&self) -> bool {
         !self.writer_close_handle.is_finished()
     }

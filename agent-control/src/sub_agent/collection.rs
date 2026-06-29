@@ -1,3 +1,5 @@
+//! A keyed collection of started sub-agents, supporting bulk and individual stopping.
+
 use super::{StartedSubAgent, error::SubAgentCollectionError};
 use crate::agent_control::agent_id::AgentID;
 use std::collections::HashMap;
@@ -58,6 +60,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::sub_agent::StartedSubAgent;

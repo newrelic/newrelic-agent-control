@@ -1,3 +1,4 @@
+//! Configuration for OpAMP access-token authentication and its signing providers.
 use crate::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
 use http::Uri;
 use nr_auth::ClientID;
@@ -27,6 +28,7 @@ pub struct AuthConfig {
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(tag = "provider")]
 pub enum ProviderConfig {
+    /// Sign the access token request using a local private key.
     #[serde(rename = "local")]
     Local(LocalConfig),
 }
@@ -39,6 +41,7 @@ pub struct LocalConfig {
 }
 
 impl LocalConfig {
+    /// Builds a [`LocalConfig`] whose private key is located in the provided local data directory.
     pub fn new(local_data_dir: PathBuf) -> Self {
         Self {
             private_key_path: local_data_dir.join(AUTH_PRIVATE_KEY_FILE_NAME),

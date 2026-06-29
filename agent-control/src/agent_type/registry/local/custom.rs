@@ -1,3 +1,4 @@
+//! Loads custom (dynamic) agent type definitions from a directory.
 use crate::agent_type::definition::AgentTypeDefinition;
 use std::{fs, path::PathBuf};
 use tracing::{debug, error};

@@ -47,6 +47,19 @@ llvm-cov:
 	@echo "Checking if llvm-cov is installed..."
 	@which cargo-llvm-cov || cargo install cargo-llvm-cov --locked
 
+# Build rustdoc for the whole workspace. RUSTDOCFLAGS mirrors CI so broken doc
+# links / invalid HTML fail locally too. Use `make doc-open` to open in a browser.
+RUSTDOCFLAGS_DOC ?= --cfg docsrs -D warnings
+.PHONY: doc
+doc:
+	@echo "Building workspace documentation..."
+	@RUSTDOCFLAGS="$(RUSTDOCFLAGS_DOC)" cargo doc --no-deps --workspace
+
+.PHONY: doc-open
+doc-open:
+	@echo "Building and opening workspace documentation..."
+	@RUSTDOCFLAGS="$(RUSTDOCFLAGS_DOC)" cargo doc --no-deps --workspace --open
+
 .PHONY: third-party-notices
 third-party-notices:
 	@echo "Checking third-party licenses..."

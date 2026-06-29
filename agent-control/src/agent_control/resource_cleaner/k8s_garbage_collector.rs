@@ -1,3 +1,5 @@
+//! Kubernetes garbage collector that removes resources owned by removed/replaced sub-agents.
+
 use super::{ResourceCleaner, ResourceCleanerError};
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::SubAgentsMap;
@@ -23,11 +25,13 @@ use tracing::{debug, instrument, warn};
 /// It supports two modes of operation, with a public method for each:
 /// [`retain`](K8sGarbageCollector::retain) and [`collect`](K8sGarbageCollector::collect).
 pub struct K8sGarbageCollector<C: K8sClient = SyncK8sClient> {
+    /// Kubernetes client used to list and delete resources.
     pub k8s_client: Arc<C>,
     /// The namespace where the Agent Control stores data via configMaps.
     pub namespace: String,
     /// The namespace where agents are running. We are garbage collecting resources here only due to Instrumentation
     pub namespace_agents: String,
+    /// The resource types ([`TypeMeta`]) that the collector lists and may delete.
     pub cr_type_meta: Vec<TypeMeta>,
 }
 
@@ -64,6 +68,7 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
         self.garbage_collect_sub_agent_resources(&mode, &self.namespace)
     }
 
+    /// Builds the map of active agent ids to their agent type id from a sub-agents config.
     pub fn active_config_ids(active_config: &SubAgentsMap) -> HashMap<AgentID, AgentTypeID> {
         active_config
             .iter()
@@ -279,20 +284,26 @@ impl K8sGarbageCollectorMode<'_> {
     }
 }
 
+/// Errors produced by the [`K8sGarbageCollector`].
 #[derive(Error, Debug)]
 pub enum K8sGarbageCollectorError {
+    /// The underlying Kubernetes client returned an error.
     #[error("the kube client returned an error: {0}")]
     Generic(#[from] K8sError),
 
+    /// Failed loading the configuration store.
     #[error("garbage collector failed loading config store: {0}")]
     LoadingConfigStore(#[from] AgentControlConfigError),
 
+    /// A listed resource was missing the required labels.
     #[error("garbage collector fetched resources without required labels")]
     MissingLabels,
 
+    /// A listed resource was missing the required annotations.
     #[error("garbage collector fetched resources without required annotations")]
     MissingAnnotations,
 
+    /// Cleanup was attempted for the reserved Agent Control id.
     #[error("attempted to clean up resources for Agent Control")]
     AgentControlId,
 }

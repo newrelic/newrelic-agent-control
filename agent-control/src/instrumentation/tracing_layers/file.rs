@@ -1,3 +1,5 @@
+//! Builds the [`tracing_subscriber`] layer that reports logs to a rolling file.
+
 use crate::instrumentation::config::logs::config::{LoggingConfig, LoggingConfigError};
 use crate::instrumentation::config::logs::format::Formatter;
 use crate::instrumentation::tracing::{LayerBox, TracingGuard};
@@ -7,6 +9,7 @@ use tracing_subscriber::Layer;
 use tracing_subscriber::fmt::format::PrettyFields;
 use tracing_subscriber::fmt::time::ChronoLocal;
 
+/// Guard that keeps the non-blocking file writer alive while logs are reported; flushes on drop.
 pub type FileTracingExporter = WorkerGuard;
 
 // Allow using the file guard as tracing exporter in order to keep it alive while the application

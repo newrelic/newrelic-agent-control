@@ -1,23 +1,30 @@
+//! Restart policy and backoff strategies governing how supervised executables are retried.
+
 use crate::agent_type::runtime_config::restart_policy::{
     BackoffStrategyType, rendered::BackoffStrategyConfig, rendered::RestartPolicyConfig,
 };
 use std::cmp::max;
 use std::time::{Duration, Instant};
 
+/// Restart policy for a supervised executable, backed by a [BackoffStrategy].
 #[derive(Clone, Debug)]
 pub struct RestartPolicy {
+    /// The backoff strategy that drives retry timing and limits.
     pub backoff: BackoffStrategy,
 }
 
 impl RestartPolicy {
+    /// Creates a restart policy from the given backoff strategy.
     pub fn new(backoff: BackoffStrategy) -> Self {
         Self { backoff }
     }
 
+    /// Returns whether another retry should be attempted, updating internal counters.
     pub fn should_retry(&mut self) -> bool {
         self.backoff.should_backoff()
     }
 
+    /// Applies the backoff delay by invoking `sleep_func` with the computed duration.
     pub fn backoff<S>(&mut self, sleep_func: S)
     where
         S: FnOnce(Duration),
@@ -38,10 +45,14 @@ impl From<RestartPolicyConfig> for RestartPolicy {
     }
 }
 
+/// The growth pattern applied to the delay between retries.
 #[derive(Clone, Debug, PartialEq)]
 pub enum BackoffStrategy {
+    /// Constant delay between retries.
     Fixed(Backoff),
+    /// Delay growing linearly with the number of retries.
     Linear(Backoff),
+    /// Delay growing exponentially (base 2) with the number of retries.
     Exponential(Backoff),
 }
 
@@ -52,6 +63,7 @@ pub enum BackoffStrategy {
 pub const LAST_RETRY_INTERVAL: Duration = Duration::new(30, 0);
 
 impl BackoffStrategy {
+    /// Returns the maximum number of retries (0 means unlimited).
     pub fn max_retries(&self) -> usize {
         match self {
             BackoffStrategy::Fixed(b)
@@ -80,6 +92,7 @@ impl BackoffStrategy {
     }
 }
 
+/// Tracks retry counting and timing for a backoff strategy.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Backoff {
     last_retry: Instant,
@@ -102,16 +115,19 @@ impl Default for Backoff {
 }
 
 impl Backoff {
+    /// Returns a copy with the given initial delay.
     pub fn with_initial_delay(mut self, initial_delay: Duration) -> Self {
         self.initial_delay = initial_delay;
         self
     }
 
+    /// Returns a copy with the given maximum number of retries (0 means unlimited).
     pub fn with_max_retries(mut self, max_retries: usize) -> Self {
         self.max_retries = max_retries;
         self
     }
 
+    /// Returns a copy with the given last-retry interval used to reset the retry counter.
     pub fn with_last_retry_interval(mut self, last_retry_interval: Duration) -> Self {
         self.last_retry_interval = last_retry_interval;
         self

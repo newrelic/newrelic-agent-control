@@ -1,11 +1,18 @@
+//! Labels used to identify and select agent-control Kubernetes resources.
 use crate::agent_control::agent_id::AgentID;
 use std::collections::BTreeMap;
 
+/// Label key indicating which application manages the resource.
 pub const MANAGED_BY_KEY: &str = "app.kubernetes.io/managed-by";
+/// Label value identifying agent-control as the managing application.
 pub const MANAGED_BY_VAL: &str = "newrelic-agent-control";
+/// Label key holding the agent id a resource belongs to.
 pub const AGENT_ID_LABEL_KEY: &str = "newrelic.io/agent-id";
+/// Label key indicating the source (local or remote) a version was set from.
 pub const AGENT_CONTROL_VERSION_SET_FROM: &str = "newrelic.io/agent-control-version-set-from";
+/// Label value indicating a locally-sourced value.
 pub const LOCAL_VAL: &str = "local";
+/// Label value indicating a remotely-sourced value.
 pub const REMOTE_VAL: &str = "remote";
 
 /// Collection of labels used to identify agent control resources.
@@ -38,6 +45,7 @@ impl Labels {
         }
     }
 
+    /// Returns the labels as a key-value map.
     pub fn get(&self) -> BTreeMap<String, String> {
         self.0.clone()
     }
@@ -59,6 +67,7 @@ pub fn is_managed_by_agent_control(labels: &BTreeMap<String, String>) -> bool {
         .is_some_and(|v| v == MANAGED_BY_VAL)
 }
 
+/// Returns the agent id label value, if present.
 pub fn get_agent_id(labels: &BTreeMap<String, String>) -> Option<&String> {
     labels.get(AGENT_ID_LABEL_KEY)
 }

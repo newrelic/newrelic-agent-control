@@ -1,3 +1,4 @@
+//! Renders an [`AgentType`] together with user values into a runtime configuration for a sub-agent.
 use crate::agent_type::{
     agent_attributes::AgentAttributes,
     definition::AgentType,
@@ -12,6 +13,8 @@ use crate::agent_type::{
 use crate::values::yaml_config::YAMLConfig;
 use std::collections::HashMap;
 
+/// Renders agent types into runtime configurations, optionally enriched with agent-control
+/// namespaced variables.
 #[derive(Debug, Default)]
 pub struct TemplateRenderer {
     ac_variables: HashMap<NamespacedVariableName, Variable>,
@@ -101,6 +104,7 @@ impl TemplateRenderer {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub(crate) mod tests {
     use std::path::PathBuf;
 

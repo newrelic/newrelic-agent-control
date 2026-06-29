@@ -1,3 +1,4 @@
+//! The aggregate Kubernetes version checker and the thread that runs it periodically.
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta3_type_meta};
 use crate::agent_type::version_config::{VersionCheckerInitialDelay, VersionCheckerInterval};
@@ -47,7 +48,9 @@ impl TryFrom<&TypeMeta> for SupportedResourceType {
 /// Represents all supported version checkers for k8s objects.
 #[cfg_attr(test, derive(Debug))]
 pub enum K8sAgentVersionChecker<C: K8sClient = SyncK8sClient> {
+    /// Version checker backed by a Flux HelmRelease resource.
     HelmRelease(HelmReleaseVersionChecker<C>),
+    /// Version checker backed by a New Relic Instrumentation resource.
     Instrumentation(NewrelicInstrumentationVersionChecker<C>),
 }
 

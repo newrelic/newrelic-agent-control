@@ -23,6 +23,7 @@ use std::sync::OnceLock;
 const TEMPLATE_RE: &str = r"\$\{(nr-[a-z]+:[a-zA-Z0-9\.\-_/:]+)((?:\s*\|\s*[a-zA-Z]+\s*\d*)*)\}";
 const TEMPLATE_BEGIN: &str = "${";
 const TEMPLATE_END: char = '}';
+/// Separator used to join nested variable names into a single template key.
 pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
 
 /// A trait for types that support templating using a set of variables.
@@ -38,12 +39,15 @@ pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
 /// Returns an `AgentTypeError` if a placeholder references an undefined or
 /// missing variable.
 pub trait Templateable {
+    /// The type produced after templating.
     type Output;
 
     /// Replaces placeholders in the content with values from the `Variables` map.
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError>;
 }
 
+/// Returns the compiled regular expression matching template placeholders such as
+/// `${nr-var:name|indent 2}`.
 pub fn template_re() -> &'static Regex {
     static RE_ONCE: OnceLock<Regex> = OnceLock::new();
     RE_ONCE.get_or_init(|| Regex::new(TEMPLATE_RE).unwrap())

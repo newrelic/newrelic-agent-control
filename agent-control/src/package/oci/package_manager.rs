@@ -1,3 +1,4 @@
+//! OCI-backed [`PackageManager`] implementation that downloads, extracts and retains packages on disk.
 use super::downloader::OCIPackageDownloader;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::PACKAGES_FOLDER_NAME;
@@ -19,9 +20,11 @@ use std::sync::Mutex;
 use thiserror::Error;
 use tracing::{debug, error, warn};
 
+/// [`OCIPackageManager`] backed by the default OCI downloader and filesystem directory manager.
 pub type DefaultOCIPackageManager =
     OCIPackageManager<OCIPackageArtifactDownloader, DirectoryManagerFs>;
 
+/// Manages OCI packages on disk: downloads, extracts, and retains the most recent installs.
 // This is expected to be thread-safe
 pub struct OCIPackageManager<D, DM>
 where
@@ -34,31 +37,42 @@ where
     latest_installed_packages: Mutex<HashMap<AgentID, InstalledPackageData>>,
 }
 
+/// Errors returned by the OCI package manager.
 #[derive(Debug, Error)]
 pub enum OCIPackageManagerError {
+    /// Downloading the OCI artifact failed.
     #[error("error attempting to download OCI artifact: {0}")]
     Download(OciClientError),
+    /// Installing the OCI artifact failed (filesystem error).
     #[error("error attempting to install OCI artifact: {0}")]
     Install(io::Error),
+    /// Uninstalling the OCI artifact failed (filesystem error).
     #[error("error attempting to uninstall OCI artifact: {0}")]
     Uninstall(io::Error),
+    /// Extracting the downloaded archive failed.
     #[error("error extracting archive while installing OCI artifact: {0}")]
     Extraction(String),
+    /// The computed package path suffix contained a non-normal component.
     // Naming produces a non-normalized suffix. Should not happen but we can identify bugs with it.
     #[error("Package reference naming validation produces a non-normalized suffix: {0}")]
     NotNormalSuffix(String),
+    /// One or more packages could not be removed during the retention purge.
     #[error("errors removing packages: {0}")]
     RetainPackageErrors(RetainPackageErrors),
+    /// The package's post-download hook failed.
     #[error("post-download hook execution failed: {0}")]
     PostDownloadHook(#[from] PostDownloadHookExecutionError),
 }
 
+/// Collection of per-package errors gathered while purging retained packages.
 #[derive(Debug, Default)]
 pub struct RetainPackageErrors(Vec<(String, OCIPackageManagerError)>);
 impl RetainPackageErrors {
+    /// Records an error for the given package id.
     pub fn push(&mut self, package_id: String, error: OCIPackageManagerError) {
         self.0.push((package_id, error));
     }
+    /// Returns `true` when no errors have been recorded.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -84,6 +98,7 @@ where
     D: OCIPackageDownloader,
     DM: DirectoryManager,
 {
+    /// Creates a package manager that stores packages under `remote_dir`.
     pub fn new(downloader: D, directory_manager: DM, remote_dir: PathBuf) -> Self {
         Self {
             downloader,
@@ -246,6 +261,7 @@ where
     }
 }
 
+/// Returns the installation path for the given package under `base_path`.
 pub fn get_package_path(
     base_path: &Path,
     agent_id: &AgentID,

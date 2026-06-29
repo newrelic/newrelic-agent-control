@@ -1,3 +1,5 @@
+//! The fully-qualified identity of an agent type (`<namespace>/<name>:<version>`) and its
+//! validation rules.
 use semver::Version;
 use serde::{Deserialize, Deserializer, Serializer};
 use std::fmt::{Display, Formatter};
@@ -8,30 +10,52 @@ pub(crate) const NAME_NAMESPACE_MAX_LENGTH: usize = 64;
 /// cannot overflow external constraints like the OCI tag built using this metadata.
 pub(crate) const VERSION_MAX_LENGTH: usize = 14;
 
+/// Errors produced while parsing or validating an [`AgentTypeID`].
 #[derive(Error, Debug, PartialEq)]
 pub enum AgentTypeIDError {
+    /// The namespace did not satisfy the name format rules.
     #[error("invalid namespace: {0}")]
     InvalidNamespace(NameFormatError),
+    /// The name did not satisfy the name format rules.
     #[error("invalid name: {0}")]
     InvalidName(NameFormatError),
+    /// The version is not a valid semver version.
     #[error("invalid version: {0}")]
     InvalidVersion(String),
+    /// The version is not a plain `Major.Minor.Patch` semver (e.g. it has a pre-release or build).
     #[error("only Major.Minor.Patch semver format is allowed")]
     ForbiddenSemVer,
+    /// The version exceeds the maximum allowed length.
     #[error("version must not be longer than {max} characters, but it is {length}")]
-    VersionTooLong { length: usize, max: usize },
+    VersionTooLong {
+        /// The actual length of the version string.
+        length: usize,
+        /// The maximum allowed length.
+        max: usize,
+    },
 }
 
+/// Errors describing why a name or namespace string is not valid.
 #[derive(Error, Debug, PartialEq)]
 pub enum NameFormatError {
+    /// The string is empty.
     #[error("must not be empty")]
     Empty,
+    /// The string exceeds the maximum allowed length.
     #[error("must be at most {max} characters, but it is {length}")]
-    TooLong { length: usize, max: usize },
+    TooLong {
+        /// The actual length of the string.
+        length: usize,
+        /// The maximum allowed length.
+        max: usize,
+    },
+    /// The string does not start with an ASCII letter.
     #[error("must start with an ASCII letter")]
     InvalidStart,
+    /// The string does not end with a letter or digit.
     #[error("must end with a letter or a digit")]
     InvalidEnd,
+    /// The string contains a character outside the allowed set.
     #[error(
         "contains invalid character '{0}', only lowercase letters, digits, '.' and '_' are allowed"
     )]
@@ -48,12 +72,15 @@ pub struct AgentTypeID {
 }
 
 impl AgentTypeID {
+    /// Returns the namespace.
     pub fn namespace(&self) -> &str {
         &self.namespace
     }
+    /// Returns the name.
     pub fn name(&self) -> &str {
         &self.name
     }
+    /// Returns the version.
     pub fn version(&self) -> &Version {
         &self.version
     }
@@ -115,7 +142,7 @@ impl AgentTypeID {
         })
     }
 
-    /// Deserializes an AgentTypeID from a fully qualified name string using the TryFrom<str> implementation.
+    /// Deserializes an AgentTypeID from a fully qualified name string using the `TryFrom<str>` implementation.
     pub fn deserialize_fqn<'de, D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,

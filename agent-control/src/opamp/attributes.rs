@@ -1,3 +1,4 @@
+//! Helpers to update and publish OpAMP agent attributes (the agent description).
 use std::fmt::Debug;
 
 use opamp_client::opamp::proto::{AgentDescription as ProtoAgentDescription, KeyValue};
@@ -64,6 +65,7 @@ fn merge_attributes(
     merged_attributes
 }
 
+/// Publishes an attribute-update event, logging an error if publishing fails.
 pub fn publish_update_attributes_event<T>(event_publisher: &EventPublisher<T>, event: T)
 where
     T: Debug + Send + Sync + 'static,

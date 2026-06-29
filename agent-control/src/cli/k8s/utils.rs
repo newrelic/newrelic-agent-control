@@ -1,3 +1,4 @@
+//! Shared helpers for the Kubernetes CLI commands.
 use super::errors::K8sCliError;
 use crate::k8s::client::SyncK8sClient;
 use kube::api::TypeMeta;
@@ -56,6 +57,7 @@ pub fn retrieve_api_resources(
     Ok(tm_available)
 }
 
+/// Builds a synchronous Kubernetes client backed by a dedicated multi-threaded Tokio runtime.
 pub fn try_new_k8s_client() -> Result<SyncK8sClient, K8sCliError> {
     debug!("Starting the runtime");
     let runtime = Arc::new(

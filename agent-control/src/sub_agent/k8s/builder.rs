@@ -1,3 +1,5 @@
+//! Builders for Kubernetes sub-agents and their supervisors.
+
 use crate::agent_control::config::K8sConfig;
 use crate::agent_control::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
 use crate::event::SubAgentEvent;
@@ -23,6 +25,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
+/// Builds [SubAgent]s configured for Kubernetes, wiring up the OpAMP client and supervisor.
 pub struct K8sSubAgentBuilder<O, I, B, R, Y, A>
 where
     O: BuildOpAMPClient,
@@ -107,12 +110,14 @@ where
     }
 }
 
+/// Builds [NotStartedSupervisorK8s] supervisors, validating agent objects against supported types.
 pub struct SupervisorBuilderK8s<C: K8sClient = SyncK8sClient> {
     pub(super) k8s_client: Arc<C>,
     pub(super) k8s_config: K8sConfig,
 }
 
 impl<C: K8sClient> SupervisorBuilderK8s<C> {
+    /// Creates a supervisor builder from a k8s client and configuration.
     pub fn new(k8s_client: Arc<C>, k8s_config: K8sConfig) -> Self {
         Self {
             k8s_client,
@@ -163,6 +168,7 @@ impl<C: K8sClient> SupervisorBuilder for SupervisorBuilderK8s<C> {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;

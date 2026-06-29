@@ -1,3 +1,5 @@
+//! A value that may be provided as a template string and resolved to its typed value during
+//! rendering.
 use super::restart_policy::{BackoffDelay, BackoffLastRetryInterval, MaxRetries};
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
@@ -5,6 +7,7 @@ use crate::agent_type::templates::Templateable;
 use serde::{Deserialize, Deserializer};
 use std::str::FromStr;
 
+/// Holds either a concrete value or a template string that resolves to a value of type `T`.
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct TemplateableValue<T> {
     value: Option<T>,
@@ -41,6 +44,7 @@ impl<'de, T> Deserialize<'de> for TemplateableValue<T> {
 }
 
 impl<T> TemplateableValue<T> {
+    /// Builds a templateable value already holding a concrete value (no template).
     pub fn new(value: T) -> Self {
         Self {
             value: Some(value),
@@ -48,10 +52,12 @@ impl<T> TemplateableValue<T> {
         }
     }
 
+    /// Returns whether there is no template string to resolve.
     pub fn is_template_empty(&self) -> bool {
         self.template.is_empty()
     }
     #[cfg(test)]
+    #[allow(missing_docs)]
     pub fn from_template(s: String) -> Self {
         Self {
             value: None,
@@ -59,6 +65,7 @@ impl<T> TemplateableValue<T> {
         }
     }
     #[cfg(test)]
+    #[allow(missing_docs)]
     pub fn with_template(self, s: String) -> Self {
         Self {
             template: s,

@@ -1,3 +1,4 @@
+//! Persistence of OpAMP instance ids in the agent control data store.
 use std::{io, marker::PhantomData, sync::Arc};
 
 use serde::{Serialize, de::DeserializeOwned};
@@ -14,6 +15,7 @@ use crate::{
 
 use super::definition::InstanceIdentifiers;
 
+/// [`InstanceIDStorer`] backed by a [`DataStore`], parameterized over the identifiers type.
 pub struct Storer<D, I>
 where
     D: DataStore,
@@ -45,10 +47,13 @@ where
     }
 }
 
+/// Errors produced while storing or retrieving an instance id.
 #[derive(Debug, Error)]
 pub enum StorerError {
+    /// Host filesystem I/O error.
     #[error("host I/O error: {0}")]
     Io(#[from] io::Error),
+    /// Kubernetes data store error.
     #[error("k8s error: {0}")]
     K8s(#[from] k8s::Error),
 }
@@ -97,20 +102,26 @@ where
     }
 }
 
+/// Persists and retrieves the instance id (and its identifiers) for an agent.
 pub trait InstanceIDStorer {
+    /// The identifiers type this storer handles.
     type Identifiers: InstanceIdentifiers;
 
+    /// Stores the instance id data for the given agent.
     fn set(
         &self,
         agent_id: &AgentID,
         data: &DataStored<Self::Identifiers>,
     ) -> Result<(), StorerError>;
+    /// Retrieves the stored instance id data for the given agent, if any.
     fn get(&self, agent_id: &AgentID)
     -> Result<Option<DataStored<Self::Identifiers>>, StorerError>;
+    /// Deletes the stored instance id data for the given agent.
     fn delete(&self, agent_id: &AgentID) -> Result<(), StorerError>;
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub(crate) mod tests {
     use crate::opamp::instance_id::definition::tests::MockIdentifiers;
 

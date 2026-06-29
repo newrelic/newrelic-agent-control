@@ -1,3 +1,4 @@
+//! DaemonSet health checker.
 use crate::checkers::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
@@ -13,6 +14,7 @@ use super::{
 
 const ROLLING_UPDATE_UPDATE_STRATEGY: &str = "RollingUpdate";
 
+/// Health checker for DaemonSet workloads, selected by name or Flux release label.
 #[derive(Debug)]
 pub struct K8sHealthDaemonSet<C: K8sClient = SyncK8sClient> {
     k8s_client: Arc<C>,
@@ -48,6 +50,7 @@ impl K8sHealthDaemonSet {
     // We decided to ignore max_unavailable and therefore consider unhealthy a DaemonSet during a rolling update
     // Moreover, following the APM approach we are not considering updatedNumberScheduled with onDelete policy.
     // I.e. we are reporting healthy also whenever there is an instance running an old version if there are no failing pods.
+    /// Evaluates the health of a single DaemonSet.
     pub fn check_health_single_daemon_set(ds: &DaemonSet) -> Result<Health, HealthCheckerError> {
         let n = client_utils::get_metadata_name(ds)?;
         let name = n.as_str();
@@ -105,6 +108,7 @@ impl K8sHealthDaemonSet {
 }
 
 impl<C: K8sClient> K8sHealthDaemonSet<C> {
+    /// Builds a DaemonSet health checker for the given namespace and selection filter.
     pub fn new(
         k8s_client: Arc<C>,
         filter: ResourceFilter,
@@ -137,6 +141,7 @@ fn is_daemon_set_update_strategy_rolling_update(
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use crate::checkers::health::health_checker::{Healthy, Unhealthy};

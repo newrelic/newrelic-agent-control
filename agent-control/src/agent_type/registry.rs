@@ -1,3 +1,5 @@
+//! The agent type registry: resolves an [`AgentTypeID`] to its [`AgentTypeDefinition`] by walking
+//! an ordered list of layered registries (local, remote, with optional caching).
 pub mod caching;
 mod local;
 pub mod remote;
@@ -15,18 +17,29 @@ use crate::agent_type::definition::AgentTypeDefinitionParseError;
 use crate::agent_type::oci::downloader::OCIAgentTypeArtifactDownloader;
 use crate::environment::Environment;
 
+/// Errors returned by registry lookups.
 #[derive(Error, Debug)]
 pub enum AgentTypeRegistryError {
+    /// No agent type was found for the given id.
     #[error("agent type {0} not found")]
     NotFound(String),
+    /// An agent type with the same id is already registered.
     #[error("agent {0} already exists")]
     AlreadyExists(String),
+    /// The agent type definition could not be parsed.
     #[error("invalid agent type definition: {0}")]
     Parsing(AgentTypeDefinitionParseError),
+    /// The remote registry failed to resolve the agent type.
     #[error("remote registry error: {0}")]
     Remote(String),
+    /// The resolved definition's metadata does not match what was requested.
     #[error("metadata mismatch for '{tag}': {details}")]
-    MetadataMismatch { tag: String, details: String },
+    MetadataMismatch {
+        /// The tag that was requested.
+        tag: String,
+        /// Details of the mismatch.
+        details: String,
+    },
 }
 
 /// Defines how to return an [AgentTypeDefinition] given an identifier.
@@ -59,14 +72,18 @@ pub struct Registry<R: AgentTypeRegistry = SupportedRegistry> {
 }
 
 impl<R: AgentTypeRegistry> Registry<R> {
+    /// Builds a composite registry from an ordered list of inner registries.
     pub fn new(registries: Vec<R>) -> Self {
         Self { registries }
     }
 }
 
+/// The registry layers composed in production: an in-memory local registry and a remote OCI one.
 #[allow(clippy::large_enum_variant)]
 pub enum SupportedRegistry {
+    /// In-memory registry of embedded and custom agent types.
     Local(LocalRegistry),
+    /// Registry that pulls agent types from a remote OCI registry.
     Remote(RemoteRegistry<OCIAgentTypeArtifactDownloader>),
 }
 
@@ -83,6 +100,8 @@ impl AgentTypeRegistry for SupportedRegistry {
 }
 
 impl Registry<SupportedRegistry> {
+    /// Builds the production composite registry: a `LocalRegistry` layer followed by a
+    /// [`RemoteRegistry`] layer, both for the given running `env`.
     pub fn build(
         env: Environment,
         config: RegistryConfig,
@@ -144,6 +163,7 @@ impl<R: AgentTypeRegistry> AgentTypeRegistry for Registry<R> {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use assert_matches::assert_matches;

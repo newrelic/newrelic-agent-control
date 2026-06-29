@@ -1,3 +1,4 @@
+//! Rendered filesystem tree and the logic to materialize it on disk.
 use fs::{directory_manager::DirectoryManager, file::writer::FileWriter};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -11,14 +12,19 @@ use tracing::trace;
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct FileSystem(pub(super) HashMap<PathBuf, RenderedEntry>);
 
+/// A single rendered filesystem entry.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RenderedEntry {
+    /// A file with the given content.
     File(String),
+    /// A directory containing child entries keyed by their relative path.
     Dir(HashMap<PathBuf, RenderedEntry>),
+    /// A directory whose files were projected from a map (filename to content).
     DirContentFromMap(HashMap<PathBuf, String>),
 }
 
 impl FileSystem {
+    /// Writes the whole rendered tree to disk using the given file writer and directory manager.
     pub fn write(
         &self,
         file_writer: &impl FileWriter,
@@ -87,6 +93,7 @@ fn write_entry(
     }
 }
 
+/// Error produced while writing the rendered filesystem tree to disk.
 #[derive(Debug, Error)]
 #[error("file system entries error: {0}")]
 pub struct FileSystemEntriesError(String);

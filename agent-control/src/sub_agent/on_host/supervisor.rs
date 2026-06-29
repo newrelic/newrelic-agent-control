@@ -1,3 +1,6 @@
+//! On-host supervisor: installs packages, launches and restarts agent executables, and runs health
+//! and version checks for a single sub-agent.
+
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConfig;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::{
@@ -38,22 +41,30 @@ use tracing::{Dispatch, debug, dispatcher, error, info, warn};
 const WAIT_FOR_EXIT_TIMEOUT: Duration = Duration::from_secs(1);
 const HEALTHY_DELAY: Duration = Duration::from_secs(10);
 
+/// Errors produced while starting, applying, or stopping an on-host supervisor.
 #[derive(Debug, thiserror::Error)]
 pub enum SupervisorError {
+    /// A package could not be installed (generic message).
     #[error("installing packages: {0}")]
     InstallPackage(String),
+    /// The health checkers could not be built.
     #[error("building health checkers: {0}")]
     HealthError(#[from] HealthCheckerError),
+    /// The sub-agent filesystem entries could not be written.
     #[error("failed to write sub-agent files: {0}")]
     FileSystem(FileSystemEntriesError),
+    /// Package installation failed.
     #[error("package installation failed: {0}")]
     Install(InstallPackageError),
+    /// The effective agent is missing its on-host runtime configuration.
     #[error("missing runtime configuration: {0}")]
     RuntimeConfig(EffectiveAgentsAssemblerError),
+    /// The supervisor threads could not be stopped.
     #[error("failure stopping supervisor: {0}")]
     Stop(ThreadContextStopperError),
 }
 
+/// Error describing the failure to install a specific package.
 #[derive(Debug, Error)]
 #[error("failure installing package: '{id}': {err_msg}")]
 pub struct InstallPackageError {
@@ -61,17 +72,24 @@ pub struct InstallPackageError {
     err_msg: String,
 }
 
+/// A running on-host supervisor owning its executable, health, and version threads.
 pub struct StartedSupervisorOnHost<PM>
 where
     PM: PackageManager,
 {
+    /// Handles to the running supervisor threads (executables and checkers).
     pub thread_contexts: Vec<StartedThreadContext>,
+    /// Package manager used to (re)install agent packages.
     pub package_manager: Arc<PM>,
+    /// Identity of the supervised agent.
     pub agent_identity: AgentIdentity,
+    /// Publisher for internal sub-agent events.
     pub internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    /// Directory where executable output is logged when file logging is enabled.
     pub logging_path: PathBuf,
 }
 
+/// An on-host supervisor ready to be started.
 pub struct NotStartedSupervisorOnHost<PM>
 where
     PM: PackageManager,
@@ -184,6 +202,8 @@ impl<PM> NotStartedSupervisorOnHost<PM>
 where
     PM: PackageManager,
 {
+    /// Creates a not-started on-host supervisor from the agent identity, executables, health,
+    /// version and packages configuration, package manager, and file-logging settings.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         agent_identity: AgentIdentity,
@@ -239,6 +259,7 @@ where
         Ok(Some(started_thread_context))
     }
 
+    /// Runs the agent version check (if configured), publishing detected attributes as events.
     pub fn check_subagent_version(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
@@ -581,6 +602,7 @@ impl HealthHandler {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;

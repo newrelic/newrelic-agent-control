@@ -1,3 +1,5 @@
+//! Configuration values storage: types and repositories for agent local and remote configs.
+
 use std::sync::Arc;
 
 use opamp_client::operation::capabilities::Capabilities;
@@ -22,12 +24,14 @@ pub mod config;
 pub mod config_repository;
 pub mod yaml_config;
 
+/// [`ConfigRepository`] implementation backed by an OpAMP [`DataStore`].
 pub struct ConfigRepo<D: DataStore> {
     opamp_data_store: Arc<D>,
     remote_enabled: bool,
 }
 
 impl<D: DataStore> ConfigRepo<D> {
+    /// Creates a new repository with remote configuration disabled.
     pub fn new(opamp_data_store: Arc<D>) -> Self {
         Self {
             opamp_data_store,
@@ -35,6 +39,7 @@ impl<D: DataStore> ConfigRepo<D> {
         }
     }
 
+    /// Returns the repository with remote configuration handling enabled.
     pub fn with_remote(self) -> Self {
         Self {
             remote_enabled: true,

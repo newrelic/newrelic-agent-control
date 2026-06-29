@@ -1,9 +1,12 @@
+//! Secrets provider that reads secrets from files on the local filesystem.
+
 use std::fs;
 use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::secrets_provider::SecretsProvider;
 
+/// Error returned when a file secret cannot be resolved.
 #[derive(Debug, Error)]
 #[error("resolving file secret: {0}")]
 pub struct FileSecretProviderError(String);
@@ -13,6 +16,7 @@ pub struct FileSecretProviderError(String);
 pub struct FileSecretProvider;
 
 impl FileSecretProvider {
+    /// Creates a new [`FileSecretProvider`].
     pub fn new() -> Self {
         FileSecretProvider
     }

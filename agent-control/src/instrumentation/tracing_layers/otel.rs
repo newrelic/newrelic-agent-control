@@ -1,3 +1,5 @@
+//! Builds the [`tracing_subscriber`] layers that report logs and metrics through OpenTelemetry.
+
 use crate::http::client::{HttpBuildError, HttpClient};
 use crate::http::config::HttpConfig;
 use crate::instrumentation::config::otel::OtelConfig;
@@ -18,12 +20,20 @@ const SERVICE_NAME: &str = "agent-control-self-instrumentation";
 /// Enumerates the possible error building OpenTelemetry providers.
 #[derive(Debug, Error)]
 pub enum OtelBuildError {
+    /// The OpenTelemetry HTTP client could not be built.
     #[error("could not build the otel http client: {0}")]
     HttpClient(#[from] HttpBuildError),
+    /// An OpenTelemetry exporter could not be built.
     #[error("could not build the exporter: {0}")]
     ExporterBuild(#[from] ExporterBuildError),
+    /// A filtering directive could not be parsed.
     #[error("invalid filtering directive '{directive}': {err}")]
-    FilteringDirective { directive: String, err: String },
+    FilteringDirective {
+        /// The directive that failed to parse.
+        directive: String,
+        /// The underlying parsing error.
+        err: String,
+    },
 }
 
 /// Holds the resources to build the layers for [tracing_subscriber] that will allow reporting telemetry
@@ -163,6 +173,8 @@ impl OtelLayers {
             .build())
     }
 
+    /// Consumes the providers and returns the combined [`LayerBox`] together with the [`OtelGuard`]
+    /// that must be kept alive while telemetry is emitted.
     pub fn layers(self) -> (LayerBox, OtelGuard) {
         let mut layers = Vec::<LayerBox>::new();
         let mut guard = OtelGuard::default();

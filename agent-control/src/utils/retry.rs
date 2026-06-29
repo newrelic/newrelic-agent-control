@@ -1,3 +1,6 @@
+//! Retry helpers: a fixed-interval [`retry`] and an exponential-backoff [`retry_with_backoff`] driven
+//! by a [`BackoffPolicy`], plus the [`full_jitter`] randomizer they share.
+
 use std::num::NonZeroUsize;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
@@ -36,9 +39,13 @@ where
 /// `jitter = true` randomizes each wait somewhere between zero and the computed value.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BackoffPolicy {
+    /// Maximum number of attempts before giving up.
     pub max_attempts: NonZeroUsize,
+    /// Delay before the first retry; doubles on each subsequent attempt.
     pub base_delay: Duration,
+    /// Upper bound on any single delay.
     pub max_delay: Duration,
+    /// When `true`, each delay is randomized within `[0, computed_delay]`.
     pub jitter: bool,
 }
 

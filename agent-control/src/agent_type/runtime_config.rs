@@ -20,6 +20,7 @@ use on_host::OnHost;
 /// arguments, env, etc.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Runtime {
+    /// The deployment instructions for the agent.
     pub deployment: Deployment,
 }
 
@@ -28,7 +29,9 @@ pub struct Runtime {
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum Deployment {
+    /// An on-host deployment.
     Host(OnHost),
+    /// A Kubernetes deployment.
     K8s(K8s),
 }
 

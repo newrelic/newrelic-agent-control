@@ -1,3 +1,4 @@
+//! Health checker that derives health from an HTTP endpoint.
 use crate::agent_type::runtime_config::health_config::rendered::HttpHealth;
 use crate::checkers::health::health_checker::{
     HealthChecker, HealthCheckerError, Healthy, Unhealthy,
@@ -14,11 +15,15 @@ const DEFAULT_PROTOCOL: &str = "http://";
 /// An enumeration of potential errors related to the HTTP client.
 #[derive(Error, Debug)]
 pub enum HttpClientError {
+    /// The endpoint returned an unsuccessful HTTP status.
     #[error("unsuccessful response: {status_code}")]
     UnsuccessfulResponse {
+        /// The returned HTTP status code.
         status_code: StatusCode,
+        /// The response body.
         body: Vec<u8>,
     },
+    /// An internal error in the HTTP client.
     #[error("internal HTTP client error: {0}")]
     HttpClientError(String),
 }

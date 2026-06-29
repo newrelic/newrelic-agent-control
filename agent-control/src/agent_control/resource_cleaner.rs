@@ -1,3 +1,5 @@
+//! Cleanup of resources owned by sub-agents (Kubernetes objects, on-host packages and config).
+
 pub mod k8s_garbage_collector;
 pub mod on_host;
 
@@ -42,6 +44,7 @@ pub(crate) mod tests {
     }
 
     impl ResourceCleanerError {
+        /// Creates a [`ResourceCleanerError`] from the given message.
         pub fn new(msg: &str) -> Self {
             ResourceCleanerError(msg.to_string())
         }

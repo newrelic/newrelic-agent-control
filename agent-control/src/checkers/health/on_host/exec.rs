@@ -1,3 +1,4 @@
+//! Health checker that aggregates the health reported by supervised executables.
 use crate::checkers::health::health_checker::{
     HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
@@ -7,12 +8,14 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::SystemTime;
 
+/// Aggregates per-executable health received over an event channel into a single status.
 pub struct ExecHealthChecker {
     exec_health_consumer: EventConsumer<(String, HealthWithStartTime)>,
     execs_health: RefCell<HashMap<String, HealthWithStartTime>>,
 }
 
 impl ExecHealthChecker {
+    /// Builds a checker consuming per-executable health from the given consumer.
     pub fn new(exec_health_consumer: EventConsumer<(String, HealthWithStartTime)>) -> Self {
         Self {
             exec_health_consumer,

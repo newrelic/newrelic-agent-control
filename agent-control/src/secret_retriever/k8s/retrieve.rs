@@ -1,13 +1,17 @@
+//! Retrieves the OpAMP authentication secret from a Kubernetes Secret.
+
 use crate::agent_control::config::K8sConfig;
 use crate::secret_retriever::OpampSecretRetriever;
 use crate::secrets_provider::SecretsProvider;
 use crate::secrets_provider::k8s_secret::K8sSecretProvider;
 
+/// Retrieves the OpAMP secret from Kubernetes using the given [`SecretsProvider`].
 pub struct K8sSecretRetriever<P> {
     provider: P,
     config: K8sConfig,
 }
 
+/// Error returned when retrieving the secret from Kubernetes fails.
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
 pub struct K8sRetrieverError(String);
@@ -16,6 +20,7 @@ impl<P> K8sSecretRetriever<P>
 where
     P: SecretsProvider,
 {
+    /// Creates a retriever that reads the secret described by `config` via `provider`.
     pub fn new(provider: P, config: K8sConfig) -> Self {
         Self { provider, config }
     }

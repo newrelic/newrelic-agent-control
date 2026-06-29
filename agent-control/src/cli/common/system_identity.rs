@@ -57,18 +57,26 @@ pub struct ProvisionIdentityArgs {
 /// Defines the supported provisioning methods for System Identities
 #[derive(Debug)]
 pub enum ParentAuthMethod {
+    /// Authenticate with a pre-obtained bearer token for the parent identity.
     ParentToken {
+        /// Bearer token of the parent system identity.
         token: String,
+        /// Organization ID associated with the new system identity.
         organization_id: String,
     },
+    /// Authenticate with the parent identity's client-id and client-secret.
     ParentSecret {
+        /// Client secret of the parent system identity.
         secret: String,
+        /// Client ID of the parent system identity.
         parent_client_id: String,
+        /// Organization ID associated with the new system identity.
         organization_id: String,
     },
 }
 
 impl ProvisionIdentityArgs {
+    /// Validates the arguments and resolves the provisioning method to use.
     pub fn validate(self) -> Result<ParentAuthMethod, String> {
         if !self.auth_parent_token.is_empty() {
             self.require_org_and_parent_id("token based")?;
@@ -239,6 +247,7 @@ fn build_nr_auth_proxy_config(
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use assert_matches::assert_matches;
     use http::header::AUTHORIZATION;

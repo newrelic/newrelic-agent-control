@@ -75,9 +75,13 @@ jobs:
       - uses: ./.github/actions/install-rust-toolchain
 
       - name: Create documentation
-        run: cargo doc --no-deps --package newrelic_agent_control
+        run: cargo doc --no-deps --workspace
         env:
-          RUSTDOCFLAGS: --cfg docsrs
+          # `-D warnings` promotes rustdoc lints (broken intra-doc links, invalid HTML,
+          # bare URLs, ...) to errors so doc-quality regressions fail CI. Missing-docs
+          # enforcement is separate: it rides on the per-crate `#![deny(missing_docs)]`
+          # attributes, caught by the `cargo clippy` job at compile time.
+          RUSTDOCFLAGS: --cfg docsrs -D warnings
 
   unused-dependencies-check:
     name: cargo shear (unused dependencies)

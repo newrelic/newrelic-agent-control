@@ -1,3 +1,4 @@
+//! Installs Agent Control resources on Kubernetes by applying Flux HelmRepository and HelmRelease objects.
 pub mod agent_control;
 pub mod flux;
 
@@ -29,6 +30,7 @@ const INSTALLATION_CHECK_DEFAULT_INITIAL_DELAY: &str = "10s";
 const INSTALLATION_CHECK_DEFAULT_TIMEOUT: &str = "5m";
 const INSTALLATION_CHECK_DEFAULT_RETRY_INTERVAL: Duration = Duration::from_secs(3);
 
+/// Arguments describing the chart, release and installation options for an install command.
 #[derive(Debug, Clone, Parser)]
 pub struct InstallData {
     /// Name of the Helm chart to be installed
@@ -85,12 +87,12 @@ pub struct InstallData {
     pub repository_url: String,
 
     /// Optional Flux HelmRepository secret reference (secretRef)
-    /// More details: https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference
+    /// More details: <https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference>
     #[arg(long)]
     pub repository_secret_reference_name: Option<String>,
 
     /// Optional Flux HelmRepository certificate secret reference (certSecretRef)
-    /// More details: https://fluxcd.io/flux/components/source/helmrepositories/#cert-secret-reference
+    /// More details: <https://fluxcd.io/flux/components/source/helmrepositories/#cert-secret-reference>
     #[arg(long)]
     pub repository_certificate_secret_reference_name: Option<String>,
 }
@@ -113,6 +115,8 @@ fn parse_duration_arg(arg: &str) -> Result<Duration, String> {
     duration_str::parse(arg)
 }
 
+/// Builds and applies the resources produced by the given builder, then optionally runs the
+/// post-install health check.
 pub fn apply_resources(
     dyn_object_list_builder: impl DynamicObjectListBuilder,
     namespace: &str,

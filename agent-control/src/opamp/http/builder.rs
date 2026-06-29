@@ -1,3 +1,4 @@
+//! Builder for the OpAMP HTTP client, including authentication and protobuf headers.
 use http::header::CONTENT_TYPE;
 use http::{HeaderMap, HeaderValue};
 use std::time::Duration;
@@ -15,18 +16,24 @@ use opamp_client::http::http_client::HttpClient as OpampHttpClient;
 /// Default client timeout is 30 seconds
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// Errors produced while building the OpAMP HTTP client.
 #[derive(thiserror::Error, Debug)]
 pub enum HttpClientBuilderError {
+    /// The OpAMP HTTP client could not be built.
     #[error("error building the OpAMP HTTP client: {0}")]
     BuildingError(String),
 }
 
+/// Builds the HTTP client used by the OpAMP client.
 pub trait HttpClientBuilder {
+    /// The HTTP client type produced by this builder.
     type Client: OpampHttpClient + Send + Sync + 'static;
 
+    /// Builds the HTTP client.
     fn build(&self) -> Result<Self::Client, HttpClientBuilderError>;
 }
 
+/// Default [`HttpClientBuilder`] that builds an authenticated OpAMP HTTP client.
 #[derive(Debug, Clone)]
 pub struct OpAMPHttpClientBuilder<R> {
     opamp_config: OpAMPClientConfig,
@@ -38,6 +45,7 @@ impl<R> OpAMPHttpClientBuilder<R>
 where
     R: OpampSecretRetriever,
 {
+    /// Creates a builder from the OpAMP config, proxy config and secret retriever.
     pub fn new(
         opamp_config: OpAMPClientConfig,
         proxy_config: ProxyConfig,
@@ -104,6 +112,7 @@ impl From<HttpBuildError> for HttpClientBuilderError {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub(crate) mod tests {
     use assert_matches::assert_matches;
     use http::Response;

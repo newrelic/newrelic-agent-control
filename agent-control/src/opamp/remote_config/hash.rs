@@ -1,16 +1,25 @@
+//! Remote configuration hash and application state.
 use std::fmt::{self, Display};
 
 use serde::{Deserialize, Serialize};
 
+/// Application state of a remote configuration.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Hash, Eq)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "state")]
 pub enum ConfigState {
+    /// The configuration is being applied.
     Applying,
+    /// The configuration has been applied successfully.
     Applied,
-    Failed { error_message: String },
+    /// The configuration failed to apply.
+    Failed {
+        /// Description of the failure.
+        error_message: String,
+    },
 }
 
+/// Hash identifying a remote configuration version.
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone, Hash, Eq)]
 pub struct Hash(String);
 
@@ -27,18 +36,22 @@ impl Display for Hash {
 }
 
 impl ConfigState {
+    /// Returns true if the state is [`ConfigState::Applied`].
     pub fn is_applied(&self) -> bool {
         self == &ConfigState::Applied
     }
 
+    /// Returns true if the state is [`ConfigState::Applying`].
     pub fn is_applying(&self) -> bool {
         self == &ConfigState::Applying
     }
 
+    /// Returns true if the state is [`ConfigState::Failed`].
     pub fn is_failed(&self) -> bool {
         matches!(&self, ConfigState::Failed { .. })
     }
 
+    /// Returns the failure message when in the [`ConfigState::Failed`] state.
     pub fn error_message(&self) -> Option<&String> {
         match &self {
             ConfigState::Failed { error_message: msg } => Some(msg),

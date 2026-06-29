@@ -24,9 +24,10 @@ use crate::utils::retry::retry;
 const SUSPEND_CHECK_MAX_RETRIES: usize = 30;
 const SUSPEND_CHECK_INTERVAL: Duration = Duration::from_secs(5);
 
+/// Arguments for the Flux uninstall command.
 #[derive(Debug, Clone, Parser)]
 pub struct FluxUninstallData {
-    /// Name of the Helm release
+    /// Name of the Helm release.
     #[arg(long)]
     pub release_name: String,
 }

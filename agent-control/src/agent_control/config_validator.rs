@@ -1,3 +1,5 @@
+//! Validation of the dynamic (remotely-mutable) part of the Agent Control configuration.
+
 use crate::agent_control::config::AgentControlDynamicConfig;
 use crate::agent_type::registry::AgentTypeRegistry;
 use std::sync::Arc;
@@ -5,12 +7,14 @@ use thiserror::Error;
 
 pub mod k8s;
 
+/// Error returned when a dynamic configuration fails validation.
 #[derive(Error, Debug)]
 #[error("config validation failed: {0}")]
 pub struct DynamicConfigValidatorError(String);
 
 /// Represents a validator for dynamic config
 pub trait DynamicConfigValidator {
+    /// Validates the given dynamic configuration, returning an error when it is not acceptable.
     fn validate(
         &self,
         dynamic_config: &AgentControlDynamicConfig,
@@ -23,6 +27,7 @@ pub struct RegistryDynamicConfigValidator<R: AgentTypeRegistry> {
 }
 
 impl<R: AgentTypeRegistry> RegistryDynamicConfigValidator<R> {
+    /// Builds a validator backed by the given agent type registry.
     pub fn new(agent_type_registry: Arc<R>) -> Self {
         Self {
             agent_type_registry,
@@ -53,6 +58,7 @@ impl<R: AgentTypeRegistry> DynamicConfigValidator for RegistryDynamicConfigValid
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use crate::agent_type::agent_type_id::AgentTypeID;

@@ -1,7 +1,11 @@
+//! Secrets provider that reads secrets from environment variables.
+
 use crate::secrets_provider::SecretsProvider;
 
+/// A secrets provider that retrieves secrets from environment variables.
 pub struct Env {}
 
+/// Error returned when an environment variable secret cannot be retrieved.
 #[derive(Debug, thiserror::Error)]
 #[error("failed to retrieve secret from environment variable: {0}")]
 pub struct EnvError(String);

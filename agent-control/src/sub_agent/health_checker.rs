@@ -1,3 +1,5 @@
+//! Publishes sub-agent health as [SubAgentInternalEvent] via the internal event publisher.
+
 use tracing::error;
 
 use crate::checkers::health::{events::HealthEventPublisher, with_start_time::HealthWithStartTime};
@@ -14,6 +16,7 @@ impl HealthEventPublisher for EventPublisher<SubAgentInternalEvent> {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use std::time::SystemTime;
 

@@ -28,6 +28,9 @@ For troubleshooting, see [Diagnose issues with agent logging](https://docs.newre
 Learn more from the [technical documentation in this repository](/docs/README.md) and
 the [New Relic Documentation](https://docs.newrelic.com/docs/new-relic-control/agent-control/overview/).
 
+The rendered Rust API documentation for the workspace crates is published to GitHub Pages at
+<https://newrelic.github.io/newrelic-agent-control/>. To build it locally, run `make doc-open`.
+
 ## Support
 
 Should you need assistance with New Relic products, you are in good hands with several support diagnostic tools and

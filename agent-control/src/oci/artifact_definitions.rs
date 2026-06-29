@@ -1,3 +1,7 @@
+//! Definitions of the OCI artifact types Agent Control consumes (agent packages and agent
+//! types), including their manifest/layer media types and helpers to validate manifests and
+//! extract their content.
+
 use std::fmt::Display;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -7,6 +11,7 @@ use flate2::read::GzDecoder;
 use oci_client::manifest::{OciDescriptor, OciImageManifest};
 use tar::Archive;
 
+/// Error returned when an OCI manifest does not meet the requirements of a known artifact type.
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
 pub struct DefinitionError(String);
@@ -14,7 +19,9 @@ pub struct DefinitionError(String);
 /// OCI manifest artifact types supported.
 #[derive(Debug)]
 pub enum ManifestArtifactType {
+    /// An agent package artifact (binaries/content to install an agent).
     AgentPackage,
+    /// An agent type artifact (an Agent Type definition).
     AgentType,
 }
 impl TryFrom<&str> for ManifestArtifactType {
@@ -51,8 +58,11 @@ const AGENT_TYPE_LAYER_TAR_GZ: &str = "application/vnd.newrelic.agent-type.conte
 /// allowing us to fetch and use artifacts with unknown layers if needed.
 #[derive(Debug)]
 pub enum LayerMediaType {
+    /// An agent package content layer, with its specific package media type.
     AgentPackage(PackageMediaType),
+    /// An agent type content layer.
     AgentType,
+    /// Any other (unrecognized) layer media type, preserved verbatim.
     Other(String),
 }
 impl From<&str> for LayerMediaType {
@@ -86,9 +96,12 @@ impl Display for LayerMediaType {
     }
 }
 
+/// Media type of an agent package content layer.
 #[derive(Debug)]
 pub enum PackageMediaType {
+    /// A gzipped tar archive (`...content.v1.tar+gzip`).
     AgentPackageLayerTarGz,
+    /// A zip archive (`...content.v1.zip`).
     AgentPackageLayerZip,
 }
 impl Display for PackageMediaType {
@@ -107,6 +120,7 @@ pub struct LocalAgentPackage {
     blob_media_type: PackageMediaType,
 }
 impl LocalAgentPackage {
+    /// Creates a handle to a locally stored agent package blob of the given media type.
     pub fn new(blob_media_type: PackageMediaType, blob_path: PathBuf) -> Self {
         Self {
             blob_media_type,
@@ -126,7 +140,7 @@ impl LocalAgentPackage {
     /// Validates that the manifest meets the requirements for an Agent Package artifact and
     /// returns the layer descriptor that contains the package blob with its media type.
     /// Agent Package Manifest requirements:
-    /// - artifactType must be '[AGENT_PACKAGE_ARTIFACT_TYPE]'
+    /// - artifactType must be '`AGENT_PACKAGE_ARTIFACT_TYPE`'
     /// - exactly one layer with mediaType of '[PackageMediaType]'
     pub fn get_layer(
         manifest: &OciImageManifest,
@@ -171,6 +185,7 @@ pub struct LocalAgentType {
     blob: Vec<u8>,
 }
 impl LocalAgentType {
+    /// Creates an in-memory handle to an agent type artifact blob.
     pub fn new(blob: Vec<u8>) -> Self {
         Self { blob }
     }
@@ -178,8 +193,8 @@ impl LocalAgentType {
     /// Validates that the manifest meets the requirements for an Agent Type artifact and
     /// returns the layer descriptor that contains the definition blob.
     /// Agent Type Manifest requirements:
-    /// - artifactType must be '[AGENT_TYPE_ARTIFACT_TYPE]'
-    /// - exactly one agent-type layer (mediaType '[AGENT_TYPE_LAYER_TAR_GZ]'); other layers are ignored
+    /// - artifactType must be '`AGENT_TYPE_ARTIFACT_TYPE`'
+    /// - exactly one agent-type layer (mediaType '`AGENT_TYPE_LAYER_TAR_GZ`'); other layers are ignored
     pub fn get_layer(manifest: &OciImageManifest) -> Result<OciDescriptor, DefinitionError> {
         if manifest.artifact_type.as_deref() != Some(AGENT_TYPE_ARTIFACT_TYPE) {
             return Err(DefinitionError(format!(
@@ -247,6 +262,7 @@ impl LocalAgentType {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use assert_matches::assert_matches;

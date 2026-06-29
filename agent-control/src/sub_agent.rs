@@ -1,3 +1,10 @@
+//! Sub-agent lifecycle: building, running, and supervising managed agents.
+//!
+//! A sub-agent owns an optional OpAMP client, a supervisor (built from the effective
+//! configuration), and an event loop that reacts to OpAMP remote configs and internal events.
+//! This module defines the [NotStartedSubAgent]/[StartedSubAgent] traits, the [SubAgent]
+//! implementation, and the platform-agnostic remote-config handling that drives the supervisor.
+
 pub mod collection;
 pub mod effective_agents_assembler;
 pub mod error;
@@ -47,6 +54,7 @@ use tracing::{debug, error, info, info_span, trace, warn};
 
 /// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisor.
 pub trait NotStartedSubAgent {
+    /// The running sub-agent type returned by [`run`](NotStartedSubAgent::run).
     type StartedSubAgent: StartedSubAgent;
     /// The run method (non-blocking) starts processing events and, if present, the supervisor.
     /// It returns a StartedSubAgent exposing .stop() to manage the running process.
@@ -62,8 +70,11 @@ pub trait StartedSubAgent {
     fn stop(self) -> Result<(), SubAgentStopError>;
 }
 
+/// Builds a [NotStartedSubAgent] for a given [AgentIdentity].
 pub trait SubAgentBuilder {
+    /// The not-started sub-agent type produced by [`build`](SubAgentBuilder::build).
     type NotStartedSubAgent: NotStartedSubAgent;
+    /// Builds a not-started sub-agent for the given agent identity.
     fn build(
         &self,
         agent_identity: &AgentIdentity,
@@ -121,6 +132,8 @@ where
     Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
+    /// Creates a new sub-agent from its identity, optional OpAMP client, supervisor builder,
+    /// event channels, remote-config parser, config repository, and effective-agent assembler.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         identity: AgentIdentity,
@@ -759,6 +772,7 @@ impl StartedSubAgent for SubAgentStopper {
     }
 }
 
+/// Stops the supervisor if present, logging any error returned while stopping.
 pub fn stop_supervisor<S>(maybe_started_supervisor: Option<S>)
 where
     S: Supervisor,
@@ -792,6 +806,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
 

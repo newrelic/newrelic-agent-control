@@ -1,3 +1,5 @@
+//! Health-checker configuration and wiring for the Agent Control itself.
+
 use std::time::Duration;
 
 use serde::Deserialize;

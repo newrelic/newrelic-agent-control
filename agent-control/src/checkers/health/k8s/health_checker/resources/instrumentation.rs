@@ -1,3 +1,4 @@
+//! New Relic Instrumentation (CR) health checker.
 use crate::checkers::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
@@ -158,6 +159,7 @@ pub struct K8sHealthNRInstrumentation<C: K8sClient = SyncK8sClient> {
 }
 
 impl<C: K8sClient> K8sHealthNRInstrumentation<C> {
+    /// Builds a health checker for the Instrumentation identified by `type_meta`, `name` and `namespace`.
     pub fn new(
         k8s_client: Arc<C>,
         type_meta: TypeMeta,

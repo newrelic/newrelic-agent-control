@@ -1,3 +1,4 @@
+//! On-host instance identifiers and the provider that detects them from system and cloud metadata.
 use crate::http::client::{HttpBuildError, HttpClient};
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::opamp::instance_id::definition::InstanceIdentifiers;
@@ -18,12 +19,18 @@ use std::fmt::{Display, Formatter};
 use thiserror::Error;
 use tracing::error;
 
+/// On-host identifiers detected from system and cloud metadata.
 #[derive(Default, Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Identifiers {
+    /// Detected hostname.
     pub hostname: String,
+    /// System machine id.
     pub machine_id: String,
+    /// Cloud provider instance id, if any.
     pub cloud_instance_id: String,
+    /// Aggregated host id used by fleet management to identify the host entity.
     pub host_id: String,
+    /// Fleet identifier for fleet management.
     pub fleet_id: String,
 }
 
@@ -39,20 +46,26 @@ impl Display for Identifiers {
     }
 }
 
+/// Errors produced while detecting on-host identifiers.
 #[derive(Error, Debug)]
 pub enum IdentifiersProviderError {
+    /// No host id could be derived and none was configured.
     #[error(
         "generating host identification: adding a 'host_id' in the agent-control config is required for this case"
     )]
     MissingHostIDError,
+    /// System resource detection failed.
     #[error("detecting resources: {0}")]
     DetectError(#[from] DetectError),
+    /// A cloud detector could not be built.
     #[error("building cloud detector: {0}")]
     BuildError(#[from] HttpClientError),
+    /// The HTTP client used for detection could not be built.
     #[error("building http client: {0}")]
     HttpClientBuild(HttpBuildError),
 }
 
+/// Provides on-host [`Identifiers`] by combining system detection with cloud instance detection.
 pub struct IdentifiersProvider<
     D = SystemDetector,
     D2 = CloudIdDetector<
@@ -64,13 +77,18 @@ pub struct IdentifiersProvider<
     D: Detector,
     D2: Detector,
 {
+    /// Detector for system identifiers (hostname, machine id).
     pub system_detector: D,
+    /// Detector for the cloud provider instance id.
     pub cloud_id_detector: D2,
+    /// Configured host id, taking precedence over detected values when set.
     pub host_id: String,
+    /// Configured fleet id.
     pub fleet_id: String,
 }
 
 impl IdentifiersProvider {
+    /// Creates a provider with the default system and cloud detectors using the given HTTP client.
     pub fn new(http_client: HttpClient) -> Self {
         Self {
             system_detector: SystemDetector::default(),
@@ -107,14 +125,17 @@ where
     D: Detector,
     D2: Detector,
 {
+    /// Returns the provider with the given configured host id.
     pub fn with_host_id(self, host_id: String) -> Self {
         Self { host_id, ..self }
     }
 
+    /// Returns the provider with the given configured fleet id.
     pub fn with_fleet_id(self, fleet_id: String) -> Self {
         Self { fleet_id, ..self }
     }
 
+    /// Detects and returns the on-host identifiers, erroring if no host id can be determined.
     pub fn provide(&self) -> Result<Identifiers, IdentifiersProviderError> {
         let system_identifiers = self.system_detector.detect()?;
 
@@ -178,6 +199,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use crate::opamp::instance_id::on_host::identifiers::{
         Identifiers, IdentifiersProvider, IdentifiersProviderError,

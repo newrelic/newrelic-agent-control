@@ -1,5 +1,10 @@
+//! Thin wrapper for spawning OS threads with a sanitized name.
+
 use std::thread;
 
+/// Spawns a named thread, stripping NUL bytes from `name` (which the OS thread name forbids).
+///
+/// Panics if the OS fails to create the thread, matching [`std::thread::spawn`].
 pub fn spawn_named_thread<F, T>(name: &str, f: F) -> thread::JoinHandle<T>
 where
     F: FnOnce() -> T + Send + 'static,

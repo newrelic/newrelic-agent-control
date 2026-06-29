@@ -1,3 +1,5 @@
+//! Configuration for the status HTTP server (host, port and enabled flag).
+
 use serde::Deserialize;
 use std::fmt::{Display, Formatter};
 
@@ -5,17 +7,23 @@ const DEFAULT_PORT: u16 = 51200;
 pub(super) const DEFAULT_WORKERS: usize = 1;
 const DEFAULT_HOST: &str = "127.0.0.1";
 
+/// TCP port the status server listens on.
 #[derive(PartialEq, Deserialize, Debug, Clone)]
 pub struct Port(u16);
+/// Host/address the status server binds to.
 #[derive(PartialEq, Deserialize, Debug, Clone)]
 pub struct Host(String);
 
+/// Configuration of the local status HTTP server.
 #[derive(PartialEq, Deserialize, Clone, Debug, Default)]
 pub struct ServerConfig {
+    /// Port to listen on.
     #[serde(default)]
     pub port: Port,
+    /// Host/address to bind to.
     #[serde(default)]
     pub host: Host,
+    /// Whether the status server is enabled.
     #[serde(default)]
     pub enabled: bool,
 }

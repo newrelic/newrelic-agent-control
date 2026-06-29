@@ -1,3 +1,5 @@
+//! Agent types: their definition, parsing, registries, variables and the templating that turns a
+//! parsed agent type plus user values into a rendered runtime configuration for a sub-agent.
 pub mod agent_attributes;
 pub mod agent_type_id;
 pub mod definition;

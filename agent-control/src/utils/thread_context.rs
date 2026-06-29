@@ -1,3 +1,6 @@
+//! Wrappers around spawned threads that carry a cancellation channel, providing graceful (timed) and
+//! blocking stop semantics plus a collection extension to stop many threads at once.
+
 use std::{
     convert::identity,
     thread::{JoinHandle, sleep},
@@ -16,6 +19,7 @@ use crate::{
     utils::threads::spawn_named_thread,
 };
 
+/// A thread that has been configured with a name and callback but not yet spawned.
 pub struct NotStartedThreadContext<F, T = ()>
 where
     F: FnOnce(EventConsumer<CancellationMessage>) -> T + Send + 'static,
@@ -30,6 +34,7 @@ where
     F: FnOnce(EventConsumer<CancellationMessage>) -> T + Send + 'static,
     T: Send + 'static,
 {
+    /// Creates a not-yet-started thread context with the given name and callback.
     pub fn new<S: Into<String>>(thread_name: S, callback: F) -> Self {
         Self {
             thread_name: thread_name.into(),
@@ -37,6 +42,7 @@ where
         }
     }
 
+    /// Spawns the thread, wiring up a cancellation channel, and returns its [`StartedThreadContext`].
     pub fn start(self) -> StartedThreadContext<T> {
         let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
         debug!("Starting {} thread", self.thread_name);
@@ -48,6 +54,7 @@ where
         )
     }
 }
+/// A running thread, paired with a publisher for signaling it to stop and its join handle.
 pub struct StartedThreadContext<T = ()>
 where
     T: Send + 'static,
@@ -57,16 +64,33 @@ where
     join_handle: JoinHandle<T>,
 }
 
+/// Errors produced while signaling or joining a thread during stop.
 #[derive(Debug, thiserror::Error, PartialEq)]
 pub enum ThreadContextStopperError {
+    /// Failed to publish the stop signal to the thread.
     #[error("error sending stop signal to '{thread}' thread: {error}")]
-    EventPublisherError { thread: String, error: String },
+    EventPublisherError {
+        /// Name of the thread that could not be signaled.
+        thread: String,
+        /// Underlying publisher error message.
+        error: String,
+    },
 
+    /// The thread panicked or could not be joined.
     #[error("error joining '{thread}' thread: {error}")]
-    JoinError { thread: String, error: String },
+    JoinError {
+        /// Name of the thread that could not be joined.
+        thread: String,
+        /// Underlying join error message.
+        error: String,
+    },
 
+    /// The thread did not finish within the graceful-stop timeout.
     #[error("timeout waiting for '{thread}' thread to finish")]
-    StopTimeout { thread: String },
+    StopTimeout {
+        /// Name of the thread that timed out.
+        thread: String,
+    },
 }
 
 impl<T> StartedThreadContext<T>
@@ -152,7 +176,9 @@ where
     }
 }
 
+/// Extension trait for stopping a collection of [`StartedThreadContext`] instances.
 pub trait ThreadCollectionStopperExt {
+    /// Stops every thread in the collection, returning the first stop error encountered.
     fn stop(self) -> Result<(), ThreadContextStopperError>;
 }
 
@@ -177,6 +203,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use std::thread::sleep;
     use std::time::Duration;

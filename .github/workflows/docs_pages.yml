@@ -1,0 +1,78 @@
+name: Documentation (GitHub Pages)
+
+# Builds the workspace rustdoc and publishes it to GitHub Pages on every push to
+# main. Only the library crates are published; the test-support crates
+# (fake-opamp-server, oci-test-utils, e2e-runner) are excluded from the site.
+#
+# Prerequisite (one-time, manual): in the repository settings, set
+# Settings -> Pages -> "Build and deployment" -> Source to "GitHub Actions".
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Allow only one concurrent deployment. Do NOT cancel in-progress runs, so an
+# in-flight Pages deployment is allowed to complete.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - uses: ./.github/actions/install-rust-toolchain
+
+      - uses: ./.github/actions/rust-cache
+        with:
+          identifier: 'docs'
+          restore-strategy: 'nearest'
+          save-cache: true
+
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Clean stale generated docs
+        # Ensure the published artifact contains exactly the crates documented
+        # below, regardless of any docs left over in a restored target/ cache.
+        run: rm -rf target/doc
+
+      - name: Build workspace documentation
+        # Publish only the library crates; exclude the test-support crates.
+        run: >-
+          cargo doc --no-deps --workspace
+          --exclude fake-opamp-server
+          --exclude oci-test-utils
+          --exclude e2e-runner
+        env:
+          RUSTDOCFLAGS: --cfg docsrs -D warnings
+
+      - name: Generate landing page redirect
+        # A multi-crate workspace doc root has no useful index; redirect to the
+        # primary crate so the published site lands somewhere meaningful.
+        run: |
+          echo '<!DOCTYPE html><meta http-equiv="refresh" content="0;url=newrelic_agent_control/index.html">' > target/doc/index.html
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: target/doc
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

@@ -1,3 +1,4 @@
+//! Validator that verifies remote config signatures against keys fetched from a public key server.
 use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
@@ -17,18 +18,24 @@ const DEFAULT_HTTPS_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_SIGNATURE_VALIDATOR_ENABLED: bool = true;
 
 type ErrorMessage = String;
+/// Errors produced by the signature validator.
 #[derive(Error, Debug)]
 pub enum SignatureValidatorError {
+    /// The validator could not be built.
     #[error("failed to build validator: {0}")]
     BuildingValidator(ErrorMessage),
+    /// A signature could not be verified.
     #[error("failed to verify signature: {0}")]
     VerifySignature(ErrorMessage),
 }
 
+/// Configuration for the remote config signature validator.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct SignatureValidatorConfig {
+    /// Whether signature validation is enabled.
     #[serde(default = "default_signature_validator_config_enabled")]
     pub enabled: bool,
+    /// URL of the public key (JWKS) server used to fetch verifying keys.
     #[serde(default)]
     pub public_key_server_url: Option<Url>,
 }
@@ -45,11 +52,14 @@ fn default_signature_validator_config_enabled() -> bool {
     DEFAULT_SIGNATURE_VALIDATOR_ENABLED
 }
 
+/// Validates remote config signatures; a no-op store accepts everything when disabled.
 pub struct SignatureValidator {
     public_key_store: Option<VerifierStore>,
 }
 
 impl SignatureValidator {
+    /// Builds a validator from the config; when disabled returns a no-op validator, otherwise
+    /// fetches the verifying keys from the configured public key server.
     pub fn new(
         config: SignatureValidatorConfig,
         proxy_config: ProxyConfig,
@@ -89,6 +99,7 @@ impl SignatureValidator {
         })
     }
 
+    /// Builds a no-op validator that accepts any configuration without verifying signatures.
     pub fn new_noop() -> Self {
         Self {
             public_key_store: None,
@@ -137,6 +148,7 @@ impl RemoteConfigValidator for SignatureValidator {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;

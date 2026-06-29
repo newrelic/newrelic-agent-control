@@ -1,7 +1,13 @@
+//! Cancellation signalling built on top of the event channel.
+//!
+//! Models cancellation as an [`EventConsumer`] of [`CancellationMessage`], where receiving a
+//! message or a disconnection signals cancellation.
+
 use super::channel::EventConsumer;
 use crossbeam::channel::RecvTimeoutError;
 use std::time::Duration;
 
+/// The message type used to signal cancellation; the message itself carries no data.
 pub type CancellationMessage = ();
 
 impl EventConsumer<CancellationMessage> {

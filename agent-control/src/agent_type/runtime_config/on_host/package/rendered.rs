@@ -1,3 +1,4 @@
+//! Rendered package definitions plus validated OCI repository and version types.
 use oci_client::Reference;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Display, str::FromStr};
@@ -9,6 +10,7 @@ use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env
 const REPOSITORY_TOTAL_LENGTH_MAX: usize = 255;
 const TAG_TOTAL_LENGTH_MAX: usize = 128;
 
+/// A rendered package with its download source and optional post-download hook.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Package {
     /// Download defines the supported repository sources for the packages.
@@ -17,30 +19,38 @@ pub struct Package {
     pub post_download_hook: Option<PostDownloadHook>,
 }
 
+/// Rendered download source for a package.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Download {
     /// OCI repository definition
     pub oci: Oci,
 }
 
+/// Rendered, validated OCI source for a package.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Oci {
+    /// The repository name.
     pub repository: Repository,
+    /// The package version (tag, digest, or both).
     pub version: Version,
+    /// Optional URL of the public key used to verify the artifact.
     pub public_key_url: Option<Url>,
 }
 
+/// Rendered post-download hook.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PostDownloadHook {
     /// Absolute path to the command/executable (e.g., "/bin/bash", "/usr/bin/python3")
     pub path: String,
-    /// Arguments passed to the executable on [`path`].
+    /// Arguments passed to the executable on `path`.
     pub args: Args,
     /// Environmental variables
     pub env: Env,
 }
 
 impl Oci {
+    /// Builds an OCI [`Reference`] from this source for the given registry, using the version's
+    /// tag and/or digest. Returns an error if the version is empty.
     pub fn to_reference(&self, registry: &Registry) -> Result<Reference, InvalidVersion> {
         let registry_str = registry.to_string();
         let repository_str = self.repository.to_string();
@@ -67,10 +77,12 @@ impl Oci {
     }
 }
 
+/// Error returned when a repository name is invalid.
 #[derive(thiserror::Error, Debug)]
 #[error("{0}")]
 pub struct InvalidRepository(String);
 
+/// A validated OCI repository name.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct Repository(String);
 
@@ -124,10 +136,12 @@ fn validate_repository_char(c: char) -> Result<(), InvalidRepository> {
     }
 }
 
+/// Error returned when a version string is invalid.
 #[derive(thiserror::Error, Debug)]
 #[error("{0}")]
 pub struct InvalidVersion(String);
 
+/// A validated OCI version (tag, digest, or `tag@digest`).
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(try_from = "String")]
 pub struct Version(String);
@@ -214,6 +228,7 @@ fn validate_digest(digest: &str) -> Result<(), InvalidVersion> {
 }
 
 impl Version {
+    /// Splits this version into its optional tag and optional digest components.
     pub fn tag_and_digest(&self) -> (Option<String>, Option<String>) {
         if self.0.is_empty() {
             return (None, None);

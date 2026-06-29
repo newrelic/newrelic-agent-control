@@ -23,6 +23,8 @@ impl<T> Variants<T>
 where
     T: PartialEq,
 {
+    /// Returns whether `value` is allowed: true if there are no restrictions, or if `value` is one
+    /// of the configured variants.
     pub fn is_valid(&self, value: &T) -> bool {
         self.0.is_empty() || self.0.iter().any(|v| v == value)
     }

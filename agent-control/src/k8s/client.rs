@@ -1,3 +1,4 @@
+//! Synchronous and asynchronous Kubernetes clients used by agent-control to manage cluster resources.
 use super::{dynamic_object::DynamicObjectManagers, error::K8sError, reflectors::ReflectorBuilder};
 use crate::agent_control::config::{
     daemonset_type_meta, deployment_type_meta, statefulset_type_meta,
@@ -27,69 +28,87 @@ use tracing::debug;
 /// A key to identify a Kubernetes object, consisting of its name and namespace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct K8sObjectKey<'a> {
+    /// The object name.
     pub name: &'a str,
+    /// The object namespace.
     pub namespace: &'a str,
 }
 
+/// Abstraction over the Kubernetes operations required by agent-control.
 pub trait K8sClient: Debug + Send + Sync + 'static {
+    /// Lists the API resources available in the cluster.
     fn list_api_resources(&self) -> Result<Vec<APIResourceList>, K8sError>;
+    /// Creates or updates the provided dynamic object.
     fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError>;
+    /// Applies the provided dynamic object only if it differs from the one in the cluster.
     fn apply_dynamic_object_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError>;
+    /// Merge-patches the dynamic object identified by `tm` and `key`.
     fn patch_dynamic_object<'a>(
         &self,
         tm: &TypeMeta,
         key: K8sObjectKey<'a>,
         patch: serde_json::Value,
     ) -> Result<DynamicObject, K8sError>;
+    /// Gets the dynamic object identified by `tm` and `key`, if it exists.
     fn get_dynamic_object<'a>(
         &self,
         tm: &TypeMeta,
         key: K8sObjectKey<'a>,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError>;
+    /// Deletes the dynamic object identified by `tm` and `key`.
     fn delete_dynamic_object<'a>(
         &self,
         tm: &TypeMeta,
         key: K8sObjectKey<'a>,
     ) -> Result<Either<DynamicObject, Status>, K8sError>;
+    /// Deletes all dynamic objects of the given type in the namespace matching the label selector.
     fn delete_dynamic_object_collection(
         &self,
         tm: &TypeMeta,
         namespace: &str,
         label_selector: &str,
     ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError>;
+    /// Lists dynamic objects of the given type in the namespace.
     fn list_dynamic_objects(
         &self,
         tm: &TypeMeta,
         ns: &str,
     ) -> Result<Vec<Arc<DynamicObject>>, K8sError>;
+    /// Returns true if the provided dynamic object differs from the one in the cluster.
     fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError>;
+    /// Deletes all ConfigMaps in the namespace matching the label selector.
     fn delete_configmap_collection(
         &self,
         namespace: &str,
         label_selector: &str,
     ) -> Result<(), K8sError>;
+    /// Lists ConfigMaps in the namespace matching the label selector.
     fn list_configmaps(
         &self,
         namespace: &str,
         label_selector: &str,
     ) -> Result<Vec<Arc<ConfigMap>>, K8sError>;
+    /// Deletes the named ConfigMap in the namespace.
     fn delete_configmap(
         &self,
         namespace: &str,
         name: &str,
     ) -> Result<Either<ConfigMap, Status>, K8sError>;
+    /// Gets the value at `key` from the named ConfigMap, if present.
     fn get_configmap_key(
         &self,
         name: &str,
         namespace: &str,
         key: &str,
     ) -> Result<Option<String>, K8sError>;
+    /// Gets the decoded value at `key` from the named Secret, if present.
     fn get_secret_key(
         &self,
         name: &str,
         namespace: &str,
         key: &str,
     ) -> Result<Option<String>, K8sError>;
+    /// Sets the value at `key` in the named ConfigMap, creating it with the given labels and annotations if needed.
     fn set_configmap_key(
         &self,
         name: &str,
@@ -99,9 +118,13 @@ pub trait K8sClient: Debug + Send + Sync + 'static {
         key: &str,
         value: &str,
     ) -> Result<(), K8sError>;
+    /// Removes the value at `key` from the named ConfigMap.
     fn delete_configmap_key(&self, name: &str, namespace: &str, key: &str) -> Result<(), K8sError>;
+    /// Lists StatefulSets in the namespace.
     fn list_stateful_set(&self, ns: &str) -> Result<Vec<Arc<StatefulSet>>, K8sError>;
+    /// Lists DaemonSets in the namespace.
     fn list_daemon_set(&self, ns: &str) -> Result<Vec<Arc<DaemonSet>>, K8sError>;
+    /// Lists Deployments in the namespace.
     fn list_deployment(&self, ns: &str) -> Result<Vec<Arc<Deployment>>, K8sError>;
 }
 
@@ -133,6 +156,7 @@ impl Debug for SyncK8sClient {
 }
 
 impl SyncK8sClient {
+    /// Builds a new sync client, initializing the underlying async client on the provided runtime.
     pub fn try_new(runtime: Arc<Runtime>) -> Result<Self, K8sError> {
         Ok(Self {
             async_client: runtime.block_on(AsyncK8sClient::try_new())?,
@@ -140,21 +164,25 @@ impl SyncK8sClient {
         })
     }
 
+    /// Lists the API resources available in the cluster.
     pub fn list_api_resources(&self) -> Result<Vec<APIResourceList>, K8sError> {
         self.runtime
             .block_on(self.async_client.list_api_resources())
     }
 
+    /// Creates or updates the provided dynamic object.
     pub fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         self.runtime
             .block_on(self.async_client.apply_dynamic_object(obj))
     }
 
+    /// Applies the provided dynamic object only if it differs from the one in the cluster.
     pub fn apply_dynamic_object_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         self.runtime
             .block_on(self.async_client.apply_dynamic_object_if_changed(obj))
     }
 
+    /// Merge-patches the dynamic object identified by `tm` and `key`.
     pub fn patch_dynamic_object<'a>(
         &self,
         tm: &TypeMeta,
@@ -165,6 +193,7 @@ impl SyncK8sClient {
             .block_on(self.async_client.patch_dynamic_object(tm, key, patch))
     }
 
+    /// Gets the dynamic object identified by `tm` and `key`, if it exists.
     pub fn get_dynamic_object<'a>(
         &self,
         tm: &TypeMeta,
@@ -174,6 +203,7 @@ impl SyncK8sClient {
             .block_on(self.async_client.get_dynamic_object(tm, key))
     }
 
+    /// Deletes the dynamic object identified by `tm` and `key`.
     pub fn delete_dynamic_object<'a>(
         &self,
         tm: &TypeMeta,
@@ -183,6 +213,7 @@ impl SyncK8sClient {
             .block_on(self.async_client.delete_dynamic_object(tm, key))
     }
 
+    /// Deletes all dynamic objects of the given type in the namespace matching the label selector.
     pub fn delete_dynamic_object_collection(
         &self,
         tm: &TypeMeta,
@@ -197,6 +228,7 @@ impl SyncK8sClient {
             ))
     }
 
+    /// Lists dynamic objects of the given type in the namespace.
     pub fn list_dynamic_objects(
         &self,
         tm: &TypeMeta,
@@ -206,11 +238,13 @@ impl SyncK8sClient {
             .block_on(self.async_client.list_dynamic_objects(tm, ns))
     }
 
+    /// Returns true if the provided dynamic object differs from the one in the cluster.
     pub fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
         self.runtime
             .block_on(self.async_client.has_dynamic_object_changed(obj))
     }
 
+    /// Deletes all ConfigMaps in the namespace matching the label selector.
     pub fn delete_configmap_collection(
         &self,
         namespace: &str,
@@ -222,6 +256,7 @@ impl SyncK8sClient {
         )
     }
 
+    /// Lists ConfigMaps in the namespace matching the label selector.
     pub fn list_configmaps(
         &self,
         namespace: &str,
@@ -231,6 +266,7 @@ impl SyncK8sClient {
             .block_on(self.async_client.list_configmaps(namespace, label_selector))
     }
 
+    /// Deletes the named ConfigMap in the namespace.
     pub fn delete_configmap(
         &self,
         namespace: &str,
@@ -240,6 +276,7 @@ impl SyncK8sClient {
             .block_on(self.async_client.delete_configmap(namespace, name))
     }
 
+    /// Gets the value at `key` from the named ConfigMap, if present.
     pub fn get_configmap_key(
         &self,
         name: &str,
@@ -250,7 +287,7 @@ impl SyncK8sClient {
             .block_on(self.async_client.get_configmap_key(name, namespace, key))
     }
 
-    // Gets the decoded secret key assuming it contains a String.
+    /// Gets the decoded secret key assuming it contains a String.
     pub fn get_secret_key(
         &self,
         name: &str,
@@ -261,6 +298,7 @@ impl SyncK8sClient {
             .block_on(self.async_client.get_secret_key(name, namespace, key))
     }
 
+    /// Sets the value at `key` in the named ConfigMap, creating it with the given labels and annotations if needed.
     pub fn set_configmap_key(
         &self,
         name: &str,
@@ -280,6 +318,7 @@ impl SyncK8sClient {
         ))
     }
 
+    /// Removes the value at `key` from the named ConfigMap.
     pub fn delete_configmap_key(
         &self,
         name: &str,
@@ -290,15 +329,18 @@ impl SyncK8sClient {
             .block_on(self.async_client.delete_configmap_key(name, namespace, key))
     }
 
+    /// Lists StatefulSets in the namespace.
     pub fn list_stateful_set(&self, ns: &str) -> Result<Vec<Arc<StatefulSet>>, K8sError> {
         self.runtime
             .block_on(self.async_client.list_stateful_set(ns))
     }
 
+    /// Lists DaemonSets in the namespace.
     pub fn list_daemon_set(&self, ns: &str) -> Result<Vec<Arc<DaemonSet>>, K8sError> {
         self.runtime.block_on(self.async_client.list_daemon_set(ns))
     }
 
+    /// Lists Deployments in the namespace.
     pub fn list_deployment(&self, ns: &str) -> Result<Vec<Arc<Deployment>>, K8sError> {
         self.runtime.block_on(self.async_client.list_deployment(ns))
     }
@@ -434,6 +476,7 @@ impl K8sClient for SyncK8sClient {
     }
 }
 
+/// Asynchronous Kubernetes client performing the actual requests through [kube].
 pub struct AsyncK8sClient {
     client: Client,
     dynamic_object_managers: DynamicObjectManagers,
@@ -470,6 +513,7 @@ impl AsyncK8sClient {
         })
     }
 
+    /// Lists the API resources available in the cluster.
     // Due to the Kube-rs library we need to retrieve with two different calls the versions of each object and then fetch the available kinds
     pub async fn list_api_resources(&self) -> Result<Vec<APIResourceList>, K8sError> {
         let mut list = vec![];
@@ -524,6 +568,7 @@ impl AsyncK8sClient {
         Ok(Some(v.to_string()))
     }
 
+    /// Deletes all ConfigMaps in the namespace matching the label selector.
     pub async fn delete_configmap_collection(
         &self,
         namespace: &str,
@@ -535,6 +580,7 @@ impl AsyncK8sClient {
         Ok(())
     }
 
+    /// Lists ConfigMaps in the namespace matching the label selector.
     pub async fn list_configmaps(
         &self,
         namespace: &str,
@@ -550,6 +596,7 @@ impl AsyncK8sClient {
         Ok(list.iter().map(|cm| Arc::new(cm.clone())).collect())
     }
 
+    /// Deletes the named ConfigMap in the namespace.
     pub async fn delete_configmap(
         &self,
         namespace: &str,
@@ -559,6 +606,7 @@ impl AsyncK8sClient {
         Ok(api.delete(name, &DeleteParams::default()).await?)
     }
 
+    /// Gets the value at `key` from the named ConfigMap, if present.
     pub async fn get_configmap_key(
         &self,
         name: &str,
@@ -586,6 +634,7 @@ impl AsyncK8sClient {
         Ok(Some(value.clone()))
     }
 
+    /// Sets the value at `key` in the named ConfigMap, creating it with the given labels and annotations if needed.
     pub async fn set_configmap_key(
         &self,
         name: &str,
@@ -623,6 +672,7 @@ impl AsyncK8sClient {
         Ok(())
     }
 
+    /// Removes the value at `key` from the named ConfigMap.
     pub async fn delete_configmap_key(
         &self,
         name: &str,
@@ -647,6 +697,7 @@ impl AsyncK8sClient {
         Ok(())
     }
 
+    /// Creates or updates the provided dynamic object.
     pub async fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         let tmn = &TypeMetaNamespaced::new(&get_type_meta(obj)?, &get_namespace(obj)?);
 
@@ -657,14 +708,17 @@ impl AsyncK8sClient {
             .await
     }
 
+    /// Lists StatefulSets in the namespace.
     pub async fn list_stateful_set(&self, ns: &str) -> Result<Vec<Arc<StatefulSet>>, K8sError> {
         self.list_resource(&statefulset_type_meta(), ns).await
     }
 
+    /// Lists DaemonSets in the namespace.
     pub async fn list_daemon_set(&self, ns: &str) -> Result<Vec<Arc<DaemonSet>>, K8sError> {
         self.list_resource(&daemonset_type_meta(), ns).await
     }
 
+    /// Lists Deployments in the namespace.
     pub async fn list_deployment(&self, ns: &str) -> Result<Vec<Arc<Deployment>>, K8sError> {
         self.list_resource(&deployment_type_meta(), ns).await
     }
@@ -688,6 +742,7 @@ impl AsyncK8sClient {
             .collect()
     }
 
+    /// Applies the provided dynamic object only if it differs from the one in the cluster.
     pub async fn apply_dynamic_object_if_changed(
         &self,
         obj: &DynamicObject,
@@ -701,6 +756,7 @@ impl AsyncK8sClient {
             .await
     }
 
+    /// Merge-patches the dynamic object identified by `tm` and `key`.
     pub async fn patch_dynamic_object(
         &self,
         tm: &TypeMeta,
@@ -716,6 +772,7 @@ impl AsyncK8sClient {
             .await
     }
 
+    /// Gets the dynamic object identified by `tm` and `key`, if it exists.
     pub async fn get_dynamic_object(
         &self,
         tm: &TypeMeta,
@@ -730,6 +787,7 @@ impl AsyncK8sClient {
             .get(key.name))
     }
 
+    /// Deletes the dynamic object identified by `tm` and `key`.
     pub async fn delete_dynamic_object(
         &self,
         tm: &TypeMeta,
@@ -744,6 +802,7 @@ impl AsyncK8sClient {
             .await
     }
 
+    /// Deletes all dynamic objects of the given type in the namespace matching the label selector.
     pub async fn delete_dynamic_object_collection(
         &self,
         tm: &TypeMeta,
@@ -759,6 +818,7 @@ impl AsyncK8sClient {
             .await
     }
 
+    /// Lists dynamic objects of the given type in the namespace.
     pub async fn list_dynamic_objects(
         &self,
         tm: &TypeMeta,
@@ -773,6 +833,7 @@ impl AsyncK8sClient {
             .list())
     }
 
+    /// Returns true if the provided dynamic object differs from the one in the cluster.
     pub async fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
         let tmn = &TypeMetaNamespaced::new(&get_type_meta(obj)?, &get_namespace(obj)?);
 

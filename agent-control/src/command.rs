@@ -1,7 +1,6 @@
 //! Command line interface for the agent control.
 //!
 //! Parses the command line arguments and decides how the application runs as defined in [Command].
-#![warn(missing_docs)]
 
 use crate::agent_control::config::AgentControlConfig;
 use crate::agent_control::defaults::ENVIRONMENT_VARIABLES_FILE_NAME;

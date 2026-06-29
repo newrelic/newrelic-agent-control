@@ -1,3 +1,4 @@
+//! Provides the agent type definitions embedded into the binary at compile time.
 use crate::agent_type::definition::AgentTypeDefinition;
 use crate::environment::Environment;
 

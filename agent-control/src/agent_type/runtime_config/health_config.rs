@@ -1,3 +1,4 @@
+//! Health-check configuration for on-host agents (HTTP or file-based checks).
 use duration_str::deserialize_duration;
 use serde::Deserialize;
 use std::{collections::HashMap, time::Duration};
@@ -37,6 +38,7 @@ pub struct OnHostHealthConfig {
     pub(crate) check: Option<OnHostHealthCheck>,
 }
 
+/// The maximum duration a health check may run before being considered failed.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_HEALTH_CHECK_TIMEOUT)]
 pub struct HealthCheckTimeout(#[serde(deserialize_with = "deserialize_duration")] Duration);

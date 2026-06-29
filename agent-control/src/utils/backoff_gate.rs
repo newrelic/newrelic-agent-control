@@ -1,3 +1,6 @@
+//! A keyed throttle that suppresses repeated attempts at a fallible operation using an exponential
+//! backoff schedule, tracking consecutive-failure state across calls.
+
 use crate::utils::retry::BackoffPolicy;
 use crate::utils::time::{Clock, SystemClock};
 use std::cell::RefCell;
@@ -9,11 +12,17 @@ use std::time::Instant;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SuppressionReason {
     /// The backoff cooldown window after the last failure has not elapsed yet.
-    InCooldown { consecutive_failures: u32 },
+    InCooldown {
+        /// Number of consecutive failures recorded for the current key.
+        consecutive_failures: u32,
+    },
     /// Suppressed within the current backoff window, with the `max_attempts` consecutive-failure
     /// threshold crossed. The gate keeps probing once the window elapses; this variant only
     /// escalates how the suppression is reported.
-    CapReached { consecutive_failures: u32 },
+    CapReached {
+        /// Number of consecutive failures recorded for the current key.
+        consecutive_failures: u32,
+    },
 }
 
 #[derive(Debug)]
@@ -47,6 +56,7 @@ where
     K: PartialEq + Clone,
     C: Clock,
 {
+    /// Creates a gate that throttles attempts per `policy`, using `clock` as its time source.
     pub fn new(policy: BackoffPolicy, clock: C) -> Self {
         Self {
             policy,

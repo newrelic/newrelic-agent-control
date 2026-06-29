@@ -1,3 +1,4 @@
+//! StatefulSet health checker.
 use crate::checkers::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
@@ -72,6 +73,7 @@ impl K8sHealthStatefulSet {
 }
 
 impl<C: K8sClient> K8sHealthStatefulSet<C> {
+    /// Builds a StatefulSet health checker for the given namespace and selection filter.
     pub fn new(
         k8s_client: Arc<C>,
         filter: ResourceFilter,

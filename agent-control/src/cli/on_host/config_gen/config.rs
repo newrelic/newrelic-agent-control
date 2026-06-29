@@ -7,57 +7,82 @@ use std::collections::HashMap;
 /// Configuration to be written as result of the corresponding command.
 #[derive(Debug, PartialEq, Serialize)]
 pub struct Config {
+    /// Fleet Control configuration, present only when Fleet Control is enabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fleet_control: Option<FleetControl>,
 
+    /// Local server configuration.
     pub server: Server,
 
+    /// Proxy configuration, omitted when empty.
     #[serde(skip_serializing_if = "is_none_or_empty")]
     pub proxy: Option<ProxyConfig>,
 
+    /// Sub-agents to run, keyed by agent ID.
     pub agents: HashMap<String, Agent>,
 
+    /// Logging configuration, when set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub log: Option<LogConfig>,
 }
 
+/// Fleet Control section of the generated configuration.
 #[derive(Debug, PartialEq, Serialize)]
 pub struct FleetControl {
+    /// OpAMP endpoint used to communicate with Fleet Control.
     pub endpoint: String,
+    /// Configuration for validating remote configuration signatures.
     pub signature_validation: SignatureValidation,
+    /// Identifier of the fleet this instance belongs to.
     pub fleet_id: String,
+    /// Authentication configuration for Fleet Control.
     pub auth_config: AuthConfig,
 }
 
+/// Signature validation settings for remote configuration.
 #[derive(Debug, PartialEq, Serialize)]
 pub struct SignatureValidation {
+    /// URL of the public-key (JWKS) server used to verify signatures.
     pub public_key_server_url: String,
 }
 
+/// Authentication settings used to obtain Fleet Control tokens.
 #[derive(Debug, PartialEq, Serialize)]
 pub struct AuthConfig {
+    /// Token renewal endpoint.
     pub token_url: String,
+    /// Client ID of the system identity.
     pub client_id: String,
+    /// Token provider name.
     pub provider: String,
+    /// Path to the system identity's private key.
     pub private_key_path: String,
 }
 
+/// Local server section of the generated configuration.
 #[derive(Debug, PartialEq, Serialize)]
 pub struct Server {
+    /// Whether the local server is enabled.
     pub enabled: bool,
 }
 
+/// A single sub-agent entry in the generated configuration.
 #[derive(Debug, PartialEq, Serialize)]
 pub struct Agent {
+    /// Agent type identifier (e.g. `newrelic/com.newrelic.infrastructure:0.1.0`).
     pub agent_type: String,
 }
 
+/// Logging section of the generated configuration.
 #[derive(Debug, PartialEq, Serialize)]
 pub struct LogConfig {
+    /// File logging configuration, when set.
     pub file: Option<FileLogConfig>,
 }
+/// File logging configuration.
 #[derive(Debug, PartialEq, Serialize)]
 pub struct FileLogConfig {
+    /// Whether logging to file is enabled.
     pub enabled: bool,
 }
 /// Helper to avoid deserializing proxy values when empty or default

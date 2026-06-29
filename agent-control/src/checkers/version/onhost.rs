@@ -1,3 +1,4 @@
+//! On-host version checker that runs the agent binary and parses its version output.
 use std::process::Command;
 
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
@@ -13,6 +14,7 @@ use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use std::fmt::Debug;
 use tracing::{debug, info, info_span, warn};
 
+/// Retrieves the agent version by executing the agent binary and parsing its output.
 pub struct OnHostAgentVersionChecker {
     pub(crate) path: String,
     pub(crate) args: Args,

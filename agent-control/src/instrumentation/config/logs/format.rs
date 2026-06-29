@@ -1,3 +1,5 @@
+//! Logging output format configuration: formatter, timestamp format, target and ansi colors.
+
 use serde::Deserialize;
 
 /// Represents a custom time stamp format for logging.

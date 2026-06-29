@@ -1,3 +1,5 @@
+//! Entry points and shared wiring for running Agent Control on-host and in Kubernetes.
+
 use super::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
     DYNAMIC_AGENT_TYPES_DIR,
@@ -21,6 +23,7 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tracing::debug;
 
+/// Error returned when running Agent Control fails.
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
 pub struct RunError(String);
@@ -51,8 +54,11 @@ pub enum RunningMode {
 /// Structure with all base paths required to run Agent Control
 #[derive(Debug, Clone)]
 pub struct BasePaths {
+    /// Directory holding local (non-remote) configuration and data.
     pub local_dir: PathBuf,
+    /// Directory holding remote (fleet) data.
     pub remote_dir: PathBuf,
+    /// Directory holding log files.
     pub log_dir: PathBuf,
 }
 
@@ -87,6 +93,8 @@ pub struct AgentControlRunner {
 }
 
 impl AgentControlRunner {
+    /// Builds the runner from a [`RunnerContext`], setting up the async runtime, OCI client,
+    /// agent type registry, signature validator and (optionally) the status HTTP server.
     pub fn try_new(context: RunnerContext) -> Result<Self, Box<dyn Error>> {
         let runtime = Arc::new(
             tokio::runtime::Builder::new_multi_thread()

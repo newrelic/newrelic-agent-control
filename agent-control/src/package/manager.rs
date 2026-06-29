@@ -7,15 +7,20 @@ use std::path::PathBuf;
 /// Information required to reference and install a package
 #[derive(Debug, Clone, PartialEq)]
 pub struct PackageData {
+    /// Package identifier (same type as the packages map on an agent type definition).
     pub id: String, // same type as the packages map on an agent type definition
+    /// OCI reference describing where to fetch the package from.
     pub oci: Oci,
+    /// Optional hook to run after the package has been downloaded.
     pub post_download_hook: Option<PostDownloadHook>,
 }
 
 /// Information about an installed package
 #[derive(Debug, Clone, PartialEq)]
 pub struct InstalledPackageData {
+    /// Package identifier (same type as the packages map on an agent type definition).
     pub id: String, // same type as the packages map on an agent type definition
+    /// Filesystem path where the package was installed.
     pub installation_path: PathBuf,
 }
 
@@ -42,6 +47,7 @@ pub trait PackageManager: Send + Sync {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use mockall::mock;

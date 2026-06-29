@@ -1,3 +1,5 @@
+//! The [`YAMLConfig`] type wrapping a YAML mapping that Agent Control can read and store.
+
 use crate::agent_control::config::AgentControlDynamicConfig;
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
@@ -62,9 +64,13 @@ impl YAMLConfig {
     }
 }
 
+/// Error produced while building, merging, or (de)serializing a [`YAMLConfig`].
 #[derive(Error, Debug)]
 #[error("{0}")]
-pub struct YAMLConfigError(pub String);
+pub struct YAMLConfigError(
+    /// Human-readable description of the error.
+    pub String,
+);
 
 impl Templateable for YAMLConfig {
     type Output = Self;
@@ -140,6 +146,7 @@ impl TryFrom<YAMLConfig> for String {
     }
 }
 
+/// Returns true if the given OpAMP capabilities accept remote configuration.
 pub fn has_remote_management(capabilities: &Capabilities) -> bool {
     capabilities.has_capability(AgentCapabilities::AcceptsRemoteConfig)
 }

@@ -1,3 +1,5 @@
+//! The [`VersionUpdater`] trait, its error type and a no-op implementation.
+
 use crate::agent_control::config::AgentControlDynamicConfig;
 use crate::utils::backoff_gate::SuppressionReason;
 use thiserror::Error;
@@ -5,6 +7,7 @@ use thiserror::Error;
 /// Represents errors that can occur during the update process of the agent control version.
 #[derive(Debug, Error)]
 pub enum UpdaterError {
+    /// The update could not be applied.
     #[error("update failed: {0}")]
     UpdateFailed(String),
     /// The previous attempt to upgrade to this version failed; we are deliberately not hitting
@@ -13,7 +16,9 @@ pub enum UpdaterError {
     /// intentionally **stable across polls** and OpAMP `ConfigState::Failed` does not churn.
     #[error("upgrade to {version} suppressed: {}", cooldown_reason(reason))]
     UpdateInCooldown {
+        /// The desired version whose upgrade is being suppressed.
         version: String,
+        /// Why the upgrade is currently suppressed.
         reason: SuppressionReason,
     },
 }
@@ -54,6 +59,7 @@ pub trait VersionUpdater {
     }
 }
 
+/// A [`VersionUpdater`] that does nothing (used when version updates are not applicable).
 pub struct NoOpUpdater;
 
 impl VersionUpdater for NoOpUpdater {
@@ -63,6 +69,7 @@ impl VersionUpdater for NoOpUpdater {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use mockall::mock;

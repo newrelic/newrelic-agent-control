@@ -1,3 +1,8 @@
+//! Filesystem-backed [`DataStore`] used in on-host mode.
+//!
+//! Local configuration is read from a local directory and remote (fleet) configuration is
+//! read from and written to a separate directory, each keyed by agent id.
+
 use std::{
     io::{self, Error, ErrorKind},
     path::{Path, PathBuf},
@@ -22,6 +27,10 @@ use crate::{
     resource_ownership::ResourceOwnership,
 };
 
+/// [`DataStore`] implementation that persists agent data to the local filesystem.
+///
+/// Generic over the file reader/writer (`F`) and directory manager (`D`); use
+/// [`FileStore::new_local_fs`] for the real filesystem-backed store.
 pub struct FileStore<F, D>
 where
     D: DirectoryManager,
@@ -33,9 +42,11 @@ where
     local_dir: LocalDir,
 }
 
+/// Base directory holding local (on-host provided) configuration.
 pub struct LocalDir(PathBuf);
 
 impl LocalDir {
+    /// Returns the on-disk path of the local data file for `agent_id` and `key`.
     pub fn get_file_path(&self, agent_id: &AgentID, key: &StoreKey) -> PathBuf {
         self.0
             .join(FOLDER_NAME_LOCAL_DATA)
@@ -44,9 +55,11 @@ impl LocalDir {
     }
 }
 
+/// Base directory holding remote (fleet-provided) configuration.
 pub struct RemoteDir(PathBuf);
 
 impl RemoteDir {
+    /// Returns the on-disk path of the remote (fleet-data) file for `agent_id` and `key`.
     pub fn get_file_path(&self, agent_id: &AgentID, key: &StoreKey) -> PathBuf {
         self.0
             .join(FOLDER_NAME_FLEET_DATA)
@@ -56,6 +69,8 @@ impl RemoteDir {
 }
 
 impl FileStore<LocalFile, DirectoryManagerFs> {
+    /// Creates a [`FileStore`] backed by the real local filesystem, reading local data from
+    /// `local_dir` and reading/writing remote data under `remote_dir`.
     pub fn new_local_fs(local_dir: PathBuf, remote_dir: PathBuf) -> Self {
         let remote_dir = RwLock::new(RemoteDir(remote_dir));
         let local_dir = LocalDir(local_dir);
@@ -73,6 +88,8 @@ where
     D: DirectoryManager,
     F: FileWriter + FileReader,
 {
+    /// Creates a [`FileStore`] from explicit reader/writer and directory-manager
+    /// implementations, reading local data from `local_dir` and remote data under `remote_dir`.
     pub fn new(file_rw: F, directory_manager: D, local_dir: PathBuf, remote_dir: PathBuf) -> Self {
         let remote_dir = RwLock::new(RemoteDir(remote_dir));
         let local_dir = LocalDir(local_dir);
@@ -234,11 +251,13 @@ where
     }
 }
 
+/// Builds the on-disk file name for a store key by appending the `.yaml` extension.
 pub fn build_config_name(name: &str) -> String {
     format!("{name}.yaml")
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 mod tests {
     use std::{collections::HashMap, io, path::PathBuf, sync::Arc};
 

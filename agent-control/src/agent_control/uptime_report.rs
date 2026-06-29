@@ -74,7 +74,7 @@ impl From<bool> for EnabledByDefault {
 }
 
 /// Wrapper for the uptime report interval. This is a duration in seconds that is fixed to
-/// 60 seconds via [`DEFAULT_UPTIME_REPORT_INTERVAL`].
+/// 60 seconds via `DEFAULT_UPTIME_REPORT_INTERVAL`.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_UPTIME_REPORT_INTERVAL)]
 pub struct UptimeReportInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);

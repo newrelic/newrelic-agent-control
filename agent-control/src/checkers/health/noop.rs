@@ -1,3 +1,4 @@
+//! No-op health checker that always reports healthy.
 use std::time::SystemTime;
 
 use super::{
@@ -12,6 +13,7 @@ pub struct NoOpHealthChecker {
 }
 
 impl NoOpHealthChecker {
+    /// Builds a no-op health checker reporting the given start time.
     pub fn new(start_time: SystemTime) -> Self {
         Self { start_time }
     }
@@ -27,6 +29,7 @@ impl HealthChecker for NoOpHealthChecker {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub mod tests {
 
     use super::*;
