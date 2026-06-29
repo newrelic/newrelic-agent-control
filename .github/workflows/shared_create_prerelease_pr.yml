@@ -86,7 +86,7 @@ jobs:
         # The action fails the step whenever it regenerates the file with new content; the
         # follow-up step distinguishes that expected case from a real error.
         continue-on-error: true
-        uses: newrelic/rust-licenses-noticer@9d9bb4a5137f7c9d528b4ada1f505866947feccf # v1
+        uses: newrelic/rust-licenses-noticer@aafd951d814aa31bbe4a5b463fd52ba208905562 # v1.0.4
         with:
           template-file: THIRD_PARTY_NOTICES.md.tmpl
 
