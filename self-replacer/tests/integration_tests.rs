@@ -9,7 +9,7 @@ use std::fs;
 use tempfile::TempDir;
 
 mod test_helpers;
-use self_replacer::{BinarySelfReplacer, SelfReplacer};
+use self_replacer::{BinaryReplacer, SelfReplacer};
 use test_helpers::{copy_example_binary, create_modified_binary};
 
 use self_replacer::BACKUP_SUFFIX;
@@ -105,8 +105,7 @@ fn test_rollback_on_invalid_path() {
         test_dir.join("does_not_exist")
     };
 
-    let result =
-        BinarySelfReplacer::with_target(original_binary.clone()).self_replace(&non_existent);
+    let result = BinaryReplacer::with_target(original_binary.clone()).self_replace(&non_existent);
 
     assert!(result.is_err(), "Should fail when new binary doesn't exist");
 

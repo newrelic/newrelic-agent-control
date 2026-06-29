@@ -249,7 +249,7 @@ mod tests {
     use crate::package::oci::package_manager::OCIPackageManagerError;
     use crate::utils::time::SystemClock;
     use mockall::mock;
-    use self_replacer::BinarySelfReplacer;
+    use self_replacer::BinaryReplacer;
     use std::path::Path;
     use std::str::FromStr;
     use std::sync::{Arc, Mutex};
@@ -283,12 +283,12 @@ mod tests {
     }
 
     type TestUpdater<C> =
-        OnHostACUpdater<MockPackageManager, MockVerifyExecutorMock, C, BinarySelfReplacer>;
+        OnHostACUpdater<MockPackageManager, MockVerifyExecutorMock, C, BinaryReplacer>;
 
     /// Replacer used by the unit tests. They all fail at `install` before reaching the
     /// self-replace step, so it never actually runs; the target is a throwaway path.
-    fn unused_self_replacer() -> BinarySelfReplacer {
-        BinarySelfReplacer::with_target(std::path::PathBuf::from("unused"))
+    fn unused_self_replacer() -> BinaryReplacer {
+        BinaryReplacer::with_target(std::path::PathBuf::from("unused"))
     }
 
     fn no_jitter_backoff(base: Duration, max: Duration, max_failures: u32) -> UpgradeBackoffConfig {

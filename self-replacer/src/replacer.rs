@@ -64,11 +64,11 @@ pub enum ReplaceError {
 /// Platform-agnostic self-replacer implementation.
 /// Holds the path of the binary to replace.
 #[derive(Debug)]
-pub struct BinarySelfReplacer {
+pub struct BinaryReplacer {
     target: PathBuf,
 }
 
-impl BinarySelfReplacer {
+impl BinaryReplacer {
     /// Builds a replacer targeting the currently running executable.
     /// Canonicalize resolves symlinks on both platforms.
     pub fn new() -> Result<Self, ReplaceError> {
@@ -90,7 +90,7 @@ impl BinarySelfReplacer {
     }
 }
 
-impl SelfReplacer for BinarySelfReplacer {
+impl SelfReplacer for BinaryReplacer {
     type Error = ReplaceError;
 
     fn self_replace(&self, new_bin: impl AsRef<Path>) -> Result<(), Self::Error> {
@@ -316,7 +316,7 @@ mod tests {
 
         // Don't create new_bin - it should not exist
         let result =
-            BinarySelfReplacer::with_target(temp_dir.path().join("program")).self_replace(&new_bin);
+            BinaryReplacer::with_target(temp_dir.path().join("program")).self_replace(&new_bin);
         // Should fail with NewBinaryNotFound at the early validation check
         assert_matches!(result, Err(ReplaceError::NewBinaryNotFound(_)));
     }

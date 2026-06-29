@@ -6,7 +6,7 @@
 use std::path::Path;
 
 mod replacer;
-pub use replacer::{BinarySelfReplacer, ReplaceError};
+pub use replacer::{BinaryReplacer, ReplaceError};
 
 /// File extension appended to the original binary's name when a backup copy is created
 /// (e.g. `agent-control.bak`). Backups are not removed automatically.
