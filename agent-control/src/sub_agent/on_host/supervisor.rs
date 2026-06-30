@@ -831,7 +831,6 @@ persistent.txt:
             agent_identity,
             vec![],
             OnHostHealthConfig::default(),
-            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -901,7 +900,6 @@ persistent.txt:
             agent_identity,
             vec![],
             OnHostHealthConfig::default(),
-            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -1368,7 +1366,6 @@ persistent.txt:
             executables: vec![executable_rendered],
             enable_file_logging: true,
             health: OnHostHealthConfig::default(),
-            version: None,
             filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
@@ -1495,7 +1492,6 @@ persistent.txt:
             executables: vec![executable_rendered],
             enable_file_logging: true,
             health: OnHostHealthConfig::default(),
-            version: None,
             filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
@@ -1620,7 +1616,6 @@ persistent.txt:
             executables: vec![executable_rendered],
             enable_file_logging: false,
             health: OnHostHealthConfig::default(),
-            version: None,
             filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
@@ -1746,7 +1741,6 @@ persistent.txt:
             executables: vec![executable_rendered],
             enable_file_logging: false,
             health: OnHostHealthConfig::default(),
-            version: None,
             filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
