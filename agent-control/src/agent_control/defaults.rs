@@ -145,6 +145,9 @@ pub const DYNAMIC_AGENT_TYPES_DIR: &str = "dynamic-agent-types";
 pub const INSTANCE_ID_FILENAME: &str = "instance_id.yaml";
 /// Folder name for an agent's managed filesystem.
 pub const AGENT_FILESYSTEM_FOLDER_NAME: &str = "filesystem";
+/// Folder name for the filesystem shared across sub-agents. Unlike
+/// [`AGENT_FILESYSTEM_FOLDER_NAME`] it is not suffixed per agent.
+pub const SHARED_FILESYSTEM_FOLDER_NAME: &str = "shared-filesystem";
 /// Folder name holding downloaded packages.
 pub const PACKAGES_FOLDER_NAME: &str = "packages";
 /// File name of the Agent Control log file.
