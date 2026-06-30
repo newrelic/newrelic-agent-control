@@ -6,7 +6,7 @@
 use std::path::Path;
 
 mod replacer;
-pub use replacer::{BinarySelfReplacer, ReplaceError};
+pub use replacer::{BinaryReplacer, ReplaceError};
 
 /// File extension appended to the original binary's name when a backup copy is created
 /// (e.g. `agent-control.bak`). Backups are not removed automatically.
@@ -17,6 +17,6 @@ pub trait SelfReplacer {
     /// Error type returned when a replacement attempt fails.
     type Error: std::error::Error;
 
-    /// Replaces the currently running binary with the binary at `new_bin`.
-    fn self_replace(new_bin: impl AsRef<Path>) -> Result<(), Self::Error>;
+    /// Replaces the replacer's configured target binary with the binary at `new_bin`.
+    fn self_replace(&self, new_bin: impl AsRef<Path>) -> Result<(), Self::Error>;
 }

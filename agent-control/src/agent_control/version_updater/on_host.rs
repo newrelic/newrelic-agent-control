@@ -15,7 +15,7 @@ use crate::package::manager::{PackageData, PackageManager};
 use crate::utils::backoff_gate::{BackoffGate, SuppressionReason};
 use crate::utils::retry::BackoffPolicy;
 use crate::utils::time::Clock;
-use self_replacer::{BinarySelfReplacer, SelfReplacer};
+use self_replacer::SelfReplacer;
 use thiserror::Error;
 use tracing::{debug, debug_span, warn};
 use url::Url;
@@ -41,16 +41,18 @@ pub enum BuildError {
 
 /// On-host [`VersionUpdater`] that installs and self-replaces the Agent Control binary, with a
 /// backoff gate throttling re-attempts at a failing upgrade.
-pub struct OnHostACUpdater<P, V, C>
+pub struct OnHostACUpdater<P, V, C, R>
 where
     P: PackageManager,
     V: VerifyExecutor,
     C: Clock,
+    R: SelfReplacer,
 {
     ac_remote_update_enabled: bool,
     agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
     package_manager: P,
     verify_executor: V,
+    self_replacer: R,
     repository: Repository,
     pub_key_url: Url,
     /// Throttles re-attempts at a failing upgrade so we don't hammer the registry every
@@ -58,11 +60,12 @@ where
     upgrade_gate: BackoffGate<Version, C>,
 }
 
-impl<P, V, C> VersionUpdater for OnHostACUpdater<P, V, C>
+impl<P, V, C, R> VersionUpdater for OnHostACUpdater<P, V, C, R>
 where
     P: PackageManager,
     V: VerifyExecutor,
     C: Clock,
+    R: SelfReplacer,
 {
     /// Only `config.version` is consumed from the dynamic config. This contract is what
     /// lets [`retry`](Self::retry) reconstruct a config from just the gate's tracked version.
@@ -118,19 +121,22 @@ where
     }
 }
 
-impl<P, V, C> OnHostACUpdater<P, V, C>
+impl<P, V, C, R> OnHostACUpdater<P, V, C, R>
 where
     P: PackageManager,
     V: VerifyExecutor,
     C: Clock,
+    R: SelfReplacer,
 {
     /// Builds the updater from the self-update toggle, event publisher, collaborators, package
     /// source, backoff configuration and clock.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         ac_remote_update_enabled: bool,
         agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
         package_manager: P,
         verify_executor: V,
+        self_replacer: R,
         package: AgentControlPackage,
         backoff: UpgradeBackoffConfig,
         clock: C,
@@ -140,6 +146,7 @@ where
             agent_control_internal_publisher,
             package_manager,
             verify_executor,
+            self_replacer,
             repository: package.download.oci.repository.clone(),
             pub_key_url: package.download.oci.public_key_url.clone(),
             // The gate owns the exponential-backoff-plus-jitter schedule (it never sleeps; it
@@ -203,9 +210,11 @@ where
 
         debug!("Attempting to self-replace with new binary",);
 
-        BinarySelfReplacer::self_replace(&new_binary_path).map_err(|e| {
-            UpdaterError::UpdateFailed(format!("self replacing Agent Control binary: {e}"))
-        })?;
+        self.self_replacer
+            .self_replace(&new_binary_path)
+            .map_err(|e| {
+                UpdaterError::UpdateFailed(format!("self replacing Agent Control binary: {e}"))
+            })?;
 
         debug!("Agent Control binary replaced, stopping to allow the new version to start");
         self.agent_control_internal_publisher
@@ -240,6 +249,7 @@ mod tests {
     use crate::package::oci::package_manager::OCIPackageManagerError;
     use crate::utils::time::SystemClock;
     use mockall::mock;
+    use self_replacer::BinaryReplacer;
     use std::path::Path;
     use std::str::FromStr;
     use std::sync::{Arc, Mutex};
@@ -272,7 +282,14 @@ mod tests {
         }
     }
 
-    type TestUpdater<C> = OnHostACUpdater<MockPackageManager, MockVerifyExecutorMock, C>;
+    type TestUpdater<C> =
+        OnHostACUpdater<MockPackageManager, MockVerifyExecutorMock, C, BinaryReplacer>;
+
+    /// Replacer used by the unit tests. They all fail at `install` before reaching the
+    /// self-replace step, so it never actually runs; the target is a throwaway path.
+    fn unused_self_replacer() -> BinaryReplacer {
+        BinaryReplacer::with_target(std::path::PathBuf::from("unused"))
+    }
 
     fn no_jitter_backoff(base: Duration, max: Duration, max_failures: u32) -> UpgradeBackoffConfig {
         UpgradeBackoffConfig {
@@ -299,6 +316,7 @@ mod tests {
             publisher,
             MockPackageManager::new(),
             MockVerifyExecutorMock::new(),
+            unused_self_replacer(),
             AgentControlPackage::default(),
             backoff,
             clock,
@@ -320,6 +338,7 @@ mod tests {
             publisher,
             MockPackageManager::new(),
             MockVerifyExecutorMock::new(),
+            unused_self_replacer(),
             AgentControlPackage::default(),
             UpgradeBackoffConfig::default(),
             SystemClock,

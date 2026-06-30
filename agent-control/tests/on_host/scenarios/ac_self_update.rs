@@ -1,4 +1,5 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+use crate::common::agent_control::start_agent_control_with_self_replace_target;
 use crate::common::base_paths::TempBasePaths;
 use crate::common::remote_config_status::check_latest_remote_config_status;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
@@ -16,11 +17,9 @@ use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_ID;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_VERSION;
-use newrelic_agent_control::agent_control::defaults::PACKAGES_FOLDER_NAME;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::agent_control::version_updater::on_host::AGENT_CONTROL_BIN;
-use newrelic_agent_control::agent_control::version_updater::on_host::AGENT_CONTROL_BIN_PACKAGE_ID;
 use oci_test_utils::OCISigner;
 use oci_test_utils::{PackageMediaType, PackagePublisher};
 use opamp_client::opamp::proto::RemoteConfigStatuses;
@@ -45,14 +44,15 @@ fn test_ac_self_update_with_oci_registry() {
 
     create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), true);
 
-    let current_exe_path = std::env::current_exe()
-        .expect("failed to get current exe path")
-        .canonicalize()
-        .expect("failed to canonicalize current exe path");
+    // AC runs in-process here, so the running executable is the shared test-harness binary.
+    // Self-update replaces a disposable copy of it instead, so the replace can't race other
+    // in-process tests over the live runner (which fails with ERROR_ACCESS_DENIED on Windows).
+    let (_self_replace_target_dir, self_replace_target) = copy_current_exe();
 
-    let mut agent_control = start_agent_control_with_custom_config(
+    let mut agent_control = start_agent_control_with_self_replace_target(
         dirs.base_paths().clone(),
         AGENT_CONTROL_MODE_ON_HOST,
+        self_replace_target.clone(),
     );
 
     let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
@@ -83,7 +83,20 @@ agents: {{}}
         }
     });
 
-    assert_is_fake_binary(&current_exe_path);
+    assert_is_fake_binary(&self_replace_target);
+}
+
+/// Copies the running test binary to a throwaway file inside a fresh temp dir, returning the
+/// dir (which must be kept alive) and the path to the copy.
+fn copy_current_exe() -> (TempDir, PathBuf) {
+    let current_exe = std::env::current_exe()
+        .expect("failed to get current exe path")
+        .canonicalize()
+        .expect("failed to canonicalize current exe path");
+    let dir = tempdir().expect("failed to create temp dir for self-replace target");
+    let copy = dir.path().join(AGENT_CONTROL_BIN);
+    std::fs::copy(&current_exe, &copy).expect("failed to copy current exe");
+    (dir, copy)
 }
 
 #[test]
@@ -346,9 +359,10 @@ self_update:
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
 /// Exercises self-update *recovery* from a transient registry outage: while the package is absent
 /// AC keeps retrying instead of giving up, and once it reappears the periodic retry (with no new
-/// OpAMP config) picks it up and downloads it.
+/// OpAMP config) picks it up, downloads it, and completes the self-replace.
 ///
-/// Recovery is asserted on the package landing on disk, *not* on a completed self-replace.
+/// Recovery is asserted end-to-end (as in the happy path): AC gracefully stops to hand off to the
+/// new version, and the self-replace target ends up being the fake AC binary built for this test.
 fn test_ac_self_update_recovers_after_registry_outage_with_oci_registry() {
     const RECOVERY_VERSION_TAG: &str = "recovery-after-outage";
 
@@ -359,9 +373,12 @@ fn test_ac_self_update_recovers_after_registry_outage_with_oci_registry() {
 
     create_self_update_recovery_config(&opamp_server, &signer, &dirs.local_dir());
 
-    let mut agent_control = start_agent_control_with_custom_config(
+    let (_self_replace_target_dir, self_replace_target) = copy_current_exe();
+
+    let mut agent_control = start_agent_control_with_self_replace_target(
         dirs.base_paths().clone(),
         AGENT_CONTROL_MODE_ON_HOST,
+        self_replace_target.clone(),
     );
 
     let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
@@ -398,39 +415,22 @@ agents: {{}}
     // and the non-terminal cap, the next retry probe (~1s later) picks it up.
     let _ = push_ac_package(build_fake_ac_binary, None, Some(RECOVERY_VERSION_TAG));
 
-    // The periodic self-update retry (no new OpAMP config) downloads and extracts the now-available
-    // package, leaving the AC binary under the installed-packages directory. We assert recovery on
-    // that install, which happens just before the (out-of-scope) self-replace step.
-    let installed_packages_dir = dirs
-        .remote_dir()
-        .join(PACKAGES_FOLDER_NAME)
-        .join(AGENT_CONTROL_ID)
-        .join("stored_packages")
-        .join(AGENT_CONTROL_BIN_PACKAGE_ID);
+    // The periodic self-update retry (no new OpAMP config) now downloads, extracts, verifies and
+    // self-replaces with the recovered package. As in the happy path, that triggers a graceful stop
+    // so the new binary can take effect.
     retry(60, Duration::from_secs(5), || {
-        if dir_contains_file(&installed_packages_dir, AGENT_CONTROL_BIN) {
+        if agent_control.has_gracefully_stopped() {
             Ok(())
         } else {
             Err(
-                "the periodic retry should have downloaded the package once it became available"
+                "Agent Control should have recovered and stopped for the new binary to take effect"
                     .into(),
             )
         }
     });
-}
 
-fn dir_contains_file(dir: &Path, name: &str) -> bool {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return false;
-    };
-    entries.flatten().any(|entry| {
-        let path = entry.path();
-        if path.is_dir() {
-            dir_contains_file(&path, name)
-        } else {
-            path.file_name().is_some_and(|f| f == name)
-        }
-    })
+    // The self-replace moved the recovered fake binary onto the target.
+    assert_is_fake_binary(&self_replace_target);
 }
 
 fn create_self_update_local_config(

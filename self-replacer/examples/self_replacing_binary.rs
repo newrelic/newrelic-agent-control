@@ -14,7 +14,7 @@
 //!
 //! ```
 
-use self_replacer::{BinarySelfReplacer, SelfReplacer};
+use self_replacer::{BinaryReplacer, SelfReplacer};
 
 use std::collections::hash_map::DefaultHasher;
 use std::env;
@@ -28,7 +28,8 @@ fn main() {
         // Perform self-replacement
         let new_binary_path = &args[2];
 
-        let result = BinarySelfReplacer::self_replace(new_binary_path);
+        let result =
+            BinaryReplacer::new().and_then(|replacer| replacer.self_replace(new_binary_path));
 
         match result {
             Ok(()) => {

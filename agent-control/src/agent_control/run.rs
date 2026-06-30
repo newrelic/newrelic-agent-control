@@ -90,6 +90,7 @@ pub struct AgentControlRunner {
     base_paths: BasePaths,
     runtime: Arc<Runtime>,
     http_server_runner: Option<Runner>,
+    self_replace_target: Option<PathBuf>,
 }
 
 impl AgentControlRunner {
@@ -157,6 +158,7 @@ impl AgentControlRunner {
             sub_agent_publisher,
             base_paths: context.base_paths,
             signature_validator,
+            self_replace_target: context.self_replace_target,
         })
     }
 }

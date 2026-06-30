@@ -20,6 +20,24 @@ pub fn start_agent_control_with_custom_config(
     base_paths: BasePaths,
     ac_running_mode: Environment,
 ) -> StartedAgentControl {
+    start_agent_control(base_paths, ac_running_mode, None)
+}
+
+/// Like [`start_agent_control_with_custom_config`] but makes on-host self-update replace the
+/// binary at `self_replace_target` instead of the running executable.
+pub fn start_agent_control_with_self_replace_target(
+    base_paths: BasePaths,
+    ac_running_mode: Environment,
+    self_replace_target: std::path::PathBuf,
+) -> StartedAgentControl {
+    start_agent_control(base_paths, ac_running_mode, Some(self_replace_target))
+}
+
+fn start_agent_control(
+    base_paths: BasePaths,
+    ac_running_mode: Environment,
+    self_replace_target: Option<std::path::PathBuf>,
+) -> StartedAgentControl {
     let (application_event_publisher, application_event_consumer) = pub_sub();
 
     let handle = std::thread::spawn(move || {
@@ -48,6 +66,7 @@ pub fn start_agent_control_with_custom_config(
             base_paths,
             running_mode: ac_running_mode,
             application_event_consumer,
+            self_replace_target,
         };
         let runner = AgentControlRunner::try_new(runner_context).unwrap();
         match ac_running_mode {

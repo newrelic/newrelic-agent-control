@@ -27,8 +27,8 @@ pub fn check_latest_remote_config_status_is_expected(
     check_latest_remote_config_status(opamp_server, instance_id, |config_status| {
         if config_status.status != expected_config_status {
             Err(format!(
-                "Remote config status not as expected, Expected: {:?}, Found: {:?}",
-                expected_config_status, config_status.status,
+                "Remote config status not as expected, Expected: {:?}, Found: {:?}, error_message: {:?}",
+                expected_config_status, config_status.status, config_status.error_message,
             )
             .into())
         } else {
