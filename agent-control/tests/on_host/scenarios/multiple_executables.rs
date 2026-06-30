@@ -6,7 +6,7 @@ use crate::{
         health::check_latest_health_status, retry::retry, runtime::tokio_runtime,
     },
     on_host::tools::{
-        config::AgentControlConfigBuilder, custom_agent_type::CustomAgentType,
+        config::OnHostAgentControlConfigBuilder, custom_agent_type::CustomAgentType,
         instance_id::get_instance_id,
     },
 };
@@ -40,7 +40,7 @@ agents:
 "#
     );
 
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
         .write(dirs.local_dir());
 
@@ -88,7 +88,7 @@ agents:
 "#
     );
 
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
         .write(dirs.local_dir());
 

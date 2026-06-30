@@ -3,7 +3,7 @@ use crate::common::base_paths::TempBasePaths;
 use crate::common::process_finder::find_processes_by_pattern;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
+use crate::on_host::tools::config::{OnHostAgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
@@ -107,7 +107,7 @@ agents:
 "#
     );
 
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
         .write(dirs.local_dir());
 

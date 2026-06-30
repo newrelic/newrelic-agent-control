@@ -3,7 +3,7 @@ use crate::common::base_paths::TempBasePaths;
 use crate::common::health::{check_latest_health_status, check_latest_health_status_was_healthy};
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
+use crate::on_host::tools::config::{OnHostAgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
@@ -42,7 +42,7 @@ fn start_and_apply(
     sleep_agent_type: &str,
     version: &str,
 ) -> (StartedAgentControl, InstanceID) {
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_oci_registry(OCI_TEST_REGISTRY_URL)
         .write(dirs.local_dir());
 

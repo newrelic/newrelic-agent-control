@@ -16,7 +16,7 @@ use newrelic_agent_control::values::config_repository::ConfigRepository;
 
 use crate::common::config::AgentControlCommonConfigBuilder;
 
-pub struct AgentControlConfigBuilder {
+pub struct OnHostAgentControlConfigBuilder {
     common: AgentControlCommonConfigBuilder,
 
     oci_registry: Option<String>,
@@ -38,7 +38,7 @@ struct AgentTypes {
     public_key_url: String,
 }
 
-impl AgentControlConfigBuilder {
+impl OnHostAgentControlConfigBuilder {
     pub fn new(opamp_endpoint: impl Into<String>, jwks_endpoint: impl Into<String>) -> Self {
         Self {
             common: AgentControlCommonConfigBuilder::default()

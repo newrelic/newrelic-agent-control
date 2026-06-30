@@ -10,7 +10,7 @@ use opamp_client::opamp::proto::any_value::Value;
 
 use crate::common::base_paths::TempBasePaths;
 use crate::{
-    common::runtime::tokio_runtime, on_host::tools::config::AgentControlConfigBuilder,
+    common::runtime::tokio_runtime, on_host::tools::config::OnHostAgentControlConfigBuilder,
     on_host::tools::instance_id::get_instance_id,
 };
 use fake_opamp_server::FakeServer;
@@ -26,7 +26,7 @@ fn test_verify_executor() {
 
     let dirs = TempBasePaths::default();
 
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
 
     let result = ProcessVerifyExecutor::default().execute(
@@ -97,7 +97,7 @@ fn test_verify_executor_opamp_connectivity_failure() {
 
     let dirs = TempBasePaths::default();
 
-    AgentControlConfigBuilder::new(unreachable_opamp_endpoint, unreachable_jwks_endpoint)
+    OnHostAgentControlConfigBuilder::new(unreachable_opamp_endpoint, unreachable_jwks_endpoint)
         .write(dirs.local_dir());
 
     let result = ProcessVerifyExecutor::default().execute(

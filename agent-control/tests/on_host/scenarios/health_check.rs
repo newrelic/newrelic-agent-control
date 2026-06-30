@@ -3,7 +3,9 @@ use crate::common::base_paths::TempBasePaths;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::consts::NO_CONFIG;
-use crate::on_host::tools::config::{AgentControlConfigBuilder, create_file, create_local_config};
+use crate::on_host::tools::config::{
+    OnHostAgentControlConfigBuilder, create_file, create_local_config,
+};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
@@ -50,7 +52,7 @@ file:
         NO_CONFIG.to_string(),
         dirs.local_dir(),
     );
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 
@@ -149,7 +151,7 @@ http:
 "#
     );
 
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
     create_local_config(

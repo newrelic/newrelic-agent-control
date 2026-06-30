@@ -4,7 +4,7 @@ use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{retry::retry, runtime::tokio_runtime};
 use crate::on_host::tools::config::load_remote_config_content;
-use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
+use crate::on_host::tools::config::{OnHostAgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
@@ -38,7 +38,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 "#,
     );
 
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 
@@ -117,7 +117,7 @@ fn test_invalid_config_executable_less_supervisor() {
         dirs.local_dir(),
     );
 
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 
@@ -183,7 +183,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
 "#,
     );
 
-    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 
