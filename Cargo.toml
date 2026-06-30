@@ -46,7 +46,7 @@ reqwest = { version = "0.13.4", features = ["blocking", "socks"] }
 rstest = "0.26.1"
 windows = "0.62.2"
 windows-sys = "0.61.2"
-aws-lc-rs = "1.17.0"
+aws-lc-rs = "1.17.1"
 opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.40" }
 oci-client = { version = "0.17.0", default-features = false }
 tokio = "1.52.3"
