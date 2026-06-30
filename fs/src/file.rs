@@ -10,8 +10,5 @@ pub mod renamer;
 pub mod writer;
 
 /// Filesystem-backed implementation of the file operation traits
-/// ([`FileReader`](reader::FileReader), [`FileWriter`](writer::FileWriter),
-/// [`FileRenamer`](renamer::FileRenamer), [`FileDeleter`](deleter::FileDeleter),
-/// [`FileCopier`](copier::FileCopier)).
 #[derive(Debug)]
 pub struct LocalFile;
