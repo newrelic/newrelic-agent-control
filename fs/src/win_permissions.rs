@@ -10,6 +10,7 @@ use windows_sys::Win32::Security::{
     ACL, CreateWellKnownSid, DACL_SECURITY_INFORMATION, NO_INHERITANCE,
     PROTECTED_DACL_SECURITY_INFORMATION, SECURITY_MAX_SID_SIZE, WinBuiltinAdministratorsSid,
 };
+use windows_sys::Win32::Storage::FileSystem::DELETE;
 
 /// Error returned when setting Windows file permissions (ACLs) fails.
 #[derive(Debug, thiserror::Error)]
@@ -41,7 +42,8 @@ fn get_administrator_sid() -> Result<Vec<u8>, PermissionError> {
 }
 
 /// set_file_permissions_for_administrator removes any other ACL from a file only granting
-/// read and write to Administrators.
+/// read, write, and delete to Administrators. DELETE is needed so the same Administrator that
+/// wrote the file can later remove it during filesystem reconciliation.
 pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), PermissionError> {
     // Conversion to UTF-16 format (native string representation in Windows OS)
     let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
@@ -56,9 +58,9 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
         ..Default::default()
     };
 
-    // Define the access entry to allow read and write for the trustee
+    // Define the access entry to allow read, write, and delete for the trustee.
     let access_entry = EXPLICIT_ACCESS_W {
-        grfAccessPermissions: GENERIC_READ | GENERIC_WRITE,
+        grfAccessPermissions: GENERIC_READ | GENERIC_WRITE | DELETE,
         grfAccessMode: SET_ACCESS,
         grfInheritance: NO_INHERITANCE,
         Trustee: trustee,
@@ -109,7 +111,7 @@ pub mod tests {
             ACCESS_ALLOWED_ACE, ACL_SIZE_INFORMATION, AclSizeInformation,
             Authorization::GetNamedSecurityInfoW, EqualSid, GetAce, GetAclInformation,
         },
-        Storage::FileSystem::{FILE_GENERIC_READ, FILE_GENERIC_WRITE},
+        Storage::FileSystem::{DELETE, FILE_GENERIC_READ, FILE_GENERIC_WRITE},
     };
 
     use super::*;
@@ -180,11 +182,12 @@ pub mod tests {
             let sids_equal = EqualSid(sid_in_ace, admin_sid.as_mut_ptr() as *mut _);
             assert_ne!(sids_equal, 0, "ACE SID should match Administrators SID");
 
-            // FILE_GENERIC_READ and FILE_GENERIC_WRITE are what GENERIC_READ/WRITE map to
-            let expected_mask = FILE_GENERIC_READ | FILE_GENERIC_WRITE;
+            // FILE_GENERIC_READ and FILE_GENERIC_WRITE are what GENERIC_READ/WRITE map to;
+            // DELETE is a specific right and stays as-is in the ACE mask.
+            let expected_mask = FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE;
             assert_eq!(
                 ace.Mask, expected_mask,
-                "ACE should have FILE_GENERIC_READ and FILE_GENERIC_WRITE permissions"
+                "ACE should have FILE_GENERIC_READ, FILE_GENERIC_WRITE, and DELETE permissions"
             );
         }
     }

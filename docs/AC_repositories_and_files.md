@@ -23,8 +23,13 @@ The remote configurations and in general any files expected to dynamically chang
 
 - The remote configurations, the hash and its state of AC and each sub-agent are stored in their respective subfolder inside `fleet-data`, in a file named `remote_config.yaml`.
 - On the other hand, host identifiers and the agent ULID are store in `instance_id.yaml`.
- - Moreover, `filesystem` is the directory where Agent Control will render files for each sub-agent. Each agent could also create
-its own subdirectories inside it to store files that are not managed by AC but are expected to be persistent across restarts.
+ - Moreover, `filesystem` is the directory where Agent Control renders each sub-agent's declared files. An agent may also write
+its own files here; these survive restarts **unless they live inside a directory AC declared as ephemeral** (the default), which AC
+wipes on stop and before each re-render. To keep agent-created data across restarts, place it under a `persistent` directory or a path
+AC doesn't manage. See [Persistence in Filesystem](./INTEGRATING_AGENTS.md#persistence-in-filesystem).
+- Inside each sub-agent's `filesystem/<agent-id>` directory AC also writes a reserved manifest, `.ac-managed-paths.json`, listing
+the paths it rendered on the last successful write. It drives reconciliation (deleting paths AC previously owned but no longer declares).
+This filename is reserved, agent types must not declare an entry with it.
 
 #### Logs
 The directory inside `[...]/log/<agent-id>` will store the logs if file logging was configured, 
@@ -76,6 +81,7 @@ The following shows the directory structure used by Agent Control, assuming an e
     │       │         └── remote_config.yaml 
     │       └── filesystem
     │            └── nr-infra
+    │                ├── .ac-managed-paths.json
     │                ├── integrations.d
     │                │   └── nri-redis.yaml
     │                └── config
@@ -107,6 +113,7 @@ C:\Program Files\New Relic\newrelic-agent-control
 C:\ProgramData\New Relic\newrelic-agent-control
 ├───filesystem
 │   └───nr-infra
+│       │   .ac-managed-paths.json
 │       ├───newrelic-infra
 │       │    └─── [...] Data files created by the infra agent
 │       └── config

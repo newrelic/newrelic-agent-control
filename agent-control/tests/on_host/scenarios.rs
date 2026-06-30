@@ -18,3 +18,4 @@ mod postdownload_hook;
 mod remote_agent_removal;
 mod restarting_processes;
 mod self_instrumentation_otel;
+mod stale_agent_filesystem_cleanup;

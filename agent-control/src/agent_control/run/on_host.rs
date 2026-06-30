@@ -5,9 +5,10 @@ use crate::agent_control::config::{AgentControlConfig, OpAMPClientConfig};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, EXECUTION_MODE_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
-    HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-    OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE, default_capabilities, default_custom_capabilities,
+    AGENT_CONTROL_VERSION, AGENT_FILESYSTEM_FOLDER_NAME, EXECUTION_MODE_ATTRIBUTE_KEY,
+    FLEET_ID_ATTRIBUTE_KEY, FOLDER_NAME_FLEET_DATA, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE, default_capabilities,
+    default_custom_capabilities,
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::on_host::OnHostCleaner;
@@ -60,7 +61,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tracing::info;
+use tracing::{debug, info};
 
 /// Agent Control variable name carrying the host id.
 pub const HOST_ID_VARIABLE_NAME: &str = "host_id";
@@ -116,8 +117,24 @@ impl AgentControlRunner {
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer.clone(), identifiers.clone());
 
-        let resource_cleaner =
-            OnHostCleaner::new(instance_id_storer, yaml_config_repository.clone());
+        let agent_filesystem_base = remote_dir.join(AGENT_FILESYSTEM_FOLDER_NAME);
+        let fleet_data_base = remote_dir.join(FOLDER_NAME_FLEET_DATA);
+        let dir_manager = Arc::new(DirectoryManagerFs);
+        let resource_cleaner = OnHostCleaner::new(
+            instance_id_storer,
+            yaml_config_repository.clone(),
+            agent_filesystem_base,
+            fleet_data_base,
+            dir_manager,
+        );
+        debug!("Removing stale agents from the filesystem");
+        resource_cleaner.purge_stale_agents(
+            agent_control_config
+                .dynamic
+                .agents
+                .keys()
+                .map(|id| id.as_str()),
+        );
 
         let opamp_client_builder = maybe_opamp.map(|config| {
             opamp_client_builder(

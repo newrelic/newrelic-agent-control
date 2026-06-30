@@ -1,7 +1,7 @@
 use super::utils::validate_path;
 use std::fs::{DirBuilder, remove_dir_all};
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tracing::instrument;
 
 /// Creates and removes directories on disk.
@@ -12,6 +12,10 @@ pub trait DirectoryManager: Send + Sync {
     /// Delete the folder and its contents. If the folder does not exist it
     /// will not return an error.
     fn delete(&self, path: &Path) -> io::Result<()>;
+
+    /// List the immediate children of `path`. Returns absolute paths. If `path` does not
+    /// exist, returns an empty list (not an error).
+    fn list(&self, path: &Path) -> io::Result<Vec<PathBuf>>;
 }
 
 /// [`DirectoryManager`] implementation backed by the real filesystem.
@@ -56,6 +60,18 @@ impl DirectoryManager for DirectoryManagerFs {
         }
         remove_dir_all(path)
     }
+
+    #[instrument(skip_all, fields(path = %path.display()))]
+    fn list(&self, path: &Path) -> io::Result<Vec<PathBuf>> {
+        validate_path(path)?;
+
+        let read = match std::fs::read_dir(path) {
+            Ok(r) => r,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(err) => return Err(err),
+        };
+        read.map(|entry| entry.map(|e| e.path())).collect()
+    }
 }
 
 impl DirectoryManagerFs {
@@ -83,6 +99,7 @@ pub mod mock {
         impl DirectoryManager for DirectoryManager {
             fn create(&self, path: &Path) -> io::Result<()>;
             fn delete(&self, path: &Path) -> io::Result<()>;
+            fn list(&self, path: &Path) -> io::Result<Vec<PathBuf>>;
         }
     }
 
@@ -115,6 +132,14 @@ pub mod mock {
             self.expect_delete()
                 .with(predicate::eq(path_clone))
                 .return_once(|_| Err(err));
+        }
+
+        pub fn should_list(&mut self, path: &Path, children: Vec<PathBuf>) {
+            let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
+            self.expect_list()
+                .with(predicate::eq(path_clone))
+                .once()
+                .return_once(|_| Ok(children));
         }
     }
 }
@@ -204,6 +229,36 @@ pub mod tests {
         assert!(create_result.is_ok());
         let create_result = directory_manager.create(path.as_path());
         assert!(create_result.is_ok());
+    }
+
+    #[test]
+    fn test_list_missing_path_returns_empty() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let missing = tempdir.path().join("does_not_exist");
+        let directory_manager = DirectoryManagerFs;
+
+        let result = directory_manager.list(&missing).unwrap();
+
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_list_returns_immediate_children() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let directory_manager = DirectoryManagerFs;
+
+        let child_dir = tempdir.path().join("child_dir");
+        directory_manager.create(&child_dir).unwrap();
+        let child_file = tempdir.path().join("child_file");
+        std::fs::write(&child_file, b"contents").unwrap();
+        std::fs::write(child_dir.join("grandchild"), b"contents").unwrap();
+
+        let mut result = directory_manager.list(tempdir.path()).unwrap();
+        result.sort();
+
+        let mut expected = vec![child_dir, child_file];
+        expected.sort();
+        assert_eq!(expected, result);
     }
 
     #[test]

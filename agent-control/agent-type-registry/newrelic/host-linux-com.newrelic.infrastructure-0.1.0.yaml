@@ -78,6 +78,15 @@ deployment:
     logging.d:
       kind: dir_content_from_map
       source: ${nr-var:config_logging}
+    # Agent data root (NRIA_AGENT_DIR). Persistent so the agent's stored data survives restarts
+    newrelic-infra:
+      kind: dir
+      persistent: true
+      entries:
+        # NRIA_AGENT_TEMP_DIR: fluent-bit scratch that the agent does not clean up. Declared
+        # ephemeral so AC reclaims it on every (re)start instead of letting it grow unbounded.
+        tmp:
+          kind: dir
   executables:
     - id: newrelic-infra
       path: ${nr-sub:packages.infra-agent.dir}/newrelic-infra
@@ -90,12 +99,6 @@ deployment:
         # Otherwise, a user could write data to a folder with lower permissions and potentially escalate privileges.
         # For the same reason we are also changing the location of the integration binaries.
         NRIA_AGENT_DIR: "${nr-sub:filesystem_agent_dir}/newrelic-infra"
-        # TODO
-        # This is a non public infra-agent config variable that allows us to change the location of the agent temporary files, which is used currently
-        # for storing fluent-bit generated configuration files. Currently infra-agent does not clean-up on start this directory if
-        # not on the default location, making this configs to potentially grow indefinitely with fluent-bit generated files.
-        # In the future this clean up process should be handled by the infra-agent itself or by AC file system clean up policies (same as the ones
-        # that are going to remove integration configs whenever variables are removed)
         NRIA_AGENT_TEMP_DIR: "${nr-sub:filesystem_agent_dir}/newrelic-infra/tmp"
         NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR: "${nr-sub:packages.infra-agent.dir}/integrations"
         NRIA_SAFE_BIN_DIR: "${nr-sub:packages.infra-agent.dir}/integrations"
