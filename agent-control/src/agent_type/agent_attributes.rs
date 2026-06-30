@@ -81,6 +81,7 @@ impl AgentAttributes {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent_control::defaults::AGENT_CONTROL_DATA_DIR;
     use crate::agent_type::trivial_value::TrivialValue;
 
     fn final_string(vars: &HashMap<String, Variable>, name: &str) -> String {
@@ -97,27 +98,37 @@ mod tests {
 
     #[test]
     fn filesystems_are_available() {
-        let remote_dir = PathBuf::from("/var/lib/newrelic-agent-control");
+        let remote_dir = PathBuf::from(AGENT_CONTROL_DATA_DIR);
         let agent_id = AgentID::try_from("my-agent").unwrap();
-        let attrs = AgentAttributes::try_new(agent_id, remote_dir).unwrap();
+        let attrs = AgentAttributes::try_new(agent_id, remote_dir.clone()).unwrap();
 
         let vars = attrs.sub_agent_variables();
 
+        // Build expected paths via `join` so separators match the platform (e.g. `\` on Windows).
         // Shared dir lives directly under the remote dir, with no agent-id suffix.
+        let expected_shared = remote_dir
+            .join("shared-filesystem")
+            .to_string_lossy()
+            .to_string();
         assert_eq!(
             final_string(&vars, AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR),
-            "/var/lib/newrelic-agent-control/shared-filesystem",
+            expected_shared,
         );
         // The per-agent dir, in contrast, is suffixed with the agent id.
+        let expected_agent = remote_dir
+            .join("filesystem")
+            .join("my-agent")
+            .to_string_lossy()
+            .to_string();
         assert_eq!(
             final_string(&vars, AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-            "/var/lib/newrelic-agent-control/filesystem/my-agent",
+            expected_agent,
         );
     }
 
     #[test]
     fn shared_filesystem_dir_is_identical_across_agents() {
-        let remote_dir = PathBuf::from("/var/lib/newrelic-agent-control");
+        let remote_dir = PathBuf::from(AGENT_CONTROL_DATA_DIR);
         let a = AgentAttributes::try_new(AgentID::try_from("agent-a").unwrap(), remote_dir.clone())
             .unwrap();
         let b =
