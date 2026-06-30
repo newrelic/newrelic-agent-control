@@ -1,11 +1,11 @@
-use std::fmt::Display;
-use std::path::PathBuf;
-
 use fs::file::LocalFile;
 use fs::file::writer::FileWriter;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
 use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
+use std::fmt::Display;
+use std::path::PathBuf;
+
 pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
 
 /// Helper to build a Custom Agent type with defaults ready to use in integration tests
@@ -37,7 +37,16 @@ fake_variable:
             executables: Some(Self::default_executables()),
             filesystem: None,
             packages: None,
-            health: None,
+            health: Some(
+                serde_saphyr::from_str(
+                    r#"
+interval: 60s
+initial_delay: 0s
+timeout: 15s
+"#,
+                )
+                .unwrap(),
+            ),
         }
     }
 }
