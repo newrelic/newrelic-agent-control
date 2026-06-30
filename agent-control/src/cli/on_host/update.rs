@@ -37,6 +37,11 @@ pub struct UpdateArgs {
     #[arg(long)]
     pub dry_run: bool,
 
+    /// OCI repository to download from. Defaults to the public registry.
+    /// Override to use a private registry mirror (e.g. for air-gapped environments).
+    #[arg(long, default_value = AC_OCI_PACKAGE_DEFAULT_REPOSITORY)]
+    pub repository: String,
+
     /// Skip OCI signature verification. Not recommended for production use.
     #[arg(long, hide = true)]
     pub skip_verify: bool,
@@ -55,8 +60,8 @@ pub fn run(args: UpdateArgs) -> Result<(), CliError> {
     let version = Version::from_str(&args.version)
         .map_err(|e| CliError::Command(format!("invalid version '{}': {e}", args.version)))?;
 
-    let repository = Repository::from_str(AC_OCI_PACKAGE_DEFAULT_REPOSITORY)
-        .map_err(|e| CliError::Command(format!("invalid OCI repository: {e}")))?;
+    let repository = Repository::from_str(&args.repository)
+        .map_err(|e| CliError::Command(format!("invalid OCI repository '{}': {e}", args.repository)))?;
 
     let public_key_url = Url::parse(AC_OCI_PACKAGE_PUBLIC_KEY_URL)
         .map_err(|e| CliError::Command(format!("invalid public key URL: {e}")))?;
@@ -70,8 +75,9 @@ pub fn run(args: UpdateArgs) -> Result<(), CliError> {
         } else {
             println!(
                 "Dry-run: would download Agent Control {version} from \
-                 {AC_OCI_PACKAGE_DEFAULT_REPOSITORY} (sig-verify={signature_verification}) \
-                 and self-replace the running binary."
+                 {} (sig-verify={signature_verification}) \
+                 and self-replace the running binary.",
+                args.repository
             );
         }
         return Ok(());
@@ -144,8 +150,13 @@ pub fn run(args: UpdateArgs) -> Result<(), CliError> {
     BinarySelfReplacer::self_replace(&new_binary)
         .map_err(|e| CliError::Command(format!("self-replace failed: {e}")))?;
 
-    // The binary has been replaced. Exit so that systemd (Restart=always) starts
-    // the new version.
-    println!("Agent Control {version} installed. Restarting via systemd.");
+    // The binary has been replaced on disk. Exit this process.
+    // If the Agent Control service is configured with `Restart=always` (or
+    // `Restart=on-failure`), the service manager will start the new binary
+    // automatically. If the service is not running or is not configured for
+    // auto-restart, a manual `systemctl start newrelic-agent-control` is needed.
+    println!("Agent Control {version} installed successfully.");
+    println!("If the service is configured with Restart=always, it will restart automatically.");
+    println!("Otherwise, start it manually: systemctl start newrelic-agent-control");
     std::process::exit(0);
 }

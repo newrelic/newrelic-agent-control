@@ -265,8 +265,8 @@ fn update_dry_run_idempotency_message_shown_when_same_version() {
 
 #[test]
 fn uninstall_dry_run_accepts_yes_flag() {
-    // --yes should not break dry-run (it skips the confirmation prompt).
+    // --assume-yes should not break dry-run (it skips the confirmation prompt).
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control-cli");
-    cmd.args(["uninstall", "--dry-run", "--yes"]);
+    cmd.args(["uninstall", "--dry-run", "--assume-yes"]);
     cmd.assert().success();
 }

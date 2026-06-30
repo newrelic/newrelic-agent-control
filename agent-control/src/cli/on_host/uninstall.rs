@@ -41,9 +41,9 @@ pub struct UninstallArgs {
     #[arg(long)]
     pub dry_run: bool,
 
-    /// Skip the confirmation prompt (for automation / CI).
+    /// Skip the confirmation prompt and assume yes to all questions (for automation / CI).
     #[arg(long)]
-    pub yes: bool,
+    pub assume_yes: bool,
 }
 
 /// Run the uninstall subcommand.
@@ -62,7 +62,7 @@ pub fn run(args: UninstallArgs) -> Result<(), CliError> {
     }
 
     // Confirm before doing anything destructive.
-    if !args.dry_run && !args.yes {
+    if !args.dry_run && !args.assume_yes {
         confirm_uninstall(args.keep_config)?;
     }
 
@@ -70,8 +70,20 @@ pub fn run(args: UninstallArgs) -> Result<(), CliError> {
     disable_service(args.dry_run);
 
     // Remove state dir — contains all OCI-installed managed agent packages.
-    // These agents are NOT tracked by the system package manager and must be
-    // removed explicitly here.
+    //
+    // WHY NOT use `apt-get remove` / `yum remove` / `zypper remove`?
+    // Agent Control installs and updates itself AND its managed agents (infra-agent,
+    // NRDOT, OTel collectors) via OCI binary replacement, completely bypassing the
+    // system package manager. The package manager only knows about the initial
+    // bootstrap package — it has no record of managed agents installed under
+    // /var/lib/newrelic-agent-control/. Using `apt-get remove` would silently leave
+    // all managed agents running. This command is the only path that removes them.
+    //
+    // WHY NOT delegate to uninstall.ps1 on Windows?
+    // The existing uninstall.ps1 (build/package/windows/uninstall.ps1) stops the
+    // Windows service and removes the binary, but does NOT remove OCI-installed managed
+    // agent packages. This implementation covers both the service lifecycle AND managed
+    // agent cleanup on both platforms.
     remove_path(
         REMOTE_DATA_DIR,
         "state directory (managed agent packages)",
