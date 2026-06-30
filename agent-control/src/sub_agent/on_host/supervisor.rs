@@ -102,7 +102,7 @@ where
     executables: Vec<ExecutableData>,
     file_logging_enable: bool,
     file_logging_path: PathBuf,
-    health_config: OnHostHealthConfig,
+    health_config: Option<OnHostHealthConfig>,
     package_manager: Arc<PM>,
     packages_config: RenderedPackages,
     filesystem: FileSystem,
@@ -222,7 +222,7 @@ where
     pub fn new(
         agent_identity: AgentIdentity,
         executables: Vec<ExecutableData>,
-        health_config: OnHostHealthConfig,
+        health_config: Option<OnHostHealthConfig>,
         packages_config: RenderedPackages,
         package_manager: Arc<PM>,
         file_logging_enable: bool,
@@ -245,9 +245,10 @@ where
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         health_consumer: EventConsumer<(String, HealthWithStartTime)>,
-    ) -> Result<Option<StartedThreadContext>, SupervisorError> {
+        health_config: &OnHostHealthConfig,
+    ) -> Result<StartedThreadContext, SupervisorError> {
         let start_time = StartTime::now();
-        let client_timeout = Duration::from(self.health_config.clone().timeout);
+        let client_timeout = Duration::from(health_config.clone().timeout);
         let http_config = HttpConfig::new(client_timeout, client_timeout, ProxyConfig::default());
         let http_client = HttpClient::new(http_config).map_err(|err| {
             HealthCheckerError::Generic(format!("could not build the http client: {err}"))
@@ -256,7 +257,7 @@ where
         let health_checker = OnHostHealthCheckers::try_new(
             health_consumer,
             http_client,
-            self.health_config.check.clone(),
+            health_config.check.clone(),
             start_time,
         )?;
 
@@ -264,11 +265,11 @@ where
             self.agent_identity.id.clone(),
             health_checker,
             sub_agent_internal_publisher,
-            self.health_config.interval,
-            self.health_config.initial_delay,
+            health_config.interval,
+            health_config.initial_delay,
             start_time,
         );
-        Ok(Some(started_thread_context))
+        Ok(started_thread_context)
     }
 
     /// Runs the agent version check (if configured), publishing detected attributes as events.
@@ -333,22 +334,21 @@ where
             .write(&LocalFile, &DirectoryManagerFs)
             .map_err(SupervisorError::FileSystem)?;
 
-        let executable_thread_contexts = self
+        let mut thread_contexts: Vec<StartedThreadContext> = self
             .executables
             .iter()
-            .map(|e| self.start_process_thread(e, health_publisher.clone()));
+            .map(|e| self.start_process_thread(e, health_publisher.clone()))
+            .collect();
 
         self.check_subagent_version(sub_agent_internal_publisher.clone());
 
-        let thread_contexts =
-            [self.start_health_check(sub_agent_internal_publisher.clone(), health_consumer)?]
-                .into_iter()
-                .flatten();
-
-        let thread_contexts = executable_thread_contexts
-            .into_iter()
-            .chain(thread_contexts)
-            .collect();
+        if let Some(ref health_config) = self.health_config {
+            thread_contexts.push(self.start_health_check(
+                sub_agent_internal_publisher.clone(),
+                health_consumer,
+                health_config,
+            )?);
+        }
 
         Ok(StartedSupervisorOnHost {
             thread_contexts,
@@ -739,7 +739,7 @@ pub mod tests {
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity,
             executable_data,
-            OnHostHealthConfig::default(),
+            Some(OnHostHealthConfig::default()),
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -784,7 +784,7 @@ pub mod tests {
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            OnHostHealthConfig::default(),
+            Some(OnHostHealthConfig::default()),
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -835,7 +835,7 @@ persistent.txt:
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity,
             vec![],
-            OnHostHealthConfig::default(),
+            Some(OnHostHealthConfig::default()),
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -904,7 +904,7 @@ persistent.txt:
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity,
             vec![],
-            OnHostHealthConfig::default(),
+            Some(OnHostHealthConfig::default()),
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -947,7 +947,7 @@ persistent.txt:
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            OnHostHealthConfig::default(),
+            Some(OnHostHealthConfig::default()),
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -996,7 +996,7 @@ persistent.txt:
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            OnHostHealthConfig::default(),
+            Some(OnHostHealthConfig::default()),
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -1045,7 +1045,7 @@ persistent.txt:
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            OnHostHealthConfig::default(),
+            Some(OnHostHealthConfig::default()),
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -1089,7 +1089,7 @@ persistent.txt:
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            OnHostHealthConfig::default(),
+            Some(OnHostHealthConfig::default()),
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -1152,7 +1152,7 @@ persistent.txt:
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            OnHostHealthConfig::default(),
+            Some(OnHostHealthConfig::default()),
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -1332,7 +1332,7 @@ persistent.txt:
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity.clone(),
             vec![exec_data_1],
-            OnHostHealthConfig::default(),
+            Some(OnHostHealthConfig::default()),
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
             true,
@@ -1370,7 +1370,7 @@ persistent.txt:
         let on_host_config = OnHost {
             executables: vec![executable_rendered],
             enable_file_logging: true,
-            health: OnHostHealthConfig::default(),
+            health: Some(OnHostHealthConfig::default()),
             filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
@@ -1458,7 +1458,7 @@ persistent.txt:
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity.clone(),
             vec![exec_data_1],
-            OnHostHealthConfig::default(),
+            Some(OnHostHealthConfig::default()),
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
             false,
@@ -1496,7 +1496,7 @@ persistent.txt:
         let on_host_config = OnHost {
             executables: vec![executable_rendered],
             enable_file_logging: true,
-            health: OnHostHealthConfig::default(),
+            health: Some(OnHostHealthConfig::default()),
             filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
@@ -1582,7 +1582,7 @@ persistent.txt:
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity.clone(),
             vec![exec_data_1],
-            OnHostHealthConfig::default(),
+            Some(OnHostHealthConfig::default()),
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
             true,
@@ -1620,7 +1620,7 @@ persistent.txt:
         let on_host_config = OnHost {
             executables: vec![executable_rendered],
             enable_file_logging: false,
-            health: OnHostHealthConfig::default(),
+            health: Some(OnHostHealthConfig::default()),
             filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
@@ -1707,7 +1707,7 @@ persistent.txt:
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity.clone(),
             vec![exec_data_1],
-            OnHostHealthConfig::default(),
+            Some(OnHostHealthConfig::default()),
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
             false,
@@ -1745,7 +1745,7 @@ persistent.txt:
         let on_host_config = OnHost {
             executables: vec![executable_rendered],
             enable_file_logging: false,
-            health: OnHostHealthConfig::default(),
+            health: Some(OnHostHealthConfig::default()),
             filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };

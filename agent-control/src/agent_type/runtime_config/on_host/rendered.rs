@@ -15,7 +15,7 @@ pub struct OnHost {
     /// Whether file logging is enabled.
     pub enable_file_logging: bool,
     /// Enables and define health checks configuration.
-    pub health: OnHostHealthConfig,
+    pub health: Option<OnHostHealthConfig>,
     /// Files and directories to materialize on disk.
     pub filesystem: FileSystem,
     /// Packages to download for this agent.
