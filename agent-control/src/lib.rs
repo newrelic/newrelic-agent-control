@@ -2,10 +2,6 @@
 //!
 //! This library provides the core functionality for Agent Control. The different binaries generated
 //! by this project will consume this library.
-//!
-//! This crate enforces `#![deny(missing_docs)]`: every public item must be documented. Test- and
-//! mock-only modules (gated on `#[cfg(test)]` or the `mocks` feature) are exempt via a local
-//! `#[allow(missing_docs)]`.
 
 #![deny(missing_docs)]
 
