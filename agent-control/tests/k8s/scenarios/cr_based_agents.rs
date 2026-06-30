@@ -1,19 +1,17 @@
+use crate::common::{
+    retry::retry,
+    runtime::{block_on, tokio_runtime},
+};
 use crate::k8s::tools::agent_control::BAR_CR_AGENT_TYPE_PATH;
 use crate::k8s::tools::k8s_api::check_config_map_exist;
 use crate::k8s::tools::test_crd::{Foo, create_crd, delete_crd};
 use crate::k8s::tools::{
     agent_control::{
-        start_agent_control_with_testdata_config, wait_until_agent_control_with_opamp_is_started,
+        FOO_CR_AGENT_TYPE_PATH, start_agent_control, wait_until_agent_control_with_opamp_is_started,
     },
+    config::K8sAgentControlConfigBuilder,
     instance_id,
     k8s_env::K8sEnv,
-};
-use crate::{
-    common::{
-        retry::retry,
-        runtime::{block_on, tokio_runtime},
-    },
-    k8s::tools::agent_control::FOO_CR_AGENT_TYPE_PATH,
 };
 use fake_opamp_server::FakeServer;
 use kube::{Api, CustomResource, CustomResourceExt};
@@ -28,25 +26,24 @@ use tempfile::tempdir;
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_opamp_foo_cr_subagent() {
-    let test_name = "k8s_opamp_foo_cr_subagent";
-
-    // setup the fake-opamp-server, with empty configuration for agents in local config local config should be used.
     let mut server = FakeServer::start(tokio_runtime().handle());
 
-    // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let _sa = start_agent_control_with_testdata_config(
-        test_name,
+    let cr_type_meta = r#"  - apiVersion: newrelic.com/v1
+    kind: Foo"#;
+
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_cr_type_meta(cr_type_meta)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    let _sa = start_agent_control(
         FOO_CR_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
-        &namespace,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        Vec::new(),
         tmp_dir.path(),
     );
 
@@ -101,12 +98,8 @@ agents: {}
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_opamp_cr_subagent_installed_before_crd() {
-    let test_name = "k8s_opamp_cr_subagent_installed_before_crd";
-
-    // setup the fake-opamp-server, with empty configuration for agents in local config local config should be used.
     let mut server = FakeServer::start(tokio_runtime().handle());
 
-    // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
@@ -119,15 +112,18 @@ fn k8s_opamp_cr_subagent_installed_before_crd() {
     block_on(delete_crd(k8s.client.clone(), Bar::crd()))
         .expect_err("CRD deleted, testing environment was not clean, re-run the test");
 
-    let _sa = start_agent_control_with_testdata_config(
-        test_name,
+    let cr_type_meta = r#"  - apiVersion: newrelic.com/v1
+    kind: Bar"#;
+
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_cr_type_meta(cr_type_meta)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    let _sa = start_agent_control(
         BAR_CR_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
-        &namespace,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        Vec::new(),
         tmp_dir.path(),
     );
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());

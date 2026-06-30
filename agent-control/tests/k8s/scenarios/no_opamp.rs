@@ -1,7 +1,9 @@
 use crate::common::{retry::retry, runtime::block_on};
 use crate::k8s::tools::agent_control::CUSTOM_AGENT_TYPE_SPLIT_NS_PATH;
 use crate::k8s::tools::{
-    agent_control::start_agent_control_with_testdata_config, k8s_api::check_deployments_exist,
+    agent_control::{create_config_map, start_agent_control},
+    config::K8sAgentControlConfigBuilder,
+    k8s_api::check_deployments_exist,
     k8s_env::K8sEnv,
 };
 use std::time::Duration;
@@ -12,21 +14,31 @@ use tempfile::tempdir;
 #[test]
 #[ignore = "needs a k8s cluster"]
 fn k8s_sub_agent_started_with_no_opamp() {
-    let test_name = "k8s_sub_agent_started";
     // Setup k8s env
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let _child = start_agent_control_with_testdata_config(
-        test_name,
+    let agents = r#"
+  hello-world:
+    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
+"#;
+
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_agents(agents)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    block_on(create_config_map(
+        k8s.client.clone(),
+        &namespace,
+        "local-data-hello-world",
+        "chart_values: \n  nameOverride: from-local\n".to_string(),
+    ));
+
+    let _child = start_agent_control(
         CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
         k8s.client.clone(),
         &namespace,
-        &namespace,
-        None,
-        None,
-        vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
 

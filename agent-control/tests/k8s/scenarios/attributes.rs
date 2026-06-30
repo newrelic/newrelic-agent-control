@@ -7,8 +7,9 @@ use crate::common::attributes::{
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::{
-    CUSTOM_AGENT_TYPE_PATH, start_agent_control_with_testdata_config,
+    CUSTOM_AGENT_TYPE_PATH, create_config_map, start_agent_control,
 };
+use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
 use crate::k8s::tools::{instance_id, k8s_env::K8sEnv};
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -31,30 +32,40 @@ use tempfile::tempdir;
 #[test]
 #[ignore = "needs a k8s cluster"]
 fn k8s_test_attributes_from_existing_agent_type() {
-    let test_name = "k8s_opamp_attributes_existing_agent_type";
-
-    // setup the fake-opamp-server, with empty configuration for agents in local config should be used.
     let mut server = FakeServer::start(tokio_runtime().handle());
 
-    // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    // start the agent-control
-    let _sa = start_agent_control_with_testdata_config(
-        test_name,
+    let agents = r#"
+  hello-world:
+    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
+"#;
+
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_agents(agents)
+        .with_secret_private_key_name("agent-control-auth")
+        .with_current_chart_version("1.2.3-beta")
+        .with_cd_release_name("agent-control-cd")
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    block_on(create_config_map(
+        k8s.client.clone(),
+        &namespace,
+        "local-data-hello-world",
+        "chart_values:\n  cluster: minikube\n  licenseKey: test\n".to_string(),
+    ));
+
+    let _sa = start_agent_control(
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
-        &namespace,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
 
-    let expected_chart_version = "1.2.3-beta".to_string(); // Set in <test_name>/local-data-agent-control.template
+    let expected_chart_version = "1.2.3-beta".to_string();
     let instance_id =
         instance_id::get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
     server.set_config_response(
@@ -204,23 +215,21 @@ agents:
 #[test]
 #[ignore = "needs a k8s cluster"]
 fn k8s_test_custom_capabilities_when_cd_disabled() {
-    let test_name = "k8s_custom_capabilities_cd_disabled";
-
     let server = FakeServer::start(tokio_runtime().handle());
 
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let _ac = start_agent_control_with_testdata_config(
-        test_name,
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_cd_enabled(false)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    let _ac = start_agent_control(
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
-        &namespace,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        Vec::new(),
         tmp_dir.path(),
     );
 

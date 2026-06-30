@@ -4,7 +4,8 @@
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
-use crate::k8s::tools::agent_control::start_agent_control_with_testdata_config;
+use crate::k8s::tools::agent_control::start_agent_control;
+use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
 use crate::k8s::tools::k8s_api::{check_config_map_exist, check_config_map_has_annotation};
 use crate::k8s::tools::k8s_env::K8sEnv;
 use crate::k8s::tools::{agent_control, instance_id};
@@ -17,28 +18,29 @@ use tempfile::tempdir;
 
 const CONFIG_AGENT_TYPE_PATH: &str = "tests/k8s/data/config_map_type.yml";
 
+const CR_TYPE_META_CONFIG_MAP: &str = r#"  - apiVersion: v1
+    kind: ConfigMap"#;
+
 /// This test verifies that the config_map_type agent type creates
 /// a ConfigMap when configured through OpAMP.
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_config_map_type_creates_configmap() {
-    let test_name = "k8s_config_map_type_creates_configmap";
-
     let mut server = FakeServer::start(tokio_runtime().handle());
 
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let _ac = start_agent_control_with_testdata_config(
-        test_name,
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_cr_type_meta(CR_TYPE_META_CONFIG_MAP)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    let _ac = start_agent_control(
         CONFIG_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
-        &namespace,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        Vec::new(),
         tmp_dir.path(),
     );
 
@@ -143,45 +145,24 @@ agents: {}
 }
 
 /// This test verifies that GC handles the fleet-data ConfigMap correctly on AC restart.
-///
-/// Fleet-data ConfigMaps are Agent Control internal resources and carry the
-/// `newrelic.io/owned-by: agent-control` annotation. They are handled by
-/// `garbage_collect_agent_control_resources`, which lists ConfigMaps by label and
-/// deletes only those with the `owned-by: agent-control` annotation.
-///
-/// Sub-agent dynamic objects (e.g. supervisor-created resources) carry the
-/// `newrelic.io/owned-by: sub-agent` annotation and are handled by
-/// `garbage_collect_sub_agent_resources`.
-///
-/// The test:
-/// 1. Starts AC and deploys the config-map-type agent via OpAMP remote config.
-/// 2. Sends a remote config to the sub-agent, which causes AC to store the remote config
-///    and write the `owned-by: agent-control` and `agent-type-id` annotations onto the
-///    fleet-data ConfigMap.
-/// 3. Waits for the annotation to be present, then stops and restarts AC.
-/// 4. On restart, `retain` finds the annotated fleet-data ConfigMap, recognises it as an
-///    Agent Control internal resource, and correctly retains it.
-/// 5. The test passes only if AC starts successfully.
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_config_map_type_gc_does_not_fail_on_restart() {
-    let test_name = "k8s_config_map_type_gc_does_not_fail_on_restart";
-
     let mut server = FakeServer::start(tokio_runtime().handle());
 
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let _ac = start_agent_control_with_testdata_config(
-        test_name,
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_cr_type_meta(CR_TYPE_META_CONFIG_MAP)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    let _ac = start_agent_control(
         CONFIG_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
-        &namespace,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        Vec::new(),
         tmp_dir.path(),
     );
 
@@ -248,15 +229,15 @@ chart_values:
     // active agent ({test-config-map: newrelic/com.newrelic.test_config_map:0.1.0}) and
     // cr_type_meta includes ConfigMap. GC finds the fleet-data ConfigMap, reads the
     // agent-type-id annotation, and correctly retains it.
-    let _ac = start_agent_control_with_testdata_config(
-        test_name,
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_cr_type_meta(CR_TYPE_META_CONFIG_MAP)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    let _ac = start_agent_control(
         CONFIG_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
-        &namespace,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        Vec::new(),
         tmp_dir.path(),
     );
 
@@ -273,23 +254,21 @@ chart_values:
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_agent_control_update_remote_config() {
-    let test_name = "k8s_agent_control_update_remote_config";
-
     let mut server = FakeServer::start(tokio_runtime().handle());
 
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let _ac = start_agent_control_with_testdata_config(
-        test_name,
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_cr_type_meta(CR_TYPE_META_CONFIG_MAP)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    let _ac = start_agent_control(
         CONFIG_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
-        &namespace,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        Vec::new(),
         tmp_dir.path(),
     );
 

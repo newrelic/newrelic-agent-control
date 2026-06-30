@@ -11,8 +11,11 @@ use fake_opamp_server::FakeServer;
 
 use crate::k8s::tools::k8s_api::{check_helmrelease_exists, delete_helm_release};
 use crate::k8s::tools::{
-    agent_control::start_agent_control_with_testdata_config, instance_id,
-    k8s_api::check_deployments_exist, k8s_env::K8sEnv,
+    agent_control::{create_config_map, start_agent_control},
+    config::K8sAgentControlConfigBuilder,
+    instance_id,
+    k8s_api::check_deployments_exist,
+    k8s_env::K8sEnv,
 };
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use std::time::Duration;
@@ -27,26 +30,35 @@ use tempfile::tempdir;
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_opamp_remove_subagent() {
-    let test_name = "k8s_opamp_remove_subagent";
-
     let mut server = FakeServer::start(tokio_runtime().handle());
 
-    // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let ac_ns = block_on(k8s.test_namespace());
     let agents_ns = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    // start the agent-control
-    let _sa = start_agent_control_with_testdata_config(
-        test_name,
+    let agents = r#"
+  hello-world:
+    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
+"#;
+
+    K8sAgentControlConfigBuilder::new(&ac_ns)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_namespace_agents(&agents_ns)
+        .with_agents(agents)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    block_on(create_config_map(
+        k8s.client.clone(),
+        &ac_ns,
+        "local-data-hello-world",
+        "chart_values: \n  nameOverride: from-local\n".to_string(),
+    ));
+
+    let _sa = start_agent_control(
         CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
         k8s.client.clone(),
         &ac_ns,
-        &agents_ns,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
 
@@ -131,27 +143,29 @@ fn k8s_opamp_remove_subagent() {
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_opamp_add_subagent() {
-    let test_name = "k8s_opamp_add_sub_agent";
-
-    // setup the fake-opamp-server, with empty configuration for agents in local config local config should be used.
     let mut server = FakeServer::start(tokio_runtime().handle());
 
-    // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let ac_ns = block_on(k8s.test_namespace());
     let agents_ns = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    // start the agent-control
-    let _sa = start_agent_control_with_testdata_config(
-        test_name,
+    K8sAgentControlConfigBuilder::new(&ac_ns)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_namespace_agents(&agents_ns)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    block_on(create_config_map(
+        k8s.client.clone(),
+        &ac_ns,
+        "local-data-hello-world",
+        "chart_values:\n  cluster: minikube\n  licenseKey: test\n".to_string(),
+    ));
+
+    let _sa = start_agent_control(
         CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
         k8s.client.clone(),
         &ac_ns,
-        &agents_ns,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
 
@@ -194,25 +208,33 @@ agents:
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_opamp_modify_subagent_config() {
-    let test_name = "k8s_opamp_modify_subagent_config";
-
     let mut server = FakeServer::start(tokio_runtime().handle());
 
-    // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    // start the agent-control
-    let _sa = start_agent_control_with_testdata_config(
-        test_name,
+    let agents = r#"
+  hello-world:
+    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
+"#;
+
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_agents(agents)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    block_on(create_config_map(
+        k8s.client.clone(),
+        &namespace,
+        "local-data-hello-world",
+        "chart_values: \n  nameOverride: from-local\n".to_string(),
+    ));
+
+    let _sa = start_agent_control(
         CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
         k8s.client.clone(),
         &namespace,
-        &namespace,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
 
