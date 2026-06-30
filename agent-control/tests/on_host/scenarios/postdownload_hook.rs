@@ -42,7 +42,7 @@ fn start_and_apply(
     sleep_agent_type: &str,
     version: &str,
 ) -> (StartedAgentControl, InstanceID) {
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_oci_registry(OCI_TEST_REGISTRY_URL)
         .write(dirs.local_dir());
 

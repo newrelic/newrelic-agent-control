@@ -38,7 +38,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 "#,
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 
@@ -117,7 +117,7 @@ fn test_invalid_config_executable_less_supervisor() {
         dirs.local_dir(),
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 
@@ -183,7 +183,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
 "#,
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 

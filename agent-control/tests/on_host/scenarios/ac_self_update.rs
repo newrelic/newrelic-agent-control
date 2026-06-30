@@ -439,7 +439,7 @@ fn create_self_update_local_config(
     local_dir: &Path,
     signature_verification_enabled: bool,
 ) {
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_oci_registry(OCI_TEST_REGISTRY_URL)
         .with_self_update(
             signature_verification_enabled,

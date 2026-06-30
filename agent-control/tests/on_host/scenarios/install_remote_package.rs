@@ -75,7 +75,7 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_oci_registry(OCI_TEST_REGISTRY_URL)
         .write(dirs.local_dir());
 
@@ -176,7 +176,7 @@ fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_oci_registry(OCI_TEST_REGISTRY_URL)
         .write(dirs.local_dir());
 

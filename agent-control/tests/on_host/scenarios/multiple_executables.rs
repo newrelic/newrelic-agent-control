@@ -40,7 +40,7 @@ agents:
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
         .write(dirs.local_dir());
 
@@ -88,7 +88,7 @@ agents:
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
         .write(dirs.local_dir());
 

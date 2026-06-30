@@ -38,7 +38,7 @@ fn test_http_status_endpoint_response() {
     );
 
     let status_server_port = available_port();
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
         .with_status_server(status_server_port)
         .write(dirs.local_dir());

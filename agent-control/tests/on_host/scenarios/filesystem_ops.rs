@@ -62,7 +62,7 @@ deployment:
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
     create_local_config(
@@ -187,7 +187,7 @@ deployment:
     );
 
     // Create AC config
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(format!(
             r#"
   {agent_id}:
@@ -371,7 +371,7 @@ deployment:
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir().to_path_buf());
 
@@ -541,7 +541,7 @@ deployment:
         dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(format!(
             "\n  {agent_id}:\n    agent_type: \"test/ephemeral:0.0.0\"\n"
         ))
@@ -628,7 +628,7 @@ deployment:
         ),
         agent_type_yaml_path.clone(),
     );
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(format!(
             "\n  {agent_id}:\n    agent_type: \"test/swap:0.0.0\"\n"
         ))
@@ -764,7 +764,7 @@ deployment:
         ),
         agent_type_yaml_path.clone(),
     );
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(format!(
             "\n  {agent_id}:\n    agent_type: \"test/sidecar:0.0.0\"\n"
         ))

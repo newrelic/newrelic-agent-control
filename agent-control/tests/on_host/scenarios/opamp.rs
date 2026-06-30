@@ -34,7 +34,7 @@ fn onhost_opamp_agent_control_local_effective_config() {
 
     let dirs = TempBasePaths::default();
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
 
     let _agent_control =
@@ -68,7 +68,7 @@ fn onhost_opamp_agent_control_remote_effective_config() {
 
     let dirs = TempBasePaths::default();
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
 
     // Add custom agent_type to registry
@@ -148,7 +148,7 @@ fn onhost_opamp_agent_control_accepts_unknown_fields_on_remote_config() {
 
     let dirs = TempBasePaths::default();
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
 
     let _agent_control =
@@ -207,7 +207,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 
@@ -271,7 +271,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 
@@ -332,7 +332,7 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 
@@ -408,7 +408,7 @@ agents:
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 

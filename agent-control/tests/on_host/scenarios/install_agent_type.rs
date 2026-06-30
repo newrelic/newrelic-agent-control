@@ -70,7 +70,7 @@ fn start_agent_control_for_test(
     signer: &OCISigner,
     base_paths: &BasePaths,
 ) -> StartedAgentControl {
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_oci_registry(OCI_TEST_REGISTRY_URL)
         .with_agent_types(true, "test", signer.jwks_url().to_string())
         .write(base_paths.local_dir.clone());

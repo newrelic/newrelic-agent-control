@@ -39,7 +39,7 @@ struct AgentTypes {
 }
 
 impl AgentControlConfigBuilder {
-    pub fn basic(opamp_endpoint: impl Into<String>, jwks_endpoint: impl Into<String>) -> Self {
+    pub fn new(opamp_endpoint: impl Into<String>, jwks_endpoint: impl Into<String>) -> Self {
         Self {
             common: AgentControlCommonConfigBuilder::default()
                 .with_fleet(opamp_endpoint, jwks_endpoint),

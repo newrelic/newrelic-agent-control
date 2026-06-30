@@ -26,7 +26,7 @@ fn stale_agent_filesystem_cleanup_on_startup() {
     std::fs::create_dir_all(&kept_dir).unwrap();
     std::fs::write(kept_dir.join("placeholder.txt"), "placeholder").unwrap();
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(
             r#"
   configured-agent:

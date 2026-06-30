@@ -26,7 +26,7 @@ fn onhost_opamp_agent_control_remote_config_add_remove_add_agent() {
 
     let dirs = TempBasePaths::default();
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
 
     let dir_entry = "test-dir";

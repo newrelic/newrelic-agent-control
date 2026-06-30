@@ -50,7 +50,7 @@ file:
         NO_CONFIG.to_string(),
         dirs.local_dir(),
     );
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 
@@ -149,7 +149,7 @@ http:
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
     create_local_config(

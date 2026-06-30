@@ -26,7 +26,7 @@ fn test_verify_executor() {
 
     let dirs = TempBasePaths::default();
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
 
     let result = ProcessVerifyExecutor::default().execute(
@@ -97,7 +97,7 @@ fn test_verify_executor_opamp_connectivity_failure() {
 
     let dirs = TempBasePaths::default();
 
-    AgentControlConfigBuilder::basic(unreachable_opamp_endpoint, unreachable_jwks_endpoint)
+    AgentControlConfigBuilder::new(unreachable_opamp_endpoint, unreachable_jwks_endpoint)
         .write(dirs.local_dir());
 
     let result = ProcessVerifyExecutor::default().execute(

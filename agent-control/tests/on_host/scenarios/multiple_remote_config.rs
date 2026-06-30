@@ -22,7 +22,7 @@ fn onhost_ac_multiconfig_agents_append() {
 
     let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
 
     let _agent_control =
@@ -88,7 +88,7 @@ fn onhost_ac_multiconfig_agents_append_fails() {
 
     let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
 
     let _agent_control =
@@ -153,7 +153,7 @@ fn onhost_sub_agent_multiconfig() {
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
         .write(dirs.local_dir());
 

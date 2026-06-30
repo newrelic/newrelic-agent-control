@@ -202,7 +202,7 @@ fn create_ac_local_config(
     local_dir: &Path,
     agents: impl Into<String>,
 ) {
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
         .with_oci_registry(OCI_TEST_REGISTRY_URL)
         .with_oci_basic_auth(

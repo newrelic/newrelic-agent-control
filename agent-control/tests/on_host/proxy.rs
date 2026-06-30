@@ -46,7 +46,7 @@ fn proxy_onhost_opamp_agent_control_local_effective_config() {
         .jwks_endpoint()
         .replace("localhost", host_gateway.as_str());
 
-    AgentControlConfigBuilder::basic(opamp_server_endpoint, jwks_endpoint)
+    AgentControlConfigBuilder::new(opamp_server_endpoint, jwks_endpoint)
         .with_proxy(format!(
             "{{\"url\": \"{proxy_url}\", \"ca_bundle_dir\": \"{proxy_ca_dir}\"}}"
         ))

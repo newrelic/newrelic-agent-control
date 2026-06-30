@@ -141,7 +141,7 @@ fn run_file_logging_scenario(
     agent_type: "test/file_logging_agent:0.0.0"
 "#
     );
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    AgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
         .write(dirs.local_dir());
 
