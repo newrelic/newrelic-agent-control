@@ -542,14 +542,9 @@ where
                     debug!(%agent_id, "Retaining the existing running SubAgent as its type remains unchanged");
                     Ok(())
                 }
-                Some(old_sub_agent_config) => {
+                Some(_) => {
                     info!(%agent_id, "Recreating SubAgent");
-                    self.recreate_sub_agent(&agent_identity, running_sub_agents)?;
-                    // onhost: we are removing old sub agent fleet data
-                    // k8s: fleet data gets reused, only the CM annotation for agent_type_id is changed.
-                    self.resource_cleaner
-                        .clean(agent_id, &old_sub_agent_config.agent_type)?;
-                    Ok(())
+                    self.recreate_sub_agent(&agent_identity, running_sub_agents)
                 }
                 None => {
                     info!(%agent_id, "Creating SubAgent");
@@ -1354,11 +1349,7 @@ agents:
             client.should_update_effective_config(1);
         });
 
-        // Different sequences because the order is not important as all of them are cleaned as part of the same
-        // remote config.
-        agent_control.expect_resource_clean_in_sequence(
-            t.identities(vec![("id2", "newrelic/remote.example.b:0.0.2")]), // type changed
-        );
+        // Only removed agents are cleaned; a type change (recreate) no longer cleans the old resources.
         agent_control.expect_resource_clean_in_sequence(
             t.identities(vec![("id3", "newrelic/remote.example.c:0.0.3")]), // removed
         );
