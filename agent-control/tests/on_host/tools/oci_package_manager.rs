@@ -9,9 +9,11 @@ use newrelic_agent_control::{
     package::oci::{downloader::OCIPackageArtifactDownloader, package_manager::OCIPackageManager},
 };
 use oci_client::client::{ClientConfig, ClientProtocol};
+use oci_test_utils::{OCISigner, PackagePublisher};
 use std::path::Path;
 use std::path::PathBuf;
 use std::{fs::File, str::FromStr};
+use tempfile::tempdir;
 
 pub fn new_testing_oci_package_manager(
     base_path: PathBuf,
@@ -111,4 +113,48 @@ impl TestDataHelper {
         std::fs::write(file_path.as_path(), file_content).unwrap();
         file_path
     }
+}
+
+/// Pushes a test package containing a single file (`filename` with `content`) to the OCI registry
+/// under `version`. The package is signed with the provided signer so it can be downloaded by
+/// agent types with signature verification enabled.
+///
+/// The archive is a `tar.gz` on Unix and a `zip` on Windows.
+///
+/// # Arguments
+/// * `signer` - The OCI signer to sign the artifact
+/// * `version` - The version tag for the package (e.g., "1.2.3")
+/// * `registry_url` - The OCI registry URL
+/// * `filename` - Name of the file stored inside the package (e.g., "dummy.txt", "sleep.sh")
+/// * `content` - Content of that file
+pub fn push_test_package(
+    signer: &OCISigner,
+    version: &str,
+    registry_url: &str,
+    filename: &str,
+    content: &str,
+) {
+    use oci_test_utils::PackageMediaType;
+
+    let source_dir = tempdir().unwrap();
+    let archive_dir = tempdir().unwrap();
+
+    #[cfg(target_family = "unix")]
+    let (archive, media_type) = {
+        let archive = archive_dir.path().join("package.tar.gz");
+        TestDataHelper::compress_tar_gz(source_dir.path(), &archive, content, filename);
+        (archive, PackageMediaType::TarGz)
+    };
+
+    #[cfg(target_family = "windows")]
+    let (archive, media_type) = {
+        let archive = archive_dir.path().join("package.zip");
+        TestDataHelper::compress_zip(source_dir.path(), &archive, content, filename);
+        (archive, PackageMediaType::Zip)
+    };
+
+    let reference = PackagePublisher::new(tokio_runtime().handle().clone(), registry_url)
+        .push_with_tag(&archive, media_type, version);
+
+    signer.sign_artifact(&reference);
 }

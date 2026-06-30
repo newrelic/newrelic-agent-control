@@ -80,7 +80,7 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
         .write(dirs.local_dir());
 
     // We create a local config, we are setting the variable fake_variable defined in the
-    // custom_agent_type for other tests to set the version.
+    // sleep_agent_type for other tests to set the version.
     // In this test the fn create_agent_type will use this variable in the oci package block
     // to set the pck version:
     //       ...
@@ -152,7 +152,7 @@ fn test_install_and_update_agent_remote_package_with_oci_registry() {
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix), needs elevated privileges on Windows"]
 fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
-    pub const VERSION: &str = "1.2.3";
+    pub const VERSION: &str = "unsigned-1.2.3";
 
     let signer = OCISigner::start(tokio_runtime().handle().clone());
 
@@ -247,7 +247,7 @@ impl Platform {
         }
     }
 
-    fn shell_info(&self, agent_id: &str) -> (String, Vec<String>, Vec<String>) {
+    fn shell_info(&self, agent_id: &str) -> (String, Vec<String>) {
         let file = self.filename();
         let base_dir = format!("${{nr-sub:packages.{agent_id}.dir}}");
 
@@ -255,30 +255,20 @@ impl Platform {
             #[cfg(not(target_os = "windows"))]
             Platform::Linux => {
                 let full_path = format!("{base_dir}/{file}");
-                (
-                    "/bin/bash".to_string(),
-                    vec![full_path.clone()],                  // Main command
-                    vec![full_path, "--version".to_string()], // Version command
-                )
+                ("/bin/bash".to_string(), vec![full_path])
             }
             #[cfg(target_os = "windows")]
             Platform::Windows => {
                 let full_path = format!("{base_dir}\\{file}");
-                let base_args = vec![
+                let run_cmd = vec![
                     "-NoProfile".to_string(),
                     "-ExecutionPolicy".to_string(),
                     "Bypass".to_string(),
                     "-File".to_string(),
+                    full_path,
                 ];
 
-                let mut run_cmd = base_args.clone();
-                run_cmd.push(full_path.clone());
-
-                let mut version_cmd = base_args;
-                version_cmd.push(full_path);
-                version_cmd.push("-Version".to_string());
-
-                ("powershell.exe".to_string(), run_cmd, version_cmd)
+                ("powershell.exe".to_string(), run_cmd)
             }
         }
     }
@@ -291,11 +281,10 @@ fn create_agent_type(
     public_key_url: &str,
 ) -> String {
     let pkg_type = platform.pkg_type();
-    let (shell_path, run_args, version_args) = platform.shell_info(agent_id);
+    let (shell_path, run_args) = platform.shell_info(agent_id);
 
     // Convert Vec<String> to JSON array strings: ["-NoProfile", "-File", "..."]
     let run_args_json = serde_json::to_string(&run_args).unwrap();
-    let version_args_json = serde_json::to_string(&version_args).unwrap();
 
     let packages_config = format!(
         r#"
@@ -319,19 +308,8 @@ fn create_agent_type(
         ]"#
     );
 
-    let version_config = format!(
-        r#"
-            {{
-                "path": "{shell_path}",
-                "args": {version_args_json},
-                "regex": "\\d+\\.\\d+\\.\\d+"
-            }}
-        "#
-    );
-
     CustomAgentType::default()
         .with_executables(Some(&executables))
-        .with_version(Some(&version_config))
         .with_packages(Some(&packages_config))
         .build(local_dir)
 }
@@ -355,7 +333,7 @@ fn push_testing_package_platform(
                 FILE_LINUX,
             );
             PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
-                .push(&path, PackageMediaType::TarGz)
+                .push_with_tag(&path, PackageMediaType::TarGz, version)
         }
         #[cfg(target_os = "windows")]
         Platform::Windows => {
@@ -367,7 +345,7 @@ fn push_testing_package_platform(
                 FILE_WINDOWS,
             );
             PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
-                .push(&path, PackageMediaType::Zip)
+                .push_with_tag(&path, PackageMediaType::Zip, version)
         }
     };
 

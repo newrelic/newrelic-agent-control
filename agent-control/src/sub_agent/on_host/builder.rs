@@ -164,7 +164,6 @@ where
             agent_identity,
             executables,
             on_host.health,
-            on_host.version,
             on_host.packages,
             self.package_manager.clone(),
             on_host.enable_file_logging,

@@ -7,7 +7,7 @@ use crate::common::retry::{retry, retry_never};
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::AgentControlConfigBuilder;
 use crate::on_host::tools::instance_id::get_instance_id;
-use crate::on_host::tools::oci_package_manager::TestDataHelper;
+use crate::on_host::tools::oci_package_manager::{TestDataHelper, push_test_package};
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
@@ -29,7 +29,6 @@ const AGENT_ID: &str = "test-agent-id";
 const AGENT_TYPE_NAME: &str = "some.agent.type";
 const AGENT_TYPE_NAMESPACE: &str = "onhost_install_agent_type";
 const AGENT_TYPE_VERSION: &str = "0.1.0";
-const REPORTED_VERSION: &str = "1.2.3";
 
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
@@ -55,12 +54,14 @@ fn test_local_miss_resolves_via_remote_registry_with_oci_registry() {
     push_agent_type_to_registry(&signer);
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
+
     let dirs = TempBasePaths::default();
 
     let mut agent_control =
         start_agent_control_for_test(&opamp_server, &signer, &dirs.base_paths());
 
     assert_sub_reports_version(&mut opamp_server, &dirs.base_paths());
+
     assert_agent_control_still_running(&mut agent_control);
 }
 
@@ -85,6 +86,32 @@ fn push_agent_type_to_registry(signer: &OCISigner) -> oci_client::Reference {
 
     let source_dir = tempdir().unwrap();
     let archive_dir = tempdir().unwrap();
+
+    let archive = create_agent_type_archive(&source_dir, &archive_dir, &tag);
+
+    let reference = PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
+        .push_with_tag(&archive, AgentTypeArtifact, tag.as_str());
+
+    signer.sign_artifact(&reference);
+
+    push_test_package(
+        signer,
+        AGENT_TYPE_VERSION,
+        OCI_TEST_REGISTRY_URL,
+        "dummy.txt",
+        "dummy package content",
+    );
+
+    reference
+}
+
+fn create_agent_type_archive(
+    source_dir: &tempfile::TempDir,
+    archive_dir: &tempfile::TempDir,
+    tag: &AgentTypeTag,
+) -> std::path::PathBuf {
+    // Agent types are always tar.gz on all platforms, because they are platform-agnostic
+    // (only contain YAML) and Agent Control always extracts them as tar.gz.
     let archive = archive_dir.path().join("agent-type.tar.gz");
     TestDataHelper::compress_tar_gz(
         source_dir.path(),
@@ -92,12 +119,7 @@ fn push_agent_type_to_registry(signer: &OCISigner) -> oci_client::Reference {
         &agent_type_definition_yaml(),
         &format!("{tag}.yaml"),
     );
-
-    let reference = PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
-        .push_with_tag(&archive, AgentTypeArtifact, tag.as_str());
-
-    signer.sign_artifact(&reference);
-    reference
+    archive
 }
 
 fn write_agent_type_to_local_dir(local_dir: &Path) {
@@ -108,18 +130,18 @@ fn write_agent_type_to_local_dir(local_dir: &Path) {
 
 fn assert_sub_reports_version(opamp_server: &mut FakeServer, base_paths: &BasePaths) {
     let ac_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+
     let agent_type_id = agent_type_id(AGENT_TYPE_VERSION);
 
-    opamp_server.set_config_response(
-        ac_instance_id.clone(),
-        format!(
-            r#"
+    let config = format!(
+        r#"
 agents:
   {AGENT_ID}:
     agent_type: "{agent_type_id}"
 "#
-        ),
     );
+
+    opamp_server.set_config_response(ac_instance_id.clone(), config);
 
     retry(60, Duration::from_secs(1), || {
         opamp_server
@@ -128,9 +150,12 @@ agents:
     });
 
     let sub_agent_id = AgentID::try_from(AGENT_ID).unwrap();
+
     let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 
-    opamp_server.set_config_response(sub_agent_instance_id.clone(), "{new_config: true}");
+    let sub_config = format!("version: '{AGENT_TYPE_VERSION}'");
+
+    opamp_server.set_config_response(sub_agent_instance_id.clone(), sub_config);
 
     retry(60, Duration::from_secs(1), || {
         check_identifying_attributes_contains_expected(
@@ -138,7 +163,7 @@ agents:
             &sub_agent_instance_id,
             convert_to_vec_key_value(vec![(
                 OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-                Value::StringValue(REPORTED_VERSION.to_string()),
+                Value::StringValue(AGENT_TYPE_VERSION.to_string()),
             )]),
         )
         .map_err(|e| e.into())
@@ -160,27 +185,13 @@ fn agent_type_id(version: &str) -> AgentTypeID {
     AgentTypeID::try_from(id.as_str()).unwrap()
 }
 
-#[cfg(not(target_os = "windows"))]
 fn agent_type_definition_yaml() -> String {
-    format!(
-        r#"
-namespace: {AGENT_TYPE_NAMESPACE}
-name: {AGENT_TYPE_NAME}
-version: {AGENT_TYPE_VERSION}
-protocol_version: "1.0"
-platform: host
-operating_system: linux
-deployment:
-  version:
-    path: echo
-    args: ["{REPORTED_VERSION}"]
-    regex: \d+\.\d+\.\d+
-"#
-    )
-}
+    #[cfg(target_family = "unix")]
+    let (operating_system, package_type) = ("linux", "tar");
 
-#[cfg(target_os = "windows")]
-fn agent_type_definition_yaml() -> String {
+    #[cfg(target_family = "windows")]
+    let (operating_system, package_type) = ("windows", "zip");
+
     format!(
         r#"
 namespace: {AGENT_TYPE_NAMESPACE}
@@ -188,12 +199,21 @@ name: {AGENT_TYPE_NAME}
 version: {AGENT_TYPE_VERSION}
 protocol_version: "1.0"
 platform: host
-operating_system: windows
-deployment:
+operating_system: {operating_system}
+variables:
   version:
-    path: echo
-    args: ["{REPORTED_VERSION}"]
-    regex: \d+\.\d+\.\d+
+    description: "Agent version"
+    type: string
+    required: false
+    default: "{AGENT_TYPE_VERSION}"
+deployment:
+  packages:
+    test-package:
+      type: {package_type}
+      download:
+        oci:
+          repository: test
+          version: ${{nr-var:version}}
 "#
     )
 }

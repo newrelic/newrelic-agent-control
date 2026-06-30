@@ -16,7 +16,6 @@ pub struct CustomAgentType {
     filesystem: Option<serde_json::Value>,
     packages: Option<serde_json::Value>,
     health: Option<serde_json::Value>,
-    version: Option<serde_json::Value>,
 }
 
 impl Default for CustomAgentType {
@@ -38,7 +37,6 @@ fake_variable:
             executables: Some(Self::default_executables()),
             filesystem: None,
             packages: None,
-            version: Some(Self::default_version_checker()),
             health: None,
         }
     }
@@ -77,9 +75,6 @@ impl Display for CustomAgentType {
         }
         if let Some(health) = self.health.as_ref() {
             deployment.insert("health".into(), health.clone());
-        }
-        if let Some(version) = self.version.as_ref() {
-            deployment.insert("version".into(), version.clone());
         }
         if let Some(packages) = self.packages.as_ref() {
             deployment.insert("packages".into(), packages.clone());
@@ -128,37 +123,12 @@ impl CustomAgentType {
         .unwrap()
     }
 
-    #[cfg(target_family = "unix")]
-    fn default_version_checker() -> serde_json::Value {
-        serde_saphyr::from_str(
-            r#"
-path: "echo"
-args: ["Some","data","1.0.0","Some","data"]
-regex: \d+\.\d+\.\d+
-"#,
-        )
-        .unwrap()
-    }
-
-    #[cfg(target_family = "windows")]
-    fn default_version_checker() -> serde_json::Value {
-        serde_saphyr::from_str(
-            r#"
-path: "cmd"
-args: ["/C","echo","Some","data","1.0.0","Some","data"]
-regex: \d+\.\d+\.\d+
-"#,
-        )
-        .unwrap()
-    }
-
     pub fn empty() -> Self {
         Self {
             agent_type_id: Self::default_agent_type_id(),
             variables: None,
             executables: None,
             health: None,
-            version: None,
             filesystem: None,
             packages: None,
         }
@@ -192,13 +162,6 @@ regex: \d+\.\d+\.\d+
         }
     }
 
-    pub fn with_version(self, version: Option<&str>) -> Self {
-        Self {
-            version: version.map(|v| serde_saphyr::from_str(v).unwrap()),
-            ..self
-        }
-    }
-
     pub fn with_variables(self, variables: &str) -> Self {
         Self {
             variables: Some(serde_saphyr::from_str(variables).unwrap()),
@@ -210,7 +173,6 @@ regex: \d+\.\d+\.\d+
         Self {
             executables: None,
             health: None,
-            version: None,
             filesystem: None,
             ..self
         }

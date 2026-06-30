@@ -1,7 +1,6 @@
 //! On-host deployment configuration: executables, filesystem, packages and check settings.
 use super::health_config::OnHostHealthConfig;
 use super::templateable_value::TemplateableValue;
-use super::version_config::OnHostVersionConfig;
 use crate::agent_type::definition::{Variables, include_packages_variables};
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::runtime_config::on_host::executable::Executable;
@@ -29,8 +28,6 @@ pub struct OnHost {
     /// Enables and define health checks configuration.
     #[serde(default)]
     health: OnHostHealthConfig,
-    /// Enables and define version checks configuration.
-    version: Option<OnHostVersionConfig>,
     #[serde(default)]
     filesystem: FileSystem,
     #[serde(default)]
@@ -82,10 +79,6 @@ impl Templateable for OnHost {
                 .collect::<Result<Vec<_>, _>>()?,
             enable_file_logging: self.enable_file_logging.template_with(&extended_vars)?,
             health: self.health.template_with(&extended_vars)?,
-            version: self
-                .version
-                .map(|v| v.template_with(&extended_vars))
-                .transpose()?,
             filesystem: self.filesystem.template_with(&extended_vars)?,
             packages: rendered_packages,
         })
@@ -668,7 +661,6 @@ executables:
             }],
             enable_file_logging: TemplateableValue::default(),
             health: default_health_config,
-            version: None,
             filesystem: FileSystem::default(),
             packages: Default::default(),
         };

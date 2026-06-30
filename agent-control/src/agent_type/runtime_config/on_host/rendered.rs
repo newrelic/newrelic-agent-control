@@ -4,7 +4,6 @@ use crate::agent_type::runtime_config::on_host::package::rendered::Package;
 use crate::agent_type::runtime_config::{
     health_config::rendered::OnHostHealthConfig,
     on_host::{executable::rendered::Executable, filesystem::rendered::FileSystem},
-    version_config::rendered::OnHostVersionConfig,
 };
 use std::collections::HashMap;
 
@@ -17,8 +16,6 @@ pub struct OnHost {
     pub enable_file_logging: bool,
     /// Enables and define health checks configuration.
     pub health: OnHostHealthConfig,
-    /// Optional version-check configuration.
-    pub version: Option<OnHostVersionConfig>,
     /// Files and directories to materialize on disk.
     pub filesystem: FileSystem,
     /// Packages to download for this agent.
