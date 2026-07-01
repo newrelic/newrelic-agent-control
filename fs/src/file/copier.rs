@@ -4,48 +4,32 @@ use std::path::Path;
 use std::{fs, io};
 use tracing::instrument;
 
-/// Copies a file on disk, setting permissions on the destination.
+/// Copies a file on disk, preserving the source's permissions on Unix.
 pub trait FileCopier {
     /// Copies the file at `from` to the file at `to`, creating or truncating `to`.
     ///
-    /// The copy is byte-for-byte, so non-UTF-8 binaries are preserved exactly. On Unix the
-    /// destination's permissions are set to `mode` (for example `0o755` for an executable),
-    /// overriding whatever the source carried. On Windows `mode` is ignored and the destination
-    /// is restricted to administrators, matching [`FileWriter::write`](super::writer::FileWriter).
+    /// The copy is byte-for-byte, so non-UTF-8 binaries are preserved exactly. On Unix it
+    /// **preserves the source file's mode bits**.
     ///
-    /// `mode` is kept in the signature on every platform on purpose: it expresses the caller's
-    /// Unix permission intent (Linux is the primary on-host target), and a single cross-platform
-    /// signature lets callers state that intent uniformly. Windows uses an ACL-based model with no
-    /// Unix mode to honor, so the value is intentionally ignored there rather than dropped from the
-    /// API.
+    /// On Windows, permissions cannot be preserved this way (the copy does not carry the source's
+    /// ACL, and executability is determined by extension, not permissions), so the destination is
+    /// restricted to administrators, matching [super::writer::FileWriter].
     ///
     /// The destination's parent directory must already exist.
-    fn copy(&self, from: &Path, to: &Path, mode: u32) -> io::Result<()>;
+    fn copy(&self, from: &Path, to: &Path) -> io::Result<()>;
 }
 
 impl FileCopier for LocalFile {
-    /// Copies `from` to `to` byte-for-byte and sets the destination's permissions.
-    /// On Unix the destination mode is set to `mode`; on Windows access is restricted to
-    /// administrators and `mode` is ignored.
+    /// Copies `from` to `to` byte-for-byte, preserving the source's mode on Unix and applying the
+    /// administrators-only ACL on Windows.
     #[instrument(skip_all, fields(from = %from.display(), to = %to.display()))]
-    fn copy(&self, from: &Path, to: &Path, mode: u32) -> io::Result<()> {
+    fn copy(&self, from: &Path, to: &Path) -> io::Result<()> {
         validate_path(to)?;
 
         fs::copy(from, to)?;
 
-        #[cfg(target_family = "unix")]
-        {
-            use std::os::unix::fs::PermissionsExt;
-
-            fs::set_permissions(to, fs::Permissions::from_mode(mode))?;
-        }
-
         #[cfg(target_family = "windows")]
         {
-            // Windows has no Unix mode to apply: file access is governed by ACLs, which we set the
-            // same way `FileWriter::write` does. `mode` is accepted for a uniform cross-platform
-            // signature but has no Windows equivalent, so it is intentionally unused here.
-            let _ = mode;
             crate::win_permissions::set_file_permissions_for_administrator(to)
                 .map_err(io::Error::other)?;
         }
@@ -59,33 +43,41 @@ impl FileCopier for LocalFile {
 pub mod tests {
     use super::*;
 
-    /// A byte-for-byte copy preserves non-UTF-8 content and sets the requested mode, regardless of
-    /// the source file's own (non-executable) permissions.
+    /// A byte-for-byte copy preserves non-UTF-8 content and the source file's mode (whatever it is,
+    /// executable or not) rather than forcing a fixed mode.
     #[cfg(unix)]
     #[test]
-    fn test_copy_preserves_non_utf8_bytes_and_overrides_mode() {
+    fn test_copy_preserves_non_utf8_bytes_and_source_mode() {
         use std::os::unix::fs::PermissionsExt;
 
-        let dir = tempfile::tempdir().unwrap();
-        let src = dir.path().join("bin");
-        let dst = dir.path().join("copied-bin");
-
         let bytes = [0xFFu8, 0xFE, 0x00, 0x01, b'h', b'i'];
-        fs::write(&src, bytes).unwrap();
-        // Source is deliberately non-executable, to prove we don't inherit its mode.
-        fs::set_permissions(&src, fs::Permissions::from_mode(0o600)).unwrap();
 
-        LocalFile.copy(&src, &dst, 0o755).unwrap();
+        // The low 9 bits of a Unix mode (rwxrwxrwx); the rest of `st_mode` holds the file-type and
+        // setuid/setgid/sticky bits, which we don't compare here.
+        const PERMISSION_BITS: u32 = 0o777;
 
-        assert_eq!(fs::read(&dst).unwrap(), bytes, "content must be preserved");
-        assert_eq!(
-            fs::metadata(&dst).unwrap().permissions().mode() & 0o777,
-            0o755,
-            "destination mode must be the requested one, not the source's"
-        );
+        // Both an executable and a non-executable source mode must be reproduced on the copy.
+        let source_modes: [u32; 2] = [0o644, 0o755];
+        for mode in source_modes {
+            let dir = tempfile::tempdir().unwrap();
+            let src = dir.path().join("bin");
+            let dst = dir.path().join("copied-bin");
+
+            fs::write(&src, bytes).unwrap();
+            fs::set_permissions(&src, fs::Permissions::from_mode(mode)).unwrap();
+
+            LocalFile.copy(&src, &dst).unwrap();
+
+            let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & PERMISSION_BITS;
+            assert_eq!(fs::read(&dst).unwrap(), bytes, "content must be preserved");
+            assert_eq!(
+                dst_mode, mode,
+                "destination must preserve the source's mode {mode:#o}"
+            );
+        }
     }
 
-    /// Copying onto an existing file.
+    /// Copying onto an existing file replaces the existing
     #[cfg(unix)]
     #[test]
     fn test_copy_overwrites_existing_destination() {
@@ -95,7 +87,7 @@ pub mod tests {
         fs::write(&src, "new").unwrap();
         fs::write(&dst, "older content with greater len").unwrap();
 
-        LocalFile.copy(&src, &dst, 0o644).unwrap();
+        LocalFile.copy(&src, &dst).unwrap();
 
         assert_eq!(fs::read_to_string(&dst).unwrap(), "new");
     }
@@ -106,7 +98,7 @@ pub mod tests {
         let dir = tempfile::tempdir().unwrap();
         let dst = dir.path().join("dst");
 
-        let result = LocalFile.copy(&dir.path().join("does-not-exist"), &dst, 0o755);
+        let result = LocalFile.copy(&dir.path().join("does-not-exist"), &dst);
 
         assert!(result.is_err());
         assert!(!dst.exists());
@@ -119,7 +111,7 @@ pub mod tests {
         let src = dir.path().join("src");
         fs::write(&src, "data").unwrap();
 
-        let result = LocalFile.copy(&src, Path::new("some/path/../../etc/passwd"), 0o755);
+        let result = LocalFile.copy(&src, Path::new("some/path/../../etc/passwd"));
 
         assert!(result.is_err());
         assert!(
@@ -141,7 +133,7 @@ pub mod tests {
         let dst = dir.path().join("dst");
         fs::write(&src, "data").unwrap();
 
-        LocalFile.copy(&src, &dst, 0o755).unwrap();
+        LocalFile.copy(&src, &dst).unwrap();
 
         assert_eq!(fs::read_to_string(&dst).unwrap(), "data");
         crate::win_permissions::tests::assert_windows_permissions(&dst);
