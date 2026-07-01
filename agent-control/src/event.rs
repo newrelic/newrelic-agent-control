@@ -77,8 +77,15 @@ pub enum AgentControlInternalEvent {
     HealthUpdated(HealthWithStartTime),
     /// The AgentControl attributes were updated.
     AgentControlAttributesUpdated(UpdatedAttributesMessage),
-    /// A restart was requested as part of a self-update.
+    /// An asynchronous self-update succeeded; the binary has been replaced and Agent Control must
+    /// restart to run the new version.
     SelfUpdateRestartRequested(),
+    /// An asynchronous self-update attempt failed. Carries the rendered error so the event loop
+    /// can report the in-flight remote config as `Failed`.
+    SelfUpdateFailed {
+        /// Last selfUpdate error message
+        error_message: String,
+    },
 }
 
 /// Defines internal events for the SubAgent component.

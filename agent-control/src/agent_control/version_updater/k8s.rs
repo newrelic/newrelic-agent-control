@@ -1,7 +1,7 @@
 //! Kubernetes [`VersionUpdater`] that patches the AC and CD HelmReleases to their desired versions.
 
 use crate::agent_control::config::{AgentControlDynamicConfig, helmrelease_v2_type_meta};
-use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
+use crate::agent_control::version_updater::updater::{UpdateOutcome, UpdaterError, VersionUpdater};
 use crate::k8s::client::K8sObjectKey;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, REMOTE_VAL};
@@ -43,7 +43,7 @@ pub struct K8sACUpdater<C: K8sClient = SyncK8sClient> {
 }
 
 impl<C: K8sClient> VersionUpdater for K8sACUpdater<C> {
-    fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError> {
+    fn update(&self, config: &AgentControlDynamicConfig) -> Result<UpdateOutcome, UpdaterError> {
         if self.ac_remote_update_enabled {
             if let Some(release_name) = &self.ac_release_name {
                 self.update_helm_release_version(
@@ -71,13 +71,13 @@ impl<C: K8sClient> VersionUpdater for K8sACUpdater<C> {
                 debug!(
                     "Agent Control CD release name is not set. Skipping Agent Control CD update."
                 );
-                return Ok(());
+                return Ok(UpdateOutcome::NoOp);
             };
         } else {
             debug!("Remote updates for Agent Control cd are disabled. Nothing to do.");
         }
 
-        Ok(())
+        Ok(UpdateOutcome::NoOp)
     }
 }
 
