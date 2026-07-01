@@ -4,7 +4,9 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::PACKAGES_FOLDER_NAME;
 use crate::oci::OciClientError;
 use crate::oci::artifact_definitions::LocalAgentPackage;
-use crate::package::manager::{InstalledPackageData, PackageData, PackageManager};
+use crate::package::manager::{
+    AgentPackagesRemover, InstalledPackageData, PackageData, PackageManager,
+};
 use crate::package::oci::downloader::OCIPackageArtifactDownloader;
 use crate::package::post_download_hook_executor::{
     PostDownloadHookExecutionError, PostDownloadHookExecutor,
@@ -49,6 +51,13 @@ pub enum OCIPackageManagerError {
     /// Uninstalling the OCI artifact failed (filesystem error).
     #[error("error attempting to uninstall OCI artifact: {0}")]
     Uninstall(io::Error),
+    /// Removing an agent's packages directory failed (filesystem error).
+    #[error("error attempting to remove agent packages directory {path}: {source}")]
+    RemoveAgentPackages {
+        path: String,
+        #[source]
+        source: io::Error,
+    },
     /// Extracting the downloaded archive failed.
     #[error("error extracting archive while installing OCI artifact: {0}")]
     Extraction(String),
@@ -294,10 +303,11 @@ fn get_generic_package_location_path(
     agent_id: &AgentID,
     location: &str,
 ) -> PathBuf {
-    base_path
-        .join(PACKAGES_FOLDER_NAME)
-        .join(agent_id)
-        .join(location)
+    get_agent_packages_dir(base_path, agent_id).join(location)
+}
+
+fn get_agent_packages_dir(base_path: &Path, agent_id: &AgentID) -> PathBuf {
+    base_path.join(PACKAGES_FOLDER_NAME).join(agent_id)
 }
 
 /// Computes the download destination of a package [`PackageData`].
@@ -403,6 +413,29 @@ where
         self.directory_manager
             .delete(&package.installation_path)
             .map_err(OCIPackageManagerError::Uninstall)
+    }
+}
+
+impl<D, DM> AgentPackagesRemover for OCIPackageManager<D, DM>
+where
+    D: OCIPackageDownloader,
+    DM: DirectoryManager,
+{
+    fn remove_agent_packages(&self, agent_id: &AgentID) -> Result<(), OCIPackageManagerError> {
+        let packages_dir = get_agent_packages_dir(&self.remote_dir, agent_id);
+        debug!(%agent_id, path = %packages_dir.display(), "Removing agent packages directory");
+        self.directory_manager
+            .delete(&packages_dir)
+            .map_err(|source| OCIPackageManagerError::RemoveAgentPackages {
+                path: packages_dir.display().to_string(),
+                source,
+            })?;
+
+        self.latest_installed_packages
+            .lock()
+            .expect("fail to acquire packages lock")
+            .remove(agent_id);
+        Ok(())
     }
 }
 
@@ -903,5 +936,44 @@ mod tests {
 
         assert_eq!(installed.installation_path, install_dir);
         assert_eq!(installed.id, TEST_PACKAGE_ID);
+    }
+
+    #[test]
+    fn test_remove_agent_packages_deletes_only_that_agent() {
+        let agent_id_to_remove = AgentID::try_from("agent-id").unwrap();
+        let other_agent_id = AgentID::try_from("other-agent-id").unwrap();
+        let root_dir = tempdir().unwrap();
+
+        let agent_package =
+            get_package_path(root_dir.path(), &agent_id_to_remove, &test_package_data()).unwrap();
+        let other_package =
+            get_package_path(root_dir.path(), &other_agent_id, &test_package_data()).unwrap();
+        DirectoryManagerFs.create(&agent_package).unwrap();
+        DirectoryManagerFs.create(&other_package).unwrap();
+
+        let pm = OCIPackageManager::new(
+            MockOCIDownloader::new(),
+            DirectoryManagerFs,
+            PathBuf::from(root_dir.path()),
+        );
+
+        pm.remove_agent_packages(&agent_id_to_remove).unwrap();
+
+        assert!(!get_agent_packages_dir(root_dir.path(), &agent_id_to_remove).exists());
+        assert!(other_package.exists());
+    }
+
+    #[test]
+    fn test_remove_agent_packages_is_ok_when_missing() {
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+        let root_dir = tempdir().unwrap();
+
+        let pm = OCIPackageManager::new(
+            MockOCIDownloader::new(),
+            DirectoryManagerFs,
+            PathBuf::from(root_dir.path()),
+        );
+
+        assert!(pm.remove_agent_packages(&agent_id).is_ok());
     }
 }

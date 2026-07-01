@@ -46,6 +46,13 @@ pub trait PackageManager: Send + Sync {
     ) -> Result<(), OCIPackageManagerError>;
 }
 
+/// Removes every package an agent owns on disk.
+pub trait AgentPackagesRemover: Send + Sync {
+    /// Removes every package installed on disk for the given agent. A missing directory is not an
+    /// error.
+    fn remove_agent_packages(&self, agent_id: &AgentID) -> Result<(), OCIPackageManagerError>;
+}
+
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod tests {
@@ -72,6 +79,16 @@ pub mod tests {
     impl MockPackageManager {
         pub fn new_arc() -> Arc<Self> {
             Arc::new(MockPackageManager::new())
+        }
+    }
+
+    mock! {
+        pub AgentPackagesRemover {}
+        impl AgentPackagesRemover for AgentPackagesRemover {
+            fn remove_agent_packages(
+                &self,
+                agent_id: &AgentID,
+            ) -> Result<(), OCIPackageManagerError>;
         }
     }
 }
