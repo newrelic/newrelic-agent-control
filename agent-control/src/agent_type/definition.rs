@@ -106,7 +106,7 @@ impl AgentTypeDefinition {
     /// `protocol_version` before the document is converted into the definition.
     pub fn from_slice(content: &[u8]) -> Result<Self, AgentTypeDefinitionParseError> {
         let document: serde_json::Value = serde_saphyr::from_slice(content)?;
-        protocol_version::check(&document)?;
+        protocol_version::validate(&document)?;
         let definition = serde_json::from_value::<RawAgentTypeDefinition>(document)?.0;
         Ok(definition)
     }
@@ -611,14 +611,14 @@ deployment: {{}}
     }
 
     #[test]
-    fn parse_rejects_incompatible_protocol_version() {
-        // Assumes the supported version is on major 0; a major-1 file is a breaking change.
+    fn parse_rejects_too_new_protocol_version() {
+        // A far-future version is newer than this Agent Control understands.
         let yaml = k8s_definition_yaml("protocol_version: \"99.0\"");
 
         assert_matches!(
             AgentTypeDefinition::from_slice(yaml.as_bytes()),
             Err(AgentTypeDefinitionParseError::ProtocolVersion(
-                ProtocolVersionError::IncompatibleMajor { .. }
+                ProtocolVersionError::Incompatible { .. }
             ))
         );
     }

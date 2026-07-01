@@ -273,6 +273,27 @@ objects:
     }
 
     #[test]
+    fn test_k8s_object_meta_accepts_unknown_fields() {
+        let yaml = r#"
+objects:
+  cr1:
+    apiVersion: agent_control.version/v0beta1
+    kind: Foo
+    metadata:
+      name: test
+      namespace: test-namespace
+      unknown_field: ignore
+      another_unknown:
+        nested: value
+"#;
+        let k8s: K8s = serde_saphyr::from_str(yaml).unwrap();
+        let metadata = &k8s.objects["cr1"].metadata;
+        assert_eq!("test", &metadata.name);
+        assert_eq!("test-namespace", &metadata.namespace);
+        assert!(metadata.labels.is_empty());
+    }
+
+    #[test]
     fn test_template_k8s() {
         let untouched_val = "${nr-var:any} no templated";
         let test_agent_id = "id";
