@@ -1,7 +1,7 @@
 //! Sub-agent attributes used to build the reserved variables that template an agent type.
 use super::variable::{Variable, namespace::Namespace};
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::AGENT_FILESYSTEM_FOLDER_NAME;
+use crate::agent_control::defaults::{AGENT_FILESYSTEM_FOLDER_NAME, SHARED_FILESYSTEM_FOLDER_NAME};
 use std::{collections::HashMap, path::PathBuf};
 use thiserror::Error;
 use tracing::debug;
@@ -12,6 +12,7 @@ pub struct AgentAttributes {
     /// sub-agent Agent ID
     agent_id: String,
     agent_filesystem_dir: PathBuf,
+    shared_filesystem_dir: PathBuf,
     remote_dir: PathBuf,
 }
 
@@ -25,6 +26,8 @@ impl AgentAttributes {
     pub const VARIABLE_SUB_AGENT_ID: &'static str = "agent_id";
     /// Variable name holding the sub-agent's dedicated filesystem directory.
     pub const VARIABLE_FILESYSTEM_AGENT_DIR: &'static str = "filesystem_agent_dir";
+    /// Variable name holding the filesystem directory shared across sub-agents.
+    pub const VARIABLE_SHARED_FILESYSTEM_DIR: &'static str = "shared_filesystem_dir";
     /// Variable name holding the sub-agent's remote directory.
     pub const VARIABLE_REMOTE_DIR: &'static str = "remote_dir";
 
@@ -38,10 +41,13 @@ impl AgentAttributes {
             let agent_filesystem_dir = remote_dir
                 .join(AGENT_FILESYSTEM_FOLDER_NAME)
                 .join(&agent_id);
+            // Shared across sub-agents, so it is not suffixed with the agent id.
+            let shared_filesystem_dir = remote_dir.join(SHARED_FILESYSTEM_FOLDER_NAME);
             debug!(id = %agent_id, "filesystem directory path set to {}", agent_filesystem_dir.display());
             Ok(Self {
                 agent_id: agent_id.to_string(),
                 agent_filesystem_dir,
+                shared_filesystem_dir,
                 remote_dir,
             })
         } else {
@@ -61,9 +67,77 @@ impl AgentAttributes {
                 Variable::new_final_string_variable(self.agent_filesystem_dir.to_string_lossy()),
             ),
             (
+                Namespace::SubAgent.namespaced_name(Self::VARIABLE_SHARED_FILESYSTEM_DIR),
+                Variable::new_final_string_variable(self.shared_filesystem_dir.to_string_lossy()),
+            ),
+            (
                 Namespace::SubAgent.namespaced_name(Self::VARIABLE_REMOTE_DIR),
                 Variable::new_final_string_variable(self.remote_dir.to_string_lossy()),
             ),
         ])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent_control::defaults::AGENT_CONTROL_DATA_DIR;
+    use crate::agent_type::trivial_value::TrivialValue;
+
+    fn final_string(vars: &HashMap<String, Variable>, name: &str) -> String {
+        let key = Namespace::SubAgent.namespaced_name(name);
+        match vars
+            .get(&key)
+            .and_then(Variable::get_final_value)
+            .unwrap_or_else(|| panic!("missing variable {key}"))
+        {
+            TrivialValue::String(s) => s,
+            other => panic!("expected string for {key}, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn filesystems_are_available() {
+        let remote_dir = PathBuf::from(AGENT_CONTROL_DATA_DIR);
+        let agent_id = AgentID::try_from("my-agent").unwrap();
+        let attrs = AgentAttributes::try_new(agent_id, remote_dir.clone()).unwrap();
+
+        let vars = attrs.sub_agent_variables();
+
+        // Build expected paths via `join` so separators match the platform (e.g. `\` on Windows).
+        // Shared dir lives directly under the remote dir, with no agent-id suffix.
+        let expected_shared = remote_dir
+            .join("shared-filesystem")
+            .to_string_lossy()
+            .to_string();
+        assert_eq!(
+            final_string(&vars, AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR),
+            expected_shared,
+        );
+        // The per-agent dir, in contrast, is suffixed with the agent id.
+        let expected_agent = remote_dir
+            .join("filesystem")
+            .join("my-agent")
+            .to_string_lossy()
+            .to_string();
+        assert_eq!(
+            final_string(&vars, AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+            expected_agent,
+        );
+    }
+
+    #[test]
+    fn shared_filesystem_dir_is_identical_across_agents() {
+        let remote_dir = PathBuf::from(AGENT_CONTROL_DATA_DIR);
+        let a = AgentAttributes::try_new(AgentID::try_from("agent-a").unwrap(), remote_dir.clone())
+            .unwrap();
+        let b =
+            AgentAttributes::try_new(AgentID::try_from("agent-b").unwrap(), remote_dir).unwrap();
+
+        let key = AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR;
+        assert_eq!(
+            final_string(&a.sub_agent_variables(), key),
+            final_string(&b.sub_agent_variables(), key),
+        );
     }
 }
