@@ -56,9 +56,10 @@ fi
 
 # ----- HELPER FUNCTIONS -----
 function print_usage() {
-  echo "Usage: $0 [install|run|uninstall|killall|help] [--basic-auth]"
+  echo "Usage: $0 [install|run|clean|uninstall|killall|help] [--basic-auth]"
   echo "  install    - Download and install zot registry"
   echo "  run        - Run zot registry"
+  echo "  clean      - Remove the registry storage (start each run from an empty registry)"
   echo "  uninstall  - Remove zot registry and all associated files"
   echo "  killall    - Kill all running zot processes"
   echo "  help       - Display this help message"
@@ -166,12 +167,17 @@ function run() {
 
 
 # ----- MAIN -----
-if [[ $OPTION != "help" && $OPTION != "install" && $OPTION != "uninstall" && $OPTION != "run" && $OPTION != "killall" ]]; then
+if [[ $OPTION != "help" && $OPTION != "install" && $OPTION != "uninstall" && $OPTION != "run" && $OPTION != "killall" && $OPTION != "clean" ]]; then
     echo "Invalid option: $OPTION"
     print_usage
     exit 1
 elif [[ $OPTION == "help" || $OPTION == "empty" ]]; then
     print_usage
+    exit 0
+elif [[ $OPTION == "clean" ]]; then
+    echo "Cleaning zot registry storage at $STORAGE_PATH..."
+    rm -rf "$STORAGE_PATH"
+    echo "Registry storage cleaned"
     exit 0
 elif [[ $OPTION == "uninstall" ]]; then
     echo "Uninstalling zot registry..."

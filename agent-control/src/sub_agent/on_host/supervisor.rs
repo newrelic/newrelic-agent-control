@@ -119,6 +119,11 @@ where
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Self::Supervisor, Self::Error> {
+        // `agent.version` is derived from the package *config* (`download.oci.version`).
+        // Publish it before the (potentially slow / registry-contended)
+        // package download so version reporting does not depend on the download finishing.
+        self.check_subagent_version(sub_agent_internal_publisher.clone());
+
         install_packages(
             &self.package_manager,
             &self.agent_identity.id,
