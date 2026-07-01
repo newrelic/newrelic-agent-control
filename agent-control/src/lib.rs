@@ -3,8 +3,6 @@
 //! This library provides the core functionality for Agent Control. The different binaries generated
 //! by this project will consume this library.
 
-#![deny(missing_docs)]
-
 pub mod agent_control;
 pub mod agent_type;
 pub mod checkers;

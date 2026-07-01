@@ -12,42 +12,50 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::RESERVED_AGENT_IDS;
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::opamp::instance_id::storer::{InstanceIDStorer, StorerError};
+use crate::package::manager::AgentPackagesRemover;
+use crate::package::oci::package_manager::OCIPackageManagerError;
 use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
 
 use super::{ResourceCleaner, ResourceCleanerError};
 
 /// On-host implementation of [`ResourceCleaner`] that wipes a sub-agent's fleet data by
 /// delegating to the same storers that wrote it, also recursively deletes the sub-agent's
-/// dedicated filesystem directory, the `persistent` flag is bypassed here because the agent
-/// has been removed from the fleet.
+/// dedicated filesystem directory and its installed packages (via the [`AgentPackagesRemover`],
+/// which owns the on-disk package layout), the `persistent` flag is bypassed here because the
+/// agent has been removed from the fleet.
 /// The same removal logic is reused at startup by [`Self::purge_stale_agents`] to reclaim the
 /// resources of agents removed from the fleet config while Agent Control was stopped.
-pub struct OnHostCleaner<S, C, D>
+pub struct OnHostCleaner<S, C, D, P>
 where
     S: InstanceIDStorer,
     C: ConfigRepository,
     D: DirectoryManager,
+    P: AgentPackagesRemover,
 {
     instance_id_storer: Arc<S>,
     config_repo: Arc<C>,
     agent_filesystem_base: PathBuf,
     fleet_data_base: PathBuf,
     dir_manager: Arc<D>,
+    package_remover: Arc<P>,
 }
 
-impl<S, C, D> OnHostCleaner<S, C, D>
+impl<S, C, D, P> OnHostCleaner<S, C, D, P>
 where
     S: InstanceIDStorer,
     C: ConfigRepository,
     D: DirectoryManager,
+    P: AgentPackagesRemover,
 {
-    /// Builds a cleaner delegating to the given instance-id storer and config repository.
+    /// Builds a cleaner delegating to the given instance-id storer, config repository and package
+    /// remover.
     pub fn new(
         instance_id_storer: Arc<S>,
         config_repo: Arc<C>,
         agent_filesystem_base: PathBuf,
         fleet_data_base: PathBuf,
         dir_manager: Arc<D>,
+        package_remover: Arc<P>,
     ) -> Self {
         Self {
             instance_id_storer,
@@ -55,11 +63,12 @@ where
             agent_filesystem_base,
             fleet_data_base,
             dir_manager,
+            package_remover,
         }
     }
 
     /// Deletes all on-disk resources Agent Control owns for `agent_id`: its stored remote config,
-    /// its OpAMP instance id, and its dedicated filesystem directory.
+    /// its OpAMP instance id, its dedicated filesystem directory and its installed packages.
     fn remove_agent_resources(&self, agent_id: &AgentID) -> Result<(), OnHostCleanerError> {
         debug!(%agent_id, "Cleaning remote config data");
         self.config_repo
@@ -78,7 +87,14 @@ where
             .map_err(|err| OnHostCleanerError::Filesystem {
                 path: fs_dir,
                 source: err,
-            })
+            })?;
+
+        debug!(%agent_id, "Cleaning agent packages");
+        self.package_remover
+            .remove_agent_packages(agent_id)
+            .map_err(OnHostCleanerError::Packages)?;
+
+        Ok(())
     }
 
     /// At startup, reclaims the resources of any agent that is no longer in the agents config.
@@ -123,11 +139,12 @@ where
     }
 }
 
-impl<S, C, D> ResourceCleaner for OnHostCleaner<S, C, D>
+impl<S, C, D, P> ResourceCleaner for OnHostCleaner<S, C, D, P>
 where
     S: InstanceIDStorer,
     C: ConfigRepository,
     D: DirectoryManager,
+    P: AgentPackagesRemover,
 {
     #[instrument(skip_all, name = "agent_resource_clean", fields(%agent_id))]
     fn clean(
@@ -164,6 +181,9 @@ pub enum OnHostCleanerError {
         #[source]
         source: std::io::Error,
     },
+    /// Failed to remove the agent's installed packages.
+    #[error("failed to remove agent packages: {0}")]
+    Packages(#[source] OCIPackageManagerError),
 }
 
 impl From<OnHostCleanerError> for ResourceCleanerError {
@@ -177,6 +197,7 @@ mod tests {
     use super::*;
     use crate::agent_control::defaults::AGENT_CONTROL_ID;
     use crate::opamp::instance_id::storer::tests::MockInstanceIDStorer;
+    use crate::package::manager::tests::MockAgentPackagesRemover;
     use crate::values::config_repository::tests::MockConfigRepository;
     use ::fs::directory_manager::mock::MockDirectoryManager;
     use mockall::predicate;
@@ -184,6 +205,27 @@ mod tests {
 
     fn agent_id(s: &str) -> AgentID {
         AgentID::try_from(s).unwrap()
+    }
+
+    /// Package remover that expects `remove_agent_packages` exactly once per given agent id.
+    fn remover_removing(agent_ids: &[&str]) -> MockAgentPackagesRemover {
+        let mut remover = MockAgentPackagesRemover::new();
+        for id in agent_ids {
+            let id = agent_id(id);
+            remover
+                .expect_remove_agent_packages()
+                .with(predicate::eq(id))
+                .once()
+                .returning(|_| Ok(()));
+        }
+        remover
+    }
+
+    fn packages_error() -> OCIPackageManagerError {
+        OCIPackageManagerError::RemoveAgentPackages {
+            path: "/var/lib/newrelic-agent-control/packages/foo-agent".to_string(),
+            source: std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"),
+        }
     }
 
     fn any_type_id() -> AgentTypeID {
@@ -226,6 +268,7 @@ mod tests {
             fs_base(),
             fleet_base(),
             Arc::new(dir_manager),
+            Arc::new(remover_removing(&[id.as_str()])),
         );
 
         assert!(cleaner.clean(&id, &any_type_id()).is_ok());
@@ -254,10 +297,43 @@ mod tests {
             fs_base(),
             fleet_base(),
             Arc::new(dir_manager),
+            Arc::new(remover_removing(&[])),
         );
 
         let err = cleaner.clean(&id, &any_type_id()).unwrap_err();
         assert!(err.0.contains("agent filesystem directory"));
+    }
+
+    #[test]
+    fn clean_propagates_package_removal_error() {
+        let id = agent_id("foo-agent");
+        let expected_fs_dir = fs_base().join(id.as_str());
+
+        let mut instance_id_storer = MockInstanceIDStorer::new();
+        instance_id_storer.expect_delete().returning(|_| Ok(()));
+        let mut config_repo = MockConfigRepository::new();
+        config_repo.expect_delete_remote().returning(|_| Ok(()));
+        let mut dir_manager = MockDirectoryManager::new();
+        dir_manager.should_delete(&expected_fs_dir);
+
+        let mut package_remover = MockAgentPackagesRemover::new();
+        package_remover
+            .expect_remove_agent_packages()
+            .with(predicate::eq(id.clone()))
+            .once()
+            .returning(|_| Err(packages_error()));
+
+        let cleaner = OnHostCleaner::new(
+            Arc::new(instance_id_storer),
+            Arc::new(config_repo),
+            fs_base(),
+            fleet_base(),
+            Arc::new(dir_manager),
+            Arc::new(package_remover),
+        );
+
+        let err = cleaner.clean(&id, &any_type_id()).unwrap_err();
+        assert!(err.0.contains("failed to remove agent packages"));
     }
 
     #[test]
@@ -268,6 +344,8 @@ mod tests {
         config_repo.expect_delete_remote().never();
         let mut dir_manager = MockDirectoryManager::new();
         dir_manager.expect_delete().never();
+        let mut package_remover = MockAgentPackagesRemover::new();
+        package_remover.expect_remove_agent_packages().never();
 
         let cleaner = OnHostCleaner::new(
             Arc::new(instance_id_storer),
@@ -275,6 +353,7 @@ mod tests {
             PathBuf::new(),
             PathBuf::new(),
             Arc::new(dir_manager),
+            Arc::new(package_remover),
         );
 
         let result = cleaner.clean(&AgentID::AgentControl, &any_type_id());
@@ -286,19 +365,26 @@ mod tests {
         instance_id_storer: MockInstanceIDStorer,
         config_repo: MockConfigRepository,
         dir_manager: MockDirectoryManager,
-    ) -> OnHostCleaner<MockInstanceIDStorer, MockConfigRepository, MockDirectoryManager> {
+        package_remover: MockAgentPackagesRemover,
+    ) -> OnHostCleaner<
+        MockInstanceIDStorer,
+        MockConfigRepository,
+        MockDirectoryManager,
+        MockAgentPackagesRemover,
+    > {
         OnHostCleaner::new(
             Arc::new(instance_id_storer),
             Arc::new(config_repo),
             fs_base(),
             fleet_base(),
             Arc::new(dir_manager),
+            Arc::new(package_remover),
         )
     }
 
-    /// Orphans (agents no longer configured) are fully reclaimed — remote config, instance id and
-    /// filesystem dir — and discovered from BOTH the filesystem and fleet-data bases. Configured
-    /// agents survive.
+    /// Orphans (agents no longer configured) are fully reclaimed — remote config, instance id,
+    /// filesystem dir and packages — and discovered from BOTH the filesystem and fleet-data bases.
+    /// Configured agents survive.
     #[test]
     fn purge_reclaims_orphans_from_filesystem_and_fleet_data() {
         let orphan_fs = agent_id("orphan-fs");
@@ -310,35 +396,33 @@ mod tests {
             vec![fs_base().join("kept"), fs_base().join("orphan-fs")],
         );
         dir_manager.should_list(&fleet_base(), vec![fleet_base().join("orphan-fleet")]);
-        // `remove_agent_resources` always deletes the agent's filesystem dir (idempotent).
-        dir_manager.should_delete(&fs_base().join("orphan-fs"));
-        dir_manager.should_delete(&fs_base().join("orphan-fleet"));
-
         let mut config_repo = MockConfigRepository::new();
-        config_repo
-            .expect_delete_remote()
-            .with(predicate::eq(orphan_fs.clone()))
-            .once()
-            .returning(|_| Ok(()));
-        config_repo
-            .expect_delete_remote()
-            .with(predicate::eq(orphan_fleet.clone()))
-            .once()
-            .returning(|_| Ok(()));
-
         let mut instance_id_storer = MockInstanceIDStorer::new();
-        instance_id_storer
-            .expect_delete()
-            .with(predicate::eq(orphan_fs))
-            .once()
-            .returning(|_| Ok(()));
-        instance_id_storer
-            .expect_delete()
-            .with(predicate::eq(orphan_fleet))
-            .once()
-            .returning(|_| Ok(()));
+        // `remove_agent_resources` always deletes the agent's filesystem dir (idempotent),
+        // regardless of which base the orphan was discovered from.
+        for orphan in [&orphan_fs, &orphan_fleet] {
+            dir_manager.should_delete(&fs_base().join(orphan.as_str()));
+            config_repo
+                .expect_delete_remote()
+                .with(predicate::eq(orphan.clone()))
+                .once()
+                .returning(|_| Ok(()));
+            instance_id_storer
+                .expect_delete()
+                .with(predicate::eq(orphan.clone()))
+                .once()
+                .returning(|_| Ok(()));
+        }
 
-        cleaner(instance_id_storer, config_repo, dir_manager).purge_stale_agents(["kept"]);
+        let package_remover = remover_removing(&["orphan-fs", "orphan-fleet"]);
+
+        cleaner(
+            instance_id_storer,
+            config_repo,
+            dir_manager,
+            package_remover,
+        )
+        .purge_stale_agents(["kept"]);
     }
 
     /// Agent Control's own directory (a reserved ID) is never reclaimed.
@@ -367,11 +451,19 @@ mod tests {
         let mut instance_id_storer = MockInstanceIDStorer::new();
         instance_id_storer
             .expect_delete()
-            .with(predicate::eq(orphan))
+            .with(predicate::eq(orphan.clone()))
             .once()
             .returning(|_| Ok(()));
 
-        cleaner(instance_id_storer, config_repo, dir_manager).purge_stale_agents([]);
+        let package_remover = remover_removing(&[orphan.as_str()]);
+
+        cleaner(
+            instance_id_storer,
+            config_repo,
+            dir_manager,
+            package_remover,
+        )
+        .purge_stale_agents([]);
     }
 
     #[test]
@@ -386,7 +478,15 @@ mod tests {
         let mut instance_id_storer = MockInstanceIDStorer::new();
         instance_id_storer.expect_delete().never();
 
-        cleaner(instance_id_storer, config_repo, dir_manager).purge_stale_agents(["any"]);
+        let package_remover = remover_removing(&[]);
+
+        cleaner(
+            instance_id_storer,
+            config_repo,
+            dir_manager,
+            package_remover,
+        )
+        .purge_stale_agents(["any"]);
     }
 
     /// If listing one base fails, the helper logs and still reclaims orphans found in the other.
@@ -411,10 +511,18 @@ mod tests {
         let mut instance_id_storer = MockInstanceIDStorer::new();
         instance_id_storer
             .expect_delete()
-            .with(predicate::eq(orphan))
+            .with(predicate::eq(orphan.clone()))
             .once()
             .returning(|_| Ok(()));
 
-        cleaner(instance_id_storer, config_repo, dir_manager).purge_stale_agents([]);
+        let package_remover = remover_removing(&[orphan.as_str()]);
+
+        cleaner(
+            instance_id_storer,
+            config_repo,
+            dir_manager,
+            package_remover,
+        )
+        .purge_stale_agents([]);
     }
 }
