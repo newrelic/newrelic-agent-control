@@ -76,8 +76,7 @@ impl K8sAgentControlConfigBuilder {
         self
     }
 
-    // Clippy complains about dead code in windows tests, but this is used in Linux tests.
-    #[allow(dead_code)]
+    #[cfg(unix)]
     pub fn with_cd_enabled(mut self, enabled: bool) -> Self {
         self.cd_enabled = Some(enabled);
         self
@@ -103,8 +102,7 @@ impl K8sAgentControlConfigBuilder {
         self
     }
 
-    // Clippy complains about dead code in windows tests, but this is used in Linux tests.
-    #[allow(dead_code)]
+    #[cfg(unix)]
     pub fn with_secret_private_key_name(mut self, name: impl Into<String>) -> Self {
         self.secret_private_key_name = Some(name.into());
         self
@@ -120,6 +118,18 @@ impl K8sAgentControlConfigBuilder {
         self
     }
 
+    /// Creates the AC config (ConfigMap + local file).
+    ///
+    /// Uses [TEST_CLUSTER_NAME] as the cluster name.
+    ///
+    /// Both writes are required:
+    ///
+    /// - The local config is read once at startup by `build_bootstrap_config`
+    ///   to bootstrap the process (e.g. connects to the cluster).
+    ///   This mirrors how the helm chart mounts the config as a file in production.
+    ///
+    /// - The config map is the runtime store. Once running, AC reads and persists all
+    ///   config through `ConfigMapStore`, not the local file.
     pub fn write(self, client: Client, local_dir: &Path) {
         let ac_ns = self.ac_namespace.clone();
         let content = self.build_yaml();

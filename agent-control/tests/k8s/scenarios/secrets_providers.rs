@@ -17,7 +17,6 @@ use tempfile::tempdir;
 fn k8s_template_secrets() {
     let test_name = "k8s_template_secrets";
 
-    // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     k8s.port_forward("vault-0", 8200, 8200);
     let namespace = block_on(k8s.test_namespace());

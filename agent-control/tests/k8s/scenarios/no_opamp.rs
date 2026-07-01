@@ -14,7 +14,6 @@ use tempfile::tempdir;
 #[test]
 #[ignore = "needs a k8s cluster"]
 fn k8s_sub_agent_started_with_no_opamp() {
-    // Setup k8s env
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");

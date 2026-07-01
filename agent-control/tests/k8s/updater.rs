@@ -25,7 +25,6 @@ const TEST_AC_RELEASE_NAME: &str = "test-deployment-release-name";
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_run_updater_for_cd_and_ac() {
-    // set up the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let test_ns = block_on(k8s.test_namespace());
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());

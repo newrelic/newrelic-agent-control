@@ -145,6 +145,25 @@ agents: {}
 }
 
 /// This test verifies that GC handles the fleet-data ConfigMap correctly on AC restart.
+///
+/// Fleet-data ConfigMaps are Agent Control internal resources and carry the
+/// `newrelic.io/owned-by: agent-control` annotation. They are handled by
+/// `garbage_collect_agent_control_resources`, which lists ConfigMaps by label and
+/// deletes only those with the `owned-by: agent-control` annotation.
+///
+/// Sub-agent dynamic objects (e.g. supervisor-created resources) carry the
+/// `newrelic.io/owned-by: sub-agent` annotation and are handled by
+/// `garbage_collect_sub_agent_resources`.
+///
+/// The test:
+/// 1. Starts AC and deploys the config-map-type agent via OpAMP remote config.
+/// 2. Sends a remote config to the sub-agent, which causes AC to store the remote config
+///    and write the `owned-by: agent-control` and `agent-type-id` annotations onto the
+///    fleet-data ConfigMap.
+/// 3. Waits for the annotation to be present, then stops and restarts AC.
+/// 4. On restart, `retain` finds the annotated fleet-data ConfigMap, recognises it as an
+///    Agent Control internal resource, and correctly retains it.
+/// 5. The test passes only if AC starts successfully.
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_config_map_type_gc_does_not_fail_on_restart() {

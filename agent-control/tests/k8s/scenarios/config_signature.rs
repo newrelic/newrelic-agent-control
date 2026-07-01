@@ -34,7 +34,6 @@ fn k8s_signature_disabled() {
     agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
 "#;
 
-    // start the agent-control with signature verification disabled
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
         .with_signature_validation_disabled()
