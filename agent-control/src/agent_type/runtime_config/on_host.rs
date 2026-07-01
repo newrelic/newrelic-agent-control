@@ -13,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 
 pub mod executable;
 pub mod filesystem;
+pub mod managed_paths;
 pub mod package;
 pub mod rendered;
 
