@@ -175,9 +175,6 @@ elif [[ $OPTION == "help" || $OPTION == "empty" ]]; then
     print_usage
     exit 0
 elif [[ $OPTION == "clean" ]]; then
-    # Wipe persisted registry storage so each test run starts from an empty registry. zot keeps its
-    # data under STORAGE_PATH across runs; leftover tags break tests that assume a version is absent
-    # (e.g. the self-update recovery test) and bloat the registry, slowing concurrent pulls.
     echo "Cleaning zot registry storage at $STORAGE_PATH..."
     rm -rf "$STORAGE_PATH"
     echo "Registry storage cleaned"
