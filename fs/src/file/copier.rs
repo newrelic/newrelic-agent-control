@@ -4,35 +4,26 @@ use std::path::Path;
 use std::{fs, io};
 use tracing::instrument;
 
-/// Copies a file on disk, preserving the source's permissions on Unix.
+/// Copies a file on disk, keeping the destination's permissions consistent with the source.
 pub trait FileCopier {
     /// Copies the file at `from` to the file at `to`, creating or truncating `to`.
     ///
-    /// The copy is byte-for-byte, so non-UTF-8 binaries are preserved exactly. On Unix it
-    /// **preserves the source file's mode bits**.
-    ///
-    /// On Windows, permissions cannot be preserved this way (the copy does not carry the source's
-    /// ACL, and executability is determined by extension, not permissions), so the destination is
-    /// restricted to administrators, matching [super::writer::FileWriter].
+    /// The copy is byte-for-byte, so non-UTF-8 binaries are preserved exactly, and the destination
+    /// keeps the permissions a plain copy yields: on Unix the source's mode bits are carried over
+    /// (e.g. the executable bit); on Windows the destination takes the default ACL for its location.
     ///
     /// The destination's parent directory must already exist.
     fn copy(&self, from: &Path, to: &Path) -> io::Result<()>;
 }
 
 impl FileCopier for LocalFile {
-    /// Copies `from` to `to` byte-for-byte, preserving the source's mode on Unix and applying the
-    /// administrators-only ACL on Windows.
+    /// Copies `from` to `to` byte-for-byte, leaving the destination with the permissions a plain
+    /// copy yields (the source's mode on Unix; the default ACL on Windows).
     #[instrument(skip_all, fields(from = %from.display(), to = %to.display()))]
     fn copy(&self, from: &Path, to: &Path) -> io::Result<()> {
         validate_path(to)?;
 
         fs::copy(from, to)?;
-
-        #[cfg(target_family = "windows")]
-        {
-            crate::win_permissions::set_file_permissions_for_administrator(to)
-                .map_err(io::Error::other)?;
-        }
 
         Ok(())
     }
@@ -77,8 +68,6 @@ pub mod tests {
         }
     }
 
-    /// Copying onto an existing file replaces the existing
-    #[cfg(unix)]
     #[test]
     fn test_copy_overwrites_existing_destination() {
         let dir = tempfile::tempdir().unwrap();
@@ -122,20 +111,31 @@ pub mod tests {
         );
     }
 
-    // Needs administrator rights on Windows (matches the writer tests). On GitHub Actions the
-    // Windows runner is elevated, so it passes there.
+    /// A copied executable must stay runnable: copy the running test binary and launch the copy.
+    /// The earlier implementation dropped `FILE_EXECUTE`, which this would have caught.
+    #[cfg(windows)]
     #[test]
-    #[ignore = "requires windows administrator"]
-    #[cfg(target_family = "windows")]
-    fn test_copy_sets_windows_admin_permissions() {
+    fn test_copied_executable_is_still_executable() {
+        use std::process::{Command, Stdio};
+
+        let source = std::env::current_exe().expect("path to the running test executable");
         let dir = tempfile::tempdir().unwrap();
-        let src = dir.path().join("src");
-        let dst = dir.path().join("dst");
-        fs::write(&src, "data").unwrap();
+        let dst = dir.path().join("copied-test-bin.exe");
 
-        LocalFile.copy(&src, &dst).unwrap();
+        LocalFile.copy(&source, &dst).unwrap();
 
-        assert_eq!(fs::read_to_string(&dst).unwrap(), "data");
-        crate::win_permissions::tests::assert_windows_permissions(&dst);
+        // `--list` makes the test harness exit 0 without running any test; a successful launch
+        // proves the copy is executable (a missing `FILE_EXECUTE` would fail the spawn instead).
+        let status = Command::new(&dst)
+            .arg("--list")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .expect("the copied executable should be launchable");
+
+        assert!(
+            status.success(),
+            "copied executable failed to run: {status:?}"
+        );
     }
 }
