@@ -525,8 +525,12 @@ mod tests {
 
     #[test]
     fn dispatch_when_idle_enqueues_and_marks_in_flight() {
-        let (mut ctrl, job_rx) =
-            controller(Duration::from_secs(30), Duration::from_secs(600), 5, FakeClock::new(Instant::now()));
+        let (mut ctrl, job_rx) = controller(
+            Duration::from_secs(30),
+            Duration::from_secs(600),
+            5,
+            FakeClock::new(Instant::now()),
+        );
         let v = ver("99.99.99");
 
         assert_eq!(ctrl.dispatch(v.clone()), Ok(UpdateOutcome::Dispatched));
@@ -537,8 +541,12 @@ mod tests {
     #[test]
     fn dispatch_same_version_in_flight_is_deduped() {
         // F-18: a re-push of the version already being installed must not enqueue a second job.
-        let (mut ctrl, job_rx) =
-            controller(Duration::from_secs(30), Duration::from_secs(600), 5, FakeClock::new(Instant::now()));
+        let (mut ctrl, job_rx) = controller(
+            Duration::from_secs(30),
+            Duration::from_secs(600),
+            5,
+            FakeClock::new(Instant::now()),
+        );
         let v = ver("99.99.99");
 
         ctrl.dispatch(v.clone()).unwrap();
@@ -550,12 +558,19 @@ mod tests {
     #[test]
     fn dispatch_different_version_in_flight_is_recorded_as_desired() {
         // F-10: a different version mid-flight isn't started now, but is remembered as `desired`.
-        let (mut ctrl, job_rx) =
-            controller(Duration::from_secs(30), Duration::from_secs(600), 5, FakeClock::new(Instant::now()));
+        let (mut ctrl, job_rx) = controller(
+            Duration::from_secs(30),
+            Duration::from_secs(600),
+            5,
+            FakeClock::new(Instant::now()),
+        );
 
         ctrl.dispatch(ver("99.99.99")).unwrap();
         assert_eq!(next_job(&job_rx), Some(ver("99.99.99")));
-        assert_eq!(ctrl.dispatch(ver("88.88.88")), Ok(UpdateOutcome::Dispatched));
+        assert_eq!(
+            ctrl.dispatch(ver("88.88.88")),
+            Ok(UpdateOutcome::Dispatched)
+        );
         assert_eq!(next_job(&job_rx), None); // not started while the first is in flight
         assert_eq!(ctrl.in_flight, Some(ver("99.99.99")));
         assert_eq!(ctrl.desired, Some(ver("88.88.88")));
@@ -564,8 +579,12 @@ mod tests {
     #[test]
     fn converges_to_desired_after_failure() {
         // F-10: when the in-flight attempt fails, the newer desired version is dispatched.
-        let (mut ctrl, job_rx) =
-            controller(Duration::from_secs(30), Duration::from_secs(600), 5, FakeClock::new(Instant::now()));
+        let (mut ctrl, job_rx) = controller(
+            Duration::from_secs(30),
+            Duration::from_secs(600),
+            5,
+            FakeClock::new(Instant::now()),
+        );
 
         ctrl.dispatch(ver("99.99.99")).unwrap();
         assert_eq!(next_job(&job_rx), Some(ver("99.99.99")));
@@ -582,8 +601,12 @@ mod tests {
     #[test]
     fn latest_desired_version_wins() {
         // F-10: the newest request overwrites an earlier desired version.
-        let (mut ctrl, job_rx) =
-            controller(Duration::from_secs(30), Duration::from_secs(600), 5, FakeClock::new(Instant::now()));
+        let (mut ctrl, job_rx) = controller(
+            Duration::from_secs(30),
+            Duration::from_secs(600),
+            5,
+            FakeClock::new(Instant::now()),
+        );
 
         ctrl.dispatch(ver("99.99.99")).unwrap();
         let _ = next_job(&job_rx);
@@ -598,8 +621,12 @@ mod tests {
     #[test]
     fn success_does_not_converge() {
         // On success a restart is imminent, so a desired version is dropped (not dispatched).
-        let (mut ctrl, job_rx) =
-            controller(Duration::from_secs(30), Duration::from_secs(600), 5, FakeClock::new(Instant::now()));
+        let (mut ctrl, job_rx) = controller(
+            Duration::from_secs(30),
+            Duration::from_secs(600),
+            5,
+            FakeClock::new(Instant::now()),
+        );
 
         ctrl.dispatch(ver("99.99.99")).unwrap();
         let _ = next_job(&job_rx);
@@ -614,8 +641,12 @@ mod tests {
     #[test]
     fn failure_suppressed_within_window_then_reattempts() {
         let clock = FakeClock::new(Instant::now());
-        let (mut ctrl, job_rx) =
-            controller(Duration::from_secs(30), Duration::from_secs(600), 5, clock.clone());
+        let (mut ctrl, job_rx) = controller(
+            Duration::from_secs(30),
+            Duration::from_secs(600),
+            5,
+            clock.clone(),
+        );
         let v = ver("99.99.99");
 
         ctrl.dispatch(v.clone()).unwrap();
@@ -637,8 +668,12 @@ mod tests {
 
     #[test]
     fn success_resets_cooldown() {
-        let (mut ctrl, job_rx) =
-            controller(Duration::from_secs(30), Duration::from_secs(600), 5, FakeClock::new(Instant::now()));
+        let (mut ctrl, job_rx) = controller(
+            Duration::from_secs(30),
+            Duration::from_secs(600),
+            5,
+            FakeClock::new(Instant::now()),
+        );
         let v = ver("99.99.99");
 
         ctrl.dispatch(v.clone()).unwrap();
@@ -652,8 +687,12 @@ mod tests {
 
     #[test]
     fn aborted_leaves_cooldown_untouched() {
-        let (mut ctrl, job_rx) =
-            controller(Duration::from_secs(30), Duration::from_secs(600), 5, FakeClock::new(Instant::now()));
+        let (mut ctrl, job_rx) = controller(
+            Duration::from_secs(30),
+            Duration::from_secs(600),
+            5,
+            FakeClock::new(Instant::now()),
+        );
         let v = ver("99.99.99");
 
         ctrl.dispatch(v.clone()).unwrap();
@@ -667,8 +706,12 @@ mod tests {
 
     #[test]
     fn pending_version_tracks_gate_key() {
-        let (mut ctrl, job_rx) =
-            controller(Duration::from_secs(30), Duration::from_secs(600), 5, FakeClock::new(Instant::now()));
+        let (mut ctrl, job_rx) = controller(
+            Duration::from_secs(30),
+            Duration::from_secs(600),
+            5,
+            FakeClock::new(Instant::now()),
+        );
         let v = ver("99.99.99");
 
         assert_eq!(ctrl.pending_version(), None);
@@ -698,9 +741,11 @@ mod tests {
     #[test]
     fn run_returns_failed_when_install_fails() {
         let mut pm = MockPackageManager::new();
-        pm.expect_install()
-            .times(1)
-            .returning(|_, _| Err(OCIPackageManagerError::Install(std::io::Error::other("boom"))));
+        pm.expect_install().times(1).returning(|_, _| {
+            Err(OCIPackageManagerError::Install(std::io::Error::other(
+                "boom",
+            )))
+        });
         let mut ve = MockVerifyExecutorMock::new();
         ve.expect_execute().never();
 
@@ -714,7 +759,9 @@ mod tests {
     #[test]
     fn run_aborts_before_verify_when_cancelled() {
         let mut pm = MockPackageManager::new();
-        pm.expect_install().times(1).returning(|_, _| Ok(installed()));
+        pm.expect_install()
+            .times(1)
+            .returning(|_, _| Ok(installed()));
         let mut ve = MockVerifyExecutorMock::new();
         ve.expect_execute().never(); // must NOT verify after a cancel
 
@@ -729,7 +776,9 @@ mod tests {
     #[test]
     fn run_returns_failed_when_verify_fails() {
         let mut pm = MockPackageManager::new();
-        pm.expect_install().times(1).returning(|_, _| Ok(installed()));
+        pm.expect_install()
+            .times(1)
+            .returning(|_, _| Ok(installed()));
         let mut ve = MockVerifyExecutorMock::new();
         ve.expect_execute()
             .times(1)
@@ -746,7 +795,9 @@ mod tests {
     fn run_aborts_after_verify_when_cancelled_before_replace() {
         // verify succeeds but a stop arrives during it; the attempt must abort BEFORE self-replace.
         let mut pm = MockPackageManager::new();
-        pm.expect_install().times(1).returning(|_, _| Ok(installed()));
+        pm.expect_install()
+            .times(1)
+            .returning(|_, _| Ok(installed()));
 
         let (stop_tx, stop_rx) = pub_sub::<CancellationMessage>();
         let stop_tx_in_verify = stop_tx.clone();
@@ -782,7 +833,9 @@ mod tests {
     fn update_is_noop_when_remote_update_disabled() {
         let updater = new_test_updater(false);
         assert_eq!(
-            updater.update(&AgentControlDynamicConfig::default()).unwrap(),
+            updater
+                .update(&AgentControlDynamicConfig::default())
+                .unwrap(),
             UpdateOutcome::NoOp
         );
     }
@@ -791,7 +844,9 @@ mod tests {
     fn update_is_noop_when_version_not_specified() {
         let updater = new_test_updater(true);
         assert_eq!(
-            updater.update(&AgentControlDynamicConfig::default()).unwrap(),
+            updater
+                .update(&AgentControlDynamicConfig::default())
+                .unwrap(),
             UpdateOutcome::NoOp
         );
     }

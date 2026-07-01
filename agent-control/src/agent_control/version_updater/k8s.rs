@@ -1,9 +1,7 @@
 //! Kubernetes [`VersionUpdater`] that patches the AC and CD HelmReleases to their desired versions.
 
 use crate::agent_control::config::{AgentControlDynamicConfig, helmrelease_v2_type_meta};
-use crate::agent_control::version_updater::updater::{
-    UpdateOutcome, UpdaterError, VersionUpdater,
-};
+use crate::agent_control::version_updater::updater::{UpdateOutcome, UpdaterError, VersionUpdater};
 use crate::k8s::client::K8sObjectKey;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, REMOTE_VAL};

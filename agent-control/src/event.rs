@@ -82,7 +82,10 @@ pub enum AgentControlInternalEvent {
     SelfUpdateRestartRequested(),
     /// An asynchronous self-update attempt failed. Carries the rendered error so the event loop
     /// can report the in-flight remote config as `Failed`.
-    SelfUpdateFailed { error_message: String },
+    SelfUpdateFailed {
+        /// Last selfUpdate error message
+        error_message: String,
+    },
 }
 
 /// Defines internal events for the SubAgent component.
