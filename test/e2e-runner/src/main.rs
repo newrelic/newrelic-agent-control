@@ -49,6 +49,10 @@ enum LinuxScenarios {
     /// Tests self-update functionality by installing Agent Control from current branch and verifying that AC updates itself,
     /// when instructed via OpAMP, to the latest published tag.
     SelfUpdateCurrentToLatest(InstallationArgs),
+    /// Verifies the event loop stays responsive during a self-update. Slows the
+    /// upgrade via a debug hook, then pushes a second remote config mid-upgrade and asserts it is
+    /// applied within the window (fails if the loop is frozen, as in the pre-worker-thread build).
+    EventLoopResponsiveDuringSelfUpdate(InstallationArgs),
 }
 
 #[derive(Debug, clap::Subcommand)]

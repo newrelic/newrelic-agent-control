@@ -53,5 +53,8 @@ pub fn run_linux_e2e() {
         LinuxScenarios::SelfUpdateCurrentToLatest(args) => {
             scenarios::self_update::test_self_update_from_current_to_latest(args);
         }
+        LinuxScenarios::EventLoopResponsiveDuringSelfUpdate(args) => {
+            scenarios::self_update::test_event_loop_responsive_during_self_update(args);
+        }
     };
 }
