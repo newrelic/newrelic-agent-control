@@ -3241,9 +3241,16 @@ dependencies = [
  "actix-web",
  "aws-lc-rs",
  "base64 0.22.1",
+ "clap",
+ "flate2",
  "http 1.4.2",
  "oci-client",
+ "serde",
+ "serde-saphyr 0.0.28",
  "serde_json",
+ "tar",
+ "tempfile",
+ "thiserror",
  "tokio",
 ]
 

@@ -25,7 +25,9 @@ const AGENT_PACKAGE_LAYER_ZIP: &str = "application/vnd.newrelic.agent.content.v1
 const AGENT_TYPE_MANIFEST_ARTIFACT_TYPE: &str = "application/vnd.newrelic.agent-type.v1";
 const AGENT_TYPE_LAYER_TAR_GZ: &str = "application/vnd.newrelic.agent-type.content.v1.tar+gzip";
 
-const REPOSITORY_NAME: &str = "test";
+/// Default repository name for the publisher. Used when [`PackagePublisher::with_repository`]
+/// is not called.
+const DEFAULT_REPOSITORY_NAME: &str = "test";
 
 /// Describes the OCI manifest artifact type and layer media type of a published artifact, so the
 /// publisher can emit both agent packages and agent types.
@@ -80,6 +82,7 @@ impl ArtifactKind for AgentTypeArtifact {
 
 pub struct PackagePublisher {
     registry_url: String,
+    repository: String,
     runtime_handle: Handle,
     client: Client,
 }
@@ -88,6 +91,7 @@ impl PackagePublisher {
     pub fn new(runtime_handle: Handle, registry_url: impl Into<String>) -> Self {
         Self {
             registry_url: registry_url.into(),
+            repository: DEFAULT_REPOSITORY_NAME.to_string(),
             runtime_handle,
             client: Client::new(ClientConfig {
                 protocol: ClientProtocol::HttpsExcept(vec![LOCAL_HTTP_REGISTRY_URL.to_string()]),
@@ -96,15 +100,33 @@ impl PackagePublisher {
         }
     }
 
+    /// Sets the repository (namespace) within the registry that artifacts will be pushed under.
+    /// Defaults to [`DEFAULT_REPOSITORY_NAME`]. Must be called before any `with_*_auth` method,
+    /// since auth is scoped to the repository.
+    pub fn with_repository(mut self, repository: impl Into<String>) -> Self {
+        self.repository = repository.into();
+        self
+    }
+
     pub fn with_basic_auth(self, user: &str, pass: &str) -> Self {
+        self.authenticate(RegistryAuth::Basic(user.to_string(), pass.to_string()))
+    }
+
+    /// Authenticates the underlying client with a bearer token. Used for registries (e.g. GHCR)
+    /// that require token-based auth instead of HTTP Basic.
+    pub fn with_bearer_auth(self, token: &str) -> Self {
+        self.authenticate(RegistryAuth::Bearer(token.to_string()))
+    }
+
+    fn authenticate(self, auth: RegistryAuth) -> Self {
         self.runtime_handle
             .block_on(self.client.auth(
                 &Reference::with_tag(
                     self.registry_url.clone(),
-                    REPOSITORY_NAME.to_string(),
+                    self.repository.clone(),
                     String::new(),
                 ),
-                &RegistryAuth::Basic(user.to_string(), pass.to_string()),
+                &auth,
                 oci_client::RegistryOperation::Push,
             ))
             .unwrap();
@@ -140,7 +162,7 @@ impl PackagePublisher {
         tag: &str,
         wrap_in_index: bool,
     ) -> Reference {
-        let tag_reference: Reference = format!("{}/{REPOSITORY_NAME}:{tag}", self.registry_url)
+        let tag_reference: Reference = format!("{}/{}:{tag}", self.registry_url, self.repository)
             .parse()
             .unwrap();
 
