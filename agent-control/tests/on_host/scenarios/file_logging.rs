@@ -6,7 +6,7 @@ use crate::{
         retry::retry, runtime::tokio_runtime,
     },
     on_host::tools::{
-        config::{AgentControlConfigBuilder, create_file, create_local_config},
+        config::{OnHostAgentControlConfigBuilder, create_file, create_local_config},
         custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME,
         instance_id::get_instance_id,
     },
@@ -141,7 +141,7 @@ fn run_file_logging_scenario(
     agent_type: "test/file_logging_agent:0.0.0"
 "#
     );
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
         .write(dirs.local_dir());
 

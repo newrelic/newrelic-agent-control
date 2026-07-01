@@ -5,7 +5,10 @@ use crate::common::{
     runtime::{block_on, tokio_runtime},
 };
 use crate::k8s::tools::{
-    agent_control::start_agent_control_with_testdata_config, instance_id, k8s_env::K8sEnv,
+    agent_control::{create_config_map, start_agent_control},
+    config::K8sAgentControlConfigBuilder,
+    instance_id,
+    k8s_env::K8sEnv,
 };
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -13,28 +16,39 @@ use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;
 use tempfile::tempdir;
 
+const CUSTOM_AGENT_TYPE_PATH: &str =
+    "tests/k8s/data/k8s_fail_remote_config_missing_required_values/custom_agent_type.yml";
+
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_fail_remote_config_missing_required_values() {
-    let test_name = "k8s_fail_remote_config_missing_required_values";
-
     let mut server = FakeServer::start(tokio_runtime().handle());
 
-    // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    // start the agent-control
-    let _sa = start_agent_control_with_testdata_config(
-        test_name,
-        format!("tests/k8s/data/{test_name}/custom_agent_type.yml").as_str(),
+    let agents = r#"
+  fake-agent:
+    agent_type: "newrelic/com.newrelic.test:0.0.1"
+"#;
+
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_agents(agents)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    block_on(create_config_map(
         k8s.client.clone(),
         &namespace,
+        "local-data-fake-agent",
+        "required_var: \"local\"\n".to_string(),
+    ));
+
+    let _sa = start_agent_control(
+        CUSTOM_AGENT_TYPE_PATH,
+        k8s.client.clone(),
         &namespace,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        vec!["local-data-fake-agent"],
         tmp_dir.path(),
     );
 

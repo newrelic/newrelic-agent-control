@@ -11,10 +11,10 @@ use crate::common::health::{check_latest_health_status, check_latest_health_stat
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::retry::{DeferredCommand, retry};
 use crate::common::runtime::{block_on, tokio_runtime};
-use crate::k8s::tools::agent_control::{
-    CUSTOM_AGENT_TYPE_SPLIT_NS_PATH, start_agent_control_with_testdata_config,
-};
+use crate::k8s::tools::agent_control::CUSTOM_AGENT_TYPE_SPLIT_NS_PATH;
+use crate::k8s::tools::agent_control::start_agent_control;
 use crate::k8s::tools::cmd::print_cli_output;
+use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
 use crate::k8s::tools::instance_id::get_instance_id;
 use crate::k8s::tools::k8s_api::{check_helmrelease_chart_version, create_values_secret};
 use crate::k8s::tools::k8s_env::K8sEnv;
@@ -67,7 +67,6 @@ fn k8s_cli_install_and_update_flux_resources_success() {
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_remote_flux_update() {
-    let test_name = "k8s_remote_flux_update";
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
@@ -87,15 +86,18 @@ fn k8s_remote_flux_update() {
 
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let _sa = start_agent_control_with_testdata_config(
-        test_name,
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_cd_remote_update(true)
+        .with_ac_remote_update(false)
+        .with_cd_release_name(TEST_RELEASE_NAME)
+        .with_current_chart_version("0.0.1000")
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    let _sa = start_agent_control(
         CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
         k8s.client.clone(),
         &namespace,
-        &namespace,
-        Some(&opamp_server.endpoint()),
-        Some(&opamp_server.jwks_endpoint()),
-        vec![],
         tmp_dir.path(),
     );
 
@@ -151,7 +153,6 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_remote_flux_update_with_wrong_version_causes_unhealthy() {
-    let test_name = "k8s_remote_flux_update";
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
@@ -171,15 +172,18 @@ fn k8s_remote_flux_update_with_wrong_version_causes_unhealthy() {
 
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let _sa = start_agent_control_with_testdata_config(
-        test_name,
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_cd_remote_update(true)
+        .with_ac_remote_update(false)
+        .with_cd_release_name(TEST_RELEASE_NAME)
+        .with_current_chart_version("0.0.1000")
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    let _sa = start_agent_control(
         CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
         k8s.client.clone(),
         &namespace,
-        &namespace,
-        Some(&opamp_server.endpoint()),
-        Some(&opamp_server.jwks_endpoint()),
-        vec![],
         tmp_dir.path(),
     );
 

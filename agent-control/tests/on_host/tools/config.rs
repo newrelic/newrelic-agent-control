@@ -14,14 +14,13 @@ use newrelic_agent_control::on_host::file_store::{FileStore, build_config_name};
 use newrelic_agent_control::values::ConfigRepo;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
 
-pub struct AgentControlConfigBuilder {
-    opamp_endpoint: String,
-    jwks_endpoint: String,
+use crate::common::config::AgentControlCommonConfigBuilder;
 
-    agents: Option<String>,
+pub struct OnHostAgentControlConfigBuilder {
+    common: AgentControlCommonConfigBuilder,
+
     oci_registry: Option<String>,
     oci_basic_auth: Option<(String, String)>,
-    status_server_port: Option<u16>,
     proxy: Option<String>,
     self_update: Option<SelfUpdateConfig>,
     agent_types: Option<AgentTypes>,
@@ -39,15 +38,13 @@ struct AgentTypes {
     public_key_url: String,
 }
 
-impl AgentControlConfigBuilder {
-    pub fn basic(opamp_endpoint: impl Into<String>, jwks_endpoint: impl Into<String>) -> Self {
+impl OnHostAgentControlConfigBuilder {
+    pub fn new(opamp_endpoint: impl Into<String>, jwks_endpoint: impl Into<String>) -> Self {
         Self {
-            opamp_endpoint: opamp_endpoint.into(),
-            jwks_endpoint: jwks_endpoint.into(),
-            agents: None,
+            common: AgentControlCommonConfigBuilder::default()
+                .with_fleet(opamp_endpoint, jwks_endpoint),
             oci_registry: None,
             oci_basic_auth: None,
-            status_server_port: None,
             proxy: None,
             self_update: None,
             agent_types: None,
@@ -55,7 +52,7 @@ impl AgentControlConfigBuilder {
     }
 
     pub fn with_agents(mut self, agents: impl Into<String>) -> Self {
-        self.agents = Some(agents.into());
+        self.common.agents = Some(agents.into());
         self
     }
 
@@ -74,7 +71,7 @@ impl AgentControlConfigBuilder {
     }
 
     pub fn with_status_server(mut self, port: u16) -> Self {
-        self.status_server_port = Some(port);
+        self.common.status_server_port = Some(port);
         self
     }
 
@@ -115,7 +112,9 @@ impl AgentControlConfigBuilder {
     }
 
     pub fn write(self, local_dir: PathBuf) {
-        let agents = self.agents.as_deref().unwrap_or("{}");
+        let fleet_control_config = self.common.build_fleet_control_yaml();
+        let agents_config = self.common.build_agents_yaml();
+        let status_server_config = self.common.build_server_yaml();
 
         let proxy_config = self
             .proxy
@@ -135,17 +134,6 @@ impl AgentControlConfigBuilder {
                     .unwrap_or_default();
 
                 format!("oci:\n  registry: \"{}\"\n{}", r, auth)
-            })
-            .unwrap_or_default();
-
-        let status_server_config = self
-            .status_server_port
-            .map(|port| {
-                format!(
-                    r#"server:
-  enabled: true
-  port: {port}"#
-                )
             })
             .unwrap_or_default();
 
@@ -183,19 +171,14 @@ impl AgentControlConfigBuilder {
         let agent_control_config = format!(
             r#"
 host_id: integration-test
-fleet_control:
-  endpoint: {}
-  poll_interval: 5s
-  signature_validation:
-    public_key_server_url: {}
-agents: {agents}
+{fleet_control_config}
+{agents_config}
 {proxy_config}
 {oci_config}
 {status_server_config}
 {self_update_config}
 {agent_types_config}
 "#,
-            self.opamp_endpoint, self.jwks_endpoint,
         );
 
         create_file(

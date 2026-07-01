@@ -3,9 +3,10 @@ use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::{
-    CUSTOM_AGENT_TYPE_PATH, start_agent_control_with_testdata_config,
+    CUSTOM_AGENT_TYPE_PATH, create_config_map, start_agent_control,
     wait_until_agent_control_with_opamp_is_started,
 };
+use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
 use crate::k8s::tools::instance_id;
 use crate::k8s::tools::k8s_api::check_helmrelease_spec_values;
 use crate::k8s::tools::k8s_env::K8sEnv;
@@ -24,26 +25,34 @@ use tempfile::tempdir;
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
-    let test_name = "k8s_opamp_subagent_configuration_change_after_ac_restarts";
-
     let mut server = FakeServer::start(tokio_runtime().handle());
 
-    // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    // start the agent-control
-    let _sa = start_agent_control_with_testdata_config(
-        test_name,
+    let agents = r#"
+  hello-world:
+    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
+"#;
+
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_agents(agents)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    // This config is intended to be empty
+    block_on(create_config_map(
+        k8s.client.clone(),
+        &namespace,
+        "local-data-hello-world",
+        "".to_string(),
+    ));
+
+    let _sa = start_agent_control(
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
-        &namespace,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        // This config is intended to be empty
-        vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
 
@@ -91,16 +100,15 @@ valid: true
     drop(_sa);
 
     // start the agent-control with the same configuration
-    let _sa = start_agent_control_with_testdata_config(
-        test_name,
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_agents(agents)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    let _sa = start_agent_control(
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
-        &namespace,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        // This config is intended to be empty
-        vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());

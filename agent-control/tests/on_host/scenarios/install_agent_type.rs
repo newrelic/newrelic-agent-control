@@ -5,7 +5,7 @@ use crate::common::attributes::{
 use crate::common::base_paths::TempBasePaths;
 use crate::common::retry::{retry, retry_never};
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::config::AgentControlConfigBuilder;
+use crate::on_host::tools::config::OnHostAgentControlConfigBuilder;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_package_manager::{TestDataHelper, push_test_package};
 use fake_opamp_server::FakeServer;
@@ -70,7 +70,7 @@ fn start_agent_control_for_test(
     signer: &OCISigner,
     base_paths: &BasePaths,
 ) -> StartedAgentControl {
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_oci_registry(OCI_TEST_REGISTRY_URL)
         .with_agent_types(true, "test", signer.jwks_url().to_string())
         .write(base_paths.local_dir.clone());

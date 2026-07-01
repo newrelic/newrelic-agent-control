@@ -9,7 +9,10 @@ use crate::{
 use fake_opamp_server::FakeServer;
 
 use crate::k8s::tools::{
-    agent_control::start_agent_control_with_testdata_config, instance_id, k8s_env::K8sEnv,
+    agent_control::{create_config_map, start_agent_control},
+    config::K8sAgentControlConfigBuilder,
+    instance_id,
+    k8s_env::K8sEnv,
 };
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec};
 use k8s_openapi::api::core::v1::{Container, PodSpec, PodTemplateSpec};
@@ -28,8 +31,6 @@ use tempfile::tempdir;
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_direct_workload_health_checks() {
-    let test_name = "k8s_direct_workload_health_checks";
-
     let server = FakeServer::start(tokio_runtime().handle());
 
     let mut k8s = block_on(K8sEnv::new());
@@ -47,15 +48,28 @@ fn k8s_direct_workload_health_checks() {
         0,
     ));
 
-    let _ac = start_agent_control_with_testdata_config(
-        test_name,
+    let agents = r#"
+  hello-world:
+    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
+"#;
+
+    K8sAgentControlConfigBuilder::new(&ac_ns)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_namespace_agents(&agents_ns)
+        .with_agents(agents)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    block_on(create_config_map(
+        k8s.client.clone(),
+        &ac_ns,
+        "local-data-hello-world",
+        "{}".to_string(),
+    ));
+
+    let _ac = start_agent_control(
         CUSTOM_AGENT_TYPE_DIRECT_CHECKS_PATH,
         k8s.client.clone(),
         &ac_ns,
-        &agents_ns,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
 
@@ -78,8 +92,6 @@ fn k8s_direct_workload_health_checks() {
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_direct_workload_health_checks_unhealthy() {
-    let test_name = "k8s_direct_workload_health_checks";
-
     let server = FakeServer::start(tokio_runtime().handle());
 
     let mut k8s = block_on(K8sEnv::new());
@@ -96,15 +108,28 @@ fn k8s_direct_workload_health_checks_unhealthy() {
         1,
     ));
 
-    let _ac = start_agent_control_with_testdata_config(
-        test_name,
+    let agents = r#"
+  hello-world:
+    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
+"#;
+
+    K8sAgentControlConfigBuilder::new(&ac_ns)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_namespace_agents(&agents_ns)
+        .with_agents(agents)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    block_on(create_config_map(
+        k8s.client.clone(),
+        &ac_ns,
+        "local-data-hello-world",
+        "{}".to_string(),
+    ));
+
+    let _ac = start_agent_control(
         CUSTOM_AGENT_TYPE_DIRECT_CHECKS_PATH,
         k8s.client.clone(),
         &ac_ns,
-        &agents_ns,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
 

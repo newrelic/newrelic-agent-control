@@ -2,7 +2,7 @@ use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::base_paths::TempBasePaths;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::config::{AgentControlConfigBuilder, create_local_config};
+use crate::on_host::tools::config::{OnHostAgentControlConfigBuilder, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
@@ -202,7 +202,7 @@ fn create_ac_local_config(
     local_dir: &Path,
     agents: impl Into<String>,
 ) {
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents)
         .with_oci_registry(OCI_TEST_REGISTRY_URL)
         .with_oci_basic_auth(

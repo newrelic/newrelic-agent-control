@@ -2,7 +2,7 @@ use crate::common::base_paths::TempBasePaths;
 use crate::common::{
     agent_control::start_agent_control_with_custom_config, runtime::tokio_runtime,
 };
-use crate::on_host::tools::config::AgentControlConfigBuilder;
+use crate::on_host::tools::config::OnHostAgentControlConfigBuilder;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::defaults::AGENT_FILESYSTEM_FOLDER_NAME;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
@@ -26,7 +26,7 @@ fn stale_agent_filesystem_cleanup_on_startup() {
     std::fs::create_dir_all(&kept_dir).unwrap();
     std::fs::write(kept_dir.join("placeholder.txt"), "placeholder").unwrap();
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(
             r#"
   configured-agent:

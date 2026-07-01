@@ -15,9 +15,10 @@ use crate::{
     },
     k8s::tools::{
         agent_control::{
-            CUSTOM_AGENT_TYPE_PATH, start_agent_control_with_testdata_config,
+            CUSTOM_AGENT_TYPE_PATH, start_agent_control,
             wait_until_agent_control_with_opamp_is_started,
         },
+        config::K8sAgentControlConfigBuilder,
         k8s_env::K8sEnv,
         test_crd::{Foo, create_foo_cr},
     },
@@ -28,7 +29,6 @@ use fake_opamp_server::FakeServer;
 #[ignore = "needs k8s cluster"]
 /// Tests that resources that already exist in the cluster of agents that are no longer active are removed.
 fn k8s_garbage_collector_triggers_on_ac_startup() {
-    let test_name = "k8s_garbage_collector_triggers_on_ac_startup";
     let mut k8s = block_on(K8sEnv::new());
     let test_ns = block_on(k8s.test_namespace());
 
@@ -50,16 +50,16 @@ fn k8s_garbage_collector_triggers_on_ac_startup() {
     // start Agent Control, so the objects above should be removed by the GC.
     let tmp_dir = tempdir().expect("failed to create local temp dir");
     let server = FakeServer::start(tokio_runtime().handle());
-    let _sa = start_agent_control_with_testdata_config(
-        test_name,
+
+    K8sAgentControlConfigBuilder::new(&test_ns)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_cr_type_meta("  - apiVersion: newrelic.com/v1\n    kind: Foo")
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    let _sa = start_agent_control(
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &test_ns,
-        &test_ns,
-        Some(&server.endpoint()),
-        Some(&server.jwks_endpoint()),
-        // This config is intended to be empty
-        vec![],
         tmp_dir.path(),
     );
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), test_ns.as_str());

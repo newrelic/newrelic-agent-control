@@ -5,7 +5,9 @@ use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{retry::retry, runtime::tokio_runtime};
 use crate::on_host::consts::NO_CONFIG;
-use crate::on_host::tools::config::{AgentControlConfigBuilder, create_file, create_local_config};
+use crate::on_host::tools::config::{
+    OnHostAgentControlConfigBuilder, create_file, create_local_config,
+};
 use crate::on_host::tools::config::{create_remote_config, load_remote_config_content};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
@@ -34,7 +36,7 @@ fn onhost_opamp_agent_control_local_effective_config() {
 
     let dirs = TempBasePaths::default();
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
 
     let _agent_control =
@@ -68,7 +70,7 @@ fn onhost_opamp_agent_control_remote_effective_config() {
 
     let dirs = TempBasePaths::default();
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
 
     // Add custom agent_type to registry
@@ -148,7 +150,7 @@ fn onhost_opamp_agent_control_accepts_unknown_fields_on_remote_config() {
 
     let dirs = TempBasePaths::default();
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
 
     let _agent_control =
@@ -207,7 +209,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 
@@ -271,7 +273,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 
@@ -332,7 +334,7 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 
@@ -408,7 +410,7 @@ agents:
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 

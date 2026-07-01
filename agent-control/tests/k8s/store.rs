@@ -1,5 +1,5 @@
 use crate::common::runtime::{block_on, tokio_runtime};
-use crate::k8s::tools::agent_control::{create_config_map, create_local_config_map};
+use crate::k8s::tools::agent_control::create_config_map;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
@@ -165,12 +165,11 @@ fn k8s_value_repository_config_map() {
     assert!(res.unwrap().is_none());
 
     // with local values we expect some data
-    block_on(create_local_config_map(
+    block_on(create_config_map(
         test.client.clone(),
         test_ns.as_str(),
-        test_ns.as_str(),
-        "k8s_value_repository_config_map",
-        format!("local-data-{AGENT_ID_1}").as_str(),
+        &format!("local-data-{AGENT_ID_1}"),
+        "test: 1\n".to_string(),
     ));
     let local_values = YAMLConfig::try_from("test: 1".to_string()).unwrap();
     let res = value_repository

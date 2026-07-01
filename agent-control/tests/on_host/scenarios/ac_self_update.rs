@@ -6,7 +6,7 @@ use crate::common::remote_config_status::check_latest_remote_config_status_is_ex
 use crate::common::retry::retry;
 use crate::common::retry::retry_never;
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::config::AgentControlConfigBuilder;
+use crate::on_host::tools::config::OnHostAgentControlConfigBuilder;
 use crate::on_host::tools::config::create_local_config;
 use crate::on_host::tools::fake_binary::assert_is_fake_binary;
 use crate::on_host::tools::fake_binary::build_fake_ac_binary;
@@ -439,7 +439,7 @@ fn create_self_update_local_config(
     local_dir: &Path,
     signature_verification_enabled: bool,
 ) {
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_oci_registry(OCI_TEST_REGISTRY_URL)
         .with_self_update(
             signature_verification_enabled,

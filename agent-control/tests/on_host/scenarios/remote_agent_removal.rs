@@ -3,7 +3,7 @@ use crate::common::base_paths::TempBasePaths;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{retry::retry, runtime::tokio_runtime};
-use crate::on_host::tools::config::AgentControlConfigBuilder;
+use crate::on_host::tools::config::OnHostAgentControlConfigBuilder;
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
@@ -26,7 +26,7 @@ fn onhost_opamp_agent_control_remote_config_add_remove_add_agent() {
 
     let dirs = TempBasePaths::default();
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
 
     let dir_entry = "test-dir";

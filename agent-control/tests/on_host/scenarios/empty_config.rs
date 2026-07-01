@@ -7,7 +7,7 @@ use crate::{
         runtime::tokio_runtime,
     },
     on_host::tools::{
-        config::{AgentControlConfigBuilder, create_local_config},
+        config::{OnHostAgentControlConfigBuilder, create_local_config},
         custom_agent_type::CustomAgentType,
         instance_id::get_instance_id,
     },
@@ -37,7 +37,7 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
 "#
     );
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 
@@ -107,7 +107,7 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
     );
 
     let agent_id = "nr-sleep-agent";
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(agents.to_string())
         .write(dirs.local_dir());
 

@@ -6,8 +6,8 @@ use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::{
     CUSTOM_AGENT_TYPE_PATH, DUMMY_PRIVATE_KEY, DYNAMIC_AGENT_TYPE_FILENAME, K8S_KEY_SECRET,
     K8S_PRIVATE_KEY_SECRET, TEST_CLUSTER_NAME, create_config_map,
-    create_k8s_agent_control_config_with_status_server,
 };
+use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use fake_opamp_server::FakeServer;
@@ -49,15 +49,11 @@ fn test_k8s_http_status_endpoint_response() {
     );
 
     let status_server_port = available_port();
-    create_k8s_agent_control_config_with_status_server(
-        k8s.client.clone(),
-        &namespace,
-        &opamp_server.endpoint(),
-        &opamp_server.jwks_endpoint(),
-        status_server_port,
-        &dirs.local_dir(),
-        &agents,
-    );
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(agents)
+        .with_status_server(status_server_port)
+        .write(k8s.client.clone(), &dirs.local_dir());
 
     // Sub-agent values ConfigMap (empty chart_values)
     block_on(create_config_map(

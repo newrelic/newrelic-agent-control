@@ -3,7 +3,7 @@ use crate::common::base_paths::TempBasePaths;
 use crate::common::health::check_latest_health_status;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
-use crate::on_host::tools::config::AgentControlConfigBuilder;
+use crate::on_host::tools::config::OnHostAgentControlConfigBuilder;
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
@@ -46,7 +46,7 @@ fn test_memory_on_agent_substitution_and_version_update() {
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
-    AgentControlConfigBuilder::basic(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_oci_registry("non-existent:5000")
         .write(dirs.local_dir());
 
