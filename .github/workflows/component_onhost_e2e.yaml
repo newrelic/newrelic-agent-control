@@ -118,6 +118,7 @@ jobs:
           - switch-infra-agent-version
           - self-update-latest-to-current
           - self-update-current-to-latest
+          - event-loop-responsive-during-self-update
     steps:
       - name: Record job start time
         shell: bash
