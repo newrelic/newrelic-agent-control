@@ -647,6 +647,7 @@ pub mod tests {
     use crate::agent_type::agent_attributes::AgentAttributes;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::definition::Variables;
+    use crate::agent_type::runtime_config::health_config::HealthCheckTimeout;
     use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env, Executable};
     use crate::agent_type::runtime_config::on_host::filesystem::FileSystem as ParsedFileSystem;
     use crate::agent_type::runtime_config::on_host::rendered::OnHost;
@@ -655,13 +656,16 @@ pub mod tests {
     use crate::agent_type::templates::Templateable;
     use crate::agent_type::variable::Variable;
     use crate::agent_type::variable::namespace::Namespace;
-    use crate::checkers::health::health_checker::HEALTH_CHECKER_THREAD_NAME;
+    use crate::checkers::health::health_checker::{
+        HEALTH_CHECKER_THREAD_NAME, HealthCheckInterval, InitialDelay,
+    };
     use crate::event::channel::pub_sub;
     use crate::package::manager::tests::MockPackageManager;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use crate::sub_agent::supervisor::Supervisor;
+    use crate::utils::retry::retry;
     use serde::Deserialize;
     use std::collections::HashMap;
     use std::{
@@ -739,7 +743,7 @@ pub mod tests {
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity,
             executable_data,
-            Some(OnHostHealthConfig::default()),
+            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -784,7 +788,7 @@ pub mod tests {
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            Some(OnHostHealthConfig::default()),
+            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -835,7 +839,7 @@ persistent.txt:
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity,
             vec![],
-            Some(OnHostHealthConfig::default()),
+            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -904,7 +908,7 @@ persistent.txt:
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity,
             vec![],
-            Some(OnHostHealthConfig::default()),
+            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -947,7 +951,7 @@ persistent.txt:
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            Some(OnHostHealthConfig::default()),
+            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -996,7 +1000,7 @@ persistent.txt:
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            Some(OnHostHealthConfig::default()),
+            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -1045,7 +1049,7 @@ persistent.txt:
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            Some(OnHostHealthConfig::default()),
+            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -1089,7 +1093,7 @@ persistent.txt:
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            Some(OnHostHealthConfig::default()),
+            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -1152,7 +1156,7 @@ persistent.txt:
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            Some(OnHostHealthConfig::default()),
+            None,
             get_empty_packages(),
             MockPackageManager::new_arc(),
             false,
@@ -1332,7 +1336,7 @@ persistent.txt:
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity.clone(),
             vec![exec_data_1],
-            Some(OnHostHealthConfig::default()),
+            None,
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
             true,
@@ -1370,7 +1374,7 @@ persistent.txt:
         let on_host_config = OnHost {
             executables: vec![executable_rendered],
             enable_file_logging: true,
-            health: Some(OnHostHealthConfig::default()),
+            health: None,
             filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
@@ -1458,7 +1462,7 @@ persistent.txt:
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity.clone(),
             vec![exec_data_1],
-            Some(OnHostHealthConfig::default()),
+            None,
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
             false,
@@ -1496,7 +1500,7 @@ persistent.txt:
         let on_host_config = OnHost {
             executables: vec![executable_rendered],
             enable_file_logging: true,
-            health: Some(OnHostHealthConfig::default()),
+            health: None,
             filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
@@ -1582,7 +1586,7 @@ persistent.txt:
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity.clone(),
             vec![exec_data_1],
-            Some(OnHostHealthConfig::default()),
+            None,
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
             true,
@@ -1620,7 +1624,7 @@ persistent.txt:
         let on_host_config = OnHost {
             executables: vec![executable_rendered],
             enable_file_logging: false,
-            health: Some(OnHostHealthConfig::default()),
+            health: None,
             filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
@@ -1673,6 +1677,60 @@ persistent.txt:
     }
 
     #[test]
+    fn test_health_checker_thread_publishes_periodically_when_health_config_set() {
+        let health_config = OnHostHealthConfig {
+            interval: HealthCheckInterval::from(Duration::from_millis(50)),
+            initial_delay: InitialDelay::from(Duration::ZERO),
+            timeout: HealthCheckTimeout::from(Duration::from_secs(1)),
+            check: None,
+        };
+
+        let agent_identity = AgentIdentity::from((
+            AgentID::try_from("health-agent").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+
+        let supervisor = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            vec![],
+            Some(health_config),
+            get_empty_packages(),
+            MockPackageManager::new_arc(),
+            false,
+            PathBuf::default(),
+            FileSystem::test_empty(),
+        );
+
+        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+        let started = supervisor
+            .start(sub_agent_internal_publisher)
+            .expect("supervisor should start");
+
+        // A health-checker thread must have been spawned.
+        assert!(
+            started
+                .thread_contexts
+                .iter()
+                .any(|ctx| ctx.thread_name() == HEALTH_CHECKER_THREAD_NAME),
+            "expected a '{HEALTH_CHECKER_THREAD_NAME}' thread"
+        );
+
+        // The health-checker thread must publish AgentHealthInfo events periodically.
+        let mut received = 0;
+        retry(30, Duration::from_millis(100), || {
+            while let Ok(event) = sub_agent_internal_consumer.as_ref().try_recv() {
+                if matches!(event, SubAgentInternalEvent::AgentHealthInfo(_)) {
+                    received += 1;
+                }
+            }
+            if received >= 2 { Ok(()) } else { Err(()) }
+        })
+        .expect("expected at least 2 AgentHealthInfo events from the health thread");
+
+        started.stop().expect("supervisor should stop");
+    }
+
+    #[test]
     fn test_supervisor_reloading_keeps_file_logging_disabled() {
         let dir = tempfile::tempdir().unwrap();
         let logging_path = dir.path().to_path_buf();
@@ -1707,7 +1765,7 @@ persistent.txt:
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity.clone(),
             vec![exec_data_1],
-            Some(OnHostHealthConfig::default()),
+            None,
             get_empty_packages(),
             Arc::new(MockPackageManager::new()),
             false,
@@ -1745,7 +1803,7 @@ persistent.txt:
         let on_host_config = OnHost {
             executables: vec![executable_rendered],
             enable_file_logging: false,
-            health: Some(OnHostHealthConfig::default()),
+            health: None,
             filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
         };
