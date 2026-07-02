@@ -35,6 +35,18 @@ fn cooldown_reason(reason: &SuppressionReason) -> &'static str {
     }
 }
 
+/// Result of a [`VersionUpdater::update`] call: whether the current process is about to restart to
+/// apply a self-update.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateOutcome {
+    /// No in-process self-update was initiated. Continue applying the remote configuration.
+    NoUpdate,
+    /// The Self-update was initiated, the AC binary already replaced and process restart requested.
+    /// Since the restarted process will already apply the new configuration, other changes can wait
+    /// avoiding the restart of sub-agents twice.
+    RestartPending,
+}
+
 /// A trait for updating the agent control version using a dynamic configuration.
 ///
 /// Implementers of this trait are responsible for notifying an external controller
@@ -44,9 +56,10 @@ pub trait VersionUpdater {
     /// Verifies if the agent control version should be updated based on the provided configuration and
     /// attempts to update the desired agent control version.
     ///
-    /// Returns `Ok(())` if the desired version has been successfully communicated
-    /// to the external controller, or an `UpdaterError` if the update fails.
-    fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError>;
+    /// Returns [`UpdateOutcome::RestartPending`] if a self-update was initiated and the process is
+    /// about to restart, [`UpdateOutcome::NoUpdate`] if nothing was done in-process, or an
+    /// `UpdaterError` if the update fails.
+    fn update(&self, config: &AgentControlDynamicConfig) -> Result<UpdateOutcome, UpdaterError>;
 
     /// Re-attempts a previously-requested upgrade that has not yet succeeded, without waiting for a
     /// new desired version to be pushed. Driven by a periodic heartbeat so a transient registry
@@ -63,8 +76,8 @@ pub trait VersionUpdater {
 pub struct NoOpUpdater;
 
 impl VersionUpdater for NoOpUpdater {
-    fn update(&self, _config: &AgentControlDynamicConfig) -> Result<(), UpdaterError> {
-        Ok(())
+    fn update(&self, _config: &AgentControlDynamicConfig) -> Result<UpdateOutcome, UpdaterError> {
+        Ok(UpdateOutcome::NoUpdate)
     }
 }
 
@@ -77,15 +90,17 @@ pub mod tests {
     mock! {
         pub VersionUpdater {}
         impl VersionUpdater for VersionUpdater {
-            fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError>;
+            fn update(&self, config: &AgentControlDynamicConfig) -> Result<UpdateOutcome, UpdaterError>;
         }
     }
 
     impl MockVersionUpdater {
-        /// Returns a mock that always returns `Ok()` regardless of the times it is called
+        /// Returns a mock that always returns `Ok(UpdateOutcome::NoUpdate)` regardless of the times
+        /// it is called.
         pub fn new_no_op() -> Self {
             let mut mock = Self::new();
-            mock.expect_update().returning(|_| Ok(()));
+            mock.expect_update()
+                .returning(|_| Ok(UpdateOutcome::NoUpdate));
             mock
         }
     }
