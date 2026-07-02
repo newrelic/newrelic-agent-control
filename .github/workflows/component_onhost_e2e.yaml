@@ -55,6 +55,8 @@ jobs:
           - proxy
           - self-update-latest-to-current
           - self-update-current-to-latest
+          - post-download-hook-success
+          - post-download-hook-failure
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"

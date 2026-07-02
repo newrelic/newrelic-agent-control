@@ -151,6 +151,56 @@ pub fn push_ac_package(args: &InstallationArgs) -> PushedPackage {
     }
 }
 
+// Builds a `tar.gz` archive containing the given `(filename, content)`
+pub fn build_tar_gz_package(files: &[(&str, &str)]) -> (tempfile::TempDir, PathBuf) {
+    let dir = tempfile::tempdir().expect("failed to create temp dir for package");
+    for (name, content) in files {
+        std::fs::write(dir.path().join(name), content)
+            .unwrap_or_else(|e| panic!("failed to write {name}: {e}"));
+    }
+
+    let archive_path = dir.path().join("package.tar.gz");
+    let mut cmd = Command::new("tar");
+    cmd.arg("-czf").arg(&archive_path).arg("-C").arg(dir.path());
+    for (name, _) in files {
+        cmd.arg(name);
+    }
+    let status = cmd
+        .status()
+        .expect("failed to run tar to build the package");
+    assert!(status.success(), "tar failed to build the package");
+
+    (dir, archive_path)
+}
+
+// Pushes `archive` to the local registry under a unique tag and signs it.
+pub fn push_and_sign(archive: &Path, media_type: PackageMediaType) -> PushedPackage {
+    let publisher = PackagePublisher::new(
+        tokio_runtime().handle().clone(),
+        format!("localhost:{LOCAL_REGISTRY_PORT}"),
+    );
+    let reference = publisher.push(archive, media_type);
+
+    let signer = OCISigner::start(tokio_runtime().handle().clone());
+    signer.sign_artifact(&reference);
+    let jwks_url = signer.jwks_url().to_string();
+
+    info!("Package pushed and signed: {reference} (JWKS: {jwks_url})");
+
+    PushedPackage {
+        reference,
+        jwks_url,
+        _signer: signer,
+    }
+}
+
+// Builds, pushes and signs a package containing the two given scripts (as `hook.sh` and `agent.sh`)
+pub fn push_hook_package(hook_script: &str, agent_script: &str) -> PushedPackage {
+    let (_dir, archive) =
+        build_tar_gz_package(&[("hook.sh", hook_script), ("agent.sh", agent_script)]);
+    push_and_sign(&archive, PackageMediaType::TarGz)
+}
+
 #[cfg(target_os = "windows")]
 fn find_package(dir: &Path, version: &str) -> (PathBuf, PackageMediaType) {
     // we currently don't generate the arm64 package.
