@@ -7,9 +7,7 @@ use crate::agent_control::config::{
     AgentControlDynamicConfig, AgentControlPackage, UpgradeBackoffConfig,
 };
 use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
-use crate::agent_control::version_updater::updater::{
-    UpdateOutcome, UpdaterError, VersionUpdater,
-};
+use crate::agent_control::version_updater::updater::{UpdateOutcome, UpdaterError, VersionUpdater};
 use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;

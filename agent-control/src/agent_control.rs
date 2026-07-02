@@ -620,8 +620,8 @@ mod tests {
     use super::config_repository::repository::tests::InMemoryAgentControlDynamicConfigRepository;
     use super::config_validator::tests::TestDynamicConfigValidator;
     use super::error::AgentControlError;
-    use super::run::GracefulShutdownReason;
     use super::resource_cleaner::tests::MockResourceCleaner;
+    use super::run::GracefulShutdownReason;
     use super::version_updater::updater::UpdateOutcome;
     use super::version_updater::updater::UpdaterError;
     use super::version_updater::updater::tests::MockVersionUpdater;
