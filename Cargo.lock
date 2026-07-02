@@ -3282,8 +3282,8 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "opamp-client"
-version = "0.0.40"
-source = "git+https://github.com/newrelic/newrelic-opamp-rs.git?tag=0.0.40#4ee82b3d085cac3b6434f9aaf6348f817fc473d3"
+version = "0.0.41"
+source = "git+https://github.com/newrelic/newrelic-opamp-rs.git?tag=0.0.41#7e04baa0bfe207e8a6829fad9ceaa0cb0e73bf31"
 dependencies = [
  "crossbeam",
  "http 1.4.2",
@@ -3743,7 +3743,7 @@ dependencies = [
 [[package]]
 name = "proto"
 version = "0.1.0"
-source = "git+https://github.com/newrelic/newrelic-opamp-rs.git?tag=0.0.40#4ee82b3d085cac3b6434f9aaf6348f817fc473d3"
+source = "git+https://github.com/newrelic/newrelic-opamp-rs.git?tag=0.0.41#7e04baa0bfe207e8a6829fad9ceaa0cb0e73bf31"
 dependencies = [
  "prost",
  "prost-build",
@@ -5416,9 +5416,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.23.3"
+version = "1.23.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "144d6b123cef80b301b8f72a9e2ca4370ddec21950d0a103dd22c437006d2db7"
+checksum = "bf80a72845275afea99e7f2b434723d3bc7e38470fcd1c7ed39a599c73319a53"
 dependencies = [
  "getrandom 0.4.3",
  "js-sys",
