@@ -27,7 +27,7 @@ pub struct OnHost {
     enable_file_logging: TemplateableValue<bool>,
     /// Enables and define health checks configuration.
     #[serde(default)]
-    health: OnHostHealthConfig,
+    health: Option<OnHostHealthConfig>,
     #[serde(default)]
     filesystem: FileSystem,
     #[serde(default)]
@@ -78,7 +78,10 @@ impl Templateable for OnHost {
                 .map(|e| e.template_with(&extended_vars))
                 .collect::<Result<Vec<_>, _>>()?,
             enable_file_logging: self.enable_file_logging.template_with(&extended_vars)?,
-            health: self.health.template_with(&extended_vars)?,
+            health: self
+                .health
+                .map(|health| health.template_with(&extended_vars))
+                .transpose()?,
             filesystem: self.filesystem.template_with(&extended_vars)?,
             packages: rendered_packages,
         })
@@ -90,7 +93,6 @@ mod tests {
     use super::*;
 
     use crate::agent_type::agent_attributes::AgentAttributes;
-    use crate::agent_type::runtime_config::health_config::HealthCheckTimeout;
     use crate::agent_type::runtime_config::on_host::executable::{Args, Env};
     use crate::agent_type::runtime_config::on_host::package::{Download, Oci};
     use crate::agent_type::runtime_config::restart_policy::{
@@ -99,7 +101,6 @@ mod tests {
     };
     use crate::agent_type::variable::Variable;
     use crate::agent_type::variable::namespace::Namespace;
-    use crate::checkers::health::health_checker::{HealthCheckInterval, InitialDelay};
     use serde_json::Number;
     use std::collections::HashMap;
     use std::path::PathBuf;
@@ -632,15 +633,8 @@ executables:
 
         let on_host: OnHost = serde_saphyr::from_str(yaml_without_health).unwrap();
 
-        // If no health is specified the default should be ExecHealth with default values
-        let default_health_config = OnHostHealthConfig {
-            interval: HealthCheckInterval::default(),
-            initial_delay: InitialDelay::default(),
-            timeout: HealthCheckTimeout::default(),
-            check: None,
-        };
-
-        // Create a default OnHost instance to compare
+        // When `health:` is omitted, the parsed value should be `None` (no health checker
+        // will be spawned by the supervisor).
         let default_on_host = OnHost {
             executables: vec![Executable {
                 id: "otelcol".to_string(),
@@ -660,7 +654,7 @@ executables:
                 env: Env::default(),
             }],
             enable_file_logging: TemplateableValue::default(),
-            health: default_health_config,
+            health: None,
             filesystem: FileSystem::default(),
             packages: Default::default(),
         };
