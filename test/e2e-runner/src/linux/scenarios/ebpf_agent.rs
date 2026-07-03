@@ -21,6 +21,11 @@ pub fn test_ebpf_agent(args: InstallationArgs) {
         .clone()
         .expect("--infra-agent-version is required for this scenario");
 
+    let ebpf_version = args
+        .ebpf_agent_version
+        .clone()
+        .expect("--ebpf-agent-version is required for this scenario");
+
     let staging = args.nr_region == Region::Staging;
 
     let recipe_data = RecipeData {
@@ -56,16 +61,18 @@ agents:
     let ebpf_config = if staging {
         format!(
             r#"
-config_agent:
+config:
   DEPLOYMENT_NAME: {test_id}
   OTLP_ENDPOINT: staging-otlp.nr-data.net:443
+version: {ebpf_version}
     "#
         )
     } else {
         format!(
             r#"
-config_agent:
+config:
   DEPLOYMENT_NAME: {test_id}
+version: {ebpf_version}
     "#
         )
     };

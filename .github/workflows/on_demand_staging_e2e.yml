@@ -13,6 +13,7 @@ permissions:
 env:
   HOST_E2E_INFRA_AGENT_VERSION: "1.78.0"
   HOST_E2E_NRDOT_VERSION: "1.21.0"
+  HOST_E2E_EBPF_AGENT_VERSION: "1.4.3"
   HOST_E2E_REDIS_VERSION: "0.0.1"
 
 jobs:
@@ -34,7 +35,10 @@ jobs:
       fail-fast: false
       matrix:
         group:
-          - ebpf-agent
+          # TODO: re-enable once newrelic/ebpf-agent-artifacts has a published OCI artifact
+          # (blocked on newrelic-ebpf-agent's add-oci-packaging-ac branch being merged and
+          # dispatched at least once). Until then it always fails with "manifest unknown".
+          # - ebpf-agent
           - remote-config
           - infra-agent
           - nrdot-agent
@@ -67,6 +71,7 @@ jobs:
             --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" \
             --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}" \
             --redis-version "${{ env.HOST_E2E_REDIS_VERSION }}"
+            --ebpf-agent-version "${{ env.HOST_E2E_EBPF_AGENT_VERSION }}"
 
       - name: Report test result to New Relic
         if: always()

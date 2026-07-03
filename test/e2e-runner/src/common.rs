@@ -91,6 +91,10 @@ pub struct InstallationArgs {
     #[arg(long)]
     pub nrdot_version: Option<String>,
 
+    /// Version of the eBPF agent OCI image to use in tests
+    #[arg(long)]
+    pub ebpf_agent_version: Option<String>,
+
     /// Version of the Redis OCI image to use in tests
     #[arg(long)]
     pub redis_version: Option<String>,
