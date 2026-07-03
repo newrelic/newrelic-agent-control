@@ -40,10 +40,11 @@ fn cooldown_reason(reason: &SuppressionReason) -> &'static str {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpdateOutcome {
     /// No in-process self-update was initiated. Continue applying the remote configuration.
-    NoUpdate,
-    /// The Self-update was initiated, the AC binary already replaced and process restart requested.
-    /// Since the restarted process will already apply the new configuration, other changes can wait
-    /// avoiding the restart of sub-agents twice.
+    /// An update may still have been requested out-of-process (k8s Helm release version bump).
+    NoRestartPending,
+    /// The self-update was initiated, the AC binary already replaced and a process restart
+    /// requested. Since the restarted process will already apply the new configuration, the caller
+    /// should defer sub-agent reconciliation to avoid restarting sub-agents twice.
     RestartPending,
 }
 
@@ -57,8 +58,8 @@ pub trait VersionUpdater {
     /// attempts to update the desired agent control version.
     ///
     /// Returns [`UpdateOutcome::RestartPending`] if a self-update was initiated and the process is
-    /// about to restart, [`UpdateOutcome::NoUpdate`] if nothing was done in-process, or an
-    /// `UpdaterError` if the update fails.
+    /// about to restart, [`UpdateOutcome::NoRestartPending`] if no in-process restart is pending, or
+    /// an `UpdaterError` if the update fails.
     fn update(&self, config: &AgentControlDynamicConfig) -> Result<UpdateOutcome, UpdaterError>;
 
     /// Re-attempts a previously-requested upgrade that has not yet succeeded, without waiting for a
@@ -77,7 +78,7 @@ pub struct NoOpUpdater;
 
 impl VersionUpdater for NoOpUpdater {
     fn update(&self, _config: &AgentControlDynamicConfig) -> Result<UpdateOutcome, UpdaterError> {
-        Ok(UpdateOutcome::NoUpdate)
+        Ok(UpdateOutcome::NoRestartPending)
     }
 }
 
@@ -95,12 +96,12 @@ pub mod tests {
     }
 
     impl MockVersionUpdater {
-        /// Returns a mock that always returns `Ok(UpdateOutcome::NoUpdate)` regardless of the times
-        /// it is called.
+        /// Returns a mock that always returns `Ok(UpdateOutcome::NoRestartPending)` regardless of
+        /// the times it is called.
         pub fn new_no_op() -> Self {
             let mut mock = Self::new();
             mock.expect_update()
-                .returning(|_| Ok(UpdateOutcome::NoUpdate));
+                .returning(|_| Ok(UpdateOutcome::NoRestartPending));
             mock
         }
     }

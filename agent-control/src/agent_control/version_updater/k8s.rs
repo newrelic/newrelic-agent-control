@@ -71,13 +71,13 @@ impl<C: K8sClient> VersionUpdater for K8sACUpdater<C> {
                 debug!(
                     "Agent Control CD release name is not set. Skipping Agent Control CD update."
                 );
-                return Ok(UpdateOutcome::NoUpdate);
+                return Ok(UpdateOutcome::NoRestartPending);
             };
         } else {
             debug!("Remote updates for Agent Control cd are disabled. Nothing to do.");
         }
 
-        Ok(UpdateOutcome::NoUpdate)
+        Ok(UpdateOutcome::NoRestartPending)
     }
 }
 

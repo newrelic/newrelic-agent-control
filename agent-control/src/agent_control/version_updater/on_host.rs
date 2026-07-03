@@ -74,12 +74,12 @@ where
     fn update(&self, config: &AgentControlDynamicConfig) -> Result<UpdateOutcome, UpdaterError> {
         if !self.ac_remote_update_enabled {
             debug!("Remote update is disabled, skipping update process");
-            return Ok(UpdateOutcome::NoUpdate);
+            return Ok(UpdateOutcome::NoRestartPending);
         }
 
         let Some(new_version) = &config.version else {
             debug!("Version is not specified in the dynamic config");
-            return Ok(UpdateOutcome::NoUpdate);
+            return Ok(UpdateOutcome::NoRestartPending);
         };
 
         let _span = debug_span!(
@@ -92,7 +92,7 @@ where
         if new_version.to_string() == AGENT_CONTROL_VERSION {
             debug!("Desired version is the same as current, skipping update");
             self.upgrade_gate.reset();
-            return Ok(UpdateOutcome::NoUpdate);
+            return Ok(UpdateOutcome::NoRestartPending);
         }
 
         // Cooldown gate: suppress re-attempts that are still within their backoff window, until the

@@ -509,9 +509,9 @@ where
             self.sa_dynamic_config_store.store(&config)?;
         }
 
-        // If a restart has been requested, reconciling sub-agents now would recreate any whose
-        // `agent_type` changed in this same config, only for them to be stopped ms later by the
-        // restart that applies it cleanly on startup.
+        // If a restart has been requested we skip reconciling sub-agents now to avoid stopping the
+        // agents twice. The remote config was already persisted, so when AC starts over it reads
+        // that stored config and reconciles against the new list of agents.
         if update_outcome == UpdateOutcome::RestartPending {
             info!(
                 "Agent Control self-update in progress; deferring sub-agent reconciliation to the restarted process"
