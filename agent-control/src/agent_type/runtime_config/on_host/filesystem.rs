@@ -52,10 +52,16 @@ pub struct FileSystem(HashMap<SafePath, FilesystemEntry>);
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FilesystemEntry {
-    /// A single file with literal or templated content.
+    /// A single file whose bytes come from exactly one of `text` (literal or templated content)
+    /// or `copy_from_file` (a source path copied byte-for-byte, e.g. a downloaded binary).
     File {
-        /// The file's (possibly templated) content.
-        text: TemplateableValue<String>,
+        /// The file's (possibly templated) content. Mutually exclusive with `copy_from_file`.
+        #[serde(default)]
+        text: Option<TemplateableValue<String>>,
+        /// A (possibly templated) source path whose bytes are copied into this entry. Mutually
+        /// exclusive with `text`.
+        #[serde(default)]
+        copy_from_file: Option<TemplateableValue<String>>,
         /// The persistency attribute marking it's lifecicle.
         #[serde(default)]
         persistent: TemplateableValue<bool>,
@@ -139,10 +145,34 @@ impl Templateable for FilesystemEntry {
     /// the top level by [`FileSystem::template_with`].
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         match self {
-            FilesystemEntry::File { text, persistent } => Ok(rendered::RenderedEntry::File {
-                content: text.template_with(variables)?,
-                persistent: persistent.template_with(variables)?,
-            }),
+            FilesystemEntry::File {
+                text,
+                copy_from_file,
+                persistent,
+            } => {
+                let content = match (text, copy_from_file) {
+                    (Some(text), None) => {
+                        rendered::FileContent::Inline(text.template_with(variables)?)
+                    }
+                    (None, Some(copy_from_file)) => {
+                        rendered::FileContent::Copy(copy_from_file.template_with(variables)?.into())
+                    }
+                    (Some(_), Some(_)) => {
+                        return Err(AgentTypeError::InvalidFileEntry(
+                            "cannot declare both `text` and `copy_from_file`".to_string(),
+                        ));
+                    }
+                    (None, None) => {
+                        return Err(AgentTypeError::InvalidFileEntry(
+                            "must declare either `text` or `copy_from_file`".to_string(),
+                        ));
+                    }
+                };
+                Ok(rendered::RenderedEntry::File {
+                    content,
+                    persistent: persistent.template_with(variables)?,
+                })
+            }
             FilesystemEntry::Dir {
                 entries,
                 persistent,
@@ -327,7 +357,8 @@ mod tests {
         let fs_input = FileSystem(HashMap::from([(
             PathBuf::from("newrelic.yaml").try_into().unwrap(),
             FilesystemEntry::File {
-                text: TemplateableValue::from_template("hello".to_string()),
+                text: Some(TemplateableValue::from_template("hello".to_string())),
+                copy_from_file: None,
                 persistent: TemplateableValue::default(),
             },
         )]));
@@ -339,12 +370,135 @@ mod tests {
             HashMap::from([(
                 PathBuf::from("/base/dir/newrelic.yaml"),
                 RenderedEntry::File {
-                    content: "hello".to_string(),
+                    content: rendered::FileContent::Inline("hello".to_string()),
                     persistent: false,
                 },
             )]),
         );
         assert_eq!(rendered, expected);
+    }
+
+    #[test]
+    fn parses_file_with_copy_from_file() {
+        let yaml = r#"
+nri-redis:
+  kind: file
+  copy_from_file: ${nr-sub:packages.nri-redis.dir}/nri-redis
+"#;
+        let parsed = serde_saphyr::from_str::<FileSystem>(yaml).unwrap();
+        match parsed.0.get(&SafePath(PathBuf::from("nri-redis"))).unwrap() {
+            FilesystemEntry::File {
+                text,
+                copy_from_file,
+                ..
+            } => {
+                assert!(text.is_none(), "text must be absent");
+                assert_eq!(
+                    copy_from_file.as_ref().unwrap().template,
+                    "${nr-sub:packages.nri-redis.dir}/nri-redis"
+                );
+            }
+            other => panic!("unexpected variant: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn copy_from_file_renders_to_copy_content() {
+        let variables = Variables::from_iter(vec![(
+            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+            Variable::new_final_string_variable("/base/dir"),
+        )]);
+        let fs_input = FileSystem(HashMap::from([(
+            PathBuf::from("nri-redis").try_into().unwrap(),
+            FilesystemEntry::File {
+                text: None,
+                copy_from_file: Some(TemplateableValue::from_template(
+                    "/pkg/nri-redis".to_string(),
+                )),
+                persistent: TemplateableValue::default(),
+            },
+        )]));
+
+        let rendered = fs_input.template_with(&variables).unwrap();
+
+        let expected = rendered::FileSystem::new(
+            PathBuf::from("/base/dir"),
+            HashMap::from([(
+                PathBuf::from("/base/dir/nri-redis"),
+                RenderedEntry::File {
+                    content: rendered::FileContent::Copy(PathBuf::from("/pkg/nri-redis")),
+                    persistent: false,
+                },
+            )]),
+        );
+        assert_eq!(rendered, expected);
+    }
+
+    #[rstest]
+    #[case::both(
+        Some(TemplateableValue::from_template("hi".to_string())),
+        Some(TemplateableValue::from_template("/src".to_string()))
+    )]
+    #[case::neither(None, None)]
+    fn file_entry_requires_exactly_one_source(
+        #[case] text: Option<TemplateableValue<String>>,
+        #[case] copy_from_file: Option<TemplateableValue<String>>,
+    ) {
+        let variables = Variables::from_iter(vec![(
+            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+            Variable::new_final_string_variable("/base/dir"),
+        )]);
+        let fs_input = FileSystem(HashMap::from([(
+            PathBuf::from("f").try_into().unwrap(),
+            FilesystemEntry::File {
+                text,
+                copy_from_file,
+                persistent: TemplateableValue::default(),
+            },
+        )]));
+
+        let err = fs_input.template_with(&variables).unwrap_err();
+        assert!(
+            matches!(err, AgentTypeError::InvalidFileEntry(_)),
+            "expected InvalidFileEntry, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn copy_from_file_copies_source_on_write() {
+        let tmp_dir = TempDir::new().unwrap();
+        let base = tmp_dir.path().join("base");
+        let source = tmp_dir.path().join("nri-redis-src");
+        let source_bytes = [0xFFu8, 0x00, b'b', b'i', b'n'];
+        std::fs::write(&source, source_bytes).unwrap();
+
+        let variables = Variables::from_iter(vec![(
+            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+            Variable::new_final_string_variable(base.to_string_lossy()),
+        )]);
+        let fs_input = FileSystem(HashMap::from([(
+            PathBuf::from("nri-redis").try_into().unwrap(),
+            FilesystemEntry::File {
+                text: None,
+                copy_from_file: Some(TemplateableValue::from_template(
+                    source.to_string_lossy().to_string(),
+                )),
+                persistent: TemplateableValue::default(),
+            },
+        )]));
+
+        fs_input
+            .template_with(&variables)
+            .unwrap()
+            .write(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
+
+        let dst = base.join("nri-redis");
+        assert_eq!(
+            std::fs::read(&dst).unwrap(),
+            source_bytes,
+            "destination must be a byte-for-byte copy of the source"
+        );
     }
 
     #[test]
