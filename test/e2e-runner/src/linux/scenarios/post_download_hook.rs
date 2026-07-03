@@ -225,6 +225,10 @@ variables:
     required: false
     default: latest
 deployment:
+  health:
+    interval: 60s
+    initial_delay: 0s
+    timeout: 15s
   packages:
     test-package:
       type: tar
