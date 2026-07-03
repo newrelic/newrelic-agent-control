@@ -143,7 +143,7 @@ impl Templateable for K8sHealthCheckDefinition {
 }
 
 /// Health-check configuration for a Kubernetes deployment.
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct K8sHealthConfig {
     /// The duration to wait between health checks.
     #[serde(default)]

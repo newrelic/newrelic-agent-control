@@ -206,6 +206,10 @@ variables:
     required: false
     default: false
 deployment:
+  health:
+    interval: 60s
+    initial_delay: 0s
+    timeout: 15s
   enable_file_logging: ${nr-var:enable_file_logging}
   executables:
     - id: nr-ebpf-agent-client
