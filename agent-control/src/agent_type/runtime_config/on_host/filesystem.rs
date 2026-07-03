@@ -19,7 +19,6 @@ use crate::agent_type::{
     agent_attributes::AgentAttributes,
     definition::Variables,
     error::AgentTypeError,
-    runtime_config::on_host::managed_paths::is_within_base,
     runtime_config::templateable_value::TemplateableValue,
     templates::Templateable,
     trivial_value::TrivialValue,
@@ -61,9 +60,6 @@ impl<'de> Deserialize<'de> for FileSystem {
 ///
 /// `dir_content_from_map` has no `persistent` flag: its projected files are re-rendered on every
 /// write, so it is always ephemeral.
-///
-/// Independently of the flag, every write event reconciles the on-disk state against the current
-/// declared set, anything no longer declared in the agent type is deleted.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FilesystemEntry {
@@ -148,7 +144,7 @@ impl Templateable for FileSystem {
             })
             .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
 
-        Ok(rendered::FileSystem::new(base_dir, entries))
+        Ok(rendered::FileSystem::new(entries))
     }
 }
 
@@ -297,10 +293,6 @@ fn validate_file_entry_path(path: &Path) -> Result<(), String> {
     if let Err(e) = check_single_segment(path) {
         errors.push(e);
     }
-    // Keys must not collide with AC's reserved manifest filename.
-    if let Err(e) = check_not_reserved(path) {
-        errors.push(e);
-    }
 
     if errors.is_empty() {
         Ok(())
@@ -323,24 +315,6 @@ fn check_single_segment(path: &Path) -> Result<(), String> {
          explicitly with `kind: dir` and `entries:`",
         path.display()
     ))
-}
-
-/// Rejects the reserved manifest filename at any level. Agent Control writes its
-/// managed-paths manifest at `<base_dir>/.ac-managed-paths.json`; an entry declaring that name
-/// would collide with (and corrupt) AC's own reconciliation bookkeeping.
-fn check_not_reserved(path: &Path) -> Result<(), String> {
-    let collides = path.components().any(|c| {
-        matches!(c, Component::Normal(name)
-            if name.to_str() == Some(rendered::MANAGED_PATHS_MANIFEST_FILENAME))
-    });
-    if collides {
-        return Err(format!(
-            "path `{}` uses the reserved filename `{}`",
-            path.display(),
-            rendered::MANAGED_PATHS_MANIFEST_FILENAME
-        ));
-    }
-    Ok(())
 }
 
 /// Rejects paths that traverse outside their base directory (e.g. `./../../some_path`) so that
@@ -424,6 +398,11 @@ fn persistence_error(path: &Path) -> String {
     )
 }
 
+fn is_within_base(path: &Path, base_dir: &Path) -> bool {
+    let has_escape = path.components().any(|c| matches!(c, Component::ParentDir));
+    !has_escape && path.is_absolute() && path.starts_with(base_dir)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -469,16 +448,13 @@ mod tests {
 
         let rendered = fs_input.template_with(&variables).unwrap();
 
-        let expected = rendered::FileSystem::new(
-            PathBuf::from("/base/dir"),
-            HashMap::from([(
-                PathBuf::from("/base/dir/newrelic.yaml"),
-                RenderedEntry::File {
-                    content: rendered::FileContent::Text("hello".to_string()),
-                    persistent: false,
-                },
-            )]),
-        );
+        let expected = rendered::FileSystem::new(HashMap::from([(
+            PathBuf::from("/base/dir/newrelic.yaml"),
+            RenderedEntry::File {
+                content: rendered::FileContent::Text("hello".to_string()),
+                persistent: false,
+            },
+        )]));
         assert_eq!(rendered, expected);
     }
 
@@ -546,16 +522,13 @@ nri-redis:
 
         let rendered = fs_input.template_with(&variables).unwrap();
 
-        let expected = rendered::FileSystem::new(
-            agent_dir.clone(),
-            HashMap::from([(
-                agent_dir.join("nri-redis"),
-                RenderedEntry::File {
-                    content: rendered::FileContent::Copy(source),
-                    persistent: false,
-                },
-            )]),
-        );
+        let expected = rendered::FileSystem::new(HashMap::from([(
+            agent_dir.join("nri-redis"),
+            RenderedEntry::File {
+                content: rendered::FileContent::Copy(source),
+                persistent: false,
+            },
+        )]));
         assert_eq!(rendered, expected);
     }
 
@@ -706,40 +679,6 @@ nri-redis:
             parsed.is_ok(),
             should_parse,
             "input: {yaml}, parsed: {parsed:?}"
-        );
-    }
-
-    #[test]
-    fn rejects_reserved_manifest_filename() {
-        let reserved = rendered::MANAGED_PATHS_MANIFEST_FILENAME;
-
-        // Top-level key.
-        let top_level = format!(
-            r#"
-"{reserved}":
-  kind: file
-  text: x
-"#
-        );
-        assert!(
-            serde_saphyr::from_str::<FileSystem>(&top_level).is_err(),
-            "reserved filename must be rejected at the top level"
-        );
-
-        // Nested under a dir's `entries:` — rejected at any level.
-        let nested = format!(
-            r#"
-somedir:
-  kind: dir
-  entries:
-    "{reserved}":
-      kind: file
-      text: x
-"#
-        );
-        assert!(
-            serde_saphyr::from_str::<FileSystem>(&nested).is_err(),
-            "reserved filename must be rejected at nested levels"
         );
     }
 
@@ -1124,9 +1063,8 @@ d:
         );
     }
 
-    /// Reconciliation diffs the manifest against the current declared set.
     #[test]
-    fn reconciles_against_current_declared_set() {
+    fn write_overwrites_declared_and_leaves_everything_else() {
         let tmp_dir = TempDir::new().unwrap();
 
         // First write: A (top-level file), persistent-dir with declared `old.txt`, projected map.
@@ -1172,8 +1110,7 @@ projected:
         assert!(tmp_dir.path().join("projected/a.yaml").exists());
         assert!(tmp_dir.path().join("projected/b.yaml").exists());
 
-        // Sub-agent process writes runtime files. None of these are in any manifest, so the
-        // manifest diff must leave them alone on the next reconciliation.
+        // Sub-agent process writes runtime files that were never declared.
         let runtime_top = tmp_dir.path().join("agent-runtime.log");
         let runtime_in_dir = tmp_dir.path().join("persistent-dir/cache.db");
         let runtime_in_projected = tmp_dir.path().join("projected/agent-state.log");
@@ -1213,18 +1150,18 @@ projected:
             .write(&LocalFile, &DirectoryManagerFs)
             .unwrap();
 
-        // Previously-declared, no-longer-declared paths are deleted by the manifest diff.
+        // No pruning: previously-declared, no-longer-declared paths remain on disk.
         assert!(
-            !tmp_dir.path().join("A.txt").exists(),
-            "A.txt should have been deleted"
+            tmp_dir.path().join("A.txt").exists(),
+            "A.txt should survive: write never deletes previously-declared paths"
         );
         assert!(
-            !tmp_dir.path().join("persistent-dir/old.txt").exists(),
-            "old.txt inside persistent-dir should have been deleted (was in prev manifest)"
+            tmp_dir.path().join("persistent-dir/old.txt").exists(),
+            "old.txt inside persistent-dir should survive"
         );
         assert!(
-            !tmp_dir.path().join("projected/b.yaml").exists(),
-            "projected/b.yaml should have been deleted"
+            tmp_dir.path().join("projected/b.yaml").exists(),
+            "projected/b.yaml should survive even though it was dropped from the map"
         );
         // Currently-declared paths are present and updated.
         assert_eq!(
@@ -1232,7 +1169,7 @@ projected:
             "a-content-v2"
         );
         assert!(tmp_dir.path().join("persistent-dir").is_dir());
-        // Agent-process-created files survive everywhere, they were never in the manifest.
+        // Agent-process-created files survive everywhere.
         assert!(
             runtime_top.exists(),
             "top-level runtime file should survive"
@@ -1300,150 +1237,5 @@ persistent-dir:
         assert!(!tmp_dir.path().join("ephemeral-dir").exists());
         assert!(tmp_dir.path().join("persistent.txt").exists());
         assert!(tmp_dir.path().join("persistent-dir").is_dir());
-    }
-
-    #[test]
-    fn removed_parent_dir_takes_agent_created_descendants_with_it() {
-        let tmp_dir = TempDir::new().unwrap();
-
-        // Config A: declares `agent/data` as a persistent dir.
-        let config_a = r#"
-agent:
-  kind: dir
-  persistent: true
-  entries:
-    data:
-      kind: dir
-      persistent: true
-"#;
-        let variables = Variables::from_iter(vec![(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-            Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
-        )]);
-
-        serde_saphyr::from_str::<FileSystem>(config_a)
-            .unwrap()
-            .template_with(&variables)
-            .unwrap()
-            .write(&LocalFile, &DirectoryManagerFs)
-            .unwrap();
-
-        // Sub-agent process writes a runtime file inside `agent/data`.
-        let runtime_file = tmp_dir.path().join("agent/data/runtime.log");
-        std::fs::create_dir_all(runtime_file.parent().unwrap()).unwrap();
-        std::fs::write(&runtime_file, "agent runtime data").unwrap();
-        assert!(runtime_file.exists());
-
-        // Config B: agent type no longer declares `agent` at all.
-        let config_b = r#"
-unrelated.txt:
-  kind: file
-  text: hi
-"#;
-        serde_saphyr::from_str::<FileSystem>(config_b)
-            .unwrap()
-            .template_with(&variables)
-            .unwrap()
-            .write(&LocalFile, &DirectoryManagerFs)
-            .unwrap();
-
-        // The previously-declared persistent dir tree is gone.
-        assert!(
-            !runtime_file.exists(),
-            "agent-created file under removed parent should be deleted"
-        );
-        assert!(
-            !tmp_dir.path().join("agent/data").exists(),
-            "formerly-declared persistent dir should be deleted"
-        );
-        assert!(
-            !tmp_dir.path().join("agent").exists(),
-            "ancestor dir of removed entry should be deleted"
-        );
-        // The new entry from config B is in place.
-        assert_eq!(
-            std::fs::read_to_string(tmp_dir.path().join("unrelated.txt")).unwrap(),
-            "hi"
-        );
-    }
-
-    #[rstest]
-    #[case::manifest_missing(true, None)]
-    #[case::manifest_truncated(false, Some(""))]
-    #[case::manifest_invalid_json(false, Some("{ not valid json"))]
-    #[case::manifest_wrong_schema(false, Some("{\"different_field\":[]}"))]
-    fn write_does_not_delete_when_manifest_is_unreadable(
-        #[case] delete_manifest: bool,
-        #[case] overwrite_with: Option<&str>,
-    ) {
-        let tmp_dir = TempDir::new().unwrap();
-        let variables = Variables::from_iter(vec![(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-            Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
-        )]);
-
-        let first_yaml = r#"
-keep.txt:
-  kind: file
-  text: keep me
-also-keep.txt:
-  kind: file
-  text: also keep me
-"#;
-        serde_saphyr::from_str::<FileSystem>(first_yaml)
-            .unwrap()
-            .template_with(&variables)
-            .unwrap()
-            .write(&LocalFile, &DirectoryManagerFs)
-            .unwrap();
-
-        let manifest_path = tmp_dir
-            .path()
-            .join(rendered::MANAGED_PATHS_MANIFEST_FILENAME);
-        assert!(manifest_path.exists(), "first write should create manifest");
-
-        if delete_manifest {
-            std::fs::remove_file(&manifest_path).unwrap();
-        }
-        if let Some(garbage) = overwrite_with {
-            std::fs::write(&manifest_path, garbage).unwrap();
-        }
-
-        // Manifest unreadable, the diff is empty → nothing deleted.
-        let second_yaml = r#"
-new.txt:
-  kind: file
-  text: new
-"#;
-        serde_saphyr::from_str::<FileSystem>(second_yaml)
-            .unwrap()
-            .template_with(&variables)
-            .unwrap()
-            .write(&LocalFile, &DirectoryManagerFs)
-            .unwrap();
-
-        assert!(
-            tmp_dir.path().join("keep.txt").exists(),
-            "keep.txt should NOT have been deleted (manifest was unreadable)"
-        );
-        assert!(
-            tmp_dir.path().join("also-keep.txt").exists(),
-            "also-keep.txt should NOT have been deleted (manifest was unreadable)"
-        );
-        assert_eq!(
-            std::fs::read_to_string(tmp_dir.path().join("new.txt")).unwrap(),
-            "new"
-        );
-        // The second write rewrote a fresh, valid manifest, so subsequent writes will reconcile
-        // normally going forward.
-        assert!(
-            manifest_path.exists(),
-            "second write should have written a fresh manifest"
-        );
-        let manifest_content = std::fs::read_to_string(&manifest_path).unwrap();
-        assert!(
-            manifest_content.contains("new.txt"),
-            "fresh manifest should track the new entry: {manifest_content}"
-        );
     }
 }
