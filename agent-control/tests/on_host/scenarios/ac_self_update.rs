@@ -8,6 +8,8 @@ use crate::common::retry::retry_never;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::OnHostAgentControlConfigBuilder;
 use crate::on_host::tools::config::create_local_config;
+use crate::on_host::tools::config::load_remote_config_content;
+use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::fake_binary::assert_is_fake_binary;
 use crate::on_host::tools::fake_binary::build_fake_ac_binary;
 use crate::on_host::tools::fake_binary::build_invalid_fake_ac_binary;
@@ -17,6 +19,7 @@ use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_ID;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_VERSION;
+use newrelic_agent_control::agent_control::defaults::AGENT_FILESYSTEM_FOLDER_NAME;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
 use newrelic_agent_control::agent_control::version_updater::on_host::AGENT_CONTROL_BIN;
@@ -97,6 +100,102 @@ fn copy_current_exe() -> (TempDir, PathBuf) {
     let copy = dir.path().join(AGENT_CONTROL_BIN);
     std::fs::copy(&current_exe, &copy).expect("failed to copy current exe");
     (dir, copy)
+}
+
+#[test]
+#[ignore = "needs oci registry (use *with_oci_registry suffix)"]
+/// A single remote config that BOTH bumps the AC version (triggering a self-update) AND adds a
+/// sub-agent must defer the sub-agent's reconciliation to the restarted process
+/// The restart is simulated by a second AC run against and the sub-agent renders a directory entry,
+/// so whether it has been reconciled is observable on disk.
+fn test_ac_self_update_defers_subagent_reconciliation_to_restart_with_oci_registry() {
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
+    let signer = OCISigner::start(tokio_runtime().handle().clone());
+
+    let new_version_tag = push_signed_fake_ac_package(&signer);
+
+    let dirs = TempBasePaths::default();
+
+    // A sub-agent type that renders a directory entry, making its reconciliation observable.
+    let dir_entry = "reconciled";
+    let agent_type = CustomAgentType::default()
+        .with_filesystem(Some(&format!("{dir_entry}:\n  kind: dir\n")))
+        .build(dirs.local_dir());
+
+    let agent_id = "deferred-agent";
+    let subagent_dir = dirs
+        .remote_dir()
+        .join(AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(agent_id)
+        .join(dir_entry);
+
+    // Self-update enabled, no sub-agents yet.
+    create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), true);
+    let (_self_replace_target_dir, self_replace_target) = copy_current_exe();
+    let mut agent_control = start_agent_control_with_self_replace_target(
+        dirs.base_paths(),
+        AGENT_CONTROL_MODE_ON_HOST,
+        self_replace_target,
+    );
+
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
+
+    // One config: bump the version AND add the sub-agent.
+    opamp_server.set_config_response(
+        ac_instance_id.clone(),
+        format!(
+            r#"
+version: "{new_version_tag}"
+agents:
+  {agent_id}:
+    agent_type: "{agent_type}"
+"#
+        ),
+    );
+
+    // The config is applied and AC gracefully stops to hand off to the restarted process.
+    retry(60, Duration::from_secs(5), || {
+        check_latest_remote_config_status_is_expected(
+            &opamp_server,
+            &ac_instance_id,
+            RemoteConfigStatuses::Applied as i32,
+        )
+    });
+    retry(60, Duration::from_secs(5), || {
+        if agent_control.has_gracefully_stopped() {
+            Ok(())
+        } else {
+            Err("Agent Control should have stopped for the self-update handoff".into())
+        }
+    });
+
+    // Reconciliation was deferred: the config is persisted (so the restart can apply it) but the
+    // sub-agent was NOT built before the stop.
+    let stored = load_remote_config_content(&AgentID::AgentControl, dirs.base_paths())
+        .expect("the AC remote config should have been persisted before the restart");
+    assert!(
+        stored.contains(&agent_type),
+        "persisted config should carry the new sub-agent, got: {stored}"
+    );
+    assert!(
+        !subagent_dir.exists(),
+        "sub-agent must not be reconciled before the self-update restart: {subagent_dir:?}"
+    );
+
+    // Restart: the new process (self-update no longer needed) reconciles the persisted agent list,
+    // which the config store loads on top of the local config at startup.
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .write(dirs.local_dir());
+    let _agent_control =
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
+
+    retry(60, Duration::from_secs(1), || {
+        if subagent_dir.exists() {
+            Ok(())
+        } else {
+            Err(format!("restarted AC should reconcile the sub-agent: {subagent_dir:?}").into())
+        }
+    });
 }
 
 #[test]
