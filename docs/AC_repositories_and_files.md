@@ -27,6 +27,8 @@ The remote configurations and in general any files expected to dynamically chang
 its own files here; these survive restarts **unless they live inside a directory AC declared as ephemeral** (the default), which AC
 wipes on stop and before each re-render. To keep agent-created data across restarts, place it under a `persistent` directory or a path
 AC doesn't manage. See [Persistence in Filesystem](./INTEGRATING_AGENTS.md#persistence-in-filesystem).
+- `shared-filesystem` is a directory shared across all sub-agents (not suffixed per agent) where an agent type's `shared_filesystem`
+entries are written, so other sub-agents (e.g. the infrastructure agent) can read them. See [`shared_filesystem`](./INTEGRATING_AGENTS.md#shared_filesystem).
 
 #### Logs
 The directory inside `[...]/log/<agent-id>` will store the logs if file logging was configured, 
@@ -76,12 +78,17 @@ The following shows the directory structure used by Agent Control, assuming an e
     │       │    └── nr-infra
     │       │         ├── instance_id.yaml
     │       │         └── remote_config.yaml 
-    │       └── filesystem
-    │            └── nr-infra
-    │                ├── integrations.d
-    │                │   └── nri-redis.yaml
-    │                └── config
-    │                      └── newrelic-infra.yml
+    │       ├── filesystem
+    │       │    └── nr-infra
+    │       │        ├── integrations.d
+    │       │        │   └── nri-redis.yaml
+    │       │        └── config
+    │       │              └── newrelic-infra.yml
+    │       └── shared-filesystem
+    │            ├── infra-agent-ohi-configs
+    │            │   └── nri-redis.yaml
+    │            └── infra-agent-ohi-binaries
+    │                └── nri-redis
     └── log
         └── newrelic-agent-control
             |── agent-control
@@ -113,6 +120,11 @@ C:\ProgramData\New Relic\newrelic-agent-control
 │       │    └─── [...] Data files created by the infra agent
 │       └── config
 │             └── newrelic-infra.yml
+├───shared-filesystem
+│   ├───infra-agent-ohi-configs
+│   │       nri-redis.yaml
+│   └───infra-agent-ohi-binaries
+│           nri-redis.exe
 ├───fleet-data
 │   ├───agent-control
 │   │       instance_id.yaml
