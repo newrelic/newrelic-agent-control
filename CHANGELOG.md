@@ -30,6 +30,7 @@ Remember that the keywords that you can use are the following:
 - On-host filesystem entries now accept a `persistent` flag (default `false`): ephemeral entries are deleted on sub-agent stop, persistent entries survive until the agent is removed from the fleet. Reconciliation across writes is driven by a `.ac-managed-paths.json` manifest (reserved filename — agent types must not declare it) so paths Agent Control no longer owns are deleted while sub-agent-created files are preserved.
 - Include new 'shared-filesystem-dir` variable for Agent Types.
 - Extend internal `fs` crate with a copy operation.
+- Removing an agent from the fleet now also deletes its installed packages from disk.
 
 ## v1.17.0 - 2026-06-16
 
