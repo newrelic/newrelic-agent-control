@@ -91,7 +91,7 @@ where
 
         debug!(%agent_id, "Cleaning agent packages");
         self.package_remover
-            .remove_agent_packages(agent_id)
+            .remove(agent_id)
             .map_err(OnHostCleanerError::Packages)?;
 
         Ok(())
@@ -207,20 +207,6 @@ mod tests {
         AgentID::try_from(s).unwrap()
     }
 
-    /// Package remover that expects `remove_agent_packages` exactly once per given agent id.
-    fn remover_removing(agent_ids: &[&str]) -> MockAgentPackagesRemover {
-        let mut remover = MockAgentPackagesRemover::new();
-        for id in agent_ids {
-            let id = agent_id(id);
-            remover
-                .expect_remove_agent_packages()
-                .with(predicate::eq(id))
-                .once()
-                .returning(|_| Ok(()));
-        }
-        remover
-    }
-
     fn packages_error() -> OCIPackageManagerError {
         OCIPackageManagerError::RemoveAgentPackages {
             path: "/var/lib/newrelic-agent-control/packages/foo-agent".to_string(),
@@ -268,7 +254,7 @@ mod tests {
             fs_base(),
             fleet_base(),
             Arc::new(dir_manager),
-            Arc::new(remover_removing(&[id.as_str()])),
+            Arc::new(MockAgentPackagesRemover::new().removing(&[id.as_str()])),
         );
 
         assert!(cleaner.clean(&id, &any_type_id()).is_ok());
@@ -297,7 +283,7 @@ mod tests {
             fs_base(),
             fleet_base(),
             Arc::new(dir_manager),
-            Arc::new(remover_removing(&[])),
+            Arc::new(MockAgentPackagesRemover::new().removing(&[])),
         );
 
         let err = cleaner.clean(&id, &any_type_id()).unwrap_err();
@@ -318,7 +304,7 @@ mod tests {
 
         let mut package_remover = MockAgentPackagesRemover::new();
         package_remover
-            .expect_remove_agent_packages()
+            .expect_remove()
             .with(predicate::eq(id.clone()))
             .once()
             .returning(|_| Err(packages_error()));
@@ -345,7 +331,7 @@ mod tests {
         let mut dir_manager = MockDirectoryManager::new();
         dir_manager.expect_delete().never();
         let mut package_remover = MockAgentPackagesRemover::new();
-        package_remover.expect_remove_agent_packages().never();
+        package_remover.expect_remove().never();
 
         let cleaner = OnHostCleaner::new(
             Arc::new(instance_id_storer),
@@ -414,7 +400,8 @@ mod tests {
                 .returning(|_| Ok(()));
         }
 
-        let package_remover = remover_removing(&["orphan-fs", "orphan-fleet"]);
+        let package_remover =
+            MockAgentPackagesRemover::new().removing(&["orphan-fs", "orphan-fleet"]);
 
         cleaner(
             instance_id_storer,
@@ -455,7 +442,7 @@ mod tests {
             .once()
             .returning(|_| Ok(()));
 
-        let package_remover = remover_removing(&[orphan.as_str()]);
+        let package_remover = MockAgentPackagesRemover::new().removing(&[orphan.as_str()]);
 
         cleaner(
             instance_id_storer,
@@ -478,7 +465,7 @@ mod tests {
         let mut instance_id_storer = MockInstanceIDStorer::new();
         instance_id_storer.expect_delete().never();
 
-        let package_remover = remover_removing(&[]);
+        let package_remover = MockAgentPackagesRemover::new().removing(&[]);
 
         cleaner(
             instance_id_storer,
@@ -515,7 +502,7 @@ mod tests {
             .once()
             .returning(|_| Ok(()));
 
-        let package_remover = remover_removing(&[orphan.as_str()]);
+        let package_remover = MockAgentPackagesRemover::new().removing(&[orphan.as_str()]);
 
         cleaner(
             instance_id_storer,

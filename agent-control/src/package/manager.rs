@@ -50,14 +50,16 @@ pub trait PackageManager: Send + Sync {
 pub trait AgentPackagesRemover: Send + Sync {
     /// Removes every package installed on disk for the given agent. A missing directory is not an
     /// error.
-    fn remove_agent_packages(&self, agent_id: &AgentID) -> Result<(), OCIPackageManagerError>;
+    fn remove(&self, agent_id: &AgentID) -> Result<(), OCIPackageManagerError>;
 }
 
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod tests {
     use super::*;
+    use crate::agent_control::agent_id::AgentID;
     use mockall::mock;
+    use mockall::predicate;
     use std::sync::Arc;
 
     mock! {
@@ -85,10 +87,23 @@ pub mod tests {
     mock! {
         pub AgentPackagesRemover {}
         impl AgentPackagesRemover for AgentPackagesRemover {
-            fn remove_agent_packages(
+            fn remove(
                 &self,
                 agent_id: &AgentID,
             ) -> Result<(), OCIPackageManagerError>;
+        }
+    }
+    impl MockAgentPackagesRemover {
+        /// Package remover that expects `remove_agent_packages` exactly once per given agent id.
+        pub fn removing(mut self, agent_ids: &[&str]) -> MockAgentPackagesRemover {
+            for id in agent_ids {
+                let id = AgentID::try_from(*id).unwrap();
+                self.expect_remove()
+                    .with(predicate::eq(id))
+                    .once()
+                    .returning(|_| Ok(()));
+            }
+            self
         }
     }
 }

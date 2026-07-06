@@ -421,7 +421,7 @@ where
     D: OCIPackageDownloader,
     DM: DirectoryManager,
 {
-    fn remove_agent_packages(&self, agent_id: &AgentID) -> Result<(), OCIPackageManagerError> {
+    fn remove(&self, agent_id: &AgentID) -> Result<(), OCIPackageManagerError> {
         let packages_dir = get_agent_packages_dir(&self.remote_dir, agent_id);
         debug!(%agent_id, path = %packages_dir.display(), "Removing agent packages directory");
         self.directory_manager
@@ -957,9 +957,16 @@ mod tests {
             PathBuf::from(root_dir.path()),
         );
 
-        pm.remove_agent_packages(&agent_id_to_remove).unwrap();
+        pm.remove(&agent_id_to_remove).unwrap();
 
         assert!(!get_agent_packages_dir(root_dir.path(), &agent_id_to_remove).exists());
+        assert!(
+            !pm.latest_installed_packages
+                .lock()
+                .unwrap()
+                .contains_key(&agent_id_to_remove)
+        );
+
         assert!(other_package.exists());
     }
 
@@ -974,6 +981,6 @@ mod tests {
             PathBuf::from(root_dir.path()),
         );
 
-        assert!(pm.remove_agent_packages(&agent_id).is_ok());
+        assert!(pm.remove(&agent_id).is_ok());
     }
 }
