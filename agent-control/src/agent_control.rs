@@ -511,7 +511,8 @@ where
 
         // If a restart has been requested we skip reconciling sub-agents now to avoid stopping the
         // agents twice. The remote config was already persisted, so when AC starts over it reads
-        // that stored config and reconciles against the new list of agents.
+        // that stored config and reconciles against the new list of agents. RestartPending is an
+        // outcome that can only happen on host.
         if update_outcome == UpdateOutcome::RestartPending {
             info!(
                 "Agent Control self-update in progress; deferring sub-agent reconciliation to the restarted process"

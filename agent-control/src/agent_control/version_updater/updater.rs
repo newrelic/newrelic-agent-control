@@ -42,9 +42,10 @@ pub enum UpdateOutcome {
     /// No in-process self-update was initiated. Continue applying the remote configuration.
     /// An update may still have been requested out-of-process (k8s Helm release version bump).
     NoRestartPending,
-    /// The self-update was initiated, the AC binary already replaced and a process restart
+    /// The on host self-update was initiated, the AC binary already replaced and a process restart
     /// requested. Since the restarted process will already apply the new configuration, the caller
     /// should defer sub-agent reconciliation to avoid restarting sub-agents twice.
+    /// This Outcome can't ever happen for k8s since everything is handled by Helm.
     RestartPending,
 }
 
