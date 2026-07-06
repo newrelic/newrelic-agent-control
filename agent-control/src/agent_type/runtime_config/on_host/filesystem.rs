@@ -79,7 +79,7 @@ pub enum FilesystemEntry {
         copy_from_file: Option<TemplateableValue<String>>,
         /// The persistency attribute marking it's lifecicle.
         #[serde(default)]
-        persistent: TemplateableValue<bool>,
+        persistent: bool,
     },
     /// An explicitly declared directory. Children, if any, live under `entries:`.
     Dir {
@@ -88,7 +88,7 @@ pub enum FilesystemEntry {
         entries: HashMap<SafePath, FilesystemEntry>,
         /// The persistency attribute marking it's lifecicle.
         #[serde(default)]
-        persistent: TemplateableValue<bool>,
+        persistent: bool,
     },
     /// A directory whose set of files is computed at deploy time from a `map[string]yaml`
     /// variable. Map keys become filenames; values become file contents.
@@ -196,7 +196,7 @@ impl Templateable for FilesystemEntry {
                 };
                 Ok(rendered::RenderedEntry::File {
                     content,
-                    persistent: persistent.template_with(variables)?,
+                    persistent,
                 })
             }
             FilesystemEntry::Dir {
@@ -209,7 +209,7 @@ impl Templateable for FilesystemEntry {
                     .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
                 Ok(rendered::RenderedEntry::Dir {
                     children,
-                    persistent: persistent.template_with(variables)?,
+                    persistent,
                 })
             }
             FilesystemEntry::DirContentFromMap { source } => {
@@ -385,7 +385,7 @@ fn check_entry_persistence(
 ) {
     match entry {
         FilesystemEntry::File { persistent, .. } => {
-            if ancestor_ephemeral && is_declared_persistent(persistent) {
+            if ancestor_ephemeral && *persistent {
                 errors.push(persistence_error(path));
             }
         }
@@ -393,12 +393,12 @@ fn check_entry_persistence(
             entries,
             persistent,
         } => {
-            if ancestor_ephemeral && is_declared_persistent(persistent) {
+            if ancestor_ephemeral && *persistent {
                 errors.push(persistence_error(path));
             }
             // A child sits under a non-persistent ancestor if one already existed up the chain, or
-            // if this directory is itself (literally) declared non-persistent.
-            let child_ancestor_ephemeral = ancestor_ephemeral || is_declared_ephemeral(persistent);
+            // if this directory is itself declared non-persistent.
+            let child_ancestor_ephemeral = ancestor_ephemeral || !persistent;
             for (child_key, child) in entries {
                 check_entry_persistence(
                     &path.join(child_key),
@@ -412,17 +412,6 @@ fn check_entry_persistence(
         // can neither be a persistent entry nor a parent of one.
         FilesystemEntry::DirContentFromMap { .. } => {}
     }
-}
-
-/// Whether the flag is literally `persistent: true`.
-fn is_declared_persistent(persistent: &TemplateableValue<bool>) -> bool {
-    persistent.template == "true"
-}
-
-/// Whether the flag is literally non-persistent: omitted (empty default) or `persistent: false`.
-/// A templated value is neither definitely persistent nor definitely ephemeral.
-fn is_declared_ephemeral(persistent: &TemplateableValue<bool>) -> bool {
-    persistent.template.is_empty() || persistent.template == "false"
 }
 
 fn persistence_error(path: &Path) -> String {
@@ -474,7 +463,7 @@ mod tests {
             FilesystemEntry::File {
                 text: Some(TemplateableValue::from_template("hello".to_string())),
                 copy_from_file: None,
-                persistent: TemplateableValue::default(),
+                persistent: false,
             },
         )]));
 
@@ -681,7 +670,7 @@ nri-redis:
             PathBuf::from("any").try_into().unwrap(),
             FilesystemEntry::Dir {
                 entries: HashMap::new(),
-                persistent: TemplateableValue::default(),
+                persistent: false,
             },
         )]));
 
@@ -939,8 +928,8 @@ foo:
         );
     }
 
-    /// Persistent flag defaults to false; explicit `persistent: true` and templated values both
-    /// parse correctly. Independent per variant.
+    /// Persistent flag defaults to false; explicit `persistent: true` parses to `true`, and the
+    /// flag on `dir_content_from_map` is ignored. Independent per variant.
     #[test]
     fn persistent_field_parses_per_variant() {
         let yaml = r#"
@@ -964,16 +953,16 @@ map-with-ignored-persistent:
 
         match parsed.0.get(&key("default-file")).unwrap() {
             FilesystemEntry::File { persistent, .. } => {
-                assert_eq!(persistent.template, "");
+                assert!(!persistent);
             }
             other => panic!("unexpected variant: {other:?}"),
         }
         match parsed.0.get(&key("persistent-file")).unwrap() {
-            FilesystemEntry::File { persistent, .. } => assert_eq!(persistent.template, "true"),
+            FilesystemEntry::File { persistent, .. } => assert!(persistent),
             other => panic!("unexpected variant: {other:?}"),
         }
         match parsed.0.get(&key("persistent-dir")).unwrap() {
-            FilesystemEntry::Dir { persistent, .. } => assert_eq!(persistent.template, "true"),
+            FilesystemEntry::Dir { persistent, .. } => assert!(persistent),
             other => panic!("unexpected variant: {other:?}"),
         }
         match parsed.0.get(&key("map-with-ignored-persistent")).unwrap() {
