@@ -424,25 +424,39 @@ nri-redis:
         }
     }
 
-    #[test]
-    fn copy_from_file_renders_to_copy_content() {
-        let variables = Variables::from_iter(vec![
+    /// Builds the reserved variables a filesystem render needs: the per-agent base dir and the
+    /// remote dir that confines `copy_from_file` sources. Paths are passed through so callers can
+    /// use real (absolute, platform-native) directories.
+    fn fs_variables(agent_dir: &Path, remote_dir: &Path) -> Variables {
+        Variables::from_iter(vec![
             (
                 Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-                Variable::new_final_string_variable("/data/filesystem/agent"),
+                Variable::new_final_string_variable(agent_dir.to_string_lossy()),
             ),
             (
                 Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_REMOTE_DIR),
-                Variable::new_final_string_variable("/data"),
+                Variable::new_final_string_variable(remote_dir.to_string_lossy()),
             ),
-        ]);
+        ])
+    }
+
+    #[test]
+    fn copy_from_file_renders_to_copy_content() {
+        // A real temp dir gives an absolute, platform-native base (`/data`-style literals are not
+        // absolute on Windows, so they would fail the `is_within_base` confinement check there).
+        let tmp_dir = TempDir::new().unwrap();
+        let remote = tmp_dir.path();
+        let agent_dir = remote.join("filesystem").join("agent");
+        // A source within the remote dir (a package binary) is allowed.
+        let source = remote.join("packages").join("nri-redis");
+
+        let variables = fs_variables(&agent_dir, remote);
         let fs_input = FileSystem(HashMap::from([(
             PathBuf::from("nri-redis").try_into().unwrap(),
             FilesystemEntry::File {
                 text: None,
-                // A source within the remote dir (a package binary) is allowed.
                 copy_from_file: Some(TemplateableValue::from_template(
-                    "/data/packages/nri-redis".to_string(),
+                    source.to_string_lossy().to_string(),
                 )),
                 persistent: TemplateableValue::default(),
             },
@@ -451,11 +465,11 @@ nri-redis:
         let rendered = fs_input.template_with(&variables).unwrap();
 
         let expected = rendered::FileSystem::new(
-            PathBuf::from("/data/filesystem/agent"),
+            agent_dir.clone(),
             HashMap::from([(
-                PathBuf::from("/data/filesystem/agent/nri-redis"),
+                agent_dir.join("nri-redis"),
                 RenderedEntry::File {
-                    content: rendered::FileContent::Copy(PathBuf::from("/data/packages/nri-redis")),
+                    content: rendered::FileContent::Copy(source),
                     persistent: false,
                 },
             )]),
@@ -463,36 +477,43 @@ nri-redis:
         assert_eq!(rendered, expected);
     }
 
-    /// A `copy_from_file` source outside `${nr-sub:remote_dir}` (an absolute host path, or a
-    /// `..` traversal out of the base) is rejected at template time.
-    #[rstest]
-    #[case::absolute_host_path("/etc/shadow")]
-    #[case::escapes_base("/data/../etc/shadow")]
-    fn copy_from_file_outside_base_is_rejected(#[case] source: &str) {
-        let variables = Variables::from_iter(vec![
-            (
-                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-                Variable::new_final_string_variable("/data/filesystem/agent"),
-            ),
-            (
-                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_REMOTE_DIR),
-                Variable::new_final_string_variable("/data"),
-            ),
-        ]);
-        let fs_input = FileSystem(HashMap::from([(
-            PathBuf::from("nri-redis").try_into().unwrap(),
-            FilesystemEntry::File {
-                text: None,
-                copy_from_file: Some(TemplateableValue::from_template(source.to_string())),
-                persistent: TemplateableValue::default(),
-            },
-        )]));
+    /// A `copy_from_file` source outside `${nr-sub:remote_dir}` (an absolute path elsewhere on the
+    /// host, or a `..` traversal out of the base) is rejected at template time.
+    #[test]
+    fn copy_from_file_outside_base_is_rejected() {
+        let tmp_dir = TempDir::new().unwrap();
+        let remote = tmp_dir.path();
+        let agent_dir = remote.join("filesystem").join("agent");
 
-        let err = fs_input.template_with(&variables).unwrap_err();
-        assert!(
-            matches!(err, AgentTypeError::InvalidFileEntry(_)),
-            "expected InvalidFileEntry, got {err:?}"
-        );
+        // An absolute path outside the remote dir (a sibling of it), and a `..` escape out of it.
+        // Both are built from the temp dir so they stay absolute and platform-native.
+        let outside_sibling = remote
+            .parent()
+            .expect("temp dir has a parent")
+            .join("outside-secret");
+        let escapes_base = remote.join("..").join("outside-secret");
+
+        for source in [outside_sibling, escapes_base] {
+            let fs_input = FileSystem(HashMap::from([(
+                PathBuf::from("nri-redis").try_into().unwrap(),
+                FilesystemEntry::File {
+                    text: None,
+                    copy_from_file: Some(TemplateableValue::from_template(
+                        source.to_string_lossy().to_string(),
+                    )),
+                    persistent: TemplateableValue::default(),
+                },
+            )]));
+
+            let err = fs_input
+                .template_with(&fs_variables(&agent_dir, remote))
+                .unwrap_err();
+            assert!(
+                matches!(err, AgentTypeError::InvalidFileEntry(_)),
+                "source {} should be rejected, got {err:?}",
+                source.display()
+            );
+        }
     }
 
     #[rstest]
@@ -533,17 +554,8 @@ nri-redis:
         let source_bytes = [0xFFu8, 0x00, b'b', b'i', b'n'];
         std::fs::write(&source, source_bytes).unwrap();
 
-        let variables = Variables::from_iter(vec![
-            (
-                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-                Variable::new_final_string_variable(base.to_string_lossy()),
-            ),
-            // Source lives directly under the (temp) remote dir, so it passes confinement.
-            (
-                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_REMOTE_DIR),
-                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
-            ),
-        ]);
+        // Source lives directly under the (temp) remote dir, so it passes confinement.
+        let variables = fs_variables(&base, tmp_dir.path());
         let fs_input = FileSystem(HashMap::from([(
             PathBuf::from("nri-redis").try_into().unwrap(),
             FilesystemEntry::File {

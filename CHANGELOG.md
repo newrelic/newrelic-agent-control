@@ -13,6 +13,7 @@ Remember that the keywords that you can use are the following:
  - bugfix      => Patch
 
 ## Unreleased
+- Add support for `copy_from_file` for on-host "in-agent" filesystem.
 
 ## v1.18.0 - 2026-07-06
 
@@ -28,7 +29,6 @@ Remember that the keywords that you can use are the following:
 - On-host filesystem entries now accept a `persistent` flag (default `false`): ephemeral entries are deleted on sub-agent stop, persistent entries survive until the agent is removed from the fleet. Reconciliation across writes is driven by a `.ac-managed-paths.json` manifest (reserved filename — agent types must not declare it) so paths Agent Control no longer owns are deleted while sub-agent-created files are preserved.
 - Include new 'shared-filesystem-dir` variable for Agent Types.
 - Extend internal `fs` crate with a copy operation.
-- Add support for `copy_from_file` for on-host "in-agent" filesystem.
 
 ### 🐞 Bug fixes
 - On-host self-update: an empty `version: ""` pushed from Fleet Control now behaves the same as an absent `version` field (no-op, no update attempted). Previously it silently triggered a pull of the `:latest` OCI tag.
