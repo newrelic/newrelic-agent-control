@@ -1,5 +1,6 @@
 use fs::file::LocalFile;
 use fs::file::writer::FileWriter;
+use newrelic_agent_control::agent_control::defaults::DYNAMIC_AGENT_TYPES_DIR;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
 use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
@@ -14,6 +15,7 @@ pub struct CustomAgentType {
     variables: Option<serde_json::Value>,
     executables: Option<serde_json::Value>,
     filesystem: Option<serde_json::Value>,
+    shared_filesystem: Option<serde_json::Value>,
     packages: Option<serde_json::Value>,
     health: Option<serde_json::Value>,
 }
@@ -36,6 +38,7 @@ fake_variable:
             ),
             executables: Some(Self::default_executables()),
             filesystem: None,
+            shared_filesystem: None,
             packages: None,
             health: Some(
                 serde_saphyr::from_str(
@@ -83,6 +86,9 @@ impl Display for CustomAgentType {
         }
         if let Some(filesystem) = self.filesystem.as_ref() {
             deployment.insert("filesystem".into(), filesystem.clone());
+        }
+        if let Some(shared_filesystem) = self.shared_filesystem.as_ref() {
+            deployment.insert("shared_filesystem".into(), shared_filesystem.clone());
         }
         if let Some(health) = self.health.as_ref() {
             deployment.insert("health".into(), health.clone());
@@ -141,6 +147,7 @@ impl CustomAgentType {
             executables: None,
             health: None,
             filesystem: None,
+            shared_filesystem: None,
             packages: None,
         }
     }
@@ -166,6 +173,13 @@ impl CustomAgentType {
         }
     }
 
+    pub fn with_shared_filesystem(self, shared_filesystem: Option<&str>) -> Self {
+        Self {
+            shared_filesystem: shared_filesystem.map(|f| serde_saphyr::from_str(f).unwrap()),
+            ..self
+        }
+    }
+
     pub fn with_packages(self, packages: Option<&str>) -> Self {
         Self {
             packages: packages.map(|f| serde_saphyr::from_str(f).unwrap()),
@@ -180,18 +194,33 @@ impl CustomAgentType {
         }
     }
 
+    pub fn with_agent_type_id(self, agent_type_id: &str) -> Self {
+        Self {
+            agent_type_id: AgentTypeID::try_from(agent_type_id).unwrap(),
+            ..self
+        }
+    }
+
     pub fn without_deployment(self) -> Self {
         Self {
             executables: None,
             health: None,
             filesystem: None,
+            shared_filesystem: None,
             ..self
         }
     }
 
-    /// Writes the custom agent type and returns its id as string.
+    /// Writes the custom agent type and returns its id as string. The file name is derived from the
+    /// full agent type id (namespace, name and version) so several distinct types can coexist in
+    /// the dynamic agent types dir (the loader reads every file there); two ids sharing only a name
+    /// would otherwise clobber each other.
     pub fn build(self, local_dir: PathBuf) -> String {
-        let agent_type_file_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
+        // The id (`namespace/name:version`) has `/` and `:`, which are not portable in file names.
+        let file_stem = self.agent_type_id.to_string().replace(['/', ':'], "_");
+        let agent_type_file_path = local_dir
+            .join(DYNAMIC_AGENT_TYPES_DIR)
+            .join(format!("{file_stem}.yaml"));
 
         let parsed_agent_type = AgentTypeDefinition::from_slice(self.to_string().as_bytes());
         assert!(
