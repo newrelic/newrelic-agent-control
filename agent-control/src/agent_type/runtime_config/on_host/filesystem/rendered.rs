@@ -44,14 +44,14 @@ pub enum RenderedEntry {
     File {
         /// Where the file's bytes come from.
         content: FileContent,
-        /// The persistency attribute marking it's lifecicle.
+        /// The persistency attribute marking its lifecycle.
         persistent: bool,
     },
     /// A directory containing child entries keyed by their relative path.
     Dir {
         /// The dictionary containing each children path and the entry.
         children: HashMap<PathBuf, RenderedEntry>,
-        /// The persistency attribute marking it's lifecicle.
+        /// The persistency attribute marking its lifecycle.
         persistent: bool,
     },
     /// A directory whose files were projected from a map (filename to content).

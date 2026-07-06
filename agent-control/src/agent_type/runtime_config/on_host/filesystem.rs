@@ -77,7 +77,7 @@ pub enum FilesystemEntry {
         /// exclusive with `text`.
         #[serde(default)]
         copy_from_file: Option<TemplateableValue<String>>,
-        /// The persistency attribute marking it's lifecicle.
+        /// The persistency attribute marking its lifecycle.
         #[serde(default)]
         persistent: bool,
     },
@@ -86,7 +86,7 @@ pub enum FilesystemEntry {
         /// The directory's child entries.
         #[serde(default)]
         entries: HashMap<SafePath, FilesystemEntry>,
-        /// The persistency attribute marking it's lifecicle.
+        /// The persistency attribute marking its lifecycle.
         #[serde(default)]
         persistent: bool,
     },
