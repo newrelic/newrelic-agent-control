@@ -14,12 +14,10 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
-### bugfix
-- On-host self-update: an empty `version: ""` pushed from Fleet Control now behaves the same as an absent `version` field (no-op, no update attempted). Previously it silently triggered a pull of the `:latest` OCI tag.
+## v1.18.0 - 2026-07-06
 
-### enhancement
-- Adds exponential backoff + jitter retries to OCI artifact fetches via a new `BackoffPolicy`
-  (configurable under `self_update.download_retry`), replacing the old `with_retries(usize, Duration)` API.
+### 🚀 Enhancements
+- Adds exponential backoff + jitter retries to OCI artifact fetches via a new `BackoffPolicy` (configurable under `self_update.download_retry`), replacing the old `with_retries(usize, Duration)` API.
 - add post-download script support for OCI packages.
 - Hardens service restart policies on Linux and Windows (systemd rate limiting: 5 restarts max in 60s) to prevent crash-looping from saturating CPU.
 - Added support for remote agent type definition retrieval from OCI registries.
@@ -31,6 +29,25 @@ Remember that the keywords that you can use are the following:
 - Include new 'shared-filesystem-dir` variable for Agent Types.
 - Extend internal `fs` crate with a copy operation.
 - Removing an agent from the fleet now also deletes its installed packages from disk.
+
+### 🐞 Bug fixes
+- On-host self-update: an empty `version: ""` pushed from Fleet Control now behaves the same as an absent `version` field (no-op, no update attempted). Previously it silently triggered a pull of the `:latest` OCI tag.
+
+### ⛓️ Dependencies
+- Updated rust crate config to 0.15.25
+- Updated rust crate syn to 2.0.118
+- Updated alpine/helm to v4.2.2
+- Updated rust crate bytes to 1.12.0
+- Updated rust crate serde-saphyr to 0.0.29
+- Updated rust crate actix-web to 4.14.0
+- Updated rust crate quote to 1.0.46
+- Updated kubernetes crates (major)
+- Updated rust crate opentelemetry-semantic-conventions to 0.32.1
+- Updated rust crate mockall to 0.15.0
+- Updated rust to v1.96.1
+- Updated rust crate aws-lc-rs to 1.17.1
+- Updated rust crate rustls-pki-types to 1.15.0
+- Updated rust crate opamp-client to v0.0.41
 
 ## v1.17.0 - 2026-06-16
 

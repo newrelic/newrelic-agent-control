@@ -2901,14 +2901,6 @@ Distributed under the following license(s):
 * Apache-2.0
 * MIT
 
-## wasip3 <https://crates.io/crates/wasip3>
-
-Distributed under the following license(s):
-
-* Apache-2.0 WITH LLVM-exception
-* Apache-2.0
-* MIT
-
 ## wasm-bindgen <https://crates.io/crates/wasm-bindgen>
 
 Distributed under the following license(s):
