@@ -1,6 +1,9 @@
 //! Rendered filesystem tree and the logic to materialize it on disk.
 use crate::agent_type::runtime_config::on_host::managed_paths::{ManagedPaths, delete_path};
-use fs::{directory_manager::DirectoryManager, file::writer::FileWriter};
+use fs::{
+    directory_manager::DirectoryManager,
+    file::{copier::FileCopier, writer::FileWriter},
+};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -25,13 +28,22 @@ pub struct FileSystem {
     pub(super) entries: HashMap<PathBuf, RenderedEntry>,
 }
 
+/// The source of a rendered file's bytes.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FileContent {
+    /// Literal (rendered) content written verbatim.
+    Text(String),
+    /// An on-disk source file to copy byte-for-byte into place (used by `copy_from_file`).
+    Copy(PathBuf),
+}
+
 /// A single rendered filesystem entry.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RenderedEntry {
-    /// A file with the given content.
+    /// A file whose bytes come either from inline content or from a copied source file.
     File {
-        /// The rendered content from the file.
-        content: String,
+        /// Where the file's bytes come from.
+        content: FileContent,
         /// The persistency attribute marking it's lifecicle.
         persistent: bool,
     },
@@ -77,28 +89,32 @@ impl RenderedEntry {
         }
     }
 
-    /// Materializes this entry (and its subtree) on disk at `path`.
+    /// Materializes this entry (and its subtree) on disk at `path`. `file_ops` provides both the
+    /// write and copy capabilities (a single type, [`LocalFile`], implements both in production).
     fn write(
         &self,
         path: &Path,
-        file_writer: &impl FileWriter,
+        file_ops: &(impl FileWriter + FileCopier),
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
         match self {
-            Self::File { content, .. } => write_file(file_writer, dir_manager, path, content),
+            Self::File { content, .. } => match content {
+                FileContent::Text(text) => write_file(file_ops, dir_manager, path, text),
+                FileContent::Copy(source) => copy_file(file_ops, dir_manager, path, source),
+            },
             Self::Dir { children, .. } => {
                 ensure_dir(dir_manager, path)?;
                 for (sub_path, child) in children {
                     let child_path = path.join(sub_path);
                     trace!("Recursing into child entry {}", child_path.display());
-                    child.write(&child_path, file_writer, dir_manager)?;
+                    child.write(&child_path, file_ops, dir_manager)?;
                 }
                 Ok(())
             }
             Self::DirContentFromMap { files, .. } => {
                 ensure_dir(dir_manager, path)?;
                 for (file_name, content) in files {
-                    write_file(file_writer, dir_manager, &path.join(file_name), content)?;
+                    write_file(file_ops, dir_manager, &path.join(file_name), content)?;
                 }
                 Ok(())
             }
@@ -138,7 +154,7 @@ impl FileSystem {
     /// writes the declared tree, then updates the manifest.
     pub fn write(
         &self,
-        file_writer: &impl FileWriter,
+        file_ops: &(impl FileWriter + FileCopier),
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
         let managed = self.managed_paths();
@@ -149,7 +165,7 @@ impl FileSystem {
         managed.prune_stale(&prev_declared, &curr_declared);
 
         for (path, entry) in &self.entries {
-            entry.write(path, file_writer, dir_manager)?;
+            entry.write(path, file_ops, dir_manager)?;
         }
 
         managed.save(&curr_declared);
@@ -211,6 +227,27 @@ fn write_file(
     file_writer
         .write(path, content.to_owned())
         .map_err(|err| FileSystemEntriesError(format!("creating file {path:?}: {err}")))
+}
+
+/// Copies `source` to `path`, creating its parent directory first. Overwrites an existing file.
+fn copy_file(
+    file_copier: &impl FileCopier,
+    dir_manager: &impl DirectoryManager,
+    path: &Path,
+    source: &Path,
+) -> Result<(), FileSystemEntriesError> {
+    trace!(
+        "Copying filesystem entry from {} to {}",
+        source.display(),
+        path.display()
+    );
+    let parent = path
+        .parent()
+        .ok_or_else(|| FileSystemEntriesError(format!("{} has no parent dir", path.display())))?;
+    ensure_dir(dir_manager, parent)?;
+    file_copier
+        .copy(source, path)
+        .map_err(|err| FileSystemEntriesError(format!("copying {source:?} to {path:?}: {err}")))
 }
 
 /// Error produced while writing the rendered filesystem tree to disk.
