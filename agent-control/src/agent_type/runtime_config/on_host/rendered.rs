@@ -3,7 +3,10 @@ use crate::agent_type::runtime_config::on_host::package::PackageID;
 use crate::agent_type::runtime_config::on_host::package::rendered::Package;
 use crate::agent_type::runtime_config::{
     health_config::rendered::OnHostHealthConfig,
-    on_host::{executable::rendered::Executable, filesystem::rendered::FileSystem},
+    on_host::{
+        executable::rendered::Executable,
+        filesystem::rendered::{FileSystem, SharedFileSystem},
+    },
 };
 use std::collections::HashMap;
 
@@ -18,6 +21,8 @@ pub struct OnHost {
     pub health: Option<OnHostHealthConfig>,
     /// Files and directories to materialize on disk.
     pub filesystem: FileSystem,
+    /// Files and directories to materialize in the base shared across sub-agents (write-only).
+    pub shared_filesystem: SharedFileSystem,
     /// Packages to download for this agent.
     pub packages: RenderedPackages,
 }

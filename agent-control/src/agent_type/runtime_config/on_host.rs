@@ -4,7 +4,7 @@ use super::templateable_value::TemplateableValue;
 use crate::agent_type::definition::{Variables, include_packages_variables};
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::runtime_config::on_host::executable::Executable;
-use crate::agent_type::runtime_config::on_host::filesystem::FileSystem;
+use crate::agent_type::runtime_config::on_host::filesystem::{FileSystem, SharedFileSystem};
 use crate::agent_type::runtime_config::on_host::package::{Package, PackageID};
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::agent_type::templates::Templateable;
@@ -30,6 +30,8 @@ pub struct OnHost {
     health: Option<OnHostHealthConfig>,
     #[serde(default)]
     filesystem: FileSystem,
+    #[serde(default)]
+    shared_filesystem: SharedFileSystem,
     #[serde(default)]
     packages: Packages,
 }
@@ -83,6 +85,7 @@ impl Templateable for OnHost {
                 .map(|health| health.template_with(&extended_vars))
                 .transpose()?,
             filesystem: self.filesystem.template_with(&extended_vars)?,
+            shared_filesystem: self.shared_filesystem.template_with(&extended_vars)?,
             packages: rendered_packages,
         })
     }
@@ -656,6 +659,7 @@ executables:
             enable_file_logging: TemplateableValue::default(),
             health: None,
             filesystem: FileSystem::default(),
+            shared_filesystem: SharedFileSystem::default(),
             packages: Default::default(),
         };
 
