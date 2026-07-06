@@ -364,9 +364,14 @@ pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::runtime_config::k8s::K8sObjectMeta;
     use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
+    use crate::agent_type::runtime_config::k8s::{
+        K8sHealthCheckDefinition, K8sHealthConfig, K8sHealthResourceKind, K8sObjectMeta,
+    };
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
+    use crate::checkers::health::health_checker::{
+        HEALTH_CHECKER_THREAD_NAME, HealthCheckInterval, InitialDelay,
+    };
     use crate::event::channel::pub_sub;
     use crate::k8s::annotations::Annotations;
     use crate::k8s::client::tests::MockK8sClient;
@@ -376,6 +381,7 @@ pub mod tests {
     use crate::sub_agent::identity::AgentIdentity;
     use crate::sub_agent::supervisor::Supervisor;
     use crate::sub_agent::supervisor::SupervisorStarter;
+    use crate::utils::retry::retry;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::api::DynamicObject;
     use kube::core::TypeMeta;
@@ -478,7 +484,6 @@ pub mod tests {
 
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
-            health: Some(Default::default()),
             ..K8s::default()
         };
 
@@ -513,12 +518,66 @@ pub mod tests {
     }
 
     #[test]
+    fn test_health_checker_thread_publishes_periodically_when_health_config_set() {
+        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+
+        let config = K8s {
+            health: Some(K8sHealthConfig {
+                interval: HealthCheckInterval::from(Duration::from_millis(50)),
+                initial_delay: InitialDelay::from(Duration::ZERO),
+                checks: vec![K8sHealthCheckDefinition {
+                    name: "test".to_string(),
+                    namespace: "test".to_string(),
+                    kind: K8sHealthResourceKind::Deployment,
+                    target_namespace: None,
+                }],
+            }),
+            ..K8s::default()
+        };
+
+        // The Deployment health checker calls list_deployment; return an empty list so each
+        // health tick produces a healthy result.
+        let not_started = not_started_supervisor(
+            config,
+            Some(|c: &mut MockK8sClient| {
+                c.expect_list_deployment().returning(|_| Ok(Vec::new()));
+            }),
+        );
+
+        let started = not_started
+            .start(sub_agent_internal_publisher)
+            .expect("supervisor should start");
+
+        // A health-checker thread must have been spawned.
+        assert!(
+            started
+                .thread_contexts
+                .iter()
+                .any(|ctx| ctx.thread_name() == HEALTH_CHECKER_THREAD_NAME),
+            "expected a '{HEALTH_CHECKER_THREAD_NAME}' thread"
+        );
+
+        // That thread must publish AgentHealthInfo events periodically.
+        let mut received = 0;
+        retry(30, Duration::from_millis(100), || {
+            while let Ok(event) = sub_agent_internal_consumer.as_ref().try_recv() {
+                if matches!(event, SubAgentInternalEvent::AgentHealthInfo(_)) {
+                    received += 1;
+                }
+            }
+            if received >= 2 { Ok(()) } else { Err(()) }
+        })
+        .expect("expected at least 2 AgentHealthInfo events from the health thread");
+
+        started.stop().expect("supervisor should stop");
+    }
+
+    #[test]
     fn test_supervisor_apply() {
         let (sub_agent_internal_publisher, _) = pub_sub();
 
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
-            health: Some(Default::default()),
             ..K8s::default()
         };
 

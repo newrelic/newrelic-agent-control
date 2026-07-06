@@ -117,6 +117,20 @@ impl AgentControlRunner {
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer.clone(), identifiers.clone());
 
+        let agents_package_manager = Arc::new(OCIPackageManager::new(
+            OCIPackageArtifactDownloader::new(
+                self.oci_client.clone(),
+                self.bootstrap_config.oci.registry.clone(),
+                self.bootstrap_config.oci.auth.clone(),
+                agent_control_config
+                    .agent_packages
+                    .signature_verification_enabled
+                    .into(),
+            ),
+            DirectoryManagerFs,
+            remote_dir.clone(),
+        ));
+
         let agent_filesystem_base = remote_dir.join(AGENT_FILESYSTEM_FOLDER_NAME);
         let fleet_data_base = remote_dir.join(FOLDER_NAME_FLEET_DATA);
         let dir_manager = Arc::new(DirectoryManagerFs);
@@ -126,6 +140,7 @@ impl AgentControlRunner {
             agent_filesystem_base,
             fleet_data_base,
             dir_manager,
+            agents_package_manager.clone(),
         );
         debug!("Removing stale agents from the filesystem");
         resource_cleaner.purge_stale_agents(
@@ -188,23 +203,9 @@ impl AgentControlRunner {
             &remote_dir,
         ));
 
-        let agents_package_manager = OCIPackageManager::new(
-            OCIPackageArtifactDownloader::new(
-                self.oci_client.clone(),
-                self.bootstrap_config.oci.registry.clone(),
-                self.bootstrap_config.oci.auth.clone(),
-                agent_control_config
-                    .agent_packages
-                    .signature_verification_enabled
-                    .into(),
-            ),
-            DirectoryManagerFs,
-            remote_dir.clone(),
-        );
-
         let supervisor_builder = SupervisorBuilderOnHost {
             logging_path: self.base_paths.log_dir,
-            package_manager: Arc::new(agents_package_manager),
+            package_manager: agents_package_manager,
         };
 
         let signature_validator = Arc::new(self.signature_validator);

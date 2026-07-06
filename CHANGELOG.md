@@ -24,12 +24,14 @@ Remember that the keywords that you can use are the following:
 - Hardens service restart policies on Linux and Windows (systemd rate limiting: 5 restarts max in 60s) to prevent crash-looping from saturating CPU.
 - Added support for remote agent type definition retrieval from OCI registries.
 - Agent type definitions now tolerate unknown fields for forward compatibility.
+- On-host agents: now it is possible to avoid specifying a health check in the agent type definition, in which case the agent health will be not reported.
 - On-host agents: removed command-based version checking. Agent version is now determined from OCI package metadata, eliminating the need for `deployment.version` configuration in agent type definitions.
 - Replace filesystem in on-host agent-type definitions with an explicit, recursive, tagged-kind tree: every entry declares `kind: file | dir | dir_content_from_map`, and `dir` entries nest via `entries:`.
 - On-host filesystem entries now accept a `persistent` flag (default `false`): ephemeral entries are deleted on sub-agent stop, persistent entries survive until the agent is removed from the fleet. Reconciliation across writes is driven by a `.ac-managed-paths.json` manifest (reserved filename — agent types must not declare it) so paths Agent Control no longer owns are deleted while sub-agent-created files are preserved.
 - Include new 'shared-filesystem-dir` variable for Agent Types.
 - Extend internal `fs` crate with a copy operation.
 - On-host self-update: skip sub-agent reconciliation when a self-update is in progress. When a single remote config both bumps the Agent Control version and changes a sub-agent's `agent_type`, the changed sub-agent is no longer recreated moments before the process restarts; the new config is stored and re-applied cleanly by the restarted process, avoiding a redundant sub-agent restart and telemetry gap.
+- Removing an agent from the fleet now also deletes its installed packages from disk.
 
 ## v1.17.0 - 2026-06-16
 
