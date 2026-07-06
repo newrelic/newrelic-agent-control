@@ -13,6 +13,8 @@ Remember that the keywords that you can use are the following:
  - bugfix      => Patch
 
 ## Unreleased
+
+### enhacement
 - Add support for `copy_from_file` for on-host "in-agent" filesystem.
 
 ## v1.18.0 - 2026-07-06
