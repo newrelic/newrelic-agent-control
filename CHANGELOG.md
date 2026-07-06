@@ -14,7 +14,7 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
-### enhacement
+### enhancement
 - Add support for `copy_from_file` for on-host "in-agent" filesystem.
 
 ## v1.18.0 - 2026-07-06
