@@ -28,7 +28,7 @@ pub enum AgentTypeError {
     /// A templated string could not be parsed into the target value type.
     #[error("template value not parseable from the string {0}")]
     ValueNotParseableFromString(String),
-    /// A `kind: file` entry did not declare exactly one of `text` or `copy_from_file`.
+    /// A `kind: file` entry is invalid
     #[error("invalid filesystem file entry: {0}")]
     InvalidFileEntry(String),
     /// The configured backoff strategy type is not recognized.
