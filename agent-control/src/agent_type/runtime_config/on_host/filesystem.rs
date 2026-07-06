@@ -540,7 +540,7 @@ nri-redis:
                 copy_from_file: Some(TemplateableValue::from_template(
                     source.to_string_lossy().to_string(),
                 )),
-                persistent: TemplateableValue::default(),
+                persistent: false,
             },
         )]));
 
@@ -583,7 +583,7 @@ nri-redis:
                     copy_from_file: Some(TemplateableValue::from_template(
                         source.to_string_lossy().to_string(),
                     )),
-                    persistent: TemplateableValue::default(),
+                    persistent: false,
                 },
             )]));
 
@@ -617,7 +617,7 @@ nri-redis:
             FilesystemEntry::File {
                 text,
                 copy_from_file,
-                persistent: TemplateableValue::default(),
+                persistent: false,
             },
         )]));
 
@@ -645,7 +645,7 @@ nri-redis:
                 copy_from_file: Some(TemplateableValue::from_template(
                     source.to_string_lossy().to_string(),
                 )),
-                persistent: TemplateableValue::default(),
+                persistent: false,
             },
         )]));
 
