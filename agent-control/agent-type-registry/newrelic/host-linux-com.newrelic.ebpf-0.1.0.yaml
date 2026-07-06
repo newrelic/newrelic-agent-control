@@ -210,6 +210,8 @@ deployment:
     interval: 60s
     initial_delay: 0s
     timeout: 15s
+    checks:
+      - kind: Process
   enable_file_logging: ${nr-var:enable_file_logging}
   executables:
     - id: nr-ebpf-agent-client

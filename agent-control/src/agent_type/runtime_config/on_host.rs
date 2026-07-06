@@ -708,9 +708,11 @@ health:
   interval: 3s
   initial_delay: 3s
   timeout: 10s
-  http:
-    path: /healthz
-    port: 8080
+  checks:
+    - kind: Process
+    - kind: Http
+      path: /healthz
+      port: 8080
 executables:
   - id: otelcol
     path: ${nr-var:bin}/otelcol

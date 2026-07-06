@@ -2,12 +2,13 @@
 use super::exec::ExecHealthChecker;
 use super::file::FileHealthChecker;
 use super::http::HttpHealthChecker;
-use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthCheck;
+use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthCheckDefinition;
 use crate::checkers::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
 use crate::checkers::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::event::channel::EventConsumer;
 use crate::http::client::HttpClient;
 use std::path::PathBuf;
+use tracing::{debug, warn};
 
 /// A single on-host health-check source.
 pub enum OnHostHealthChecker {
@@ -25,34 +26,55 @@ pub struct OnHostHealthCheckers {
 }
 
 impl OnHostHealthCheckers {
+    /// Builds the aggregate checker from the explicit list of check definitions.
+    ///
+    /// Returns `Ok(None)` when the list is empty: health reporting is then disabled for the
+    /// sub-agent. Returns `Err` only when a specific checker (e.g. `Http`) fails to initialize.
     pub(crate) fn try_new(
         exec_health_consumer: EventConsumer<(String, HealthWithStartTime)>,
         http_client: HttpClient,
-        health_check_type: Option<OnHostHealthCheck>,
+        checks: &[OnHostHealthCheckDefinition],
         start_time: StartTime,
-    ) -> Result<Self, HealthCheckerError> {
-        let mut health_checkers = vec![OnHostHealthChecker::Exec(ExecHealthChecker::new(
-            exec_health_consumer,
-        ))];
-        match health_check_type {
-            Some(OnHostHealthCheck::HttpHealth(http_config)) => {
-                health_checkers.push(OnHostHealthChecker::Http(HttpHealthChecker::new(
-                    http_client,
-                    http_config,
-                    start_time,
-                )?));
-            }
-            Some(OnHostHealthCheck::FileHealth(file_config)) => {
-                health_checkers.push(OnHostHealthChecker::File(FileHealthChecker::new(
-                    PathBuf::from(file_config.path),
-                )));
-            }
-            _ => {}
+    ) -> Result<Option<Self>, HealthCheckerError> {
+        if checks.is_empty() {
+            debug!("No health checks configured: no health-checker is built");
+            return Ok(None);
         }
-        Ok(OnHostHealthCheckers {
+
+        let mut health_checkers = Vec::new();
+        let mut exec_consumer = Some(exec_health_consumer);
+
+        for check in checks {
+            match check {
+                OnHostHealthCheckDefinition::Process => {
+                    if let Some(consumer) = exec_consumer.take() {
+                        health_checkers
+                            .push(OnHostHealthChecker::Exec(ExecHealthChecker::new(consumer)));
+                    } else {
+                        warn!(
+                            "Multiple 'Process' health checks slipped past parse-time validation; only the first is honored"
+                        );
+                    }
+                }
+                OnHostHealthCheckDefinition::Http(http_config) => {
+                    health_checkers.push(OnHostHealthChecker::Http(HttpHealthChecker::new(
+                        http_client.clone(),
+                        http_config.clone(),
+                        start_time,
+                    )?));
+                }
+                OnHostHealthCheckDefinition::File(file_config) => {
+                    health_checkers.push(OnHostHealthChecker::File(FileHealthChecker::new(
+                        PathBuf::from(file_config.path.clone()),
+                    )));
+                }
+            }
+        }
+
+        Ok(Some(OnHostHealthCheckers {
             health_checkers,
             start_time,
-        })
+        }))
     }
 }
 
@@ -88,11 +110,18 @@ impl HealthChecker for OnHostHealthCheckers {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent_type::runtime_config::health_config::rendered::HttpHealth;
+    use crate::agent_type::runtime_config::health_config::{
+        FileHealth, HttpHost, HttpPath, HttpPort,
+    };
     use crate::checkers::health::health_checker::Unhealthy;
     use crate::checkers::health::with_start_time::StartTime;
     use crate::event::channel::pub_sub;
+    use crate::http::config::{HttpConfig, ProxyConfig};
+    use std::collections::HashMap;
     use std::fs::File;
     use std::io::Write;
+    use std::time::Duration;
     use tempfile::TempDir;
 
     #[test]
@@ -309,5 +338,66 @@ status_time_unix_nano: 1725444001
             health_with_start_time.last_error(),
             Some("executable exec1 failed: exec error".to_string())
         );
+    }
+
+    #[test]
+    fn try_new_returns_none_for_empty_checks() {
+        let (_publisher, consumer) = pub_sub();
+        let http_client = HttpClient::new(HttpConfig::new(
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            ProxyConfig::default(),
+        ))
+        .unwrap();
+
+        let result =
+            OnHostHealthCheckers::try_new(consumer, http_client, &[], StartTime::now()).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn try_new_builds_all_declared_kinds() {
+        let (_publisher, consumer) = pub_sub();
+        let http_client = HttpClient::new(HttpConfig::new(
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            ProxyConfig::default(),
+        ))
+        .unwrap();
+
+        // Despite being not allowed, the builder does not error out if two processes are defined
+        let checks = vec![
+            OnHostHealthCheckDefinition::Process,
+            OnHostHealthCheckDefinition::Process,
+            OnHostHealthCheckDefinition::Http(HttpHealth {
+                host: HttpHost::from("127.0.0.1".to_string()),
+                path: HttpPath::from("/healthz".to_string()),
+                port: HttpPort::from(8080u16),
+                headers: HashMap::new(),
+                healthy_status_codes: vec![],
+            }),
+            OnHostHealthCheckDefinition::File(FileHealth {
+                path: "/tmp/health.yaml".to_string(),
+            }),
+        ];
+
+        let result =
+            OnHostHealthCheckers::try_new(consumer, http_client, &checks, StartTime::now())
+                .unwrap()
+                .expect("should build");
+
+        assert_eq!(result.health_checkers.len(), 3);
+        assert!(matches!(
+            result.health_checkers[0],
+            OnHostHealthChecker::Exec(_)
+        ));
+        assert!(matches!(
+            result.health_checkers[1],
+            OnHostHealthChecker::Http(_)
+        ));
+        assert!(matches!(
+            result.health_checkers[2],
+            OnHostHealthChecker::File(_)
+        ));
     }
 }

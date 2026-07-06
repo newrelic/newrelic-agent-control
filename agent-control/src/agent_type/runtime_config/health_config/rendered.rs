@@ -15,14 +15,19 @@ pub struct OnHostHealthConfig {
     pub(crate) initial_delay: InitialDelay,
     /// The maximum duration a health check may run before considered failed.
     pub(crate) timeout: HealthCheckTimeout,
-    /// Details on the type of health check. Defined by the `HealthCheck` enumeration.
-    pub(crate) check: Option<OnHostHealthCheck>,
+    /// The list of health checks to run. Empty means health reporting is disabled.
+    pub(crate) checks: Vec<OnHostHealthCheckDefinition>,
 }
 
+/// A single rendered on-host health check.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum OnHostHealthCheck {
-    HttpHealth(HttpHealth),
-    FileHealth(FileHealth),
+pub(crate) enum OnHostHealthCheckDefinition {
+    /// Process probe.
+    Process,
+    /// HTTP endpoint probe.
+    Http(HttpHealth),
+    /// File-based probe.
+    File(FileHealth),
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -470,9 +470,11 @@ deployment:
     interval: 3s
     initial_delay: 3s
     timeout: 10s
-    http:
-      path: /healthz
-      port: 8080
+    checks:
+      - kind: Process
+      - kind: Http
+        path: /healthz
+        port: 8080
   executables:
     - id: otelcol
       path: ${nr-var:bin}/otelcol
@@ -718,9 +720,11 @@ deployment:
     interval: 3s
     initial_delay: 3s
     timeout: 10s
-    http:
-      path: /v1/status
-      port: "${nr-var:status_server_port}"
+    checks:
+      - kind: Process
+      - kind: Http
+        path: /v1/status
+        port: "${nr-var:status_server_port}"
   executables:
     - id: newrelic-infra
       path: /usr/bin/newrelic-infra
@@ -992,10 +996,12 @@ deployment:
     initial_delay: 3s
     timeout: 10s
     {unknown}
-    http:
-      path: /healthz
-      port: 8080
-      {unknown}
+    checks:
+      - kind: Process
+      - kind: Http
+        path: /healthz
+        port: 8080
+        {unknown}
   executables:
     - id: fake_bin
       path: /bin/fake_bin

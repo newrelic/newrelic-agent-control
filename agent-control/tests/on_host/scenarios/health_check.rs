@@ -30,8 +30,9 @@ fn test_file_health_without_supervisor() {
 interval: 1s
 initial_delay: 0s
 timeout: 1s
-file:
-  path: '{}'
+checks:
+  - kind: File
+    path: '{}'
 "#,
         health_file_path.to_str().unwrap()
     );
@@ -133,9 +134,10 @@ fn test_http_health_without_supervisor() {
 interval: 1s
 initial_delay: 0s
 timeout: 1s
-http:
-  path: /health
-  port: {}
+checks:
+  - kind: Http
+    path: /health
+    port: {}
 "#,
         health_server.port(),
     );

@@ -245,21 +245,30 @@ where
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         health_consumer: EventConsumer<(String, HealthWithStartTime)>,
-        health_config: &OnHostHealthConfig,
-    ) -> Result<StartedThreadContext, SupervisorError> {
+        health_config: &Option<OnHostHealthConfig>,
+    ) -> Result<Option<StartedThreadContext>, SupervisorError> {
+        let Some(health_config) = health_config else {
+            debug!("No health_config: health-checker thread will not be started");
+            return Ok(None);
+        };
+
         let start_time = StartTime::now();
-        let client_timeout = Duration::from(health_config.clone().timeout);
+        let client_timeout = Duration::from(health_config.timeout);
         let http_config = HttpConfig::new(client_timeout, client_timeout, ProxyConfig::default());
         let http_client = HttpClient::new(http_config).map_err(|err| {
             HealthCheckerError::Generic(format!("could not build the http client: {err}"))
         })?;
 
-        let health_checker = OnHostHealthCheckers::try_new(
+        let Some(health_checker) = OnHostHealthCheckers::try_new(
             health_consumer,
             http_client,
-            health_config.check.clone(),
+            &health_config.checks,
             start_time,
-        )?;
+        )?
+        else {
+            debug!("No health_checker: no health-checker thread will not be started");
+            return Ok(None);
+        };
 
         let started_thread_context = spawn_health_checker(
             self.agent_identity.id.clone(),
@@ -269,7 +278,7 @@ where
             health_config.initial_delay,
             start_time,
         );
-        Ok(started_thread_context)
+        Ok(Some(started_thread_context))
     }
 
     /// Runs the agent version check (if configured), publishing detected attributes as events.
@@ -342,12 +351,12 @@ where
 
         self.check_subagent_version(sub_agent_internal_publisher.clone());
 
-        if let Some(ref health_config) = self.health_config {
-            thread_contexts.push(self.start_health_check(
-                sub_agent_internal_publisher.clone(),
-                health_consumer,
-                health_config,
-            )?);
+        if let Some(ctx) = self.start_health_check(
+            sub_agent_internal_publisher.clone(),
+            health_consumer,
+            &self.health_config,
+        )? {
+            thread_contexts.push(ctx);
         }
 
         Ok(StartedSupervisorOnHost {
@@ -1678,11 +1687,13 @@ persistent.txt:
 
     #[test]
     fn test_health_checker_thread_publishes_periodically_when_health_config_set() {
+        use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthCheckDefinition;
+
         let health_config = OnHostHealthConfig {
             interval: HealthCheckInterval::from(Duration::from_millis(50)),
             initial_delay: InitialDelay::from(Duration::ZERO),
             timeout: HealthCheckTimeout::from(Duration::from_secs(1)),
-            check: None,
+            checks: vec![OnHostHealthCheckDefinition::Process],
         };
 
         let agent_identity = AgentIdentity::from((

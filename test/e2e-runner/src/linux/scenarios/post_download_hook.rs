@@ -229,6 +229,8 @@ deployment:
     interval: 60s
     initial_delay: 0s
     timeout: 15s
+    checks:
+      - kind: Process
   packages:
     test-package:
       type: tar

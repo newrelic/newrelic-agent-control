@@ -43,6 +43,8 @@ fake_variable:
 interval: 60s
 initial_delay: 0s
 timeout: 15s
+checks:
+  - kind: Process
 "#,
                 )
                 .unwrap(),
@@ -194,7 +196,8 @@ impl CustomAgentType {
         let parsed_agent_type = AgentTypeDefinition::from_slice(self.to_string().as_bytes());
         assert!(
             parsed_agent_type.is_ok(),
-            "CustomAgentType did not produce valid AgentTypeDefinition:\n{}",
+            "CustomAgentType did not produce valid AgentTypeDefinition: {}\n{}",
+            parsed_agent_type.err().unwrap(),
             self
         );
 
