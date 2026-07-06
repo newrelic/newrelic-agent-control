@@ -129,6 +129,10 @@ fn test_ac_self_update_defers_subagent_reconciliation_to_restart_with_oci_regist
         .join(agent_id)
         .join(dir_entry);
 
+    // The directory entry is rendered by the sub-agent's supervisor on start, and a supervisor is
+    // only built when the sub-agent has its own config.
+    create_local_config(agent_id, "fake_variable: \"reconciled\"", dirs.local_dir());
+
     // Self-update enabled, no sub-agents yet.
     create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), true);
     let (_self_replace_target_dir, self_replace_target) = copy_current_exe();
