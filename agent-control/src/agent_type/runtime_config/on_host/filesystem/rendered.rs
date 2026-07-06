@@ -32,7 +32,7 @@ pub struct FileSystem {
 #[derive(Debug, Clone, PartialEq)]
 pub enum FileContent {
     /// Literal (rendered) content written verbatim.
-    Inline(String),
+    Text(String),
     /// An on-disk source file to copy byte-for-byte into place (used by `copy_from_file`).
     Copy(PathBuf),
 }
@@ -99,7 +99,7 @@ impl RenderedEntry {
     ) -> Result<(), FileSystemEntriesError> {
         match self {
             Self::File { content, .. } => match content {
-                FileContent::Inline(text) => write_file(file_ops, dir_manager, path, text),
+                FileContent::Text(text) => write_file(file_ops, dir_manager, path, text),
                 FileContent::Copy(source) => copy_file(file_ops, dir_manager, path, source),
             },
             Self::Dir { children, .. } => {

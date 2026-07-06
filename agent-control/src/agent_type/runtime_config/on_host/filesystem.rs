@@ -152,7 +152,7 @@ impl Templateable for FilesystemEntry {
             } => {
                 let content = match (text, copy_from_file) {
                     (Some(text), None) => {
-                        rendered::FileContent::Inline(text.template_with(variables)?)
+                        rendered::FileContent::Text(text.template_with(variables)?)
                     }
                     (None, Some(copy_from_file)) => {
                         rendered::FileContent::Copy(copy_from_file.template_with(variables)?.into())
@@ -370,7 +370,7 @@ mod tests {
             HashMap::from([(
                 PathBuf::from("/base/dir/newrelic.yaml"),
                 RenderedEntry::File {
-                    content: rendered::FileContent::Inline("hello".to_string()),
+                    content: rendered::FileContent::Text("hello".to_string()),
                     persistent: false,
                 },
             )]),
