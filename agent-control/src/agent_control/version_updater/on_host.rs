@@ -7,7 +7,7 @@ use crate::agent_control::config::{
     AgentControlDynamicConfig, AgentControlPackage, UpgradeBackoffConfig,
 };
 use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
-use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
+use crate::agent_control::version_updater::updater::{UpdateOutcome, UpdaterError, VersionUpdater};
 use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;
@@ -71,15 +71,15 @@ where
     /// lets [`retry`](Self::retry) reconstruct a config from just the gate's tracked version.
     /// If `update` ever starts reading additional dynamic-config fields, that reconstruction must
     /// be revisited (or replaced with a stored snapshot of the last config) to not use defaults.
-    fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError> {
+    fn update(&self, config: &AgentControlDynamicConfig) -> Result<UpdateOutcome, UpdaterError> {
         if !self.ac_remote_update_enabled {
             debug!("Remote update is disabled, skipping update process");
-            return Ok(());
+            return Ok(UpdateOutcome::NoRestartPending);
         }
 
         let Some(new_version) = &config.version else {
             debug!("Version is not specified in the dynamic config");
-            return Ok(());
+            return Ok(UpdateOutcome::NoRestartPending);
         };
 
         let _span = debug_span!(
@@ -92,7 +92,7 @@ where
         if new_version.to_string() == AGENT_CONTROL_VERSION {
             debug!("Desired version is the same as current, skipping update");
             self.upgrade_gate.reset();
-            return Ok(());
+            return Ok(UpdateOutcome::NoRestartPending);
         }
 
         // Cooldown gate: suppress re-attempts that are still within their backoff window, until the
@@ -115,6 +115,7 @@ where
                 version,
                 ..Default::default()
             })
+            .map(|_| ())
         } else {
             Ok(())
         }
@@ -186,7 +187,11 @@ where
     }
 
     /// Performs a single upgrade attempt: install → verify → self-replace → request restart.
-    fn try_upgrade(&self, new_version: Version) -> Result<(), UpdaterError> {
+    ///
+    /// On success the binary has been replaced and a restart requested, so it returns
+    /// [`UpdateOutcome::RestartPending`] to tell the caller to defer any further config
+    /// reconciliation (e.g. sub-agents) to the restarted process.
+    fn try_upgrade(&self, new_version: Version) -> Result<UpdateOutcome, UpdaterError> {
         let package_data = self.get_package_data(new_version);
 
         let new_binary_path = self
@@ -221,7 +226,7 @@ where
             .publish(AgentControlInternalEvent::SelfUpdateRestartRequested())
             .map_err(|e| UpdaterError::UpdateFailed(format!("publishing stop request: {e}")))?;
 
-        Ok(())
+        Ok(UpdateOutcome::RestartPending)
     }
 
     fn get_package_data(&self, new_version: Version) -> PackageData {

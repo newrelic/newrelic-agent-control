@@ -47,7 +47,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, error, info, info_span, instrument, trace, warn};
 use uptime_report::UptimeReporter;
-use version_updater::updater::VersionUpdater;
+use version_updater::updater::{UpdateOutcome, VersionUpdater};
 
 /// Type alias for a [crate::sub_agent::StartedSubAgent] corresponding to a [SubAgentBuilder].
 type BuilderStartedSubAgent<S> =
@@ -491,7 +491,7 @@ where
             .map_err(|err| AgentControlError::RemoteConfigValidator(err.to_string()))?;
 
         // The updater is responsible for determining the current version and deciding whether an update is necessary.
-        self.version_updater.update(&new_dynamic_config)?;
+        let update_outcome = self.version_updater.update(&new_dynamic_config)?;
 
         // It stores the remote config and then apply it for these reasons:
         // - The apply mechanism does not handle any rollback in case any failure but instead attempts to apply as much as
@@ -508,6 +508,18 @@ where
             };
             self.sa_dynamic_config_store.store(&config)?;
         }
+
+        // If a restart has been requested we skip reconciling sub-agents now to avoid stopping the
+        // agents twice. The remote config was already persisted, so when AC starts over it reads
+        // that stored config and reconciles against the new list of agents. RestartPending is an
+        // outcome that can only happen on host.
+        if update_outcome == UpdateOutcome::RestartPending {
+            info!(
+                "Agent Control self-update in progress; deferring sub-agent reconciliation to the restarted process"
+            );
+            return Ok(new_dynamic_config);
+        }
+
         // Even if the config was stored and some agents could have been applied, it returns the error so the config is reported
         // as failed, to signal FC that something has gone wrong.
         self.apply_remote_config_agents(
@@ -610,6 +622,8 @@ mod tests {
     use super::config_validator::tests::TestDynamicConfigValidator;
     use super::error::AgentControlError;
     use super::resource_cleaner::tests::MockResourceCleaner;
+    use super::run::GracefulShutdownReason;
+    use super::version_updater::updater::UpdateOutcome;
     use super::version_updater::updater::UpdaterError;
     use super::version_updater::updater::tests::MockVersionUpdater;
     use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
@@ -619,7 +633,9 @@ mod tests {
     use crate::checkers::health::with_start_time::HealthWithStartTime;
     use crate::event::broadcaster::unbounded::UnboundedBroadcast;
     use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
-    use crate::event::{AgentControlEvent, ApplicationEvent, OpAMPEvent};
+    use crate::event::{
+        AgentControlEvent, AgentControlInternalEvent, ApplicationEvent, OpAMPEvent,
+    };
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::validators::tests::TestRemoteConfigValidator;
@@ -665,6 +681,7 @@ mod tests {
         app_publisher: EventPublisher<ApplicationEvent>,
         opamp_publisher: EventPublisher<OpAMPEvent>,
         broadcast_subscriber: EventConsumer<AgentControlEvent>,
+        internal_publisher: EventPublisher<AgentControlInternalEvent>,
     }
 
     impl TestData {
@@ -850,6 +867,7 @@ agents:
             };
 
             let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
+            let internal_publisher = agent_control_internal_publisher.clone();
             let agent_control = {
                 AgentControl::new(
                     Some(started_client),
@@ -874,6 +892,7 @@ agents:
                     app_publisher: application_event_publisher,
                     opamp_publisher,
                     broadcast_subscriber: agent_control_consumer,
+                    internal_publisher,
                 },
                 dyn_config_store: sa_dynamic_config_store,
             };
@@ -1631,6 +1650,79 @@ chart_version: 0.0.2 # not actually used, we rely on a mock
         let expected = AgentControlEvent::AgentControlStopped;
         let ev = t.channels.broadcast_subscriber.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
+    }
+
+    /// A self-update defers sub-agent reconciliation to the restarted process (no double restart)
+    /// when a *single* AC remote config triggers a self-update & changes a sub-agent's agent_type.
+    #[test]
+    fn test_self_update_defers_subagent_reconciliation_to_restart() {
+        let (t, mut agent_control) = TestAgentControl::setup();
+        agent_control.set_noop_resource_cleaner();
+
+        // Current state: one running sub-agent `id1` of type `example.a`.
+        let current_config = r#"
+agents:
+  id1:
+    agent_type: "newrelic/example.a:1.2.3"
+        "#;
+        agent_control.set_initial_config_local(current_config.to_string());
+
+        // The running sub-agent is stopped exactly once, by the self-update restart handler
+        // (`sub_agents.stop()`), NOT by a recreate.
+        let (_current_dynamic_config, mut running_sub_agents) =
+            t.build_current_config_and_sub_agents(current_config);
+        running_sub_agents.agents().values_mut().for_each(|agent| {
+            agent.expect_stop().once().returning(|| Ok(()));
+        });
+
+        // Remote push: bump the AC version AND change `id1`'s agent_type in the same config document.
+        let remote_config = r#"
+agents:
+  id1:
+    agent_type: "newrelic/example.a2:1.2.3"
+version: 1.2.3
+        "#;
+        let opamp_remote_config = t.build_ac_remote_config(remote_config);
+        let expected_hash = opamp_remote_config.hash.clone();
+
+        // Successfully update
+        let internal_publisher = t.channels.internal_publisher.clone();
+        agent_control
+            .version_updater
+            .expect_update()
+            .once()
+            .returning(move |_| {
+                internal_publisher
+                    .publish(AgentControlInternalEvent::SelfUpdateRestartRequested())
+                    .unwrap();
+                Ok(UpdateOutcome::RestartPending)
+            });
+
+        agent_control.sub_agent_builder.expect_build().never();
+
+        agent_control.set_opamp_expectations(|client| {
+            client.should_set_remote_config_status_matching_seq(vec![
+                t.status_applying(opamp_remote_config.clone().hash),
+                t.status_applied(opamp_remote_config.clone().hash),
+            ]);
+            client.should_update_effective_config(1);
+        });
+
+        // Drive the event loop on a thread and push the remote config into it.
+        let event_processor = spawn(move || agent_control.process_events(running_sub_agents));
+
+        t.channels
+            .opamp_publisher
+            .publish(OpAMPEvent::RemoteConfigReceived(opamp_remote_config))
+            .unwrap();
+
+        // The queued `SelfUpdateRestartRequested` terminates the loop by itself.
+        let reason = event_processor.join().unwrap();
+        assert_eq!(reason, GracefulShutdownReason::SelfUpdate);
+
+        t.assert_stored_remote_config(|rc| {
+            assert_eq!(rc.hash, expected_hash);
+        });
     }
 
     // Having one running sub agent, receive a valid config with no agents
