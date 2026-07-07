@@ -157,7 +157,7 @@ nfpms: # deb and rpm are only built for linux targets
           mode: 0700
       - src: build/package/config.yaml
         dst: /etc/newrelic-agent-control/local-data/agent-control/local_config.yaml
-        type: config
+        type: config|noreplace
         file_info:
           mode: 0600
       - src: build/package/newrelic-agent-control.service

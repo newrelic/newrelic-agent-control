@@ -8,6 +8,8 @@ pub mod scenarios;
 mod bash;
 mod service;
 
+// This default path is also used in the postinstall.sh script of the packages.
+// It must be kept in sync with the path defined in the script.
 const DEFAULT_AC_CONFIG_PATH: &str =
     "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml";
 

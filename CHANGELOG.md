@@ -14,6 +14,9 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+### bugfix
+- RPM packages now restore `local_config.yaml` from the `.rpmsave` backup left by a prior uninstall.
+
 ### enhancement
 - Add support for `copy_from_file` for on-host "in-agent" filesystem.
 - On-host self-update: skip sub-agent reconciliation when a self-update is in progress. When a single remote config both bumps the Agent Control version and changes a sub-agent's `agent_type`, the changed sub-agent is no longer recreated moments before the process restarts; the new config is stored and re-applied cleanly by the restarted process, avoiding a redundant sub-agent restart and telemetry gap.

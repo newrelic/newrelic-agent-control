@@ -23,6 +23,15 @@ else
 fi
 
 ######################################################################################
+# Newrelic Agent Control - restore config saved by RPM on uninstall
+######################################################################################
+CONFIG_FILE=/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml
+RPMSAVE="${CONFIG_FILE}.rpmsave"
+if [ -f "$RPMSAVE" ]; then
+    mv "$RPMSAVE" "$CONFIG_FILE"
+fi
+
+######################################################################################
 # Newrelic Agent Control
 ######################################################################################
 if command -v systemctl >/dev/null 2>&1; then
