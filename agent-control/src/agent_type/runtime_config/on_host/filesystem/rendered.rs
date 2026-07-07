@@ -1,30 +1,19 @@
 //! Rendered filesystem tree and the logic to materialize it on disk.
-use crate::agent_type::runtime_config::on_host::managed_paths::{ManagedPaths, delete_path};
-use fs::{
-    directory_manager::DirectoryManager,
-    file::{copier::FileCopier, writer::FileWriter},
-};
-use std::collections::{HashMap, HashSet};
+use fs::file::copier::FileCopier;
+use fs::{directory_manager::DirectoryManager, file::writer::FileWriter};
+use std::collections::HashMap;
+use std::io;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tracing::{trace, warn};
 
-/// Filename of the manifest Agent Control writes inside each sub-agent's filesystem dir.
-/// The manifest records the absolute paths AC wrote on the previous successful write event so
-/// the next write can compute "previously managed but no longer declared → delete".
-///
-/// Reserved name: agent-type definitions cannot declare an entry with this exact filename at any
-/// level.
-pub const MANAGED_PATHS_MANIFEST_FILENAME: &str = ".ac-managed-paths.json";
-
 /// Rendered filesystem tree, ready to be materialized on disk.
 ///
-/// Top-level keys (`entries`) are absolute paths under `base_dir`; children inside a `Dir` are
-/// kept relative to their parent — recursion in [`FileSystem::write`] joins them onto the parent
-/// path.
+/// Top-level keys (`entries`) are absolute paths under the sub-agent's filesystem dir; children
+/// inside a `Dir` are kept relative to their parent — recursion in [`FileSystem::write`] joins
+/// them onto the parent path.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FileSystem {
-    pub(super) base_dir: PathBuf,
     pub(super) entries: HashMap<PathBuf, RenderedEntry>,
 }
 
@@ -68,24 +57,6 @@ impl RenderedEntry {
             // `dir_content_from_map` has no persistent flag: Agent Control re-renders its
             // projected files on every write, so it is always treated as ephemeral.
             Self::DirContentFromMap { .. } => false,
-        }
-    }
-
-    /// Inserts this entry's path and all of its descendants' paths into `declared`.
-    fn collect_declared(&self, path: &Path, declared: &mut HashSet<PathBuf>) {
-        declared.insert(path.to_path_buf());
-        match self {
-            Self::File { .. } => {}
-            Self::Dir { children, .. } => {
-                for (sub, child) in children {
-                    child.collect_declared(&path.join(sub), declared);
-                }
-            }
-            Self::DirContentFromMap { files, .. } => {
-                for sub in files.keys() {
-                    declared.insert(path.join(sub));
-                }
-            }
         }
     }
 
@@ -146,30 +117,19 @@ impl RenderedEntry {
 }
 
 impl FileSystem {
-    pub(super) fn new(base_dir: PathBuf, entries: HashMap<PathBuf, RenderedEntry>) -> Self {
-        Self { base_dir, entries }
+    pub(super) fn new(entries: HashMap<PathBuf, RenderedEntry>) -> Self {
+        Self { entries }
     }
 
-    /// Reconciles the on-disk state under `base_dir` against the current declared tree, then
-    /// writes the declared tree, then updates the manifest.
+    /// Writes the declared tree under `base_dir`, overwriting any declared paths already on disk.
     pub fn write(
         &self,
         file_ops: &(impl FileWriter + FileCopier),
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
-        let managed = self.managed_paths();
-        let prev_declared = managed.read();
-        let curr_declared = self.collect_declared_paths();
-
-        // Reconcile: delete paths AC owned previously but no longer declares.
-        managed.prune_stale(&prev_declared, &curr_declared);
-
         for (path, entry) in &self.entries {
             entry.write(path, file_ops, dir_manager)?;
         }
-
-        managed.save(&curr_declared);
-
         Ok(())
     }
 
@@ -180,23 +140,6 @@ impl FileSystem {
             entry.delete_ephemeral(path)?;
         }
         Ok(())
-    }
-
-    /// The reconciler for this filesystem's managed-paths manifest, stored at the manifest filename
-    /// under `base_dir` and vetted against `base_dir`.
-    fn managed_paths(&self) -> ManagedPaths {
-        ManagedPaths::new(
-            self.base_dir.join(MANAGED_PATHS_MANIFEST_FILENAME),
-            self.base_dir.clone(),
-        )
-    }
-
-    fn collect_declared_paths(&self) -> HashSet<PathBuf> {
-        let mut declared = HashSet::new();
-        for (path, entry) in &self.entries {
-            entry.collect_declared(path, &mut declared);
-        }
-        declared
     }
 }
 
@@ -249,6 +192,15 @@ fn copy_file(
         .copy(source, path)
         .map_err(|err| FileSystemEntriesError(format!("copying {source:?} to {path:?}: {err}")))
 }
+/// Recursively deletes the file or directory at `path`.
+fn delete_path(path: &Path) -> io::Result<()> {
+    trace!("Deleting path {}", path.display());
+    if path.is_dir() {
+        std::fs::remove_dir_all(path)
+    } else {
+        std::fs::remove_file(path)
+    }
+}
 
 /// Error produced while writing the rendered filesystem tree to disk.
 #[derive(Debug, Error)]
@@ -261,10 +213,7 @@ mod tests {
 
     impl FileSystem {
         pub(crate) fn test_empty() -> Self {
-            let base_dir = tempfile::tempdir()
-                .expect("create temp dir for test FileSystem")
-                .keep();
-            Self::new(base_dir, HashMap::new())
+            Self::new(HashMap::new())
         }
     }
 }
