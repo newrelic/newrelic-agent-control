@@ -1321,12 +1321,12 @@ infra-agent-ohi-configs:
     }
 
     #[test]
-    fn shared_filesystem_write_does_not_prune_other_entries() {
+    fn shared_filesystem_write_mutiple_times() {
         let tmp_dir = TempDir::new().unwrap();
         let shared = tmp_dir.path().join("shared-filesystem");
         let variables = shared_variables(&shared, tmp_dir.path());
 
-        // Two sub-agents write different entries into the same shared base.
+        // Two sub-agents can write entries into the same shared base, both should remain.
         for (name, content) in [("agent-a.yaml", "a"), ("agent-b.yaml", "b")] {
             let yaml = format!("{name}:\n  kind: file\n  text: {content}");
             serde_saphyr::from_str::<SharedFileSystem>(&yaml)
@@ -1337,7 +1337,7 @@ infra-agent-ohi-configs:
                 .unwrap();
         }
 
-        assert!(shared.join("agent-a.yaml").exists(),);
+        assert!(shared.join("agent-a.yaml").exists());
         assert!(shared.join("agent-b.yaml").exists());
     }
 

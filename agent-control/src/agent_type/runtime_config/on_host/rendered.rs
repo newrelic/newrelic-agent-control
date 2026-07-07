@@ -19,9 +19,9 @@ pub struct OnHost {
     pub enable_file_logging: bool,
     /// Enables and define health checks configuration.
     pub health: Option<OnHostHealthConfig>,
-    /// Files and directories to materialize on disk.
+    /// Files and directories to materialize on disk for each agent.
     pub filesystem: FileSystem,
-    /// Files and directories to materialize in the base shared across sub-agents (write-only).
+    /// Files and directories to materialize in the base shared across sub-agents.
     pub shared_filesystem: SharedFileSystem,
     /// Packages to download for this agent.
     pub packages: RenderedPackages,
