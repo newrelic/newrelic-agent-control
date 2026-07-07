@@ -5,6 +5,11 @@
 //! declared". The manifest is read from an agent-writable location, so its entries are vetted
 //! against a base directory before any deletion.
 
+use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
+use fs::file::LocalFile;
+use fs::file::deleter::FileDeleter;
+use fs::file::reader::FileReader;
+use fs::file::writer::FileWriter;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::io;
@@ -20,8 +25,8 @@ struct ManagedPathsManifest {
 impl ManagedPathsManifest {
     /// Loads the manifest at `path`. A missing or malformed file yields an empty manifest (logged).
     fn load(path: &Path) -> Self {
-        let raw = match std::fs::read(path) {
-            Ok(b) => b,
+        let raw = match LocalFile.read(path) {
+            Ok(s) => s,
             Err(err) if err.kind() == io::ErrorKind::NotFound => return Self::default(),
             Err(err) => {
                 warn!(
@@ -32,7 +37,7 @@ impl ManagedPathsManifest {
                 return Self::default();
             }
         };
-        serde_json::from_slice(&raw).unwrap_or_else(|err| {
+        serde_json::from_str(&raw).unwrap_or_else(|err| {
             warn!(?err, ?path, "managed-paths manifest is malformed, ignoring");
             Self::default()
         })
@@ -41,11 +46,11 @@ impl ManagedPathsManifest {
     /// Serializes the manifest to `path`, creating its parent directory if needed.
     fn save(&self, path: &Path) -> io::Result<()> {
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+            DirectoryManagerFs.create(parent)?;
         }
-        let body = serde_json::to_vec(self)
+        let body = serde_json::to_string(self)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-        std::fs::write(path, body)
+        LocalFile.write(path, body)
     }
 }
 
@@ -129,9 +134,9 @@ pub fn is_within_base(path: &Path, base_dir: &Path) -> bool {
 pub fn delete_path(path: &Path) -> io::Result<()> {
     trace!("Deleting path {}", path.display());
     if path.is_dir() {
-        std::fs::remove_dir_all(path)
+        DirectoryManagerFs.delete(path)
     } else {
-        std::fs::remove_file(path)
+        LocalFile.delete(path)
     }
 }
 

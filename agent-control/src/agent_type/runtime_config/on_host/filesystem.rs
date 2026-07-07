@@ -35,8 +35,22 @@ pub mod rendered;
 ///
 /// Every entry is tagged with a `kind:`. `dir` entries may contain further entries under
 /// `entries:`, recursively.
-#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct FileSystem(HashMap<SafePath, FilesystemEntry>);
+
+impl<'de> Deserialize<'de> for FileSystem {
+    /// Deserializes the entry tree and then validates that persistence is declared consistently
+    /// down every branch: an entry marked `persistent: true` must not sit under a non-persistent
+    /// parent directory.
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let entries = HashMap::<SafePath, FilesystemEntry>::deserialize(deserializer)?;
+        validate_persistence_hierarchy(&entries).map_err(D::Error::custom)?;
+        Ok(FileSystem(entries))
+    }
+}
 
 /// One entry in a filesystem tree. The `kind` discriminator selects which fields are required.
 /// The `file` and `dir` variants carry a `persistent` flag (default `false`):
@@ -63,18 +77,18 @@ pub enum FilesystemEntry {
         /// exclusive with `text`.
         #[serde(default)]
         copy_from_file: Option<TemplateableValue<String>>,
-        /// The persistency attribute marking it's lifecicle.
+        /// The persistency attribute marking its lifecycle.
         #[serde(default)]
-        persistent: TemplateableValue<bool>,
+        persistent: bool,
     },
     /// An explicitly declared directory. Children, if any, live under `entries:`.
     Dir {
         /// The directory's child entries.
         #[serde(default)]
         entries: HashMap<SafePath, FilesystemEntry>,
-        /// The persistency attribute marking it's lifecicle.
+        /// The persistency attribute marking its lifecycle.
         #[serde(default)]
-        persistent: TemplateableValue<bool>,
+        persistent: bool,
     },
     /// A directory whose set of files is computed at deploy time from a `map[string]yaml`
     /// variable. Map keys become filenames; values become file contents.
@@ -182,7 +196,7 @@ impl Templateable for FilesystemEntry {
                 };
                 Ok(rendered::RenderedEntry::File {
                     content,
-                    persistent: persistent.template_with(variables)?,
+                    persistent,
                 })
             }
             FilesystemEntry::Dir {
@@ -195,7 +209,7 @@ impl Templateable for FilesystemEntry {
                     .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
                 Ok(rendered::RenderedEntry::Dir {
                     children,
-                    persistent: persistent.template_with(variables)?,
+                    persistent,
                 })
             }
             FilesystemEntry::DirContentFromMap { source } => {
@@ -342,6 +356,74 @@ fn check_basedir_escape_safety(path: &Path) -> Result<(), String> {
     })
 }
 
+/// Validates that persistence is declared consistently down every branch of the tree.
+///
+/// A non-persistent directory is deleted recursively when the sub-agent stops, taking every
+/// descendant with it. A `persistent: true` entry under a non-persistent parent would silently
+/// never survive a restart, so we require the user to declare the whole chain `persistent: true`.
+fn validate_persistence_hierarchy(
+    entries: &HashMap<SafePath, FilesystemEntry>,
+) -> Result<(), String> {
+    let mut errors = Vec::new();
+    for (key, entry) in entries {
+        check_entry_persistence(key.as_ref(), entry, false, &mut errors);
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join(", "))
+    }
+}
+
+/// Recursively checks a single entry (at `path`) and its subtree. `ancestor_ephemeral` is `true`
+/// when some parent directory up the chain is declared non-persistent.
+fn check_entry_persistence(
+    path: &Path,
+    entry: &FilesystemEntry,
+    ancestor_ephemeral: bool,
+    errors: &mut Vec<String>,
+) {
+    match entry {
+        FilesystemEntry::File { persistent, .. } => {
+            if ancestor_ephemeral && *persistent {
+                errors.push(persistence_error(path));
+            }
+        }
+        FilesystemEntry::Dir {
+            entries,
+            persistent,
+        } => {
+            if ancestor_ephemeral && *persistent {
+                errors.push(persistence_error(path));
+            }
+            // A child sits under a non-persistent ancestor if one already existed up the chain, or
+            // if this directory is itself declared non-persistent.
+            let child_ancestor_ephemeral = ancestor_ephemeral || !persistent;
+            for (child_key, child) in entries {
+                check_entry_persistence(
+                    &path.join(child_key),
+                    child,
+                    child_ancestor_ephemeral,
+                    errors,
+                );
+            }
+        }
+        // `dir_content_from_map` is always ephemeral and cannot declare persistent children, so it
+        // can neither be a persistent entry nor a parent of one.
+        FilesystemEntry::DirContentFromMap { .. } => {}
+    }
+}
+
+fn persistence_error(path: &Path) -> String {
+    format!(
+        "path `{}` is declared `persistent: true` but a parent directory is not persistent; a \
+         non-persistent parent is deleted when the sub-agent stops and takes its children with it, \
+         so the child's persistence has no effect. Declare every parent directory as \
+         `persistent: true`",
+        path.display()
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -381,7 +463,7 @@ mod tests {
             FilesystemEntry::File {
                 text: Some(TemplateableValue::from_template("hello".to_string())),
                 copy_from_file: None,
-                persistent: TemplateableValue::default(),
+                persistent: false,
             },
         )]));
 
@@ -458,7 +540,7 @@ nri-redis:
                 copy_from_file: Some(TemplateableValue::from_template(
                     source.to_string_lossy().to_string(),
                 )),
-                persistent: TemplateableValue::default(),
+                persistent: false,
             },
         )]));
 
@@ -501,7 +583,7 @@ nri-redis:
                     copy_from_file: Some(TemplateableValue::from_template(
                         source.to_string_lossy().to_string(),
                     )),
-                    persistent: TemplateableValue::default(),
+                    persistent: false,
                 },
             )]));
 
@@ -535,7 +617,7 @@ nri-redis:
             FilesystemEntry::File {
                 text,
                 copy_from_file,
-                persistent: TemplateableValue::default(),
+                persistent: false,
             },
         )]));
 
@@ -563,7 +645,7 @@ nri-redis:
                 copy_from_file: Some(TemplateableValue::from_template(
                     source.to_string_lossy().to_string(),
                 )),
-                persistent: TemplateableValue::default(),
+                persistent: false,
             },
         )]));
 
@@ -588,7 +670,7 @@ nri-redis:
             PathBuf::from("any").try_into().unwrap(),
             FilesystemEntry::Dir {
                 entries: HashMap::new(),
-                persistent: TemplateableValue::default(),
+                persistent: false,
             },
         )]));
 
@@ -846,8 +928,8 @@ foo:
         );
     }
 
-    /// Persistent flag defaults to false; explicit `persistent: true` and templated values both
-    /// parse correctly. Independent per variant.
+    /// Persistent flag defaults to false; explicit `persistent: true` parses to `true`, and the
+    /// flag on `dir_content_from_map` is ignored. Independent per variant.
     #[test]
     fn persistent_field_parses_per_variant() {
         let yaml = r#"
@@ -871,22 +953,175 @@ map-with-ignored-persistent:
 
         match parsed.0.get(&key("default-file")).unwrap() {
             FilesystemEntry::File { persistent, .. } => {
-                assert_eq!(persistent.template, "");
+                assert!(!persistent);
             }
             other => panic!("unexpected variant: {other:?}"),
         }
         match parsed.0.get(&key("persistent-file")).unwrap() {
-            FilesystemEntry::File { persistent, .. } => assert_eq!(persistent.template, "true"),
+            FilesystemEntry::File { persistent, .. } => assert!(persistent),
             other => panic!("unexpected variant: {other:?}"),
         }
         match parsed.0.get(&key("persistent-dir")).unwrap() {
-            FilesystemEntry::Dir { persistent, .. } => assert_eq!(persistent.template, "true"),
+            FilesystemEntry::Dir { persistent, .. } => assert!(persistent),
             other => panic!("unexpected variant: {other:?}"),
         }
         match parsed.0.get(&key("map-with-ignored-persistent")).unwrap() {
             FilesystemEntry::DirContentFromMap { .. } => {}
             other => panic!("unexpected variant: {other:?}"),
         }
+    }
+
+    /// A `persistent: true` entry must have every ancestor directory declared persistent too,
+    /// otherwise a non-persistent parent would wipe it on sub-agent stop. Parsing rejects the
+    /// inconsistent trees.
+    #[rstest]
+    // Top-level persistent entries have no declared parent: always fine.
+    #[case::top_level_persistent_file(
+        r#"
+a.txt:
+  kind: file
+  text: hi
+  persistent: true
+"#,
+        true
+    )]
+    #[case::top_level_persistent_dir(
+        r#"
+d:
+  kind: dir
+  persistent: true
+"#,
+        true
+    )]
+    // Persistent child under a persistent parent: fine.
+    #[case::persistent_child_under_persistent_parent(
+        r#"
+d:
+  kind: dir
+  persistent: true
+  entries:
+    a.txt:
+      kind: file
+      text: hi
+      persistent: true
+"#,
+        true
+    )]
+    // Ephemeral child under a persistent parent: fine (only the reverse is a problem).
+    #[case::ephemeral_child_under_persistent_parent(
+        r#"
+d:
+  kind: dir
+  persistent: true
+  entries:
+    a.txt:
+      kind: file
+      text: hi
+"#,
+        true
+    )]
+    // The whole chain persistent: fine.
+    #[case::deep_chain_all_persistent(
+        r#"
+a:
+  kind: dir
+  persistent: true
+  entries:
+    b:
+      kind: dir
+      persistent: true
+      entries:
+        c.txt:
+          kind: file
+          text: hi
+          persistent: true
+"#,
+        true
+    )]
+    // Persistent file under a parent that omits `persistent` (defaults to ephemeral): rejected.
+    #[case::persistent_file_under_default_parent(
+        r#"
+d:
+  kind: dir
+  entries:
+    a.txt:
+      kind: file
+      text: hi
+      persistent: true
+"#,
+        false
+    )]
+    // Persistent file under an explicitly non-persistent parent: rejected.
+    #[case::persistent_file_under_ephemeral_parent(
+        r#"
+d:
+  kind: dir
+  persistent: false
+  entries:
+    a.txt:
+      kind: file
+      text: hi
+      persistent: true
+"#,
+        false
+    )]
+    // Persistent nested dir under a non-persistent parent: rejected.
+    #[case::persistent_dir_under_ephemeral_parent(
+        r#"
+d:
+  kind: dir
+  entries:
+    inner:
+      kind: dir
+      persistent: true
+"#,
+        false
+    )]
+    // A non-persistent directory anywhere in the chain invalidates deeper persistent entries.
+    #[case::persistent_leaf_under_ephemeral_ancestor(
+        r#"
+a:
+  kind: dir
+  persistent: true
+  entries:
+    b:
+      kind: dir
+      entries:
+        c.txt:
+          kind: file
+          text: hi
+          persistent: true
+"#,
+        false
+    )]
+    fn validates_persistence_hierarchy(#[case] yaml: &str, #[case] should_parse: bool) {
+        let parsed = serde_saphyr::from_str::<FileSystem>(yaml);
+        assert_eq!(
+            parsed.is_ok(),
+            should_parse,
+            "input: {yaml}, parsed: {parsed:?}"
+        );
+    }
+
+    /// The rejection error names the offending path and explains the parent-wins behaviour.
+    #[test]
+    fn persistence_error_reports_path() {
+        let yaml = r#"
+d:
+  kind: dir
+  entries:
+    a.txt:
+      kind: file
+      text: hi
+      persistent: true
+"#;
+        let err = serde_saphyr::from_str::<FileSystem>(yaml).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("a.txt"), "error should name the path: {msg}");
+        assert!(
+            msg.contains("persistent"),
+            "error should mention persistence: {msg}"
+        );
     }
 
     /// Reconciliation diffs the manifest against the current declared set.

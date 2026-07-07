@@ -17,6 +17,7 @@ Remember that the keywords that you can use are the following:
 ### enhancement
 - Add support for `copy_from_file` for on-host "in-agent" filesystem.
 - On-host self-update: skip sub-agent reconciliation when a self-update is in progress. When a single remote config both bumps the Agent Control version and changes a sub-agent's `agent_type`, the changed sub-agent is no longer recreated moments before the process restarts; the new config is stored and re-applied cleanly by the restarted process, avoiding a redundant sub-agent restart and telemetry gap.
+- On-host agent-type parsing now rejects a filesystem entry marked `persistent: true` when a parent directory is not persistent. A non-persistent parent is deleted recursively on sub-agent stop and would take the persistent child with it, so the whole parent chain must be declared `persistent: true`.
 
 ## v1.18.0 - 2026-07-06
 
