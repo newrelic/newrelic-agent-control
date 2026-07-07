@@ -29,7 +29,9 @@ fn onhost_subagent_multiple_executables_some_failed_launching() {
                 {"id": "unknown", "path": "unknown-command"}
             ]"#,
         ))
-        .with_health(Some(r#"{"interval": "1s", "initial_delay": "2s"}"#))
+        .with_health(Some(
+            r#"{"interval": "1s", "initial_delay": "2s", "checks": [{ "kind": "Process"}]}"#,
+        ))
         .build(dirs.local_dir());
 
     let agents = format!(
@@ -77,7 +79,7 @@ fn onhost_subagent_multiple_executables_some_commands_failed_after_max_retries()
                 }
             ]"#,
         ))
-        .with_health(Some(r#"{"interval": "1s", "initial_delay": "2s"}"#))
+        .with_health(Some(r#"{"interval": "1s", "initial_delay": "2s", "checks": [{ "kind": "Process"}]}"#))
         .build(dirs.local_dir());
 
     let agents = format!(

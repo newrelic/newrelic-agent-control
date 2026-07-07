@@ -50,9 +50,11 @@ deployment:
     interval: 30s
     initial_delay: 60s
     timeout: 5s
-    http:
-      path: "/v1/status/health"
-      port: ${nr-var:health_port}
+    checks:
+      - kind: Process
+      - kind: Http
+        path: "/v1/status/health"
+        port: ${nr-var:health_port}
   packages:
     infra-agent:
       download:

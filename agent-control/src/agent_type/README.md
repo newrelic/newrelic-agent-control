@@ -142,9 +142,11 @@ deployment:
   health:
     interval: 5s
     timeout: 5s
-    http:
-      path: "/v1/status"
-      port: 8003
+    checks:
+      - kind: Process
+      - kind: Http
+        path: "/v1/status"
+        port: 8003
   executables:
     - id: newrelic-infra
       path: /usr/bin/newrelic-infra
@@ -187,26 +189,28 @@ In the `backoff_strategy` we have:
 
 #### On Host Health
 
-The `health` section in the deployment configuration is where you can specify how to monitor the health status of the agent. This is critical for maintaining the reliability of your agent and ensuring that it's functioning correctly. Here's how you can define it in the `executables` block:
+The `health` section in the deployment configuration is where you can specify how to monitor the health status of the agent. This is critical for maintaining the reliability of your agent and ensuring that it's functioning correctly. It uses an explicit `checks:` list where every entry is discriminated by an explicit `kind:` field:
 
 ```yaml
 health:
     interval: 5s
     timeout: 5s
-    http:
+    checks:
+      - kind: Process
+      - kind: Http
         path: "/v1/status"
         port: 8003
-        healthy_codes: [200,203,203,204]                 
+        healthy_status_codes: [200, 203, 204]
 ```
 
 In this configuration:
 
 * `interval`: This parameter specifies the frequency at which health checks should be performed.
-* `timeout`: This is the maximum time the agent should wait for a health check response.
-* `http`: This section is for when agents expose their status through an HTTP endpoint. If this method is used, the `path` and `port` should be specified.
-  * `path`: This is the API endpoint for the health check. Typically, it's a URI where the agent returns its current health status.
-  * `port`: This is the port on which the agent's health check endpoint is listening.
-  * `healthy_codes`: This is a list of the HTTP codes the SA will consider as valid ones.
+* `timeout`: This is the maximum time the agent should wait for an HTTP health check response.
+* `checks`: The explicit list of checks to run. Empty (or omitted) means health reporting is disabled. Any single unhealthy check makes the sub-agent unhealthy.
+  * `kind: Process` surfaces the health of the supervised executable. No parameters. Only meaningful when the agent type declares `executables`.
+  * `kind: Http` polls an HTTP endpoint. Fields: `host` (default `127.0.0.1`), `path`, `port`, `headers`, `healthy_status_codes` (empty means the 2xx range is treated as healthy).
+  * `kind: File` reads a health-status file. Field: `path`.
 
 By finely tuning these parameters, developers can closely monitor the agent's performance and address issues instantly. Adopting a robust health check strategy helps minimize downtime and keeps your system resilient and reliable.
 

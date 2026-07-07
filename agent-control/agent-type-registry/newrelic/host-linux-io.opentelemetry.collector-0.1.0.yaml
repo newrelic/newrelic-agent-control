@@ -34,9 +34,11 @@ deployment:
     interval: 5s
     initial_delay: 5s
     timeout: 5s
-    http:
-      path: "${nr-var:health_check.path}"
-      port: ${nr-var:health_check.port}
+    checks:
+      - kind: Process
+      - kind: Http
+        path: "${nr-var:health_check.path}"
+        port: ${nr-var:health_check.port}
   filesystem:
     otel-config:
       kind: dir

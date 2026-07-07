@@ -390,10 +390,11 @@ fn onhost_executable_less_reports_local_effective_config() {
 interval: 2s
 initial_delay: 0s
 timeout: 1s
-file:
-  path: '{}'
-  should_be_present: true
-  unhealthy_string: ".*(unhealthy|fatal|error).*"
+checks:
+  - kind: File
+    path: '{}'
+    should_be_present: true
+    unhealthy_string: ".*(unhealthy|fatal|error).*"
 "#,
         health_file_path.to_string_lossy()
     );

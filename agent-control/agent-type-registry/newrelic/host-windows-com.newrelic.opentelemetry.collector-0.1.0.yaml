@@ -53,9 +53,11 @@ deployment:
     interval: 30s
     initial_delay: 90s
     timeout: 5s
-    http:
-      path: "${nr-var:health_check.path}"
-      port: ${nr-var:health_check.port}
+    checks:
+      - kind: Process
+      - kind: Http
+        path: "${nr-var:health_check.path}"
+        port: ${nr-var:health_check.port}
   packages:
     nrdot:
       download:

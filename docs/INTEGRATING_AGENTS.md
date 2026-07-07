@@ -209,9 +209,11 @@ deployment:
     interval: 5s
     initial_delay: 5s
     timeout: 5s
-    http:
-      path: "/v1/status/health"
-      port: ${nr-var:health_port}
+    checks:
+      - kind: Process
+      - kind: Http
+        path: "/v1/status/health"
+        port: ${nr-var:health_port}
   packages:
     infra-agent:
       download:
@@ -259,9 +261,11 @@ deployment:
     interval: 5s
     initial_delay: 5s
     timeout: 5s
-    http:
-      path: "/v1/status/health"
-      port: ${nr-var:health_port}
+    checks:
+      - kind: Process
+      - kind: Http
+        path: "/v1/status/health"
+        port: ${nr-var:health_port}
   packages:
     infra-agent:
       download:
@@ -781,19 +785,35 @@ When set, this redirects the `stdout` and `stderr` of the created process to fil
 
 Enables periodically checking the health of the sub-agent. See [Health status](#health-status) below for more details. Accepts the following values:
 
-- `interval`: Periodicity of the check. A duration string.
-- `initial_delay`: Initial delay before the first health check is performed. A duration string.
-- `timeout`: Maximum duration a health check may run before considered failed.
-- `http` or `file`: The type of health check used.
-  - `http` means that the supervisor for this sub-agent will attempt to query an HTTP endpoint and will decide on healthiness depending on the status code. Accepts the following fields:
-    - `host`, string.
-    - `path`, string.
-    - `port`, a number.
+- `interval`: Periodicity of the check. A duration string. Default `60s`.
+- `initial_delay`: Initial delay before the first health check is performed. A duration string. Default zero.
+- `timeout`: Maximum duration an HTTP health check may run before considered failed. A duration string. Default `15s`.
+- `checks`: An explicit list of health checks to run. Each entry is discriminated by a `kind:` field. If `checks` is omitted or empty, no health thread is spawned and health is not reported. The aggregate result is unhealthy as soon as any single check is unhealthy. Supported kinds:
+  - `Process`: aggregates the health of the supervised executables. It surfaces launch failures (unable to spawn the binary), restart-policy exhaustion, and healthy-after-warmup transitions. Takes no parameters. Only makes sense when the agent type declares `executables`. Declaring it more than once is not allowed.
+  - `Http`: queries an HTTP endpoint and derives health from its status code. Fields:
+    - `host`: string, defaults to `127.0.0.1`.
+    - `path`: string, defaults to `/`.
+    - `port`: number, defaults to `80`.
     - `headers`: key-value pairs for authentication or other required info.
-    - `healthy_status_codes`: The status codes that mean a healthy state. If not set, as of now the 200s will be considered healthy and the rest unhealthy.
-  - `file` means that the supervisor for this sub-agent will attempt to read a file and find expected contents. Failing to do so, or reading information that means an unhealthy state, will mark the sub-agent as unhealthy. Accepts `path` as its only field.
+    - `healthy_status_codes`: the status codes that mean a healthy state. If not set, the 2xx range is considered healthy and everything else unhealthy.
+  - `File`: reads a file and expects a specific health-payload schema. Failing to read the file, or reading a payload indicating an unhealthy state, marks the sub-agent as unhealthy. Fields:
+    - `path`: string, path to the health-status file.
 
-If no health configuration is defined, AC will use the exceeding of the restart policy (if also defined) to determine if the sub-agent should be labelled as unhealthy.
+Example combining supervised-process health with an HTTP probe:
+
+```yaml
+health:
+  interval: 30s
+  initial_delay: 60s
+  timeout: 5s
+  checks:
+    - kind: Process
+    - kind: Http
+      path: "/v1/status/health"
+      port: ${nr-var:health_port}
+```
+
+If `health:` is omitted, or `checks` is empty, no health checking is performed and the sub-agent does not report health at all — the restart policy will still be honored, but its outcome is not surfaced as unhealthy.
 
 #### Kubernetes namespace usage
 
