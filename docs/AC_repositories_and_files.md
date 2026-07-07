@@ -78,17 +78,12 @@ The following shows the directory structure used by Agent Control, assuming an e
     │       │    └── nr-infra
     │       │         ├── instance_id.yaml
     │       │         └── remote_config.yaml 
-    │       ├── filesystem
-    │       │    └── nr-infra
-    │       │        ├── integrations.d
-    │       │        │   └── nri-redis.yaml
-    │       │        └── config
-    │       │              └── newrelic-infra.yml
-    │       └── shared-filesystem
-    │            ├── infra-agent-ohi-configs
-    │            │   └── nri-redis.yaml
-    │            └── infra-agent-ohi-binaries
-    │                └── nri-redis
+    │       └── filesystem
+    │            └── nr-infra
+    │                ├── integrations.d
+    │                │   └── nri-redis.yaml
+    │                └── config
+    │                      └── newrelic-infra.yml
     └── log
         └── newrelic-agent-control
             |── agent-control
@@ -120,11 +115,6 @@ C:\ProgramData\New Relic\newrelic-agent-control
 │       │    └─── [...] Data files created by the infra agent
 │       └── config
 │             └── newrelic-infra.yml
-├───shared-filesystem
-│   ├───infra-agent-ohi-configs
-│   │       nri-redis.yaml
-│   └───infra-agent-ohi-binaries
-│           nri-redis.exe
 ├───fleet-data
 │   ├───agent-control
 │   │       instance_id.yaml
