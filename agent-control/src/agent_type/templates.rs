@@ -14,15 +14,12 @@ use super::definition::Variables;
 use super::error::AgentTypeError;
 use super::templates_function::{Function, SupportedFunction};
 use super::variable::Variable;
-use super::variable::variable_type::VariableType;
 use regex::Regex;
 use std::sync::OnceLock;
 
 /// Regular expression patterns for parsing template variables and functions.
 /// example: ${nr-var:name|indent 2}
 const TEMPLATE_RE: &str = r"\$\{(nr-[a-z]+:[a-zA-Z0-9\.\-_/:]+)((?:\s*\|\s*[a-zA-Z]+\s*\d*)*)\}";
-const TEMPLATE_BEGIN: &str = "${";
-const TEMPLATE_END: char = '}';
 /// Separator used to join nested variable names into a single template key.
 pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
 
@@ -46,6 +43,21 @@ pub trait Templateable {
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError>;
 }
 
+/// Renders a YAML value as a string:
+/// - Scalars use their bare textual form (`true`, `42`, `foo`).
+/// - Null renders as an empty string.
+/// - Maps and arrays are serialized to multi-line YAML text via `serde_saphyr`.
+pub fn render_as_string(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Null => String::new(),
+        _ => serde_saphyr::to_string(value)
+            .expect("serde_json::Value is always YAML-serializable"),
+    }
+}
+
 /// Returns the compiled regular expression matching template placeholders such as
 /// `${nr-var:name|indent 2}`.
 pub fn template_re() -> &'static Regex {
@@ -56,12 +68,6 @@ pub fn template_re() -> &'static Regex {
 fn only_template_var_re() -> &'static Regex {
     static ONLY_RE_ONCE: OnceLock<Regex> = OnceLock::new();
     ONLY_RE_ONCE.get_or_init(|| Regex::new(format!("^{TEMPLATE_RE}$").as_str()).unwrap())
-}
-
-/// Returns a string slice with the template's begin and end trimmed.
-fn template_trim(s: &str) -> &str {
-    s.trim_start_matches(TEMPLATE_BEGIN)
-        .trim_end_matches(TEMPLATE_END)
 }
 
 /// Returns a variable reference from the provided set if it exists, it returns an error otherwise.
@@ -101,8 +107,8 @@ fn template_string(s: String, variables: &Variables) -> Result<String, AgentType
             .get_final_value()
             .ok_or(AgentTypeError::MissingTemplateKey(
                 templatable_placeholder.to_string(),
-            ))?
-            .to_string();
+            ))?;
+        let value = render_as_string(&value);
 
         // Apply functions
         let functions: Vec<SupportedFunction> =
@@ -170,39 +176,47 @@ fn template_yaml_value_string(
     s: String,
     variables: &Variables,
 ) -> Result<serde_json::Value, AgentTypeError> {
-    // When there is more content than a variable template, template as a regular string.
     if !only_template_var_re().is_match(s.as_str()) {
         let templated = template_string(s, variables)?;
         return Ok(serde_json::Value::String(templated));
     }
-    // Otherwise, template according to the variable type.
-    let var_name = template_trim(s.as_str());
-    let var_spec = normalized_var(var_name, variables)?;
+    let captures = template_re()
+        .captures(s.as_str())
+        .expect("only_template_var_re matched; template_re must too");
+    let var_ref = captures.get(1).unwrap().as_str();
+    let pipe_str = captures.get(2).map(|m| m.as_str()).unwrap_or("");
+
+    let functions = SupportedFunction::parse_function_list(pipe_str)
+        .map_err(|e| AgentTypeError::RenderingTemplate(e.to_string()))?;
+
+    let var_spec = normalized_var(var_ref, variables)?;
     let var_value = var_spec
         .get_final_value()
-        .ok_or(AgentTypeError::MissingValue(var_name.to_string()))?;
+        .ok_or(AgentTypeError::MissingValue(var_ref.to_string()))?;
 
-    match var_spec.kind() {
-        VariableType::Yaml(_) => {
-            var_value
-                .to_yaml_value()
-                .ok_or(AgentTypeError::UnexpectedValueForKey(
-                    var_name.to_string(),
-                    var_value.to_string(),
-                ))
+    let has_toyaml = functions
+        .iter()
+        .any(|f| matches!(f, SupportedFunction::ToYaml(_)));
+    if has_toyaml {
+        if functions.len() > 1 {
+            return Err(AgentTypeError::RenderingTemplate(
+                "the `toYAML` pipe cannot be combined with other pipes".to_string(),
+            ));
         }
-        VariableType::Bool(_) | VariableType::Number(_) => {
-            serde_saphyr::from_str(var_value.to_string().as_str())
-                .map_err(AgentTypeError::Serialization)
-        }
-        _ => Ok(serde_json::Value::String(var_value.to_string())),
+        return Ok(var_value);
     }
+
+    let string_value = render_as_string(&var_value);
+    let final_string = functions.iter().try_fold(string_value, |acc, f| {
+        f.apply(acc)
+            .map_err(|e| AgentTypeError::RenderingTemplate(e.to_string()))
+    })?;
+    Ok(serde_json::Value::String(final_string))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_type::variable::fields::Fields;
     use assert_matches::assert_matches;
     use rstest::rstest;
     use serde_json::Number;
@@ -286,8 +300,8 @@ mod tests {
         let input: serde_json::Map<String, serde_json::Value> = serde_saphyr::from_str(
             r#"
         a_string: "${nr-var:change.me.string}"
-        a_boolean: "${nr-var:change.me.bool}"
-        a_number: "${nr-var:change.me.number}"
+        a_boolean: "${nr-var:change.me.bool | toYAML}"
+        a_number: "${nr-var:change.me.number | toYAML}"
         ${nr-var:change.me.string}: "Do not scape me"
         ${nr-var:change.me.bool}: "Do not scape me"
         ${nr-var:change.me.number}: "Do not scape me"
@@ -336,8 +350,8 @@ mod tests {
         let input: Vec<serde_json::Value> = serde_saphyr::from_str(
             r#"
         - ${nr-var:change.me.string}
-        - ${nr-var:change.me.bool}
-        - ${nr-var:change.me.number}
+        - ${nr-var:change.me.bool | toYAML}
+        - ${nr-var:change.me.number | toYAML}
         - ${UNTOUCHED}
         - Do not scape me
         "#,
@@ -420,23 +434,23 @@ mod tests {
             r#"
         an_object:
             a_string: ${nr-var:change.me.string}
-            a_boolean: ${nr-var:change.me.bool}
-            a_number: ${nr-var:change.me.number}
+            a_boolean: ${nr-var:change.me.bool | toYAML}
+            a_number: ${nr-var:change.me.number | toYAML}
         a_sequence:
             - ${nr-var:change.me.string}
-            - ${nr-var:change.me.bool}
-            - ${nr-var:change.me.number}
+            - ${nr-var:change.me.bool | toYAML}
+            - ${nr-var:change.me.number | toYAML}
         a_nested_object:
             with_nested_sequence:
                 - a_string: ${nr-var:change.me.string}
-                - a_boolean: ${nr-var:change.me.bool}
-                - a_number: ${nr-var:change.me.number}
-                - a_yaml: ${nr-var:change.me.yaml}
+                - a_boolean: ${nr-var:change.me.bool | toYAML}
+                - a_number: ${nr-var:change.me.number | toYAML}
+                - a_yaml: ${nr-var:change.me.yaml | toYAML}
         a_string: ${nr-var:change.me.string}
-        a_boolean: ${nr-var:change.me.bool}
-        a_number: ${nr-var:change.me.number}
-        a_yaml: ${nr-var:change.me.yaml}
-        another_yaml: ${nr-var:yaml.with.var.placeholder} # A variable inside another variable value is not expanded
+        a_boolean: ${nr-var:change.me.bool | toYAML}
+        a_number: ${nr-var:change.me.number | toYAML}
+        a_yaml: ${nr-var:change.me.yaml | toYAML}
+        another_yaml: ${nr-var:yaml.with.var.placeholder | toYAML} # A variable inside another variable value is not expanded
         string_key: "here, the value ${nr-var:change.me.yaml} is encoded as string because it is not alone"
         string_multiline_containing_yaml: |
           a_string: ${nr-var:change.me.string}
@@ -534,7 +548,7 @@ mod tests {
                 name: "missing required value key",
                 variables: Variables::from([(
                     "nr-var:yaml".to_string(),
-                    Fields::<serde_json::Value>::new(true, None, None).into(),
+                    Variable::new::<serde_json::Value>(String::default(), true, None, None),
                 )]),
                 input: "${nr-var:yaml}",
                 assert_fn: |err| assert_matches!(err, AgentTypeError::MissingValue(_)),
@@ -543,7 +557,7 @@ mod tests {
                 name: "missing non-required key",
                 variables: Variables::from([(
                     "nr-var:yaml".to_string(),
-                    Fields::<serde_json::Value>::new(false, None, None).into(),
+                    Variable::new::<serde_json::Value>(String::default(), false, None, None),
                 )]),
                 input: "${nr-var:yaml}",
                 assert_fn: |err| assert_matches!(err, AgentTypeError::MissingValue(_)),
@@ -618,7 +632,13 @@ mod tests {
                     Variable::new(String::default(), true, None, Some(true)),
                 )]),
                 expectations: vec![
-                    ("${nr-var:bool.var}", serde_json::Value::Bool(true)),
+                    // Without `| toYAML`, the lone-placeholder path stringifies the value.
+                    ("${nr-var:bool.var}", serde_json::Value::String("true".into())),
+                    // With `| toYAML`, the raw YAML value is substituted.
+                    (
+                        "${nr-var:bool.var | toYAML}",
+                        serde_json::Value::Bool(true),
+                    ),
                     (
                         "${nr-var:bool.var}${nr-var:bool.var}",
                         serde_json::Value::String("truetrue".into()),
@@ -631,10 +651,16 @@ mod tests {
                     "nr-var:number.var".to_string(),
                     Variable::new(String::default(), true, None, Some(Number::from(42))),
                 )]),
-                expectations: vec![(
-                    "${nr-var:number.var}",
-                    serde_json::Value::Number(serde_json::Number::from(42i32)),
-                )],
+                expectations: vec![
+                    (
+                        "${nr-var:number.var}",
+                        serde_json::Value::String("42".into()),
+                    ),
+                    (
+                        "${nr-var:number.var | toYAML}",
+                        serde_json::Value::Number(serde_json::Number::from(42i32)),
+                    ),
+                ],
             },
             TestCase {
                 name: "number, bool, and string",
@@ -684,7 +710,7 @@ mod tests {
                 )]),
                 expectations: vec![
                     (
-                        "${nr-var:yaml.var}",
+                        "${nr-var:yaml.var | toYAML}",
                         serde_json::Value::Object(serde_json::Map::from_iter([(
                             "key".into(),
                             "value".into(),
@@ -711,7 +737,7 @@ mod tests {
                     ),
                 )]),
                 expectations: vec![(
-                    "${nr-var:yaml.var}",
+                    "${nr-var:yaml.var | toYAML}",
                     serde_json::Value::Object(serde_json::Map::from_iter([(
                         "key".into(),
                         "value".into(),
@@ -726,21 +752,93 @@ mod tests {
     }
 
     #[test]
+    fn test_toyaml_pipe_substitutes_yaml_tree_when_alone() {
+        let variables = Variables::from([(
+            "nr-var:yaml.var".to_string(),
+            Variable::new(
+                String::default(),
+                true,
+                None,
+                Some(serde_json::Value::Object(serde_json::Map::from_iter([(
+                    "key".into(),
+                    "value".into(),
+                )]))),
+            ),
+        )]);
+        let input: serde_json::Value = serde_json::Value::String("${nr-var:yaml.var | toYAML}".into());
+        let output = input.template_with(&variables).unwrap();
+        assert_eq!(
+            output,
+            serde_json::Value::Object(serde_json::Map::from_iter([(
+                "key".into(),
+                "value".into()
+            )]))
+        );
+    }
+
+    #[test]
+    fn test_toyaml_pipe_errors_when_combined_with_indent() {
+        let variables = Variables::from([(
+            "nr-var:yaml.var".to_string(),
+            Variable::new(
+                String::default(),
+                true,
+                None,
+                Some(serde_json::Value::Object(serde_json::Map::from_iter([(
+                    "key".into(),
+                    "value".into(),
+                )]))),
+            ),
+        )]);
+        let input: serde_json::Value =
+            serde_json::Value::String("${nr-var:yaml.var | toYAML | indent 2}".into());
+        let err = input.template_with(&variables).unwrap_err();
+        assert_matches!(err, AgentTypeError::RenderingTemplate(_));
+    }
+
+    #[test]
     fn test_normalized_var() {
         let variables = Variables::from([(
             "nr-var:var.name".to_string(),
             Variable::new_string(String::default(), true, None, Some("Value".to_string())),
         )]);
 
-        assert_matches!(
+        assert_eq!(
             normalized_var("nr-var:var.name", &variables)
                 .unwrap()
-                .kind(),
-            VariableType::String(_)
+                .get_final_value(),
+            Some(serde_json::Value::String("Value".to_string()))
         );
         let key = assert_matches!(
             normalized_var("does.not.exists", &variables).unwrap_err(),
             AgentTypeError::MissingTemplateKey(s) => s);
         assert_eq!("does.not.exists".to_string(), key);
+    }
+
+    #[rstest]
+    #[case::string(serde_json::Value::String("foo".into()), "foo")]
+    #[case::bool_true(serde_json::Value::Bool(true), "true")]
+    #[case::bool_false(serde_json::Value::Bool(false), "false")]
+    #[case::number_int(serde_json::json!(42), "42")]
+    #[case::number_float(serde_json::json!(3.14), "3.14")]
+    #[case::null(serde_json::Value::Null, "")]
+    fn test_render_as_string_scalars(#[case] input: serde_json::Value, #[case] expected: &str) {
+        assert_eq!(render_as_string(&input), expected);
+    }
+
+    #[test]
+    fn test_render_as_string_map() {
+        let input = serde_json::json!({"key": "value"});
+        let s = render_as_string(&input);
+        // serde_saphyr renders as "key: value\n" (trailing newline).
+        assert!(s.contains("key: value"), "unexpected: {s}");
+    }
+
+    #[test]
+    fn test_render_as_string_array() {
+        let input = serde_json::json!(["a", "b"]);
+        let s = render_as_string(&input);
+        assert!(s.contains("- a"), "unexpected: {s}");
+        assert!(s.contains("- b"), "unexpected: {s}");
     }
 }

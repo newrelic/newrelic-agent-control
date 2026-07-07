@@ -82,7 +82,6 @@ impl AgentAttributes {
 mod tests {
     use super::*;
     use crate::agent_control::defaults::AGENT_CONTROL_DATA_DIR;
-    use crate::agent_type::trivial_value::TrivialValue;
 
     fn final_string(vars: &HashMap<String, Variable>, name: &str) -> String {
         let key = Namespace::SubAgent.namespaced_name(name);
@@ -91,7 +90,7 @@ mod tests {
             .and_then(Variable::get_final_value)
             .unwrap_or_else(|| panic!("missing variable {key}"))
         {
-            TrivialValue::String(s) => s,
+            serde_json::Value::String(s) => s,
             other => panic!("expected string for {key}, got {other:?}"),
         }
     }

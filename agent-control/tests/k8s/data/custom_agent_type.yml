@@ -6,7 +6,6 @@ protocol_version: "1.0"
 variables:
   chart_values:
     description: "chart_values"
-    type: yaml
     required: false
     default: { }
 deployment:
@@ -60,4 +59,4 @@ deployment:
           disableTakeOwnership: true
           cleanupOnFail: true
         values:
-          ${nr-var:chart_values}
+          ${nr-var:chart_values | toYAML}

@@ -269,11 +269,9 @@ variables:
     test:
       path:
         description: "Path to the agent"
-        type: string
         required: true
       args:
         description: "Args passed to the agent"
-        type: string
         required: true
 deployment: {}
 "#;
@@ -329,17 +327,24 @@ deployment: {}
     "#;
 
     #[test]
-    fn test_validate_with_agent_type_wrong_value_type() {
+    fn test_validate_with_agent_type_accepts_any_yaml_scalar() {
+        // Variables are now untyped: any YAML value is accepted at `fill_with_values`. Values
+        // that would previously have been rejected by a `type: string` variable (like a boolean)
+        // are now stored as-is and later stringified by the renderer.
         let input_structure =
             serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
         let agent_type = AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE);
 
         let result = agent_type.variables.fill_with_values(input_structure);
+        assert!(result.is_ok(), "expected ok, got {:?}", result.err());
 
-        assert!(result.is_err());
-        assert!(
-            format!("{}", result.unwrap_err())
-                .contains("invalid type: boolean `true`, expected a string")
+        let filled = result.unwrap();
+        let flattened = filled.flatten();
+        assert_eq!(
+            flattened
+                .get("whatever.test.path")
+                .and_then(|v| v.get_final_value()),
+            Some(serde_json::Value::Bool(true))
         );
     }
 

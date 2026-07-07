@@ -7,33 +7,27 @@ protocol_version: "1.0"
 variables:
   config_agent:
     description: "Newrelic infra configuration"
-    type: yaml
     required: false
     default: ""
   config_integrations:
     description: "map of YAML configs for the OHIs"
-    type: map[string]yaml
     required: false
     default: { }
   config_logging:
     description: "map of YAML config for logging"
-    type: map[string]yaml
     required: false
     default: { }
   backoff_delay:
     description: "seconds until next retry if agent fails to start"
-    type: string
     required: false
     default: 20s
   health_port:
     description: "port for the Infra Agent status server"
-    type: number
     required: false
     default: 18003
   oci:
     repository:
       description: "Package repository name"
-      type: string
       required: false
       default: newrelic/infrastructure-agent-artifacts
       variants:
@@ -41,7 +35,6 @@ variables:
         values: [ "newrelic/infrastructure-agent-artifacts" ]
   version:
     description: "Agent version"
-    type: string
     required: true
 deployment:
   # Infra-agent always logs to a file on Windows. To avoid duplicated logs we disable AC file logging on this platform.
@@ -70,10 +63,10 @@ deployment:
             ${nr-var:config_agent}
     integrations.d:
       kind: dir_content_from_map
-      source: ${nr-var:config_integrations}
+      source: ${nr-var:config_integrations | toYAML}
     logging.d:
       kind: dir_content_from_map
-      source: ${nr-var:config_logging}
+      source: ${nr-var:config_logging | toYAML}
     # Agent data root (NRIA_AGENT_DIR). Persistent so the agent's stored data survives restarts
     newrelic-infra:
       kind: dir

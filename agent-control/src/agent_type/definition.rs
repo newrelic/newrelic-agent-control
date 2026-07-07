@@ -374,7 +374,7 @@ pub fn get_sub_agent_variable(variables: &Variables, variable_name: &str) -> Opt
     variables
         .get(&key)
         .and_then(Variable::get_final_value)
-        .map(|value| value.to_string())
+        .map(|value| crate::agent_type::templates::render_as_string(&value))
 }
 
 #[cfg(test)]
@@ -382,11 +382,9 @@ pub fn get_sub_agent_variable(variables: &Variables, variable_name: &str) -> Opt
 pub mod tests {
     use super::*;
     use crate::agent_type::protocol_version::SUPPORTED_PROTOCOL_VERSION;
-    use crate::agent_type::trivial_value::TrivialValue;
     use crate::agent_type::variable::constraints::VariableConstraints;
     use assert_matches::assert_matches;
     use rstest::rstest;
-    use serde_json::Number;
     use serde_saphyr::Error;
     use std::collections::HashMap as Map;
 
@@ -462,7 +460,6 @@ variables:
   description:
     name:
       description: "Name of the agent"
-      type: string
       required: false
       default: nrdot
 deployment:
@@ -706,11 +703,9 @@ operating_system: linux
 variables:
   config3:
     description: "Newrelic infra configuration yaml"
-    type: map[string]yaml
     required: true
   status_server_port:
     description: "Newrelic infra health status port"
-    type: number
     required: false
     default: 8003
 deployment:
@@ -755,12 +750,11 @@ status_server_port: 8004
             input_agent_type.fill_variables(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML);
 
         // Then, we expect the corresponding final values.
-        let expected_config_3 = TrivialValue::MapStringYaml(HashMap::from([
-            ("log_level".to_string(), "trace".into()),
-            ("forward".to_string(), "true".into()),
-        ]));
-        // Number
-        let expected_status_server = TrivialValue::Number(Number::from(8004));
+        let expected_config_3 = serde_json::json!({
+            "log_level": "trace",
+            "forward": "true",
+        });
+        let expected_status_server = serde_json::json!(8004);
 
         assert_eq!(
             expected_config_3,
@@ -796,7 +790,6 @@ variables:
   restart_policy:
     type:
       description: "restart policy type"
-      type: string
       required: false
       variants:
         values: [fixed, linear]
@@ -828,8 +821,8 @@ restart_policy:
 
         let var = filled_variables.get("restart_policy.type").unwrap();
         assert_eq!(
-            "fixed".to_string(),
-            var.get_final_value().unwrap().to_string()
+            serde_json::Value::String("fixed".to_string()),
+            var.get_final_value().unwrap()
         );
 
         // Invalid variant
@@ -849,8 +842,8 @@ restart_policy:
         let filled_variables_default = agent_type.fill_variables("");
         let var = filled_variables_default.get("restart_policy.type").unwrap();
         assert_eq!(
-            "exponential".to_string(),
-            var.get_final_value().unwrap().to_string()
+            serde_json::Value::String("exponential".to_string()),
+            var.get_final_value().unwrap()
         );
     }
 
@@ -933,7 +926,6 @@ variables:
   group:
     name:
       description: "Name of the agent"
-      type: string
       required: false
       default: fake_value
       {unknown}
@@ -981,7 +973,6 @@ variables:
   group:
     name:
       description: "Name of the agent"
-      type: string
       required: false
       default: fake_value
       {unknown}

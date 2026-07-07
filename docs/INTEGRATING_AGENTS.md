@@ -75,22 +75,18 @@ variables:
   chart_values:
     newrelic-infrastructure:
       description: "newrelic-infrastructure chart values"
-      type: yaml
       required: false
       default: {}
     nri-metadata-injection:
       description: "nri-metadata-injection chart values"
-      type: yaml
       required: false
       default: {}
     global:
       description: "Global chart values"
-      type: yaml
       required: false
       default: {}
   chart_version:
     description: "nri-bundle chart version"
-    type: string
     required: true
 ```
 
@@ -102,46 +98,33 @@ The variables can theoretically be nested this way indefinitely, but for usabili
 
 #### Variable definition
 
-For the *leaf nodes* of the variable definitions, we currently support the following fields:
+Variables are **untyped**: the user may supply any YAML value (string, number, boolean, mapping, sequence, null) for any variable. The renderer stringifies values by default; use the [`toYAML`](#toyaml) pipe to substitute a variable's raw YAML value in place.
+
+For the *leaf nodes* of the variable definitions, the following fields are supported:
 
 ##### `description` (`String`)
 
 A description of the variable, for documentation purposes.
 
-##### `type` (`String`)
-
-The value type that is accepted for this variable. As of now, the following types are supported (using the allowed values for the field):
-
-- `string`.
-- `bool`.
-- `number`: Integer or floating point are supported.
-- `yaml`: An arbitrary YAML value, like an array, an object or even a scalar.
-- `map[string]yaml`: A YAML value where the top-level is guaranteed to consist on string keys for other values.
-
 ##### `required` (`bool`)
 
-Specifies if providing a value for this variable is required or not. If `required` is `false`, a `default` value of its specified [type](#type-string) needs to be provided. If `required` is `true`, then a `default` value cannot be specified.
+Specifies whether providing a value for this variable is required. If `required` is `false`, a `default` should be provided; otherwise the effective default is YAML `null`. If `required` is `true`, then a `default` cannot be specified.
 
 ##### `default` (optional)
 
-A default value for this variable, for the cases where no configuration value has been passed for this variable when creating an instance for the agent type. Its value must be of the same type as the one declared for the variable.
-
-In the case of the `yaml` variable type, is recommended to explicitly set a 'null' default value as `default: null`.
+A default value for this variable, used when no configuration value is provided. Any YAML value is accepted (string, number, boolean, mapping, sequence, or `null`).
 
 ##### `variants` (optional)
 
-Only available for **String** variables.
-
-A list of accepted values for this variable. If any configuration includes a value for this variable that is not among the specified variants, the configuration will be invalid. The accepted values can be changed in the Agent Control configuration, as in the example below:
+A list of accepted values for this variable. If a configuration includes a value that is not among the specified variants, the configuration is rejected. Variants may be any YAML values (not just strings). The accepted values can be sourced from the Agent Control configuration, as shown below:
 
 Agent type:
 
 ```yaml
 my_variable:
   # ...
-  type: string
   variants:
-    ac_config_field: "my_variable_variants" # If the field is set in `agent_type_var_constraints.variants`, the configures values will be used instead of the default ones.
+    ac_config_field: "my_variable_variants" # If the field is set in `agent_type_var_constraints.variants`, the configured values will be used instead of the default ones.
     values: ["value1", "value2"] # Otherwise the values defined here are used
 ```
 
@@ -173,6 +156,21 @@ These instructions can be dynamically *rendered* using as inputs the **values** 
 When talking about the variables that were defined in the `variables` field for an agent type definition, that can be used as local or received as remote configuration for an agent type instance, we will often use the term configuration values or just **values**.
 
 All of these variable references will be replaced with actual values, either provided with configuration values or their defaults if missing and the variables are not required, on a rendering stage that will create the final instructions for the deployment.
+
+##### Template pipes
+
+References can be transformed with pipe functions, chained like `${nr-var:name | func1 | func2}`:
+
+- <a id="indent"></a>**`indent N`** — indents each new line with `N` spaces. Useful inside multi-line block scalars: `${nr-var:yaml_var | indent 2}`.
+- <a id="toyaml"></a>**`toYAML`** — substitutes the variable's raw YAML value (mapping, sequence, or scalar) in place. Only takes effect when the placeholder is the entire value of a YAML key, and cannot be combined with other pipes. Without `toYAML`, every placeholder renders as a string.
+
+  ```yaml
+  # variable `resourceRequirements` supplied as {requests: {cpu: 100m}}
+  spec:
+    agent:
+      resources: ${nr-var:resourceRequirements | toYAML}
+  # -> resources:\n  requests:\n    cpu: 100m
+  ```
 
 When adding these values as a user, either as a local config for AC (a file in the filesystem for on-host or a ConfigMap for Kubernetes) or as remote configs made available from FC, the format used is a YAML file with the values following the same tree-like structure defined for the variables in the agent type definition, but the *leaf nodes* being the actual values.
 
@@ -402,17 +400,14 @@ The example below uses these variables:
 variables:
   config_agent:
     description: "Newrelic infra configuration"
-    type: yaml
     required: false
     default: ""
   config_integrations:
     description: "map of YAML configs for the OHIs"
-    type: map[string]yaml
     required: false
     default: {}
   config_logging:
     description: "map of YAML config for logging"
-    type: map[string]yaml
     required: false
     default: {}
 ```

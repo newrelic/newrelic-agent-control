@@ -140,15 +140,12 @@ protocol_version: "1.0"
 variables:
   yaml_file_contents:
     description: "Contents of the YAML file"
-    type: yaml
     required: true
   some_string:
     description: "Contents of an arbitrary string file"
-    type: string
     required: true
   some_mapstringyaml:
     description: "A directory structure"
-    type: map[string]yaml
     required: true
 deployment:
   filesystem:
@@ -307,15 +304,12 @@ protocol_version: "1.0"
 variables:
   config_agent:
     description: "Agent configuration"
-    type: yaml
     required: true
   config_integrations:
     description: "Integrations configuration"
-    type: yaml
     required: true
   config_logging:
     description: "Logging configuration"
-    type: yaml
     required: true
 deployment:
   filesystem:

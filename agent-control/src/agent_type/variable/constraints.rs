@@ -30,7 +30,7 @@ impl VariantsConstraints {
 /// Represents the collection of supported values for a particular variable
 pub struct SupportedValues(Vec<String>);
 
-impl From<&SupportedValues> for Variants<String> {
+impl From<&SupportedValues> for Variants {
     fn from(value: &SupportedValues) -> Self {
         Variants::from(value.0.clone())
     }

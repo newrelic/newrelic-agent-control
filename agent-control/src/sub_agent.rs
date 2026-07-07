@@ -964,9 +964,10 @@ operating_system: {AGENT_CONTROL_MODE_ON_HOST}
 variables:
   var:
     description: "fake"
-    type: string
     required: false
     default: ""
+    variants:
+      values: ["", "valid"]
 deployment:
   executables:
     - id: exec
@@ -990,7 +991,6 @@ operating_system: {AGENT_CONTROL_MODE_ON_HOST}
 variables:
   var:
     description: "fake"
-    type: string
     required: true
 deployment:
   executables:

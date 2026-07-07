@@ -195,7 +195,6 @@ protocol_version: "{SUPPORTED_PROTOCOL_VERSION}"
 platform: kubernetes
 variables:
   {variable}:
-    type: string
     required: true
     description: "test"
 deployment:

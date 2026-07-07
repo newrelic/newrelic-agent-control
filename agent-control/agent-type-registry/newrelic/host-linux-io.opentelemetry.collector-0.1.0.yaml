@@ -7,12 +7,10 @@ protocol_version: "1.0"
 variables:
   config:
     description: "Newrelic otel collector configuration"
-    type: yaml
     required: false
     default: { }
   backoff_delay:
     description: "seconds until next retry if agent fails to start"
-    type: string
     required: false
     default: 20s
   health_check:
@@ -21,12 +19,10 @@ variables:
     # For more details
     path:
       description: "path to health check endpoint"
-      type: string
       required: false
       default: "/health/status" # Taken from example at: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/healthcheckv2extension/README.md#configuration
     port:
       description: "port to health check endpoint"
-      type: number
       required: false
       default: 13133
 deployment:

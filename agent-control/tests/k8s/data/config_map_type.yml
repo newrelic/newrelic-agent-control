@@ -7,7 +7,6 @@ variables:
   chart_values:
     cm_content:
       description: "configmap content"
-      type: yaml
       required: false
       default: { }
 deployment:

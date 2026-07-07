@@ -6,7 +6,6 @@ protocol_version: "1.0"
 variables:
   chart_values:
     description: "chart_values"
-    type: yaml
     required: false
     default: { }
 deployment:

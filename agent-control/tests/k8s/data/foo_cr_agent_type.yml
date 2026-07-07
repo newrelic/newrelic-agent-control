@@ -6,7 +6,6 @@ protocol_version: "1.0"
 variables:
   data:
     description: "foo data"
-    type: string
     required: false
     default: "default"
 deployment:

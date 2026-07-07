@@ -12,6 +12,5 @@ pub mod render;
 pub mod runtime_config;
 pub mod templates;
 pub mod templates_function;
-pub mod trivial_value;
 pub mod variable;
 pub mod version_config;

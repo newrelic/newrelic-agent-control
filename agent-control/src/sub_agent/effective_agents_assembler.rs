@@ -336,7 +336,6 @@ variables:
   config:
     var:
       description: "K8s var"
-      type: string
       required: true
 deployment:
   objects:
@@ -360,7 +359,6 @@ variables:
   config:
     var:
       description: "Linux var"
-      type: string
       required: true
 deployment:
   executables:

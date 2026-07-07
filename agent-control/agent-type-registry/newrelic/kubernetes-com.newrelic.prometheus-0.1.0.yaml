@@ -7,27 +7,22 @@ variables:
   chart_values:
     newrelic-prometheus-agent:
       description: "Newrelic newrelic-prometheus-agent chart values"
-      type: yaml
       required: false
       default: { }
     global:
       description: "Global chart values"
-      type: yaml
       required: false
       default: { }
   chart_version:
     description: "newrelic-prometheus chart version"
-    type: string
     required: true
   chart_name:
     description: "newrelic-prometheus-agent chart name"
-    type: string
     required: false
     default: "newrelic-prometheus-agent"
   chart_repository:
     url:
       description: "chart repository url"
-      type: string
       required: false
       default: "https://newrelic.github.io/newrelic-prometheus-configurator"
       variants:
@@ -35,12 +30,10 @@ variables:
         values: ["https://newrelic.github.io/newrelic-prometheus-configurator"]
     secret_reference:
       description: "HelmRepository secret reference (secretRef)"
-      type: yaml
       required: false
       default: null
     certificate_secret_reference:
       description: "HelmRepository certificate secret reference (certSecretRef)"
-      type: yaml
       required: false
       default: null
 deployment:
@@ -63,8 +56,8 @@ deployment:
         interval: 30m
         provider: generic
         url: ${nr-var:chart_repository.url}
-        secretRef: ${nr-var:chart_repository.secret_reference}
-        certSecretRef: ${nr-var:chart_repository.certificate_secret_reference}
+        secretRef: ${nr-var:chart_repository.secret_reference | toYAML}
+        certSecretRef: ${nr-var:chart_repository.certificate_secret_reference | toYAML}
     values:
       apiVersion: v1
       kind: Secret

@@ -58,23 +58,19 @@ The `variables` section allows developers to define variables that end users can
 variables:
   config_agent:
     description: "Newrelic infra configuration"
-    type: yaml
     required: false
     default: {}
   config_integrations:
     description: "map of YAML configs for the OHIs"
-    type: map[string]yaml
     required: false
     default: {}
   backoff_delay:
     description: "seconds until next retry if agent fails to start"
-    type: string
     required: false
     variants: [5s, 10s, 20s, 30s]
     default: 20s
   enable_file_logging:
     description: "enable logging the on host executables' logs to files"
-    type: bool
     required: false
     default: false
 ```
@@ -86,27 +82,19 @@ variables:
   log:
     level:
       description: "Log level with only info and error"
-      type: string
       required: false
       default: info
       variants: ["info", "error"]
 ```
 
-All variables have a few common attributes:
+Variables are **untyped**: any YAML value (string, number, boolean, mapping, sequence, null) is accepted for any variable. The renderer stringifies values by default; use the [`toYAML`](#toyaml) pipe to substitute a variable's raw YAML value in place.
 
-* `description`: A brief description of the variable. This is useful for documentation purposes and can help others understand the purpose of the variable.
-* `type`: The data type of the variable. We support several data types, including `string`, `file`, `bool`, `yaml`, and more.
-* `variants`: Represents a defined list of acceptable values for the variable. Only values present in the variants list are considered valid.
+Variable definition fields:
+
+* `description`: A brief description of the variable. Useful for documentation.
+* `variants`: An optional list of acceptable values. Only values present in the list are considered valid. Works for any YAML value (string, number, boolean, etc.).
 * `default`: The default value for the variable if no value is provided.
 * `required`: Whether the variable is mandatory to be provided or not.
-
-In terms of variable types, we currently support the following types listed in [this source file](./variable/variable_type.rs#L22):
-
-* `string`: A string value, such as "Hello, world!"
-* `number`: An numeric value, such as 42 or 0.25
-* `boolean`: A boolean value, which can be either *true* or *false*
-* `yaml`: The YAML type variable is used to handle multi-line strings that will be parsed as YAML such as Helm Charts values.
-* `map[string]yaml`: Handles YAML values that guarantee their top-level fields are strings. Useful for defining file system entries for on-host.
 
 ## Deployment
 
@@ -131,6 +119,29 @@ multi_line_string: |
   fixed_key:
     ${nr-var:yaml_variable | indent 2 }
 ```
+
+#### toYAML
+
+By default, a `${nr-var:foo}` placeholder renders as a **string**. To substitute a variable's raw YAML value (mapping, sequence, or scalar) in place, add the `| toYAML` pipe. This mirrors Helm's `toYaml` mental model but simpler: no explicit `indent` is required.
+
+The pipe only has effect when the placeholder is the entire value of a YAML key. It cannot be combined with other pipes.
+
+```yaml
+variables:
+  resourceRequirements:
+    description: "resource requirements"
+    required: false
+    default: {}
+
+deployment:
+  objects:
+    instrumentation:
+      spec:
+        agent:
+          resources: ${nr-var:resourceRequirements | toYAML}
+```
+
+If a user provides `resourceRequirements: {requests: {cpu: 100m}}`, the rendered manifest contains a real map under `resources`. Without `| toYAML`, the same placeholder would render as a string containing the YAML text — which downstream K8s would reject.
 
 ### On Host Deployment
 
@@ -406,19 +417,16 @@ This guideline shows how to build a custom agent type and integrate it with the 
     # variables:
     #   my_var_1:
     #     description: "Variable description here"
-    #     type: string
     #     required: false
     #     default: "default value"
 
     variables:
       config_file:
         description: "Telegraf config file path"
-        type: string
         required: false
         default: "/path/to/telegraf.conf"
       backoff_delay:
         description: "seconds until next retry if agent fails to start"
-        type: string
         required: false
         default: 20s
 

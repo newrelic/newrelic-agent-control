@@ -22,7 +22,6 @@ use crate::agent_type::{
     runtime_config::on_host::managed_paths::is_within_base,
     runtime_config::templateable_value::TemplateableValue,
     templates::Templateable,
-    trivial_value::TrivialValue,
     variable::{Variable, namespace::Namespace},
 };
 use serde::Deserialize;
@@ -214,7 +213,7 @@ impl Templateable for FilesystemEntry {
 fn filesystem_agent_dir(variables: &Variables) -> Result<String, AgentTypeError> {
     let key = Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR);
     match variables.get(&key).and_then(Variable::get_final_value) {
-        Some(TrivialValue::String(s)) => Ok(s.clone()),
+        Some(serde_json::Value::String(s)) => Ok(s.clone()),
         _ => Err(AgentTypeError::MissingValue(key)),
     }
 }
@@ -224,7 +223,7 @@ fn filesystem_agent_dir(variables: &Variables) -> Result<String, AgentTypeError>
 fn copy_source_base(variables: &Variables) -> Result<PathBuf, AgentTypeError> {
     let key = Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_REMOTE_DIR);
     match variables.get(&key).and_then(Variable::get_final_value) {
-        Some(TrivialValue::String(s)) => Ok(PathBuf::from(s)),
+        Some(serde_json::Value::String(s)) => Ok(PathBuf::from(&s)),
         _ => Err(AgentTypeError::MissingValue(key)),
     }
 }
@@ -349,7 +348,6 @@ mod tests {
     use fs::directory_manager::DirectoryManagerFs;
     use fs::file::LocalFile;
     use rstest::rstest;
-    use serde_json::Value;
     use tempfile::TempDir;
 
     #[rstest]
@@ -718,16 +716,10 @@ agent:
                     String::default(),
                     false,
                     None,
-                    Some(HashMap::from([
-                        (
-                            "nri-mysql.yaml".to_string(),
-                            Value::String("integration: mysql".to_string()),
-                        ),
-                        (
-                            "nri-redis.yaml".to_string(),
-                            Value::String("integration: redis".to_string()),
-                        ),
-                    ])),
+                    Some(serde_json::json!({
+                        "nri-mysql.yaml": "integration: mysql",
+                        "nri-redis.yaml": "integration: redis",
+                    })),
                 ),
             ),
             (
@@ -736,10 +728,9 @@ agent:
                     String::default(),
                     false,
                     None,
-                    Some(HashMap::from([(
-                        "syslog.yaml".to_string(),
-                        Value::String("logs: []".to_string()),
-                    )])),
+                    Some(serde_json::json!({
+                        "syslog.yaml": "logs: []",
+                    })),
                 ),
             ),
         ])
@@ -910,10 +901,10 @@ projected:
   kind: dir_content_from_map
   source: ${nr-var:proj}
 "#;
-        let proj_first = HashMap::from([
-            ("a.yaml".to_string(), Value::String("a-content".to_string())),
-            ("b.yaml".to_string(), Value::String("b-content".to_string())),
-        ]);
+        let proj_first = serde_json::json!({
+            "a.yaml": "a-content",
+            "b.yaml": "b-content",
+        });
         let variables_first = Variables::from_iter(vec![
             (
                 Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
@@ -956,10 +947,9 @@ projected:
   kind: dir_content_from_map
   source: ${nr-var:proj}
 "#;
-        let proj_second = HashMap::from([(
-            "a.yaml".to_string(),
-            Value::String("a-content-v2".to_string()),
-        )]);
+        let proj_second = serde_json::json!({
+            "a.yaml": "a-content-v2",
+        });
         let variables_second = Variables::from_iter(vec![
             (
                 Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),

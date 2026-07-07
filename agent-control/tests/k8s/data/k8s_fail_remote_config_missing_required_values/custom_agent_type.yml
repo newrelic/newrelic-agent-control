@@ -6,11 +6,9 @@ protocol_version: "1.0"
 variables:
   required_var:
     description: "required_var"
-    type: yaml
     required: true
   non_required_var:
     description: "non_required_var"
-    type: yaml
     required: false
     default: { }
 deployment:
@@ -22,5 +20,5 @@ deployment:
         name: some-resource
         namespace: ${nr-ac:namespace}
       StringData:
-        non_required_var: ${nr-var:non_required_var}
-        required_var: ${nr-var:required_var}
+        non_required_var: ${nr-var:non_required_var | toYAML}
+        required_var: ${nr-var:required_var | toYAML}

@@ -30,7 +30,21 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 
     let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
-    let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = CustomAgentType::default()
+        .with_variables(
+            // Variants restrict `fake_variable` to string values so that the "invalid"
+            // remote config (`fake_variable: 123`) is rejected — this replaces the old
+            // typing-based rejection that these tests relied on.
+            r#"
+fake_variable:
+  description: "fake variable to verify remote config"
+  required: false
+  default: "default"
+  variants:
+    values: ["default", "from local", "valid from remote"]
+"#,
+        )
+        .build(dirs.local_dir());
     let agents = format!(
         r#"
   {sub_agent_id}:
@@ -100,6 +114,17 @@ fn test_invalid_config_executable_less_supervisor() {
     let sub_agent_id = AgentID::try_from("test-agent").unwrap();
 
     let agent_type = CustomAgentType::default()
+        .with_variables(
+            // Variants restrict `fake_variable` so the "invalid" remote config is rejected.
+            r#"
+fake_variable:
+  description: "fake variable to verify remote config"
+  required: false
+  default: "default"
+  variants:
+    values: ["default", "from local", "valid from remote"]
+"#,
+        )
         .without_deployment()
         .build(dirs.local_dir());
 
@@ -175,7 +200,21 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
 
     let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
-    let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = CustomAgentType::default()
+        .with_variables(
+            // Variants restrict `fake_variable` to string values so that the "invalid"
+            // remote config (`fake_variable: 123`) is rejected — this replaces the old
+            // typing-based rejection that these tests relied on.
+            r#"
+fake_variable:
+  description: "fake variable to verify remote config"
+  required: false
+  default: "default"
+  variants:
+    values: ["default", "from local", "valid from remote"]
+"#,
+        )
+        .build(dirs.local_dir());
     let agents = format!(
         r#"
   {sub_agent_id}:

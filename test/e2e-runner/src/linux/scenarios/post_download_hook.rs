@@ -221,7 +221,6 @@ protocol_version: "1.0"
 variables:
   package_version:
     description: "OCI package version to download"
-    type: string
     required: false
     default: latest
 deployment:

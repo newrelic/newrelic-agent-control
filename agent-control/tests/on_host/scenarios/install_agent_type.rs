@@ -203,7 +203,6 @@ operating_system: {operating_system}
 variables:
   version:
     description: "Agent version"
-    type: string
     required: false
     default: "{AGENT_TYPE_VERSION}"
 deployment:

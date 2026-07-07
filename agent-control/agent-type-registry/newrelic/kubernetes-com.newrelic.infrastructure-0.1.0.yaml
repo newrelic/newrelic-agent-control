@@ -13,44 +13,36 @@ variables:
     #   global: {}
     newrelic-infrastructure:
       description: "newrelic-infrastructure chart values"
-      type: yaml
       required: false
       default: { }
     nri-metadata-injection:
       description: "nri-metadata-injection chart values"
-      type: yaml
       required: false
       default: { }
     kube-state-metrics:
       description: "kube-state-metrics chart values"
-      type: yaml
       required: false
       default: { }
     nri-kube-events:
       description: "nri-kube-events chart values"
-      type: yaml
       required: false
       default: { }
     # Global values must have their own key, even if there is only one sub-chart.
     global:
       description: "Global chart values"
-      type: yaml
       required: false
       default: { }
   # HelmChart based sub agents should always have `chart_version`.
   chart_version:
     description: "nri-bundle chart version"
-    type: string
     required: true
   chart_name:
     description: "nri-bundle chart name"
-    type: string
     required: false
     default: "nri-bundle"
   chart_repository:
     url:
       description: "chart repository url"
-      type: string
       required: false
       default: "https://helm-charts.newrelic.com"
       # For security reasons, the chart repository URL must be allow-listed.
@@ -59,13 +51,11 @@ variables:
         values: [ "https://helm-charts.newrelic.com" ]
     secret_reference:
       description: "HelmRepository secret reference (secretRef)"
-      type: yaml
       required: false
       # Flux doesn't allow an empty secretRef field
       default: null
     certificate_secret_reference:
       description: "HelmRepository certificate secret reference (certSecretRef)"
-      type: yaml
       required: false
       default: null
 deployment:
@@ -99,8 +89,8 @@ deployment:
         # We want to avoid it, so we set it explicitly.
         provider: generic
         url: ${nr-var:chart_repository.url}
-        secretRef: ${nr-var:chart_repository.secret_reference}
-        certSecretRef: ${nr-var:chart_repository.certificate_secret_reference}
+        secretRef: ${nr-var:chart_repository.secret_reference | toYAML}
+        certSecretRef: ${nr-var:chart_repository.certificate_secret_reference | toYAML}
     # Creates HelmCharts values inside Secrets to avoid exposing any sensible information.
     values:
       apiVersion: v1

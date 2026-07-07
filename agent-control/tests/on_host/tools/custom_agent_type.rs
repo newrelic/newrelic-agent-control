@@ -27,7 +27,6 @@ impl Default for CustomAgentType {
                     r#"
 fake_variable:
   description: "fake variable to verify remote config"
-  type: "string"
   required: false
   default: "default"
 "#,

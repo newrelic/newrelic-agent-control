@@ -7,17 +7,14 @@ protocol_version: "1.0"
 variables:
   config:
     description: "Newrelic otel collector configuration"
-    type: yaml
     required: false
     default: { }
   backoff_delay:
     description: "seconds until next retry if agent fails to start"
-    type: string
     required: false
     default: 20s
   enable_file_logging:
     description: "enable logging the on host executables' logs to files"
-    type: bool
     required: false
     default: true
   health_check:
@@ -26,18 +23,15 @@ variables:
     # For more details
     path:
       description: "path to health check endpoint"
-      type: string
       required: false
       default: "/health/status" # Taken from example at: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/healthcheckv2extension/README.md#configuration
     port:
       description: "port to health check endpoint"
-      type: number
       required: false
       default: 13133
   oci:
     repository:
       description: "Package repository name"
-      type: string
       required: false
       default: newrelic/nrdot-agent-artifacts
       variants:
@@ -45,7 +39,6 @@ variables:
         values: [ "newrelic/nrdot-agent-artifacts" ]
   version:
     description: "Agent version"
-    type: string
     required: true
 deployment:
   enable_file_logging: ${nr-var:enable_file_logging}

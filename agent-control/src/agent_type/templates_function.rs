@@ -60,11 +60,35 @@ impl Function for Indent {
     }
 }
 
+const TOYAML_FUNCTION_NAME: &str = "toyaml";
+
+/// Marker pipe indicating the variable's raw YAML value should be substituted
+/// in-place. Behavior is implemented in the renderer; in a string-only pipeline
+/// this is an identity transform.
+#[derive(Debug, PartialEq)]
+pub struct ToYaml;
+
+impl Function for ToYaml {
+    fn apply(&self, value: String) -> Result<String, FunctionError> {
+        Ok(value)
+    }
+
+    fn parse(value: &str) -> Result<Self, FunctionError> {
+        let trimmed = value.trim().to_ascii_lowercase();
+        if trimmed != TOYAML_FUNCTION_NAME {
+            return Err(FunctionError::UnknownFunctionName(value.to_string()));
+        }
+        Ok(ToYaml)
+    }
+}
+
 /// Holds the possible functions that can be applied to a string and will output a string
 #[derive(Debug, PartialEq)]
 pub enum SupportedFunction {
     /// The `indent` function.
     Indent(Indent),
+    /// The `toYAML` marker pipe.
+    ToYaml(ToYaml),
 }
 impl SupportedFunction {
     /// Parses a string of functions and returns a vector of [SupportedFunction].
@@ -88,9 +112,15 @@ impl Function for SupportedFunction {
     fn apply(&self, value: String) -> Result<String, FunctionError> {
         match self {
             SupportedFunction::Indent(indent) => indent.apply(value),
+            SupportedFunction::ToYaml(f) => f.apply(value),
         }
     }
     fn parse(value: &str) -> Result<Self, FunctionError> {
+        match ToYaml::parse(value) {
+            Ok(f) => return Ok(Self::ToYaml(f)),
+            Err(FunctionError::UnknownFunctionName(_)) => {}
+            Err(e) => return Err(e),
+        }
         Ok(Self::Indent(Indent::parse(value)?))
     }
 }
@@ -169,5 +199,34 @@ mod tests {
     fn test_parse_fails_unkown_names(#[case] functions_str: &str) {
         let err = SupportedFunction::parse_function_list(functions_str).unwrap_err();
         assert_matches!(err, FunctionError::UnknownFunctionName(_))
+    }
+
+    #[rstest]
+    #[case::plain("|toYAML")]
+    #[case::spaces("| toYAML")]
+    #[case::case_insensitive_lower("|toyaml")]
+    #[case::case_insensitive_upper("|TOYAML")]
+    fn test_parse_toyaml(#[case] functions_str: &str) {
+        let functions = SupportedFunction::parse_function_list(functions_str).unwrap();
+        assert_eq!(functions.len(), 1);
+        assert!(matches!(functions[0], SupportedFunction::ToYaml(_)));
+    }
+
+    #[test]
+    fn test_toyaml_apply_is_identity() {
+        let functions = SupportedFunction::parse_function_list("|toYAML").unwrap();
+        let out = functions
+            .iter()
+            .try_fold("hello".to_string(), |acc, f| f.apply(acc))
+            .unwrap();
+        assert_eq!(out, "hello");
+    }
+
+    #[test]
+    fn test_parse_mixed_indent_and_toyaml() {
+        let functions = SupportedFunction::parse_function_list("|toYAML|indent 2").unwrap();
+        assert_eq!(functions.len(), 2);
+        assert!(matches!(functions[0], SupportedFunction::ToYaml(_)));
+        assert!(matches!(functions[1], SupportedFunction::Indent(_)));
     }
 }

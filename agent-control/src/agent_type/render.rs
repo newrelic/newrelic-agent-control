@@ -292,7 +292,12 @@ pub(crate) mod tests {
     fn test_invalid_values_for_backoff_config() {
         // This is testing agent-type definition and values, but it is included here because it its related to
         // test_render_agent_type_with_backoff_config.
-        let agent_type = AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF);
+        //
+        // Variables are now untyped: `fill_with_values` accepts any YAML value. Invalid content
+        // is caught downstream when the rendered strings are parsed into concrete runtime types
+        // (e.g. `BackoffDelay::from_str`). The end-to-end render path therefore fails.
+        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let attributes = testing_agent_attributes(&agent_id);
 
         let wrong_backoff_yamls = vec![
             WRONG_RETRIES_BACKOFF_CONFIG_YAML,
@@ -302,14 +307,17 @@ pub(crate) mod tests {
         ];
 
         for yaml in wrong_backoff_yamls.into_iter() {
+            let agent_type = AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF);
             let values = serde_saphyr::from_str::<YAMLConfig>(yaml).unwrap();
-            assert!(
-                agent_type
-                    .variables
-                    .clone()
-                    .fill_with_values(values)
-                    .is_err()
-            )
+            let renderer = TemplateRenderer::default();
+            let result = renderer.render(
+                agent_type,
+                values,
+                attributes.clone(),
+                HashMap::new(),
+                HashMap::new(),
+            );
+            assert!(result.is_err(), "expected render error for yaml: {yaml}");
         }
     }
 
@@ -491,11 +499,9 @@ variables:
   config:
     values:
       description: "yaml values"
-      type: yaml
       required: true
     text_values:
       description: "yaml values"
-      type: yaml
       required: true
 deployment:
   objects:
@@ -589,11 +595,9 @@ operating_system: linux
 variables:
   config_path:
     description: "config file string"
-    type: string
     required: true
   config_argument:
     description: "config argument"
-    type: string
     required: false
     default: bar
 deployment:
@@ -632,22 +636,18 @@ variables:
   backoff:
     delay:
       description: "Backoff delay"
-      type: string
       required: false
       default: 1s
     retries:
       description: "Backoff retries"
-      type: number
       required: false
       default: 3
     interval:
       description: "Backoff interval"
-      type: string
       required: false
       default: 30s
     type:
       description: "Backoff strategy type"
-      type: string
       required: true
 deployment:
   executables:
@@ -720,11 +720,9 @@ variables:
   config:
     values:
       description: "yaml values"
-      type: yaml
       required: true
     text_values:
       description: "text values"
-      type: yaml
       required: true
 deployment:
   objects:
@@ -735,7 +733,7 @@ deployment:
         name: test
         namespace: test-namespace
       spec:
-        values: ${nr-var:config.values}
+        values: ${nr-var:config.values | toYAML}
         from_sub_agent: ${nr-sub:agent_id}
         text_values: |
           ${nr-var:config.text_values}
@@ -751,11 +749,9 @@ variables:
   config:
     values:
       description: "yaml values"
-      type: yaml
       required: true
     text_values:
       description: "text values"
-      type: yaml
       required: true
 deployment:
   objects:
@@ -766,7 +762,7 @@ deployment:
         name: test
         namespace: test-namespace
       spec:
-        values: ${nr-var:config.values}
+        values: ${nr-var:config.values | toYAML}
         from_sub_agent: ${nr-sub:agent_id}
         substituted: ${nr-env:MY_VARIABLE}
         collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
