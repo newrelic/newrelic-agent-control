@@ -121,7 +121,7 @@ where
     /// The package is first downloaded to `temp_package_path` and then extracted to `package_path`.
     fn install_archive(
         &self,
-        package_data: PackageData,
+        package_data: &PackageData,
         tmp_download_path: &Path,
         install_path: &Path,
     ) -> Result<InstalledPackageData, OCIPackageManagerError> {
@@ -131,27 +131,40 @@ where
 
         let downloaded_package = self
             .downloader
-            .download(&package_data, tmp_download_path)
+            .download(package_data, tmp_download_path)
             .map_err(OCIPackageManagerError::Download)?;
 
         self.extract_package(&downloaded_package, install_path)
             .inspect_err(|e| warn!("OCI package installation failed: {}", e))?;
-
-        // Execute post-download hook if configured
-        if let Some(ref hook) = package_data.post_download_hook {
-            debug!(
-                "Executing post-download hook for package {}",
-                package_data.id
-            );
-            let executor = PostDownloadHookExecutor::new(install_path.to_path_buf());
-            executor.execute(hook)?;
-        }
 
         debug!("OCI package installed at {}", install_path.display());
         Ok(InstalledPackageData {
             id: package_data.id.clone(),
             installation_path: install_path.to_path_buf(),
         })
+    }
+
+    // The hook runs on **every** install, including when the package files were already present on
+    // disk (an Agent Control restart, or a rollback to a previously-installed version). This is
+    // intentional: the hook performs host-side setup/validation that can go stale (kernel changes,
+    // missing headers, removed directories), so skipping it when the files are present could start
+    // an agent whose prerequisites are no longer met. A non-zero exit fails the install so the
+    // agent is not started.
+    fn run_post_download_hook(
+        &self,
+        package_data: &PackageData,
+        install_path: &Path,
+    ) -> Result<(), OCIPackageManagerError> {
+        let Some(hook) = package_data.post_download_hook.as_ref() else {
+            return Ok(());
+        };
+        debug!(
+            "Executing post-download hook for package {}",
+            package_data.id
+        );
+        let executor = PostDownloadHookExecutor::new(install_path.to_path_buf());
+        executor.execute(hook)?;
+        Ok(())
     }
 
     /// Extract the downloaded package file from `download_filepath` to `extract_dir`.
@@ -372,33 +385,34 @@ where
     ) -> Result<InstalledPackageData, OCIPackageManagerError> {
         let package_path = get_package_path(&self.remote_dir, agent_id, &package_data)?;
 
-        if package_path.exists() {
+        let installed_package = if package_path.exists() {
             debug!(
                 "Package already installed at {}. Skipping download and extraction.",
                 package_path.display()
             );
 
-            let installed_package = InstalledPackageData {
-                id: package_data.id,
-                installation_path: package_path,
-            };
+            InstalledPackageData {
+                id: package_data.id.clone(),
+                installation_path: package_path.clone(),
+            }
+        } else {
+            let temp_package_path =
+                get_temp_package_path(&self.remote_dir, agent_id, &package_data)?;
 
-            self.retain_packages(agent_id, installed_package.clone())?;
+            // If we face an error during installation, we must ensure the temporary directory is
+            // deleted. We hide the error of the folder if something else went wrong.
+            let installed_package = self
+                .install_archive(&package_data, &temp_package_path, &package_path)
+                .inspect_err(|_| _ = self.directory_manager.delete(&temp_package_path))?;
 
-            return Ok(installed_package);
-        }
+            self.directory_manager
+                .delete(&temp_package_path)
+                .map_err(OCIPackageManagerError::Install)?;
 
-        let temp_package_path = get_temp_package_path(&self.remote_dir, agent_id, &package_data)?;
+            installed_package
+        };
 
-        // If we face an error during installation, we must ensure the temporary directory is deleted.
-        // We hide the error of the folder if something else went wrong.
-        let installed_package = self
-            .install_archive(package_data, &temp_package_path, &package_path)
-            .inspect_err(|_| _ = self.directory_manager.delete(&temp_package_path))?;
-
-        self.directory_manager
-            .delete(&temp_package_path)
-            .map_err(OCIPackageManagerError::Install)?;
+        self.run_post_download_hook(&package_data, &package_path)?;
 
         self.retain_packages(agent_id, installed_package.clone())?;
 
@@ -934,6 +948,112 @@ mod tests {
 
         let installed = pm.install(&agent_id, package_data).unwrap();
 
+        assert_eq!(installed.installation_path, install_dir);
+        assert_eq!(installed.id, TEST_PACKAGE_ID);
+    }
+
+    // The post-download hook must run on **every** install, including when the package
+    // files are already present on disk (a restart, or a rollback to a previously-installed
+    // version). This test proves the download/extraction is still skipped (download is never called)
+    // while the hook is still executed.
+    #[test]
+    fn test_install_runs_hook_even_when_package_already_present() {
+        use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env};
+        use crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadHook;
+        use std::collections::HashMap;
+
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+        let mut package_data = test_package_data();
+        package_data.post_download_hook = Some(PostDownloadHook {
+            path: "nr-agent-control-nonexistent-hook-command".to_string(),
+            args: Args(vec![]),
+            env: Env(HashMap::new()),
+        });
+
+        let remote_dir = tempdir().unwrap();
+        let install_dir = get_package_path(remote_dir.path(), &agent_id, &package_data).unwrap();
+        std::fs::create_dir_all(&install_dir).expect("Failed to create dir");
+
+        let mut downloader = MockOCIDownloader::new();
+        downloader.expect_download().times(0);
+
+        let pm = OCIPackageManager::new(
+            downloader,
+            DirectoryManagerFs,
+            PathBuf::from(remote_dir.path()),
+        );
+
+        let err = pm.install(&agent_id, package_data).unwrap_err();
+        assert!(matches!(err, OCIPackageManagerError::PostDownloadHook(_)));
+    }
+
+    // A failing post-download hook on a fresh install must make the whole install fail.
+    #[test]
+    fn test_install_fails_when_post_download_hook_fails() {
+        use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env};
+        use crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadHook;
+        use std::collections::HashMap;
+
+        let mut downloader = MockOCIDownloader::new();
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+        let mut package_data = test_package_data();
+        package_data.post_download_hook = Some(PostDownloadHook {
+            path: "nr-agent-control-nonexistent-hook-command".to_string(),
+            args: Args(vec![]),
+            env: Env(HashMap::new()),
+        });
+
+        let root_dir = tempdir().unwrap();
+        let download_dir =
+            get_temp_package_path(root_dir.path(), &agent_id, &package_data).unwrap();
+
+        downloader
+            .expect_download()
+            .with(eq(package_data.clone()), eq(download_dir.clone()))
+            .once()
+            .returning(move |_, _| Ok(fake_compressed_package(&download_dir)));
+
+        let pm = OCIPackageManager::new(
+            downloader,
+            DirectoryManagerFs,
+            PathBuf::from(root_dir.path()),
+        );
+
+        let err = pm.install(&agent_id, package_data).unwrap_err();
+        assert!(matches!(err, OCIPackageManagerError::PostDownloadHook(_)));
+    }
+
+    // Happy path on an already-present package: download is skipped, the hook runs and succeeds,
+    // and the install returns Ok.
+    #[test]
+    #[cfg(unix)]
+    fn test_install_runs_successful_hook_when_package_already_present() {
+        use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env};
+        use crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadHook;
+        use std::collections::HashMap;
+
+        let agent_id = AgentID::try_from("agent-id").unwrap();
+        let mut package_data = test_package_data();
+        package_data.post_download_hook = Some(PostDownloadHook {
+            path: "/usr/bin/true".to_string(),
+            args: Args(vec![]),
+            env: Env(HashMap::new()),
+        });
+
+        let remote_dir = tempdir().unwrap();
+        let install_dir = get_package_path(remote_dir.path(), &agent_id, &package_data).unwrap();
+        std::fs::create_dir_all(&install_dir).expect("Failed to create dir");
+
+        let mut downloader = MockOCIDownloader::new();
+        downloader.expect_download().times(0);
+
+        let pm = OCIPackageManager::new(
+            downloader,
+            DirectoryManagerFs,
+            PathBuf::from(remote_dir.path()),
+        );
+
+        let installed = pm.install(&agent_id, package_data).unwrap();
         assert_eq!(installed.installation_path, install_dir);
         assert_eq!(installed.id, TEST_PACKAGE_ID);
     }

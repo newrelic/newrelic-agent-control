@@ -139,3 +139,85 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
         "The package manager overwrote the existing files! It should have skipped download/extraction."
     );
 }
+
+#[test]
+#[cfg(unix)]
+#[ignore = "needs oci registry (use *with_oci_registry suffix)"]
+fn test_install_runs_hook_on_every_install_even_when_present_with_oci_registry() {
+    use newrelic_agent_control::agent_type::runtime_config::on_host::executable::rendered::{
+        Args, Env,
+    };
+    use newrelic_agent_control::agent_type::runtime_config::on_host::package::rendered::PostDownloadHook;
+    use std::collections::HashMap;
+
+    const FILENAME: &str = "payload.txt";
+
+    let dir = tempdir().unwrap();
+    let content_dir = tempdir().unwrap();
+    let file_to_push = dir.path().join("layer_digest.tar.gz");
+    TestDataHelper::compress_tar_gz(
+        content_dir.path(),
+        file_to_push.as_path(),
+        "CONTENT",
+        FILENAME,
+    );
+
+    let reference = PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
+        .push(&file_to_push, PackageMediaType::TarGz);
+
+    let hook_dir = tempdir().unwrap();
+    let counter_path = hook_dir.path().join("hook-runs.count");
+    let script_path = hook_dir.path().join("hook.sh");
+    std::fs::write(
+        &script_path,
+        format!(
+            "#!/bin/bash\necho run >> \"{}\"\nexit 0\n",
+            counter_path.display()
+        ),
+    )
+    .unwrap();
+
+    let temp_dir = tempdir().unwrap();
+    let base_path = temp_dir.path().to_path_buf();
+    let package_manager =
+        new_testing_oci_package_manager(base_path.clone(), OCI_TEST_REGISTRY_URL.to_string());
+
+    let agent_id = AgentID::try_from("test-agent").unwrap();
+    let package_data = PackageData {
+        id: "test-package-hook-always".to_string(),
+        oci: Oci {
+            repository: Repository::from_str(reference.repository()).unwrap(),
+            version: Version::from_str(reference.tag().unwrap()).unwrap(),
+            public_key_url: None,
+        },
+        post_download_hook: Some(PostDownloadHook {
+            path: "/bin/bash".to_string(),
+            args: Args(vec![script_path.to_string_lossy().to_string()]),
+            env: Env(HashMap::new()),
+        }),
+    };
+
+    package_manager
+        .install(&agent_id, package_data.clone())
+        .expect("first install failed");
+    let count_after_first = std::fs::read_to_string(&counter_path)
+        .unwrap()
+        .lines()
+        .count();
+    assert_eq!(
+        count_after_first, 1,
+        "the hook should have run once on the first install"
+    );
+
+    package_manager
+        .install(&agent_id, package_data)
+        .expect("second install failed");
+    let count_after_second = std::fs::read_to_string(&counter_path)
+        .unwrap()
+        .lines()
+        .count();
+    assert_eq!(
+        count_after_second, 2,
+        "the hook must run again on the second install even though the package was already present"
+    );
+}
