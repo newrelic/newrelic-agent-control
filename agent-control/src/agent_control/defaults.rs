@@ -39,6 +39,10 @@ pub const OPAMP_SUPERVISOR_KEY: &str = "supervisor.key";
 /// OpAMP attribute key for the agent version.
 pub const OPAMP_AGENT_VERSION_ATTRIBUTE_KEY: &str = "agent.version";
 
+/// OpAMP attribute key prefix for per-package versions. The full key is built as
+/// `package.version.<package_id>`, where `<package_id>` is the id declared in the agent type.
+pub const OPAMP_PACKAGE_VERSION_ATTRIBUTE_KEY_PREFIX: &str = "package.version";
+
 /// File name holding the agent environment variables.
 pub const ENVIRONMENT_VARIABLES_FILE_NAME: &str = "environment_variables.yaml";
 

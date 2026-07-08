@@ -14,8 +14,9 @@ use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_NAMESPACE, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY,
-    OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    OPAMP_PACKAGE_VERSION_ATTRIBUTE_KEY_PREFIX, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
+    OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
+    PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
 use newrelic_agent_control::agent_control::run::on_host::{
     AGENT_CONTROL_MODE_ON_HOST, OCI_TEST_REGISTRY_URL,
@@ -118,6 +119,7 @@ fn test_attributes_from_an_existing_agent_type_with_oci_registry() {
 
     let version = "1.0.0";
     let agent_id = "attributes-test-agent";
+    let package_id = "package-test-agent";
 
     #[cfg(target_family = "unix")]
     let (script_name, script_content) = ("sleep.sh", "#!/bin/bash\nsleep 60\n");
@@ -133,7 +135,7 @@ fn test_attributes_from_an_existing_agent_type_with_oci_registry() {
 
     let packages = format!(
         r#"
-{agent_id}:
+{package_id}:
   type: tar
   download:
     oci:
@@ -141,13 +143,13 @@ fn test_attributes_from_an_existing_agent_type_with_oci_registry() {
       version: ${{nr-var:package_version}}
       public_key_url: {public_key_url}
 "#,
-        agent_id = agent_id,
+        package_id = package_id,
         public_key_url = signer.jwks_url()
     );
 
     #[cfg(target_family = "unix")]
     let executables = {
-        let script_path = format!("${{{{nr-sub:packages.{}.dir}}}}/sleep.sh", agent_id);
+        let script_path = format!("${{{{nr-sub:packages.{}.dir}}}}/sleep.sh", package_id);
         format!(
             r#"[
         {{
@@ -162,7 +164,7 @@ fn test_attributes_from_an_existing_agent_type_with_oci_registry() {
 
     #[cfg(target_family = "windows")]
     let executables = {
-        let script_path = format!("${{{{nr-sub:packages.{}.dir}}}}\\\\sleep.ps1", agent_id);
+        let script_path = format!("${{{{nr-sub:packages.{}.dir}}}}\\\\sleep.ps1", package_id);
         format!(
             r#"[
         {{
@@ -240,6 +242,10 @@ agents:
         ),
         (
             OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+            Value::StringValue(version.to_string()),
+        ),
+        (
+            format!("{OPAMP_PACKAGE_VERSION_ATTRIBUTE_KEY_PREFIX}.{package_id}").as_str(),
             Value::StringValue(version.to_string()),
         ),
     ]));

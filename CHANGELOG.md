@@ -15,6 +15,7 @@ Remember that the keywords that you can use are the following:
 ## Unreleased
 
 ### bugfix
+- Added identifying attributes for each package specified in the agentType as `package.version.<id>`.
 - RPM packages now restore `local_config.yaml` from the `.rpmsave` backup left by a prior uninstall.
 
 ### enhancement
