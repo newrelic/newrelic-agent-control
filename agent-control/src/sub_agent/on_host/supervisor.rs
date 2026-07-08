@@ -7,6 +7,8 @@ use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConf
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::{
     FileSystem, FileSystemEntriesError, SharedFileSystem,
 };
+use crate::agent_type::runtime_config::on_host::package::PackageID;
+use crate::agent_type::runtime_config::on_host::package::rendered::Package as RenderedPackage;
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::checkers::health::health_checker::{Health, HealthCheckerError, spawn_health_checker};
 use crate::checkers::health::health_checker::{Healthy, Unhealthy};
@@ -105,6 +107,7 @@ where
     health_config: Option<OnHostHealthConfig>,
     package_manager: Arc<PM>,
     packages_config: RenderedPackages,
+    version_package: Option<PackageID>,
     filesystem: FileSystem,
     shared_filesystem: SharedFileSystem,
 }
@@ -239,9 +242,18 @@ where
             health_config,
             package_manager,
             packages_config,
+            version_package: None,
             filesystem,
             shared_filesystem,
         }
+    }
+
+    /// Sets the package whose OCI version is reported as `agent.version`. When left unset (`None`),
+    /// [`check_subagent_version`](Self::check_subagent_version) falls back to the sole configured
+    /// package.
+    pub fn with_version_package(mut self, version_package: Option<PackageID>) -> Self {
+        self.version_package = version_package;
+        self
     }
 
     fn start_health_check(
@@ -289,27 +301,12 @@ where
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) {
-        // Report the version from the OCI package configuration.
-        // `packages_config` is a HashMap, so we pick by the lowest package id to get a stable
-        // result (iteration order is not deterministic). Today agent types have a single package;
-        // TODO: for complex OHIs with multiple packages we need a deliberate strategy to choose
-        // which version to report (e.g. mark a primary package in the agent type definition).
-        let Some((package_id, package)) = self.packages_config.iter().min_by_key(|(id, _)| *id)
-        else {
-            warn!(
-                agent_type=%self.agent_identity.agent_type_id,
-                "Unable to determine agent version: no packages configured"
-            );
+        // Report the version from the OCI package configuration. The package is selected explicitly
+        // by the agent type's `version_package` (resolved at parse time). When it is unset we fall
+        // back to the sole configured package; anything else is ambiguous and reports nothing.
+        let Some((package_id, package)) = self.version_package_to_report() else {
             return;
         };
-
-        if self.packages_config.len() > 1 {
-            warn!(
-                agent_type=%self.agent_identity.agent_type_id,
-                packages_count=%self.packages_config.len(),
-                "Multiple packages configured; reporting the version of the package with the lowest id"
-            );
-        }
 
         let version = package.download.oci.version.to_string();
         info!(
@@ -329,6 +326,39 @@ where
                 ..Default::default()
             }),
         );
+    }
+
+    fn version_package_to_report(&self) -> Option<(&PackageID, &RenderedPackage)> {
+        if let Some(id) = &self.version_package {
+            let entry = self.packages_config.get_key_value(id);
+            if entry.is_none() {
+                warn!(
+                    agent_type=%self.agent_identity.agent_type_id,
+                    version_package=%id,
+                    "Configured version_package not found among rendered packages; not reporting agent.version"
+                );
+            }
+            return entry;
+        }
+
+        match self.packages_config.len() {
+            0 => {
+                warn!(
+                    agent_type=%self.agent_identity.agent_type_id,
+                    "Unable to determine agent version: no packages configured"
+                );
+                None
+            }
+            1 => self.packages_config.iter().next(),
+            _ => {
+                warn!(
+                    agent_type=%self.agent_identity.agent_type_id,
+                    packages_count=%self.packages_config.len(),
+                    "Multiple packages configured but no version_package set; not reporting agent.version"
+                );
+                None
+            }
+        }
     }
 
     fn spin_up(
@@ -666,6 +696,7 @@ pub mod tests {
     use crate::agent_type::runtime_config::health_config::HealthCheckTimeout;
     use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env, Executable};
     use crate::agent_type::runtime_config::on_host::filesystem::FileSystem as ParsedFileSystem;
+    use crate::agent_type::runtime_config::on_host::package::rendered::{Download, Oci};
     use crate::agent_type::runtime_config::on_host::rendered::OnHost;
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
     use crate::agent_type::runtime_config::restart_policy::rendered::RestartPolicyConfig;
@@ -692,6 +723,90 @@ pub mod tests {
 
     fn get_empty_packages() -> RenderedPackages {
         HashMap::new()
+    }
+
+    fn rendered_package(repository: &str, version: &str) -> RenderedPackage {
+        RenderedPackage {
+            download: Download {
+                oci: Oci {
+                    repository: repository.parse().unwrap(),
+                    version: version.parse().unwrap(),
+                    public_key_url: None,
+                },
+            },
+            post_download_hook: None,
+        }
+    }
+
+    fn supervisor_with_packages(
+        packages: RenderedPackages,
+        version_package: Option<PackageID>,
+    ) -> NotStartedSupervisorOnHost<MockPackageManager> {
+        let agent_identity = AgentIdentity::from((
+            AgentID::try_from("test-agent".to_string()).unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+        NotStartedSupervisorOnHost::new(
+            agent_identity,
+            vec![],
+            None,
+            packages,
+            Arc::new(MockPackageManager::new()),
+            false,
+            PathBuf::from("/tmp"),
+            FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
+        )
+        .with_version_package(version_package)
+    }
+
+    #[test]
+    fn version_package_to_report_selects_configured_package() {
+        let packages = RenderedPackages::from([
+            (
+                "infra".to_string(),
+                rendered_package("newrelic-infra", "1.2.3"),
+            ),
+            ("flex".to_string(), rendered_package("nri-flex", "4.5.6")),
+        ]);
+        let supervisor = supervisor_with_packages(packages, Some("flex".to_string()));
+
+        let (id, package) = supervisor.version_package_to_report().unwrap();
+        assert_eq!(id, "flex");
+        assert_eq!(package.download.oci.version.to_string(), "4.5.6");
+    }
+
+    #[test]
+    fn version_package_to_report_defaults_to_sole_package() {
+        let packages = RenderedPackages::from([(
+            "infra".to_string(),
+            rendered_package("newrelic-infra", "1.2.3"),
+        )]);
+        let supervisor = supervisor_with_packages(packages, None);
+
+        let (id, package) = supervisor.version_package_to_report().unwrap();
+        assert_eq!(id, "infra");
+        assert_eq!(package.download.oci.version.to_string(), "1.2.3");
+    }
+
+    #[test]
+    fn version_package_to_report_none_without_packages() {
+        let supervisor = supervisor_with_packages(get_empty_packages(), None);
+        assert!(supervisor.version_package_to_report().is_none());
+    }
+
+    #[test]
+    fn version_package_to_report_none_when_ambiguous() {
+        // No version_package + multiple packages is ambiguous: nothing is reported.
+        let packages = RenderedPackages::from([
+            (
+                "infra".to_string(),
+                rendered_package("newrelic-infra", "1.2.3"),
+            ),
+            ("flex".to_string(), rendered_package("nri-flex", "4.5.6")),
+        ]);
+        let supervisor = supervisor_with_packages(packages, None);
+        assert!(supervisor.version_package_to_report().is_none());
     }
 
     #[derive(Clone, Deserialize)]
@@ -1404,6 +1519,7 @@ persistent.txt:
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
             packages: get_empty_packages(),
+            version_package: None,
         };
 
         let runtime = Runtime {
@@ -1532,6 +1648,7 @@ persistent.txt:
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
             packages: get_empty_packages(),
+            version_package: None,
         };
 
         let runtime = Runtime {
@@ -1658,6 +1775,7 @@ persistent.txt:
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
             packages: get_empty_packages(),
+            version_package: None,
         };
 
         let runtime = Runtime {
@@ -1842,6 +1960,7 @@ persistent.txt:
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
             packages: get_empty_packages(),
+            version_package: None,
         };
 
         let runtime = Runtime {

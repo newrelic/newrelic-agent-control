@@ -20,12 +20,27 @@ pub mod rendered;
 ///
 /// It contains the instructions of what are the agent binaries, command-line arguments, the environment variables passed to it and the restart policy of the supervisor.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[serde(try_from = "OnHostRaw")]
 pub struct OnHost {
+    executables: Vec<Executable>,
+    enable_file_logging: TemplateableValue<bool>,
+    /// Enables and defines health checks configuration.
+    health: Option<OnHostHealthConfig>,
+    filesystem: FileSystem,
+    packages: Packages,
+    shared_filesystem: SharedFileSystem,
+    /// Package whose OCI version is reported as the `agent.version` identifying attribute.
+    version_package: Option<PackageID>,
+}
+
+type Packages = HashMap<PackageID, Package>;
+
+#[derive(Debug, Deserialize)]
+struct OnHostRaw {
     #[serde(deserialize_with = "deserialize_executables", default)]
     executables: Vec<Executable>,
     #[serde(default)]
     enable_file_logging: TemplateableValue<bool>,
-    /// Enables and define health checks configuration.
     #[serde(default)]
     health: Option<OnHostHealthConfig>,
     #[serde(default)]
@@ -34,9 +49,61 @@ pub struct OnHost {
     shared_filesystem: SharedFileSystem,
     #[serde(default)]
     packages: Packages,
+    #[serde(default)]
+    version_package: Option<PackageID>,
 }
 
-type Packages = HashMap<PackageID, Package>;
+impl TryFrom<OnHostRaw> for OnHost {
+    type Error = String;
+
+    fn try_from(raw: OnHostRaw) -> Result<Self, Self::Error> {
+        let version_package = resolve_version_package(&raw.packages, raw.version_package)?;
+        Ok(OnHost {
+            executables: raw.executables,
+            enable_file_logging: raw.enable_file_logging,
+            health: raw.health,
+            filesystem: raw.filesystem,
+            shared_filesystem: raw.shared_filesystem,
+            packages: raw.packages,
+            version_package,
+        })
+    }
+}
+
+/// Resolves which package's OCI version is reported as `agent.version`:
+/// - an explicit `version_package` must reference a declared package;
+/// - with no packages declared, there is nothing to report (`None`);
+/// - with exactly one package, it defaults to that package;
+/// - with more than one package, `version_package` is required.
+fn resolve_version_package(
+    packages: &Packages,
+    declared: Option<PackageID>,
+) -> Result<Option<PackageID>, String> {
+    if let Some(id) = declared {
+        if packages.contains_key(&id) {
+            return Ok(Some(id));
+        }
+        return Err(format!(
+            "`version_package` references unknown package `{id}`; declared packages: [{}]",
+            sorted_package_ids(packages)
+        ));
+    }
+
+    match packages.len() {
+        0 => Ok(None),
+        1 => Ok(packages.keys().next().cloned()),
+        _ => Err(format!(
+            "`version_package` is required when more than one package is defined; declared packages: [{}]",
+            sorted_package_ids(packages)
+        )),
+    }
+}
+
+fn sorted_package_ids(packages: &Packages) -> String {
+    let mut ids = packages.keys().cloned().collect::<Vec<_>>();
+    ids.sort();
+    ids.join(", ")
+}
 
 impl OnHost {
     /// The files and directories this Agent Type declares in the shared filesystem.
@@ -96,6 +163,7 @@ impl Templateable for OnHost {
             filesystem: self.filesystem.template_with(&extended_vars)?,
             shared_filesystem: self.shared_filesystem.template_with(&extended_vars)?,
             packages: rendered_packages,
+            version_package: self.version_package,
         })
     }
 }
@@ -231,6 +299,106 @@ packages:
                 .to_string_lossy()
                 .to_string(),
         );
+    }
+
+    #[test]
+    fn version_package_defaults_to_sole_package() {
+        let yaml = r#"
+packages:
+  infra:
+    download:
+      oci:
+        repository: newrelic-infra
+        version: "1.2.3"
+"#;
+        let on_host: OnHost = serde_saphyr::from_str(yaml).unwrap();
+        assert_eq!(on_host.version_package, Some("infra".to_string()));
+    }
+
+    #[test]
+    fn version_package_explicit_selection_with_multiple_packages() {
+        let yaml = r#"
+version_package: infra
+packages:
+  infra:
+    download:
+      oci:
+        repository: newrelic-infra
+        version: "1.2.3"
+  flex:
+    download:
+      oci:
+        repository: nri-flex
+        version: "4.5.6"
+"#;
+        let on_host: OnHost = serde_saphyr::from_str(yaml).unwrap();
+        assert_eq!(on_host.version_package, Some("infra".to_string()));
+    }
+
+    #[test]
+    fn version_package_required_when_multiple_packages() {
+        let yaml = r#"
+packages:
+  infra:
+    download:
+      oci:
+        repository: newrelic-infra
+        version: "1.2.3"
+  flex:
+    download:
+      oci:
+        repository: nri-flex
+        version: "4.5.6"
+"#;
+        let err = serde_saphyr::from_str::<OnHost>(yaml)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("version_package") && err.contains("required"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            err.contains("flex") && err.contains("infra"),
+            "error should list declared package ids: {err}"
+        );
+    }
+
+    #[test]
+    fn version_package_referencing_unknown_id_errors() {
+        let yaml = r#"
+version_package: does-not-exist
+packages:
+  infra:
+    download:
+      oci:
+        repository: newrelic-infra
+        version: "1.2.3"
+"#;
+        let err = serde_saphyr::from_str::<OnHost>(yaml)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("unknown package"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn version_package_set_without_packages_errors() {
+        let yaml = "version_package: infra\n";
+        let err = serde_saphyr::from_str::<OnHost>(yaml)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("unknown package"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn no_packages_yields_no_version_package() {
+        let yaml = r#"
+executables:
+  - id: test
+    path: /bin/true
+    args: []
+"#;
+        let on_host: OnHost = serde_saphyr::from_str(yaml).unwrap();
+        assert_eq!(on_host.version_package, None);
     }
 
     #[test]
@@ -670,6 +838,7 @@ executables:
             filesystem: FileSystem::default(),
             shared_filesystem: SharedFileSystem::default(),
             packages: Default::default(),
+            version_package: None,
         };
 
         // Compare the default OnHost instance with the parsed instance
@@ -748,6 +917,7 @@ executables:
         backoff_delay: 1s
         max_retries: 3
         last_retry_interval: 30s
+version_package: otel-first
 packages:
   otel-first:
     download:

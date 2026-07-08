@@ -25,6 +25,8 @@ pub struct OnHost {
     pub shared_filesystem: SharedFileSystem,
     /// Packages to download for this agent.
     pub packages: RenderedPackages,
+    /// Main OCI Package version reported as the `agent.version`.
+    pub version_package: Option<PackageID>,
 }
 
 /// Rendered packages keyed by their [`PackageID`].

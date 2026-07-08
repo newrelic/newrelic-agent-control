@@ -18,6 +18,7 @@ Remember that the keywords that you can use are the following:
 - RPM packages now restore `local_config.yaml` from the `.rpmsave` backup left by a prior uninstall.
 
 ### enhancement
+- On-host agent-type parsing now validates `version_package`: it must reference a declared package, and is required when more than one package is defined. Invalid configurations are rejected at parse time with a descriptive error. This `version_package` will be used to know which version to report as `agent.version`.
 - Add support for `copy_from_file` for on-host "in-agent" filesystem.
 - Add support for `shared_filesystem` in on-host agent types.
 - On-host self-update: skip sub-agent reconciliation when a self-update is in progress. When a single remote config both bumps the Agent Control version and changes a sub-agent's `agent_type`, the changed sub-agent is no longer recreated moments before the process restarts; the new config is stored and re-applied cleanly by the restarted process, avoiding a redundant sub-agent restart and telemetry gap.

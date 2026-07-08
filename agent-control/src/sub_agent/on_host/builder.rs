@@ -170,7 +170,8 @@ where
             self.logging_path.to_path_buf(),
             on_host.filesystem,
             on_host.shared_filesystem,
-        ))
+        )
+        .with_version_package(on_host.version_package))
     }
 }
 
