@@ -5,7 +5,7 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConfig;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::{
-    FileSystem, FileSystemEntriesError,
+    FileSystem, FileSystemEntriesError, SharedFileSystem,
 };
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::checkers::health::health_checker::{Health, HealthCheckerError, spawn_health_checker};
@@ -106,6 +106,7 @@ where
     package_manager: Arc<PM>,
     packages_config: RenderedPackages,
     filesystem: FileSystem,
+    shared_filesystem: SharedFileSystem,
 }
 
 impl<PM> SupervisorStarter for NotStartedSupervisorOnHost<PM>
@@ -193,6 +194,7 @@ where
             onhost_config.enable_file_logging,
             logging_path,
             onhost_config.filesystem,
+            onhost_config.shared_filesystem,
         );
 
         // No explicit file deletion is needed on apply: spin_up re-renders the filesystem. Its
@@ -227,6 +229,7 @@ where
         file_logging_enable: bool,
         file_logging_path: PathBuf,
         filesystem: FileSystem,
+        shared_filesystem: SharedFileSystem,
     ) -> Self {
         NotStartedSupervisorOnHost {
             agent_identity,
@@ -237,6 +240,7 @@ where
             package_manager,
             packages_config,
             filesystem,
+            shared_filesystem,
         }
     }
 
@@ -339,6 +343,10 @@ where
         }
 
         self.filesystem
+            .write(&LocalFile, &DirectoryManagerFs)
+            .map_err(SupervisorError::FileSystem)?;
+
+        self.shared_filesystem
             .write(&LocalFile, &DirectoryManagerFs)
             .map_err(SupervisorError::FileSystem)?;
 
@@ -757,6 +765,7 @@ pub mod tests {
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -802,6 +811,7 @@ pub mod tests {
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -853,6 +863,7 @@ persistent.txt:
             false,
             PathBuf::default(),
             filesystem,
+            SharedFileSystem::test_empty(),
         );
 
         let (publisher, _consumer) = pub_sub();
@@ -922,6 +933,7 @@ persistent.txt:
             false,
             PathBuf::default(),
             filesystem,
+            SharedFileSystem::test_empty(),
         );
 
         let (publisher, _consumer) = pub_sub();
@@ -965,6 +977,7 @@ persistent.txt:
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1014,6 +1027,7 @@ persistent.txt:
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1063,6 +1077,7 @@ persistent.txt:
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1107,6 +1122,7 @@ persistent.txt:
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1170,6 +1186,7 @@ persistent.txt:
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
         );
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1350,6 +1367,7 @@ persistent.txt:
             true,
             logging_path.clone(),
             FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1384,6 +1402,7 @@ persistent.txt:
             enable_file_logging: true,
             health: None,
             filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
             packages: get_empty_packages(),
         };
 
@@ -1476,6 +1495,7 @@ persistent.txt:
             false,
             logging_path.clone(),
             FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1510,6 +1530,7 @@ persistent.txt:
             enable_file_logging: true,
             health: None,
             filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
             packages: get_empty_packages(),
         };
 
@@ -1600,6 +1621,7 @@ persistent.txt:
             true,
             logging_path.clone(),
             FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1634,6 +1656,7 @@ persistent.txt:
             enable_file_logging: false,
             health: None,
             filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
             packages: get_empty_packages(),
         };
 
@@ -1709,6 +1732,7 @@ persistent.txt:
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
@@ -1781,6 +1805,7 @@ persistent.txt:
             false,
             logging_path.clone(),
             FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1815,6 +1840,7 @@ persistent.txt:
             enable_file_logging: false,
             health: None,
             filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
             packages: get_empty_packages(),
         };
 

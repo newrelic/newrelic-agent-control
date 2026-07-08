@@ -27,6 +27,8 @@ The remote configurations and in general any files expected to dynamically chang
 its own files here; these survive restarts **unless they live inside a directory AC declared as ephemeral** (the default), which AC
 wipes on stop and before each re-render. To keep agent-created data across restarts, place it under a `persistent` directory or a path
 AC doesn't manage. See [Persistence in Filesystem](./INTEGRATING_AGENTS.md#persistence-in-filesystem).
+- `shared-filesystem` is a directory shared across all sub-agents (not suffixed per agent) where an agent type's `shared_filesystem`
+entries are written, so other sub-agents (e.g. the infrastructure agent) can read them. See [`shared_filesystem`](./INTEGRATING_AGENTS.md#shared_filesystem).
 
 #### Logs
 The directory inside `[...]/log/<agent-id>` will store the logs if file logging was configured, 

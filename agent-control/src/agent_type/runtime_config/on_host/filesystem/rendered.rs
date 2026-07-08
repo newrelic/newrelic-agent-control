@@ -143,6 +143,32 @@ impl FileSystem {
     }
 }
 
+/// Rendered shared filesystem tree, materialized under the base shared across sub-agents.
+// TODO: there is no clean-up implemented at the moment (content written by agent remains there even if
+// the corresponding agent is not present anymore).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SharedFileSystem {
+    entries: HashMap<PathBuf, RenderedEntry>,
+}
+
+impl SharedFileSystem {
+    pub(super) fn new(entries: HashMap<PathBuf, RenderedEntry>) -> Self {
+        Self { entries }
+    }
+
+    /// Materializes the declared tree on disk. Existing files are overwritten; nothing is pruned.
+    pub fn write(
+        &self,
+        file_ops: &(impl FileWriter + FileCopier),
+        dir_manager: &impl DirectoryManager,
+    ) -> Result<(), FileSystemEntriesError> {
+        for (path, entry) in &self.entries {
+            entry.write(path, file_ops, dir_manager)?;
+        }
+        Ok(())
+    }
+}
+
 /// Creates `dir` (and any missing parents), with error context. Safe if it already exists.
 fn ensure_dir(
     dir_manager: &impl DirectoryManager,
@@ -212,6 +238,12 @@ mod tests {
     use super::*;
 
     impl FileSystem {
+        pub(crate) fn test_empty() -> Self {
+            Self::new(HashMap::new())
+        }
+    }
+
+    impl SharedFileSystem {
         pub(crate) fn test_empty() -> Self {
             Self::new(HashMap::new())
         }

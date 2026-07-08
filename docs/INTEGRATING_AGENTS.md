@@ -343,7 +343,9 @@ We have some global metadata available both for on-host and k8s. Be aware that t
 For **on-host**, we have:
 
 - `host_id`: contains an identifier calculated from the retrieved information about the host, such as the hostname or cloud-related data (when available).
-- `filesystem_agent_dir`: contains the absolute path to a dedicated file system directory for this sub-agent. The default value in Linux systems is `/var/lib/newrelic_agent_control/filesystem/<AGENT_ID>`. Note how the agent type definition uses this variable for content added via the `filesystem` field (see below).
+- `filesystem_agent_dir`: contains the absolute path to a dedicated file system directory for this sub-agent. The default value in Linux systems is `/var/lib/newrelic-agent-control/filesystem/<AGENT_ID>`. Note how the agent type definition uses this variable for content added via the `filesystem` field (see below).
+- `shared_filesystem_dir`: contains the absolute path to a file system directory shared across all sub-agents. The default value in Linux systems is `/var/lib/newrelic-agent-control/shared-filesystem`. Unlike `filesystem_agent_dir`, it is **not** suffixed with the agent id. Used by the `shared_filesystem` field (see below).
+- `remote_dir`: contains the absolute path to Agent Control's data directory (the parent of the `filesystem`, `shared-filesystem` and package directories). The default value in Linux systems is `/var/lib/newrelic-agent-control`. A `copy_from_file` source must resolve to a path within this directory.
 
 For **k8s**, we have:
 
@@ -517,13 +519,16 @@ agent/integrations.d/
 
 ###### Entry kinds reference
 
-**`file`** — a single file with literal or templated content.
+**`file`** — a single file whose bytes come from exactly one of `text` (inline content) or `copy_from_file` (a copied source file).
 
-| Field        | Required | Default | Description                                                  |
-|--------------|----------|---------|--------------------------------------------------------------|
-| `kind`       | yes      | —       | Must be `file`.                                              |
-| `text`       | yes      | —       | File body. May reference `${nr-var:…}` / `${nr-sub:…}`.      |
-| `persistent` | no       | `false` | If `true`, survives sub-agent stop/restart.                  |
+| Field            | Required | Default | Description                                                                                                      |
+|------------------|----------|---------|------------------------------------------------------------------------------------------------------------------|
+| `kind`           | yes      | —       | Must be `file`.                                                                                                  |
+| `text`           | *        | —       | Inline file body. May reference `${nr-var:…}` / `${nr-sub:…}`. Mutually exclusive with `copy_from_file`.         |
+| `copy_from_file` | *        | —       | Path of a source file whose bytes are copied into this entry (e.g. a binary from a package dir). Mutually exclusive with `text`. |
+| `persistent`     | no       | `false` | If `true`, survives sub-agent stop/restart.                                                                     |
+
+*Exactly one of `text` or `copy_from_file` is required. `copy_from_file` copies the source byte-for-byte, preserving its permissions (e.g. the executable bit on Unix), and its source must resolve to a path within `${nr-sub:remote_dir}`.
 
 **`dir`** — an explicitly declared directory. Its children, if any, live under `entries:`.
 
@@ -565,6 +570,32 @@ Every `file` and `dir` entry accepts a boolean `persistent:` (default `false`). 
 | Removed from fleet | Filesystem dir deleted by ResourceCleaner       | Filesystem dir deleted by ResourceCleaner |
 
 Agent-process-created files are never declared, so `write` leaves them untouched **except** files inside an *ephemeral* directory, which are wiped along with it on stop and before each (re)write. To keep agent-created content across restarts, place it under a `persistent` directory.
+
+##### `shared_filesystem`
+
+Like [`filesystem`](#filesystem), but the tree is written under a directory **shared across all sub-agents** (`${nr-sub:shared_filesystem_dir}`, e.g. `/var/lib/newrelic-agent-control/shared-filesystem`) instead of the per-agent directory. It accepts the exact same schema (`kind: file | dir | dir_content_from_map`, nested `entries:`, and `copy_from_file`).
+
+This lets one sub-agent expose files to another that Agent Control does not supervise directly. For example, an On-Host Integration (OHI) agent type can write its configuration and copy its binary into the shared location so the infrastructure agent (a separate sub-agent) can discover and run it:
+
+```yaml
+shared_filesystem:
+  # OHI configuration the infrastructure agent reads.
+  infra-agent-ohi-configs:
+    kind: dir
+    entries:
+      nri-redis.yaml:
+        kind: file
+        text: ${nr-var:config_integration}
+  # OHI binary, copied from this agent's package dir into the shared location.
+  infra-agent-ohi-binaries:
+    kind: dir
+    entries:
+      nri-redis:
+        kind: file
+        copy_from_file: ${nr-sub:packages.nri-redis.dir}/nri-redis
+```
+
+> ⚠️ **Note:** The shared filesystem is under active development. Cleanup (removal on uninstall/reconfigure) is not implemented yet, this behavior is expected to change.
 
 ##### `packages`
 

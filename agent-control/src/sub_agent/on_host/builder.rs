@@ -169,6 +169,7 @@ where
             on_host.enable_file_logging,
             self.logging_path.to_path_buf(),
             on_host.filesystem,
+            on_host.shared_filesystem,
         ))
     }
 }
