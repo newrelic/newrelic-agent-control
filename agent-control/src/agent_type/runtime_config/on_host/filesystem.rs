@@ -168,8 +168,8 @@ impl Templateable for SharedFileSystem {
     type Output = rendered::SharedFileSystem;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        // Skip resolving the shared base when nothing is declared: an unused shared filesystem
-        // must not require `${nr-sub:shared_filesystem_dir}` to be present.
+        // Return early if no shared entries are declared. Agent Types that don't use shared-filesystem aren't
+        // enforced to provide the `${nr-sub:shared_filesystem_dir}` variable.
         if self.0.is_empty() {
             return Ok(rendered::SharedFileSystem::new(HashMap::new()));
         }
