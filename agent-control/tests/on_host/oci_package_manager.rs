@@ -1,11 +1,15 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::oci_package_manager::{TestDataHelper, new_testing_oci_package_manager};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::run::on_host::OCI_TEST_REGISTRY_URL;
+use newrelic_agent_control::agent_type::runtime_config::on_host::executable::rendered::{
+    Args, Env,
+};
 use newrelic_agent_control::agent_type::runtime_config::on_host::package::rendered::{
-    Oci, Repository, Version,
+    Oci, PostDownloadHook, Repository, Version,
 };
 use newrelic_agent_control::package::manager::{PackageData, PackageManager};
 use newrelic_agent_control::package::oci::package_manager::get_package_path;
@@ -140,21 +144,11 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
     );
 }
 
-// Verifies that the post-download hook runs on *every* install, including when the package files
-// are already present on disk (an Agent Control restart or a rollback to a previously-installed
-// version). The hook appends a line to a counter file each time it runs; after two installs of the
-// same package the file must contain two lines even though the second install skips download and
-// extraction.
+// The hook must run on every install, even when the package is already on disk (AC restart or
+// rollback). It appends one line per run, so two installs of the same package give two lines.
 #[test]
-#[cfg(unix)]
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
 fn test_install_runs_hook_on_every_install_even_when_present_with_oci_registry() {
-    use newrelic_agent_control::agent_type::runtime_config::on_host::executable::rendered::{
-        Args, Env,
-    };
-    use newrelic_agent_control::agent_type::runtime_config::on_host::package::rendered::PostDownloadHook;
-    use std::collections::HashMap;
-
     const FILENAME: &str = "payload.txt";
 
     let dir = tempdir().unwrap();
@@ -171,17 +165,11 @@ fn test_install_runs_hook_on_every_install_even_when_present_with_oci_registry()
     let reference = PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
         .push(&file_to_push, PackageMediaType::TarGz);
 
+    // Cross-platform hook: the test binary invokes the ignored `post_download_hook_probe` below,
+    // which appends a line to `NR_HOOK_COUNTER_FILE` per run (works on Windows too, no shell script).
     let hook_dir = tempdir().unwrap();
     let counter_path = hook_dir.path().join("hook-runs.count");
-    let script_path = hook_dir.path().join("hook.sh");
-    std::fs::write(
-        &script_path,
-        format!(
-            "#!/bin/bash\necho run >> '{}'\nexit 0\n",
-            counter_path.display()
-        ),
-    )
-    .unwrap();
+    let test_bin = std::env::current_exe().expect("path to the running test executable");
 
     let temp_dir = tempdir().unwrap();
     let base_path = temp_dir.path().to_path_buf();
@@ -198,9 +186,16 @@ fn test_install_runs_hook_on_every_install_even_when_present_with_oci_registry()
             public_key_url: None,
         },
         post_download_hook: Some(PostDownloadHook {
-            path: "/bin/bash".to_string(),
-            args: Args(vec![script_path.to_string_lossy().to_string()]),
-            env: Env(HashMap::new()),
+            path: test_bin.to_string_lossy().to_string(),
+            // Filter to the probe by name, plus `--ignored`.
+            args: Args(vec![
+                "post_download_hook_probe".to_string(),
+                "--ignored".to_string(),
+            ]),
+            env: Env(HashMap::from([(
+                "NR_HOOK_COUNTER_FILE".to_string(),
+                counter_path.to_string_lossy().to_string(),
+            )])),
         }),
     };
 
@@ -227,4 +222,23 @@ fn test_install_runs_hook_on_every_install_even_when_present_with_oci_registry()
         2,
         "hook should run again on the second install even though the package is already present"
     );
+}
+
+// Not a real test: invoked as the post-download hook (via the test binary, so it's cross-platform).
+// Appends one line to `NR_HOOK_COUNTER_FILE` per run so the caller can count hook executions; no-op
+// if the var is unset.
+#[test]
+#[ignore = "helper invoked as a post-download hook, not a standalone test"]
+fn post_download_hook_probe() {
+    use std::io::Write;
+
+    let Ok(counter_path) = std::env::var("NR_HOOK_COUNTER_FILE") else {
+        return;
+    };
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(counter_path)
+        .expect("open hook counter file");
+    writeln!(file, "run").expect("append to hook counter file");
 }

@@ -399,6 +399,8 @@ where
             let temp_package_path =
                 get_temp_package_path(&self.remote_dir, agent_id, &package_data)?;
 
+            // If we face an error during installation, we must ensure the temporary directory is deleted.
+            // We hide the error of the folder if something else went wrong.
             let installed_package = self
                 .install_archive(&package_data, &temp_package_path, &package_path)
                 .inspect_err(|_| _ = self.directory_manager.delete(&temp_package_path))?;
@@ -457,13 +459,17 @@ mod tests {
 
     use super::*;
 
-    use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
+    use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env};
+    use crate::agent_type::runtime_config::on_host::package::rendered::{
+        Oci, PostDownloadHook, Repository, Version,
+    };
     use crate::oci::artifact_definitions::PackageMediaType;
     use crate::package::oci::downloader::tests::MockOCIDownloader;
     use crate::utils::extract::tests::TestDataHelper;
     use fs::directory_manager::mock::MockDirectoryManager;
     use fs::file::writer::FileWriter;
     use mockall::predicate::eq;
+    use std::collections::HashMap;
 
     use tempfile::tempdir;
 
@@ -952,10 +958,6 @@ mod tests {
 
     #[test]
     fn test_install_runs_hook_even_when_package_already_present() {
-        use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env};
-        use crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadHook;
-        use std::collections::HashMap;
-
         let mut downloader = MockOCIDownloader::new();
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let mut package_data = test_package_data();
@@ -969,6 +971,7 @@ mod tests {
         let install_dir = get_package_path(remote_dir.path(), &agent_id, &package_data).unwrap();
         std::fs::create_dir_all(&install_dir).expect("Failed to create dir");
 
+        // Package already on disk, so no download.
         downloader.expect_download().times(0);
 
         let pm = OCIPackageManager::new(
@@ -977,6 +980,8 @@ mod tests {
             PathBuf::from(remote_dir.path()),
         );
 
+        // The hook always fails, so a PostDownloadHook error proves it ran. If it were skipped when
+        // the package is already present (pre-fix behavior), install() would return Ok.
         let result = pm.install(&agent_id, package_data);
         assert!(matches!(
             result,
@@ -986,10 +991,6 @@ mod tests {
 
     #[test]
     fn test_install_fails_when_post_download_hook_fails() {
-        use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env};
-        use crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadHook;
-        use std::collections::HashMap;
-
         let mut downloader = MockOCIDownloader::new();
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let mut package_data = test_package_data();
@@ -1022,19 +1023,17 @@ mod tests {
         ));
     }
 
-    #[cfg(unix)]
     #[test]
     fn test_install_runs_successful_hook_when_package_already_present() {
-        use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env};
-        use crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadHook;
-        use std::collections::HashMap;
-
         let mut downloader = MockOCIDownloader::new();
         let agent_id = AgentID::try_from("agent-id").unwrap();
         let mut package_data = test_package_data();
+        // Cross-platform hook that exits 0 with no side effects: run the test binary with `--list`,
+        // which makes the test harness list its tests and exit successfully.
+        let test_bin = std::env::current_exe().expect("path to the running test executable");
         package_data.post_download_hook = Some(PostDownloadHook {
-            path: "/usr/bin/true".to_string(),
-            args: Args(vec![]),
+            path: test_bin.to_string_lossy().to_string(),
+            args: Args(vec!["--list".to_string()]),
             env: Env(HashMap::new()),
         });
 
@@ -1042,6 +1041,7 @@ mod tests {
         let install_dir = get_package_path(remote_dir.path(), &agent_id, &package_data).unwrap();
         std::fs::create_dir_all(&install_dir).expect("Failed to create dir");
 
+        // Package already on disk, so no download.
         downloader.expect_download().times(0);
 
         let pm = OCIPackageManager::new(
