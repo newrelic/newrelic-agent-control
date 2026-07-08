@@ -139,3 +139,92 @@ fn test_install_skips_download_if_exists_with_oci_registry() {
         "The package manager overwrote the existing files! It should have skipped download/extraction."
     );
 }
+
+// Verifies that the post-download hook runs on *every* install, including when the package files
+// are already present on disk (an Agent Control restart or a rollback to a previously-installed
+// version). The hook appends a line to a counter file each time it runs; after two installs of the
+// same package the file must contain two lines even though the second install skips download and
+// extraction.
+#[test]
+#[cfg(unix)]
+#[ignore = "needs oci registry (use *with_oci_registry suffix)"]
+fn test_install_runs_hook_on_every_install_even_when_present_with_oci_registry() {
+    use newrelic_agent_control::agent_type::runtime_config::on_host::executable::rendered::{
+        Args, Env,
+    };
+    use newrelic_agent_control::agent_type::runtime_config::on_host::package::rendered::PostDownloadHook;
+    use std::collections::HashMap;
+
+    const FILENAME: &str = "payload.txt";
+
+    let dir = tempdir().unwrap();
+    let content_dir = tempdir().unwrap();
+    let file_to_push = dir.path().join("layer_digest.tar.gz");
+
+    TestDataHelper::compress_tar_gz(
+        content_dir.path(),
+        file_to_push.as_path(),
+        "PAYLOAD",
+        FILENAME,
+    );
+
+    let reference = PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)
+        .push(&file_to_push, PackageMediaType::TarGz);
+
+    let hook_dir = tempdir().unwrap();
+    let counter_path = hook_dir.path().join("hook-runs.count");
+    let script_path = hook_dir.path().join("hook.sh");
+    std::fs::write(
+        &script_path,
+        format!(
+            "#!/bin/bash\necho run >> '{}'\nexit 0\n",
+            counter_path.display()
+        ),
+    )
+    .unwrap();
+
+    let temp_dir = tempdir().unwrap();
+    let base_path = temp_dir.path().to_path_buf();
+    let package_manager =
+        new_testing_oci_package_manager(base_path.clone(), OCI_TEST_REGISTRY_URL.to_string());
+
+    let agent_id = AgentID::try_from("test-agent").unwrap();
+
+    let package_data = PackageData {
+        id: "test-package-hook-every-install".to_string(),
+        oci: Oci {
+            repository: Repository::from_str(reference.repository()).unwrap(),
+            version: Version::from_str(reference.tag().unwrap()).unwrap(),
+            public_key_url: None,
+        },
+        post_download_hook: Some(PostDownloadHook {
+            path: "/bin/bash".to_string(),
+            args: Args(vec![script_path.to_string_lossy().to_string()]),
+            env: Env(HashMap::new()),
+        }),
+    };
+
+    let count_lines = || {
+        std::fs::read_to_string(&counter_path)
+            .map(|c| c.lines().count())
+            .unwrap_or(0)
+    };
+
+    package_manager
+        .install(&agent_id, package_data.clone())
+        .expect("first install failed");
+    assert_eq!(
+        count_lines(),
+        1,
+        "hook should have run once after first install"
+    );
+
+    package_manager
+        .install(&agent_id, package_data)
+        .expect("second install failed");
+    assert_eq!(
+        count_lines(),
+        2,
+        "hook should run again on the second install even though the package is already present"
+    );
+}
