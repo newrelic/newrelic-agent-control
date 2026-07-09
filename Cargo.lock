@@ -4324,6 +4324,7 @@ dependencies = [
  "assert_cmd",
  "assert_matches",
  "predicates",
+ "serial_test",
  "tempfile",
  "thiserror",
  "tracing",

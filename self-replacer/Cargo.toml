@@ -17,6 +17,7 @@ tempfile = { workspace = true }
 assert_matches = { workspace = true }
 assert_cmd = "2.2.2"
 predicates = "3.1.4"
+serial_test = "3.5.0"
 
 [target.'cfg(target_os = "windows")'.dev-dependencies]
 windows = { workspace = true, features = [

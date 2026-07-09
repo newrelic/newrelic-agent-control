@@ -29,7 +29,7 @@ pub fn get_example_binary() -> PathBuf {
     };
     path.push(binary_name);
 
-    // Build the example if it doesn't exist
+    // Build the example if it doesn't exist.
     if !path.exists() {
         eprintln!("Example binary not found, building it...");
         let output = std::process::Command::new("cargo")

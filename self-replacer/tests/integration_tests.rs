@@ -10,6 +10,7 @@ use tempfile::TempDir;
 
 mod test_helpers;
 use self_replacer::{BinaryReplacer, SelfReplacer};
+use serial_test::serial;
 use test_helpers::{copy_example_binary, create_modified_binary};
 
 use self_replacer::BACKUP_SUFFIX;
@@ -19,6 +20,7 @@ use self_replacer::BACKUP_SUFFIX;
 // ============================================================================
 
 #[test]
+#[serial]
 fn test_self_replacement_with_real_binary() {
     let temp_dir = TempDir::new().unwrap();
     let test_dir = temp_dir.path();
@@ -129,6 +131,7 @@ mod unix_specific {
     const TEST_EXEC_MODE: u32 = 0o754; // rwxr-xr--
 
     #[test]
+    #[serial]
     fn test_permission_preservation_with_real_binary() {
         let temp_dir = TempDir::new().unwrap();
         let test_dir = temp_dir.path();
