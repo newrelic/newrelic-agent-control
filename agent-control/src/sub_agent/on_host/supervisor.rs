@@ -295,9 +295,8 @@ where
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) {
-        // Report the version from the OCI package configuration. The package is selected explicitly
-        // by the agent type's `version_package` (resolved at parse time). When it is unset we fall
-        // back to the sole configured package; anything else is ambiguous and reports nothing.
+        // Report the version from the OCI package selected as the agent type's version package
+        // (resolved at parse time). Nothing to report when no package was selected.
         let Some((package_id, package)) = self.version_package_to_report() else {
             return;
         };
@@ -323,28 +322,9 @@ where
     }
 
     fn version_package_to_report(&self) -> Option<(&PackageID, &RenderedPackage)> {
-        if let Some(id) = &self.reported_version_package {
-            return self.packages_config.get_key_value(id);
-        }
-
-        match self.packages_config.len() {
-            0 => {
-                warn!(
-                    agent_type=%self.agent_identity.agent_type_id,
-                    "Unable to determine agent version: no packages configured"
-                );
-                None
-            }
-            1 => self.packages_config.iter().next(),
-            _ => {
-                warn!(
-                    agent_type=%self.agent_identity.agent_type_id,
-                    packages_count=%self.packages_config.len(),
-                    "Multiple packages configured but no version_package set; not reporting agent.version"
-                );
-                None
-            }
-        }
+        // `reported_version_package` is resolved and validated at parse time.
+        let id = self.reported_version_package.as_ref()?;
+        self.packages_config.get_key_value(id)
     }
 
     fn spin_up(
@@ -748,26 +728,14 @@ pub mod tests {
     }
 
     #[rstest]
-    // An explicit reported_version_package selects that package among several.
-    #[case::selects_configured_package(
+    // The resolved package is looked up among the configured packages and reported.
+    #[case::reports_resolved_package(
         vec![("infra", "newrelic-infra", "1.2.3"), ("flex", "nri-flex", "4.5.6")],
         Some("flex".to_string()),
         Some(("flex", "4.5.6")),
     )]
-    // With a sole package and no explicit selection, it defaults to that package.
-    #[case::defaults_to_sole_package(
-        vec![("infra", "newrelic-infra", "1.2.3")],
-        None,
-        Some(("infra", "1.2.3")),
-    )]
-    // No packages: nothing to report.
-    #[case::none_without_packages(vec![], None, None)]
-    // No reported_version_package + multiple packages is ambiguous: nothing is reported.
-    #[case::none_when_ambiguous(
-        vec![("infra", "newrelic-infra", "1.2.3"), ("flex", "nri-flex", "4.5.6")],
-        None,
-        None,
-    )]
+    // No package resolved (only possible with no packages configured): nothing to report.
+    #[case::none_when_unset(vec![], None, None)]
     fn version_package_to_report(
         #[case] packages: Vec<(&str, &str, &str)>,
         #[case] reported_version_package: Option<PackageID>,
