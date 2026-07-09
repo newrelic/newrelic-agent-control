@@ -258,12 +258,12 @@ deployment:
 The resolved value of that `version` field is published as `agent.version`.
 
 When an agent type defines **more than one package**, the package to report is selected explicitly
-with the top-level `deployment.version_package` field, which must name one of the declared
+with the top-level `deployment.reported_version_package` field, which must name one of the declared
 packages:
 
 ```yaml
 deployment:
-  version_package: newrelic-infra   # required when more than one package is declared
+  reported_version_package: newrelic-infra   # required when more than one package is declared
   packages:
     newrelic-infra:
       download:
@@ -279,8 +279,8 @@ deployment:
 
 Rules:
 
-* With **one** package, `version_package` is optional and defaults to that sole package.
-* With **more than one** package, `version_package` is **required** and must reference a declared
+* With **one** package, `reported_version_package` is optional and defaults to that sole package.
+* With **more than one** package, `reported_version_package` is **required** and must reference a declared
   package id; otherwise the agent type fails validation at parse time.
 * With **no** packages, no `agent.version` is reported.
 

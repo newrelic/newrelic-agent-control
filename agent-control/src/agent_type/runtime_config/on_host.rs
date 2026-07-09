@@ -54,11 +54,11 @@ impl<'de> Deserialize<'de> for OnHost {
             #[serde(default)]
             packages: Packages,
             #[serde(default)]
-            version_package: Option<PackageID>,
+            reported_version_package: Option<PackageID>,
         }
 
         let raw = OnHostRaw::deserialize(deserializer)?;
-        let reported_version_package = resolve_version_package(&raw.packages, raw.version_package)?;
+        let reported_version_package = resolve_reported_version_package(&raw.packages, raw.reported_version_package)?;
         Ok(OnHost {
             executables: raw.executables,
             enable_file_logging: raw.enable_file_logging,
@@ -72,11 +72,11 @@ impl<'de> Deserialize<'de> for OnHost {
 }
 
 /// Resolves which package's OCI version is reported as `agent.version`:
-/// - an explicit `version_package` must reference a declared package;
+/// - an explicit `reported_version_package` must reference a declared package;
 /// - with no packages declared, there is nothing to report (`None`);
 /// - with exactly one package, it defaults to that package;
-/// - with more than one package, `version_package` is required.
-fn resolve_version_package<E: serde::de::Error>(
+/// - with more than one package, `reported_version_package` is required.
+fn resolve_reported_version_package<E: serde::de::Error>(
     packages: &Packages,
     declared: Option<PackageID>,
 ) -> Result<Option<PackageID>, E> {
@@ -85,7 +85,7 @@ fn resolve_version_package<E: serde::de::Error>(
             return Ok(Some(id));
         }
         return Err(E::custom(format!(
-            "`version_package` references unknown package `{id}`; declared packages: [{}]",
+            "`reported_version_package` references unknown package `{id}`; declared packages: [{}]",
             packages.keys().cloned().collect::<Vec<_>>().join(", ")
         )));
     }
@@ -94,7 +94,7 @@ fn resolve_version_package<E: serde::de::Error>(
         0 => Ok(None),
         1 => Ok(packages.keys().next().cloned()),
         _ => Err(E::custom(format!(
-            "`version_package` is required when more than one package is defined; declared packages: [{}]",
+            "`reported_version_package` is required when more than one package is defined; declared packages: [{}]",
             packages.keys().cloned().collect::<Vec<_>>().join(", ")
         ))),
     }
@@ -297,7 +297,7 @@ packages:
     }
 
     #[test]
-    fn version_package_defaults_to_sole_package() {
+    fn reported_version_package_defaults_to_sole_package() {
         let yaml = r#"
 packages:
   infra:
@@ -311,9 +311,9 @@ packages:
     }
 
     #[test]
-    fn version_package_explicit_selection_with_multiple_packages() {
+    fn reported_version_package_explicit_selection_with_multiple_packages() {
         let yaml = r#"
-version_package: infra
+reported_version_package: infra
 packages:
   infra:
     download:
@@ -331,7 +331,7 @@ packages:
     }
 
     #[test]
-    fn version_package_required_when_multiple_packages() {
+    fn reported_version_package_required_when_multiple_packages() {
         let yaml = r#"
 packages:
   infra:
@@ -349,7 +349,7 @@ packages:
             .unwrap_err()
             .to_string();
         assert!(
-            err.contains("version_package") && err.contains("required"),
+            err.contains("reported_version_package") && err.contains("required"),
             "unexpected error: {err}"
         );
         assert!(
@@ -359,9 +359,9 @@ packages:
     }
 
     #[test]
-    fn version_package_referencing_unknown_id_errors() {
+    fn reported_version_package_referencing_unknown_id_errors() {
         let yaml = r#"
-version_package: does-not-exist
+reported_version_package: does-not-exist
 packages:
   infra:
     download:
@@ -376,8 +376,8 @@ packages:
     }
 
     #[test]
-    fn version_package_set_without_packages_errors() {
-        let yaml = "version_package: infra\n";
+    fn reported_version_package_set_without_packages_errors() {
+        let yaml = "reported_version_package: infra\n";
         let err = serde_saphyr::from_str::<OnHost>(yaml)
             .unwrap_err()
             .to_string();
@@ -385,7 +385,7 @@ packages:
     }
 
     #[test]
-    fn no_packages_yields_no_version_package() {
+    fn no_packages_yields_no_reported_version_package() {
         let yaml = r#"
 executables:
   - id: test
@@ -912,7 +912,7 @@ executables:
         backoff_delay: 1s
         max_retries: 3
         last_retry_interval: 30s
-version_package: otel-first
+reported_version_package: otel-first
 packages:
   otel-first:
     download:
