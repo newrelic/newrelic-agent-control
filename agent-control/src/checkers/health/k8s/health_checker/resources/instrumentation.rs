@@ -192,11 +192,11 @@ impl<C: K8sClient> HealthChecker for K8sHealthNRInstrumentation<C> {
             .map_err(|e| {
                 HealthCheckerError::Generic(format!(
                     "instrumentation CR could not be fetched'{}': {}",
-                    &self.name, e
+                    self.name, e
                 ))
             })?
             .ok_or_else(|| {
-                HealthCheckerError::Generic(format!("Instrumentation '{}' not found", &self.name))
+                HealthCheckerError::Generic(format!("Instrumentation '{}' not found", self.name))
             })?;
 
         let instrumentation_data = instrumentation.data.as_object().ok_or_else(|| {

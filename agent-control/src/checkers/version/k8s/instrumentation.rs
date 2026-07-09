@@ -44,13 +44,13 @@ impl<C: K8sClient> NewrelicInstrumentationVersionChecker<C> {
             .map_err(|err| {
                 VersionCheckError(format!(
                     "Error fetching Instrumentation for agent_id '{}': {}",
-                    &self.agent_id, err
+                    self.agent_id, err
                 ))
             })?
             .ok_or_else(|| {
                 VersionCheckError(format!(
                     "Instrumentation for agent_id '{}' not found",
-                    &self.agent_id
+                    self.agent_id
                 ))
             })
     }
@@ -63,7 +63,7 @@ impl<C: K8sClient> VersionChecker for NewrelicInstrumentationVersionChecker<C> {
         let instrumentation_data = instrumentation.data.as_object().ok_or_else(|| {
             VersionCheckError(format!(
                 "Invalid Instrumentation for agent_id '{}'",
-                &self.agent_id
+                self.agent_id
             ))
         })?;
 
@@ -71,7 +71,7 @@ impl<C: K8sClient> VersionChecker for NewrelicInstrumentationVersionChecker<C> {
             .ok_or_else(|| {
                 VersionCheckError(format!(
                     "Could not extract version from 'spec.agent.image' in the Instrumentation object for '{}'",
-                    &self.agent_id
+                    self.agent_id
                 ))
             })?;
 

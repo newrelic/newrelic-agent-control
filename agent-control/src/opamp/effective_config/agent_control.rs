@@ -102,7 +102,7 @@ where
             .map_err(|err| {
                 LoaderError::from(format!(
                     "could not load {} config values: {}",
-                    &self.agent_id, err
+                    self.agent_id, err
                 ))
             })?;
         // No configuration is considered as empty remote configuration
@@ -113,7 +113,7 @@ where
             config.get_yaml_config().clone().try_into().map_err(|err| {
                 LoaderError::from(format!(
                     "building {} effective config: {}",
-                    &self.agent_id, err
+                    self.agent_id, err
                 ))
             })?;
 
@@ -123,7 +123,7 @@ where
             serde_saphyr::to_string(&dynamic_config).map_err(|err| {
                 LoaderError::from(format!(
                     "serializing {} effective config: {}",
-                    &self.agent_id, err
+                    self.agent_id, err
                 ))
             })?,
         )]));

@@ -117,7 +117,7 @@ impl LoggingConfig {
             .parse_lossy("");
         // Enables and sets up the log level for known crates
         for crate_name in LOGGING_ENABLED_CRATES.split(',') {
-            let directive = format!("{}={}", crate_name, &level);
+            let directive = format!("{}={}", crate_name, level);
             env_filter =
                 env_filter.add_directive(Self::logging_directive(directive.as_str(), "level")?)
         }
