@@ -8,7 +8,6 @@ use crate::agent_type::runtime_config::on_host::filesystem::rendered::{
     FileSystem, FileSystemEntriesError, SharedFileSystem,
 };
 use crate::agent_type::runtime_config::on_host::package::PackageID;
-use crate::agent_type::runtime_config::on_host::package::rendered::Package as RenderedPackage;
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::checkers::health::health_checker::{Health, HealthCheckerError, spawn_health_checker};
 use crate::checkers::health::health_checker::{Healthy, Unhealthy};
@@ -295,9 +294,14 @@ where
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) {
-        // Report the version from the OCI package selected as the agent type's version package
-        // (resolved at parse time). Nothing to report when no package was selected.
-        let Some((package_id, package)) = self.version_package_to_report() else {
+        // Report the version from the OCI package selected as the agent type's version package.
+        // `reported_version_package` is resolved and validated at parse time: it is `Some` and
+        // present in `packages_config` whenever there is anything to report.
+        let Some((package_id, package)) = self
+            .reported_version_package
+            .as_ref()
+            .and_then(|id| self.packages_config.get_key_value(id))
+        else {
             return;
         };
 
@@ -319,12 +323,6 @@ where
                 ..Default::default()
             }),
         );
-    }
-
-    fn version_package_to_report(&self) -> Option<(&PackageID, &RenderedPackage)> {
-        // `reported_version_package` is resolved and validated at parse time.
-        let id = self.reported_version_package.as_ref()?;
-        self.packages_config.get_key_value(id)
     }
 
     fn spin_up(
@@ -662,7 +660,6 @@ pub mod tests {
     use crate::agent_type::runtime_config::health_config::HealthCheckTimeout;
     use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env, Executable};
     use crate::agent_type::runtime_config::on_host::filesystem::FileSystem as ParsedFileSystem;
-    use crate::agent_type::runtime_config::on_host::package::rendered::{Download, Oci};
     use crate::agent_type::runtime_config::on_host::rendered::OnHost;
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
     use crate::agent_type::runtime_config::restart_policy::rendered::RestartPolicyConfig;
@@ -690,70 +687,6 @@ pub mod tests {
 
     fn get_empty_packages() -> RenderedPackages {
         HashMap::new()
-    }
-
-    fn rendered_package(repository: &str, version: &str) -> RenderedPackage {
-        RenderedPackage {
-            download: Download {
-                oci: Oci {
-                    repository: repository.parse().unwrap(),
-                    version: version.parse().unwrap(),
-                    public_key_url: None,
-                },
-            },
-            post_download_hook: None,
-        }
-    }
-
-    fn supervisor_with_packages(
-        packages: RenderedPackages,
-        reported_version_package: Option<PackageID>,
-    ) -> NotStartedSupervisorOnHost<MockPackageManager> {
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from("test-agent".to_string()).unwrap(),
-            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
-        ));
-        NotStartedSupervisorOnHost::new(
-            agent_identity,
-            vec![],
-            None,
-            packages,
-            reported_version_package,
-            Arc::new(MockPackageManager::new()),
-            false,
-            PathBuf::from("/tmp"),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-        )
-    }
-
-    #[rstest]
-    // The resolved package is looked up among the configured packages and reported.
-    #[case::reports_resolved_package(
-        vec![("infra", "newrelic-infra", "1.2.3"), ("flex", "nri-flex", "4.5.6")],
-        Some("flex".to_string()),
-        Some(("flex", "4.5.6")),
-    )]
-    // No package resolved (only possible with no packages configured): nothing to report.
-    #[case::none_when_unset(vec![], None, None)]
-    fn version_package_to_report(
-        #[case] packages: Vec<(&str, &str, &str)>,
-        #[case] reported_version_package: Option<PackageID>,
-        #[case] expected: Option<(&str, &str)>,
-    ) {
-        let packages = packages
-            .into_iter()
-            .map(|(id, repository, version)| {
-                (id.to_string(), rendered_package(repository, version))
-            })
-            .collect();
-        let supervisor = supervisor_with_packages(packages, reported_version_package);
-
-        let reported = supervisor
-            .version_package_to_report()
-            .map(|(id, package)| (id.as_str(), package.download.oci.version.to_string()));
-        let expected = expected.map(|(id, version)| (id, version.to_string()));
-        assert_eq!(reported, expected);
     }
 
     #[derive(Clone, Deserialize)]
