@@ -6,6 +6,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 pub mod k8s;
+pub mod on_host;
 
 /// Error returned when a dynamic configuration fails validation.
 #[derive(Error, Debug)]

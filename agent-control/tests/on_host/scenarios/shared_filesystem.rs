@@ -2,6 +2,7 @@ use std::{fs::read_to_string, path::Path, time::Duration};
 
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::base_paths::TempBasePaths;
+use crate::common::remote_config_status::check_latest_remote_config_status;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::consts::NO_CONFIG;
@@ -12,6 +13,7 @@ use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::SHARED_FILESYSTEM_FOLDER_NAME;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
+use opamp_client::opamp::proto::RemoteConfigStatuses;
 
 const SHARED_CONFIG_DIR: &str = "infra-agent-ohi-configs";
 
@@ -157,6 +159,102 @@ ohi_config:
 
     retry(60, Duration::from_secs(1), || {
         expect_file_content(&shared_file, "v2")
+    });
+}
+
+/// Two agents of the same OHI type both declare the same shared file. The remote config that
+/// introduces the second one must be rejected (single-owner rule) and reported Failed to Fleet
+/// Control, rather than letting the two agents fight over the shared path.
+#[test]
+fn conflicting_shared_paths_are_rejected() {
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
+    let dirs = TempBasePaths::default();
+
+    let redis_agent = "redis-agent";
+    let redis_agent_2 = "redis-agent-2";
+
+    let ohi_type = CustomAgentType::default()
+        .with_agent_type_id("test/redis:0.1.0")
+        .with_health(None)
+        .with_shared_filesystem(Some(&format!(
+            r#"
+{SHARED_CONFIG_DIR}:
+  kind: dir
+  entries:
+    nri-redis.yaml:
+      kind: file
+      text: "integration: redis"
+"#
+        )))
+        .build(dirs.local_dir());
+
+    // Start with a single, valid agent.
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(format!(
+            r#"
+  {redis_agent}:
+    agent_type: "{ohi_type}"
+"#
+        ))
+        .write(dirs.local_dir());
+    create_local_config(
+        redis_agent.to_string(),
+        NO_CONFIG.to_string(),
+        dirs.local_dir(),
+    );
+
+    let _agent_control =
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
+
+    // Baseline: the single agent writes its shared file.
+    let shared_file = dirs
+        .remote_dir()
+        .join(SHARED_FILESYSTEM_FOLDER_NAME)
+        .join(SHARED_CONFIG_DIR)
+        .join("nri-redis.yaml");
+    retry(30, Duration::from_secs(1), || {
+        expect_file_content(&shared_file, "integration: redis")
+    });
+
+    // Push an AC remote config adding a second agent of the SAME type: both would claim the same
+    // shared file, so the config must be rejected before anything is applied.
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
+    opamp_server.set_config_response(
+        ac_instance_id.clone(),
+        format!(
+            r#"
+agents:
+  {redis_agent}:
+    agent_type: "{ohi_type}"
+  {redis_agent_2}:
+    agent_type: "{ohi_type}"
+"#
+        ),
+    );
+
+    retry(60, Duration::from_secs(1), || {
+        check_latest_remote_config_status(&opamp_server, &ac_instance_id, |status| {
+            if status.status != RemoteConfigStatuses::Failed as i32 {
+                return Err(format!("expected Failed status, got {:?}", status.status).into());
+            }
+            // The rejection reason surfaced to Fleet Control must point at the conflict: both
+            // agents and the shared path they fight over.
+            for expected in [
+                "shared filesystem conflict",
+                redis_agent,
+                redis_agent_2,
+                "nri-redis.yaml",
+            ] {
+                if !status.error_message.contains(expected) {
+                    return Err(format!(
+                        "error message {:?} should mention {expected:?}",
+                        status.error_message
+                    )
+                    .into());
+                }
+            }
+            Ok(())
+        })
     });
 }
 
