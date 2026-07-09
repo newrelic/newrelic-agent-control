@@ -58,7 +58,8 @@ impl<'de> Deserialize<'de> for OnHost {
         }
 
         let raw = OnHostRaw::deserialize(deserializer)?;
-        let reported_version_package = resolve_reported_version_package(&raw.packages, raw.reported_version_package)?;
+        let reported_version_package =
+            resolve_reported_version_package(&raw.packages, raw.reported_version_package)?;
         Ok(OnHost {
             executables: raw.executables,
             enable_file_logging: raw.enable_file_logging,

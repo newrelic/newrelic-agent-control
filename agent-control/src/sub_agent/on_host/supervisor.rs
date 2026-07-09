@@ -676,7 +676,6 @@ pub mod tests {
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use crate::sub_agent::supervisor::Supervisor;
     use crate::utils::retry::retry;
-    use rstest::rstest;
     use serde::Deserialize;
     use std::collections::HashMap;
     use std::{
