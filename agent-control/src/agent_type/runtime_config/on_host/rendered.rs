@@ -26,7 +26,7 @@ pub struct OnHost {
     /// Packages to download for this agent.
     pub packages: RenderedPackages,
     /// Main OCI Package version reported as the `agent.version`.
-    pub version_package: Option<PackageID>,
+    pub reported_version_package: Option<PackageID>,
 }
 
 /// Rendered packages keyed by their [`PackageID`].

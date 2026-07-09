@@ -107,7 +107,7 @@ where
     health_config: Option<OnHostHealthConfig>,
     package_manager: Arc<PM>,
     packages_config: RenderedPackages,
-    version_package: Option<PackageID>,
+    reported_version_package: Option<PackageID>,
     filesystem: FileSystem,
     shared_filesystem: SharedFileSystem,
 }
@@ -193,6 +193,7 @@ where
             executables,
             onhost_config.health,
             onhost_config.packages,
+            onhost_config.reported_version_package,
             package_manager,
             onhost_config.enable_file_logging,
             logging_path,
@@ -228,6 +229,7 @@ where
         executables: Vec<ExecutableData>,
         health_config: Option<OnHostHealthConfig>,
         packages_config: RenderedPackages,
+        reported_version_package: Option<PackageID>,
         package_manager: Arc<PM>,
         file_logging_enable: bool,
         file_logging_path: PathBuf,
@@ -242,18 +244,10 @@ where
             health_config,
             package_manager,
             packages_config,
-            version_package: None,
+            reported_version_package,
             filesystem,
             shared_filesystem,
         }
-    }
-
-    /// Sets the package whose OCI version is reported as `agent.version`. When left unset (`None`),
-    /// [`check_subagent_version`](Self::check_subagent_version) falls back to the sole configured
-    /// package.
-    pub fn with_version_package(mut self, version_package: Option<PackageID>) -> Self {
-        self.version_package = version_package;
-        self
     }
 
     fn start_health_check(
@@ -329,7 +323,7 @@ where
     }
 
     fn version_package_to_report(&self) -> Option<(&PackageID, &RenderedPackage)> {
-        if let Some(id) = &self.version_package {
+        if let Some(id) = &self.reported_version_package {
             return self.packages_config.get_key_value(id);
         }
 
@@ -705,6 +699,7 @@ pub mod tests {
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use crate::sub_agent::supervisor::Supervisor;
     use crate::utils::retry::retry;
+    use rstest::rstest;
     use serde::Deserialize;
     use std::collections::HashMap;
     use std::{
@@ -732,7 +727,7 @@ pub mod tests {
 
     fn supervisor_with_packages(
         packages: RenderedPackages,
-        version_package: Option<PackageID>,
+        reported_version_package: Option<PackageID>,
     ) -> NotStartedSupervisorOnHost<MockPackageManager> {
         let agent_identity = AgentIdentity::from((
             AgentID::try_from("test-agent".to_string()).unwrap(),
@@ -743,62 +738,54 @@ pub mod tests {
             vec![],
             None,
             packages,
+            reported_version_package,
             Arc::new(MockPackageManager::new()),
             false,
             PathBuf::from("/tmp"),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         )
-        .with_version_package(version_package)
     }
 
-    #[test]
-    fn version_package_to_report_selects_configured_package() {
-        let packages = RenderedPackages::from([
-            (
-                "infra".to_string(),
-                rendered_package("newrelic-infra", "1.2.3"),
-            ),
-            ("flex".to_string(), rendered_package("nri-flex", "4.5.6")),
-        ]);
-        let supervisor = supervisor_with_packages(packages, Some("flex".to_string()));
+    #[rstest]
+    // An explicit reported_version_package selects that package among several.
+    #[case::selects_configured_package(
+        vec![("infra", "newrelic-infra", "1.2.3"), ("flex", "nri-flex", "4.5.6")],
+        Some("flex".to_string()),
+        Some(("flex", "4.5.6")),
+    )]
+    // With a sole package and no explicit selection, it defaults to that package.
+    #[case::defaults_to_sole_package(
+        vec![("infra", "newrelic-infra", "1.2.3")],
+        None,
+        Some(("infra", "1.2.3")),
+    )]
+    // No packages: nothing to report.
+    #[case::none_without_packages(vec![], None, None)]
+    // No reported_version_package + multiple packages is ambiguous: nothing is reported.
+    #[case::none_when_ambiguous(
+        vec![("infra", "newrelic-infra", "1.2.3"), ("flex", "nri-flex", "4.5.6")],
+        None,
+        None,
+    )]
+    fn version_package_to_report(
+        #[case] packages: Vec<(&str, &str, &str)>,
+        #[case] reported_version_package: Option<PackageID>,
+        #[case] expected: Option<(&str, &str)>,
+    ) {
+        let packages = packages
+            .into_iter()
+            .map(|(id, repository, version)| {
+                (id.to_string(), rendered_package(repository, version))
+            })
+            .collect();
+        let supervisor = supervisor_with_packages(packages, reported_version_package);
 
-        let (id, package) = supervisor.version_package_to_report().unwrap();
-        assert_eq!(id, "flex");
-        assert_eq!(package.download.oci.version.to_string(), "4.5.6");
-    }
-
-    #[test]
-    fn version_package_to_report_defaults_to_sole_package() {
-        let packages = RenderedPackages::from([(
-            "infra".to_string(),
-            rendered_package("newrelic-infra", "1.2.3"),
-        )]);
-        let supervisor = supervisor_with_packages(packages, None);
-
-        let (id, package) = supervisor.version_package_to_report().unwrap();
-        assert_eq!(id, "infra");
-        assert_eq!(package.download.oci.version.to_string(), "1.2.3");
-    }
-
-    #[test]
-    fn version_package_to_report_none_without_packages() {
-        let supervisor = supervisor_with_packages(get_empty_packages(), None);
-        assert!(supervisor.version_package_to_report().is_none());
-    }
-
-    #[test]
-    fn version_package_to_report_none_when_ambiguous() {
-        // No version_package + multiple packages is ambiguous: nothing is reported.
-        let packages = RenderedPackages::from([
-            (
-                "infra".to_string(),
-                rendered_package("newrelic-infra", "1.2.3"),
-            ),
-            ("flex".to_string(), rendered_package("nri-flex", "4.5.6")),
-        ]);
-        let supervisor = supervisor_with_packages(packages, None);
-        assert!(supervisor.version_package_to_report().is_none());
+        let reported = supervisor
+            .version_package_to_report()
+            .map(|(id, package)| (id.as_str(), package.download.oci.version.to_string()));
+        let expected = expected.map(|(id, version)| (id, version.to_string()));
+        assert_eq!(reported, expected);
     }
 
     #[derive(Clone, Deserialize)]
@@ -868,6 +855,7 @@ pub mod tests {
             executable_data,
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -914,6 +902,7 @@ pub mod tests {
             executables,
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -966,6 +955,7 @@ persistent.txt:
             vec![],
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1036,6 +1026,7 @@ persistent.txt:
             vec![],
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1080,6 +1071,7 @@ persistent.txt:
             executables,
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1130,6 +1122,7 @@ persistent.txt:
             executables,
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1180,6 +1173,7 @@ persistent.txt:
             executables,
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1225,6 +1219,7 @@ persistent.txt:
             executables,
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1289,6 +1284,7 @@ persistent.txt:
             executables,
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1470,6 +1466,7 @@ persistent.txt:
             vec![exec_data_1],
             None,
             get_empty_packages(),
+            None,
             Arc::new(MockPackageManager::new()),
             true,
             logging_path.clone(),
@@ -1511,7 +1508,7 @@ persistent.txt:
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
             packages: get_empty_packages(),
-            version_package: None,
+            reported_version_package: None,
         };
 
         let runtime = Runtime {
@@ -1563,261 +1560,6 @@ persistent.txt:
     }
 
     #[test]
-    fn test_supervisor_reloading_enables_file_logging() {
-        let dir = tempfile::tempdir().unwrap();
-        let logging_path = dir.path().to_path_buf();
-
-        let echo_cmd = if cfg!(windows) { "cmd" } else { "echo" };
-        let unique_str_1 = "run1_unique_string";
-        let args_1 = if cfg!(windows) {
-            vec![
-                "/C".to_string(),
-                "echo".to_string(),
-                unique_str_1.to_string(),
-            ]
-        } else {
-            vec![unique_str_1.to_string()]
-        };
-
-        let exec_data_1 = ExecutableData {
-            id: "echo-agent".to_string(),
-            bin: echo_cmd.to_string(),
-            args: args_1,
-            env: HashMap::new(),
-            shutdown_timeout: Duration::from_secs(5),
-            restart_policy: RestartPolicy::default(),
-        };
-
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from("test-agent".to_string()).unwrap(),
-            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
-        ));
-
-        // Start with logging DISABLED
-        let supervisor = NotStartedSupervisorOnHost::new(
-            agent_identity.clone(),
-            vec![exec_data_1],
-            None,
-            get_empty_packages(),
-            Arc::new(MockPackageManager::new()),
-            false,
-            logging_path.clone(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-        );
-
-        let (pub_internal, _sub_internal) = pub_sub();
-        let started_supervisor = supervisor
-            .spin_up(pub_internal.clone())
-            .expect("failed to start");
-
-        std::thread::sleep(Duration::from_secs(2));
-
-        let unique_str_2 = "run2_unique_string";
-        let args_2 = if cfg!(windows) {
-            vec![
-                "/C".to_string(),
-                "echo".to_string(),
-                unique_str_2.to_string(),
-            ]
-        } else {
-            vec![unique_str_2.to_string()]
-        };
-
-        let executable_rendered = Executable {
-            id: "echo-agent".to_string(),
-            path: echo_cmd.to_string(),
-            args: Args(args_2),
-            env: Env(HashMap::new()),
-            restart_policy: RestartPolicyConfig::default(),
-        };
-
-        // ENABLING file logging on reload
-        let on_host_config = OnHost {
-            executables: vec![executable_rendered],
-            enable_file_logging: true,
-            health: None,
-            filesystem: FileSystem::test_empty(),
-            shared_filesystem: SharedFileSystem::test_empty(),
-            packages: get_empty_packages(),
-            version_package: None,
-        };
-
-        let runtime = Runtime {
-            deployment: Deployment::Host(on_host_config.clone()),
-        };
-
-        let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);
-
-        let started_supervisor = started_supervisor
-            .apply(effective_agent)
-            .expect("failed to apply");
-
-        std::thread::sleep(Duration::from_secs(2));
-
-        started_supervisor.stop().expect("failed to stop");
-
-        let agent_logs_dir = logging_path.join(agent_identity.id.to_string());
-        assert!(
-            agent_logs_dir.exists(),
-            "Log directory {:?} should exist",
-            agent_logs_dir
-        );
-
-        let all_contents = fs::read_dir(agent_logs_dir)
-            .expect("should find logs dir")
-            .map(|entry| entry.expect("entry").path())
-            .filter(|p| {
-                // The `echo` commands should write to stdout, so we look for these files only.
-                // Filtering by prefix because the timestamp is appended to the file name.
-                p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME_SUFFIX))
-            })
-            .map(|p| fs::read_to_string(p).unwrap_or_default())
-            // we just merge all contents
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        assert!(
-            !all_contents.contains(unique_str_1),
-            "First run log SHOULD NOT be found (it was disabled)"
-        );
-
-        assert!(
-            all_contents.contains(unique_str_2),
-            "Second run log SHOULD be found (it was enabled)"
-        );
-    }
-
-    #[test]
-    fn test_supervisor_reloading_disables_file_logging() {
-        let dir = tempfile::tempdir().unwrap();
-        let logging_path = dir.path().to_path_buf();
-
-        let echo_cmd = if cfg!(windows) { "cmd" } else { "echo" };
-        let unique_str_1 = "run1_unique_string";
-        let args_1 = if cfg!(windows) {
-            vec![
-                "/C".to_string(),
-                "echo".to_string(),
-                unique_str_1.to_string(),
-            ]
-        } else {
-            vec![unique_str_1.to_string()]
-        };
-
-        let exec_data_1 = ExecutableData {
-            id: "echo-agent".to_string(),
-            bin: echo_cmd.to_string(),
-            args: args_1,
-            env: HashMap::new(),
-            shutdown_timeout: Duration::from_secs(5),
-            restart_policy: RestartPolicy::default(),
-        };
-
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from("test-agent".to_string()).unwrap(),
-            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
-        ));
-
-        // Start with logging ENABLED
-        let supervisor = NotStartedSupervisorOnHost::new(
-            agent_identity.clone(),
-            vec![exec_data_1],
-            None,
-            get_empty_packages(),
-            Arc::new(MockPackageManager::new()),
-            true,
-            logging_path.clone(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-        );
-
-        let (pub_internal, _sub_internal) = pub_sub();
-        let started_supervisor = supervisor
-            .spin_up(pub_internal.clone())
-            .expect("failed to start");
-
-        std::thread::sleep(Duration::from_secs(2));
-
-        let unique_str_2 = "run2_unique_string";
-        let args_2 = if cfg!(windows) {
-            vec![
-                "/C".to_string(),
-                "echo".to_string(),
-                unique_str_2.to_string(),
-            ]
-        } else {
-            vec![unique_str_2.to_string()]
-        };
-
-        let executable_rendered = Executable {
-            id: "echo-agent".to_string(),
-            path: echo_cmd.to_string(),
-            args: Args(args_2),
-            env: Env(HashMap::new()),
-            restart_policy: RestartPolicyConfig::default(),
-        };
-
-        // DISABLING file logging on reload
-        let on_host_config = OnHost {
-            executables: vec![executable_rendered],
-            enable_file_logging: false,
-            health: None,
-            filesystem: FileSystem::test_empty(),
-            shared_filesystem: SharedFileSystem::test_empty(),
-            packages: get_empty_packages(),
-            version_package: None,
-        };
-
-        let runtime = Runtime {
-            deployment: Deployment::Host(on_host_config.clone()),
-        };
-
-        let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);
-
-        let started_supervisor = started_supervisor
-            .apply(effective_agent)
-            .expect("failed to apply");
-
-        std::thread::sleep(Duration::from_secs(2));
-
-        started_supervisor.stop().expect("failed to stop");
-
-        let agent_logs_dir = logging_path.join(agent_identity.id.to_string());
-        assert!(
-            agent_logs_dir.exists(),
-            "Log directory {:?} should exist (from first run)",
-            agent_logs_dir
-        );
-
-        let all_contents = fs::read_dir(agent_logs_dir)
-            .expect("should find logs dir")
-            .map(|entry| entry.expect("entry").path())
-            .filter(|p| {
-                // The `echo` commands should write to stdout, so we look for these files only.
-                // Filtering by prefix because the timestamp is appended to the file name.
-                p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME_SUFFIX))
-            })
-            .map(|p| fs::read_to_string(p).unwrap_or_default())
-            // we just merge all contents to handle the corner case of multiple log files
-            // e.g. hourly log rotation while the test is running
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        assert!(
-            all_contents.contains(unique_str_1),
-            "First run log SHOULD be found (it was enabled)"
-        );
-
-        assert!(
-            !all_contents.contains(unique_str_2),
-            "Second run log SHOULD NOT be found (it was disabled)"
-        );
-    }
-
-    #[test]
     fn test_health_checker_thread_publishes_periodically_when_health_config_set() {
         use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthCheckDefinition;
 
@@ -1838,6 +1580,7 @@ persistent.txt:
             vec![],
             Some(health_config),
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1872,108 +1615,5 @@ persistent.txt:
         .expect("expected at least 2 AgentHealthInfo events from the health thread");
 
         started.stop().expect("supervisor should stop");
-    }
-
-    #[test]
-    fn test_supervisor_reloading_keeps_file_logging_disabled() {
-        let dir = tempfile::tempdir().unwrap();
-        let logging_path = dir.path().to_path_buf();
-
-        let echo_cmd = if cfg!(windows) { "cmd" } else { "echo" };
-        let unique_str_1 = "run1_unique_string";
-        let args_1 = if cfg!(windows) {
-            vec![
-                "/C".to_string(),
-                "echo".to_string(),
-                unique_str_1.to_string(),
-            ]
-        } else {
-            vec![unique_str_1.to_string()]
-        };
-
-        let exec_data_1 = ExecutableData {
-            id: "echo-agent".to_string(),
-            bin: echo_cmd.to_string(),
-            args: args_1,
-            env: HashMap::new(),
-            shutdown_timeout: Duration::from_secs(5),
-            restart_policy: RestartPolicy::default(),
-        };
-
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from("test-agent".to_string()).unwrap(),
-            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
-        ));
-
-        // Start with logging DISABLED
-        let supervisor = NotStartedSupervisorOnHost::new(
-            agent_identity.clone(),
-            vec![exec_data_1],
-            None,
-            get_empty_packages(),
-            Arc::new(MockPackageManager::new()),
-            false,
-            logging_path.clone(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-        );
-
-        let (pub_internal, _sub_internal) = pub_sub();
-        let started_supervisor = supervisor
-            .spin_up(pub_internal.clone())
-            .expect("failed to start");
-
-        std::thread::sleep(Duration::from_secs(2));
-
-        let unique_str_2 = "run2_unique_string";
-        let args_2 = if cfg!(windows) {
-            vec![
-                "/C".to_string(),
-                "echo".to_string(),
-                unique_str_2.to_string(),
-            ]
-        } else {
-            vec![unique_str_2.to_string()]
-        };
-
-        let executable_rendered = Executable {
-            id: "echo-agent".to_string(),
-            path: echo_cmd.to_string(),
-            args: Args(args_2),
-            env: Env(HashMap::new()),
-            restart_policy: RestartPolicyConfig::default(),
-        };
-
-        // KEEP logging DISABLED on reload
-        let on_host_config = OnHost {
-            executables: vec![executable_rendered],
-            enable_file_logging: false,
-            health: None,
-            filesystem: FileSystem::test_empty(),
-            shared_filesystem: SharedFileSystem::test_empty(),
-            packages: get_empty_packages(),
-            version_package: None,
-        };
-
-        let runtime = Runtime {
-            deployment: Deployment::Host(on_host_config.clone()),
-        };
-
-        let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);
-
-        let started_supervisor = started_supervisor
-            .apply(effective_agent)
-            .expect("failed to apply");
-
-        std::thread::sleep(Duration::from_secs(2));
-
-        started_supervisor.stop().expect("failed to stop");
-
-        let agent_logs_dir = logging_path.join(agent_identity.id.to_string());
-        assert!(
-            !agent_logs_dir.exists(),
-            "Log directory {:?} should NOT exist",
-            agent_logs_dir
-        );
     }
 }

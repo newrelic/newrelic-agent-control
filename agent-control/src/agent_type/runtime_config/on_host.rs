@@ -29,7 +29,7 @@ pub struct OnHost {
     packages: Packages,
     shared_filesystem: SharedFileSystem,
     /// Package whose OCI version is reported as the `agent.version` identifying attribute.
-    version_package: Option<PackageID>,
+    reported_version_package: Option<PackageID>,
 }
 
 type Packages = HashMap<PackageID, Package>;
@@ -58,7 +58,7 @@ impl<'de> Deserialize<'de> for OnHost {
         }
 
         let raw = OnHostRaw::deserialize(deserializer)?;
-        let version_package = resolve_version_package(&raw.packages, raw.version_package)?;
+        let reported_version_package = resolve_version_package(&raw.packages, raw.version_package)?;
         Ok(OnHost {
             executables: raw.executables,
             enable_file_logging: raw.enable_file_logging,
@@ -66,7 +66,7 @@ impl<'de> Deserialize<'de> for OnHost {
             filesystem: raw.filesystem,
             shared_filesystem: raw.shared_filesystem,
             packages: raw.packages,
-            version_package,
+            reported_version_package,
         })
     }
 }
@@ -158,7 +158,7 @@ impl Templateable for OnHost {
             filesystem: self.filesystem.template_with(&extended_vars)?,
             shared_filesystem: self.shared_filesystem.template_with(&extended_vars)?,
             packages: rendered_packages,
-            version_package: self.version_package,
+            reported_version_package: self.reported_version_package,
         })
     }
 }
@@ -307,7 +307,7 @@ packages:
         version: "1.2.3"
 "#;
         let on_host: OnHost = serde_saphyr::from_str(yaml).unwrap();
-        assert_eq!(on_host.version_package, Some("infra".to_string()));
+        assert_eq!(on_host.reported_version_package, Some("infra".to_string()));
     }
 
     #[test]
@@ -327,7 +327,7 @@ packages:
         version: "4.5.6"
 "#;
         let on_host: OnHost = serde_saphyr::from_str(yaml).unwrap();
-        assert_eq!(on_host.version_package, Some("infra".to_string()));
+        assert_eq!(on_host.reported_version_package, Some("infra".to_string()));
     }
 
     #[test]
@@ -393,7 +393,7 @@ executables:
     args: []
 "#;
         let on_host: OnHost = serde_saphyr::from_str(yaml).unwrap();
-        assert_eq!(on_host.version_package, None);
+        assert_eq!(on_host.reported_version_package, None);
     }
 
     #[test]
@@ -833,7 +833,7 @@ executables:
             filesystem: FileSystem::default(),
             shared_filesystem: SharedFileSystem::default(),
             packages: Default::default(),
-            version_package: None,
+            reported_version_package: None,
         };
 
         // Compare the default OnHost instance with the parsed instance
