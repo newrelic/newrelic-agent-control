@@ -212,7 +212,7 @@ jobs:
           identifier: 'test-dev'
           restore-strategy: 'nearest'
           save-cache: false
-      
+
       - if: ${{ matrix.os == 'windows-latest' }}
         uses: ./.github/actions/rust-cache
         # We have faced issues 'hashFiles('**/Cargo.lock') failed.' in this job. As we couldn't pinpoint
@@ -319,6 +319,18 @@ jobs:
         run: |
           curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
 
+      - name: Preload chartmuseum image into Minikube
+        env:
+          CHARTMUSEUM_IMAGE: ghcr.io/helm/chartmuseum:v0.16.3
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin || echo "ghcr login failed, continuing with anonymous pull"
+          for i in 1 2 3 4 5; do
+            docker pull "$CHARTMUSEUM_IMAGE" && break
+            echo "chartmuseum image pull failed (attempt $i/5), retrying in 5s..."
+            sleep 5
+          done
+          minikube image load "$CHARTMUSEUM_IMAGE"
+
       - uses: ./.github/actions/install-rust-toolchain
         with:
           targets: >-
@@ -342,10 +354,19 @@ jobs:
         with:
           tool: cargo-zigbuild@0.20.1
 
+      - name: Fetch cargo dependencies
+        run: |
+          for i in 1 2 3; do
+            cargo fetch --locked && break
+            echo "cargo fetch failed (attempt $i/3), retrying in 10s..."
+            sleep 10
+          done
+
       - name: Run k8s integration tests
         env:
           # Tilt configs
           ARCH: amd64
+          CARGO_NET_OFFLINE: "true"
         run: make -C agent-control test/k8s/integration-${{ matrix.group }}
 
   k8s-e2e-tests:

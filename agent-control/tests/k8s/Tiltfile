@@ -73,14 +73,34 @@ helm_repo(
   resource_name='chartmuseum-repo',
   )
 
+# Pre-pull the chart with retry: helm fetches the chart tgz from GitHub release assets, which can
+# time out. Retrying the pull (not the pod) and installing from the local copy keeps setup reliable.
+local_resource(
+  'chartmuseum-chart-pull',
+  cmd='''set -eu
+rm -rf local/chartmuseum-chart
+for i in 1 2 3 4 5; do
+  helm pull chartmuseum/chartmuseum --untar --untardir local/chartmuseum-chart && exit 0
+  echo "helm pull chartmuseum failed (attempt $i/5), retrying in 5s..."
+  sleep 5
+done
+exit 1
+''',
+  resource_deps=['chartmuseum-repo'],
+)
+
 helm_resource(
   'chartmuseum',
-  'chartmuseum/chartmuseum',
+  'local/chartmuseum-chart/chartmuseum',
   namespace='default',
   release_name='chartmuseum',
-  resource_deps=['chartmuseum-repo'],
-  # activate API to upload charts
-  flags=['--set=env.open.DISABLE_API=false'],
+  resource_deps=['chartmuseum-chart-pull'],
+  flags=[
+    '--set=env.open.DISABLE_API=false',
+    '--set=image.repository=ghcr.io/helm/chartmuseum',
+    '--set=image.tag=v0.16.3',
+    '--set=image.pullPolicy=IfNotPresent',
+  ],
   port_forwards=['8080']
 )
 
