@@ -19,8 +19,7 @@ pub mod rendered;
 /// The definition for an on-host supervisor.
 ///
 /// It contains the instructions of what are the agent binaries, command-line arguments, the environment variables passed to it and the restart policy of the supervisor.
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-#[serde(try_from = "OnHostRaw")]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct OnHost {
     executables: Vec<Executable>,
     enable_file_logging: TemplateableValue<bool>,
@@ -35,28 +34,30 @@ pub struct OnHost {
 
 type Packages = HashMap<PackageID, Package>;
 
-#[derive(Debug, Deserialize)]
-struct OnHostRaw {
-    #[serde(deserialize_with = "deserialize_executables", default)]
-    executables: Vec<Executable>,
-    #[serde(default)]
-    enable_file_logging: TemplateableValue<bool>,
-    #[serde(default)]
-    health: Option<OnHostHealthConfig>,
-    #[serde(default)]
-    filesystem: FileSystem,
-    #[serde(default)]
-    shared_filesystem: SharedFileSystem,
-    #[serde(default)]
-    packages: Packages,
-    #[serde(default)]
-    version_package: Option<PackageID>,
-}
+impl<'de> Deserialize<'de> for OnHost {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct OnHostRaw {
+            #[serde(deserialize_with = "deserialize_executables", default)]
+            executables: Vec<Executable>,
+            #[serde(default)]
+            enable_file_logging: TemplateableValue<bool>,
+            #[serde(default)]
+            health: Option<OnHostHealthConfig>,
+            #[serde(default)]
+            filesystem: FileSystem,
+            #[serde(default)]
+            shared_filesystem: SharedFileSystem,
+            #[serde(default)]
+            packages: Packages,
+            #[serde(default)]
+            version_package: Option<PackageID>,
+        }
 
-impl TryFrom<OnHostRaw> for OnHost {
-    type Error = String;
-
-    fn try_from(raw: OnHostRaw) -> Result<Self, Self::Error> {
+        let raw = OnHostRaw::deserialize(deserializer)?;
         let version_package = resolve_version_package(&raw.packages, raw.version_package)?;
         Ok(OnHost {
             executables: raw.executables,
@@ -75,27 +76,27 @@ impl TryFrom<OnHostRaw> for OnHost {
 /// - with no packages declared, there is nothing to report (`None`);
 /// - with exactly one package, it defaults to that package;
 /// - with more than one package, `version_package` is required.
-fn resolve_version_package(
+fn resolve_version_package<E: serde::de::Error>(
     packages: &Packages,
     declared: Option<PackageID>,
-) -> Result<Option<PackageID>, String> {
+) -> Result<Option<PackageID>, E> {
     if let Some(id) = declared {
         if packages.contains_key(&id) {
             return Ok(Some(id));
         }
-        return Err(format!(
+        return Err(E::custom(format!(
             "`version_package` references unknown package `{id}`; declared packages: [{}]",
             packages.keys().cloned().collect::<Vec<_>>().join(", ")
-        ));
+        )));
     }
 
     match packages.len() {
         0 => Ok(None),
         1 => Ok(packages.keys().next().cloned()),
-        _ => Err(format!(
+        _ => Err(E::custom(format!(
             "`version_package` is required when more than one package is defined; declared packages: [{}]",
             packages.keys().cloned().collect::<Vec<_>>().join(", ")
-        )),
+        ))),
     }
 }
 
