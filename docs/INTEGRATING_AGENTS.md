@@ -624,14 +624,17 @@ Note that a Package version. Can be:
 
 **Post-Download Hook:**
 
-The `post_download_hook` is an optional field that allows executing a custom script after the package is downloaded and extracted. This is useful for:
+The `post_download_hook` is an optional field that allows executing a custom script as part of installing the package. This is useful for:
 - Installing system dependencies
 - Compiling native code
 - Performing system configuration
 - Validating installation requirements
 - Running setup scripts that cannot be handled through simple file extraction
 
-The hook runs with a hardcoded timeout of 300 seconds (5 minutes) and is not configurable. If the script exits with a non-zero status code, the package installation fails.
+The hook runs with a hardcoded timeout of 300 seconds (5 minutes) and is not configurable. If the script exits with a non-zero status code, the package installation fails and the sub-agent's executables are not started. On failure the package is **not** removed from disk; the hook is re-attempted on the next install.
+
+> [!IMPORTANT]
+> The hook runs on **every** install, not only when a new version is downloaded. If the package version is already present on disk, Agent Control skips the download, signature verification and extraction, **but it still runs the hook**. Because `install()` is invoked on every sub-agent start (i.e. every Agent Control restart) and on every config apply (as well as on version changes and rollbacks to an already-present version), the hook can run frequently. **Write hooks to be idempotent, fast and deterministic.**
 
 ```yaml
   post_download_hook:
