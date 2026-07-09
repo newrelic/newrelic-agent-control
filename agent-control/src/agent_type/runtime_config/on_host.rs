@@ -85,7 +85,7 @@ fn resolve_version_package(
         }
         return Err(format!(
             "`version_package` references unknown package `{id}`; declared packages: [{}]",
-            sorted_package_ids(packages)
+            packages.keys().cloned().collect::<Vec<_>>().join(", ")
         ));
     }
 
@@ -94,15 +94,9 @@ fn resolve_version_package(
         1 => Ok(packages.keys().next().cloned()),
         _ => Err(format!(
             "`version_package` is required when more than one package is defined; declared packages: [{}]",
-            sorted_package_ids(packages)
+            packages.keys().cloned().collect::<Vec<_>>().join(", ")
         )),
     }
-}
-
-fn sorted_package_ids(packages: &Packages) -> String {
-    let mut ids = packages.keys().cloned().collect::<Vec<_>>();
-    ids.sort();
-    ids.join(", ")
 }
 
 impl OnHost {

@@ -330,15 +330,7 @@ where
 
     fn version_package_to_report(&self) -> Option<(&PackageID, &RenderedPackage)> {
         if let Some(id) = &self.version_package {
-            let entry = self.packages_config.get_key_value(id);
-            if entry.is_none() {
-                warn!(
-                    agent_type=%self.agent_identity.agent_type_id,
-                    version_package=%id,
-                    "Configured version_package not found among rendered packages; not reporting agent.version"
-                );
-            }
-            return entry;
+            return self.packages_config.get_key_value(id);
         }
 
         match self.packages_config.len() {
