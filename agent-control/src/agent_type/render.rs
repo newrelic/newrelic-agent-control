@@ -107,6 +107,7 @@ impl TemplateRenderer {
 #[allow(missing_docs)]
 pub(crate) mod tests {
     use std::path::PathBuf;
+    use std::str::FromStr;
 
     use super::*;
     use crate::agent_type::runtime_config::on_host::executable::rendered as exec_rendered;
@@ -126,7 +127,12 @@ pub(crate) mod tests {
     }
 
     pub fn testing_agent_attributes(agent_id: &AgentID) -> AgentAttributes {
-        AgentAttributes::try_new(agent_id.clone(), PathBuf::default()).unwrap()
+        #[cfg(windows)]
+        let root = "C:\\";
+        #[cfg(not(windows))]
+        let root = "/";
+
+        AgentAttributes::try_new(agent_id.clone(), PathBuf::from_str(root).unwrap()).unwrap()
     }
 
     #[test]
