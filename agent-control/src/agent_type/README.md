@@ -61,11 +61,6 @@ variables:
     type: yaml
     required: false
     default: {}
-  config_integrations:
-    description: "map of YAML configs for the OHIs"
-    type: map[string]yaml
-    required: false
-    default: {}
   backoff_delay:
     description: "seconds until next retry if agent fails to start"
     type: string
@@ -153,7 +148,7 @@ deployment:
       args:
         - --config
         - ${nr-var:config_agent}
-      env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_STATUS_SERVER_ENABLED=true"
+      env: "NRIA_PLUGIN_DIR="${nr-sub:shared_filesystem_dir}/infra-agent-ohi-configs" NRIA_STATUS_SERVER_ENABLED=true"
       restart_policy:
         backoff_strategy:
           type: fixed

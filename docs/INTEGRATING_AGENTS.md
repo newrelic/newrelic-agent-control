@@ -228,9 +228,6 @@ deployment:
           kind: file
           text: |
             ${nr-var:config_agent}
-    integrations.d:
-      kind: dir_content_from_map
-      source: ${nr-var:config_integrations}
     logging.d:
       kind: dir_content_from_map
       source: ${nr-var:config_logging}
@@ -241,7 +238,7 @@ deployment:
         - --config
         - ${nr-sub:filesystem_agent_dir}/config/newrelic-infra.yaml
       env:
-        NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}/integrations.d"
+        NRIA_PLUGIN_DIR: "${nr-sub:shared_filesystem_dir}/infra-agent-ohi-configs"
         NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:filesystem_agent_dir}/logging.d"
         NRIA_STATUS_SERVER_ENABLED: true
         NRIA_STATUS_SERVER_PORT: "${nr-var:health_port}"
@@ -280,9 +277,6 @@ deployment:
           kind: file
           text: |
             ${nr-var:config_agent}
-    integrations.d:
-      kind: dir_content_from_map
-      source: ${nr-var:config_integrations}
     logging.d:
       kind: dir_content_from_map
       source: ${nr-var:config_logging}
@@ -293,7 +287,7 @@ deployment:
         - --config
         - ${nr-sub:filesystem_agent_dir}\\config\\newrelic-infra.yaml
       env:
-        NRIA_PLUGIN_DIR: "${nr-sub:filesystem_agent_dir}\\integrations.d"
+        NRIA_PLUGIN_DIR: "${nr-sub:shared_filesystem_dir}\\infra-agent-ohi-configs"
         NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:filesystem_agent_dir}\\logging.d"
         NRIA_STATUS_SERVER_ENABLED: true
         NRIA_STATUS_SERVER_PORT: "${nr-var:health_port}"
@@ -411,11 +405,6 @@ variables:
     type: yaml
     required: false
     default: ""
-  config_integrations:
-    description: "map of YAML configs for the OHIs"
-    type: map[string]yaml
-    required: false
-    default: {}
   config_logging:
     description: "map of YAML config for logging"
     type: map[string]yaml
@@ -447,9 +436,6 @@ filesystem:
       data:
         kind: dir
         persistent: true
-      integrations.d:
-        kind: dir_content_from_map
-        source: ${nr-var:config_integrations}
       newrelic-infra.yaml:
         kind: file
         text: |
@@ -465,18 +451,6 @@ config_agent: |
   license_key: REDACTED
   log:
     level: info
-
-config_integrations:
-  nri-mysql.yaml: |
-    integrations:
-      - name: nri-mysql
-        env:
-          HOSTNAME: localhost
-  nri-redis.yaml: |
-    integrations:
-      - name: nri-redis
-        env:
-          HOSTNAME: localhost
 
 config_logging:
   syslog.yaml: |
@@ -500,9 +474,6 @@ config/                  ← empty, persistent
 
 agent/
 ├── data/                ← empty, persistent
-├── integrations.d/      ← projected from config_integrations (see below)
-│   ├── nri-mysql.yaml
-│   └── nri-redis.yaml
 └── newrelic-infra.yaml  ← contents from ${nr-var:config_agent}
 ```
 
@@ -511,10 +482,6 @@ agent/
 ```
 logging.d/
 └── syslog.yaml          ← contents from config_logging["syslog.yaml"]
-
-agent/integrations.d/
-├── nri-mysql.yaml       ← contents from config_integrations["nri-mysql.yaml"]
-└── nri-redis.yaml       ← contents from config_integrations["nri-redis.yaml"]
 ```
 
 ###### Entry kinds reference

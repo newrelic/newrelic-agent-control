@@ -800,9 +800,6 @@ agent:
   entries:
     data:
       kind: dir
-    integrations.d:
-      kind: dir_content_from_map
-      source: ${nr-var:config_integrations}
     newrelic-infra.yaml:
       kind: file
       text: ${nr-var:config_agent}
@@ -817,24 +814,6 @@ agent:
             (
                 Namespace::Variable.namespaced_name("config_agent"),
                 Variable::new_final_string_variable("license_key: REDACTED\n"),
-            ),
-            (
-                Namespace::Variable.namespaced_name("config_integrations"),
-                Variable::new(
-                    String::default(),
-                    false,
-                    None,
-                    Some(HashMap::from([
-                        (
-                            "nri-mysql.yaml".to_string(),
-                            Value::String("integration: mysql".to_string()),
-                        ),
-                        (
-                            "nri-redis.yaml".to_string(),
-                            Value::String("integration: redis".to_string()),
-                        ),
-                    ])),
-                ),
             ),
             (
                 Namespace::Variable.namespaced_name("config_logging"),
@@ -875,16 +854,10 @@ agent:
         let FilesystemEntry::Dir { entries, .. } = nested_dir else {
             panic!("expected agent to be a Dir, got {nested_dir:?}");
         };
-        assert_eq!(entries.len(), 3);
+        assert_eq!(entries.len(), 2);
         assert!(matches!(
             entries.get(&SafePath(PathBuf::from("data"))).unwrap(),
             FilesystemEntry::Dir { .. }
-        ));
-        assert!(matches!(
-            entries
-                .get(&SafePath(PathBuf::from("integrations.d")))
-                .unwrap(),
-            FilesystemEntry::DirContentFromMap { .. }
         ));
         assert!(matches!(
             entries
@@ -924,14 +897,6 @@ foo:
             (
                 tmp_dir.path().join("agent/newrelic-infra.yaml"),
                 "license_key: REDACTED\n",
-            ),
-            (
-                tmp_dir.path().join("agent/integrations.d/nri-mysql.yaml"),
-                "integration: mysql",
-            ),
-            (
-                tmp_dir.path().join("agent/integrations.d/nri-redis.yaml"),
-                "integration: redis",
             ),
             (tmp_dir.path().join("logging.d/syslog.yaml"), "logs: []"),
         ];
