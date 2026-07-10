@@ -47,7 +47,7 @@ impl AgentSharedPaths {
 
     /// Returns the first pair of claimed paths (one from each agent) that overlap, if any.
     /// Check [SharedFilesystemPathValidator] docs for details.
-    fn overlapping_path<'a>(&'a self, other: &'a Self) -> Option<(&'a Path, &'a Path)> {
+    fn overlapping_path<'a>(&self, other: &'a Self) -> Option<(&Path, &'a Path)> {
         self.claimed.iter().find_map(|own| {
             other
                 .claimed
