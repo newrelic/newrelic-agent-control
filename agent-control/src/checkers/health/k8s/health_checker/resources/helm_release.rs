@@ -73,7 +73,7 @@ impl<C: K8sClient> K8sHealthHelmRelease<C> {
             .ok_or_else(|| {
                 HealthCheckerError::Generic(format!(
                     "Failed to parse status of HelmRelease '{}'",
-                    &self.name
+                    self.name
                 ))
             })
     }
@@ -90,7 +90,7 @@ impl<C: K8sClient> K8sHealthHelmRelease<C> {
             .ok_or_else(|| {
                 HealthCheckerError::Generic(format!(
                     "No conditions found in status of HelmRelease '{}'",
-                    &self.name
+                    self.name
                 ))
             })?;
         Ok(conditions)
@@ -162,11 +162,11 @@ impl<C: K8sClient> HealthChecker for K8sHealthHelmRelease<C> {
             .map_err(|e| {
                 HealthCheckerError::Generic(format!(
                     "Error fetching HelmRelease '{}': {}",
-                    &self.name, e
+                    self.name, e
                 ))
             })?
             .ok_or_else(|| {
-                HealthCheckerError::Generic(format!("HelmRelease '{}' not found", &self.name))
+                HealthCheckerError::Generic(format!("HelmRelease '{}' not found", self.name))
             })?;
 
         let helm_release_data = helm_release.data.as_object().ok_or_else(|| {

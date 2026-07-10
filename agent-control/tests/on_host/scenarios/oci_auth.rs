@@ -123,7 +123,7 @@ fn push_fake_package_with_basic_auth(signer: &OCISigner) -> Reference {
         &path,
         // force different digests for each test to avoid race conditions
         // as the OCISigner wipes out old signatures.
-        format!("fake random data: {}", &dir.path().display()).as_str(),
+        format!("fake random data: {}", dir.path().display()).as_str(),
         FAKE_ARTIFACT_NAME,
     );
     let reference = PackagePublisher::new(tokio_runtime().handle().clone(), OCI_TEST_REGISTRY_URL)

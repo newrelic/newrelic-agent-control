@@ -75,12 +75,9 @@ impl<C: K8sClient> VersionChecker for HelmReleaseVersionChecker<C> {
                 },
             )
             .map_err(|e| {
-                VersionCheckError(format!(
-                    "Error fetching HelmRelease '{}': {}",
-                    &self.name, e
-                ))
+                VersionCheckError(format!("Error fetching HelmRelease '{}': {}", self.name, e))
             })?
-            .ok_or_else(|| VersionCheckError(format!("HelmRelease '{}' not found", &self.name)))?;
+            .ok_or_else(|| VersionCheckError(format!("HelmRelease '{}' not found", self.name)))?;
 
         let helm_release_data = helm_release
             .data

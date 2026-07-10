@@ -42,7 +42,7 @@ where
             .map_err(|err| {
                 LoaderError::from(format!(
                     "could not load {} config values: {}",
-                    &self.agent_id, err
+                    self.agent_id, err
                 ))
             })?;
         // No configuration is considered as empty effective-configuration
@@ -51,7 +51,7 @@ where
         let values_string: String = values.get_yaml_config().clone().try_into().map_err(|err| {
             LoaderError::from(format!(
                 "could not load {} config values: {}",
-                &self.agent_id, err
+                self.agent_id, err
             ))
         })?;
 
