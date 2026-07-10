@@ -2,7 +2,9 @@
 //! and version checks for a single sub-agent.
 
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
+use crate::agent_control::defaults::{
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_PACKAGE_VERSION_ATTRIBUTE_KEY_PREFIX,
+};
 use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConfig;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::{
     FileSystem, FileSystemEntriesError, SharedFileSystem,
@@ -318,14 +320,25 @@ where
             version=%version,
             "Agent version determined from OCI package; publishing AgentAttributesUpdated event"
         );
+        let mut identifying_attributes = HashMap::from([(
+            OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+            version.into(),
+        )]);
+
+        // Per-package versions as identifying attributes: `package.version.<id>`.
+        self.packages_config
+            .iter()
+            .for_each(|(package_id, package)| {
+                identifying_attributes.insert(
+                    format!("{OPAMP_PACKAGE_VERSION_ATTRIBUTE_KEY_PREFIX}.{package_id}"),
+                    package.download.oci.version.to_string().into(),
+                );
+            });
 
         publish_update_attributes_event(
             &sub_agent_internal_publisher,
             SubAgentInternalEvent::AgentAttributesUpdated(AgentDescription {
-                identifying_attributes: HashMap::from([(
-                    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-                    version.into(),
-                )]),
+                identifying_attributes,
                 ..Default::default()
             }),
         );
@@ -666,6 +679,9 @@ pub mod tests {
     use crate::agent_type::runtime_config::health_config::HealthCheckTimeout;
     use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env, Executable};
     use crate::agent_type::runtime_config::on_host::filesystem::FileSystem as ParsedFileSystem;
+    use crate::agent_type::runtime_config::on_host::package::rendered::{
+        Download, Oci, Package, Repository, Version,
+    };
     use crate::agent_type::runtime_config::on_host::rendered::OnHost;
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
     use crate::agent_type::runtime_config::restart_policy::rendered::RestartPolicyConfig;
@@ -682,8 +698,10 @@ pub mod tests {
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use crate::sub_agent::supervisor::Supervisor;
     use crate::utils::retry::retry;
+    use opamp_client::operation::settings::DescriptionValueType;
     use serde::Deserialize;
     use std::collections::HashMap;
+    use std::str::FromStr;
     use std::{
         fs, thread,
         time::{Duration, Instant},
@@ -692,6 +710,73 @@ pub mod tests {
 
     fn get_empty_packages() -> RenderedPackages {
         HashMap::new()
+    }
+
+    fn test_package_with_version(version: &str) -> Package {
+        Package {
+            download: Download {
+                oci: Oci {
+                    repository: Repository::from_str("newrelic/test").unwrap(),
+                    version: Version::from_str(version).unwrap(),
+                    public_key_url: None,
+                },
+            },
+            post_download_hook: None,
+        }
+    }
+
+    #[test]
+    fn test_check_subagent_version_publishes_per_package_identifying_attributes() {
+        let agent_identity = AgentIdentity::from((
+            AgentID::try_from("multi-pkg-agent").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+
+        let packages: RenderedPackages = HashMap::from([
+            ("core".to_string(), test_package_with_version("1.0.0")),
+            ("plugin-b".to_string(), test_package_with_version("2.3.4")),
+        ]);
+
+        let supervisor = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            vec![],
+            None,
+            packages,
+            MockPackageManager::new_arc(),
+            false,
+            PathBuf::default(),
+            FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
+        );
+
+        let (publisher, consumer) = pub_sub();
+        supervisor.check_subagent_version(publisher);
+
+        let event = consumer
+            .as_ref()
+            .try_recv()
+            .expect("expected an AgentAttributesUpdated event");
+
+        let SubAgentInternalEvent::AgentAttributesUpdated(desc) = event else {
+            panic!("expected AgentAttributesUpdated, got {event:?}");
+        };
+
+        // Identifying: agent.version reports the lowest-id package's version ("core" → "1.0.0").
+        assert_eq!(
+            desc.identifying_attributes
+                .get(OPAMP_AGENT_VERSION_ATTRIBUTE_KEY),
+            Some(&DescriptionValueType::String("1.0.0".to_string()))
+        );
+
+        // Identifying: package.version.<id> is present for every package.
+        assert_eq!(
+            desc.identifying_attributes.get("package.version.core"),
+            Some(&DescriptionValueType::String("1.0.0".to_string()))
+        );
+        assert_eq!(
+            desc.identifying_attributes.get("package.version.plugin-b"),
+            Some(&DescriptionValueType::String("2.3.4".to_string()))
+        );
     }
 
     #[derive(Clone, Deserialize)]

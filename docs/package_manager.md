@@ -286,6 +286,8 @@ If needed, you can run a local OCI registry using [zot](https://github.com/proje
 $ ./tools/oci-registry.sh run  
 ```
 
+This is needed to execute tests with ignore "needs oci registry" and having suffix 'with_oci_registry'.
+
 Notice that AC is already configured to use HTTP as protocol when connecting to `localhost:5001` if executed/built __without__ `--release`.
 
 ## Agent Types Management
