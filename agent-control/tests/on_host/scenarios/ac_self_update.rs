@@ -212,7 +212,7 @@ fn test_ac_self_update_fails_for_unsigned_package_with_oci_registry() {
 
     let dirs = TempBasePaths::default();
 
-    create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), true);
+    create_self_update_no_cooldown_config(&opamp_server, &signer, &dirs.local_dir(), true);
 
     let mut agent_control = start_agent_control_with_custom_config(
         dirs.base_paths().clone(),
@@ -314,7 +314,7 @@ fn test_ac_self_update_fails_for_missing_version_with_oci_registry() {
     let dirs = TempBasePaths::default();
 
     // Disables signature verification to make sure the test reaches the package fetch step, which should fail for a non-existent version.
-    create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), false);
+    create_self_update_no_cooldown_config(&opamp_server, &signer, &dirs.local_dir(), false);
 
     let mut agent_control = start_agent_control_with_custom_config(
         dirs.base_paths().clone(),
@@ -371,7 +371,7 @@ fn test_ac_self_update_fails_when_binary_verification_fails_with_oci_registry() 
 
     let new_version_tag = push_signed_invalid_fake_ac_package(&signer);
 
-    create_self_update_local_config(&opamp_server, &signer, &dirs.local_dir(), true);
+    create_self_update_no_cooldown_config(&opamp_server, &signer, &dirs.local_dir(), true);
 
     let mut agent_control = start_agent_control_with_custom_config(
         dirs.base_paths().clone(),
@@ -550,6 +550,45 @@ fn create_self_update_local_config(
             signer.jwks_url().to_string(),
         )
         .write(local_dir.to_path_buf());
+}
+
+/// Self-update local config with a zero-cooldown backoff, so the gate never suppresses the retry
+/// and the real failure stays the reported status instead of the transient "suppressed" cooldown
+/// message (the cause of the flakiness).
+fn create_self_update_no_cooldown_config(
+    opamp_server: &FakeServer,
+    signer: &OCISigner,
+    local_dir: &Path,
+    signature_verification_enabled: bool,
+) {
+    let config = format!(
+        r#"
+host_id: integration-test
+fleet_control:
+  endpoint: {}
+  poll_interval: 1s
+  signature_validation:
+    public_key_server_url: {}
+agents: {{}}
+oci:
+  registry: {OCI_TEST_REGISTRY_URL}
+self_update:
+  enabled: true
+  signature_verification_enabled: {signature_verification_enabled}
+  upgrade_backoff:
+    base_delay: 0s
+    max_delay: 0s
+  package:
+    download:
+      oci:
+        repository: test
+        public_key_url: {}
+"#,
+        opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
+        signer.jwks_url()
+    );
+    create_local_config(AGENT_CONTROL_ID, config, local_dir.to_path_buf());
 }
 
 /// Pushes an invalid fake agent-control binary package to the OCI registry and signs it.
