@@ -72,10 +72,6 @@ config_logging:
         file: /var/log/syslog
         attributes:
           host.id: {test_id}
-config_integrations:
-  nri-e2e-check.yaml: |
-    integrations:
-      - name: nri-e2e-check
 version: {}
 "#,
             infra_version
@@ -121,11 +117,13 @@ fn check_ohi_shared_filesystem() -> TestResult<()> {
         }
     }
 
-    let config_path = Path::new(SHARED_FILESYSTEM_DIR)
-        .join(SHARED_OHI_CONFIGS_DIR)
-        .join("nri-e2e-check.yaml");
-    if !config_path.is_file() {
-        return Err(format!("expected OHI config not found at {}", config_path.display()).into());
+    let ohi_configs_path = Path::new(SHARED_FILESYSTEM_DIR).join(SHARED_OHI_CONFIGS_DIR);
+    if !ohi_configs_path.is_dir() {
+        return Err(format!(
+            "expected OHI config not found at {}",
+            ohi_configs_path.display()
+        )
+        .into());
     }
 
     Ok(())

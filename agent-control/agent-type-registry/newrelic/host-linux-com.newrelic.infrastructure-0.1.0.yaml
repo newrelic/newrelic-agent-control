@@ -10,11 +10,6 @@ variables:
     type: yaml
     required: false
     default: ""
-  config_integrations:
-    description: "map of YAML configs for the OHIs"
-    type: map[string]yaml
-    required: false
-    default: { }
   config_logging:
     description: "map of YAML config for logging"
     type: map[string]yaml
@@ -90,9 +85,8 @@ deployment:
     # OHIs config folders.
     # infra-agent is configured through NRIA_PLUGIN_DIR, to read configs from this folder.
     infra-agent-ohi-configs:
-      kind: dir_content_from_map
+      kind: dir
       persistent: true
-      source: ${nr-var:config_integrations}
     # OHIs binaries folder.
     # infra-agent is configured through NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR and NRIA_SAFE_BIN_DIR,
     # to read binaries from this folder.
