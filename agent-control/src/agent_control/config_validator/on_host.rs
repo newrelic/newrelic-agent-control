@@ -243,6 +243,90 @@ ohi-configs:
     }
 
     #[test]
+    fn files_with_extension_prefix_overlap_are_allowed() {
+        let short = host_type_with_shared(
+            "test",
+            "short",
+            r#"
+some_path:
+  kind: dir
+  entries:
+    some_file.txt:
+      kind: file
+      text: short
+"#,
+        );
+        let long = host_type_with_shared(
+            "test",
+            "long",
+            r#"
+some_path:
+  kind: dir
+  entries:
+    some_file.txt.txt:
+      kind: file
+      text: long
+"#,
+        );
+
+        let mut registry = MockAgentTypeRegistry::new();
+        registry.should_get(AgentTypeID::try_from("test/short:0.0.1").unwrap(), &short);
+        registry.should_get(AgentTypeID::try_from("test/long:0.0.1").unwrap(), &long);
+
+        let config = dynamic_config(&[
+            ("short-agent", "test/short:0.0.1"),
+            ("long-agent", "test/long:0.0.1"),
+        ]);
+
+        assert!(
+            validator(registry).validate(&config).is_ok(),
+            "`some_file.txt` and `some_file.txt.txt` are distinct files and must not conflict"
+        );
+    }
+
+    #[test]
+    fn managed_dir_and_prefixed_sibling_file_are_allowed() {
+        let managed = host_type_with_shared(
+            "test",
+            "managed",
+            r#"
+some_dir:
+  kind: dir_content_from_map
+  source: ${nr-var:logging}
+"#,
+        );
+        let sibling = host_type_with_shared(
+            "test",
+            "sibling",
+            r#"
+some_dir.txt:
+  kind: file
+  text: hi
+"#,
+        );
+
+        let mut registry = MockAgentTypeRegistry::new();
+        registry.should_get(
+            AgentTypeID::try_from("test/managed:0.0.1").unwrap(),
+            &managed,
+        );
+        registry.should_get(
+            AgentTypeID::try_from("test/sibling:0.0.1").unwrap(),
+            &sibling,
+        );
+
+        let config = dynamic_config(&[
+            ("managed-agent", "test/managed:0.0.1"),
+            ("sibling-agent", "test/sibling:0.0.1"),
+        ]);
+
+        assert!(
+            validator(registry).validate(&config).is_ok(),
+            "`some_dir` (managed) and `some_dir.txt` are distinct paths and must not conflict"
+        );
+    }
+
+    #[test]
     fn two_instances_of_same_type_declaring_shared_fs_conflict() {
         let redis = host_type_with_shared(
             "test",
