@@ -255,9 +255,36 @@ deployment:
           version: ${nr-var:package_version}
 ```
 
-The resolved value of that `version` field is published as `agent.version`. Which package reports
-the version when an agent type defines more than one is not yet finalized. See
-[On Host Packages](#on-host-packages) for the full package configuration.
+The resolved value of that `version` field is published as `agent.version`.
+
+When an agent type defines **more than one package**, the package to report is selected explicitly
+with the top-level `deployment.reported_version_package` field, which must name one of the declared
+packages:
+
+```yaml
+deployment:
+  reported_version_package: newrelic-infra   # required when more than one package is declared
+  packages:
+    newrelic-infra:
+      download:
+        oci:
+          repository: newrelic-infra
+          version: ${nr-var:package_version}
+    nri-flex:
+      download:
+        oci:
+          repository: nri-flex
+          version: ${nr-var:flex_version}
+```
+
+Rules:
+
+* With **one** package, `reported_version_package` is optional and defaults to that sole package.
+* With **more than one** package, `reported_version_package` is **required** and must reference a declared
+  package id; otherwise the agent type fails validation at parse time.
+* With **no** packages, no `agent.version` is reported.
+
+See [On Host Packages](#on-host-packages) for the full package configuration.
 
 ### Kubernetes Deployment
 

@@ -165,6 +165,7 @@ where
             executables,
             on_host.health,
             on_host.packages,
+            on_host.reported_version_package,
             self.package_manager.clone(),
             on_host.enable_file_logging,
             self.logging_path.to_path_buf(),

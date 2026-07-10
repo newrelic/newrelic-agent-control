@@ -9,6 +9,7 @@ use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConf
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::{
     FileSystem, FileSystemEntriesError, SharedFileSystem,
 };
+use crate::agent_type::runtime_config::on_host::package::PackageID;
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::checkers::health::health_checker::{Health, HealthCheckerError, spawn_health_checker};
 use crate::checkers::health::health_checker::{Healthy, Unhealthy};
@@ -107,6 +108,7 @@ where
     health_config: Option<OnHostHealthConfig>,
     package_manager: Arc<PM>,
     packages_config: RenderedPackages,
+    reported_version_package: Option<PackageID>,
     filesystem: FileSystem,
     shared_filesystem: SharedFileSystem,
 }
@@ -192,6 +194,7 @@ where
             executables,
             onhost_config.health,
             onhost_config.packages,
+            onhost_config.reported_version_package,
             package_manager,
             onhost_config.enable_file_logging,
             logging_path,
@@ -227,6 +230,7 @@ where
         executables: Vec<ExecutableData>,
         health_config: Option<OnHostHealthConfig>,
         packages_config: RenderedPackages,
+        reported_version_package: Option<PackageID>,
         package_manager: Arc<PM>,
         file_logging_enable: bool,
         file_logging_path: PathBuf,
@@ -241,6 +245,7 @@ where
             health_config,
             package_manager,
             packages_config,
+            reported_version_package,
             filesystem,
             shared_filesystem,
         }
@@ -291,27 +296,16 @@ where
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) {
-        // Report the version from the OCI package configuration.
-        // `packages_config` is a HashMap, so we pick by the lowest package id to get a stable
-        // result (iteration order is not deterministic). Today agent types have a single package;
-        // TODO: for complex OHIs with multiple packages we need a deliberate strategy to choose
-        // which version to report (e.g. mark a primary package in the agent type definition).
-        let Some((package_id, package)) = self.packages_config.iter().min_by_key(|(id, _)| *id)
+        // Report the version from the OCI package selected as the agent type's version package.
+        // `reported_version_package` is resolved and validated at parse time: it is `Some` and
+        // present in `packages_config` whenever there is anything to report.
+        let Some((package_id, package)) = self
+            .reported_version_package
+            .as_ref()
+            .and_then(|id| self.packages_config.get_key_value(id))
         else {
-            warn!(
-                agent_type=%self.agent_identity.agent_type_id,
-                "Unable to determine agent version: no packages configured"
-            );
             return;
         };
-
-        if self.packages_config.len() > 1 {
-            warn!(
-                agent_type=%self.agent_identity.agent_type_id,
-                packages_count=%self.packages_config.len(),
-                "Multiple packages configured; reporting the version of the package with the lowest id"
-            );
-        }
 
         let version = package.download.oci.version.to_string();
         info!(
@@ -846,6 +840,7 @@ pub mod tests {
             executable_data,
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -892,6 +887,7 @@ pub mod tests {
             executables,
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -944,6 +940,7 @@ persistent.txt:
             vec![],
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1014,6 +1011,7 @@ persistent.txt:
             vec![],
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1058,6 +1056,7 @@ persistent.txt:
             executables,
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1108,6 +1107,7 @@ persistent.txt:
             executables,
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1158,6 +1158,7 @@ persistent.txt:
             executables,
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1203,6 +1204,7 @@ persistent.txt:
             executables,
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1267,6 +1269,7 @@ persistent.txt:
             executables,
             None,
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1448,6 +1451,7 @@ persistent.txt:
             vec![exec_data_1],
             None,
             get_empty_packages(),
+            None,
             Arc::new(MockPackageManager::new()),
             true,
             logging_path.clone(),
@@ -1489,6 +1493,7 @@ persistent.txt:
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
             packages: get_empty_packages(),
+            reported_version_package: None,
         };
 
         let runtime = Runtime {
@@ -1576,6 +1581,7 @@ persistent.txt:
             vec![exec_data_1],
             None,
             get_empty_packages(),
+            None,
             Arc::new(MockPackageManager::new()),
             false,
             logging_path.clone(),
@@ -1617,6 +1623,7 @@ persistent.txt:
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
             packages: get_empty_packages(),
+            reported_version_package: None,
         };
 
         let runtime = Runtime {
@@ -1702,6 +1709,7 @@ persistent.txt:
             vec![exec_data_1],
             None,
             get_empty_packages(),
+            None,
             Arc::new(MockPackageManager::new()),
             true,
             logging_path.clone(),
@@ -1743,6 +1751,7 @@ persistent.txt:
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
             packages: get_empty_packages(),
+            reported_version_package: None,
         };
 
         let runtime = Runtime {
@@ -1813,6 +1822,7 @@ persistent.txt:
             vec![],
             Some(health_config),
             get_empty_packages(),
+            None,
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
@@ -1886,6 +1896,7 @@ persistent.txt:
             vec![exec_data_1],
             None,
             get_empty_packages(),
+            None,
             Arc::new(MockPackageManager::new()),
             false,
             logging_path.clone(),
@@ -1927,6 +1938,7 @@ persistent.txt:
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
             packages: get_empty_packages(),
+            reported_version_package: None,
         };
 
         let runtime = Runtime {
