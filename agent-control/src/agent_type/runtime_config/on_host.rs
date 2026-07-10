@@ -38,6 +38,15 @@ pub struct OnHost {
 
 type Packages = HashMap<PackageID, Package>;
 
+impl OnHost {
+    /// The files and directories this Agent Type declares in the shared filesystem.
+    /// The paths are static because they are not [Templateable], therefore they are
+    /// available without rendering.
+    pub fn shared_filesystem(&self) -> &SharedFileSystem {
+        &self.shared_filesystem
+    }
+}
+
 fn deserialize_executables<'de, D>(deserializer: D) -> Result<Vec<Executable>, D::Error>
 where
     D: Deserializer<'de>,

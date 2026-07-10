@@ -10,7 +10,7 @@
 //! (`${nr-sub:filesystem_agent_dir}`).
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io::{Error as IOError, ErrorKind},
     path::{Component, Path, PathBuf},
 };
@@ -176,6 +176,51 @@ impl Templateable for SharedFileSystem {
         let base_dir = PathBuf::from(shared_filesystem_dir(variables)?);
         let entries = self.0.render_entries(&base_dir, variables)?;
         Ok(rendered::SharedFileSystem::new(entries))
+    }
+}
+
+/// The shared-filesystem paths an Agent Type declares ownership of, rooted under a base directory
+/// and split by ownership granularity.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct DeclaredSharedPaths {
+    /// Files owned individually. Several agents may drop sibling files into the same
+    /// co-owned directory, but no two may own the exact same file path.
+    pub files: HashSet<PathBuf>,
+    /// Directories owned as a whole: the entire subtree is managed as a unit, and no
+    /// other agent may own anything at or under the path.
+    pub managed_dirs: HashSet<PathBuf>,
+}
+
+impl SharedFileSystem {
+    /// Collects the on-disk paths this shared filesystem declares ownership of, rooted under
+    /// `base_dir`.
+    pub fn declared_paths(&self, base_dir: &Path) -> DeclaredSharedPaths {
+        let mut declared = DeclaredSharedPaths::default();
+        for (key, entry) in &self.0.0 {
+            collect_declared_paths(&base_dir.join(key), entry, &mut declared);
+        }
+        declared
+    }
+}
+
+/// Recursively gathers the paths declared by `entry` (rooted at `path`) into `declared`.
+fn collect_declared_paths(
+    path: &Path,
+    entry: &FilesystemEntry,
+    declared: &mut DeclaredSharedPaths,
+) {
+    match entry {
+        FilesystemEntry::File { .. } => {
+            declared.files.insert(path.to_path_buf());
+        }
+        FilesystemEntry::Dir { entries, .. } => {
+            for (key, child) in entries {
+                collect_declared_paths(&path.join(key), child, declared);
+            }
+        }
+        FilesystemEntry::DirContentFromMap { .. } => {
+            declared.managed_dirs.insert(path.to_path_buf());
+        }
     }
 }
 
@@ -1383,5 +1428,63 @@ infra-agent-ohi-configs:
             .expect("empty shared filesystem must render without the shared dir variable")
             .write(&LocalFile, &DirectoryManagerFs)
             .unwrap();
+    }
+
+    /// `declared_paths` reports every `kind: file` (including files nested in co-owned directories)
+    /// as an individually-owned file, and every `kind: dir_content_from_map` as a whole-directory
+    /// owner. Co-owned `kind: dir` entries own nothing themselves: their own path is never reported.
+    #[test]
+    fn declared_paths_splits_files_and_managed_dirs() {
+        let yaml = r#"
+top-file:
+  kind: file
+  text: hi
+co-owned:
+  kind: dir
+  entries:
+    nri-redis.yaml:
+      kind: file
+      text: "integration: redis"
+    nested:
+      kind: dir
+      entries:
+        deep.yaml:
+          kind: file
+          text: deep
+projected:
+  kind: dir_content_from_map
+  source: ${nr-var:m}
+"#;
+        let shared = serde_saphyr::from_str::<SharedFileSystem>(yaml).unwrap();
+        // A real temp dir gives an absolute, platform-native base (path literals like `/shared` are
+        // not absolute on Windows). `declared_paths` never touches disk, so the dir need not exist.
+        let tmp_dir = TempDir::new().unwrap();
+        let base = tmp_dir.path();
+
+        let declared = shared.declared_paths(base);
+
+        assert_eq!(
+            declared.files,
+            HashSet::from([
+                base.join("top-file"),
+                base.join("co-owned").join("nri-redis.yaml"),
+                base.join("co-owned").join("nested").join("deep.yaml"),
+            ]),
+            "every `kind: file` must be reported, and the co-owned dir path must not be"
+        );
+        assert_eq!(
+            declared.managed_dirs,
+            HashSet::from([base.join("projected")]),
+            "`dir_content_from_map` must be reported as a whole-directory owner"
+        );
+    }
+
+    /// A shared filesystem with no entries declares no owned paths.
+    #[test]
+    fn declared_paths_of_empty_is_empty() {
+        let tmp_dir = TempDir::new().unwrap();
+        let declared = SharedFileSystem::default().declared_paths(tmp_dir.path());
+        assert!(declared.files.is_empty());
+        assert!(declared.managed_dirs.is_empty());
     }
 }
