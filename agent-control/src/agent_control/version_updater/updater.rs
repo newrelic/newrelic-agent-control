@@ -106,4 +106,30 @@ pub mod tests {
             mock
         }
     }
+
+    /// The OpAMP-facing message must reflect the suppression reason (not just the variant).
+    #[test]
+    fn update_in_cooldown_message_reflects_the_suppression_reason() {
+        let in_cooldown = UpdaterError::UpdateInCooldown {
+            version: "1.2.3".to_string(),
+            reason: SuppressionReason::InCooldown {
+                consecutive_failures: 1,
+            },
+        };
+        assert_eq!(
+            in_cooldown.to_string(),
+            "upgrade to 1.2.3 suppressed: retrying after previous failure"
+        );
+
+        let cap_reached = UpdaterError::UpdateInCooldown {
+            version: "1.2.3".to_string(),
+            reason: SuppressionReason::CapReached {
+                consecutive_failures: 5,
+            },
+        };
+        assert_eq!(
+            cap_reached.to_string(),
+            "upgrade to 1.2.3 suppressed: max consecutive failures reached, retrying at the maximum backoff interval"
+        );
+    }
 }
