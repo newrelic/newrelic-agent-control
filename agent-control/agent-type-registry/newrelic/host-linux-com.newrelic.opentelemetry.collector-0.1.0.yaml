@@ -30,23 +30,6 @@ variables:
       description: "Package repository name"
       required: false
       default: newrelic/nrdot-agent-artifacts
-
-config:
-  one: 1
-  two: 2
-
-config: |
-  one: 1
-  two: 2
-  
-  
-  config.txt
-one: 1
-two: 2
-
-
-
-
   variants:
     ac_config_field: "oci_nrdot_registry_repositories"
     values: [ "newrelic/nrdot-agent-artifacts" ]
