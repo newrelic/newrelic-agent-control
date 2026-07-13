@@ -4,12 +4,12 @@ Script to create and trigger Fleet Control deployments for on-host canaries.
 
 ## Overview
 
-The `fleet_deployment.sh` script creates a Fleet Control deployment that defines the desired state of agents in a fleet and triggers the rollout through the ring deployment policy.
+The `fleet_deployment.sh` script creates a Fleet Control deployment that defines the desired state of agents in a fleet and triggers the rollout through the ring deployment policy. It drives the [New Relic CLI](https://github.com/newrelic/newrelic-cli) (`newrelic fleetcontrol deployment ...`) rather than calling NerdGraph directly.
 
 ### Two-Step Process
 
-1. **fleetControlCreateFleetDeployment** — Creates the deployment definition
-2. **fleetControlDeploy** — Pushes it through the ring policy to the fleet
+1. **`newrelic fleetcontrol deployment create`** — Creates the deployment definition
+2. **`newrelic fleetcontrol deployment deploy`** — Pushes it through the ring policy to the fleet
 
 ## Prerequisites
 
@@ -18,17 +18,20 @@ The `fleet_deployment.sh` script creates a Fleet Control deployment that defines
 - `bash` (tested with bash 5.x)
 - `curl`
 - `jq`
+- `newrelic` CLI — installed automatically by the script if not already on `PATH`
 
 ### Required Environment Variables
 
 Set these environment variables before running the script:
 
 ```bash
-export NEW_RELIC_API_KEY="<your-api-key>"      # NerdGraph User API key
+export NEW_RELIC_API_KEY="<your-api-key>"      # NerdGraph User API key (NRAK-...)
 export FLEET_ID="<fleet-entity-guid>"          # Fleet entity GUID
-export SCOPE_ORG_ID="<organization-guid>"      # Organization GUID for deployment scope
 export ENVIRONMENT="staging"                   # "staging" or "production"
 ```
+
+> The deployment scope (organization) is derived automatically by the CLI from the API key.
+> `ENVIRONMENT` is mapped to the CLI's `NEW_RELIC_REGION` (`staging` → `Staging`, `production` → `US`).
 
 ## Usage
 
@@ -72,7 +75,6 @@ Deploy Infrastructure Agent version 1.76.1 with a specific configuration:
 ```bash
 export NEW_RELIC_API_KEY="NRAK-XXXX"
 export FLEET_ID="MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlhZTNiNS01Yjg5LTdkNjYtYWU0MC1lNmZkOTY2ZDFhMDA"
-export SCOPE_ORG_ID="9d789cca-f661-458d-be06-882d1e6e409d"
 export ENVIRONMENT="staging"
 
 ./fleet_deployment.sh "NRInfra:1.76.1:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5YzdhYWEtNmM4My03NWFhLWIzYmEtOTE0MjIzZDU0Mjk1"
@@ -101,9 +103,8 @@ Example output:
 [2026-06-10 11:34:52] =======================================
 [2026-06-10 11:34:52] Fleet Deployment Script
 [2026-06-10 11:34:52] =======================================
-[2026-06-10 11:34:52] Environment  : staging
+[2026-06-10 11:34:52] Environment  : staging (region: Staging)
 [2026-06-10 11:34:52] Fleet ID     : MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlhZTNiNS01Yjg5LTdkNjYtYWU0MC1lNmZkOTY2ZDFhMDA
-[2026-06-10 11:34:52] Scope Org ID : 9d789cca-f661-458d-be06-882d1e6e409d
 [2026-06-10 11:34:52] Deployment   : canary-deployment-20260610-113452
 [2026-06-10 11:34:52] Agents       : NRInfra:1.76.1:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5YzdhYWEtNmM4My03NWFhLWIzYmEtOTE0MjIzZDU0Mjk1
 [2026-06-10 11:34:52] =======================================

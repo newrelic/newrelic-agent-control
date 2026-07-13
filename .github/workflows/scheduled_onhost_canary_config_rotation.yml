@@ -1,0 +1,110 @@
+name: 🔁🐤 Scheduled onhost canary config rotation
+
+# Every 6 hours, deploy the *next* config version in an ordered set to the
+# canary fleet using test/onhost-canaries/scripts/fleet_deployment.sh.
+# Each run advances one step through the set; after the last entry it wraps
+# back to the first. This is a rotation (one deployment per run), not a matrix
+# fan-out.
+
+on:
+  schedule:
+    # Every 6 hours (UTC). Minute offset from :00 to dodge the top-of-hour
+    # scheduler backlog that delays cron workflows on GitHub-hosted runners.
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never overlap rotation runs (each run already deploys every environment/platform combination).
+  group: scheduled-onhost-canary-config-rotation
+  cancel-in-progress: false
+
+env:
+  # AC Staging Account `host-canaries-staging` fleet
+  FLEET_ID_STAGING: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlhZTNiNS01Yjg5LTdkNjYtYWU0MC1lNmZkOTY2ZDFhMDA"
+  WINDOWS_FLEET_ID_STAGING: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTljMjNjYy0yM2I2LTc1OTYtODBkNy0yMzAzYWIyYzcwMTA"
+  # AC US Production Account `host-canaries-production` fleet
+  FLEET_ID_PRODUCTION: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWFlM2EyLTA3OTctNzczYS05Y2JjLWMzNzZkMjAwMWFkZg"
+  WINDOWS_FLEET_ID_PRODUCTION: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWMyMjljLWVhYTQtN2JmNi04YWIyLTU2ZWI0YjE2ZWZjZQ"
+
+  # Ordered set of agent specs to rotate through, one per line:
+  #   <agentType>:<version>:<configVersionId>
+  # Agent type, version and config version are paired here so they always rotate
+  # together and stay matched. One deployment per run advances to the next entry,
+  # wrapping to the first after the last.
+  # We don't have 'latest' OCI packages, so I've set them to a fixed version.
+  #   First  -> NRInfra 1.77.1  (canaries-infra-config)
+  #   Second -> NRDOT   1.19.0  (canaries-nrdot)
+  AGENT_SPECS_LINUX: >-
+    NRInfra:1.77.1:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmNGM3Yi1lYjAyLTc1MmQtOGViOC0zNDYyMWM2ZDRkMzQ
+    NRDOT:1.19.0:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmNGM3Yy05M2Y3LTcyMjctODJmZS01OGYwMjcyMDViMDI
+  #   First  -> NRInfra 1.77.1  (canaries-infra-config-windows)
+  #   Second -> NRDOT   1.19.0  (canaries-nrdot-windows)
+  AGENT_SPECS_WINDOWS: >-
+    NRInfra:1.77.1:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmNGNjNC0zNmU1LTdmMmQtYjIyMS1mM2ZjY2QzOTAwOTg
+    NRDOT:1.19.0:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmNGNjNC1kMTE0LTdmMzktYWRmZS02ZTY4ZWFiYWZkY2Y
+
+jobs:
+  rotate-config-deployment:
+    name: Deploy next config in rotation (${{ matrix.environment }} / ${{ matrix.platform }})
+    runs-on: linux-4-core-nr-control
+    strategy:
+      # Every run deploys all environment/platform combinations; a failure on one
+      # must not skip the others.
+      fail-fast: false
+      matrix:
+        environment: [staging, production]
+        platform: [linux, windows]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Resolve fleet and select agent spec (rotating)
+        id: target
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ENVIRONMENT: ${{ matrix.environment }}
+        run: |
+          # Pick this platform's fleet id (per environment) and its ordered spec list.
+          if [ "${PLATFORM}" = "windows" ]; then
+            SPECS_STR="${AGENT_SPECS_WINDOWS}"
+            if [ "${ENVIRONMENT}" = "production" ]; then
+              FLEET_ID="${WINDOWS_FLEET_ID_PRODUCTION}"
+            else
+              FLEET_ID="${WINDOWS_FLEET_ID_STAGING}"
+            fi
+          else
+            SPECS_STR="${AGENT_SPECS_LINUX}"
+            if [ "${ENVIRONMENT}" = "production" ]; then
+              FLEET_ID="${FLEET_ID_PRODUCTION}"
+            else
+              FLEET_ID="${FLEET_ID_STAGING}"
+            fi
+          fi
+
+          # Split the whitespace-separated specs. Each entry is a full
+          # <agentType>:<version>:<configVersionId> spec.
+          read -ra SPECS <<< "${SPECS_STR}"
+          COUNT=${#SPECS[@]}
+
+          # github.run_number increments on every run of this workflow, so
+          # ((run_number - 1) % COUNT) walks the set in order starting at the
+          # first entry and wraps back to the first after the last. Both platforms
+          # share the same run number, so they rotate to the same position.
+          RUN_NUMBER=${{ github.run_number }}
+          INDEX=$(( (RUN_NUMBER - 1) % COUNT ))
+          SPEC="${SPECS[$INDEX]}"
+
+          echo "[${PLATFORM}] rotation: run #${RUN_NUMBER} -> index ${INDEX} of ${COUNT} -> ${SPEC}"
+          echo "fleet_id=${FLEET_ID}" >> "$GITHUB_OUTPUT"
+          echo "spec=${SPEC}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and deploy fleet deployment
+        env:
+          NEW_RELIC_API_KEY: ${{ matrix.environment == 'production' && secrets.AC_PROD_E2E_API_KEY || secrets.AC_FC_STAG_E2E_API_KEY }}
+          FLEET_ID: ${{ steps.target.outputs.fleet_id }}
+          ENVIRONMENT: ${{ matrix.environment }}
+        run: |
+          chmod +x test/onhost-canaries/scripts/fleet_deployment.sh
+          test/onhost-canaries/scripts/fleet_deployment.sh \
+            "${{ steps.target.outputs.spec }}"
