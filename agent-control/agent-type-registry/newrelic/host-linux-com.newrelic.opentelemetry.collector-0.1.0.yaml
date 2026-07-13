@@ -30,9 +30,26 @@ variables:
       description: "Package repository name"
       required: false
       default: newrelic/nrdot-agent-artifacts
-      variants:
-        ac_config_field: "oci_nrdot_registry_repositories"
-        values: [ "newrelic/nrdot-agent-artifacts" ]
+
+config:
+  one: 1
+  two: 2
+
+config: |
+  one: 1
+  two: 2
+  
+  
+  config.txt
+one: 1
+two: 2
+
+
+
+
+  variants:
+    ac_config_field: "oci_nrdot_registry_repositories"
+    values: [ "newrelic/nrdot-agent-artifacts" ]
   version:
     description: "Agent version"
     required: true
@@ -65,7 +82,7 @@ deployment:
       path: ${nr-sub:packages.nrdot.dir}/nrdot-collector
       args:
         - --config
-        - ${nr-sub:filesystem_agent_dir}/otel-config/config.yaml
+        - ${nr-sub:filesystem_agent_dir}-a
       env:
         # sets the otel-collector "env" source resource detector
         OTEL_RESOURCE_ATTRIBUTES: "host.id=${nr-ac:host_id}"
