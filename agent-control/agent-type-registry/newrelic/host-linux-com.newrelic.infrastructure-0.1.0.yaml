@@ -87,6 +87,17 @@ deployment:
     infra-agent-ohi-configs:
       kind: dir
       persistent: true
+      entries:
+        docker-config.yml:
+          kind: file
+          persistent: true
+          text: |
+            integrations:
+            - name: nri-docker
+              when:
+                feature: docker_enabled
+                file_exists: /var/run/docker.sock
+              interval: 15s
     # OHIs binaries folder.
     # infra-agent is configured through NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR and NRIA_SAFE_BIN_DIR,
     # to read binaries from this folder.
