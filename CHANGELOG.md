@@ -19,6 +19,7 @@ Remember that the keywords that you can use are the following:
 - RPM packages now restore `local_config.yaml` from the `.rpmsave` backup left by a prior uninstall.
 
 ### enhancement
+- Adds `oci-utils` CLI to `test/crates/oci-test-utils` for pushing agent packages and agent type definitions to OCI registries from the command line (dev/test tooling; not published).
 - On-host agent-type parsing now validates `reported_version_package`: it must reference a declared package, and is required when more than one package is defined. Invalid configurations are rejected at parse time with a descriptive error. This `reported_version_package` will be used to know which version to report as `agent.version`.
 - Add support for `copy_from_file` for on-host "in-agent" filesystem.
 - Add support for `shared_filesystem` in on-host agent types.

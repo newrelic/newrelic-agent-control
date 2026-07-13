@@ -3246,7 +3246,7 @@ dependencies = [
  "http 1.4.2",
  "oci-client",
  "serde",
- "serde-saphyr 0.0.28",
+ "serde-saphyr 0.0.29",
  "serde_json",
  "tar",
  "tempfile",
