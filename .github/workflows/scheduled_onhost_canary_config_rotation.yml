@@ -36,14 +36,24 @@ env:
   # We don't have 'latest' OCI packages, so I've set them to a fixed version.
   #   First  -> NRInfra 1.77.1  (canaries-infra-config)
   #   Second -> NRDOT   1.19.0  (canaries-nrdot)
-  AGENT_SPECS_LINUX: >-
+  AGENT_SPECS_LINUX_PRODUCTION: >-
     NRInfra:1.77.1:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmNGM3Yi1lYjAyLTc1MmQtOGViOC0zNDYyMWM2ZDRkMzQ
     NRDOT:1.19.0:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmNGM3Yy05M2Y3LTcyMjctODJmZS01OGYwMjcyMDViMDI
   #   First  -> NRInfra 1.77.1  (canaries-infra-config-windows)
   #   Second -> NRDOT   1.19.0  (canaries-nrdot-windows)
-  AGENT_SPECS_WINDOWS: >-
+  AGENT_SPECS_WINDOWS_PRODUCTION: >-
     NRInfra:1.77.1:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmNGNjNC0zNmU1LTdmMmQtYjIyMS1mM2ZjY2QzOTAwOTg
     NRDOT:1.19.0:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmNGNjNC1kMTE0LTdmMzktYWRmZS02ZTY4ZWFiYWZkY2Y
+  #   First  -> NRInfra 1.77.1  (canaries-infra-config)
+  #   Second -> NRDOT   1.19.0  (canaries-nrdot)
+  AGENT_SPECS_LINUX_STAGING: >-
+    NRInfra:1.77.1:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZjViZTItYjdkYy03YmM5LTg0OTUtYTIyMmI5NTYyZDAy
+    NRDOT:1.19.0:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZjViZTMtNmU3YS03NzA0LWI0NjgtOTAwMDY1NjgyMWJj
+  #   First  -> NRInfra 1.77.1  (canaries-infra-config-windows)
+  #   Second -> NRDOT   1.19.0  (canaries-nrdot-windows)
+  AGENT_SPECS_WINDOWS_STAGING: >-
+    NRInfra:1.77.1:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZjViZTMtNmU3YS03NzA0LWI0NjgtOTAwMDY1NjgyMWJj
+    NRDOT:1.19.0:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZjViZTQtOWFkZS03MWVjLTg0NTMtYjlkOTExMGViODc3
 
 jobs:
   rotate-config-deployment:
@@ -65,20 +75,22 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
           ENVIRONMENT: ${{ matrix.environment }}
         run: |
-          # Pick this platform's fleet id (per environment) and its ordered spec list.
+          # Pick this platform+environment's fleet id and its ordered spec list.
           if [ "${PLATFORM}" = "windows" ]; then
-            SPECS_STR="${AGENT_SPECS_WINDOWS}"
             if [ "${ENVIRONMENT}" = "production" ]; then
               FLEET_ID="${WINDOWS_FLEET_ID_PRODUCTION}"
+              SPECS_STR="${AGENT_SPECS_WINDOWS_PRODUCTION}"
             else
               FLEET_ID="${WINDOWS_FLEET_ID_STAGING}"
+              SPECS_STR="${AGENT_SPECS_WINDOWS_STAGING}"
             fi
           else
-            SPECS_STR="${AGENT_SPECS_LINUX}"
             if [ "${ENVIRONMENT}" = "production" ]; then
               FLEET_ID="${FLEET_ID_PRODUCTION}"
+              SPECS_STR="${AGENT_SPECS_LINUX_PRODUCTION}"
             else
               FLEET_ID="${FLEET_ID_STAGING}"
+              SPECS_STR="${AGENT_SPECS_LINUX_STAGING}"
             fi
           fi
 
