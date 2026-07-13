@@ -24,7 +24,7 @@ pub fn install_agent_control_from_recipe(data: &RecipeData) {
             r#"
 apt-get install dpkg-dev -y
 
-echo "deb [trusted=yes] file://{repo_dir_path} ./" > /etc/apt/sources.list
+echo "deb [trusted=yes] file://{repo_dir_path} ./" >> /etc/apt/sources.list
 
 cp {deb_package_dir}/*.deb {repo_dir_path}
 if [ -z "$(ls -A "{repo_dir_path}")" ]; then
