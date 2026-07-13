@@ -28,7 +28,7 @@ use super::{ResourceCleaner, ResourceCleanerError};
 /// dedicated filesystem directory and its installed packages (via the [`AgentPackagesRemover`],
 /// which owns the on-disk package layout), the `persistent` flag is bypassed here because the
 /// agent has been removed from the fleet.
-/// The same removal logic is reused at startup by [`Self::purge_stale_agents`] to reclaim the
+/// The same removal logic is reused at startup by [`Self::cleanup_stale_agents`] to reclaim the
 /// resources of agents removed from the fleet config while Agent Control was stopped.
 pub struct OnHostCleaner<S, C, D, P, R>
 where
