@@ -221,8 +221,6 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
                     r#"
                 version: "some-version"
                 config_agent: "some file contents"
-                config_integrations:
-                    map_string: "some file contents"
                 config_logging:
                     map_string: "some file contents"
                 backoff_delay: "10s"
@@ -242,8 +240,6 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
                     r#"
                 version: "some-version"
                 config_agent: "some file contents"
-                config_integrations:
-                    map_string: "some file contents"
                 config_logging:
                     map_string: "some file contents"
                 backoff_delay: "10s"

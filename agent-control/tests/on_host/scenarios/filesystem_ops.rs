@@ -291,7 +291,6 @@ fn filesystem_persists_across_restarts() {
 
     let agent_id = "test-agent";
     let config_content = "license_key: test_key\nlog_level: info\n";
-    let integrations_content = "integration: test\n";
     let logging_content = "fluent_bit: true\n";
 
     // Create agent type definition with filesystem structure similar to newrelic-infra
@@ -309,10 +308,6 @@ variables:
     description: "Agent configuration"
     type: yaml
     required: true
-  config_integrations:
-    description: "Integrations configuration"
-    type: yaml
-    required: true
   config_logging:
     description: "Logging configuration"
     type: yaml
@@ -328,15 +323,6 @@ deployment:
           persistent: true
           text: |-
             ${{nr-var:config_agent}}
-    integrations.d:
-      kind: dir
-      persistent: true
-      entries:
-        integration.yaml:
-          kind: file
-          persistent: true
-          text: |-
-            ${{nr-var:config_integrations}}
     logging.d:
       kind: dir
       persistent: true
@@ -381,8 +367,6 @@ deployment:
 config_agent:
   license_key: test_key
   log_level: info
-config_integrations:
-  integration: test
 config_logging:
   fluent_bit: true
 "#
@@ -397,13 +381,6 @@ config_logging:
         .join(agent_id)
         .join("config")
         .join("newrelic-infra.yaml");
-
-    let integrations_file_path = dirs
-        .remote_dir()
-        .join(AGENT_FILESYSTEM_FOLDER_NAME)
-        .join(agent_id)
-        .join("integrations.d")
-        .join("integration.yaml");
 
     let logging_file_path = dirs
         .remote_dir()
@@ -430,7 +407,6 @@ config_logging:
         // Wait for files to be created
         retry(30, Duration::from_secs(1), || {
             read_file_and_expect_content(&config_file_path, config_content)?;
-            read_file_and_expect_content(&integrations_file_path, integrations_content)?;
             read_file_and_expect_content(&logging_file_path, logging_content)?;
 
             // Verify the persistent directory exists
@@ -450,8 +426,6 @@ config_logging:
     // Verify files still exist on disk after shutdown, before restart
     read_file_and_expect_content(&config_file_path, config_content)
         .expect("Config file content should match after shutdown");
-    read_file_and_expect_content(&integrations_file_path, integrations_content)
-        .expect("Integrations file content should match after shutdown");
     read_file_and_expect_content(&logging_file_path, logging_content)
         .expect("Logging file content should match after shutdown");
 
@@ -472,7 +446,6 @@ config_logging:
         // Verify all files and directories still exist after restart
         retry(30, Duration::from_secs(1), || {
             read_file_and_expect_content(&config_file_path, config_content)?;
-            read_file_and_expect_content(&integrations_file_path, integrations_content)?;
             read_file_and_expect_content(&logging_file_path, logging_content)?;
 
             if !persistent_dir_path.exists() {
