@@ -736,6 +736,7 @@ pub mod tests {
             vec![],
             None,
             packages,
+            Some("core".to_string()),
             MockPackageManager::new_arc(),
             false,
             PathBuf::default(),
