@@ -11,10 +11,10 @@ variables:
       type: string
       required: true
     OTLP_ENDPOINT:
-      description: "Endpoint to export data to Newrelic."
+      description: "Endpoint to export data to New Relic. US: otlp.nr-data.net:443, EU: otlp.eu01.nr-data.net:443, Staging: staging-otlp.nr-data.net:443."
       type: string
       required: false
-      default: otlp.nr-data.net:4317
+      default: otlp.nr-data.net:443
     LOG_LEVEL:
       description: "To configure the log level in increasing order of verboseness."
       type: string
@@ -195,6 +195,36 @@ variables:
       type: string
       required: false
       default: ""
+    PROXY_URL:
+      description: "Full proxy URL for exporting data to New Relic (format '<scheme>://<user>:<pass>@<host>:<port>'). Empty = no proxy. Maps to NEW_RELIC_PROXY_URL."
+      type: string
+      required: false
+      default: ""
+    LABELS:
+      description: "Custom labels applied to all entities. Format 'key1:value1;key2:value2'. Maps to NEW_RELIC_LABELS."
+      type: string
+      required: false
+      default: ""
+    REPORT_APM_DATA:
+      description: "eBPF APM data reporting: 'true' (always), 'false' (never), or 'auto' (only if no APM/OTel agent detected)."
+      type: string
+      required: false
+      default: "true"
+    REPORT_NETWORK_METRICS:
+      description: "Network metrics reporting: 'true', 'false', or 'auto'."
+      type: string
+      required: false
+      default: "true"
+    JVM_METRICS_REPORTING:
+      description: "Enable/disable JVM metrics collection and reporting."
+      type: string
+      required: false
+      default: "true"
+    REPORT_AI_METRICS:
+      description: "AI monitoring: 'true' (always), 'false' (never), or 'auto' (only if no APM/OTel agent detected)."
+      type: string
+      required: false
+      default: "false"
   backoff_delay:
     description: "seconds until next retry if agent fails to start"
     type: string
@@ -205,63 +235,35 @@ variables:
     type: bool
     required: false
     default: false
+  oci:
+    repository:
+      description: "Package repository name"
+      type: string
+      required: false
+      default: jcoscolla75954/ebpf-agent-artifacts
+      variants:
+        ac_config_field: "oci_repository_urls"
+        values: [ "jcoscolla75954/ebpf-agent-artifacts" ]
+  version:
+    description: "Agent version"
+    type: string
+    required: true
 deployment:
-  health:
-    interval: 60s
-    initial_delay: 0s
-    timeout: 15s
-    checks:
-      - kind: Process
   enable_file_logging: ${nr-var:enable_file_logging}
+  packages:
+    ebpf-agent:
+      download:
+        oci:
+          repository: ${nr-var:oci.repository}
+          version: ${nr-var:version}
+          public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrebpfagent/jwks.json
+      post_download_hook:
+        path: /bin/bash
+        args:
+          - post_download.sh
   executables:
-    - id: nr-ebpf-agent-client
-      path: /usr/bin/nr-ebpf-agent-client
-      env:
-        NEW_RELIC_LICENSE_KEY: "${nr-env:NEW_RELIC_LICENSE_KEY}"
-        DEPLOYMENT_NAME: "${nr-var:config_agent.DEPLOYMENT_NAME}"
-        OTLP_ENDPOINT: "${nr-var:config_agent.OTLP_ENDPOINT}"
-        NEW_RELIC_LOG_LEVEL: "${nr-var:config_agent.LOG_LEVEL}"
-        NEW_RELIC_LOG_FILE_PATH: "${nr-var:config_agent.LOG_FILE_PATH}"
-        DROP_DATA_FOR_ENTITY: "${nr-var:config_agent.DROP_DATA_FOR_ENTITY}"
-        TLS_ENABLED: "${nr-var:config_agent.TLS_ENABLED}"
-        TLS_AUTOGENERATE_CERT_ENABLED: "${nr-var:config_agent.TLS_AUTOGENERATE_CERT_ENABLED}"
-        TLS_CERT_PATH: "${nr-var:config_agent.TLS_CERT_PATH}"
-        TLS_CERT_FILE: "${nr-var:config_agent.TLS_CERT_FILE}"
-        TLS_KEY_FILE: "${nr-var:config_agent.TLS_KEY_FILE}"
-        TLS_CA_FILE: "${nr-var:config_agent.TLS_CA_FILE}"
-        TABLE_STORE_DATA_LIMIT_MB: "${nr-var:config_agent.TABLE_STORE_DATA_LIMIT_MB}"
-        PROTOCOLS_HTTP_ENABLED: "${nr-var:config_agent.PROTOCOLS_HTTP_ENABLED}"
-        PROTOCOLS_HTTP_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_HTTP_SPANS_ENABLED}"
-        PROTOCOLS_HTTP_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_HTTP_SPANS_SAMPLING_LATENCY}"
-        PROTOCOLS_HTTP_SPANS_SAMPLING_ERROR_RATE: "${nr-var:config_agent.PROTOCOLS_HTTP_SPANS_SAMPLING_ERROR_RATE}"
-        PROTOCOLS_MYSQL_ENABLED: "${nr-var:config_agent.PROTOCOLS_MYSQL_ENABLED}"
-        PROTOCOLS_MYSQL_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_MYSQL_SPANS_ENABLED}"
-        PROTOCOLS_MYSQL_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_MYSQL_SPANS_SAMPLING_LATENCY}"
-        PROTOCOLS_PGSQL_ENABLED: "${nr-var:config_agent.PROTOCOLS_PGSQL_ENABLED}"
-        PROTOCOLS_PGSQL_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_PGSQL_SPANS_ENABLED}"
-        PROTOCOLS_PGSQL_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_PGSQL_SPANS_SAMPLING_LATENCY}"
-        PROTOCOLS_CASS_ENABLED: "${nr-var:config_agent.PROTOCOLS_CASS_ENABLED}"
-        PROTOCOLS_CASS_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_CASS_SPANS_ENABLED}"
-        PROTOCOLS_CASS_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_CASS_SPANS_SAMPLING_LATENCY}"
-        PROTOCOLS_REDIS_ENABLED: "${nr-var:config_agent.PROTOCOLS_REDIS_ENABLED}"
-        PROTOCOLS_REDIS_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_REDIS_SPANS_ENABLED}"
-        PROTOCOLS_REDIS_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_REDIS_SPANS_SAMPLING_LATENCY}"
-        PROTOCOLS_MONGODB_ENABLED: "${nr-var:config_agent.PROTOCOLS_MONGODB_ENABLED}"
-        PROTOCOLS_MONGODB_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_MONGODB_SPANS_ENABLED}"
-        PROTOCOLS_MONGODB_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_MONGODB_SPANS_SAMPLING_LATENCY}"
-        PROTOCOLS_KAFKA_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_KAFKA_SPANS_ENABLED}"
-        PROTOCOLS_KAFKA_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_KAFKA_SPANS_SAMPLING_LATENCY}"
-        PROTOCOLS_AMQP_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_AMQP_SPANS_ENABLED}"
-        PROTOCOLS_AMQP_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_AMQP_SPANS_SAMPLING_LATENCY}"
-        PROTOCOLS_DNS_ENABLED: "${nr-var:config_agent.PROTOCOLS_DNS_ENABLED}"
-        PROTOCOLS_DNS_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_DNS_SPANS_ENABLED}"
-        PROTOCOLS_DNS_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_DNS_SPANS_SAMPLING_LATENCY}"
-      restart_policy:
-        backoff_strategy:
-          type: fixed
-          backoff_delay: ${nr-var:backoff_delay}
     - id: nr-ebpf-agent
-      path: /usr/bin/nr-ebpf-agent
+      path: ${nr-sub:packages.ebpf-agent.dir}/nr-ebpf-agent
       env:
         NEW_RELIC_LICENSE_KEY: "${nr-env:NEW_RELIC_LICENSE_KEY}"
         DEPLOYMENT_NAME: "${nr-var:config_agent.DEPLOYMENT_NAME}"
@@ -302,6 +304,12 @@ deployment:
         PROTOCOLS_DNS_ENABLED: "${nr-var:config_agent.PROTOCOLS_DNS_ENABLED}"
         PROTOCOLS_DNS_SPANS_ENABLED: "${nr-var:config_agent.PROTOCOLS_DNS_SPANS_ENABLED}"
         PROTOCOLS_DNS_SPANS_SAMPLING_LATENCY: "${nr-var:config_agent.PROTOCOLS_DNS_SPANS_SAMPLING_LATENCY}"
+        NEW_RELIC_PROXY_URL: "${nr-var:config_agent.PROXY_URL}"
+        NEW_RELIC_LABELS: "${nr-var:config_agent.LABELS}"
+        REPORT_APM_DATA: "${nr-var:config_agent.REPORT_APM_DATA}"
+        REPORT_NETWORK_METRICS: "${nr-var:config_agent.REPORT_NETWORK_METRICS}"
+        JVM_METRICS_REPORTING: "${nr-var:config_agent.JVM_METRICS_REPORTING}"
+        REPORT_AI_METRICS: "${nr-var:config_agent.REPORT_AI_METRICS}"
       restart_policy:
         backoff_strategy:
           type: fixed
