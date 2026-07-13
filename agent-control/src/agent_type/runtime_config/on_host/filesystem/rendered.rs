@@ -144,8 +144,6 @@ impl FileSystem {
 }
 
 /// Rendered shared filesystem tree, materialized under the base shared across sub-agents.
-// TODO: there is no clean-up implemented at the moment (content written by agent remains there even if
-// the corresponding agent is not present anymore).
 #[derive(Debug, Clone, PartialEq)]
 pub struct SharedFileSystem {
     entries: HashMap<PathBuf, RenderedEntry>,

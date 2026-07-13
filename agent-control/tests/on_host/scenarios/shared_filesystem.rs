@@ -162,6 +162,151 @@ ohi_config:
     });
 }
 
+/// Uninstalling an OHI (removed from the agents list via an AC remote config) deletes its config
+/// file from the shared filesystem, so the infra-agent stops running it. A second OHI sharing the
+/// same co-owned directory keeps its own file, and the directory itself is preserved.
+#[test]
+fn uninstalling_agent_removes_its_shared_file_and_keeps_others() {
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
+    let dirs = TempBasePaths::default();
+
+    let redis_agent = "redis-agent";
+    let mysql_agent = "mysql-agent";
+    let redis_type = ohi_config_agent_type("redis", "nri-redis.yaml").build(dirs.local_dir());
+    let mysql_type = ohi_config_agent_type("mysql", "nri-mysql.yaml").build(dirs.local_dir());
+
+    // Both agents start from local config.
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(format!(
+            r#"
+  {redis_agent}:
+    agent_type: "{redis_type}"
+  {mysql_agent}:
+    agent_type: "{mysql_type}"
+"#
+        ))
+        .write(dirs.local_dir());
+    create_local_config(
+        redis_agent.to_string(),
+        NO_CONFIG.to_string(),
+        dirs.local_dir(),
+    );
+    create_local_config(
+        mysql_agent.to_string(),
+        NO_CONFIG.to_string(),
+        dirs.local_dir(),
+    );
+
+    let _agent_control =
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
+
+    let shared_config_dir = dirs
+        .remote_dir()
+        .join(SHARED_FILESYSTEM_FOLDER_NAME)
+        .join(SHARED_CONFIG_DIR);
+    let redis_file = shared_config_dir.join("nri-redis.yaml");
+    let mysql_file = shared_config_dir.join("nri-mysql.yaml");
+
+    // Both agents write their shared config into the co-owned directory.
+    retry(30, Duration::from_secs(1), || {
+        expect_file_content(&redis_file, "integration: redis")?;
+        expect_file_content(&mysql_file, "integration: mysql")?;
+        Ok(())
+    });
+
+    // Uninstall redis-agent by pushing an AC remote config that keeps only mysql-agent.
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
+    opamp_server.set_config_response(
+        ac_instance_id,
+        format!(
+            r#"
+agents:
+  {mysql_agent}:
+    agent_type: "{mysql_type}"
+"#
+        ),
+    );
+
+    // redis's shared file is removed; mysql's file and the co-owned directory remain.
+    retry(60, Duration::from_secs(1), || {
+        if redis_file.exists() {
+            return Err(format!("redis shared file should be removed: {redis_file:?}").into());
+        }
+        expect_file_content(&mysql_file, "integration: mysql")?;
+        if !shared_config_dir.is_dir() {
+            return Err("co-owned shared directory should be preserved".into());
+        }
+        Ok(())
+    });
+}
+
+/// A file left in the shared filesystem by an agent removed while Agent Control was stopped (so its
+/// type is no longer known) is reclaimed by the startup reconcile, while a configured agent's file
+/// in the same co-owned directory is preserved.
+#[test]
+fn startup_reconcile_removes_files_of_agents_removed_while_stopped() {
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
+    let dirs = TempBasePaths::default();
+
+    let redis_agent = "redis-agent";
+    let redis_type = ohi_config_agent_type("redis", "nri-redis.yaml").build(dirs.local_dir());
+
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(format!(
+            r#"
+  {redis_agent}:
+    agent_type: "{redis_type}"
+"#
+        ))
+        .write(dirs.local_dir());
+    create_local_config(
+        redis_agent.to_string(),
+        NO_CONFIG.to_string(),
+        dirs.local_dir(),
+    );
+
+    // Seed a leftover file that belongs to no configured agent, as if written by an agent that was
+    // removed from the config while Agent Control was stopped.
+    let shared_config_dir = dirs
+        .remote_dir()
+        .join(SHARED_FILESYSTEM_FOLDER_NAME)
+        .join(SHARED_CONFIG_DIR);
+    std::fs::create_dir_all(&shared_config_dir).unwrap();
+    let departed_file = shared_config_dir.join("nri-departed.yaml");
+    std::fs::write(&departed_file, "integration: departed").unwrap();
+
+    let _agent_control =
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
+
+    // The configured agent writes its file; the leftover file is reclaimed by the startup reconcile.
+    let redis_file = shared_config_dir.join("nri-redis.yaml");
+    retry(30, Duration::from_secs(1), || {
+        expect_file_content(&redis_file, "integration: redis")?;
+        if departed_file.exists() {
+            return Err("departed agent's file should be reclaimed at startup".into());
+        }
+        Ok(())
+    });
+}
+
+/// A minimal OHI-style agent type that writes a single config file into the shared co-owned
+/// `infra-agent-ohi-configs` directory.
+fn ohi_config_agent_type(type_name: &str, file: &str) -> CustomAgentType {
+    CustomAgentType::default()
+        .with_agent_type_id(&format!("test/{type_name}:0.1.0"))
+        .with_health(None)
+        .with_shared_filesystem(Some(&format!(
+            r#"
+{SHARED_CONFIG_DIR}:
+  kind: dir
+  entries:
+    {file}:
+      kind: file
+      text: "integration: {type_name}"
+"#
+        )))
+}
+
 /// Two agents of the same OHI type both declare the same shared file. The remote config that
 /// introduces the second one must be rejected (single-owner rule) and reported Failed to Fleet
 /// Control, rather than letting the two agents fight over the shared path.
