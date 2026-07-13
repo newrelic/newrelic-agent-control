@@ -66,11 +66,11 @@ impl AgentSharedPaths {
 /// Shared paths are static (the Agent Type entry keys), so this reads them straight from the
 /// registry without rendering. Resolving each agent type also surfaces unknown-type errors, therefore
 /// the [RegistryDynamicConfigValidator](super::RegistryDynamicConfigValidator) check is addressed by this validator.
-pub struct SharedFilesystemPathValidator<R> {
+pub struct SharedFilesystemPathValidator<R: AgentTypeRegistry> {
     registry: Arc<R>,
 }
 
-impl<R> SharedFilesystemPathValidator<R> {
+impl<R: AgentTypeRegistry> SharedFilesystemPathValidator<R> {
     /// Builds a validator resolving agent types through `registry` to read their declared shared paths.
     pub fn new(registry: Arc<R>) -> Self {
         Self { registry }
