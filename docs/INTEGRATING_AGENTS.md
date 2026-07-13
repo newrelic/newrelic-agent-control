@@ -562,7 +562,7 @@ shared_filesystem:
         copy_from_file: ${nr-sub:packages.nri-redis.dir}/nri-redis
 ```
 
-> ⚠️ **Note:** The shared filesystem is under active development. Cleanup (removal on uninstall/reconfigure) is not implemented yet, this behavior is expected to change.
+> **Cleanup.** When a sub-agent is uninstalled, Agent Control removes the shared paths it declares: `kind: file` entries and whole `dir_content_from_map` directories. A `kind: dir` is treated as a co-owned drop-zone shared with other agents and is never removed. Files left behind by an agent that was removed while Agent Control was stopped are reclaimed at the next startup.
 
 ##### `packages`
 
