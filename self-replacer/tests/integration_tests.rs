@@ -10,6 +10,7 @@ use tempfile::TempDir;
 
 mod test_helpers;
 use self_replacer::{BinaryReplacer, SelfReplacer};
+use serial_test::serial;
 use test_helpers::{copy_example_binary, create_modified_binary};
 
 use self_replacer::BACKUP_SUFFIX;
@@ -18,7 +19,14 @@ use self_replacer::BACKUP_SUFFIX;
 // Common tests that run on all platforms
 // ============================================================================
 
+// Must run serially: this test writes an executable and then execs it. If another test runs
+// in parallel, its `Command` fork+exec can inherit our still-open write fd to the freshly
+// written binary during the fork->exec window, so our exec fails with ETXTBSY ("text file
+// busy", os error 26). O_CLOEXEC does not help because the fd is only closed on exec, not fork.
+// Serializing removes the write/exec overlap. (test_rollback_on_invalid_path needs no serial:
+// it never execs a freshly written binary.)
 #[test]
+#[serial]
 fn test_self_replacement_with_real_binary() {
     let temp_dir = TempDir::new().unwrap();
     let test_dir = temp_dir.path();
@@ -128,7 +136,10 @@ mod unix_specific {
 
     const TEST_EXEC_MODE: u32 = 0o754; // rwxr-xr--
 
+    // Serial for the same reason as test_self_replacement_with_real_binary: writing then
+    // exec-ing a binary races another test's fork+exec and hits ETXTBSY (os error 26).
     #[test]
+    #[serial]
     fn test_permission_preservation_with_real_binary() {
         let temp_dir = TempDir::new().unwrap();
         let test_dir = temp_dir.path();

@@ -2,8 +2,10 @@ use std::{fs, io, path::Path, time::Duration};
 
 use crate::{
     common::{
-        agent_control::start_agent_control_with_custom_config, base_paths::TempBasePaths,
-        retry::retry, runtime::tokio_runtime,
+        agent_control::{StartedAgentControl, start_agent_control_with_custom_config},
+        base_paths::TempBasePaths,
+        retry::retry,
+        runtime::tokio_runtime,
     },
     on_host::tools::{
         config::{OnHostAgentControlConfigBuilder, create_file, create_local_config},
@@ -123,7 +125,7 @@ fn run_file_logging_scenario(
     initial_message: &str,
     reload_file_logging: bool,
     reload_message: &str,
-) -> TempBasePaths {
+) -> (TempBasePaths, StartedAgentControl) {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let dirs = TempBasePaths::default();
@@ -154,13 +156,13 @@ fn run_file_logging_scenario(
         dirs.local_dir(),
     );
 
-    let _agent_control =
+    let agent_control =
         start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
     let sub_agent_instance_id =
         get_instance_id(&AgentID::try_from(agent_id).unwrap(), dirs.base_paths());
 
-    // Give some time for the echo output to be captured in the log files
+    // Let the first run write its log before the reload can change/disable logging.
     std::thread::sleep(Duration::from_secs(5));
 
     // Trigger a reload by sending a new remote config via OpAMP with updated values
@@ -169,10 +171,8 @@ fn run_file_logging_scenario(
         format!("message: \"{reload_message}\"\nenable_file_logging: \"{reload_file_logging}\"\n"),
     );
 
-    // Give some time for the echo output to be captured in the log files
-    std::thread::sleep(Duration::from_secs(5));
-
-    dirs
+    // AC stays alive via the returned handle; the caller's retry waits for the post-reload logs.
+    (dirs, agent_control)
 }
 
 /// File logging enable/disable combinations with before and after reload checks
@@ -188,7 +188,8 @@ fn test_file_logging_reload(
 ) {
     let agent_id = format!("file-logging-agent-{first_run_enabled}-{second_run_enabled}");
 
-    let dirs = run_file_logging_scenario(
+    // Keep the handle alive so AC keeps running during the wait below.
+    let (dirs, _agent_control) = run_file_logging_scenario(
         &agent_id,
         first_run_enabled,
         first_run_message,
@@ -197,24 +198,25 @@ fn test_file_logging_reload(
     );
 
     let log_dir_path = dirs.log_dir();
-    let agent_logs_dir = log_dir_path.join(&agent_id);
-    assert!(
-        agent_logs_dir.exists(),
-        "Log directory {agent_logs_dir:?} does not exist"
-    );
 
     let all_contents = retry(60, Duration::from_secs(1), || {
-        Ok(collect_stdout_logs(&log_dir_path, &agent_id)?)
+        let contents = collect_stdout_logs(&log_dir_path, &agent_id)?;
+        if first_run_enabled == contents.contains(first_run_message)
+            && second_run_enabled == contents.contains(second_run_message)
+        {
+            Ok(contents)
+        } else {
+            Err(format!("log state not settled yet. Log contents: {contents}").into())
+        }
     });
 
-    // If the logs are enabled for the run the string must be found, same for disabled and not found
     assert!(
         first_run_enabled == all_contents.contains(first_run_message),
-        "First run log not found (pre-reload). Log contents: {all_contents}"
+        "First run log mismatch (pre-reload). Log contents: {all_contents}"
     );
     assert!(
         second_run_enabled == all_contents.contains(second_run_message),
-        "Second run log not found (post-reload). Log contents: {all_contents}"
+        "Second run log mismatch (post-reload). Log contents: {all_contents}"
     );
 }
 
@@ -226,7 +228,8 @@ fn onhost_supervisor_reloading_keeps_file_logging_disabled() {
     let unique_str_2 = "keeps_disabled_run2";
     let agent_id = "test-agent-logs-always-disabled";
 
-    let dirs = run_file_logging_scenario(agent_id, false, unique_str_1, false, unique_str_2);
+    let (dirs, _agent_control) =
+        run_file_logging_scenario(agent_id, false, unique_str_1, false, unique_str_2);
 
     let log_dir_path = dirs.log_dir();
     let agent_logs_dir = log_dir_path.join(agent_id);
