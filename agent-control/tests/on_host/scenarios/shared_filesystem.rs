@@ -289,6 +289,172 @@ fn startup_reconcile_removes_files_of_agents_removed_while_stopped() {
     });
 }
 
+/// Bumping an agent's type via AC remote config deletes filesystem entries that the old type
+/// declared but the new type does not (both per-agent and shared), while keeping entries that the
+/// new type still declares. A co-owned shared path that a second active agent also declares must
+/// survive the type bump.
+#[test]
+fn agent_type_bump_reconciles_agent_and_shared_filesystem() {
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
+    let dirs = TempBasePaths::default();
+
+    let bumped_agent = "bumped-agent";
+    let other_agent = "other-agent";
+
+    // v1: declares `old-entry.yaml` in both agent and shared filesystem, plus `kept.yaml`.
+    // v2: drops both `old-entry.yaml` AND `kept.yaml`, adds `new-entry.yaml`.
+    // The shared `kept.yaml` must survive because other-agent still declares it (co-ownership).
+    // The per-agent `kept.yaml` must be deleted because no other agent owns per-agent entries.
+    let type_v1 = CustomAgentType::default()
+        .with_agent_type_id("test/myagent:0.1.0")
+        .with_health(None)
+        .with_filesystem(Some(
+            r#"
+kept.yaml:
+  kind: file
+  text: "kept"
+old-entry.yaml:
+  kind: file
+  text: "old"
+"#,
+        ))
+        .with_shared_filesystem(Some(&format!(
+            r#"
+{SHARED_CONFIG_DIR}:
+  kind: dir
+  entries:
+    kept.yaml:
+      kind: file
+      text: "shared-kept"
+    old-entry.yaml:
+      kind: file
+      text: "shared-old"
+"#,
+        )))
+        .build(dirs.local_dir());
+
+    let type_v2 = CustomAgentType::default()
+        .with_agent_type_id("test/myagent:0.2.0")
+        .with_health(None)
+        .with_filesystem(Some(
+            r#"
+new-entry.yaml:
+  kind: file
+  text: "new"
+"#,
+        ))
+        .with_shared_filesystem(Some(&format!(
+            r#"
+{SHARED_CONFIG_DIR}:
+  kind: dir
+  entries:
+    new-entry.yaml:
+      kind: file
+      text: "shared-new"
+"#,
+        )))
+        .build(dirs.local_dir());
+
+    // other-agent also declares `kept.yaml` in the shared dir; it must survive the type bump
+    // because another active agent still owns it.
+    let other_type = CustomAgentType::default()
+        .with_agent_type_id("test/otheragent:0.1.0")
+        .with_health(None)
+        .with_shared_filesystem(Some(&format!(
+            r#"
+{SHARED_CONFIG_DIR}:
+  kind: dir
+  entries:
+    kept.yaml:
+      kind: file
+      text: "shared-kept"
+"#,
+        )))
+        .build(dirs.local_dir());
+
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agents(format!(
+            r#"
+  {bumped_agent}:
+    agent_type: "{type_v1}"
+  {other_agent}:
+    agent_type: "{other_type}"
+"#,
+        ))
+        .write(dirs.local_dir());
+    create_local_config(
+        bumped_agent.to_string(),
+        NO_CONFIG.to_string(),
+        dirs.local_dir(),
+    );
+    create_local_config(
+        other_agent.to_string(),
+        NO_CONFIG.to_string(),
+        dirs.local_dir(),
+    );
+
+    let _agent_control =
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
+
+    let shared_config_dir = dirs
+        .remote_dir()
+        .join(SHARED_FILESYSTEM_FOLDER_NAME)
+        .join(SHARED_CONFIG_DIR);
+    let agent_fs_dir = dirs
+        .remote_dir()
+        .join(newrelic_agent_control::agent_control::defaults::AGENT_FILESYSTEM_FOLDER_NAME)
+        .join(bumped_agent);
+
+    // Wait for v1 to be fully written before triggering the bump.
+    retry(30, Duration::from_secs(1), || {
+        expect_file_content(&agent_fs_dir.join("old-entry.yaml"), "old")?;
+        expect_file_content(&agent_fs_dir.join("kept.yaml"), "kept")?;
+        expect_file_content(&shared_config_dir.join("old-entry.yaml"), "shared-old")?;
+        expect_file_content(&shared_config_dir.join("kept.yaml"), "shared-kept")?;
+        Ok(())
+    });
+
+    // Bump bumped-agent to v2 via AC remote config.
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
+    opamp_server.set_config_response(
+        ac_instance_id,
+        format!(
+            r#"
+agents:
+  {bumped_agent}:
+    agent_type: "{type_v2}"
+  {other_agent}:
+    agent_type: "{other_type}"
+"#,
+        ),
+    );
+
+    retry(60, Duration::from_secs(1), || {
+        // New entry written by v2 is present.
+        expect_file_content(&agent_fs_dir.join("new-entry.yaml"), "new")?;
+        expect_file_content(&shared_config_dir.join("new-entry.yaml"), "shared-new")?;
+
+        // Shared `kept.yaml` survives because other-agent still declares it (co-ownership).
+        expect_file_content(&shared_config_dir.join("kept.yaml"), "shared-kept")?;
+
+        // Per-agent `kept.yaml` is deleted: v2 dropped it and no other agent owns per-agent entries.
+        if agent_fs_dir.join("kept.yaml").exists() {
+            return Err(
+                "per-agent kept.yaml should be deleted after type bump (not declared by v2)".into(),
+            );
+        }
+
+        // Entries dropped by v2 and not owned by any other agent are deleted.
+        if agent_fs_dir.join("old-entry.yaml").exists() {
+            return Err("per-agent old-entry.yaml should be deleted after type bump".into());
+        }
+        if shared_config_dir.join("old-entry.yaml").exists() {
+            return Err("shared old-entry.yaml should be deleted after type bump".into());
+        }
+        Ok(())
+    });
+}
+
 /// A minimal OHI-style agent type that writes a single config file into the shared co-owned
 /// `infra-agent-ohi-configs` directory.
 fn ohi_config_agent_type(type_name: &str, file: &str) -> CustomAgentType {

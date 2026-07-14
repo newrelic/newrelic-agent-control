@@ -9,7 +9,7 @@ use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::agent_type::definition::AgentTypeDefinition;
 use crate::agent_type::registry::AgentTypeRegistry;
 use crate::agent_type::runtime_config::Deployment;
-use crate::agent_type::runtime_config::on_host::filesystem::DeclaredSharedPaths;
+use crate::agent_type::runtime_config::on_host::filesystem::DeclaredPaths;
 
 use super::{DynamicConfigValidator, DynamicConfigValidatorError};
 
@@ -31,7 +31,7 @@ impl AgentSharedPaths {
             // relevant for potential error messages.
             Deployment::Host(on_host) => on_host.shared_filesystem().declared_paths(Path::new("")),
             // K8s agent-types are not expected on on-host validation
-            Deployment::K8s(_) => DeclaredSharedPaths::default(),
+            Deployment::K8s(_) => DeclaredPaths::default(),
         };
         let claimed: Vec<PathBuf> = declared
             .files

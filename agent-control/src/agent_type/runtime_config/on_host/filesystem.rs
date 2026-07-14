@@ -133,6 +133,15 @@ impl FileSystem {
         self.0.is_empty()
     }
 
+    /// Collects all on-disk paths this filesystem declares, rooted under `base_dir`.
+    pub fn declared_paths(&self, base_dir: &Path) -> DeclaredPaths {
+        let mut declared = DeclaredPaths::default();
+        for (key, entry) in &self.0 {
+            collect_declared_paths(&base_dir.join(key), entry, &mut declared);
+        }
+        declared
+    }
+
     /// Templates each entry and roots it under `base_dir`, prepending `base_dir` to each relative
     /// top-level key (the only place a final on-disk path is constructed).
     fn render_entries(
@@ -182,7 +191,7 @@ impl Templateable for SharedFileSystem {
 /// The shared-filesystem paths an Agent Type declares ownership of, rooted under a base directory
 /// and split by ownership granularity.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct DeclaredSharedPaths {
+pub struct DeclaredPaths {
     /// Files owned individually. Several agents may drop sibling files into the same
     /// co-owned directory, but no two may own the exact same file path.
     pub files: HashSet<PathBuf>,
@@ -194,8 +203,8 @@ pub struct DeclaredSharedPaths {
 impl SharedFileSystem {
     /// Collects the on-disk paths this shared filesystem declares ownership of, rooted under
     /// `base_dir`.
-    pub fn declared_paths(&self, base_dir: &Path) -> DeclaredSharedPaths {
-        let mut declared = DeclaredSharedPaths::default();
+    pub fn declared_paths(&self, base_dir: &Path) -> DeclaredPaths {
+        let mut declared = DeclaredPaths::default();
         for (key, entry) in &self.0.0 {
             collect_declared_paths(&base_dir.join(key), entry, &mut declared);
         }
@@ -204,11 +213,11 @@ impl SharedFileSystem {
 }
 
 /// Recursively gathers the paths declared by `entry` (rooted at `path`) into `declared`.
-fn collect_declared_paths(
-    path: &Path,
-    entry: &FilesystemEntry,
-    declared: &mut DeclaredSharedPaths,
-) {
+///
+/// `Dir` entries are treated as co-owned drop zones: the directory path itself is not tracked,
+/// only the declared files inside are. This allows multiple agents to write into the same
+/// directory without one agent's cleanup removing another agent's files or the directory itself.
+fn collect_declared_paths(path: &Path, entry: &FilesystemEntry, declared: &mut DeclaredPaths) {
     match entry {
         FilesystemEntry::File { .. } => {
             declared.files.insert(path.to_path_buf());

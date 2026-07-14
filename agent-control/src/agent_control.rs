@@ -555,9 +555,19 @@ where
                     debug!(%agent_id, "Retaining the existing running SubAgent as its type remains unchanged");
                     Ok(())
                 }
-                Some(_) => {
+                Some(old_sub_agent_config) => {
                     info!(%agent_id, "Recreating SubAgent");
                     self.recreate_sub_agent(&agent_identity, running_sub_agents)
+                        .and_then(|_| {
+                            self.resource_cleaner
+                                .on_agent_type_changed(
+                                    agent_id,
+                                    &old_sub_agent_config.agent_type,
+                                    &agent_config.agent_type,
+                                    &new_dynamic_config.agents,
+                                )
+                                .map_err(AgentControlError::from)
+                        })
                 }
                 None => {
                     info!(%agent_id, "Creating SubAgent");
@@ -960,6 +970,9 @@ agents:
             self.resource_cleaner
                 .expect_clean()
                 .returning(|_, _| Ok(()));
+            self.resource_cleaner
+                .expect_on_agent_type_changed()
+                .returning(|_, _, _, _| Ok(()));
         }
 
         /// Sets a mock with "no-op" expectations
@@ -980,6 +993,23 @@ agents:
                         predicate::eq(identity.agent_type_id),
                     )
                     .returning(|_, _| Ok(()));
+            }
+        }
+
+        /// Set expectations for each `(agent_id, old_type_id, new_type_id)` tuple to be passed to
+        /// `on_agent_type_changed` by the resource cleaner.
+        fn expect_on_agent_type_changed(&mut self, changes: Vec<(AgentIdentity, AgentTypeID)>) {
+            for (old_identity, new_type_id) in changes {
+                self.resource_cleaner
+                    .expect_on_agent_type_changed()
+                    .once()
+                    .with(
+                        predicate::eq(old_identity.id),
+                        predicate::eq(old_identity.agent_type_id),
+                        predicate::eq(new_type_id),
+                        predicate::always(),
+                    )
+                    .returning(|_, _, _, _| Ok(()));
             }
         }
 
@@ -1369,10 +1399,16 @@ agents:
             client.should_update_effective_config(1);
         });
 
-        // Only removed agents are cleaned; a type change (recreate) no longer cleans the old resources.
+        // Removed agents are fully cleaned up.
         agent_control.expect_resource_clean_in_sequence(
-            t.identities(vec![("id3", "newrelic/remote.example.c:0.0.3")]), // removed
+            t.identities(vec![("id3", "newrelic/remote.example.c:0.0.3")]),
         );
+        // Type-changed agents trigger on_agent_type_changed with old and new types.
+        agent_control.expect_on_agent_type_changed(vec![(
+            t.identities(vec![("id2", "newrelic/remote.example.b:0.0.2")])
+                .remove(0),
+            AgentTypeID::try_from("newrelic/remote.example.b2:0.0.2").unwrap(),
+        )]);
 
         let result = agent_control.handle_remote_config(
             opamp_remote_config.clone(),
