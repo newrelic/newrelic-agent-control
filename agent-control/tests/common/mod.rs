@@ -2,6 +2,7 @@ pub(super) mod agent_control;
 pub(crate) mod attributes;
 pub(super) mod base_paths;
 pub(crate) mod config;
+pub(crate) mod custom_agent_type;
 /// Includes a OpAMP mock server to test scenarios involving OpAMP.
 pub(super) mod effective_config;
 pub(super) mod global_logger;

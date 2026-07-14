@@ -31,14 +31,17 @@ fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agents = r#"
+    let agent_type_id = K8sCustomAgentType::default().build(tmp_dir.path());
+    let agents = format!(
+        r#"
   hello-world:
-    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
-"#;
+    agent_type: "{agent_type_id}"
+"#
+    );
 
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
-        .with_agents(agents)
+        .with_agents(&agents)
         .write(k8s.client.clone(), tmp_dir.path());
 
     // This config is intended to be empty
@@ -49,7 +52,6 @@ fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
         "".to_string(),
     ));
 
-    K8sCustomAgentType::default().build(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let instance_id = instance_id::get_instance_id(
@@ -98,10 +100,9 @@ valid: true
     // start the agent-control with the same configuration
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
-        .with_agents(agents)
+        .with_agents(&agents)
         .write(k8s.client.clone(), tmp_dir.path());
 
-    K8sCustomAgentType::default().build(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 

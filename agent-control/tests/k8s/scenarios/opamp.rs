@@ -35,10 +35,13 @@ fn k8s_opamp_remove_subagent() {
     let agents_ns = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agents = r#"
+    let agent_type_id = K8sCustomAgentType::split_ns().build(tmp_dir.path());
+    let agents = format!(
+        r#"
   hello-world:
-    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
-"#;
+    agent_type: "{agent_type_id}"
+"#
+    );
 
     K8sAgentControlConfigBuilder::new(&ac_ns)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
@@ -53,7 +56,6 @@ fn k8s_opamp_remove_subagent() {
         "chart_values: \n  nameOverride: from-local\n".to_string(),
     ));
 
-    K8sCustomAgentType::split_ns().build(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &ac_ns, tmp_dir.path());
 
     let ac_instance_id =
@@ -71,16 +73,14 @@ fn k8s_opamp_remove_subagent() {
             agents_ns.as_str(),
         )?;
 
-        let expected_config = r#"agents:
+        let expected_config = format!(
+            r#"agents:
       hello-world:
-        agent_type: newrelic/com.newrelic.custom_agent:0.0.1
-    "#;
+        agent_type: {agent_type_id}
+    "#
+        );
 
-        check_latest_effective_config_is_expected(
-            &server,
-            &ac_instance_id,
-            expected_config.to_string(),
-        )?;
+        check_latest_effective_config_is_expected(&server, &ac_instance_id, expected_config)?;
 
         check_latest_health_status_was_healthy(&server, &sub_agent_instance_id.clone())
     });
@@ -156,7 +156,7 @@ fn k8s_opamp_add_subagent() {
         "chart_values:\n  cluster: minikube\n  licenseKey: test\n".to_string(),
     ));
 
-    K8sCustomAgentType::split_ns().build(tmp_dir.path());
+    let agent_type_id = K8sCustomAgentType::split_ns().build(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &ac_ns, tmp_dir.path());
 
     let ac_instance_id =
@@ -164,11 +164,13 @@ fn k8s_opamp_add_subagent() {
 
     server.set_config_response(
         ac_instance_id.clone(),
-        r#"
+        format!(
+            r#"
 agents:
   hello-world:
-    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
-            "#,
+    agent_type: "{agent_type_id}"
+            "#
+        ),
     );
 
     let sub_agent_instance_id = instance_id::get_instance_id(
@@ -183,11 +185,12 @@ agents:
         check_latest_effective_config_is_expected(
             &server,
             &ac_instance_id,
-            r#"agents:
+            format!(
+                r#"agents:
   hello-world:
-    agent_type: newrelic/com.newrelic.custom_agent:0.0.1
+    agent_type: {agent_type_id}
 "#
-            .to_string(),
+            ),
         )?;
 
         check_latest_health_status_was_healthy(&server, &sub_agent_instance_id)
@@ -204,10 +207,13 @@ fn k8s_opamp_modify_subagent_config() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agents = r#"
+    let agent_type_id = K8sCustomAgentType::split_ns().build(tmp_dir.path());
+    let agents = format!(
+        r#"
   hello-world:
-    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
-"#;
+    agent_type: "{agent_type_id}"
+"#
+    );
 
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
@@ -221,7 +227,6 @@ fn k8s_opamp_modify_subagent_config() {
         "chart_values: \n  nameOverride: from-local\n".to_string(),
     ));
 
-    K8sCustomAgentType::split_ns().build(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let instance_id = instance_id::get_instance_id(

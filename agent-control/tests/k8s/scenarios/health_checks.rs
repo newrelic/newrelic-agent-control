@@ -46,10 +46,13 @@ fn k8s_direct_workload_health_checks() {
         0,
     ));
 
-    let agents = r#"
+    let agent_type_id = direct_checks_agent_type().build(tmp_dir.path());
+    let agents = format!(
+        r#"
   hello-world:
-    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
-"#;
+    agent_type: "{agent_type_id}"
+"#
+    );
 
     K8sAgentControlConfigBuilder::new(&ac_ns)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
@@ -64,7 +67,6 @@ fn k8s_direct_workload_health_checks() {
         "{}".to_string(),
     ));
 
-    direct_checks_agent_type().build(tmp_dir.path());
     let _ac = start_agent_control(k8s.client.clone(), &ac_ns, tmp_dir.path());
 
     let sub_agent_instance_id = instance_id::get_instance_id(
@@ -102,10 +104,13 @@ fn k8s_direct_workload_health_checks_unhealthy() {
         1,
     ));
 
-    let agents = r#"
+    let agent_type_id = direct_checks_agent_type().build(tmp_dir.path());
+    let agents = format!(
+        r#"
   hello-world:
-    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
-"#;
+    agent_type: "{agent_type_id}"
+"#
+    );
 
     K8sAgentControlConfigBuilder::new(&ac_ns)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
@@ -120,7 +125,6 @@ fn k8s_direct_workload_health_checks_unhealthy() {
         "{}".to_string(),
     ));
 
-    direct_checks_agent_type().build(tmp_dir.path());
     let _ac = start_agent_control(k8s.client.clone(), &ac_ns, tmp_dir.path());
 
     let sub_agent_instance_id = instance_id::get_instance_id(

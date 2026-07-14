@@ -1,9 +1,6 @@
-use fs::file::LocalFile;
-use fs::file::writer::FileWriter;
-use newrelic_agent_control::agent_control::defaults::DYNAMIC_AGENT_TYPES_DIR;
+use crate::common::custom_agent_type::CommonCustomAgentType;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
-use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
 use std::fmt::Display;
 use std::path::PathBuf;
 
@@ -11,8 +8,7 @@ pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
 
 /// Helper to build a Custom Agent type with defaults ready to use in integration tests
 pub struct OnHostCustomAgentType {
-    agent_type_id: AgentTypeID,
-    variables: Option<serde_json::Value>,
+    common: CommonCustomAgentType,
     executables: Option<serde_json::Value>,
     filesystem: Option<serde_json::Value>,
     shared_filesystem: Option<serde_json::Value>,
@@ -23,18 +19,14 @@ pub struct OnHostCustomAgentType {
 impl Default for OnHostCustomAgentType {
     fn default() -> Self {
         Self {
-            agent_type_id: Self::default_agent_type_id(),
-            variables: Some(
-                serde_saphyr::from_str(
-                    r#"
+            common: CommonCustomAgentType::new(Self::default_agent_type_id()).with_variables(
+                r#"
 fake_variable:
   description: "fake variable to verify remote config"
   type: "string"
   required: false
   default: "default"
 "#,
-                )
-                .unwrap(),
             ),
             executables: Some(Self::default_executables()),
             filesystem: None,
@@ -67,15 +59,16 @@ impl Display for OnHostCustomAgentType {
         operating_system: {}
         protocol_version: "1.0"
         "#,
-            self.agent_type_id.namespace(),
-            self.agent_type_id.name(),
-            self.agent_type_id.version(),
+            self.common.agent_type_id.namespace(),
+            self.common.agent_type_id.name(),
+            self.common.agent_type_id.version(),
             AGENT_CONTROL_MODE_ON_HOST,
         );
         let mut content: serde_json::Map<String, serde_json::Value> =
             serde_saphyr::from_str(&content).unwrap();
 
         let variables = self
+            .common
             .variables
             .clone()
             .unwrap_or_else(|| serde_json::Map::<String, serde_json::Value>::new().into());
@@ -142,8 +135,7 @@ impl OnHostCustomAgentType {
 
     pub fn empty() -> Self {
         Self {
-            agent_type_id: Self::default_agent_type_id(),
-            variables: None,
+            common: CommonCustomAgentType::new(Self::default_agent_type_id()),
             executables: None,
             health: None,
             filesystem: None,
@@ -189,14 +181,14 @@ impl OnHostCustomAgentType {
 
     pub fn with_variables(self, variables: &str) -> Self {
         Self {
-            variables: Some(serde_saphyr::from_str(variables).unwrap()),
+            common: self.common.with_variables(variables),
             ..self
         }
     }
 
     pub fn with_agent_type_id(self, agent_type_id: &str) -> Self {
         Self {
-            agent_type_id: AgentTypeID::try_from(agent_type_id).unwrap(),
+            common: self.common.with_agent_type_id(agent_type_id),
             ..self
         }
     }
@@ -211,29 +203,9 @@ impl OnHostCustomAgentType {
         }
     }
 
-    /// Writes the custom agent type and returns its id as string. The file name is derived from the
-    /// full agent type id (namespace, name and version) so several distinct types can coexist in
-    /// the dynamic agent types dir (the loader reads every file there); two ids sharing only a name
-    /// would otherwise clobber each other.
+    /// Writes the custom agent type and returns its id as string.
     pub fn build(self, local_dir: PathBuf) -> String {
-        // The id (`namespace/name:version`) has `/` and `:`, which are not portable in file names.
-        let file_stem = self.agent_type_id.to_string().replace(['/', ':'], "_");
-        let agent_type_file_path = local_dir
-            .join(DYNAMIC_AGENT_TYPES_DIR)
-            .join(format!("{file_stem}.yaml"));
-
-        let parsed_agent_type = AgentTypeDefinition::from_slice(self.to_string().as_bytes());
-        assert!(
-            parsed_agent_type.is_ok(),
-            "CustomAgentType did not produce valid AgentTypeDefinition: {}\n{}",
-            parsed_agent_type.err().unwrap(),
-            self
-        );
-
-        std::fs::create_dir_all(agent_type_file_path.parent().unwrap()).unwrap();
-        LocalFile
-            .write(&agent_type_file_path, self.to_string())
-            .expect("failed to write custom agent type");
-        self.agent_type_id.to_string()
+        let content = self.to_string();
+        self.common.build(&local_dir, &content)
     }
 }

@@ -21,11 +21,6 @@ fn k8s_template_secrets() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agents = r#"
-  hello-world:
-    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
-"#;
-
     let secrets_providers = r#"  vault:
     sources:
       sourceA:
@@ -37,25 +32,7 @@ fn k8s_template_secrets() {
         token: root
         engine: kv2"#;
 
-    K8sAgentControlConfigBuilder::new(&namespace)
-        .with_agents(agents)
-        .with_secrets_providers(secrets_providers)
-        .write(k8s.client.clone(), tmp_dir.path());
-
-    block_on(create_config_map(
-        k8s.client.clone(),
-        &namespace,
-        "local-data-hello-world",
-        format!(
-            r#"chart_values:
-  hashicorpVaultV1Key: ${{nr-vault:sourceA:kv-v1:my-secret:foo1}}
-  hashicorpVaultV2Key: ${{nr-vault:sourceB:secret:my-secret:foo2}}
-  k8sSecretKey: ${{nr-kubesec:{namespace}:pod-secrets:foo3}}
-  envVarKey: ${{nr-env:{test_name}_foo4}}"#
-        ),
-    ));
-
-    K8sCustomAgentType::new()
+    let agent_type_id = K8sCustomAgentType::new()
         .with_variables(
             r#"
 chart_values:
@@ -93,6 +70,31 @@ release:
 "#,
         ))
         .build(tmp_dir.path());
+    let agents = format!(
+        r#"
+  hello-world:
+    agent_type: "{agent_type_id}"
+"#
+    );
+
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_agents(agents)
+        .with_secrets_providers(secrets_providers)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    block_on(create_config_map(
+        k8s.client.clone(),
+        &namespace,
+        "local-data-hello-world",
+        format!(
+            r#"chart_values:
+  hashicorpVaultV1Key: ${{nr-vault:sourceA:kv-v1:my-secret:foo1}}
+  hashicorpVaultV2Key: ${{nr-vault:sourceB:secret:my-secret:foo2}}
+  k8sSecretKey: ${{nr-kubesec:{namespace}:pod-secrets:foo3}}
+  envVarKey: ${{nr-env:{test_name}_foo4}}"#
+        ),
+    ));
+
     let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     // Now, we create all the required secrets.

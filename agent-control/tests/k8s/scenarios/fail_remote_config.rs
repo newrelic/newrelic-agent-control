@@ -26,24 +26,7 @@ fn k8s_fail_remote_config_missing_required_values() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agents = r#"
-  fake-agent:
-    agent_type: "newrelic/com.newrelic.test:0.0.1"
-"#;
-
-    K8sAgentControlConfigBuilder::new(&namespace)
-        .with_fleet(server.endpoint(), server.jwks_endpoint())
-        .with_agents(agents)
-        .write(k8s.client.clone(), tmp_dir.path());
-
-    block_on(create_config_map(
-        k8s.client.clone(),
-        &namespace,
-        "local-data-fake-agent",
-        "required_var: \"local\"\n".to_string(),
-    ));
-
-    K8sCustomAgentType::new()
+    let agent_type_id = K8sCustomAgentType::new()
         .with_agent_type_id("newrelic/com.newrelic.test:0.0.1")
         .with_variables(
             r#"
@@ -72,6 +55,25 @@ some-resource:
 "#,
         ))
         .build(tmp_dir.path());
+    let agents = format!(
+        r#"
+  fake-agent:
+    agent_type: "{agent_type_id}"
+"#
+    );
+
+    K8sAgentControlConfigBuilder::new(&namespace)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_agents(agents)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    block_on(create_config_map(
+        k8s.client.clone(),
+        &namespace,
+        "local-data-fake-agent",
+        "required_var: \"local\"\n".to_string(),
+    ));
+
     let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let instance_id = instance_id::get_instance_id(

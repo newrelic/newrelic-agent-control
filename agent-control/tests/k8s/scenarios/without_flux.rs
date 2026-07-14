@@ -22,8 +22,8 @@ const CR_TYPE_META_CONFIG_MAP: &str = r#"  - apiVersion: v1
     kind: ConfigMap"#;
 
 /// Agent type that deploys a plain ConfigMap object, used to test the config-map based
-/// (non-Flux) deployment mechanism.
-fn write_config_map_agent_type(local_dir: &Path) {
+/// (non-Flux) deployment mechanism. Returns the agent type id.
+fn write_config_map_agent_type(local_dir: &Path) -> String {
     K8sCustomAgentType::new()
         .with_agent_type_id("newrelic/com.newrelic.test_config_map:0.1.0")
         .with_variables(
@@ -55,7 +55,7 @@ values:
       ${nr-var:chart_values.cm_content}
 "#,
         ))
-        .build(local_dir);
+        .build(local_dir)
 }
 
 /// This test verifies that the config_map_type agent type creates
@@ -74,7 +74,7 @@ fn k8s_config_map_type_creates_configmap() {
         .with_cr_type_meta(CR_TYPE_META_CONFIG_MAP)
         .write(k8s.client.clone(), tmp_dir.path());
 
-    write_config_map_agent_type(tmp_dir.path());
+    let agent_type_id = write_config_map_agent_type(tmp_dir.path());
     let _ac = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     agent_control::wait_until_agent_control_with_opamp_is_started(
@@ -87,11 +87,13 @@ fn k8s_config_map_type_creates_configmap() {
 
     server.set_config_response(
         instance_id.clone(),
-        r#"
+        format!(
+            r#"
 agents:
   test-config-map:
-    agent_type: "newrelic/com.newrelic.test_config_map:0.1.0"
-    "#,
+    agent_type: "{agent_type_id}"
+    "#
+        ),
     );
 
     println!("Waiting for fleet-data ConfigMap to be created...");
@@ -211,7 +213,7 @@ fn k8s_config_map_type_gc_does_not_fail_on_restart() {
         .with_cr_type_meta(CR_TYPE_META_CONFIG_MAP)
         .write(k8s.client.clone(), tmp_dir.path());
 
-    write_config_map_agent_type(tmp_dir.path());
+    let agent_type_id = write_config_map_agent_type(tmp_dir.path());
     let _ac = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     agent_control::wait_until_agent_control_with_opamp_is_started(
@@ -225,11 +227,13 @@ fn k8s_config_map_type_gc_does_not_fail_on_restart() {
     // Deploy the config-map-type agent via the fleet-level config.
     server.set_config_response(
         instance_id.clone(),
-        r#"
+        format!(
+            r#"
 agents:
   test-config-map:
-    agent_type: "newrelic/com.newrelic.test_config_map:0.1.0"
-    "#,
+    agent_type: "{agent_type_id}"
+    "#
+        ),
     );
 
     // Wait for the fleet-data ConfigMap to be created (instance-ID written by the storer).
@@ -274,9 +278,9 @@ chart_values:
     drop(_ac);
 
     // Restart AC with the same configuration. On startup, `retain` is called with the
-    // active agent ({test-config-map: newrelic/com.newrelic.test_config_map:0.1.0}) and
-    // cr_type_meta includes ConfigMap. GC finds the fleet-data ConfigMap, reads the
-    // agent-type-id annotation, and correctly retains it.
+    // active agent ({test-config-map: <agent_type_id>}) and cr_type_meta includes ConfigMap.
+    // GC finds the fleet-data ConfigMap, reads the agent-type-id annotation, and correctly
+    // retains it.
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
         .with_cr_type_meta(CR_TYPE_META_CONFIG_MAP)
@@ -309,7 +313,7 @@ fn k8s_agent_control_update_remote_config() {
         .with_cr_type_meta(CR_TYPE_META_CONFIG_MAP)
         .write(k8s.client.clone(), tmp_dir.path());
 
-    write_config_map_agent_type(tmp_dir.path());
+    let agent_type_id = write_config_map_agent_type(tmp_dir.path());
     let _ac = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     agent_control::wait_until_agent_control_with_opamp_is_started(
@@ -322,11 +326,13 @@ fn k8s_agent_control_update_remote_config() {
 
     server.set_config_response(
         instance_id.clone(),
-        r#"
+        format!(
+            r#"
 agents:
   test-config-map:
-    agent_type: "newrelic/com.newrelic.test_config_map:0.1.0"
-    "#,
+    agent_type: "{agent_type_id}"
+    "#
+        ),
     );
 
     println!("Waiting for fleet-data ConfigMap to be created...");

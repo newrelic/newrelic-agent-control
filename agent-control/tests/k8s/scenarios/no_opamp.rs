@@ -18,10 +18,13 @@ fn k8s_sub_agent_started_with_no_opamp() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agents = r#"
+    let agent_type_id = K8sCustomAgentType::split_ns().build(tmp_dir.path());
+    let agents = format!(
+        r#"
   hello-world:
-    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
-"#;
+    agent_type: "{agent_type_id}"
+"#
+    );
 
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_agents(agents)
@@ -34,7 +37,6 @@ fn k8s_sub_agent_started_with_no_opamp() {
         "chart_values: \n  nameOverride: from-local\n".to_string(),
     ));
 
-    K8sCustomAgentType::split_ns().build(tmp_dir.path());
     let _child = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     // Check deployment for first Agent is created with retry, the name has the key

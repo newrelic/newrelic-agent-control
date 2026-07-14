@@ -29,19 +29,18 @@ use std::time::Duration;
 #[ignore = "needs a k8s cluster"]
 fn test_k8s_http_status_endpoint_response() {
     const AGENT_ID: &str = "hello-world";
-    const AGENT_TYPE: &str = "newrelic/com.newrelic.custom_agent:0.0.1";
 
     let opamp_server = FakeServer::start(tokio_runtime().handle());
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let dirs = TempBasePaths::default();
 
-    K8sCustomAgentType::default().build(&dirs.local_dir());
+    let agent_type_id = K8sCustomAgentType::default().build(&dirs.local_dir());
 
     let agents = format!(
         r#"
   {AGENT_ID}:
-    agent_type: "{AGENT_TYPE}"
+    agent_type: "{agent_type_id}"
 "#
     );
 

@@ -37,10 +37,13 @@ fn k8s_test_attributes_from_existing_agent_type() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agents = r#"
+    let agent_type_id = K8sCustomAgentType::default().build(tmp_dir.path());
+    let agents = format!(
+        r#"
   hello-world:
-    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
-"#;
+    agent_type: "{agent_type_id}"
+"#
+    );
 
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
@@ -57,7 +60,6 @@ fn k8s_test_attributes_from_existing_agent_type() {
         "chart_values:\n  cluster: minikube\n  licenseKey: test\n".to_string(),
     ));
 
-    K8sCustomAgentType::default().build(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let expected_chart_version = "1.2.3-beta".to_string();
@@ -65,11 +67,13 @@ fn k8s_test_attributes_from_existing_agent_type() {
         instance_id::get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
     server.set_config_response(
         instance_id.clone(),
-        r#"
+        format!(
+            r#"
 agents:
   hello-world:
-    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
-            "#,
+    agent_type: "{agent_type_id}"
+            "#
+        ),
     );
 
     let ac_expected_identifying_attributes = convert_to_vec_key_value(Vec::from([
