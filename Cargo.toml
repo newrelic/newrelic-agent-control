@@ -29,6 +29,8 @@ tracing = "0.1.44"
 regex = "1.13.0"
 mockall = "0.15.0"
 clap = "4.6.1"
+flate2 = "1.1.9"
+tar = "0.4.46"
 nix = "0.31.3"
 tracing-subscriber = { version = "0.3.23", features = ["json"] }
 tracing-test = "0.2.6"

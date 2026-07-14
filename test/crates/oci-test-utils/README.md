@@ -130,4 +130,4 @@ echo "$GHCR_TOKEN" | cargo run -p oci-test-utils --bin oci-utils -- \
 ## Notes for maintainers
 
 - `agent_type_meta.rs` is a deliberate, hand-maintained mirror of `agent-control/src/agent_type/oci.rs::AgentTypeTag` and its environment-prefix helper. The duplication is intentional: this crate cannot depend on `newrelic-agent-control`. Keep the two in sync by hand when either side changes.
-- `flate2` and `tar` are pinned to the same versions agent-control uses so the workspace resolves to one copy each.
+- `flate2` and `tar` are declared in `[workspace.dependencies]` and consumed here (and in agent-control) via `{ workspace = true }`, so both crates resolve to one shared version.
