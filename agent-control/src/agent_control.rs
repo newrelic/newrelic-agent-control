@@ -486,6 +486,7 @@ where
             AgentControlDynamicConfig::try_from(opamp_remote_config)?
         };
 
+        // Any validation error makes the AC's remote configuration fail.
         self.dynamic_config_validator
             .validate(&new_dynamic_config)
             .map_err(|err| AgentControlError::RemoteConfigValidator(err.to_string()))?;

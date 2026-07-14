@@ -3,7 +3,7 @@
 use crate::agent_control::AgentControl;
 use crate::agent_control::config::{AgentControlConfig, OpAMPClientConfig};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
-use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
+use crate::agent_control::config_validator::on_host::SharedFilesystemPathValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, AGENT_FILESYSTEM_FOLDER_NAME, EXECUTION_MODE_ATTRIBUTE_KEY,
     FLEET_ID_ATTRIBUTE_KEY, FOLDER_NAME_FLEET_DATA, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
@@ -228,8 +228,9 @@ impl AgentControlRunner {
             sub_agent_publisher: self.sub_agent_publisher,
         };
 
-        let dynamic_config_validator =
-            RegistryDynamicConfigValidator::new(self.agent_type_registry);
+        // Shared-filesystem conflict detection (on-host only). Resolving each agent type here also
+        // surfaces unknown-type errors, so this subsumes the registry existence check on host.
+        let dynamic_config_validator = SharedFilesystemPathValidator::new(self.agent_type_registry);
 
         // The http server stops on Drop. We need to keep it while the agent control is running.
         let _http_server = self
