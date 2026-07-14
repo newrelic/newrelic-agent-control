@@ -8,8 +8,11 @@
 //! `cargo run -p oci-test-utils --bin oci-utils -- ...`.
 //!
 //! Usage:
-//!   oci-utils [GLOBAL_OPTIONS] push-package    [--media-type tar-gz|zip] --tag <TAG> <FILE>
-//!   oci-utils [GLOBAL_OPTIONS] push-agent-type <DEFINITION.yaml>
+//!
+//! ```text
+//! oci-utils [GLOBAL_OPTIONS] push-package    [--media-type tar-gz|zip] --tag <TAG> <FILE>
+//! oci-utils [GLOBAL_OPTIONS] push-agent-type <DEFINITION.yaml>
+//! ```
 
 use std::error::Error;
 use std::fs;

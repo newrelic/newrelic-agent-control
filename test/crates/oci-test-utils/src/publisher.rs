@@ -101,7 +101,7 @@ impl PackagePublisher {
     }
 
     /// Sets the repository (namespace) within the registry that artifacts will be pushed under.
-    /// Defaults to [`DEFAULT_REPOSITORY_NAME`]. Must be called before any `with_*_auth` method,
+    /// Defaults to `DEFAULT_REPOSITORY_NAME` (`"test"`). Must be called before any `with_*_auth` method,
     /// since auth is scoped to the repository.
     pub fn with_repository(mut self, repository: impl Into<String>) -> Self {
         self.repository = repository.into();
