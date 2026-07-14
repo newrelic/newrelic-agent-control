@@ -140,7 +140,7 @@ fn k8s_direct_workload_health_checks_unhealthy() {
 ///
 /// No objects, the workload is defined externally
 fn direct_checks_agent_type() -> K8sCustomAgentType {
-    K8sCustomAgentType::empty().with_health(Some(
+    K8sCustomAgentType::new().with_health(Some(
         r#"
 interval: 5s
 initial_delay: 2s

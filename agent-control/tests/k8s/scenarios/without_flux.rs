@@ -24,7 +24,7 @@ const CR_TYPE_META_CONFIG_MAP: &str = r#"  - apiVersion: v1
 /// Agent type that deploys a plain ConfigMap object, used to test the config-map based
 /// (non-Flux) deployment mechanism.
 fn write_config_map_agent_type(local_dir: &Path) {
-    K8sCustomAgentType::empty()
+    K8sCustomAgentType::new()
         .with_agent_type_id("newrelic/com.newrelic.test_config_map:0.1.0")
         .with_variables(
             r#"

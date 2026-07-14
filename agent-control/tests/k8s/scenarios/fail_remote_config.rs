@@ -43,7 +43,7 @@ fn k8s_fail_remote_config_missing_required_values() {
         "required_var: \"local\"\n".to_string(),
     ));
 
-    K8sCustomAgentType::empty()
+    K8sCustomAgentType::new()
         .with_agent_type_id("newrelic/com.newrelic.test:0.0.1")
         .with_variables(
             r#"

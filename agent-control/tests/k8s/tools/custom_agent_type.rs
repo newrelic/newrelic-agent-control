@@ -16,7 +16,7 @@ pub struct K8sCustomAgentType {
 
 impl Default for K8sCustomAgentType {
     fn default() -> Self {
-        Self::empty()
+        Self::new()
             .with_variables(
                 r#"
 chart_values:
@@ -130,7 +130,7 @@ impl K8sCustomAgentType {
         AgentTypeID::try_from("newrelic/com.newrelic.custom_agent:0.0.1").unwrap()
     }
 
-    pub fn empty() -> Self {
+    pub fn new() -> Self {
         Self {
             agent_type_id: Self::default_agent_type_id(),
             variables: None,

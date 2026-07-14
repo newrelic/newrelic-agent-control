@@ -55,7 +55,7 @@ fn k8s_template_secrets() {
         ),
     ));
 
-    K8sCustomAgentType::empty()
+    K8sCustomAgentType::new()
         .with_variables(
             r#"
 chart_values:
