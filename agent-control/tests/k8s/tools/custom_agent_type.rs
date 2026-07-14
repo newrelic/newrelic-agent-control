@@ -16,23 +16,71 @@ pub struct K8sCustomAgentType {
 
 impl Default for K8sCustomAgentType {
     fn default() -> Self {
-        Self {
-            agent_type_id: Self::default_agent_type_id(),
-            variables: Some(
-                serde_saphyr::from_str(
-                    r#"
+        Self::empty()
+            .with_variables(
+                r#"
 chart_values:
   description: "chart_values"
   type: yaml
   required: false
   default: { }
 "#,
-                )
-                .unwrap(),
-            ),
-            health: Some(Self::default_health()),
-            objects: Some(Self::default_objects()),
-        }
+            )
+            .with_health(Some(
+                r#"
+interval: 5s
+initial_delay: 2s
+checks:
+  - namespace: ${nr-ac:namespace}
+    name: ${nr-sub:agent_id}
+    kind: HelmReleaseWorkload
+    target_namespace: ${nr-ac:namespace_agents}
+"#,
+            ))
+            .with_objects(Some(
+                r#"
+repository:
+  apiVersion: source.toolkit.fluxcd.io/v1
+  kind: HelmRepository
+  metadata:
+    name: ${nr-sub:agent_id}
+    namespace: ${nr-ac:namespace}
+  spec:
+    # we don't want to trigger this in the test to avoid extra load in the cluster
+    interval: 99m
+    url: https://helm.github.io/examples
+release:
+  apiVersion: helm.toolkit.fluxcd.io/v2
+  kind: HelmRelease
+  metadata:
+    name: ${nr-sub:agent_id}
+    namespace: ${nr-ac:namespace}
+  spec:
+    # we don't want to trigger this in the test to avoid extra load in the cluster
+    interval: 10s
+    releaseName: ${nr-sub:agent_id}
+    targetNamespace: ${nr-ac:namespace_agents}
+    chart:
+      spec:
+        chart: hello-world
+        version: 0.1.0
+        sourceRef:
+          kind: HelmRepository
+          name: ${nr-sub:agent_id}
+          namespace: ${nr-ac:namespace}
+    install:
+      disableWait: true
+      disableWaitForJobs: true
+      disableTakeOwnership: true
+    upgrade:
+      disableWait: true
+      disableWaitForJobs: true
+      disableTakeOwnership: true
+      cleanupOnFail: true
+    values:
+      ${nr-var:chart_values}
+"#,
+            ))
     }
 }
 
@@ -80,69 +128,6 @@ impl Display for K8sCustomAgentType {
 impl K8sCustomAgentType {
     fn default_agent_type_id() -> AgentTypeID {
         AgentTypeID::try_from("newrelic/com.newrelic.custom_agent:0.0.1").unwrap()
-    }
-
-    fn default_health() -> serde_json::Value {
-        serde_saphyr::from_str(
-            r#"
-interval: 5s
-initial_delay: 2s
-checks:
-  - namespace: ${nr-ac:namespace}
-    name: ${nr-sub:agent_id}
-    kind: HelmReleaseWorkload
-    target_namespace: ${nr-ac:namespace_agents}
-"#,
-        )
-        .unwrap()
-    }
-
-    fn default_objects() -> serde_json::Value {
-        serde_saphyr::from_str(
-            r#"
-repository:
-  apiVersion: source.toolkit.fluxcd.io/v1
-  kind: HelmRepository
-  metadata:
-    name: ${nr-sub:agent_id}
-    namespace: ${nr-ac:namespace}
-  spec:
-    # we don't want to trigger this in the test to avoid extra load in the cluster
-    interval: 99m
-    url: https://helm.github.io/examples
-release:
-  apiVersion: helm.toolkit.fluxcd.io/v2
-  kind: HelmRelease
-  metadata:
-    name: ${nr-sub:agent_id}
-    namespace: ${nr-ac:namespace}
-  spec:
-    # we don't want to trigger this in the test to avoid extra load in the cluster
-    interval: 10s
-    releaseName: ${nr-sub:agent_id}
-    targetNamespace: ${nr-ac:namespace_agents}
-    chart:
-      spec:
-        chart: hello-world
-        version: 0.1.0
-        sourceRef:
-          kind: HelmRepository
-          name: ${nr-sub:agent_id}
-          namespace: ${nr-ac:namespace}
-    install:
-      disableWait: true
-      disableWaitForJobs: true
-      disableTakeOwnership: true
-    upgrade:
-      disableWait: true
-      disableWaitForJobs: true
-      disableTakeOwnership: true
-      cleanupOnFail: true
-    values:
-      ${nr-var:chart_values}
-"#,
-        )
-        .unwrap()
     }
 
     pub fn empty() -> Self {
