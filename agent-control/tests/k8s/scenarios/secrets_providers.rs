@@ -1,9 +1,8 @@
 use crate::common::retry::retry;
 use crate::common::runtime::block_on;
-use crate::k8s::tools::agent_control::{
-    CUSTOM_AGENT_TYPE_SECRETS_PATH, create_config_map, start_agent_control,
-};
+use crate::k8s::tools::agent_control::{create_config_map, start_agent_control};
 use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
+use crate::k8s::tools::custom_agent_type::K8sCustomAgentType;
 use crate::k8s::tools::k8s_api::{
     check_helmrelease_labels_contains, check_helmrelease_spec_values, create_values_secret,
 };
@@ -56,12 +55,45 @@ fn k8s_template_secrets() {
         ),
     ));
 
-    let _sa = start_agent_control(
-        CUSTOM_AGENT_TYPE_SECRETS_PATH,
-        k8s.client.clone(),
-        &namespace,
-        tmp_dir.path(),
-    );
+    K8sCustomAgentType::empty()
+        .with_variables(
+            r#"
+chart_values:
+  description: "chart_values"
+  type: yaml
+  required: false
+  default: { }
+"#,
+        )
+        .with_objects(Some(
+            r#"
+release:
+  apiVersion: helm.toolkit.fluxcd.io/v2
+  kind: HelmRelease
+  metadata:
+    name: ${nr-sub:agent_id}
+    namespace: ${nr-ac:namespace}
+    labels:
+      agentTypeEnvVarKey: ${nr-env:k8s_template_secrets_zip4}
+  spec:
+    # we don't want to trigger this in the test to avoid extra load in the cluster
+    interval: 10s
+    releaseName: ${nr-sub:agent_id}
+    targetNamespace: ${nr-ac:namespace_agents}
+    chart:
+      spec:
+        chart: hello-world
+        version: "0.1.0"
+        sourceRef:
+          kind: HelmRepository
+          name: ${nr-sub:agent_id}
+          namespace: ${nr-ac:namespace}
+    values:
+      ${nr-var:chart_values}
+"#,
+        ))
+        .build(tmp_dir.path());
+    let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     // Now, we create all the required secrets.
     // Hashicorp Vault secrets -> handled in the Tiltfile.

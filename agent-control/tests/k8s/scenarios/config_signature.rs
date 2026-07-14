@@ -2,12 +2,12 @@ use crate::common::{
     retry::retry,
     runtime::{block_on, tokio_runtime},
 };
-use crate::k8s::tools::agent_control::CUSTOM_AGENT_TYPE_PATH;
 use fake_opamp_server::FakeServer;
 
 use crate::k8s::tools::{
     agent_control::{create_config_map, start_agent_control},
     config::K8sAgentControlConfigBuilder,
+    custom_agent_type::K8sCustomAgentType,
     instance_id,
     k8s_api::check_helmrelease_spec_values,
     k8s_env::K8sEnv,
@@ -48,12 +48,8 @@ fn k8s_signature_disabled() {
         "".to_string(),
     ));
 
-    let _sa = start_agent_control(
-        CUSTOM_AGENT_TYPE_PATH,
-        k8s.client.clone(),
-        &namespace,
-        tmp_dir.path(),
-    );
+    K8sCustomAgentType::default().build(tmp_dir.path());
+    let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let instance_id = instance_id::get_instance_id(
         k8s.client.clone(),

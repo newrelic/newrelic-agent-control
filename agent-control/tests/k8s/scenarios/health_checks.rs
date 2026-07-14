@@ -1,16 +1,14 @@
-use crate::{
-    common::{
-        health::{check_latest_health_status, check_latest_health_status_was_healthy},
-        retry::retry,
-        runtime::{block_on, tokio_runtime},
-    },
-    k8s::tools::agent_control::CUSTOM_AGENT_TYPE_DIRECT_CHECKS_PATH,
+use crate::common::{
+    health::{check_latest_health_status, check_latest_health_status_was_healthy},
+    retry::retry,
+    runtime::{block_on, tokio_runtime},
 };
 use fake_opamp_server::FakeServer;
 
 use crate::k8s::tools::{
     agent_control::{create_config_map, start_agent_control},
     config::K8sAgentControlConfigBuilder,
+    custom_agent_type::K8sCustomAgentType,
     instance_id,
     k8s_env::K8sEnv,
 };
@@ -66,12 +64,8 @@ fn k8s_direct_workload_health_checks() {
         "{}".to_string(),
     ));
 
-    let _ac = start_agent_control(
-        CUSTOM_AGENT_TYPE_DIRECT_CHECKS_PATH,
-        k8s.client.clone(),
-        &ac_ns,
-        tmp_dir.path(),
-    );
+    direct_checks_agent_type().build(tmp_dir.path());
+    let _ac = start_agent_control(k8s.client.clone(), &ac_ns, tmp_dir.path());
 
     let sub_agent_instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
@@ -126,12 +120,8 @@ fn k8s_direct_workload_health_checks_unhealthy() {
         "{}".to_string(),
     ));
 
-    let _ac = start_agent_control(
-        CUSTOM_AGENT_TYPE_DIRECT_CHECKS_PATH,
-        k8s.client.clone(),
-        &ac_ns,
-        tmp_dir.path(),
-    );
+    direct_checks_agent_type().build(tmp_dir.path());
+    let _ac = start_agent_control(k8s.client.clone(), &ac_ns, tmp_dir.path());
 
     let sub_agent_instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
@@ -142,6 +132,30 @@ fn k8s_direct_workload_health_checks_unhealthy() {
     retry(60, Duration::from_secs(1), || {
         check_latest_health_status(&server, &sub_agent_instance_id.clone(), |s| !s.healthy)
     });
+}
+
+/// The integration test defines a Deployment. StatefulSet and DaemonSet are also defined to check that the
+/// health-checker is healthy when one of them is found and healthy, allowing the definition of health-checks
+/// for Agent-Type whose workload definition is configurable.
+///
+/// No objects, the workload is defined externally
+fn direct_checks_agent_type() -> K8sCustomAgentType {
+    K8sCustomAgentType::empty().with_health(Some(
+        r#"
+interval: 5s
+initial_delay: 2s
+checks:
+  - namespace: ${nr-ac:namespace_agents}
+    name: ${nr-sub:agent_id}
+    kind: Deployment
+  - namespace: ${nr-ac:namespace_agents}
+    name: ${nr-sub:agent_id}
+    kind: StatefulSet
+  - namespace: ${nr-ac:namespace_agents}
+    name: ${nr-sub:agent_id}
+    kind: DaemonSet
+"#,
+    ))
 }
 
 /// Creates a Deployment named `name` in `namespace` with the given replica count.

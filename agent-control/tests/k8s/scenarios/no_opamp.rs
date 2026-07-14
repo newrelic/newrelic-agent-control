@@ -1,8 +1,8 @@
 use crate::common::{retry::retry, runtime::block_on};
-use crate::k8s::tools::agent_control::CUSTOM_AGENT_TYPE_SPLIT_NS_PATH;
 use crate::k8s::tools::{
     agent_control::{create_config_map, start_agent_control},
     config::K8sAgentControlConfigBuilder,
+    custom_agent_type::K8sCustomAgentType,
     k8s_api::check_deployments_exist,
     k8s_env::K8sEnv,
 };
@@ -34,12 +34,8 @@ fn k8s_sub_agent_started_with_no_opamp() {
         "chart_values: \n  nameOverride: from-local\n".to_string(),
     ));
 
-    let _child = start_agent_control(
-        CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
-        k8s.client.clone(),
-        &namespace,
-        tmp_dir.path(),
-    );
+    K8sCustomAgentType::split_ns().build(tmp_dir.path());
+    let _child = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     // Check deployment for first Agent is created with retry, the name has the key
     // 'from-local' concatenated to the name because the secret created adds that

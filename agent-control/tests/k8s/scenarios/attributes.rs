@@ -6,10 +6,9 @@ use crate::common::attributes::{
 };
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
-use crate::k8s::tools::agent_control::{
-    CUSTOM_AGENT_TYPE_PATH, create_config_map, start_agent_control,
-};
+use crate::k8s::tools::agent_control::{create_config_map, start_agent_control};
 use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
+use crate::k8s::tools::custom_agent_type::K8sCustomAgentType;
 use crate::k8s::tools::{instance_id, k8s_env::K8sEnv};
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -58,12 +57,8 @@ fn k8s_test_attributes_from_existing_agent_type() {
         "chart_values:\n  cluster: minikube\n  licenseKey: test\n".to_string(),
     ));
 
-    let _sa = start_agent_control(
-        CUSTOM_AGENT_TYPE_PATH,
-        k8s.client.clone(),
-        &namespace,
-        tmp_dir.path(),
-    );
+    K8sCustomAgentType::default().build(tmp_dir.path());
+    let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let expected_chart_version = "1.2.3-beta".to_string();
     let instance_id =
@@ -226,12 +221,8 @@ fn k8s_test_custom_capabilities_when_cd_disabled() {
         .with_cd_enabled(false)
         .write(k8s.client.clone(), tmp_dir.path());
 
-    let _ac = start_agent_control(
-        CUSTOM_AGENT_TYPE_PATH,
-        k8s.client.clone(),
-        &namespace,
-        tmp_dir.path(),
-    );
+    K8sCustomAgentType::default().build(tmp_dir.path());
+    let _ac = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let instance_id =
         instance_id::get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);

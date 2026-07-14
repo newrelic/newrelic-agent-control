@@ -7,6 +7,7 @@ use crate::common::{
 use crate::k8s::tools::{
     agent_control::{create_config_map, start_agent_control},
     config::K8sAgentControlConfigBuilder,
+    custom_agent_type::K8sCustomAgentType,
     instance_id,
     k8s_env::K8sEnv,
 };
@@ -15,9 +16,6 @@ use newrelic_agent_control::agent_control::agent_id::AgentID;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;
 use tempfile::tempdir;
-
-const CUSTOM_AGENT_TYPE_PATH: &str =
-    "tests/k8s/data/k8s_fail_remote_config_missing_required_values/custom_agent_type.yml";
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -45,12 +43,36 @@ fn k8s_fail_remote_config_missing_required_values() {
         "required_var: \"local\"\n".to_string(),
     ));
 
-    let _sa = start_agent_control(
-        CUSTOM_AGENT_TYPE_PATH,
-        k8s.client.clone(),
-        &namespace,
-        tmp_dir.path(),
-    );
+    K8sCustomAgentType::empty()
+        .with_agent_type_id("newrelic/com.newrelic.test:0.0.1")
+        .with_variables(
+            r#"
+required_var:
+  description: "required_var"
+  type: yaml
+  required: true
+non_required_var:
+  description: "non_required_var"
+  type: yaml
+  required: false
+  default: { }
+"#,
+        )
+        .with_objects(Some(
+            r#"
+some-resource:
+  apiVersion: v1
+  kind: Secret
+  metadata:
+    name: some-resource
+    namespace: ${nr-ac:namespace}
+  StringData:
+    non_required_var: ${nr-var:non_required_var}
+    required_var: ${nr-var:required_var}
+"#,
+        ))
+        .build(tmp_dir.path());
+    let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let instance_id = instance_id::get_instance_id(
         k8s.client.clone(),

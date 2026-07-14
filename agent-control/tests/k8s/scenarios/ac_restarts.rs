@@ -3,10 +3,10 @@ use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::{
-    CUSTOM_AGENT_TYPE_PATH, create_config_map, start_agent_control,
-    wait_until_agent_control_with_opamp_is_started,
+    create_config_map, start_agent_control, wait_until_agent_control_with_opamp_is_started,
 };
 use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
+use crate::k8s::tools::custom_agent_type::K8sCustomAgentType;
 use crate::k8s::tools::instance_id;
 use crate::k8s::tools::k8s_api::check_helmrelease_spec_values;
 use crate::k8s::tools::k8s_env::K8sEnv;
@@ -49,12 +49,8 @@ fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
         "".to_string(),
     ));
 
-    let _sa = start_agent_control(
-        CUSTOM_AGENT_TYPE_PATH,
-        k8s.client.clone(),
-        &namespace,
-        tmp_dir.path(),
-    );
+    K8sCustomAgentType::default().build(tmp_dir.path());
+    let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
@@ -105,12 +101,8 @@ valid: true
         .with_agents(agents)
         .write(k8s.client.clone(), tmp_dir.path());
 
-    let _sa = start_agent_control(
-        CUSTOM_AGENT_TYPE_PATH,
-        k8s.client.clone(),
-        &namespace,
-        tmp_dir.path(),
-    );
+    K8sCustomAgentType::default().build(tmp_dir.path());
+    let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
     // Check that after restarting the sub-agent configuration remains as set remotely

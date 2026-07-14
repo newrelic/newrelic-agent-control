@@ -1,11 +1,8 @@
-use crate::{
-    common::{
-        effective_config::check_latest_effective_config_is_expected,
-        health::check_latest_health_status_was_healthy,
-        retry::retry,
-        runtime::{block_on, tokio_runtime},
-    },
-    k8s::tools::agent_control::CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
+use crate::common::{
+    effective_config::check_latest_effective_config_is_expected,
+    health::check_latest_health_status_was_healthy,
+    retry::retry,
+    runtime::{block_on, tokio_runtime},
 };
 use fake_opamp_server::FakeServer;
 
@@ -13,6 +10,7 @@ use crate::k8s::tools::k8s_api::{check_helmrelease_exists, delete_helm_release};
 use crate::k8s::tools::{
     agent_control::{create_config_map, start_agent_control},
     config::K8sAgentControlConfigBuilder,
+    custom_agent_type::K8sCustomAgentType,
     instance_id,
     k8s_api::check_deployments_exist,
     k8s_env::K8sEnv,
@@ -55,12 +53,8 @@ fn k8s_opamp_remove_subagent() {
         "chart_values: \n  nameOverride: from-local\n".to_string(),
     ));
 
-    let _sa = start_agent_control(
-        CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
-        k8s.client.clone(),
-        &ac_ns,
-        tmp_dir.path(),
-    );
+    K8sCustomAgentType::split_ns().build(tmp_dir.path());
+    let _sa = start_agent_control(k8s.client.clone(), &ac_ns, tmp_dir.path());
 
     let ac_instance_id =
         instance_id::get_instance_id(k8s.client.clone(), &ac_ns, &AgentID::AgentControl);
@@ -162,12 +156,8 @@ fn k8s_opamp_add_subagent() {
         "chart_values:\n  cluster: minikube\n  licenseKey: test\n".to_string(),
     ));
 
-    let _sa = start_agent_control(
-        CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
-        k8s.client.clone(),
-        &ac_ns,
-        tmp_dir.path(),
-    );
+    K8sCustomAgentType::split_ns().build(tmp_dir.path());
+    let _sa = start_agent_control(k8s.client.clone(), &ac_ns, tmp_dir.path());
 
     let ac_instance_id =
         instance_id::get_instance_id(k8s.client.clone(), &ac_ns, &AgentID::AgentControl);
@@ -231,12 +221,8 @@ fn k8s_opamp_modify_subagent_config() {
         "chart_values: \n  nameOverride: from-local\n".to_string(),
     ));
 
-    let _sa = start_agent_control(
-        CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
-        k8s.client.clone(),
-        &namespace,
-        tmp_dir.path(),
-    );
+    K8sCustomAgentType::split_ns().build(tmp_dir.path());
+    let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
