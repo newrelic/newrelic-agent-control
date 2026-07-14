@@ -4,7 +4,7 @@ use crate::common::process_finder::find_processes_by_pattern;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::{OnHostAgentControlConfigBuilder, create_local_config};
-use crate::on_host::tools::custom_agent_type::CustomAgentType;
+use crate::on_host::tools::custom_agent_type::OnHostCustomAgentType;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use std::thread;
@@ -24,7 +24,7 @@ fn killing_subprocess_with_signal_restarts() -> Result<(), Box<dyn std::error::E
     let dirs = TempBasePaths::default();
 
     // Create a custom agent type with long-running sleep processes
-    let agent_type_builder = CustomAgentType::empty().with_variables(
+    let agent_type_builder = OnHostCustomAgentType::empty().with_variables(
         r#"
 duration-1:
   description: "Duration for first sleep command"

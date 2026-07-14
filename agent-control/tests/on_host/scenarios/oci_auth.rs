@@ -3,7 +3,7 @@ use crate::common::base_paths::TempBasePaths;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::{OnHostAgentControlConfigBuilder, create_local_config};
-use crate::on_host::tools::custom_agent_type::CustomAgentType;
+use crate::on_host::tools::custom_agent_type::OnHostCustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use fake_opamp_server::FakeServer;
@@ -36,7 +36,7 @@ fn test_agent_remote_package_with_auth_oci_registry() {
 
     let dirs = TempBasePaths::default();
 
-    let agent_type = CustomAgentType::default()
+    let agent_type = OnHostCustomAgentType::default()
         .with_packages(Some(
             format!(
                 r#"

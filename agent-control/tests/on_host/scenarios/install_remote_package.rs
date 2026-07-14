@@ -8,7 +8,7 @@ use crate::common::remote_config_status::check_latest_remote_config_status;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::{OnHostAgentControlConfigBuilder, create_local_config};
-use crate::on_host::tools::custom_agent_type::CustomAgentType;
+use crate::on_host::tools::custom_agent_type::OnHostCustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
 use fake_opamp_server::FakeServer;
@@ -308,7 +308,7 @@ fn create_agent_type(
         ]"#
     );
 
-    CustomAgentType::default()
+    OnHostCustomAgentType::default()
         .with_executables(Some(&executables))
         .with_packages(Some(&packages_config))
         .build(local_dir)

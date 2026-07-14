@@ -4,7 +4,7 @@ use crate::common::health::check_latest_health_status;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::OnHostAgentControlConfigBuilder;
-use crate::on_host::tools::custom_agent_type::CustomAgentType;
+use crate::on_host::tools::custom_agent_type::OnHostCustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
 use memory_stats::memory_stats;
@@ -35,7 +35,7 @@ fn test_memory_on_agent_substitution_and_version_update() {
     );
 
     // Add custom agent_type to registry
-    let sleep_agent_type = CustomAgentType::default()
+    let sleep_agent_type = OnHostCustomAgentType::default()
         .with_executables(Some(
             r#"[
                 {"id": "trap-term-sleep", "path": "sh", "args": ["tests/on_host/data/sleep_60.sh"]},

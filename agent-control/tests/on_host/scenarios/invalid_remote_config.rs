@@ -5,7 +5,7 @@ use crate::common::remote_config_status::check_latest_remote_config_status_is_ex
 use crate::common::{retry::retry, runtime::tokio_runtime};
 use crate::on_host::tools::config::load_remote_config_content;
 use crate::on_host::tools::config::{OnHostAgentControlConfigBuilder, create_local_config};
-use crate::on_host::tools::custom_agent_type::CustomAgentType;
+use crate::on_host::tools::custom_agent_type::OnHostCustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -30,7 +30,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 
     let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
-    let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentType::default().build(dirs.local_dir());
     let agents = format!(
         r#"
   {sub_agent_id}:
@@ -99,7 +99,7 @@ fn test_invalid_config_executable_less_supervisor() {
     let dirs = TempBasePaths::default();
     let sub_agent_id = AgentID::try_from("test-agent").unwrap();
 
-    let agent_type = CustomAgentType::default()
+    let agent_type = OnHostCustomAgentType::default()
         .without_deployment()
         .build(dirs.local_dir());
 
@@ -175,7 +175,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
 
     let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
-    let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentType::default().build(dirs.local_dir());
     let agents = format!(
         r#"
   {sub_agent_id}:

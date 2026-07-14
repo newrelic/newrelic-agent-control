@@ -7,7 +7,7 @@ use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::consts::NO_CONFIG;
 use crate::on_host::tools::config::{OnHostAgentControlConfigBuilder, create_local_config};
-use crate::on_host::tools::custom_agent_type::CustomAgentType;
+use crate::on_host::tools::custom_agent_type::OnHostCustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -102,7 +102,7 @@ fn shared_filesystem_entry_updated_via_opamp_remote_config() {
 
     let agent_id = "ohi-agent";
 
-    let agent_type = CustomAgentType::default()
+    let agent_type = OnHostCustomAgentType::default()
         .with_health(None)
         .with_variables(
             r#"
@@ -291,8 +291,8 @@ fn startup_reconcile_removes_files_of_agents_removed_while_stopped() {
 
 /// A minimal OHI-style agent type that writes a single config file into the shared co-owned
 /// `infra-agent-ohi-configs` directory.
-fn ohi_config_agent_type(type_name: &str, file: &str) -> CustomAgentType {
-    CustomAgentType::default()
+fn ohi_config_agent_type(type_name: &str, file: &str) -> OnHostCustomAgentType {
+    OnHostCustomAgentType::default()
         .with_agent_type_id(&format!("test/{type_name}:0.1.0"))
         .with_health(None)
         .with_shared_filesystem(Some(&format!(
@@ -318,7 +318,7 @@ fn conflicting_shared_paths_are_rejected() {
     let redis_agent = "redis-agent";
     let redis_agent_2 = "redis-agent-2";
 
-    let ohi_type = CustomAgentType::default()
+    let ohi_type = OnHostCustomAgentType::default()
         .with_agent_type_id("test/redis:0.1.0")
         .with_health(None)
         .with_shared_filesystem(Some(&format!(
@@ -405,9 +405,9 @@ agents:
 
 /// A minimal OHI-style agent type that renders a "binary" into its own per-agent filesystem
 /// (`bin/<binary>`) and then copies it into the shared binaries dir with `copy_from_file`.
-fn ohi_binary_agent_type(type_name: &str, binary: &str) -> CustomAgentType {
+fn ohi_binary_agent_type(type_name: &str, binary: &str) -> OnHostCustomAgentType {
     let payload = binary_payload(binary);
-    CustomAgentType::default()
+    OnHostCustomAgentType::default()
         .with_agent_type_id(&format!("test/{type_name}:0.1.0"))
         .with_health(None)
         .with_filesystem(Some(&format!(

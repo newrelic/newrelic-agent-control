@@ -6,7 +6,7 @@ use crate::common::runtime::tokio_runtime;
 use crate::on_host::consts::NO_CONFIG;
 use crate::on_host::tools::config::OnHostAgentControlConfigBuilder;
 use crate::on_host::tools::config::create_local_config;
-use crate::on_host::tools::custom_agent_type::CustomAgentType;
+use crate::on_host::tools::custom_agent_type::OnHostCustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -25,7 +25,7 @@ fn test_on_host_no_health_in_agent_type_reports_no_health_via_opamp() {
     let dirs = TempBasePaths::default();
     let sub_agent_id = AgentID::try_from("test-agent-no-health").unwrap();
 
-    let agent_type = CustomAgentType::default()
+    let agent_type = OnHostCustomAgentType::default()
         .with_health(None)
         .build(dirs.local_dir());
 

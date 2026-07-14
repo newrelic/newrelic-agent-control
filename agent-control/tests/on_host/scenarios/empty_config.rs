@@ -8,7 +8,7 @@ use crate::{
     },
     on_host::tools::{
         config::{OnHostAgentControlConfigBuilder, create_local_config},
-        custom_agent_type::CustomAgentType,
+        custom_agent_type::OnHostCustomAgentType,
         instance_id::get_instance_id,
     },
 };
@@ -28,7 +28,7 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
 
     let dirs = TempBasePaths::default();
 
-    let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentType::default().build(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -97,7 +97,7 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
 
     let dirs = TempBasePaths::default();
 
-    let sleep_agent_type = CustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentType::default().build(dirs.local_dir());
 
     let agents = format!(
         r#"

@@ -9,7 +9,7 @@ use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::OnHostAgentControlConfigBuilder;
 use crate::on_host::tools::config::create_local_config;
 use crate::on_host::tools::config::load_remote_config_content;
-use crate::on_host::tools::custom_agent_type::CustomAgentType;
+use crate::on_host::tools::custom_agent_type::OnHostCustomAgentType;
 use crate::on_host::tools::fake_binary::assert_is_fake_binary;
 use crate::on_host::tools::fake_binary::build_fake_ac_binary;
 use crate::on_host::tools::fake_binary::build_invalid_fake_ac_binary;
@@ -118,7 +118,7 @@ fn test_ac_self_update_defers_subagent_reconciliation_to_restart_with_oci_regist
 
     // A sub-agent type that renders a directory entry, making its reconciliation observable.
     let dir_entry = "reconciled";
-    let agent_type = CustomAgentType::default()
+    let agent_type = OnHostCustomAgentType::default()
         .with_filesystem(Some(&format!("{dir_entry}:\n  kind: dir\n")))
         .build(dirs.local_dir());
 

@@ -10,7 +10,7 @@ use std::path::PathBuf;
 pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
 
 /// Helper to build a Custom Agent type with defaults ready to use in integration tests
-pub struct CustomAgentType {
+pub struct OnHostCustomAgentType {
     agent_type_id: AgentTypeID,
     variables: Option<serde_json::Value>,
     executables: Option<serde_json::Value>,
@@ -20,7 +20,7 @@ pub struct CustomAgentType {
     health: Option<serde_json::Value>,
 }
 
-impl Default for CustomAgentType {
+impl Default for OnHostCustomAgentType {
     fn default() -> Self {
         Self {
             agent_type_id: Self::default_agent_type_id(),
@@ -56,7 +56,7 @@ checks:
     }
 }
 
-impl Display for CustomAgentType {
+impl Display for OnHostCustomAgentType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let content = format!(
             r#"
@@ -105,7 +105,7 @@ impl Display for CustomAgentType {
     }
 }
 
-impl CustomAgentType {
+impl OnHostCustomAgentType {
     fn default_agent_type_id() -> AgentTypeID {
         AgentTypeID::try_from("newrelic/com.newrelic.custom_agent:0.1.0").unwrap()
     }
