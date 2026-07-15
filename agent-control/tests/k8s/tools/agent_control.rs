@@ -19,16 +19,6 @@ use std::time::Duration;
 
 pub const TEST_CLUSTER_NAME: &str = "minikube";
 
-pub const CUSTOM_AGENT_TYPE_PATH: &str = "tests/k8s/data/custom_agent_type.yml";
-pub const CUSTOM_AGENT_TYPE_SPLIT_NS_PATH: &str = "tests/k8s/data/custom_agent_type_split_ns.yml";
-pub const CUSTOM_AGENT_TYPE_SECRETS_PATH: &str = "tests/k8s/data/custom_agent_type_secrets.yml";
-pub const CUSTOM_AGENT_TYPE_DIRECT_CHECKS_PATH: &str =
-    "tests/k8s/data/custom_agent_type_direct_checks.yml";
-pub const FOO_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/foo_cr_agent_type.yml";
-pub const BAR_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/bar_cr_agent_type.yml";
-
-pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
-
 pub const K8S_PRIVATE_KEY_SECRET: &str = "agent-control-auth";
 pub const K8S_KEY_SECRET: &str = "private_key";
 
@@ -36,18 +26,10 @@ pub const DUMMY_PRIVATE_KEY: &str = r#"-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDCt
 -----END PRIVATE KEY-----"#;
 
-/// Starts agent-control after the config has already been written via [K8sAgentControlConfigBuilder].
-/// Copies the dynamic agent type file, creates the auth secret, and starts the process.
-pub fn start_agent_control(
-    dynamic_agent_type_path: &str,
-    client: Client,
-    ac_ns: &str,
-    local_dir: &Path,
-) -> StartedAgentControl {
-    let agent_type_file_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
-    std::fs::create_dir_all(agent_type_file_path.parent().unwrap()).unwrap();
-    std::fs::copy(dynamic_agent_type_path, agent_type_file_path).unwrap();
-
+/// Starts agent-control after the config has already been written via [K8sAgentControlConfigBuilder]
+/// and the agent type has already been written via [super::custom_agent_type::K8sCustomAgentType].
+/// Creates the auth secret and starts the process.
+pub fn start_agent_control(client: Client, ac_ns: &str, local_dir: &Path) -> StartedAgentControl {
     create_values_secret(
         client,
         ac_ns,

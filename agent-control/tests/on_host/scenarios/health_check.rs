@@ -6,7 +6,7 @@ use crate::on_host::consts::NO_CONFIG;
 use crate::on_host::tools::config::{
     OnHostAgentControlConfigBuilder, create_file, create_local_config,
 };
-use crate::on_host::tools::custom_agent_type::CustomAgentType;
+use crate::on_host::tools::custom_agent_type::OnHostCustomAgentTypeBuilder;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
 use httpmock::Method::GET;
@@ -37,9 +37,9 @@ checks:
         health_file_path.to_str().unwrap()
     );
 
-    let agent_type = CustomAgentType::empty()
+    let agent_type = OnHostCustomAgentTypeBuilder::empty()
         .with_health(Some(&health_config))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -142,9 +142,9 @@ checks:
         health_server.port(),
     );
 
-    let agent_type = CustomAgentType::empty()
+    let agent_type = OnHostCustomAgentTypeBuilder::empty()
         .with_health(Some(&health_config))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let agents = format!(
         r#"

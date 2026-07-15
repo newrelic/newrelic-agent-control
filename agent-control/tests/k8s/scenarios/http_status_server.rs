@@ -4,10 +4,10 @@ use crate::common::http_port::{available_port, status_server_url};
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::{
-    CUSTOM_AGENT_TYPE_PATH, DUMMY_PRIVATE_KEY, DYNAMIC_AGENT_TYPE_FILENAME, K8S_KEY_SECRET,
-    K8S_PRIVATE_KEY_SECRET, TEST_CLUSTER_NAME, create_config_map,
+    DUMMY_PRIVATE_KEY, K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET, TEST_CLUSTER_NAME, create_config_map,
 };
 use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
+use crate::k8s::tools::custom_agent_type::K8sCustomAgentTypeBuilder;
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use fake_opamp_server::FakeServer;
@@ -29,22 +29,18 @@ use std::time::Duration;
 #[ignore = "needs a k8s cluster"]
 fn test_k8s_http_status_endpoint_response() {
     const AGENT_ID: &str = "hello-world";
-    const AGENT_TYPE: &str = "newrelic/com.newrelic.custom_agent:0.0.1";
 
     let opamp_server = FakeServer::start(tokio_runtime().handle());
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
     let dirs = TempBasePaths::default();
 
-    // Copy the k8s custom agent type into the dynamic agent types directory
-    let agent_type_file_path = dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME);
-    std::fs::create_dir_all(agent_type_file_path.parent().unwrap()).unwrap();
-    std::fs::copy(CUSTOM_AGENT_TYPE_PATH, &agent_type_file_path).unwrap();
+    let agent_type_id = K8sCustomAgentTypeBuilder::default().write(&dirs.local_dir());
 
     let agents = format!(
         r#"
   {AGENT_ID}:
-    agent_type: "{AGENT_TYPE}"
+    agent_type: "{agent_type_id}"
 "#
     );
 

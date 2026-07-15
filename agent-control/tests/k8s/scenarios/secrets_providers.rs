@@ -1,9 +1,8 @@
 use crate::common::retry::retry;
 use crate::common::runtime::block_on;
-use crate::k8s::tools::agent_control::{
-    CUSTOM_AGENT_TYPE_SECRETS_PATH, create_config_map, start_agent_control,
-};
+use crate::k8s::tools::agent_control::{create_config_map, start_agent_control};
 use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
+use crate::k8s::tools::custom_agent_type::K8sCustomAgentTypeBuilder;
 use crate::k8s::tools::k8s_api::{
     check_helmrelease_labels_contains, check_helmrelease_spec_values, create_values_secret,
 };
@@ -22,11 +21,6 @@ fn k8s_template_secrets() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agents = r#"
-  hello-world:
-    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
-"#;
-
     let secrets_providers = r#"  vault:
     sources:
       sourceA:
@@ -37,6 +31,51 @@ fn k8s_template_secrets() {
         url: http://127.0.0.1:8200/v1/
         token: root
         engine: kv2"#;
+
+    let agent_type_id = K8sCustomAgentTypeBuilder::empty()
+        .with_variables(
+            r#"
+chart_values:
+  description: "chart_values"
+  type: yaml
+  required: false
+  default: { }
+"#,
+        )
+        .with_objects(Some(
+            r#"
+release:
+  apiVersion: helm.toolkit.fluxcd.io/v2
+  kind: HelmRelease
+  metadata:
+    name: ${nr-sub:agent_id}
+    namespace: ${nr-ac:namespace}
+    labels:
+      agentTypeEnvVarKey: ${nr-env:k8s_template_secrets_zip4}
+  spec:
+    # we don't want to trigger this in the test to avoid extra load in the cluster
+    interval: 10s
+    releaseName: ${nr-sub:agent_id}
+    targetNamespace: ${nr-ac:namespace_agents}
+    chart:
+      spec:
+        chart: hello-world
+        version: "0.1.0"
+        sourceRef:
+          kind: HelmRepository
+          name: ${nr-sub:agent_id}
+          namespace: ${nr-ac:namespace}
+    values:
+      ${nr-var:chart_values}
+"#,
+        ))
+        .write(tmp_dir.path());
+    let agents = format!(
+        r#"
+  hello-world:
+    agent_type: "{agent_type_id}"
+"#
+    );
 
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_agents(agents)
@@ -56,12 +95,7 @@ fn k8s_template_secrets() {
         ),
     ));
 
-    let _sa = start_agent_control(
-        CUSTOM_AGENT_TYPE_SECRETS_PATH,
-        k8s.client.clone(),
-        &namespace,
-        tmp_dir.path(),
-    );
+    let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     // Now, we create all the required secrets.
     // Hashicorp Vault secrets -> handled in the Tiltfile.

@@ -3,6 +3,8 @@ pub mod agent_control;
 /// Helpers for assert_cmd.
 pub mod cmd;
 pub mod config;
+/// Helper to build Custom Agent types ready to use in k8s integration tests.
+pub mod custom_agent_type;
 pub mod instance_id;
 /// Provides tools to perform queries through the k8s API in order to perform assertions.
 pub mod k8s_api;

@@ -2,14 +2,12 @@ use crate::common::{
     retry::retry,
     runtime::{block_on, tokio_runtime},
 };
-use crate::k8s::tools::agent_control::BAR_CR_AGENT_TYPE_PATH;
 use crate::k8s::tools::k8s_api::check_config_map_exist;
 use crate::k8s::tools::test_crd::{Foo, create_crd, delete_crd};
 use crate::k8s::tools::{
-    agent_control::{
-        FOO_CR_AGENT_TYPE_PATH, start_agent_control, wait_until_agent_control_with_opamp_is_started,
-    },
+    agent_control::{start_agent_control, wait_until_agent_control_with_opamp_is_started},
     config::K8sAgentControlConfigBuilder,
+    custom_agent_type::K8sCustomAgentTypeBuilder,
     instance_id,
     k8s_env::K8sEnv,
 };
@@ -40,23 +38,46 @@ fn k8s_opamp_foo_cr_subagent() {
         .with_cr_type_meta(cr_type_meta)
         .write(k8s.client.clone(), tmp_dir.path());
 
-    let _sa = start_agent_control(
-        FOO_CR_AGENT_TYPE_PATH,
-        k8s.client.clone(),
-        &namespace,
-        tmp_dir.path(),
-    );
+    let agent_type_id = K8sCustomAgentTypeBuilder::empty()
+        .with_agent_type_id("newrelic/com.newrelic.foo_cr_agent:0.0.1")
+        .with_variables(
+            r#"
+data:
+  description: "foo data"
+  type: string
+  required: false
+  default: "default"
+"#,
+        )
+        .with_health(Some("interval: 5s"))
+        .with_objects(Some(
+            r#"
+foo_cr:
+  # This CRD is created in the cluster when initializing the test environment.
+  apiVersion: newrelic.com/v1
+  kind: Foo
+  metadata:
+    name: ${nr-sub:agent_id}
+    namespace: ${nr-ac:namespace}
+  spec:
+    data: ${nr-var:data}
+"#,
+        ))
+        .write(tmp_dir.path());
+    let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let instance_id =
         instance_id::get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
 
     server.set_config_response(
         instance_id.clone(),
-        r#"
+        format!(
+            r#"
 agents:
   foo-agent:
-    agent_type: "newrelic/com.newrelic.foo_cr_agent:0.0.1"
-            "#,
+    agent_type: "{agent_type_id}"
+            "#
+        ),
     );
 
     // Set sub-agent remote config (there is no local config and the supervisor will not start otherwise)
@@ -120,12 +141,33 @@ fn k8s_opamp_cr_subagent_installed_before_crd() {
         .with_cr_type_meta(cr_type_meta)
         .write(k8s.client.clone(), tmp_dir.path());
 
-    let _sa = start_agent_control(
-        BAR_CR_AGENT_TYPE_PATH,
-        k8s.client.clone(),
-        &namespace,
-        tmp_dir.path(),
-    );
+    let agent_type_id = K8sCustomAgentTypeBuilder::empty()
+        .with_agent_type_id("newrelic/com.newrelic.bar_cr_agent:0.0.1")
+        .with_variables(
+            r#"
+data:
+  description: "bar data"
+  type: string
+  required: false
+  default: "default"
+"#,
+        )
+        .with_health(Some("interval: 5s"))
+        .with_objects(Some(
+            r#"
+bar_cr:
+  # This CRD is created in the cluster when initializing the test environment.
+  apiVersion: newrelic.com/v1
+  kind: Bar
+  metadata:
+    name: ${nr-sub:agent_id}
+    namespace: ${nr-ac:namespace}
+  spec:
+    data: ${nr-var:data}
+"#,
+        ))
+        .write(tmp_dir.path());
+    let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
     let instance_id =
@@ -134,11 +176,13 @@ fn k8s_opamp_cr_subagent_installed_before_crd() {
     // Set AC remote config
     server.set_config_response(
         instance_id.clone(),
-        r#"
+        format!(
+            r#"
 agents:
   bar-agent:
-    agent_type: "newrelic/com.newrelic.bar_cr_agent:0.0.1"
-            "#,
+    agent_type: "{agent_type_id}"
+            "#
+        ),
     );
 
     let api: Api<Bar> = Api::namespaced(k8s.client.clone(), &namespace);
