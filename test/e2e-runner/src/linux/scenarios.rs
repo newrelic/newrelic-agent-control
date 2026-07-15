@@ -6,3 +6,4 @@ pub mod post_download_hook;
 pub mod proxy;
 pub mod remote_config;
 pub mod self_update;
+pub mod nri_redis;
