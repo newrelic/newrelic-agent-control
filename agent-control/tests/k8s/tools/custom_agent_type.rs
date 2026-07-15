@@ -123,13 +123,11 @@ impl Display for K8sCustomAgentType {
 }
 
 impl K8sCustomAgentType {
-    fn default_agent_type_id() -> AgentTypeID {
-        AgentTypeID::try_from("newrelic/com.newrelic.custom_agent:0.0.1").unwrap()
-    }
-
     pub fn new() -> Self {
         Self {
-            common: CommonCustomAgentType::new(Self::default_agent_type_id()),
+            common: CommonCustomAgentType::new(
+                AgentTypeID::try_from("newrelic/com.newrelic.custom_agent:0.0.1").unwrap(),
+            ),
             health: None,
             objects: None,
         }
