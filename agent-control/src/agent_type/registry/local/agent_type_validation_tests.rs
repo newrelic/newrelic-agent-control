@@ -671,6 +671,54 @@ static AGENT_TYPE_EBPF: LazyLock<AgentTypeValuesTestCase> =
         ..Default::default()
     });
 
+static AGENT_TYPE_REDIS: LazyLock<AgentTypeValuesTestCase> =
+    LazyLock::new(|| AgentTypeValuesTestCase {
+        agent_type: "newrelic/com.newrelic.infrastructure.nri_redis:0.1.0",
+        values_linux: AgentTypeValues {
+            cases: HashMap::from([
+                (
+                    "mandatory fields only",
+                    r#"
+                config_integration: "integrations: []"
+                version: "v1.15.2"
+                "#,
+                ),
+                (
+                    "check all value types are correct",
+                    r#"
+                config_integration: "integrations: []"
+                version: "v1.15.2"
+                oci.repository: "newrelic/nri-redis"
+                "#,
+                ),
+            ]),
+            ..Default::default()
+        }
+        .into(),
+        values_windows: AgentTypeValues {
+            cases: HashMap::from([
+                (
+                    "mandatory fields only",
+                    r#"
+                config_integration: "integrations: []"
+                version: "v1.15.2"
+                "#,
+                ),
+                (
+                    "check all value types are correct",
+                    r#"
+                config_integration: "integrations: []"
+                version: "v1.15.2"
+                oci.repository: "newrelic/nri-redis"
+                "#,
+                ),
+            ]),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    });
+
 fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesTestCase> {
     [
         &AGENT_TYPE_APM_DOTNET,
@@ -688,6 +736,7 @@ fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesT
         &AGENT_TYPE_PIPELINE_CONTROL_GATEWAY_CONFIG_MODE,
         &AGENT_TYPE_PIPELINE_CONTROL_GATEWAY_CONFIG,
         &AGENT_TYPE_EBPF,
+        &AGENT_TYPE_REDIS,
     ]
     .into_iter()
     .map(Deref::deref)
