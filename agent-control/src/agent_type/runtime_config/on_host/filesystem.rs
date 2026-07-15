@@ -73,18 +73,22 @@ pub enum FilesystemEntry {
         /// exclusive with `text`.
         #[serde(default)]
         copy_from_file: Option<TemplateableValue<String>>,
-        /// The persistency attribute marking its lifecycle.
+        /// The persistency attribute marking its lifecycle. `None` (omitted) resolves to the
+        /// default (ephemeral) for the per-agent filesystem; the shared filesystem is always
+        /// persistent and rejects an explicit `persistent: false`.
         #[serde(default)]
-        persistent: bool,
+        persistent: Option<bool>,
     },
     /// An explicitly declared directory. Children, if any, live under `entries:`.
     Dir {
         /// The directory's child entries.
         #[serde(default)]
         entries: HashMap<SafePath, FilesystemEntry>,
-        /// The persistency attribute marking its lifecycle.
+        /// The persistency attribute marking its lifecycle. `None` (omitted) resolves to the
+        /// default (ephemeral) for the per-agent filesystem; the shared filesystem is always
+        /// persistent and rejects an explicit `persistent: false`.
         #[serde(default)]
-        persistent: bool,
+        persistent: Option<bool>,
     },
     /// A directory whose set of files is computed at deploy time from a `map[string]yaml`
     /// variable. Map keys become filenames; values become file contents.
@@ -161,8 +165,65 @@ impl Templateable for FileSystem {
 }
 
 /// Files and directories shared across sub-agents, rooted at `${nr-sub:shared_filesystem_dir}`.
-#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct SharedFileSystem(FileSystem);
+
+impl<'de> Deserialize<'de> for SharedFileSystem {
+    /// Deserializes the shared entry tree, rejecting any entry that declares `persistent` (the
+    /// shared filesystem is always persistent, so the flag has no effect). The per-agent
+    /// persistence-hierarchy check does not apply and is skipped.
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let entries = HashMap::<SafePath, FilesystemEntry>::deserialize(deserializer)?;
+        reject_explicit_persistent(&entries).map_err(D::Error::custom)?;
+        Ok(SharedFileSystem(FileSystem(entries)))
+    }
+}
+
+/// Rejects any shared entry that declares `persistent` (see [`SharedFileSystem`] for why).
+fn reject_explicit_persistent(entries: &HashMap<SafePath, FilesystemEntry>) -> Result<(), String> {
+    let mut errors = Vec::new();
+    for (key, entry) in entries {
+        check_shared_entry_persistence(key.as_ref(), entry, &mut errors);
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join(", "))
+    }
+}
+
+/// Recursively collects an error for every entry (at `path`) that declares `persistent`.
+fn check_shared_entry_persistence(path: &Path, entry: &FilesystemEntry, errors: &mut Vec<String>) {
+    match entry {
+        FilesystemEntry::File { persistent, .. } => {
+            if persistent.is_some() {
+                errors.push(shared_persistent_error(path));
+            }
+        }
+        FilesystemEntry::Dir {
+            entries,
+            persistent,
+        } => {
+            if persistent.is_some() {
+                errors.push(shared_persistent_error(path));
+            }
+            for (child_key, child) in entries {
+                check_shared_entry_persistence(&path.join(child_key), child, errors);
+            }
+        }
+        FilesystemEntry::DirContentFromMap { .. } => {}
+    }
+}
+
+fn shared_persistent_error(path: &Path) -> String {
+    format!(
+        "shared filesystem path `{}` must not set `persistent`; shared entries are always persistent",
+        path.display()
+    )
+}
 
 impl Templateable for SharedFileSystem {
     type Output = rendered::SharedFileSystem;
@@ -268,7 +329,8 @@ impl Templateable for FilesystemEntry {
                 };
                 Ok(rendered::RenderedEntry::File {
                     content,
-                    persistent,
+                    // Omitted (`None`) resolves to the default, ephemeral.
+                    persistent: persistent.unwrap_or(false),
                 })
             }
             FilesystemEntry::Dir {
@@ -281,7 +343,8 @@ impl Templateable for FilesystemEntry {
                     .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
                 Ok(rendered::RenderedEntry::Dir {
                     children,
-                    persistent,
+                    // Omitted (`None`) resolves to the default, ephemeral.
+                    persistent: persistent.unwrap_or(false),
                 })
             }
             FilesystemEntry::DirContentFromMap { source } => {
@@ -444,7 +507,7 @@ fn check_entry_persistence(
 ) {
     match entry {
         FilesystemEntry::File { persistent, .. } => {
-            if ancestor_ephemeral && *persistent {
+            if ancestor_ephemeral && persistent.unwrap_or(false) {
                 errors.push(persistence_error(path));
             }
         }
@@ -452,7 +515,8 @@ fn check_entry_persistence(
             entries,
             persistent,
         } => {
-            if ancestor_ephemeral && *persistent {
+            let persistent = persistent.unwrap_or(false);
+            if ancestor_ephemeral && persistent {
                 errors.push(persistence_error(path));
             }
             // A child sits under a non-persistent ancestor if one already existed up the chain, or
@@ -527,7 +591,7 @@ mod tests {
             FilesystemEntry::File {
                 text: Some(TemplateableValue::from_template("hello".to_string())),
                 copy_from_file: None,
-                persistent: false,
+                persistent: None,
             },
         )]));
 
@@ -601,7 +665,7 @@ nri-redis:
                 copy_from_file: Some(TemplateableValue::from_template(
                     source.to_string_lossy().to_string(),
                 )),
-                persistent: false,
+                persistent: None,
             },
         )]));
 
@@ -641,7 +705,7 @@ nri-redis:
                     copy_from_file: Some(TemplateableValue::from_template(
                         source.to_string_lossy().to_string(),
                     )),
-                    persistent: false,
+                    persistent: None,
                 },
             )]));
 
@@ -675,7 +739,7 @@ nri-redis:
             FilesystemEntry::File {
                 text,
                 copy_from_file,
-                persistent: false,
+                persistent: None,
             },
         )]));
 
@@ -703,7 +767,7 @@ nri-redis:
                 copy_from_file: Some(TemplateableValue::from_template(
                     source.to_string_lossy().to_string(),
                 )),
-                persistent: false,
+                persistent: None,
             },
         )]));
 
@@ -728,7 +792,7 @@ nri-redis:
             PathBuf::from("any").try_into().unwrap(),
             FilesystemEntry::Dir {
                 entries: HashMap::new(),
-                persistent: false,
+                persistent: None,
             },
         )]));
 
@@ -917,14 +981,19 @@ foo:
         );
     }
 
-    /// Persistent flag defaults to false; explicit `persistent: true` parses to `true`, and the
-    /// flag on `dir_content_from_map` is ignored. Independent per variant.
+    /// An omitted `persistent` parses to `None`; explicit `true`/`false` parse to `Some(_)` (so an
+    /// explicit `persistent: false` is distinguishable from omission), and the flag on
+    /// `dir_content_from_map` is ignored. Independent per variant.
     #[test]
     fn persistent_field_parses_per_variant() {
         let yaml = r#"
 default-file:
   kind: file
   text: hi
+ephemeral-file:
+  kind: file
+  text: hi
+  persistent: false
 persistent-file:
   kind: file
   text: hi
@@ -941,17 +1010,19 @@ map-with-ignored-persistent:
         let key = |k: &str| SafePath(PathBuf::from(k));
 
         match parsed.0.get(&key("default-file")).unwrap() {
-            FilesystemEntry::File { persistent, .. } => {
-                assert!(!persistent);
-            }
+            FilesystemEntry::File { persistent, .. } => assert_eq!(persistent, &None),
+            other => panic!("unexpected variant: {other:?}"),
+        }
+        match parsed.0.get(&key("ephemeral-file")).unwrap() {
+            FilesystemEntry::File { persistent, .. } => assert_eq!(persistent, &Some(false)),
             other => panic!("unexpected variant: {other:?}"),
         }
         match parsed.0.get(&key("persistent-file")).unwrap() {
-            FilesystemEntry::File { persistent, .. } => assert!(persistent),
+            FilesystemEntry::File { persistent, .. } => assert_eq!(persistent, &Some(true)),
             other => panic!("unexpected variant: {other:?}"),
         }
         match parsed.0.get(&key("persistent-dir")).unwrap() {
-            FilesystemEntry::Dir { persistent, .. } => assert!(persistent),
+            FilesystemEntry::Dir { persistent, .. } => assert_eq!(persistent, &Some(true)),
             other => panic!("unexpected variant: {other:?}"),
         }
         match parsed.0.get(&key("map-with-ignored-persistent")).unwrap() {
@@ -1369,7 +1440,7 @@ infra-agent-ohi-configs:
                 copy_from_file: Some(TemplateableValue::from_template(
                     source.to_string_lossy().to_string(),
                 )),
-                persistent: false,
+                persistent: None,
             },
         )])));
 
@@ -1393,6 +1464,52 @@ infra-agent-ohi-configs:
             .expect("empty shared filesystem must render without the shared dir variable")
             .write(&LocalFile, &DirectoryManagerFs)
             .unwrap();
+    }
+
+    /// The shared filesystem is always persistent, so declaring `persistent` at all (whether `true`
+    /// or `false`, even on a nested entry) is rejected at parse time, naming the path.
+    #[rstest]
+    #[case::explicit_true("true")]
+    #[case::explicit_false("false")]
+    fn shared_filesystem_rejects_explicit_persistent(#[case] value: &str) {
+        let yaml = format!(
+            r#"
+infra-agent-ohi-configs:
+  kind: dir
+  entries:
+    nri-redis.yaml:
+      kind: file
+      text: "integration: redis"
+      persistent: {value}
+"#
+        );
+        let err = serde_saphyr::from_str::<SharedFileSystem>(&yaml).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("nri-redis.yaml"),
+            "error should name the offending path: {msg}"
+        );
+        assert!(
+            msg.contains("persistent"),
+            "error should mention the flag: {msg}"
+        );
+    }
+
+    /// Omitting `persistent` (the expected form) is accepted on shared entries, including nested ones.
+    #[test]
+    fn shared_filesystem_allows_omitted_persistent() {
+        let yaml = r#"
+default.yaml:
+  kind: file
+  text: hi
+config-dir:
+  kind: dir
+  entries:
+    nested.yaml:
+      kind: file
+      text: hi
+"#;
+        assert!(serde_saphyr::from_str::<SharedFileSystem>(yaml).is_ok());
     }
 
     /// `declared_paths` reports every `kind: file` (including files nested in co-owned directories)

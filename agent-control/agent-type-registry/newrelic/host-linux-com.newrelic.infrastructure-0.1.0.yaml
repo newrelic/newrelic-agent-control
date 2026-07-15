@@ -86,11 +86,9 @@ deployment:
     # infra-agent is configured through NRIA_PLUGIN_DIR, to read configs from this folder.
     infra-agent-ohi-configs:
       kind: dir
-      persistent: true
       entries:
         docker-config.yml:
           kind: file
-          persistent: true
           text: |
             integrations:
             - name: nri-docker
@@ -103,7 +101,6 @@ deployment:
     # to read binaries from this folder.
     infra-agent-ohi-binaries:
       kind: dir
-      persistent: true
       entries:
         nri-flex:
           kind: file

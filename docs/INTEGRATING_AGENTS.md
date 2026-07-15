@@ -542,6 +542,8 @@ Agent-process-created files are never declared, so `write` leaves them untouched
 
 Like [`filesystem`](#filesystem), but the tree is written under a directory **shared across all sub-agents** (`${nr-sub:shared_filesystem_dir}`, e.g. `/var/lib/newrelic-agent-control/shared-filesystem`) instead of the per-agent directory. It accepts the exact same schema (`kind: file | dir | dir_content_from_map`, nested `entries:`, and `copy_from_file`).
 
+> **Persistence.** Unlike the per-agent [`filesystem`](#persistence-in-filesystem), shared entries are **always persistent**: they are never wiped when the sub-agent stops or restarts, only when the sub-agent is uninstalled. The `persistent` flag therefore has no effect here, and declaring it (whether `true` or `false`) on a shared entry is **rejected at parse time**.
+
 This lets one sub-agent expose files to another that Agent Control does not supervise directly. For example, an On-Host Integration (OHI) agent type can write its configuration and copy its binary into the shared location so the infrastructure agent (a separate sub-agent) can discover and run it:
 
 ```yaml

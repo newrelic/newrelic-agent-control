@@ -91,13 +91,11 @@ deployment:
     # infra-agent is configured through NRIA_PLUGIN_DIR, to read configs from this folder.
     infra-agent-ohi-configs:
       kind: dir
-      persistent: true
     # OHIs binaries folder.
     # infra-agent is configured through NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR and NRIA_SAFE_BIN_DIR,
     # to read binaries from this folder.
     infra-agent-ohi-binaries:
       kind: dir
-      persistent: true
       entries:
         nri-flex.exe:
           kind: file
