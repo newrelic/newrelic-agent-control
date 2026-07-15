@@ -19,7 +19,7 @@ pub fn register_provider(provider: SdkMeterProvider) {
     let _ = METER_PROVIDER.set(provider);
 }
 
-/// Force-flush all pending metric data, bounded by [`flush::FLUSH_TIMEOUT`] so a hung OTLP
+/// Force-flush all pending metric data, bounded by `flush::FLUSH_TIMEOUT` so a hung OTLP
 /// endpoint can't stall the caller (this runs on the self-update path, right before `exec()`).
 /// No-op when self-instrumentation is not configured.
 pub fn flush() {

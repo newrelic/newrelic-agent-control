@@ -438,23 +438,13 @@ fn static_resource_attributes(instance_context: Option<&InstanceContext>) -> Vec
 /// The startup counter must come first so it releases its instrument handle
 /// before the provider calls try_shutdown(), avoiding a stale-instrument warning.
 /// Traces/logs providers come before metrics so the MetricsLayer outlives them.
+#[derive(Default)]
 pub struct OtelGuard {
     /// Startup counter — drop first, before the provider shuts down.
     _startup_counter: Option<opentelemetry::metrics::Counter<u64>>,
     _traces_provider: Option<SdkTracerProvider>,
     _logs_provider: Option<SdkLoggerProvider>,
     _metrics_provider: Option<SdkMeterProvider>,
-}
-
-impl Default for OtelGuard {
-    fn default() -> Self {
-        Self {
-            _startup_counter: None,
-            _traces_provider: None,
-            _logs_provider: None,
-            _metrics_provider: None,
-        }
-    }
 }
 
 impl Drop for OtelGuard {

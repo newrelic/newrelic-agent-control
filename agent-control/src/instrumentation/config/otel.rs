@@ -51,7 +51,7 @@ pub struct OtelConfig {
     pub(crate) insecure_level: String,
     /// OpenTelemetry HTTP base endpoint to report instrumentation, to send each instrumentation
     /// type, the corresponding suffix will be added [TRACES_SUFFIX], [METRICS_SUFFIX], [LOGS_SUFFIX].
-    /// Defaults to [`ENDPOINT_SENTINEL`] when omitted, so that omitting `endpoint` from config is
+    /// Defaults to `ENDPOINT_SENTINEL` when omitted, so that omitting `endpoint` from config is
     /// what triggers region-derivation via [`OtelConfig::with_region_endpoint`] - without this
     /// default, an omitted `endpoint` field is a deserialization error instead.
     #[serde(default = "default_endpoint")]
@@ -89,7 +89,7 @@ impl OtelConfig {
 
     /// Returns a new configuration with the endpoint resolved from the region.
     ///
-    /// Only applies when the current endpoint equals the sentinel value [`ENDPOINT_SENTINEL`]
+    /// Only applies when the current endpoint equals the sentinel value `ENDPOINT_SENTINEL`
     /// (`"https://fake"`), meaning no explicit endpoint was configured. In that case the endpoint
     /// is derived from the region using [`otlp_endpoint_for_region`] (HTTP/protobuf, port 4318).
     /// If an explicit endpoint is already set, this is a no-op.
@@ -362,9 +362,11 @@ logs:
         use crate::cli::common::region::Region;
         // No `endpoint` key at all - this is the real-world shape of a config that relies on
         // region-derivation, as opposed to OtelConfig::default() which only exists in test code.
-        let config: OtelConfig =
-            serde_saphyr::from_str("metrics:\n  enabled: true").unwrap();
-        assert_eq!(config.endpoint.as_str().trim_end_matches('/'), ENDPOINT_SENTINEL);
+        let config: OtelConfig = serde_saphyr::from_str("metrics:\n  enabled: true").unwrap();
+        assert_eq!(
+            config.endpoint.as_str().trim_end_matches('/'),
+            ENDPOINT_SENTINEL
+        );
 
         let config = config.with_region_endpoint(&Region::US);
         assert_eq!(config.endpoint.host_str(), Some("otlp.nr-data.net"));

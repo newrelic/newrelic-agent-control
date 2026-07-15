@@ -28,10 +28,11 @@ const OTLP_URL_US: &str = "otlp.nr-data.net";
 /// Represents the supported region and defines related fields. It cannot wrap the [Environments] enum
 /// due to clap limitations. Re-defining the enum is simpler than extending and using some mapping
 /// tool such as [clap::builder::TypedValueParser::map].
-#[derive(Debug, Copy, Clone, PartialEq, Deserialize, clap::ValueEnum)]
+#[derive(Debug, Copy, Clone, PartialEq, Deserialize, clap::ValueEnum, Default)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Region {
     /// United States region.
+    #[default]
     US,
     /// European Union region.
     EU,
@@ -41,12 +42,6 @@ pub enum Region {
     #[value(alias = "stg")]
     #[serde(alias = "stg")]
     STAGING,
-}
-
-impl Default for Region {
-    fn default() -> Self {
-        Region::US
-    }
 }
 
 impl From<Region> for Environments {

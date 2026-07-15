@@ -21,6 +21,7 @@ Remember that the keywords that you can use are the following:
 ### enhancement
 - On-host and Kubernetes: when an agent's type is bumped via a live remote config update, Agent Control now reconciles both per-agent and shared filesystems, deleting paths declared by the old type that no longer appear in any active agent's declarations. Co-owned shared paths still claimed by another active agent are preserved. On Kubernetes, k8s objects annotated with the old type are garbage-collected while new-type resources are left intact.
 - Adds `oci-utils` CLI to `test/crates/oci-test-utils` for pushing agent packages and agent type definitions to OCI registries from the command line (dev/test tooling; not published).
+- Added self-instrumentation support: Agent Control can report its own metrics, traces, and logs via OpenTelemetry (OTLP), configurable under `self_instrumentation.opentelemetry`. Disabled by default.
 - On-host agent-type parsing now validates `reported_version_package`: it must reference a declared package, and is required when more than one package is defined. Invalid configurations are rejected at parse time with a descriptive error. This `reported_version_package` will be used to know which version to report as `agent.version`.
 - Add support for `copy_from_file` for on-host "in-agent" filesystem.
 - Add support for `shared_filesystem` in on-host agent types. It includes a single-owner rule: two agents claiming the same path in the shared-filesystem are invalid and reported as Failed.
