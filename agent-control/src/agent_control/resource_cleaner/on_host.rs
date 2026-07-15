@@ -112,18 +112,6 @@ where
     }
 
     /// Cleans up everything left behind by agents that are not present in the provided [SubAgentsMap].
-    ///
-    /// # Known limitation — local agent type changes made while AC was stopped
-    ///
-    /// This method only reclaims resources for agents that are **absent** from `configured`. If
-    /// an agent is still present but its type was changed in the local config while Agent Control
-    /// was stopped, the old type's per-agent filesystem entries are **not** cleaned up here:
-    /// the previous agent type is not persisted anywhere, so there is no way to know which paths
-    /// to remove. [`on_agent_type_changed`](super::ResourceCleaner::on_agent_type_changed) handles
-    /// type-change reconciliation for live remote config updates (where both old and new types are
-    /// known), but it is never called for local config changes made offline. Old per-agent entries
-    /// from such type bumps are an accepted side-effect; they are eventually reclaimed if the agent
-    /// is removed from the fleet entirely.
     pub fn cleanup_stale_agents(&self, configured: &SubAgentsMap) {
         self.purge_stale_agents(configured.keys().map(|id| id.as_str()));
         self.reconcile_shared_filesystem(configured);
