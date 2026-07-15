@@ -37,7 +37,7 @@ fn test_no_orphan_processes_after_agent_control_stops() {
                 {"id": "long-sleep", "path": "powershell", "args": ["-Command","Start-Sleep","-Seconds","3600"]}
             ]"#,
         ))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let agents = format!(
         r#"
