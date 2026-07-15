@@ -1219,8 +1219,8 @@ projected:
             "old.txt inside persistent-dir should survive"
         );
         assert!(
-            tmp_dir.path().join("projected/b.yaml").exists(),
-            "projected/b.yaml should survive even though it was dropped from the map"
+            !tmp_dir.path().join("projected/b.yaml").exists(),
+            "projected/b.yaml is removed on re-write: dir_content_from_map clears the dir first"
         );
         // Currently-declared paths are present and updated.
         assert_eq!(
@@ -1243,12 +1243,92 @@ projected:
         );
         assert_eq!(std::fs::read_to_string(&runtime_in_dir).unwrap(), "cache");
         assert!(
-            runtime_in_projected.exists(),
-            "agent-created file inside dir_content_from_map should survive"
+            !runtime_in_projected.exists(),
+            "agent-created file inside dir_content_from_map is removed on re-write: \
+             the dir is cleared before new map contents are written"
         );
-        assert_eq!(
-            std::fs::read_to_string(&runtime_in_projected).unwrap(),
-            "state"
+    }
+
+    /// Re-writing a `dir_content_from_map` entry with a different map removes files from the
+    /// previous map that are absent in the new one. This prevents stale config files from lingering
+    /// after a remote config update that removes an entry from the map variable.
+    #[test]
+    fn dir_content_from_map_write_removes_stale_files_on_rewrite() {
+        let tmp_dir = TempDir::new().unwrap();
+        let base = tmp_dir.path();
+
+        let v1_yaml = r#"
+logging.d:
+  kind: dir_content_from_map
+  source: ${nr-var:logs}
+"#;
+        let v2_yaml = v1_yaml;
+
+        let variables_v1 = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable(base.to_string_lossy()),
+            ),
+            (
+                Namespace::Variable.namespaced_name("logs"),
+                Variable::new(
+                    String::default(),
+                    false,
+                    None,
+                    Some(HashMap::from([(
+                        "file-1.conf".to_string(),
+                        Value::String("config-1".to_string()),
+                    )])),
+                ),
+            ),
+        ]);
+
+        serde_saphyr::from_str::<FileSystem>(v1_yaml)
+            .unwrap()
+            .template_with(&variables_v1)
+            .unwrap()
+            .write(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
+
+        assert!(
+            base.join("logging.d/file-1.conf").exists(),
+            "first write must create the file"
+        );
+
+        // Second write: only file-2.conf in the map; file-1.conf is gone.
+        let variables_v2 = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
+                Variable::new_final_string_variable(base.to_string_lossy()),
+            ),
+            (
+                Namespace::Variable.namespaced_name("logs"),
+                Variable::new(
+                    String::default(),
+                    false,
+                    None,
+                    Some(HashMap::from([(
+                        "file-2.conf".to_string(),
+                        Value::String("config-2".to_string()),
+                    )])),
+                ),
+            ),
+        ]);
+
+        serde_saphyr::from_str::<FileSystem>(v2_yaml)
+            .unwrap()
+            .template_with(&variables_v2)
+            .unwrap()
+            .write(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
+
+        assert!(
+            !base.join("logging.d/file-1.conf").exists(),
+            "file removed from the map must be deleted on re-write"
+        );
+        assert!(
+            base.join("logging.d/file-2.conf").exists(),
+            "file added to the map must be present after re-write"
         );
     }
 

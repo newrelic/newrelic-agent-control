@@ -83,6 +83,11 @@ impl RenderedEntry {
                 Ok(())
             }
             Self::DirContentFromMap { files, .. } => {
+                // Without this delete, a remote cfg that removes a file from the map would leave
+                // the old file on disk until the agent control is stopped.
+                dir_manager
+                    .delete(path)
+                    .map_err(|err| FileSystemEntriesError(format!("clearing {path:?}: {err}")))?;
                 ensure_dir(dir_manager, path)?;
                 for (file_name, content) in files {
                     write_file(file_ops, dir_manager, &path.join(file_name), content)?;
@@ -240,30 +245,9 @@ fn prune_undeclared(
                         children.iter().map(|(k, v)| (k.clone(), v)).collect();
                     prune_undeclared(&abs, &child_refs, file_ops, dir_manager)?;
                 }
-                RenderedEntry::DirContentFromMap { files } => {
-                    prune_undeclared_in_map_dir(&abs, files, file_ops, dir_manager)?;
-                }
+                // Skip. write() deletes and recreates this directory from the current map.
+                RenderedEntry::DirContentFromMap { .. } => {}
             },
-        }
-    }
-    Ok(())
-}
-
-/// Deletes files inside a `DirContentFromMap` directory that are not present in the rendered map.
-fn prune_undeclared_in_map_dir(
-    dir: &Path,
-    declared_files: &HashMap<PathBuf, String>,
-    file_ops: &impl FileDeleter,
-    dir_manager: &impl DirectoryManager,
-) -> Result<(), FileSystemEntriesError> {
-    let children = dir_manager
-        .list(dir)
-        .map_err(|e| FileSystemEntriesError(format!("listing {}: {e}", dir.display())))?;
-    for abs in children {
-        let name = PathBuf::from(abs.file_name().unwrap_or_default());
-        if !declared_files.contains_key(&name) {
-            delete_path(&abs, file_ops, dir_manager)
-                .map_err(|e| FileSystemEntriesError(format!("deleting {}: {e}", abs.display())))?;
         }
     }
     Ok(())
@@ -463,9 +447,9 @@ mod tests {
         );
     }
 
-    /// Files inside a DirContentFromMap dir that are absent from the rendered map are deleted.
+    /// DirContentFromMap dirs are skipped by delete_not_declared, write() owns their cleanup.
     #[test]
-    fn delete_not_declared_cleans_undeclared_files_in_map_dir() {
+    fn delete_not_declared_skips_map_dir_contents() {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
         std::fs::create_dir(base.join("logging.d")).unwrap();
@@ -488,8 +472,8 @@ mod tests {
             "declared map file must be kept"
         );
         assert!(
-            !base.join("logging.d/stale.yaml").exists(),
-            "undeclared map file must be deleted"
+            base.join("logging.d/stale.yaml").exists(),
+            "stale map file is not touched by delete_not_declared; write() cleans it up"
         );
     }
 
