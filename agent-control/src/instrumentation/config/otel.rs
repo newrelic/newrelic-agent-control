@@ -2,12 +2,18 @@
 
 use duration_str::deserialize_duration;
 use opentelemetry_sdk::logs;
+use opentelemetry_sdk::trace;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Debug, time::Duration};
 use url::Url;
 use wrapper_with_default::WrapperWithDefault;
 
+use crate::cli::common::region::{Region, otlp_endpoint_for_region};
 use crate::http::config::ProxyConfig;
+
+/// Sentinel URL used as a placeholder when no explicit OTLP endpoint is configured.
+/// Replaced at startup by the region-derived endpoint via [`OtelConfig::with_region_endpoint`].
+const ENDPOINT_SENTINEL: &str = "https://fake";
 
 /// Default timeout for HTTP client.
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -20,6 +26,8 @@ const DEFAULT_LOG_BATCH_SCHEDULED_DELAY: Duration = Duration::from_secs(30);
 /// Default insecure_level filter.
 const DEFAULT_FILTER: &str = "newrelic_agent_control=debug,opamp_client=debug,off";
 
+/// Traces suffix for the OpenTelemetry endpoint
+const TRACES_SUFFIX: &str = "/v1/traces";
 /// Metrics suffix for the OpenTelemetry endpoint
 const METRICS_SUFFIX: &str = "/v1/metrics";
 /// Logs suffix for the OpenTelemetry endpoint
@@ -31,6 +39,9 @@ pub struct OtelConfig {
     /// Metrics configuration
     #[serde(default)]
     pub(crate) metrics: MetricsConfig,
+    /// Traces configuration
+    #[serde(default)]
+    pub(crate) traces: TracesConfig,
     /// Logs configuration
     #[serde(default)]
     pub(crate) logs: LogsConfig,
@@ -39,7 +50,11 @@ pub struct OtelConfig {
     #[serde(default = "default_insecure_level")]
     pub(crate) insecure_level: String,
     /// OpenTelemetry HTTP base endpoint to report instrumentation, to send each instrumentation
-    /// type, the corresponding suffix will be added [METRICS_SUFFIX], [LOGS_SUFFIX].
+    /// type, the corresponding suffix will be added [TRACES_SUFFIX], [METRICS_SUFFIX], [LOGS_SUFFIX].
+    /// Defaults to [`ENDPOINT_SENTINEL`] when omitted, so that omitting `endpoint` from config is
+    /// what triggers region-derivation via [`OtelConfig::with_region_endpoint`] - without this
+    /// default, an omitted `endpoint` field is a deserialization error instead.
+    #[serde(default = "default_endpoint")]
     pub(crate) endpoint: Url,
     /// Headers to include in every request to the OpenTelemetry endpoint
     #[serde(default)]
@@ -60,10 +75,43 @@ fn default_insecure_level() -> String {
     DEFAULT_FILTER.to_string()
 }
 
+fn default_endpoint() -> Url {
+    ENDPOINT_SENTINEL
+        .parse()
+        .expect("hardcoded sentinel URL must be valid")
+}
+
 impl OtelConfig {
     /// Returns a new configuration including proxy config
     pub fn with_proxy_config(self, proxy: ProxyConfig) -> Self {
         Self { proxy, ..self }
+    }
+
+    /// Returns a new configuration with the endpoint resolved from the region.
+    ///
+    /// Only applies when the current endpoint equals the sentinel value [`ENDPOINT_SENTINEL`]
+    /// (`"https://fake"`), meaning no explicit endpoint was configured. In that case the endpoint
+    /// is derived from the region using [`otlp_endpoint_for_region`] (HTTP/protobuf, port 4318).
+    /// If an explicit endpoint is already set, this is a no-op.
+    pub fn with_region_endpoint(self, region: &Region) -> Self {
+        if self.endpoint.as_str().trim_end_matches('/') == ENDPOINT_SENTINEL {
+            let url = otlp_endpoint_for_region(region);
+            match url.parse() {
+                Ok(endpoint) => Self { endpoint, ..self },
+                Err(e) => {
+                    // Should never happen with hardcoded constants, but log rather than panic
+                    // so a future Region variant with a typo doesn't crash the agent at startup.
+                    tracing::error!(
+                        url = %url,
+                        error = %e,
+                        "OTLP endpoint URL for region is invalid; self-instrumentation disabled"
+                    );
+                    self
+                }
+            }
+        } else {
+            self
+        }
     }
 
     /// Returns a new configuration including custom_attributes
@@ -72,6 +120,26 @@ impl OtelConfig {
             custom_attributes,
             ..self
         }
+    }
+
+    /// Normalizes header names to use hyphens instead of underscores.
+    /// This is needed because environment variables can't contain hyphens,
+    /// but HTTP header names conventionally use hyphens (e.g., "api-key").
+    pub fn normalize_headers(mut self) -> Self {
+        // Convert api_key to api-key for OTLP compatibility
+        if let Some(api_key) = self.headers.remove("api_key") {
+            self.headers.insert("api-key".to_string(), api_key);
+            tracing::debug!("normalized header: api_key -> api-key");
+        }
+        Self {
+            headers: self.headers,
+            ..self
+        }
+    }
+
+    /// Returns the otel endpoint to report traces to.
+    pub(crate) fn traces_endpoint(&self) -> String {
+        self.target_endpoint(TRACES_SUFFIX)
     }
 
     /// Returns the otel endpoint to report metrics to.
@@ -109,6 +177,17 @@ pub(crate) struct MetricsConfig {
     pub(crate) interval: MetricsExportInterval,
 }
 
+/// Defines the configuration settings to report traces to OpenTelemetry
+#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
+pub(crate) struct TracesConfig {
+    /// Indicates if traces are enabled or not
+    #[serde(default)]
+    pub(crate) enabled: bool,
+    /// Traces are reported in batches, this field defines the batch configuration.
+    #[serde(default)]
+    pub(crate) batch_config: BatchConfig,
+}
+
 /// Defines the configuration settings to report logs to OpenTelemetry
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub(crate) struct LogsConfig {
@@ -144,6 +223,15 @@ impl Default for BatchConfig {
             scheduled_delay: DEFAULT_LOG_BATCH_SCHEDULED_DELAY,
             max_size: DEFAULT_LOG_BATCH_MAX_SIZE,
         }
+    }
+}
+
+impl From<&BatchConfig> for trace::BatchConfig {
+    fn from(value: &BatchConfig) -> Self {
+        trace::BatchConfigBuilder::default()
+            .with_max_export_batch_size(value.max_size)
+            .with_scheduled_delay(value.scheduled_delay)
+            .build()
     }
 }
 
@@ -196,6 +284,7 @@ logs:
         fn default_with_endpoint(endpoint: &str) -> Self {
             Self {
                 metrics: Default::default(),
+                traces: Default::default(),
                 logs: Default::default(),
                 insecure_level: default_insecure_level(),
                 endpoint: endpoint.parse().unwrap(),
@@ -216,6 +305,10 @@ logs:
         assert_eq!(
             config.logs_endpoint(),
             "https://some.endpoint:4318/v1/logs".to_string()
+        );
+        assert_eq!(
+            config.traces_endpoint(),
+            "https://some.endpoint:4318/v1/traces".to_string()
         );
     }
 
@@ -254,5 +347,56 @@ logs:
             serde_saphyr::from_str::<OtelConfig>(EXAMPLE_FULLY_POPULATED_OPENTELEMETRY_CONFIG)
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn test_endpoint_resolves_from_region() {
+        use crate::cli::common::region::Region;
+        let config = OtelConfig::default(); // uses "https://fake" endpoint
+        let config = config.with_region_endpoint(&Region::US);
+        assert_eq!(config.endpoint.host_str(), Some("otlp.nr-data.net"));
+    }
+
+    #[test]
+    fn test_endpoint_omitted_resolves_from_region() {
+        use crate::cli::common::region::Region;
+        // No `endpoint` key at all - this is the real-world shape of a config that relies on
+        // region-derivation, as opposed to OtelConfig::default() which only exists in test code.
+        let config: OtelConfig =
+            serde_saphyr::from_str("metrics:\n  enabled: true").unwrap();
+        assert_eq!(config.endpoint.as_str().trim_end_matches('/'), ENDPOINT_SENTINEL);
+
+        let config = config.with_region_endpoint(&Region::US);
+        assert_eq!(config.endpoint.host_str(), Some("otlp.nr-data.net"));
+        assert_eq!(config.endpoint.port(), Some(4318));
+    }
+
+    #[test]
+    fn test_explicit_endpoint_not_overridden() {
+        use crate::cli::common::region::Region;
+        let config: OtelConfig = serde_saphyr::from_str(
+            "endpoint: https://custom.endpoint:4318\nmetrics:\n  enabled: true",
+        )
+        .unwrap();
+        let config = config.with_region_endpoint(&Region::US);
+        assert_eq!(config.endpoint.host_str(), Some("custom.endpoint"));
+    }
+
+    #[test]
+    fn test_region_endpoint_eu() {
+        use crate::cli::common::region::Region;
+        let config = OtelConfig::default();
+        let config = config.with_region_endpoint(&Region::EU);
+        assert_eq!(config.endpoint.host_str(), Some("otlp.eu01.nr-data.net"));
+        assert_eq!(config.endpoint.port(), Some(4318));
+    }
+
+    #[test]
+    fn test_region_endpoint_jp() {
+        use crate::cli::common::region::Region;
+        let config = OtelConfig::default();
+        let config = config.with_region_endpoint(&Region::JP);
+        assert_eq!(config.endpoint.host_str(), Some("otlp.jp.nr-data.net"));
+        assert_eq!(config.endpoint.port(), Some(4318));
     }
 }

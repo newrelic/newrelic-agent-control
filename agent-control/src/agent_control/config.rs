@@ -11,6 +11,7 @@ use crate::agent_control::defaults::{
 use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
 use crate::agent_type::runtime_config::on_host::package::rendered::{Repository, Version};
 use crate::agent_type::variable::constraints::VariableConstraints;
+use crate::cli::common::region::Region;
 use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
@@ -37,6 +38,10 @@ use thiserror::Error;
 use tracing::info;
 use url::Url;
 use wrapper_with_default::WrapperWithDefault;
+
+fn default_region() -> Region {
+    Region::US
+}
 
 /// AgentControlConfig represents the configuration for the agent control.
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
@@ -67,6 +72,10 @@ pub struct AgentControlConfig {
     /// Proxy configuration for outbound connections.
     #[serde(default)]
     pub proxy: ProxyConfig,
+
+    /// New Relic region for endpoint derivation. Defaults to US.
+    #[serde(default = "default_region")]
+    pub region: Region,
 
     /// Self-instrumentation (telemetry about Agent Control itself) configuration.
     #[serde(default)]

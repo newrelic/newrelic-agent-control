@@ -1,0 +1,32 @@
+# Agent Control configuration — New Relic OTel Collector
+# Use this as a starting point when Agent Control manages the NR OpenTelemetry Collector.
+
+fleet_control:
+  endpoint: https://opamp.service.newrelic.com/v1/opamp
+  auth_config:
+    token_url: https://system-identity-oauth.service.newrelic.com/oauth2/token
+    client_id: YOUR_CLIENT_ID_HERE
+    provider: local
+    private_key_path: /etc/newrelic-agent-control/auth/private_key.pem
+
+agents:
+  nrdot: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"
+
+# proxy:
+#   url: https://proxy.url:8080
+#   ignore_system_proxy: false
+
+# Optional: enable Agent Control self-instrumentation via OTLP.
+# Agent Control will send its own metrics, logs, and traces to New Relic
+# without requiring an Infra agent or Fluent Bit.
+# self_instrumentation:
+#   opentelemetry:
+#     endpoint: https://otlp.nr-data.net:4318    # US; see docs for EU/JP/staging
+#     headers:
+#       api-key: YOUR_LICENSE_KEY_HERE
+#     metrics:
+#       enabled: true
+#     logs:
+#       enabled: true
+#     traces:
+#       enabled: true

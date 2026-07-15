@@ -4,5 +4,7 @@
 //! metrics and traces to stderr, files and OpenTelemetry endpoints.
 
 pub mod config;
+pub(crate) mod flush;
+pub mod metrics;
 pub mod tracing;
 pub mod tracing_layers;

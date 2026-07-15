@@ -230,7 +230,15 @@ impl opentelemetry_http::HttpClient for HttpClient {
         let (parts, body) = request.into_parts();
         let req_vec = Request::from_parts(parts, Vec::from(body));
 
-        let response_vec = self.send(req_vec)?;
+        // The OTel exporter uses reqwest-blocking-client (not the async variant), so
+        // send() is always synchronous. Calling it directly is correct on both the
+        // Tokio runtime threads and the BatchProcessor OS threads. The previous
+        // spawn_blocking branch was dangerous: a JoinHandle awaited inside
+        // futures_executor::block_on (used by the BatchProcessor) deadlocks because
+        // JoinHandle::poll requires a Tokio waker to reschedule the spawned task.
+        let response_vec = self
+            .send(req_vec)
+            .map_err(|http_err| Box::new(http_err) as HttpError)?;
 
         let (parts, body) = response_vec.into_parts();
         Ok(Response::from_parts(parts, Bytes::from(body)))

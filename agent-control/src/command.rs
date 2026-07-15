@@ -16,7 +16,7 @@ use crate::event::ApplicationEvent;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
 use crate::instrumentation::config::logs::config::LoggingConfig;
 use crate::instrumentation::tracing::{
-    TracingConfig, TracingGuardBox, try_init_stderr_tracing, try_init_tracing,
+    InstanceContext, TracingConfig, TracingGuardBox, try_init_stderr_tracing, try_init_tracing,
 };
 use crate::on_host::file_store::FileStore;
 use crate::utils::binary_metadata::binary_metadata;
@@ -267,14 +267,32 @@ impl Command {
 
         let config_folder_name = base_paths.local_dir.display().to_string();
 
+        let instance_context = InstanceContext {
+            environment: running_mode,
+            cluster_name: bootstrap_config
+                .k8s
+                .as_ref()
+                .map(|k| k.cluster_name.clone()),
+            fleet_id: bootstrap_config
+                .fleet_control
+                .as_ref()
+                .map(|f| f.fleet_id.clone()),
+            // Only ever set in k8s mode (via the POD_NAME/NODE_NAME downward-API env vars the
+            // chart injects); simply absent everywhere else, so reading them unconditionally is
+            // harmless on-host.
+            pod_name: std::env::var("POD_NAME").ok(),
+            node_name: std::env::var("NODE_NAME").ok(),
+        };
         let tracing_config = TracingConfig::from_logging_path(base_paths.log_dir.clone())
             .with_logging_config(bootstrap_config.log.clone())
             .with_instrumentation_config(
                 bootstrap_config
                     .self_instrumentation
                     .clone()
-                    .with_proxy_config(bootstrap_config.proxy.clone()),
-            );
+                    .with_proxy_config(bootstrap_config.proxy.clone())
+                    .with_region_endpoint(&bootstrap_config.region),
+            )
+            .with_instance_context(instance_context);
         let tracer = try_init_tracing(tracing_config)
             .map_err(|e| format!("Error on Agent Control tracing initialization: {e}"))?;
 

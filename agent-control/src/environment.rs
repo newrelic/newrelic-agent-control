@@ -23,6 +23,18 @@ impl Display for Environment {
     }
 }
 
+impl Environment {
+    /// Coarser-grained deployment platform: "host" for both on-host environments (the real OS
+    /// is already available separately via os.type) vs "kubernetes". Used for self-instrumentation
+    /// telemetry, where the linux/windows split adds noise without adding information.
+    pub fn deployment_platform(&self) -> &'static str {
+        match self {
+            Environment::Linux | Environment::Windows => "host",
+            Environment::K8s => "kubernetes",
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod tests {

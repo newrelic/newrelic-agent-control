@@ -11,10 +11,30 @@ use super::{
         stderr::stderr,
     },
 };
+use crate::environment::Environment;
 use std::path::PathBuf;
 use thiserror::Error;
 use tracing::debug;
 use tracing_subscriber::{Layer, Registry, layer::SubscriberExt, util::SubscriberInitExt};
+
+/// Runtime facts about the current Agent Control instance that aren't user-configurable but are
+/// needed so self-instrumentation telemetry can identify and be grouped by instance (deployment
+/// platform, k8s cluster, fleet) the same way OpAMP's `agent_description` already can.
+#[derive(Debug, Clone)]
+pub struct InstanceContext {
+    /// Deployment platform this AC binary is running as (`linux` / `windows` / `kubernetes`).
+    pub environment: Environment,
+    /// K8s cluster name, when running in k8s mode.
+    pub cluster_name: Option<String>,
+    /// Fleet identifier, when this instance is connected to Fleet Control.
+    pub fleet_id: Option<String>,
+    /// K8s pod name, when running in k8s mode (from the `POD_NAME` downward-API env var).
+    /// Distinct from `host.name`: k8s sets a pod's own OS hostname equal to its pod name, so
+    /// without this, self-instrumentation has no attribute for the underlying node.
+    pub pod_name: Option<String>,
+    /// K8s node name, when running in k8s mode (from the `NODE_NAME` downward-API env var).
+    pub node_name: Option<String>,
+}
 
 /// Represents errors while setting up or shutting down tracing.
 #[derive(Error, Debug)]
@@ -46,6 +66,7 @@ pub struct TracingConfig {
     logging_path: PathBuf,
     logging_config: LoggingConfig,
     instrumentation_config: InstrumentationConfig,
+    instance_context: Option<InstanceContext>,
 }
 
 impl TracingConfig {
@@ -55,6 +76,7 @@ impl TracingConfig {
             logging_path,
             logging_config: Default::default(),
             instrumentation_config: Default::default(),
+            instance_context: None,
         }
     }
 
@@ -73,6 +95,15 @@ impl TracingConfig {
     ) -> Self {
         Self {
             instrumentation_config,
+            ..self
+        }
+    }
+
+    /// Sets the instance context (deployment platform, k8s cluster, fleet) used to enrich
+    /// self-instrumentation telemetry with identifying attributes.
+    pub fn with_instance_context(self, instance_context: InstanceContext) -> Self {
+        Self {
+            instance_context: Some(instance_context),
             ..self
         }
     }
@@ -114,12 +145,28 @@ pub fn try_init_tracing(config: TracingConfig) -> Result<Vec<TracingGuardBox>, T
     }
 
     if let Some(otel_config) = config.instrumentation_config.opentelemetry.as_ref() {
-        let (otel_layers, otel_guard) = OtelLayers::try_build(otel_config)?;
+        tracing::debug!("opentelemetry config found, initializing OTLP layers");
+        // Normalize headers (api_key -> api-key) for OTLP compatibility
+        let normalized_config = otel_config.clone().normalize_headers();
+        let (otel_layers, otel_guard) =
+            OtelLayers::try_build(&normalized_config, config.instance_context.as_ref())?;
         layers.push(otel_layers);
         guards.push(Box::new(otel_guard));
+
+        // Allows including the log information on spans that contain them when send to otlp.
+        opentelemetry::global::set_text_map_propagator(
+            opentelemetry_sdk::propagation::TraceContextPropagator::new(),
+        );
+    } else {
+        tracing::debug!("no opentelemetry config found - self-instrumentation disabled");
     }
+    let otel_enabled = config.instrumentation_config.opentelemetry.is_some();
     try_init_tracing_subscriber(layers)?;
     debug!("tracing_subscriber initialized successfully");
+    tracing::info!(
+        self_instrumentation_otlp_enabled = otel_enabled,
+        "tracing initialized"
+    );
 
     Ok(guards)
 }
