@@ -163,7 +163,7 @@ impl FileSystem {
     /// Persistent directories are skipped entirely so that runtime files the agent wrote (and
     /// never declared) are preserved. The unavoidable side-effect is that a file which *was*
     /// declared inside a persistent directory in a previous type version but is no longer declared
-    /// in the current one also survives. We would need to safe the state to handle this case
+    /// in the current one also survives. We would need to save the state to handle this case
     pub fn delete_not_declared(
         &self,
         file_ops: &impl FileDeleter,
