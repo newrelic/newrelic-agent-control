@@ -34,6 +34,80 @@ jobs:
       pfx_certificate_base64: ${{ secrets.OHAI_PFX_CERTIFICATE_BASE64 }}
       pfx_passphrase: ${{ secrets.OHAI_PFX_PASSPHRASE }}
 
+  # Compares against the previous GA release; upload depends on this, so a regression blocks publishing.
+  binary-size-check:
+    name: Check binary size vs previous release
+    runs-on: ubuntu-latest
+    needs: [ build-packages ]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Download this release's built artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: built-binaries-${{ github.event.release.tag_name }}
+          path: ./current
+
+      # --exclude-pre-releases ensures "previous" is the last GA, not another rc.
+      - name: Resolve previous release
+        id: prev
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          ok=false
+          prev=""
+          for i in 1 2 3; do
+            if prev=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 30 --exclude-drafts --exclude-pre-releases \
+                --json tagName,createdAt \
+                --jq '[.[] | select(.tagName != env.CURRENT_TAG)] | sort_by(.createdAt) | reverse | .[0].tagName // ""'); then
+              ok=true
+              break
+            fi
+            echo "gh release list failed (attempt $i/3), retrying in 5s..."
+            sleep 5
+          done
+          if ! $ok; then
+            echo "::error::gh release list failed after 3 attempts"
+            exit 1
+          fi
+          echo "tag=$prev" >> "$GITHUB_OUTPUT"
+          if [ -z "$prev" ]; then
+            echo "No previous release found; binary size check will be skipped."
+          else
+            echo "Comparing against previous release: $prev"
+          fi
+
+      - name: Download previous release archives
+        if: steps.prev.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p previous
+          ok=false
+          for i in 1 2 3; do
+            if gh release download "${{ steps.prev.outputs.tag }}" --repo "$GITHUB_REPOSITORY" \
+                --dir ./previous --pattern '*.tar.gz' --pattern '*.zip' --clobber; then
+              ok=true
+              break
+            fi
+            echo "gh release download failed (attempt $i/3), retrying in 5s..."
+            sleep 5
+          done
+          $ok
+
+      - name: Measure and compare binary sizes
+        if: steps.prev.outputs.tag != ''
+        run: |
+          mkdir -p binary-size
+          echo "Current release binaries:"
+          bash .github/scripts/binary-size.sh measure current binary-size/current.txt
+          echo "Previous release binaries:"
+          bash .github/scripts/binary-size.sh measure previous binary-size/baseline.txt
+          bash .github/scripts/binary-size.sh check binary-size/current.txt binary-size/baseline.txt 10
+
   build-image:
     name: Build and Push container image
     needs: [ third-party-notices-check ]
@@ -60,7 +134,7 @@ jobs:
   upload:
     runs-on: ubuntu-latest
     name: Upload to S3
-    needs: [ build-packages ]
+    needs: [ build-packages, binary-size-check ]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:

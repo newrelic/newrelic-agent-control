@@ -183,6 +183,22 @@ jobs:
       - name: Build onhost in release mode
         run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control --target x86_64-unknown-linux-musl
 
+      - name: Measure release binary sizes
+        run: |
+          mkdir -p binary-size
+          bash .github/scripts/binary-size.sh measure-local binary-size/current.txt \
+            "newrelic-agent-control-k8s=target/x86_64-unknown-linux-musl/release/newrelic-agent-control-k8s" \
+            "newrelic-agent-control=target/x86_64-unknown-linux-musl/release/newrelic-agent-control"
+
+      # Enforced on PRs/merge queue; on main it only republishes the baseline for future PRs.
+      - name: Binary size baseline check
+        uses: ./.github/actions/binary-size-baseline
+        with:
+          cache-key: binary-size-baseline-${{ github.sha }}
+          cache-restore-prefix: binary-size-baseline-
+          enforce: ${{ github.ref != 'refs/heads/main' }}
+          publish-baseline: ${{ github.ref == 'refs/heads/main' }}
+
   unit-docs-onhost-integration-tests:
     name: Unit, docs and onhost integration tests
     runs-on: ${{ matrix.os }}

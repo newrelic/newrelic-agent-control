@@ -25,6 +25,40 @@ jobs:
       pfx_certificate_base64: ${{ secrets.OHAI_PFX_CERTIFICATE_BASE64 }}
       pfx_passphrase: ${{ secrets.OHAI_PFX_PASSPHRASE }}
 
+  # Early-warning only: doesn't block build-image/upload/canaries, alerts via its own Slack message.
+  binary-size-check:
+    name: Check binary size vs previous nightly
+    runs-on: ubuntu-latest
+    needs: [ build-packages ]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Download built binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: built-binaries-0.100.${{ github.run_id }}
+          path: ./artifacts
+
+      # Measure from the published archives, same as the prerelease check, so both use identical keys.
+      - name: Measure binary sizes
+        id: measure
+        run: |
+          mkdir -p binary-size
+          bash .github/scripts/binary-size.sh measure artifacts binary-size/current.txt
+          # Fail loudly instead of silently disabling the check if the layout changes.
+          if [ ! -s binary-size/current.txt ]; then
+            echo "::error::No release binaries found in the built-binaries artifact"
+            exit 1
+          fi
+
+      # Only advances the baseline if the check passed, so a regression isn't baked in.
+      - name: Binary size baseline check
+        uses: ./.github/actions/binary-size-baseline
+        with:
+          cache-key: binary-size-nightly-${{ github.run_id }}
+          cache-restore-prefix: binary-size-nightly-
+          publish-baseline: 'true'
+
   build-image:
     name: Build and Push nightly image
     uses: ./.github/workflows/component_image.yml
@@ -235,4 +269,13 @@ jobs:
     uses: ./.github/workflows/component_send_warning_via_slack.yml
     with:
       message: "Nightly workflow failed"
+    secrets: inherit
+
+  # Dedicated alert so an infra-only flake here doesn't dilute the generic failure alert above.
+  notify-binary-size-regression:
+    if: ${{ always() && needs.binary-size-check.result == 'failure' }}
+    needs: [ binary-size-check ]
+    uses: ./.github/workflows/component_send_warning_via_slack.yml
+    with:
+      message: "Nightly binary size check failed"
     secrets: inherit

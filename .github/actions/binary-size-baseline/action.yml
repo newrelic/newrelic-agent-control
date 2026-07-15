@@ -1,0 +1,58 @@
+name: 'Binary size baseline check'
+description: 'Restores a cached binary-size baseline, checks against it, and optionally republishes it'
+inputs:
+  current-file:
+    description: 'Path to the current sizes file (name size-in-bytes per line)'
+    required: false
+    default: 'binary-size/current.txt'
+  baseline-file:
+    description: 'Path to write/read the baseline sizes file'
+    required: false
+    default: 'binary-size/baseline.txt'
+  cache-key:
+    description: 'Exact cache key to save the baseline under'
+    required: true
+  cache-restore-prefix:
+    description: 'Cache key prefix used to restore the latest baseline (restore-keys)'
+    required: true
+  threshold:
+    description: 'Max allowed percent growth over baseline before failing'
+    required: false
+    default: '10'
+  enforce:
+    description: "If 'false', never fail the job on a regression (still produces the summary table)"
+    required: false
+    default: 'true'
+  publish-baseline:
+    description: "If 'true', republish current sizes as the new baseline (only if the check passed, when enforced)"
+    required: false
+    default: 'false'
+runs:
+  using: 'composite'
+  steps:
+    - name: Restore binary size baseline
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      with:
+        path: ${{ inputs.baseline-file }}
+        key: ${{ inputs.cache-key }}
+        restore-keys: |
+          ${{ inputs.cache-restore-prefix }}
+
+    - name: Check binary size against baseline
+      id: check
+      shell: bash
+      continue-on-error: ${{ inputs.enforce == 'false' }}
+      run: bash .github/scripts/binary-size.sh check "${{ inputs.current-file }}" "${{ inputs.baseline-file }}" "${{ inputs.threshold }}"
+
+    # Always publish when not enforcing (e.g. main); otherwise only if the check passed.
+    - name: Publish new baseline
+      if: ${{ inputs.publish-baseline == 'true' && (inputs.enforce == 'false' || steps.check.outcome == 'success') }}
+      shell: bash
+      run: cp "${{ inputs.current-file }}" "${{ inputs.baseline-file }}"
+
+    - name: Save binary size baseline
+      if: ${{ inputs.publish-baseline == 'true' && (inputs.enforce == 'false' || steps.check.outcome == 'success') }}
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      with:
+        path: ${{ inputs.baseline-file }}
+        key: ${{ inputs.cache-key }}
