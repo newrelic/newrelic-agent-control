@@ -1014,36 +1014,36 @@ mod tests {
         );
     }
 
-    /// On a type bump, shared files present in the old type but absent in the new type are deleted.
-    /// Files present in both are kept. Managed dirs absent in the new type are removed.
+    /// On a type bump, shared paths absent from the new type are deleted regardless of their
+    /// persistence flag. Paths declared in both types are kept. Managed dirs absent in the new
+    /// type are removed. Co-owned directories are never deleted.
     #[test]
-    fn on_type_change_removes_ephemeral_paths_absent_in_new_type() {
+    fn on_type_change_removes_shared_paths_absent_in_new_type() {
         let tmp = tempfile::TempDir::new().unwrap();
         let shared = tmp.path().to_path_buf();
 
-        // On-disk state from the old type.
         std::fs::create_dir_all(shared.join("ohi-configs")).unwrap();
         std::fs::write(shared.join("ohi-configs").join("nri-redis.yaml"), "redis").unwrap();
         std::fs::write(shared.join("ohi-configs").join("nri-old.yaml"), "old").unwrap();
+        std::fs::write(shared.join("persistent.yaml"), "data").unwrap();
         std::fs::create_dir_all(shared.join("old-managed")).unwrap();
         std::fs::write(shared.join("old-managed").join("file.log"), "log").unwrap();
 
         let old_type_id = AgentTypeID::try_from("test/oldagent:0.0.1").unwrap();
         let new_type_id = AgentTypeID::try_from("test/newagent:0.0.2").unwrap();
 
-        // Old type declares: redis.yaml (ephemeral file), nri-old.yaml (ephemeral file), old-managed (DirContentFromMap).
         let old_definition = host_type_with_shared(serde_json::json!({
             "ohi-configs": {
                 "kind": "dir",
                 "entries": {
                     "nri-redis.yaml": { "kind": "file", "text": "redis" },
-                    "nri-old.yaml":   { "kind": "file", "text": "old"   },
+                    "nri-old.yaml":   { "kind": "file", "text": "old" },
                 },
             },
+            "persistent.yaml": { "kind": "file", "text": "data", "persistent": true },
             "old-managed": { "kind": "dir_content_from_map", "source": "${nr-var:m}" },
         }));
-
-        // New type declares: redis.yaml only (same file, kept). nri-old.yaml and old-managed are gone.
+        // New type keeps only redis.yaml; drops nri-old.yaml, persistent.yaml, old-managed.
         let new_definition = host_type_with_shared(serde_json::json!({
             "ohi-configs": {
                 "kind": "dir",
@@ -1054,8 +1054,7 @@ mod tests {
         }));
 
         let mut registry = MockAgentTypeRegistry::new();
-        // old_type: one lookup (get_definition). new_type: two lookups (get_definition +
-        // declared_shared_paths_from_all_agents for the bumped agent in active_agents).
+        // old_type: one lookup. new_type: two (get_definition + union for bumped agent).
         registry.should_get(old_type_id.clone(), &old_definition);
         registry.should_get(new_type_id.clone(), &new_definition);
         registry.should_get(new_type_id.clone(), &new_definition);
@@ -1074,60 +1073,19 @@ mod tests {
         );
         assert!(
             !shared.join("ohi-configs").join("nri-old.yaml").exists(),
-            "file in old type but absent in new type must be deleted"
+            "ephemeral file absent in new type must be deleted"
         );
-        assert!(
-            !shared.join("old-managed").exists(),
-            "managed dir present in old type but absent in new type must be deleted"
-        );
-        assert!(
-            shared.join("ohi-configs").is_dir(),
-            "co-owned directory must never be deleted"
-        );
-    }
-
-    /// All shared paths declared by the old type but absent in the new type are deleted, including
-    /// persistent ones.
-    #[test]
-    fn on_type_change_removes_paths_absent_in_new_type_including_persistent() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let shared = tmp.path().to_path_buf();
-
-        std::fs::write(shared.join("persistent.yaml"), "data").unwrap();
-        std::fs::write(shared.join("ephemeral.yaml"), "tmp").unwrap();
-
-        let old_type_id = AgentTypeID::try_from("test/oldagent:0.0.1").unwrap();
-        let new_type_id = AgentTypeID::try_from("test/newagent:0.0.2").unwrap();
-
-        let old_definition = host_type_with_shared(serde_json::json!({
-            "persistent.yaml": { "kind": "file", "text": "data", "persistent": true },
-            "ephemeral.yaml":  { "kind": "file", "text": "tmp"  },
-        }));
-        let new_definition = host_type_with_shared(serde_json::json!({}));
-
-        let mut registry = MockAgentTypeRegistry::new();
-        // old_type: one lookup (get_definition). new_type: two lookups (get_definition +
-        // declared_shared_paths_from_all_agents for the bumped agent in active_agents).
-        registry.should_get(old_type_id.clone(), &old_definition);
-        registry.should_get(new_type_id.clone(), &new_definition);
-        registry.should_get(new_type_id.clone(), &new_definition);
-
-        shared_cleaner(registry, shared.clone())
-            .reconcile_filesystems_on_type_change(
-                &agent_id("test-agent"),
-                &old_type_id,
-                &new_type_id,
-                &configured(&[("test-agent", "test/newagent:0.0.2")]),
-            )
-            .expect("reconcile must succeed");
-
         assert!(
             !shared.join("persistent.yaml").exists(),
             "persistent file absent in new type must be deleted"
         );
         assert!(
-            !shared.join("ephemeral.yaml").exists(),
-            "ephemeral file absent in new type must be deleted"
+            !shared.join("old-managed").exists(),
+            "managed dir absent in new type must be deleted"
+        );
+        assert!(
+            shared.join("ohi-configs").is_dir(),
+            "co-owned directory must never be deleted"
         );
     }
 
