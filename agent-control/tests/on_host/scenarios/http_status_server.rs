@@ -5,7 +5,7 @@ use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::consts::NO_CONFIG;
 use crate::on_host::tools::config::{OnHostAgentControlConfigBuilder, create_local_config};
-use crate::on_host::tools::custom_agent_type::OnHostCustomAgentType;
+use crate::on_host::tools::custom_agent_type::OnHostCustomAgentTypeBuilder;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
@@ -28,7 +28,7 @@ fn test_http_status_endpoint_response() {
 
     let opamp_server = FakeServer::start(tokio_runtime().handle());
     let dirs = TempBasePaths::default();
-    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentTypeBuilder::default().write(dirs.local_dir());
 
     let agents = format!(
         r#"

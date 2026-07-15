@@ -7,7 +7,7 @@ use crate::common::base_paths::TempBasePaths;
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::{OnHostAgentControlConfigBuilder, create_local_config};
-use crate::on_host::tools::custom_agent_type::OnHostCustomAgentType;
+use crate::on_host::tools::custom_agent_type::OnHostCustomAgentTypeBuilder;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::oci_package_manager::push_test_package;
 use fake_opamp_server::FakeServer;
@@ -177,7 +177,7 @@ fn test_attributes_from_an_existing_agent_type_with_oci_registry() {
         )
     };
 
-    let sleep_agent_type = OnHostCustomAgentType::default()
+    let sleep_agent_type = OnHostCustomAgentTypeBuilder::default()
         .with_variables(
             r#"
 package_version:

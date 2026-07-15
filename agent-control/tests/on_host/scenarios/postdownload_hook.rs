@@ -4,7 +4,7 @@ use crate::common::health::{check_latest_health_status, check_latest_health_stat
 use crate::common::retry::retry;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::{OnHostAgentControlConfigBuilder, create_local_config};
-use crate::on_host::tools::custom_agent_type::OnHostCustomAgentType;
+use crate::on_host::tools::custom_agent_type::OnHostCustomAgentTypeBuilder;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -28,7 +28,7 @@ package_version:
 
 // Builds the custom agent type used by these tests, declaring the `package_version` variable.
 fn build_agent_type(dirs: &TempBasePaths, packages: &str, executables: &str) -> String {
-    OnHostCustomAgentType::default()
+    OnHostCustomAgentTypeBuilder::default()
         .with_variables(PACKAGE_VERSION_VARIABLE)
         .with_executables(Some(executables))
         .with_packages(Some(packages))

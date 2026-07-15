@@ -9,7 +9,7 @@ use crate::on_host::tools::config::{
     OnHostAgentControlConfigBuilder, create_file, create_local_config,
 };
 use crate::on_host::tools::config::{create_remote_config, load_remote_config_content};
-use crate::on_host::tools::custom_agent_type::OnHostCustomAgentType;
+use crate::on_host::tools::custom_agent_type::OnHostCustomAgentTypeBuilder;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -74,7 +74,7 @@ fn onhost_opamp_agent_control_remote_effective_config() {
         .write(dirs.local_dir());
 
     // Add custom agent_type to registry
-    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentTypeBuilder::default().write(dirs.local_dir());
 
     let _agent_control =
         start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
@@ -200,7 +200,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 
     let dirs = TempBasePaths::default();
 
-    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentTypeBuilder::default().write(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -264,7 +264,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
 
     let dirs = TempBasePaths::default();
 
-    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentTypeBuilder::default().write(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -325,7 +325,7 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 
     let dirs = TempBasePaths::default();
 
-    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentTypeBuilder::default().write(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -398,7 +398,7 @@ checks:
 "#,
         health_file_path.to_string_lossy()
     );
-    let agent_type_wo_exec = OnHostCustomAgentType::default()
+    let agent_type_wo_exec = OnHostCustomAgentTypeBuilder::default()
         .with_executables(None)
         .with_health(Some(&health_agent_type_config))
         .write(dirs.local_dir());

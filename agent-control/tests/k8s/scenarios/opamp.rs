@@ -10,7 +10,7 @@ use crate::k8s::tools::k8s_api::{check_helmrelease_exists, delete_helm_release};
 use crate::k8s::tools::{
     agent_control::{create_config_map, start_agent_control},
     config::K8sAgentControlConfigBuilder,
-    custom_agent_type::K8sCustomAgentType,
+    custom_agent_type::K8sCustomAgentTypeBuilder,
     instance_id,
     k8s_api::check_deployments_exist,
     k8s_env::K8sEnv,
@@ -35,7 +35,7 @@ fn k8s_opamp_remove_subagent() {
     let agents_ns = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agent_type_id = K8sCustomAgentType::split_ns().write(tmp_dir.path());
+    let agent_type_id = K8sCustomAgentTypeBuilder::split_ns().write(tmp_dir.path());
     let agents = format!(
         r#"
   hello-world:
@@ -156,7 +156,7 @@ fn k8s_opamp_add_subagent() {
         "chart_values:\n  cluster: minikube\n  licenseKey: test\n".to_string(),
     ));
 
-    let agent_type_id = K8sCustomAgentType::split_ns().write(tmp_dir.path());
+    let agent_type_id = K8sCustomAgentTypeBuilder::split_ns().write(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &ac_ns, tmp_dir.path());
 
     let ac_instance_id =
@@ -207,7 +207,7 @@ fn k8s_opamp_modify_subagent_config() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agent_type_id = K8sCustomAgentType::split_ns().write(tmp_dir.path());
+    let agent_type_id = K8sCustomAgentTypeBuilder::split_ns().write(tmp_dir.path());
     let agents = format!(
         r#"
   hello-world:

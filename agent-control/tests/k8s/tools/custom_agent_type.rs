@@ -1,16 +1,16 @@
-use crate::common::custom_agent_type::CommonCustomAgentType;
+use crate::common::custom_agent_type::CommonCustomAgentTypeBuilder;
 use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
 use std::fmt::Display;
 use std::path::Path;
 
 /// Helper to build a Custom Agent type with defaults ready to use in k8s integration tests.
-pub struct K8sCustomAgentType {
-    common: CommonCustomAgentType,
+pub struct K8sCustomAgentTypeBuilder {
+    common: CommonCustomAgentTypeBuilder,
     health: Option<serde_json::Value>,
     objects: Option<serde_json::Value>,
 }
 
-impl Default for K8sCustomAgentType {
+impl Default for K8sCustomAgentTypeBuilder {
     fn default() -> Self {
         Self::new()
             .with_variables(
@@ -80,7 +80,7 @@ release:
     }
 }
 
-impl Display for K8sCustomAgentType {
+impl Display for K8sCustomAgentTypeBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let content = format!(
             r#"
@@ -122,10 +122,10 @@ impl Display for K8sCustomAgentType {
     }
 }
 
-impl K8sCustomAgentType {
+impl K8sCustomAgentTypeBuilder {
     pub fn new() -> Self {
         Self {
-            common: CommonCustomAgentType::new(
+            common: CommonCustomAgentTypeBuilder::new(
                 AgentTypeID::try_from("newrelic/com.newrelic.custom_agent:0.0.1").unwrap(),
             ),
             health: None,

@@ -9,7 +9,7 @@ use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::{
     K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET, TEST_CLUSTER_NAME, create_config_map,
 };
-use crate::k8s::tools::custom_agent_type::K8sCustomAgentType;
+use crate::k8s::tools::custom_agent_type::K8sCustomAgentTypeBuilder;
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::{instance_id, k8s_env::K8sEnv};
 use crate::on_host::tools::oci_package_manager::TestDataHelper;
@@ -45,7 +45,7 @@ fn k8s_local_agent_type_shadows_remote_registry_with_oci_registry() {
     let namespace = block_on(k8s.test_namespace());
     let dirs = TempBasePaths::default();
 
-    K8sCustomAgentType::new()
+    K8sCustomAgentTypeBuilder::new()
         .with_agent_type_id(AGENT_TYPE_ID)
         .write(&dirs.local_dir());
 
@@ -160,7 +160,7 @@ fn push_agent_type_to_registry(signer: &OCISigner) -> oci_client::Reference {
     TestDataHelper::compress_tar_gz(
         source_dir.path(),
         &archive,
-        &K8sCustomAgentType::new()
+        &K8sCustomAgentTypeBuilder::new()
             .with_agent_type_id(AGENT_TYPE_ID)
             .to_string(),
         &format!("{tag}.yaml"),

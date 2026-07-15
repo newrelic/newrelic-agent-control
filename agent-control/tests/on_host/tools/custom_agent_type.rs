@@ -1,4 +1,4 @@
-use crate::common::custom_agent_type::CommonCustomAgentType;
+use crate::common::custom_agent_type::CommonCustomAgentTypeBuilder;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
 use std::fmt::Display;
@@ -7,8 +7,8 @@ use std::path::PathBuf;
 pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
 
 /// Helper to build a Custom Agent type with defaults ready to use in integration tests
-pub struct OnHostCustomAgentType {
-    common: CommonCustomAgentType,
+pub struct OnHostCustomAgentTypeBuilder {
+    common: CommonCustomAgentTypeBuilder,
     executables: Option<serde_json::Value>,
     filesystem: Option<serde_json::Value>,
     shared_filesystem: Option<serde_json::Value>,
@@ -16,18 +16,19 @@ pub struct OnHostCustomAgentType {
     health: Option<serde_json::Value>,
 }
 
-impl Default for OnHostCustomAgentType {
+impl Default for OnHostCustomAgentTypeBuilder {
     fn default() -> Self {
         Self {
-            common: CommonCustomAgentType::new(Self::default_agent_type_id()).with_variables(
-                r#"
+            common: CommonCustomAgentTypeBuilder::new(Self::default_agent_type_id())
+                .with_variables(
+                    r#"
 fake_variable:
   description: "fake variable to verify remote config"
   type: "string"
   required: false
   default: "default"
 "#,
-            ),
+                ),
             executables: Some(Self::default_executables()),
             filesystem: None,
             shared_filesystem: None,
@@ -48,7 +49,7 @@ checks:
     }
 }
 
-impl Display for OnHostCustomAgentType {
+impl Display for OnHostCustomAgentTypeBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let content = format!(
             r#"
@@ -98,7 +99,7 @@ impl Display for OnHostCustomAgentType {
     }
 }
 
-impl OnHostCustomAgentType {
+impl OnHostCustomAgentTypeBuilder {
     fn default_agent_type_id() -> AgentTypeID {
         AgentTypeID::try_from("newrelic/com.newrelic.custom_agent:0.1.0").unwrap()
     }
@@ -135,7 +136,7 @@ impl OnHostCustomAgentType {
 
     pub fn empty() -> Self {
         Self {
-            common: CommonCustomAgentType::new(Self::default_agent_type_id()),
+            common: CommonCustomAgentTypeBuilder::new(Self::default_agent_type_id()),
             executables: None,
             health: None,
             filesystem: None,

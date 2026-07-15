@@ -8,7 +8,7 @@ use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::{create_config_map, start_agent_control};
 use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
-use crate::k8s::tools::custom_agent_type::K8sCustomAgentType;
+use crate::k8s::tools::custom_agent_type::K8sCustomAgentTypeBuilder;
 use crate::k8s::tools::{instance_id, k8s_env::K8sEnv};
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -37,7 +37,7 @@ fn k8s_test_attributes_from_existing_agent_type() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agent_type_id = K8sCustomAgentType::default().write(tmp_dir.path());
+    let agent_type_id = K8sCustomAgentTypeBuilder::default().write(tmp_dir.path());
     let agents = format!(
         r#"
   hello-world:
@@ -225,7 +225,7 @@ fn k8s_test_custom_capabilities_when_cd_disabled() {
         .with_cd_enabled(false)
         .write(k8s.client.clone(), tmp_dir.path());
 
-    K8sCustomAgentType::default().write(tmp_dir.path());
+    K8sCustomAgentTypeBuilder::default().write(tmp_dir.path());
     let _ac = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let instance_id =

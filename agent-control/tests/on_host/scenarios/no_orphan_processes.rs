@@ -6,7 +6,7 @@ use crate::common::base_paths::TempBasePaths;
 use crate::common::process_finder::find_processes_by_pattern;
 use crate::common::runtime::tokio_runtime;
 use crate::on_host::tools::config::{OnHostAgentControlConfigBuilder, create_local_config};
-use crate::on_host::tools::custom_agent_type::OnHostCustomAgentType;
+use crate::on_host::tools::custom_agent_type::OnHostCustomAgentTypeBuilder;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use std::thread;
@@ -22,7 +22,7 @@ fn test_no_orphan_processes_after_agent_control_stops() {
 
     // Create a custom agent type with a long-running sleep process
     #[cfg(target_family = "unix")]
-    let agent_type = OnHostCustomAgentType::empty()
+    let agent_type = OnHostCustomAgentTypeBuilder::empty()
         .with_executables(Some(
             r#"[
                 {"id": "long-sleep", "path": "sleep", "args": ["3600"]}
@@ -31,7 +31,7 @@ fn test_no_orphan_processes_after_agent_control_stops() {
         .write(dirs.local_dir());
 
     #[cfg(target_family = "windows")]
-    let agent_type = OnHostCustomAgentType::empty()
+    let agent_type = OnHostCustomAgentTypeBuilder::empty()
         .with_executables(Some(
             r#"[
                 {"id": "long-sleep", "path": "powershell", "args": ["-Command","Start-Sleep","-Seconds","3600"]}

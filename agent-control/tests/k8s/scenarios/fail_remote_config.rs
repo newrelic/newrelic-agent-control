@@ -7,7 +7,7 @@ use crate::common::{
 use crate::k8s::tools::{
     agent_control::{create_config_map, start_agent_control},
     config::K8sAgentControlConfigBuilder,
-    custom_agent_type::K8sCustomAgentType,
+    custom_agent_type::K8sCustomAgentTypeBuilder,
     instance_id,
     k8s_env::K8sEnv,
 };
@@ -26,7 +26,7 @@ fn k8s_fail_remote_config_missing_required_values() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agent_type_id = K8sCustomAgentType::new()
+    let agent_type_id = K8sCustomAgentTypeBuilder::new()
         .with_agent_type_id("newrelic/com.newrelic.test:0.0.1")
         .with_variables(
             r#"

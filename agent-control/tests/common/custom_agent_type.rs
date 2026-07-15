@@ -5,12 +5,12 @@ use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
 use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
 use std::path::Path;
 
-pub struct CommonCustomAgentType {
+pub struct CommonCustomAgentTypeBuilder {
     pub agent_type_id: AgentTypeID,
     pub variables: Option<serde_json::Value>,
 }
 
-impl CommonCustomAgentType {
+impl CommonCustomAgentTypeBuilder {
     pub fn new(agent_type_id: AgentTypeID) -> Self {
         Self {
             agent_type_id,

@@ -7,7 +7,7 @@ use fake_opamp_server::FakeServer;
 use crate::k8s::tools::{
     agent_control::{create_config_map, start_agent_control},
     config::K8sAgentControlConfigBuilder,
-    custom_agent_type::K8sCustomAgentType,
+    custom_agent_type::K8sCustomAgentTypeBuilder,
     instance_id,
     k8s_api::check_helmrelease_spec_values,
     k8s_env::K8sEnv,
@@ -29,7 +29,7 @@ fn k8s_signature_disabled() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agent_type_id = K8sCustomAgentType::default().write(tmp_dir.path());
+    let agent_type_id = K8sCustomAgentTypeBuilder::default().write(tmp_dir.path());
     let agents = format!(
         r#"
   hello-world:

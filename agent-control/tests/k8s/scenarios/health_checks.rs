@@ -8,7 +8,7 @@ use fake_opamp_server::FakeServer;
 use crate::k8s::tools::{
     agent_control::{create_config_map, start_agent_control},
     config::K8sAgentControlConfigBuilder,
-    custom_agent_type::K8sCustomAgentType,
+    custom_agent_type::K8sCustomAgentTypeBuilder,
     instance_id,
     k8s_env::K8sEnv,
 };
@@ -143,8 +143,8 @@ fn k8s_direct_workload_health_checks_unhealthy() {
 /// for Agent-Type whose workload definition is configurable.
 ///
 /// No objects, the workload is defined externally
-fn direct_checks_agent_type() -> K8sCustomAgentType {
-    K8sCustomAgentType::new().with_health(Some(
+fn direct_checks_agent_type() -> K8sCustomAgentTypeBuilder {
+    K8sCustomAgentTypeBuilder::new().with_health(Some(
         r#"
 interval: 5s
 initial_delay: 2s

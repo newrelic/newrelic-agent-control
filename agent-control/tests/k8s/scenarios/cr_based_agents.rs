@@ -7,7 +7,7 @@ use crate::k8s::tools::test_crd::{Foo, create_crd, delete_crd};
 use crate::k8s::tools::{
     agent_control::{start_agent_control, wait_until_agent_control_with_opamp_is_started},
     config::K8sAgentControlConfigBuilder,
-    custom_agent_type::K8sCustomAgentType,
+    custom_agent_type::K8sCustomAgentTypeBuilder,
     instance_id,
     k8s_env::K8sEnv,
 };
@@ -38,7 +38,7 @@ fn k8s_opamp_foo_cr_subagent() {
         .with_cr_type_meta(cr_type_meta)
         .write(k8s.client.clone(), tmp_dir.path());
 
-    let agent_type_id = K8sCustomAgentType::new()
+    let agent_type_id = K8sCustomAgentTypeBuilder::new()
         .with_agent_type_id("newrelic/com.newrelic.foo_cr_agent:0.0.1")
         .with_variables(
             r#"
@@ -141,7 +141,7 @@ fn k8s_opamp_cr_subagent_installed_before_crd() {
         .with_cr_type_meta(cr_type_meta)
         .write(k8s.client.clone(), tmp_dir.path());
 
-    let agent_type_id = K8sCustomAgentType::new()
+    let agent_type_id = K8sCustomAgentTypeBuilder::new()
         .with_agent_type_id("newrelic/com.newrelic.bar_cr_agent:0.0.1")
         .with_variables(
             r#"

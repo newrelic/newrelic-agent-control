@@ -14,7 +14,7 @@ use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::start_agent_control;
 use crate::k8s::tools::cmd::print_cli_output;
 use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
-use crate::k8s::tools::custom_agent_type::K8sCustomAgentType;
+use crate::k8s::tools::custom_agent_type::K8sCustomAgentTypeBuilder;
 use crate::k8s::tools::instance_id::get_instance_id;
 use crate::k8s::tools::k8s_api::{check_helmrelease_chart_version, create_values_secret};
 use crate::k8s::tools::k8s_env::K8sEnv;
@@ -94,7 +94,7 @@ fn k8s_remote_flux_update() {
         .with_current_chart_version("0.0.1000")
         .write(k8s.client.clone(), tmp_dir.path());
 
-    K8sCustomAgentType::split_ns().write(tmp_dir.path());
+    K8sCustomAgentTypeBuilder::split_ns().write(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let ac_instance_id = get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
@@ -176,7 +176,7 @@ fn k8s_remote_flux_update_with_wrong_version_causes_unhealthy() {
         .with_current_chart_version("0.0.1000")
         .write(k8s.client.clone(), tmp_dir.path());
 
-    K8sCustomAgentType::split_ns().write(tmp_dir.path());
+    K8sCustomAgentTypeBuilder::split_ns().write(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let ac_instance_id = get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);

@@ -6,7 +6,7 @@ use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::agent_control::start_agent_control;
 use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
-use crate::k8s::tools::custom_agent_type::K8sCustomAgentType;
+use crate::k8s::tools::custom_agent_type::K8sCustomAgentTypeBuilder;
 use crate::k8s::tools::k8s_api::{check_config_map_exist, check_config_map_has_annotation};
 use crate::k8s::tools::k8s_env::K8sEnv;
 use crate::k8s::tools::{agent_control, instance_id};
@@ -24,7 +24,7 @@ const CR_TYPE_META_CONFIG_MAP: &str = r#"  - apiVersion: v1
 /// Agent type that deploys a plain ConfigMap object, used to test the config-map based
 /// (non-Flux) deployment mechanism. Returns the agent type id.
 fn write_config_map_agent_type(local_dir: &Path) -> String {
-    K8sCustomAgentType::new()
+    K8sCustomAgentTypeBuilder::new()
         .with_agent_type_id("newrelic/com.newrelic.test_config_map:0.1.0")
         .with_variables(
             r#"

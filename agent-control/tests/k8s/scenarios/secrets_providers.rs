@@ -2,7 +2,7 @@ use crate::common::retry::retry;
 use crate::common::runtime::block_on;
 use crate::k8s::tools::agent_control::{create_config_map, start_agent_control};
 use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
-use crate::k8s::tools::custom_agent_type::K8sCustomAgentType;
+use crate::k8s::tools::custom_agent_type::K8sCustomAgentTypeBuilder;
 use crate::k8s::tools::k8s_api::{
     check_helmrelease_labels_contains, check_helmrelease_spec_values, create_values_secret,
 };
@@ -32,7 +32,7 @@ fn k8s_template_secrets() {
         token: root
         engine: kv2"#;
 
-    let agent_type_id = K8sCustomAgentType::new()
+    let agent_type_id = K8sCustomAgentTypeBuilder::new()
         .with_variables(
             r#"
 chart_values:

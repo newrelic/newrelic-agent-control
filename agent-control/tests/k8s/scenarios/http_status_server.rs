@@ -7,7 +7,7 @@ use crate::k8s::tools::agent_control::{
     DUMMY_PRIVATE_KEY, K8S_KEY_SECRET, K8S_PRIVATE_KEY_SECRET, TEST_CLUSTER_NAME, create_config_map,
 };
 use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
-use crate::k8s::tools::custom_agent_type::K8sCustomAgentType;
+use crate::k8s::tools::custom_agent_type::K8sCustomAgentTypeBuilder;
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use fake_opamp_server::FakeServer;
@@ -35,7 +35,7 @@ fn test_k8s_http_status_endpoint_response() {
     let namespace = block_on(k8s.test_namespace());
     let dirs = TempBasePaths::default();
 
-    let agent_type_id = K8sCustomAgentType::default().write(&dirs.local_dir());
+    let agent_type_id = K8sCustomAgentTypeBuilder::default().write(&dirs.local_dir());
 
     let agents = format!(
         r#"
