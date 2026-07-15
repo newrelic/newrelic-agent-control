@@ -163,12 +163,12 @@ where
         &self,
         agent_type: &AgentTypeID,
     ) -> Result<AgentTypeDefinition, OnHostCleanerError> {
-        self.registry.get(agent_type).map_err(|source| {
-            OnHostCleanerError::AgentTypeResolution {
+        self.registry
+            .get(agent_type)
+            .map_err(|source| OnHostCleanerError::AgentTypeResolution {
                 agent_type: agent_type.clone(),
                 source: Box::new(source),
-            }
-        })
+            })
     }
 
     /// The shared-filesystem paths an agent type declares. A non-on-host type declares none.

@@ -305,7 +305,7 @@ fn agent_type_bump_reconciles_agent_and_shared_filesystem() {
     // v2: drops both `old-entry.yaml` AND `kept.yaml`, adds `new-entry.yaml`.
     // The shared `kept.yaml` must survive because other-agent still declares it (co-ownership).
     // The per-agent `kept.yaml` must be deleted because no other agent owns per-agent entries.
-    let type_v1 = CustomAgentType::default()
+    let type_v1 = OnHostCustomAgentTypeBuilder::default()
         .with_agent_type_id("test/myagent:0.1.0")
         .with_health(None)
         .with_filesystem(Some(
@@ -331,9 +331,9 @@ old-entry.yaml:
       text: "shared-old"
 "#,
         )))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
-    let type_v2 = CustomAgentType::default()
+    let type_v2 = OnHostCustomAgentTypeBuilder::default()
         .with_agent_type_id("test/myagent:0.2.0")
         .with_health(None)
         .with_filesystem(Some(
@@ -353,11 +353,11 @@ new-entry.yaml:
       text: "shared-new"
 "#,
         )))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     // other-agent also declares `kept.yaml` in the shared dir; it must survive the type bump
     // because another active agent still owns it.
-    let other_type = CustomAgentType::default()
+    let other_type = OnHostCustomAgentTypeBuilder::default()
         .with_agent_type_id("test/otheragent:0.1.0")
         .with_health(None)
         .with_shared_filesystem(Some(&format!(
@@ -370,7 +370,7 @@ new-entry.yaml:
       text: "shared-kept"
 "#,
         )))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(format!(

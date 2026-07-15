@@ -1290,7 +1290,9 @@ persistent-dir:
         assert!(tmp_dir.path().join("ephemeral-dir/inner.txt").exists());
         assert!(tmp_dir.path().join("persistent-dir").is_dir());
 
-        templated.delete_ephemeral(&LocalFile, &DirectoryManagerFs).unwrap();
+        templated
+            .delete_ephemeral(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
 
         assert!(!tmp_dir.path().join("ephemeral.txt").exists());
         assert!(!tmp_dir.path().join("ephemeral-dir").exists());

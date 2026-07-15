@@ -232,7 +232,9 @@ fn prune_undeclared(
             }
             Some(entry) => match *entry {
                 RenderedEntry::File { .. } => {}
-                RenderedEntry::Dir { persistent: true, .. } => {}
+                RenderedEntry::Dir {
+                    persistent: true, ..
+                } => {}
                 RenderedEntry::Dir { children, .. } => {
                     let child_refs: HashMap<PathBuf, &RenderedEntry> =
                         children.iter().map(|(k, v)| (k.clone(), v)).collect();
@@ -260,9 +262,8 @@ fn prune_undeclared_in_map_dir(
     for abs in children {
         let name = PathBuf::from(abs.file_name().unwrap_or_default());
         if !declared_files.contains_key(&name) {
-            delete_path(&abs, file_ops, dir_manager).map_err(|e| {
-                FileSystemEntriesError(format!("deleting {}: {e}", abs.display()))
-            })?;
+            delete_path(&abs, file_ops, dir_manager)
+                .map_err(|e| FileSystemEntriesError(format!("deleting {}: {e}", abs.display())))?;
         }
     }
     Ok(())
@@ -363,7 +364,10 @@ mod tests {
     }
 
     fn dir_entry(persistent: bool, children: HashMap<PathBuf, RenderedEntry>) -> RenderedEntry {
-        RenderedEntry::Dir { children, persistent }
+        RenderedEntry::Dir {
+            children,
+            persistent,
+        }
     }
 
     fn map_dir_entry(files: HashMap<PathBuf, String>) -> RenderedEntry {
@@ -388,10 +392,17 @@ mod tests {
             file_entry(false),
         )]));
 
-        fs.delete_not_declared(&LocalFile, &DirectoryManagerFs).unwrap();
+        fs.delete_not_declared(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
 
-        assert!(base.join("declared.yaml").exists(), "declared file must be kept");
-        assert!(!base.join("undeclared.yaml").exists(), "undeclared file must be deleted");
+        assert!(
+            base.join("declared.yaml").exists(),
+            "declared file must be kept"
+        );
+        assert!(
+            !base.join("undeclared.yaml").exists(),
+            "undeclared file must be deleted"
+        );
     }
 
     /// Undeclared files inside a non-persistent declared dir are deleted; declared children kept.
@@ -405,16 +416,23 @@ mod tests {
 
         let fs = fs_with(HashMap::from([(
             base.join("config"),
-            dir_entry(false, HashMap::from([(
-                PathBuf::from("declared.yaml"),
-                file_entry(false),
-            )])),
+            dir_entry(
+                false,
+                HashMap::from([(PathBuf::from("declared.yaml"), file_entry(false))]),
+            ),
         )]));
 
-        fs.delete_not_declared(&LocalFile, &DirectoryManagerFs).unwrap();
+        fs.delete_not_declared(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
 
-        assert!(base.join("config/declared.yaml").exists(), "declared child must be kept");
-        assert!(!base.join("config/runtime.log").exists(), "undeclared child must be deleted");
+        assert!(
+            base.join("config/declared.yaml").exists(),
+            "declared child must be kept"
+        );
+        assert!(
+            !base.join("config/runtime.log").exists(),
+            "undeclared child must be deleted"
+        );
     }
 
     /// Nothing inside a persistent declared dir is touched, even if undeclared.
@@ -431,11 +449,16 @@ mod tests {
             dir_entry(true, HashMap::new()),
         )]));
 
-        fs.delete_not_declared(&LocalFile, &DirectoryManagerFs).unwrap();
+        fs.delete_not_declared(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
 
-        assert!(base.join("data/agent-state.db").exists(), "contents of persistent dir must be kept");
         assert!(
-            base.join("data/undeclared-but-inside-persistent.txt").exists(),
+            base.join("data/agent-state.db").exists(),
+            "contents of persistent dir must be kept"
+        );
+        assert!(
+            base.join("data/undeclared-but-inside-persistent.txt")
+                .exists(),
             "undeclared files inside persistent dir must be kept"
         );
     }
@@ -457,15 +480,24 @@ mod tests {
             )])),
         )]));
 
-        fs.delete_not_declared(&LocalFile, &DirectoryManagerFs).unwrap();
+        fs.delete_not_declared(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
 
-        assert!(base.join("logging.d/syslog.yaml").exists(), "declared map file must be kept");
-        assert!(!base.join("logging.d/stale.yaml").exists(), "undeclared map file must be deleted");
+        assert!(
+            base.join("logging.d/syslog.yaml").exists(),
+            "declared map file must be kept"
+        );
+        assert!(
+            !base.join("logging.d/stale.yaml").exists(),
+            "undeclared map file must be deleted"
+        );
     }
 
     /// No-op when the filesystem has no declared entries.
     #[test]
     fn delete_not_declared_is_noop_when_entries_empty() {
-        FileSystem::test_empty().delete_not_declared(&LocalFile, &DirectoryManagerFs).unwrap();
+        FileSystem::test_empty()
+            .delete_not_declared(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
     }
 }
