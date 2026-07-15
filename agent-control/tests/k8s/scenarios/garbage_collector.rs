@@ -14,11 +14,9 @@ use crate::{
         runtime::{block_on, tokio_runtime},
     },
     k8s::tools::{
-        agent_control::{
-            CUSTOM_AGENT_TYPE_PATH, start_agent_control,
-            wait_until_agent_control_with_opamp_is_started,
-        },
+        agent_control::{start_agent_control, wait_until_agent_control_with_opamp_is_started},
         config::K8sAgentControlConfigBuilder,
+        custom_agent_type::K8sCustomAgentTypeBuilder,
         k8s_env::K8sEnv,
         test_crd::{Foo, create_foo_cr},
     },
@@ -56,12 +54,8 @@ fn k8s_garbage_collector_triggers_on_ac_startup() {
         .with_cr_type_meta("  - apiVersion: newrelic.com/v1\n    kind: Foo")
         .write(k8s.client.clone(), tmp_dir.path());
 
-    let _sa = start_agent_control(
-        CUSTOM_AGENT_TYPE_PATH,
-        k8s.client.clone(),
-        &test_ns,
-        tmp_dir.path(),
-    );
+    K8sCustomAgentTypeBuilder::default().write(tmp_dir.path());
+    let _sa = start_agent_control(k8s.client.clone(), &test_ns, tmp_dir.path());
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), test_ns.as_str());
 
     let api: Api<Foo> = Api::namespaced(k8s.client.clone(), &test_ns);

@@ -6,7 +6,7 @@ use crate::{
         health::check_latest_health_status, retry::retry, runtime::tokio_runtime,
     },
     on_host::tools::{
-        config::OnHostAgentControlConfigBuilder, custom_agent_type::CustomAgentType,
+        config::OnHostAgentControlConfigBuilder, custom_agent_type::OnHostCustomAgentTypeBuilder,
         instance_id::get_instance_id,
     },
 };
@@ -22,7 +22,7 @@ fn onhost_subagent_multiple_executables_some_failed_launching() {
     let dirs = TempBasePaths::default();
 
     // Add custom agent_type to registry
-    let sleep_agent_type = CustomAgentType::default()
+    let sleep_agent_type = OnHostCustomAgentTypeBuilder::default()
         .with_executables(Some(
             r#"[
                 {"id": "trap-term-sleep", "path": "sh", "args": ["tests/on_host/data/sleep_60.sh"]},
@@ -32,7 +32,7 @@ fn onhost_subagent_multiple_executables_some_failed_launching() {
         .with_health(Some(
             r#"{"interval": "1s", "initial_delay": "2s", "checks": [{ "kind": "Process"}]}"#,
         ))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -70,7 +70,7 @@ fn onhost_subagent_multiple_executables_some_commands_failed_after_max_retries()
     let dirs = TempBasePaths::default();
 
     // Add custom agent_type to registry
-    let sleep_agent_type = CustomAgentType::default()
+    let sleep_agent_type = OnHostCustomAgentTypeBuilder::default()
         .with_executables(Some(
             r#"[
                 {"id": "trap-term-sleep", "path": "sh", "args": ["tests/on_host/data/sleep_60.sh"]},
@@ -80,7 +80,7 @@ fn onhost_subagent_multiple_executables_some_commands_failed_after_max_retries()
             ]"#,
         ))
         .with_health(Some(r#"{"interval": "1s", "initial_delay": "2s", "checks": [{ "kind": "Process"}]}"#))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let agents = format!(
         r#"
