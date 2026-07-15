@@ -32,7 +32,7 @@ fn k8s_template_secrets() {
         token: root
         engine: kv2"#;
 
-    let agent_type_id = K8sCustomAgentTypeBuilder::new()
+    let agent_type_id = K8sCustomAgentTypeBuilder::empty()
         .with_variables(
             r#"
 chart_values:

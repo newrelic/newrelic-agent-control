@@ -26,7 +26,7 @@ fn k8s_fail_remote_config_missing_required_values() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agent_type_id = K8sCustomAgentTypeBuilder::new()
+    let agent_type_id = K8sCustomAgentTypeBuilder::empty()
         .with_agent_type_id("newrelic/com.newrelic.test:0.0.1")
         .with_variables(
             r#"

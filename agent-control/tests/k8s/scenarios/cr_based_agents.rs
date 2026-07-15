@@ -38,7 +38,7 @@ fn k8s_opamp_foo_cr_subagent() {
         .with_cr_type_meta(cr_type_meta)
         .write(k8s.client.clone(), tmp_dir.path());
 
-    let agent_type_id = K8sCustomAgentTypeBuilder::new()
+    let agent_type_id = K8sCustomAgentTypeBuilder::empty()
         .with_agent_type_id("newrelic/com.newrelic.foo_cr_agent:0.0.1")
         .with_variables(
             r#"
@@ -141,7 +141,7 @@ fn k8s_opamp_cr_subagent_installed_before_crd() {
         .with_cr_type_meta(cr_type_meta)
         .write(k8s.client.clone(), tmp_dir.path());
 
-    let agent_type_id = K8sCustomAgentTypeBuilder::new()
+    let agent_type_id = K8sCustomAgentTypeBuilder::empty()
         .with_agent_type_id("newrelic/com.newrelic.bar_cr_agent:0.0.1")
         .with_variables(
             r#"

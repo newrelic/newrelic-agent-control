@@ -45,7 +45,7 @@ fn k8s_local_agent_type_shadows_remote_registry_with_oci_registry() {
     let namespace = block_on(k8s.test_namespace());
     let dirs = TempBasePaths::default();
 
-    K8sCustomAgentTypeBuilder::new()
+    K8sCustomAgentTypeBuilder::empty()
         .with_agent_type_id(AGENT_TYPE_ID)
         .write(&dirs.local_dir());
 
@@ -160,7 +160,7 @@ fn push_agent_type_to_registry(signer: &OCISigner) -> oci_client::Reference {
     TestDataHelper::compress_tar_gz(
         source_dir.path(),
         &archive,
-        &K8sCustomAgentTypeBuilder::new()
+        &K8sCustomAgentTypeBuilder::empty()
             .with_agent_type_id(AGENT_TYPE_ID)
             .to_string(),
         &format!("{tag}.yaml"),
