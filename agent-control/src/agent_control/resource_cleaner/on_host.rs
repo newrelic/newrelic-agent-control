@@ -13,6 +13,7 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::SubAgentsMap;
 use crate::agent_control::defaults::RESERVED_AGENT_IDS;
 use crate::agent_type::agent_type_id::AgentTypeID;
+use crate::agent_type::definition::AgentTypeDefinition;
 use crate::agent_type::registry::{AgentTypeRegistry, AgentTypeRegistryError};
 use crate::agent_type::runtime_config::Deployment;
 use crate::agent_type::runtime_config::on_host::filesystem::DeclaredPaths;
@@ -158,43 +159,39 @@ where
             .filter_map(|p| p.file_name().and_then(|n| n.to_str()).map(String::from))
     }
 
-    /// The shared-filesystem paths an agent type declares (static, read from the type definition).
-    /// A non-on-host type declares none; an unresolvable type is an error.
-    fn declared_shared_paths(
+    fn get_definition(
         &self,
         agent_type: &AgentTypeID,
-    ) -> Result<DeclaredPaths, OnHostCleanerError> {
-        let definition = self.registry.get(agent_type).map_err(|source| {
+    ) -> Result<AgentTypeDefinition, OnHostCleanerError> {
+        self.registry.get(agent_type).map_err(|source| {
             OnHostCleanerError::AgentTypeResolution {
                 agent_type: agent_type.clone(),
                 source: Box::new(source),
             }
-        })?;
-        Ok(match &definition.runtime_config.deployment {
+        })
+    }
+
+    /// The shared-filesystem paths an agent type declares. A non-on-host type declares none.
+    fn declared_shared_paths(&self, definition: &AgentTypeDefinition) -> DeclaredPaths {
+        match &definition.runtime_config.deployment {
             Deployment::Host(on_host) => on_host
                 .shared_filesystem()
                 .declared_paths(&self.shared_filesystem_base),
             Deployment::K8s(_) => DeclaredPaths::default(),
-        })
+        }
     }
 
     /// All per-agent filesystem paths an agent type declares, rooted at the agent's dir.
     fn declared_agent_filesystem_paths(
         &self,
         agent_id: &AgentID,
-        agent_type: &AgentTypeID,
-    ) -> Result<DeclaredPaths, OnHostCleanerError> {
-        let definition = self.registry.get(agent_type).map_err(|source| {
-            OnHostCleanerError::AgentTypeResolution {
-                agent_type: agent_type.clone(),
-                source: Box::new(source),
-            }
-        })?;
+        definition: &AgentTypeDefinition,
+    ) -> DeclaredPaths {
         let agent_dir = self.agent_filesystem_base.join(agent_id.as_str());
-        Ok(match &definition.runtime_config.deployment {
+        match &definition.runtime_config.deployment {
             Deployment::Host(on_host) => on_host.filesystem().declared_paths(&agent_dir),
             Deployment::K8s(_) => DeclaredPaths::default(),
-        })
+        }
     }
 
     /// Union of shared-filesystem paths declared by every agent in `agents`.
@@ -204,7 +201,8 @@ where
     ) -> Result<DeclaredPaths, OnHostCleanerError> {
         let mut all_shared_paths = DeclaredPaths::default();
         for config in agents.values() {
-            let paths = self.declared_shared_paths(&config.agent_type)?;
+            let definition = self.get_definition(&config.agent_type)?;
+            let paths = self.declared_shared_paths(&definition);
             all_shared_paths.files.extend(paths.files);
             all_shared_paths.managed_dirs.extend(paths.managed_dirs);
         }
@@ -222,12 +220,14 @@ where
         new_type: &AgentTypeID,
         active_agents: &SubAgentsMap,
     ) -> Result<(), OnHostCleanerError> {
-        let old_agent = self.declared_agent_filesystem_paths(agent_id, old_type)?;
-        let new_agent = self.declared_agent_filesystem_paths(agent_id, new_type)?;
+        let old_def = self.get_definition(old_type)?;
+        let new_def = self.get_definition(new_type)?;
+        let old_agent = self.declared_agent_filesystem_paths(agent_id, &old_def);
+        let new_agent = self.declared_agent_filesystem_paths(agent_id, &new_def);
         delete_stale_paths(&old_agent, &new_agent)
             .map_err(|(path, source)| OnHostCleanerError::AgentFilesystem { path, source })?;
 
-        let old_shared = self.declared_shared_paths(old_type)?;
+        let old_shared = self.declared_shared_paths(&old_def);
         let active_shared = self.declared_shared_paths_from_all_agents(active_agents)?;
         delete_stale_paths(&old_shared, &active_shared)
             .map_err(|(path, source)| OnHostCleanerError::SharedFilesystem { path, source })?;
@@ -241,7 +241,8 @@ where
         &self,
         agent_type: &AgentTypeID,
     ) -> Result<(), OnHostCleanerError> {
-        let declared = self.declared_shared_paths(agent_type)?;
+        let definition = self.get_definition(agent_type)?;
+        let declared = self.declared_shared_paths(&definition);
         for path in declared.files.iter().chain(&declared.managed_dirs) {
             remove_path(path).map_err(|source| OnHostCleanerError::SharedFilesystem {
                 path: path.clone(),
@@ -256,8 +257,9 @@ where
         let mut expected_files = HashSet::new();
         let mut owned_managed_dirs = HashSet::new();
         for agent_config in configured.values() {
-            match self.declared_shared_paths(&agent_config.agent_type) {
-                Ok(declared) => {
+            match self.get_definition(&agent_config.agent_type) {
+                Ok(definition) => {
+                    let declared = self.declared_shared_paths(&definition);
                     expected_files.extend(declared.files);
                     owned_managed_dirs.extend(declared.managed_dirs);
                 }
@@ -982,8 +984,8 @@ mod tests {
         }));
 
         let mut registry = MockAgentTypeRegistry::new();
-        // Two lookups per type: one for agent filesystem, one for shared filesystem.
-        registry.should_get(old_type_id.clone(), &old_definition);
+        // old_type: one lookup (get_definition). new_type: two lookups (get_definition +
+        // declared_shared_paths_from_all_agents for the bumped agent in active_agents).
         registry.should_get(old_type_id.clone(), &old_definition);
         registry.should_get(new_type_id.clone(), &new_definition);
         registry.should_get(new_type_id.clone(), &new_definition);
@@ -1052,8 +1054,8 @@ mod tests {
         }));
 
         let mut registry = MockAgentTypeRegistry::new();
-        // Two lookups per type: one for agent filesystem, one for shared filesystem.
-        registry.should_get(old_type_id.clone(), &old_definition);
+        // old_type: one lookup (get_definition). new_type: two lookups (get_definition +
+        // declared_shared_paths_from_all_agents for the bumped agent in active_agents).
         registry.should_get(old_type_id.clone(), &old_definition);
         registry.should_get(new_type_id.clone(), &new_definition);
         registry.should_get(new_type_id.clone(), &new_definition);
@@ -1104,8 +1106,8 @@ mod tests {
         let new_definition = host_type_with_shared(serde_json::json!({}));
 
         let mut registry = MockAgentTypeRegistry::new();
-        // Two lookups per type: one for agent filesystem, one for shared filesystem.
-        registry.should_get(old_type_id.clone(), &old_definition);
+        // old_type: one lookup (get_definition). new_type: two lookups (get_definition +
+        // declared_shared_paths_from_all_agents for the bumped agent in active_agents).
         registry.should_get(old_type_id.clone(), &old_definition);
         registry.should_get(new_type_id.clone(), &new_definition);
         registry.should_get(new_type_id.clone(), &new_definition);
@@ -1155,8 +1157,8 @@ mod tests {
         }));
 
         let mut registry = MockAgentTypeRegistry::new();
-        // Two lookups per type-bumped agent type (agent fs + shared); one for the other agent.
-        registry.should_get(old_type_id.clone(), &old_definition);
+        // old_type: one lookup. new_type: two (get_definition + union for bumped agent).
+        // other_type: one (union for other agent).
         registry.should_get(old_type_id.clone(), &old_definition);
         registry.should_get(new_type_id.clone(), &new_definition);
         registry.should_get(new_type_id.clone(), &new_definition);
