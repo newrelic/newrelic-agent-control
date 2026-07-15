@@ -42,7 +42,7 @@ jobs:
 
   on-host-linux-e2e:
     name: OnHost Linux E2E tests
-    needs: [build-packages]
+    needs: [ build-packages ]
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -57,6 +57,7 @@ jobs:
           - self-update-current-to-latest
           - post-download-hook-success
           - post-download-hook-failure
+          - nri-redis
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
@@ -106,7 +107,7 @@ jobs:
 
   on-host-windows-e2e:
     name: OnHost Windows E2E tests
-    needs: [build-packages]
+    needs: [ build-packages ]
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -120,6 +121,7 @@ jobs:
           - switch-infra-agent-version
           - self-update-latest-to-current
           - self-update-current-to-latest
+          - nri-redis
     steps:
       - name: Record job start time
         shell: bash

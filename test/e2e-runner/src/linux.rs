@@ -3,8 +3,8 @@ use crate::{LinuxCli, LinuxScenarios, init_logging};
 use clap::Parser;
 
 pub mod install;
-pub mod scenarios;
 pub mod redis;
+pub mod scenarios;
 
 mod bash;
 mod service;

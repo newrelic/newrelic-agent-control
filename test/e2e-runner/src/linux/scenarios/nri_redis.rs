@@ -1,27 +1,25 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::nrql::{self, Region};
+use crate::common::ohai::{
+    EMBEDDED_LINUX_OHI_BINARIES, EMBEDDED_LINUX_OHI_CONFIGS, SHARED_LINUX_FILESYSTEM_DIR,
+    check_ohi_shared_filesystem,
+};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{InstallationArgs, RecipeData};
 use crate::linux;
 use crate::linux::install::{install_agent_control_from_recipe, tear_down_test};
 use crate::linux::redis::Redis;
-use std::path::Path;
 use std::time::Duration;
 use tracing::info;
 
-// Dev OCI packages pre-populated on ghcr.io. See docs/superpowers/specs/... for the one-time
-// push instructions. When production nri-redis OCI ships, delete this scenario's dev-registry
-// wiring and point at the real registry/repos.
+// Dev OCI packages pre-populated on ghcr.io.
+// When production nri-redis OCI ships, delete this scenario's dev-registry wiring and point at the real registry/repos.
 const DEV_OCI_REGISTRY: &str = "ghcr.io";
 const DEV_INFRA_AGENT_REPO: &str = "newrelic/newrelic-agent-control-infrastructure-dev";
 const DEV_INFRA_AGENT_VERSION: &str = "v1.78.0";
 const DEV_NRI_REDIS_REPO: &str = "newrelic/newrelic-agent-control-redis-dev";
 const DEV_NRI_REDIS_VERSION: &str = "0.0.1";
-
-const SHARED_FILESYSTEM_DIR: &str = "/var/lib/newrelic-agent-control/shared-filesystem";
-const SHARED_OHI_BINARIES_DIR: &str = "infra-agent-ohi-binaries";
-const SHARED_OHI_CONFIGS_DIR: &str = "infra-agent-ohi-configs";
 
 pub fn test_nri_redis(args: InstallationArgs) {
     let staging = args.nr_region == Region::Staging;
@@ -55,9 +53,11 @@ agents:
     agent_type: "newrelic/com.newrelic.infrastructure.nri_redis:0.1.0"
 oci:
   registry: {DEV_OCI_REGISTRY}
-oci_repository_urls:
-  - {DEV_INFRA_AGENT_REPO}
-  - {DEV_NRI_REDIS_REPO}
+agent_type_var_constraints:
+  variants:
+    oci_repository_urls:
+      - {DEV_INFRA_AGENT_REPO}
+      - {DEV_NRI_REDIS_REPO}
 agent_packages:
   signature_verification_enabled: false
 {DEBUG_LOGGING_CONFIG}
@@ -100,26 +100,28 @@ version: {DEV_NRI_REDIS_VERSION}
 
     linux::service::restart_service(linux::SERVICE_NAME);
 
-    let nrql_query = format!(
-        "SELECT count(*) FROM RedisSample WHERE `host.id` = '{test_id}' SINCE 10 minutes ago",
-    );
+    let nrql_query =
+        format!(r#"SELECT * FROM RedisSample WHERE `label.host.id` = '{test_id}' LIMIT 1"#);
     info!(nrql = nrql_query, "Waiting for RedisSample data in NRDB");
     retry_panic(60, Duration::from_secs(10), "RedisSample NRQL", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     });
 
     info!("Verifying shared-filesystem files were populated by AC");
-    let binaries_dir = Path::new(SHARED_FILESYSTEM_DIR).join(SHARED_OHI_BINARIES_DIR);
-    assert!(
-        binaries_dir.join("nri-redis").is_file(),
-        "expected nri-redis binary in shared filesystem at {}",
-        binaries_dir.join("nri-redis").display(),
-    );
-    let configs_dir = Path::new(SHARED_FILESYSTEM_DIR).join(SHARED_OHI_CONFIGS_DIR);
-    assert!(
-        configs_dir.join("nri-redis.yaml").is_file(),
-        "expected nri-redis.yaml in shared filesystem at {}",
-        configs_dir.join("nri-redis.yaml").display(),
+    let expected_binaries = [EMBEDDED_LINUX_OHI_BINARIES.as_slice(), &["nri-redis"]].concat();
+    let expected_configs = [EMBEDDED_LINUX_OHI_CONFIGS.as_slice(), &["nri-redis.yaml"]].concat();
+
+    retry_panic(
+        30,
+        Duration::from_secs(2),
+        "shared filesystem OHI binaries and configs",
+        || {
+            check_ohi_shared_filesystem(
+                SHARED_LINUX_FILESYSTEM_DIR,
+                &expected_binaries,
+                &expected_configs,
+            )
+        },
     );
 
     info!("nri-redis Linux scenario completed successfully");

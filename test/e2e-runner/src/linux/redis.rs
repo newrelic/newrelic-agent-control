@@ -22,9 +22,13 @@ impl Redis {
         info!("Starting Redis container {CONTAINER_NAME}");
         let status = Command::new("docker")
             .args([
-                "run", "-d", "--rm",
-                "--name", CONTAINER_NAME,
-                "-p", "6379:6379",
+                "run",
+                "-d",
+                "--rm",
+                "--name",
+                CONTAINER_NAME,
+                "-p",
+                "6379:6379",
                 IMAGE,
             ])
             .status()

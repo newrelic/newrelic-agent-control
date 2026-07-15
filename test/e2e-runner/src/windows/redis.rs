@@ -12,7 +12,6 @@ use std::process::Command;
 use std::time::Duration;
 use tracing::info;
 
-const REDIS_VERSION: &str = "5.0.14.1";
 const REDIS_URL: &str =
     "https://github.com/tporadowski/redis/releases/download/v5.0.14.1/Redis-x64-5.0.14.1.zip";
 const REDIS_ZIP: &str = "\\redis.zip";
@@ -29,7 +28,7 @@ impl Redis {
         let extract_path = as_user_dir(REDIS_DIR);
         let bin_path = as_user_dir(REDIS_BIN);
 
-        info!(url = REDIS_URL, version = REDIS_VERSION, "Downloading Redis for Windows");
+        info!(url = REDIS_URL, "Downloading Redis for Windows");
         download_file(REDIS_URL, &zip_path);
         extract(&zip_path, &extract_path);
 
@@ -39,12 +38,9 @@ impl Redis {
         let process = LongRunningProcess::spawn(cmd);
 
         retry_panic(60, Duration::from_secs(1), "redis TCP connect", || {
-            TcpStream::connect_timeout(
-                &"127.0.0.1:6379".parse().unwrap(),
-                Duration::from_secs(1),
-            )
-            .map(|_| ())
-            .map_err(|e| format!("TCP connect to Redis: {e}").into())
+            TcpStream::connect_timeout(&"127.0.0.1:6379".parse().unwrap(), Duration::from_secs(1))
+                .map(|_| ())
+                .map_err(|e| format!("TCP connect to Redis: {e}").into())
         });
 
         info!("Redis is ready on localhost:6379");

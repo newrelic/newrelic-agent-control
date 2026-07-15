@@ -10,6 +10,7 @@ pub mod fleet_control_api;
 pub mod logs;
 pub mod nrql;
 pub mod oci;
+pub mod ohai;
 pub mod on_drop;
 pub mod runtime;
 pub mod test;
