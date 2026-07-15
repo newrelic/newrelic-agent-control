@@ -74,7 +74,7 @@ fn onhost_opamp_agent_control_remote_effective_config() {
         .write(dirs.local_dir());
 
     // Add custom agent_type to registry
-    let sleep_agent_type = OnHostCustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
 
     let _agent_control =
         start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
@@ -200,7 +200,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 
     let dirs = TempBasePaths::default();
 
-    let sleep_agent_type = OnHostCustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -264,7 +264,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
 
     let dirs = TempBasePaths::default();
 
-    let sleep_agent_type = OnHostCustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -325,7 +325,7 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 
     let dirs = TempBasePaths::default();
 
-    let sleep_agent_type = OnHostCustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -401,7 +401,7 @@ checks:
     let agent_type_wo_exec = OnHostCustomAgentType::default()
         .with_executables(None)
         .with_health(Some(&health_agent_type_config))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let agents = format!(
         r#"

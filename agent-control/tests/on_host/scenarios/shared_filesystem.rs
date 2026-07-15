@@ -31,8 +31,8 @@ fn multiple_agents_write_to_shared_filesystem() {
     let redis_agent = "redis-agent";
     let mysql_agent = "mysql-agent";
 
-    let redis_type = ohi_binary_agent_type("redis", "nri-redis").build(dirs.local_dir());
-    let mysql_type = ohi_binary_agent_type("mysql", "nri-mysql").build(dirs.local_dir());
+    let redis_type = ohi_binary_agent_type("redis", "nri-redis").write(dirs.local_dir());
+    let mysql_type = ohi_binary_agent_type("mysql", "nri-mysql").write(dirs.local_dir());
 
     // Only redis-agent is in the local config, so it starts at AC startup. mysql-agent is added
     // later via remote config; its values file is created up front so it can be assembled then.
@@ -123,7 +123,7 @@ ohi_config:
       text: ${{nr-var:ohi_config}}
 "#
         )))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(format!(
@@ -172,8 +172,8 @@ fn uninstalling_agent_removes_its_shared_file_and_keeps_others() {
 
     let redis_agent = "redis-agent";
     let mysql_agent = "mysql-agent";
-    let redis_type = ohi_config_agent_type("redis", "nri-redis.yaml").build(dirs.local_dir());
-    let mysql_type = ohi_config_agent_type("mysql", "nri-mysql.yaml").build(dirs.local_dir());
+    let redis_type = ohi_config_agent_type("redis", "nri-redis.yaml").write(dirs.local_dir());
+    let mysql_type = ohi_config_agent_type("mysql", "nri-mysql.yaml").write(dirs.local_dir());
 
     // Both agents start from local config.
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
@@ -249,7 +249,7 @@ fn startup_reconcile_removes_files_of_agents_removed_while_stopped() {
     let dirs = TempBasePaths::default();
 
     let redis_agent = "redis-agent";
-    let redis_type = ohi_config_agent_type("redis", "nri-redis.yaml").build(dirs.local_dir());
+    let redis_type = ohi_config_agent_type("redis", "nri-redis.yaml").write(dirs.local_dir());
 
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_agents(format!(
@@ -331,7 +331,7 @@ fn conflicting_shared_paths_are_rejected() {
       text: "integration: redis"
 "#
         )))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     // Start with a single, valid agent.
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())

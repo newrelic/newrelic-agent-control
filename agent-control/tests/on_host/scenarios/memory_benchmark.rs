@@ -42,7 +42,7 @@ fn test_memory_on_agent_substitution_and_version_update() {
             ]"#,
         ))
         .with_packages(Some(&packages_config))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 

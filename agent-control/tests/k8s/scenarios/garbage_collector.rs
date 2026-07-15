@@ -54,7 +54,7 @@ fn k8s_garbage_collector_triggers_on_ac_startup() {
         .with_cr_type_meta("  - apiVersion: newrelic.com/v1\n    kind: Foo")
         .write(k8s.client.clone(), tmp_dir.path());
 
-    K8sCustomAgentType::default().build(tmp_dir.path());
+    K8sCustomAgentType::default().write(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &test_ns, tmp_dir.path());
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), test_ns.as_str());
 

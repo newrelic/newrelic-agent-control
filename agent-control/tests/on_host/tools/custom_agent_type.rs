@@ -203,9 +203,7 @@ impl OnHostCustomAgentType {
         }
     }
 
-    /// Writes the custom agent type and returns its id as string.
-    pub fn build(self, local_dir: PathBuf) -> String {
-        let content = self.to_string();
-        self.common.build(&local_dir, &content)
+    pub fn write(self, local_dir: PathBuf) -> String {
+        self.common.write(local_dir.as_path(), &self.to_string())
     }
 }

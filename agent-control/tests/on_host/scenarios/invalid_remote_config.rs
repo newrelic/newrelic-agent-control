@@ -30,7 +30,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 
     let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
-    let sleep_agent_type = OnHostCustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
     let agents = format!(
         r#"
   {sub_agent_id}:
@@ -101,7 +101,7 @@ fn test_invalid_config_executable_less_supervisor() {
 
     let agent_type = OnHostCustomAgentType::default()
         .without_deployment()
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -175,7 +175,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
 
     let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
-    let sleep_agent_type = OnHostCustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
     let agents = format!(
         r#"
   {sub_agent_id}:

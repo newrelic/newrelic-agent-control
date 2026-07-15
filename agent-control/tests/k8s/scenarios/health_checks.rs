@@ -46,7 +46,7 @@ fn k8s_direct_workload_health_checks() {
         0,
     ));
 
-    let agent_type_id = direct_checks_agent_type().build(tmp_dir.path());
+    let agent_type_id = direct_checks_agent_type().write(tmp_dir.path());
     let agents = format!(
         r#"
   hello-world:
@@ -104,7 +104,7 @@ fn k8s_direct_workload_health_checks_unhealthy() {
         1,
     ));
 
-    let agent_type_id = direct_checks_agent_type().build(tmp_dir.path());
+    let agent_type_id = direct_checks_agent_type().write(tmp_dir.path());
     let agents = format!(
         r#"
   hello-world:

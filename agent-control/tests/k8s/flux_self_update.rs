@@ -94,7 +94,7 @@ fn k8s_remote_flux_update() {
         .with_current_chart_version("0.0.1000")
         .write(k8s.client.clone(), tmp_dir.path());
 
-    K8sCustomAgentType::split_ns().build(tmp_dir.path());
+    K8sCustomAgentType::split_ns().write(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let ac_instance_id = get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
@@ -176,7 +176,7 @@ fn k8s_remote_flux_update_with_wrong_version_causes_unhealthy() {
         .with_current_chart_version("0.0.1000")
         .write(k8s.client.clone(), tmp_dir.path());
 
-    K8sCustomAgentType::split_ns().build(tmp_dir.path());
+    K8sCustomAgentType::split_ns().write(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let ac_instance_id = get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);

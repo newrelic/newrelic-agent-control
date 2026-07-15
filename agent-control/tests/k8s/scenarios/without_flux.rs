@@ -55,7 +55,7 @@ values:
       ${nr-var:chart_values.cm_content}
 "#,
         ))
-        .build(local_dir)
+        .write(local_dir)
 }
 
 /// This test verifies that the config_map_type agent type creates

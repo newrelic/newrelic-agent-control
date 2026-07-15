@@ -51,7 +51,7 @@ fn test_agent_remote_package_with_auth_oci_registry() {
             )
             .as_str(),
         ))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let package_reference = push_fake_package_with_basic_auth(&signer);
     let package_tag = package_reference.tag().unwrap().to_string();

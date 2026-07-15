@@ -35,7 +35,7 @@ fn test_k8s_http_status_endpoint_response() {
     let namespace = block_on(k8s.test_namespace());
     let dirs = TempBasePaths::default();
 
-    let agent_type_id = K8sCustomAgentType::default().build(&dirs.local_dir());
+    let agent_type_id = K8sCustomAgentType::default().write(&dirs.local_dir());
 
     let agents = format!(
         r#"

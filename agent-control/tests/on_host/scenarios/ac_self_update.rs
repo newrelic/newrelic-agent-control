@@ -120,7 +120,7 @@ fn test_ac_self_update_defers_subagent_reconciliation_to_restart_with_oci_regist
     let dir_entry = "reconciled";
     let agent_type = OnHostCustomAgentType::default()
         .with_filesystem(Some(&format!("{dir_entry}:\n  kind: dir\n")))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let agent_id = "deferred-agent";
     let subagent_dir = dirs

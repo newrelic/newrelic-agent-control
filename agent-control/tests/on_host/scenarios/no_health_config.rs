@@ -27,7 +27,7 @@ fn test_on_host_no_health_in_agent_type_reports_no_health_via_opamp() {
 
     let agent_type = OnHostCustomAgentType::default()
         .with_health(None)
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let agents = format!(
         r#"

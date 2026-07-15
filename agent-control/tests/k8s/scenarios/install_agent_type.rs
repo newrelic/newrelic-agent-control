@@ -47,7 +47,7 @@ fn k8s_local_agent_type_shadows_remote_registry_with_oci_registry() {
 
     K8sCustomAgentType::new()
         .with_agent_type_id(AGENT_TYPE_ID)
-        .build(&dirs.local_dir());
+        .write(&dirs.local_dir());
 
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let mut agent_control = start_agent_control_for_test(

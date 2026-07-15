@@ -31,7 +31,7 @@ fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agent_type_id = K8sCustomAgentType::default().build(tmp_dir.path());
+    let agent_type_id = K8sCustomAgentType::default().write(tmp_dir.path());
     let agents = format!(
         r#"
   hello-world:

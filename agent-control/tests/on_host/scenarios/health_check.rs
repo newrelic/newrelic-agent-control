@@ -39,7 +39,7 @@ checks:
 
     let agent_type = OnHostCustomAgentType::empty()
         .with_health(Some(&health_config))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -144,7 +144,7 @@ checks:
 
     let agent_type = OnHostCustomAgentType::empty()
         .with_health(Some(&health_config))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let agents = format!(
         r#"

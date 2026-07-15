@@ -311,7 +311,7 @@ fn create_agent_type(
     OnHostCustomAgentType::default()
         .with_executables(Some(&executables))
         .with_packages(Some(&packages_config))
-        .build(local_dir)
+        .write(local_dir)
 }
 
 /// Push and signs the package containing the platform-specific binary to be used in the custom agent

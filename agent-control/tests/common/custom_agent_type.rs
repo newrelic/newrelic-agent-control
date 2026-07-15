@@ -5,8 +5,6 @@ use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
 use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
 use std::path::Path;
 
-/// Fields and builder methods shared by [`crate::k8s::tools::custom_agent_type::K8sCustomAgentType`]
-/// and [`crate::on_host::tools::custom_agent_type::OnHostCustomAgentType`].
 pub struct CommonCustomAgentType {
     pub agent_type_id: AgentTypeID,
     pub variables: Option<serde_json::Value>,
@@ -34,12 +32,7 @@ impl CommonCustomAgentType {
         }
     }
 
-    /// Validates `content` (the caller's rendered YAML) against [`AgentTypeDefinition`] and writes
-    /// it under `local_dir`'s dynamic agent types directory. The file name is derived from the full
-    /// agent type id (namespace, name and version) so several distinct types can coexist in the
-    /// dynamic agent types dir (the loader reads every file there); two ids sharing only a name
-    /// would otherwise clobber each other. Returns the agent type id as a string.
-    pub fn build(&self, local_dir: &Path, content: &str) -> String {
+    pub fn write(&self, local_dir: &Path, content: &str) -> String {
         // The id (`namespace/name:version`) has `/` and `:`, which are not portable in file names.
         let file_stem = self.agent_type_id.to_string().replace(['/', ':'], "_");
         let agent_type_file_path = local_dir

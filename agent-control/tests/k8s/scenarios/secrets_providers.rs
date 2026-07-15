@@ -69,7 +69,7 @@ release:
       ${nr-var:chart_values}
 "#,
         ))
-        .build(tmp_dir.path());
+        .write(tmp_dir.path());
     let agents = format!(
         r#"
   hello-world:

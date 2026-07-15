@@ -229,9 +229,7 @@ release:
         }
     }
 
-    /// Writes the custom agent type and returns its id as string.
-    pub fn build(self, local_dir: &Path) -> String {
-        let content = self.to_string();
-        self.common.build(local_dir, &content)
+    pub fn write(self, local_dir: &Path) -> String {
+        self.common.write(local_dir, &self.to_string())
     }
 }

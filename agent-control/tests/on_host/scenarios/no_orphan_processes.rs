@@ -28,7 +28,7 @@ fn test_no_orphan_processes_after_agent_control_stops() {
                 {"id": "long-sleep", "path": "sleep", "args": ["3600"]}
             ]"#,
         ))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     #[cfg(target_family = "windows")]
     let agent_type = OnHostCustomAgentType::empty()

@@ -189,7 +189,7 @@ package_version:
         )
         .with_executables(Some(&executables))
         .with_packages(Some(&packages))
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .with_oci_registry(OCI_TEST_REGISTRY_URL)

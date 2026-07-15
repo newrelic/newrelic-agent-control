@@ -37,7 +37,7 @@ fn k8s_test_attributes_from_existing_agent_type() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agent_type_id = K8sCustomAgentType::default().build(tmp_dir.path());
+    let agent_type_id = K8sCustomAgentType::default().write(tmp_dir.path());
     let agents = format!(
         r#"
   hello-world:
@@ -225,7 +225,7 @@ fn k8s_test_custom_capabilities_when_cd_disabled() {
         .with_cd_enabled(false)
         .write(k8s.client.clone(), tmp_dir.path());
 
-    K8sCustomAgentType::default().build(tmp_dir.path());
+    K8sCustomAgentType::default().write(tmp_dir.path());
     let _ac = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let instance_id =

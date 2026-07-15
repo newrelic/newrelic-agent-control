@@ -63,7 +63,7 @@ foo_cr:
     data: ${nr-var:data}
 "#,
         ))
-        .build(tmp_dir.path());
+        .write(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
 
     let instance_id =
@@ -166,7 +166,7 @@ bar_cr:
     data: ${nr-var:data}
 "#,
         ))
-        .build(tmp_dir.path());
+        .write(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 

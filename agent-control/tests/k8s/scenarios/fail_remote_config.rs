@@ -54,7 +54,7 @@ some-resource:
     required_var: ${nr-var:required_var}
 "#,
         ))
-        .build(tmp_dir.path());
+        .write(tmp_dir.path());
     let agents = format!(
         r#"
   fake-agent:

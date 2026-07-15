@@ -20,7 +20,7 @@ fn onhost_ac_multiconfig_agents_append() {
 
     let dirs = TempBasePaths::default();
 
-    let sleep_agent_type = OnHostCustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
 
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
@@ -86,7 +86,7 @@ fn onhost_ac_multiconfig_agents_append_fails() {
 
     let dirs = TempBasePaths::default();
 
-    let sleep_agent_type = OnHostCustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
 
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
         .write(dirs.local_dir());
@@ -143,7 +143,7 @@ fn onhost_sub_agent_multiconfig() {
       required: true
     "#,
         )
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let agent_id = "nr-sleep-agent";
     let agents = format!(

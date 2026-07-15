@@ -55,7 +55,7 @@ file_contents:
   required: true
 "#,
         )
-        .build(dirs.local_dir());
+        .write(dirs.local_dir());
 
     let _agent_control =
         start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);

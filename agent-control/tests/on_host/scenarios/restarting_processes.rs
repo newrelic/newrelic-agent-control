@@ -97,7 +97,7 @@ duration-2:
 "#,
     ));
 
-    let agent_type = agent_type_builder.build(dirs.local_dir());
+    let agent_type = agent_type_builder.write(dirs.local_dir());
 
     let agents = format!(
         r#"

@@ -28,7 +28,7 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
 
     let dirs = TempBasePaths::default();
 
-    let sleep_agent_type = OnHostCustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
 
     let agents = format!(
         r#"
@@ -97,7 +97,7 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
 
     let dirs = TempBasePaths::default();
 
-    let sleep_agent_type = OnHostCustomAgentType::default().build(dirs.local_dir());
+    let sleep_agent_type = OnHostCustomAgentType::default().write(dirs.local_dir());
 
     let agents = format!(
         r#"

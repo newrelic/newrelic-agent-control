@@ -35,7 +35,7 @@ fn k8s_opamp_remove_subagent() {
     let agents_ns = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agent_type_id = K8sCustomAgentType::split_ns().build(tmp_dir.path());
+    let agent_type_id = K8sCustomAgentType::split_ns().write(tmp_dir.path());
     let agents = format!(
         r#"
   hello-world:
@@ -156,7 +156,7 @@ fn k8s_opamp_add_subagent() {
         "chart_values:\n  cluster: minikube\n  licenseKey: test\n".to_string(),
     ));
 
-    let agent_type_id = K8sCustomAgentType::split_ns().build(tmp_dir.path());
+    let agent_type_id = K8sCustomAgentType::split_ns().write(tmp_dir.path());
     let _sa = start_agent_control(k8s.client.clone(), &ac_ns, tmp_dir.path());
 
     let ac_instance_id =
@@ -207,7 +207,7 @@ fn k8s_opamp_modify_subagent_config() {
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let agent_type_id = K8sCustomAgentType::split_ns().build(tmp_dir.path());
+    let agent_type_id = K8sCustomAgentType::split_ns().write(tmp_dir.path());
     let agents = format!(
         r#"
   hello-world:

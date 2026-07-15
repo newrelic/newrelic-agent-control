@@ -32,7 +32,7 @@ fn build_agent_type(dirs: &TempBasePaths, packages: &str, executables: &str) -> 
         .with_variables(PACKAGE_VERSION_VARIABLE)
         .with_executables(Some(executables))
         .with_packages(Some(packages))
-        .build(dirs.local_dir())
+        .write(dirs.local_dir())
 }
 
 // Starts Agent Control (local config first, then instance ids/remote config) and applies the agent type.
