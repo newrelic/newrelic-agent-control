@@ -19,8 +19,6 @@ use std::time::Duration;
 
 pub const TEST_CLUSTER_NAME: &str = "minikube";
 
-pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
-
 pub const K8S_PRIVATE_KEY_SECRET: &str = "agent-control-auth";
 pub const K8S_KEY_SECRET: &str = "private_key";
 
