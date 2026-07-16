@@ -7,10 +7,17 @@ permissions:
   contents: write
 
 jobs:
-  prerelease:
-    uses: ./.github/workflows/shared_create_prerelease_pr.yml
+  # prerelease:
+  #   uses: ./.github/workflows/shared_create_prerelease_pr.yml
+  #   with:
+  #     cargo_toml_path: "agent-control/Cargo.toml"
+  #   secrets:
+  #     app_id: ${{ secrets.AGENT_CONTROL_APP_ID }}
+  #     app_private_key: ${{ secrets.AGENT_CONTROL_APP_PKEY }}
+  release-notes:
+    uses: ./.github/workflows/shared_publish_docs_release_notes.yml
     with:
-      cargo_toml_path: "agent-control/Cargo.toml"
+      version: 1.18.0
     secrets:
       app_id: ${{ secrets.AGENT_CONTROL_APP_ID }}
       app_private_key: ${{ secrets.AGENT_CONTROL_APP_PKEY }}
