@@ -214,9 +214,9 @@ impl SharedFileSystem {
 }
 
 /// Walks `dir` on disk and deletes every item whose single-component name is absent from
-/// `declared`. Persistent `Dir` entries are skipped entirely — their contents are agent-managed.
-/// Non-persistent `Dir` entries are recursed into. `DirContentFromMap` dirs are cleaned of files
-/// not present in the rendered map.
+/// `declared`. Persistent `Dir` entries are skipped entirely, their contents are agent-managed.
+/// Non-persistent `Dir` entries are recursed into. `DirContentFromMap` dirs are skipped,
+/// their cleanup is owned by `write()`, which deletes and recreates the directory.
 fn prune_undeclared(
     dir: &Path,
     declared: &HashMap<PathBuf, &RenderedEntry>,
@@ -236,7 +236,8 @@ fn prune_undeclared(
                 })?;
             }
             Some(entry) => match *entry {
-                RenderedEntry::File { .. } => {}
+                // Skip. write() owns the on-disk state for these entries.
+                RenderedEntry::File { .. } | RenderedEntry::DirContentFromMap { .. } => {}
                 RenderedEntry::Dir {
                     persistent: true, ..
                 } => {}
@@ -245,8 +246,6 @@ fn prune_undeclared(
                         children.iter().map(|(k, v)| (k.clone(), v)).collect();
                     prune_undeclared(&abs, &child_refs, file_ops, dir_manager)?;
                 }
-                // Skip. write() deletes and recreates this directory from the current map.
-                RenderedEntry::DirContentFromMap { .. } => {}
             },
         }
     }
