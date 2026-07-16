@@ -49,6 +49,34 @@ pub enum UpdateOutcome {
     RestartPending,
 }
 
+impl UpdaterError {
+    /// Returns a stable, low-cardinality error code suitable for metric labels.
+    /// Derived from keywords in the error message so callers get useful
+    /// dimension values without open-ended string cardinality.
+    pub fn error_code(&self) -> &'static str {
+        let msg = match self {
+            UpdaterError::UpdateFailed(msg) => msg,
+            // The gate suppressed the attempt before any real work happened - it's not a
+            // failure of the update mechanism itself, so it gets its own stable, low-cardinality
+            // code instead of falling through the message-keyword heuristics below.
+            UpdaterError::UpdateInCooldown { .. } => return "update_in_cooldown",
+        };
+        if msg.contains("install") {
+            "install_failed"
+        } else if msg.contains("verify") {
+            "verify_failed"
+        } else if msg.contains("self replacing") || msg.contains("replace") {
+            "replace_failed"
+        } else if msg.contains("patch") || msg.contains("HelmRelease") {
+            "helm_patch_failed"
+        } else if msg.contains("publish") || msg.contains("stop request") {
+            "restart_request_failed"
+        } else {
+            "update_failed"
+        }
+    }
+}
+
 /// A trait for updating the agent control version using a dynamic configuration.
 ///
 /// Implementers of this trait are responsible for notifying an external controller

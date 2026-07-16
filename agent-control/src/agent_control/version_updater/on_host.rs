@@ -11,13 +11,14 @@ use crate::agent_control::version_updater::updater::{UpdateOutcome, UpdaterError
 use crate::agent_type::runtime_config::on_host::package::rendered::{Oci, Repository, Version};
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;
+use crate::instrumentation::metrics;
 use crate::package::manager::{PackageData, PackageManager};
 use crate::utils::backoff_gate::{BackoffGate, SuppressionReason};
 use crate::utils::retry::BackoffPolicy;
 use crate::utils::time::Clock;
 use self_replacer::SelfReplacer;
 use thiserror::Error;
-use tracing::{debug, debug_span, warn};
+use tracing::{debug, info, info_span, warn};
 use url::Url;
 use verify::VerifyExecutor;
 
@@ -82,7 +83,7 @@ where
             return Ok(UpdateOutcome::NoRestartPending);
         };
 
-        let _span = debug_span!(
+        let _span = info_span!(
             "self-update",
             previous_version = AGENT_CONTROL_VERSION,
             new_version = %new_version,
@@ -101,6 +102,7 @@ where
         self.upgrade_gate
             .guarded(new_version, || {
                 debug!("Starting update process");
+                metrics::record_update_attempted("agent-control", &new_version.to_string());
                 self.try_upgrade(new_version.clone())
             })
             .map_err(|e| self.suppressed_error(new_version, e))?
@@ -192,7 +194,7 @@ where
     /// [`UpdateOutcome::RestartPending`] to tell the caller to defer any further config
     /// reconciliation (e.g. sub-agents) to the restarted process.
     fn try_upgrade(&self, new_version: Version) -> Result<UpdateOutcome, UpdaterError> {
-        let package_data = self.get_package_data(new_version);
+        let package_data = self.get_package_data(new_version.clone());
 
         let new_binary_path = self
             .package_manager
@@ -203,7 +205,7 @@ where
             .installation_path
             .join(AGENT_CONTROL_BIN);
 
-        debug!(
+        info!(
             binary = %new_binary_path.display(),
             "Verifying new binary before self-replace",
         );
@@ -213,7 +215,7 @@ where
                 UpdaterError::UpdateFailed(format!("verifying new Agent Control binary: {e}"))
             })?;
 
-        debug!("Attempting to self-replace with new binary",);
+        info!("Attempting to self-replace with new binary",);
 
         self.self_replacer
             .self_replace(&new_binary_path)
@@ -221,7 +223,17 @@ where
                 UpdaterError::UpdateFailed(format!("self replacing Agent Control binary: {e}"))
             })?;
 
-        debug!("Agent Control binary replaced, stopping to allow the new version to start");
+        info!("Agent Control binary replaced, stopping to allow the new version to start");
+        metrics::record_update_succeeded(
+            "agent-control",
+            AGENT_CONTROL_VERSION,
+            &new_version.to_string(),
+        );
+        // Flush OTLP metrics before the process image is replaced by exec().
+        // Normal Rust drop/shutdown is bypassed on exec, so the PeriodicReader
+        // background thread would be killed before its next scheduled export.
+        // A synchronous flush here ensures the succeeded metric is actually exported.
+        metrics::flush();
         self.agent_control_internal_publisher
             .publish(AgentControlInternalEvent::SelfUpdateRestartRequested())
             .map_err(|e| UpdaterError::UpdateFailed(format!("publishing stop request: {e}")))?;

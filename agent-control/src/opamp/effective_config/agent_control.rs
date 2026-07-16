@@ -52,6 +52,39 @@ struct AgentControlEffectiveConfig {
     chart_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     cd_chart_version: Option<String>,
+    // `self_instrumentation` is currently local-config-only (no OpAMP remote-apply path
+    // exists yet), but is still reported here so Fleet Control can see the effective
+    // starting state. `headers` (which carries the OTLP auth token) is deliberately not
+    // reported: only endpoint/enabled flags are relevant to a reconciliation view.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    self_instrumentation: Option<SelfInstrumentationEffectiveConfig>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct SelfInstrumentationEffectiveConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    opentelemetry: Option<OpenTelemetryEffectiveConfig>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct OpenTelemetryEffectiveConfig {
+    // Absent when the customer relies on region-based auto-resolution rather than
+    // setting an explicit endpoint; this loader has no access to that later resolution
+    // step, so `None` here honestly reflects "not explicitly set in local config".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    endpoint: Option<String>,
+    #[serde(default)]
+    metrics: SignalEffectiveConfig,
+    #[serde(default)]
+    traces: SignalEffectiveConfig,
+    #[serde(default)]
+    logs: SignalEffectiveConfig,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+struct SignalEffectiveConfig {
+    #[serde(default)]
+    enabled: bool,
 }
 
 /// Errors produced while building the agent control effective configuration.
@@ -253,6 +286,59 @@ agents:
                 name: "include chart version",
                 yaml_config: "agents: {}\nchart_version: 0.0.1",
                 expected_config: "agents: {}\nchart_version: 0.0.1\n",
+            },
+            TestCase {
+                name: "self_instrumentation is reported without headers",
+                yaml_config: r#"
+agents: {}
+self_instrumentation:
+  opentelemetry:
+    endpoint: https://staging-otlp.nr-data.net:4318
+    headers:
+      api-key: super-secret-license-key
+    metrics:
+      enabled: true
+    logs:
+      enabled: false
+    traces:
+      enabled: false
+"#,
+                expected_config: r#"agents: {}
+self_instrumentation:
+  opentelemetry:
+    endpoint: https://staging-otlp.nr-data.net:4318
+    metrics:
+      enabled: true
+    traces:
+      enabled: false
+    logs:
+      enabled: false
+"#,
+            },
+            TestCase {
+                name: "self_instrumentation without an explicit endpoint (region auto-resolved) omits endpoint",
+                yaml_config: r#"
+agents: {}
+self_instrumentation:
+  opentelemetry:
+    metrics:
+      enabled: true
+"#,
+                expected_config: r#"agents: {}
+self_instrumentation:
+  opentelemetry:
+    metrics:
+      enabled: true
+    traces:
+      enabled: false
+    logs:
+      enabled: false
+"#,
+            },
+            TestCase {
+                name: "missing self_instrumentation does not fail or appear in report",
+                yaml_config: "agents: {}",
+                expected_config: "agents: {}\n",
             },
         ];
 

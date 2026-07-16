@@ -2,13 +2,14 @@
 
 use crate::agent_control::config::{AgentControlDynamicConfig, helmrelease_v2_type_meta};
 use crate::agent_control::version_updater::updater::{UpdateOutcome, UpdaterError, VersionUpdater};
+use crate::instrumentation::metrics;
 use crate::k8s::client::K8sObjectKey;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, REMOTE_VAL};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
-use tracing::{debug, info};
+use tracing::{debug, info, info_span};
 
 /// A component whose Helm release version the updater can manage.
 #[derive(Debug, Clone, Copy)]
@@ -171,7 +172,16 @@ impl<C: K8sClient> K8sACUpdater<C> {
             return Ok(());
         }
 
+        let _span = info_span!(
+            "self-update",
+            component = %component_name,
+            previous_version = %current_version,
+            new_version = %version
+        )
+        .entered();
+
         info!(%component_name, %version, %current_version, "Performing update");
+        metrics::record_update_attempted(&component_name.to_string(), version);
 
         let labels = self.get_helm_release_labels(release_name)?;
         let patch_to_apply = self.create_helm_release_patch(version, labels);
@@ -183,10 +193,12 @@ impl<C: K8sClient> K8sACUpdater<C> {
                 patch_to_apply,
             )
             .map_err(|err| {
+                metrics::record_update_failed(&component_name.to_string(), "helm_patch_failed");
                 UpdaterError::UpdateFailed(format!(
                     "error applying patch to HelmRelease '{release_name}' for '{component_name}': {err}",
                 ))
             })?;
+        metrics::record_update_succeeded(&component_name.to_string(), &current_version, version);
         Ok(())
     }
 

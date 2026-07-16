@@ -6,6 +6,7 @@ use crate::agent_control::config::SubAgentsMap;
 use crate::agent_control::defaults::AGENT_CONTROL_ID;
 use crate::agent_control::{agent_id::AgentIDError, config::AgentControlConfigError};
 use crate::agent_type::agent_type_id::AgentTypeID;
+use crate::instrumentation::metrics;
 use crate::k8s::annotations;
 use crate::k8s::client::K8sObjectKey;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
@@ -51,7 +52,7 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
 
     /// Garbage collect resources managed by AC associated to a certain
     /// Agent ID and sub-agent config.
-    #[instrument(skip_all, name = "k8s_garbage_collector_collect")]
+    #[instrument(skip_all, name = "k8s_garbage_collector_collect", fields(agent_id = %id))]
     pub fn collect(
         &self,
         id: &AgentID,
@@ -95,8 +96,10 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
                 if let Some(name) = cm.metadata.name.as_deref() {
                     debug!("deleting agent-control ConfigMap: `{name}`");
                     self.k8s_client.delete_configmap(&self.namespace, name)?;
+                    metrics::record_gc_resource_deleted("configmap");
                 } else {
                     warn!("found ConfigMap without name. Skipping deletion.");
+                    metrics::record_gc_resource_skipped("configmap", "no_name");
                 }
                 Ok(())
             })
@@ -114,7 +117,7 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
                     dyn_objs
                         .into_iter()
                         .try_for_each(|d| -> Result<(), K8sGarbageCollectorError> {
-                            if self.should_delete_dynamic_object(&d.metadata, mode)? {
+                            if self.should_delete_dynamic_object(&d.metadata, mode, &tm.kind)? {
                                 let name = get_name(&d)?;
                                 let namespace = get_namespace(&d)?;
 
@@ -126,12 +129,14 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
                                         namespace: &namespace,
                                     },
                                 )?;
+                                metrics::record_gc_resource_deleted(&tm.kind);
                             }
                             Ok(())
                         })
                 }
                 Err(K8sError::MissingAPIResource(e)) => {
                     debug!(error = %e, "skipping GC for TypeMeta {}", tm.kind);
+                    metrics::record_gc_resource_skipped(&tm.kind, "missing_api_resource");
                     Ok(())
                 }
                 Err(e) => Err(e.into()),
@@ -144,6 +149,7 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
         &self,
         obj_meta: &ObjectMeta,
         mode: &K8sGarbageCollectorMode,
+        resource_type: &str,
     ) -> Result<bool, K8sGarbageCollectorError> {
         // I only need to work with references here, so I pre-define an empty BTreeMap which does
         // not allocate anything on its own and use it as default value for labels and annotations
@@ -162,6 +168,7 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
         // by garbage_collect_agent_control_resources.
         if !annotations::is_owned_by_sub_agent(annotations) {
             warn!("dynamic object missing owned-by=sub-agent annotation, skipping");
+            metrics::record_gc_resource_skipped(resource_type, "missing_owned_by_annotation");
             return Ok(false);
         }
 
@@ -170,7 +177,7 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
             .as_str();
 
         match AgentID::try_from(agent_id_from_labels) {
-            Ok(id) => mode.should_delete_agent_id(&id, obj_meta),
+            Ok(id) => mode.should_delete_agent_id(&id, obj_meta, resource_type),
             // We must not delete anything with reserved AgentIDs (currently only Agent Control)
             Err(AgentIDError::Reserved(_)) => Ok(false),
             // We should also be conservative, so we do not delete an object if we cannot retrieve a valid AgentID from it
@@ -180,6 +187,7 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
                     error = %e,
                     "invalid agent id with name {agent_id_from_labels}"
                 );
+                metrics::record_gc_resource_skipped(resource_type, "invalid_agent_id");
                 Ok(false)
             }
         }
@@ -239,6 +247,7 @@ impl K8sGarbageCollectorMode<'_> {
         &self,
         agent_id: &AgentID,
         obj_meta: &ObjectMeta,
+        resource_type: &str,
     ) -> Result<bool, K8sGarbageCollectorError> {
         match self {
             K8sGarbageCollectorMode::RetainConfig(agent_identities) => {
@@ -254,6 +263,10 @@ impl K8sGarbageCollectorMode<'_> {
                         }
                         Err(K8sGarbageCollectorError::MissingAnnotations) => {
                             warn!("object missing agent type id annotations, skipping");
+                            metrics::record_gc_resource_skipped(
+                                resource_type,
+                                "missing_type_annotation",
+                            );
                             Ok(false)
                         }
                         Err(e) => Err(e),
@@ -274,6 +287,10 @@ impl K8sGarbageCollectorMode<'_> {
                         }
                         Err(K8sGarbageCollectorError::MissingAnnotations) => {
                             warn!("object missing agent type id annotations, skipping");
+                            metrics::record_gc_resource_skipped(
+                                resource_type,
+                                "missing_type_annotation",
+                            );
                             Ok(false)
                         }
                         Err(e) => Err(e),

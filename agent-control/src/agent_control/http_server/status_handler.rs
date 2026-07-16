@@ -1,6 +1,7 @@
 //! Actix handler serving the current [`Status`] as JSON on the `/status` endpoint.
 
 use crate::agent_control::http_server::status::Status;
+use crate::instrumentation::metrics;
 use actix_web::http::header::ContentType;
 use actix_web::web::Data;
 use actix_web::{HttpResponse, Responder};
@@ -8,6 +9,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 pub(super) async fn status_handler(status: Data<Arc<RwLock<Status>>>) -> impl Responder {
+    metrics::record_http_server_request("status");
+
     let status = status.read().await;
     let body = serde_json::to_string(&*status).unwrap();
 

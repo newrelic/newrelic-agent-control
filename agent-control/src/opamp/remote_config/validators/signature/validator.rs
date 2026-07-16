@@ -2,6 +2,7 @@
 use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
+use crate::instrumentation::metrics;
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::validators::signature::verifier::VerifierStore;
@@ -10,6 +11,7 @@ use crate::sub_agent::identity::AgentIdentity;
 use serde::Deserialize;
 use std::time::Duration;
 use thiserror::Error;
+use tracing::error;
 use tracing::info;
 use tracing::warn;
 use url::Url;
@@ -127,20 +129,32 @@ impl RemoteConfigValidator for SignatureValidator {
                     "getting signature for config '{}' config signature: {}",
                     config_name, e
                 ))
-            })?;
+            });
+            let signature = match signature {
+                Ok(signature) => signature,
+                Err(err) => {
+                    // Invalid/missing signatures are a security-relevant event (could be an
+                    // expired key or an attack), so this is logged at error level per
+                    // docs/style/logs.md rather than left to the generic caller's debug! log.
+                    error!(config_name, error = %err, "remote config signature could not be read");
+                    metrics::record_remote_config_rejected("invalid_signature");
+                    return Err(err);
+                }
+            };
 
-            public_key_store
-                .verify_signature(
-                    signature.key_id(),
-                    config_content.as_bytes(),
-                    signature.signature(),
-                )
-                .map_err(|e| {
-                    SignatureValidatorError::VerifySignature(format!(
-                        "verifying signature for config '{}': {}",
-                        config_name, e
-                    ))
-                })?;
+            if let Err(err) = public_key_store.verify_signature(
+                signature.key_id(),
+                config_content.as_bytes(),
+                signature.signature(),
+            ) {
+                let err = SignatureValidatorError::VerifySignature(format!(
+                    "verifying signature for config '{}': {}",
+                    config_name, err
+                ));
+                error!(config_name, error = %err, "remote config signature verification failed");
+                metrics::record_remote_config_rejected("invalid_signature");
+                return Err(err);
+            }
         }
 
         Ok(())

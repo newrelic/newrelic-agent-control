@@ -20,6 +20,8 @@ use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
+use crate::instrumentation::metrics;
+use crate::instrumentation::resource_sampler::spawn_resource_sampler_for_shared_pid;
 use crate::opamp::attributes::publish_update_attributes_event;
 use crate::package::manager::{PackageData, PackageManager};
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssemblerError};
@@ -38,7 +40,7 @@ use opamp_client::operation::settings::AgentDescription;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::ExitStatus;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 use thiserror::Error;
 use tracing::{Dispatch, debug, dispatcher, error, info, warn};
@@ -374,10 +376,32 @@ where
             .write(&LocalFile, &DirectoryManagerFs)
             .map_err(SupervisorError::FileSystem)?;
 
+        // One shared "current PID" cell per executable, updated by its process-supervisor thread
+        // on every spawn/exit and read by its resource-sampler thread - the PID changes across
+        // restarts within the same executable's lifetime, so it can't just be captured once.
         let mut thread_contexts: Vec<StartedThreadContext> = self
             .executables
             .iter()
-            .map(|e| self.start_process_thread(e, health_publisher.clone()))
+            .flat_map(|e| {
+                let current_pid = Arc::new(Mutex::new(None));
+                [
+                    self.start_process_thread(e, health_publisher.clone(), current_pid.clone()),
+                    spawn_resource_sampler_for_shared_pid(
+                        self.agent_identity.id.to_string(),
+                        self.agent_identity.agent_type_id.to_string(),
+                        current_pid,
+                        // Reuses the health-check interval rather than introducing a separate
+                        // configurable one - resource usage doesn't need a different cadence for
+                        // a first implementation. Falls back to the health-checker's own default
+                        // when no health_config is set at all (health_config is optional).
+                        self.health_config
+                            .as_ref()
+                            .map(|c| c.interval)
+                            .unwrap_or_default()
+                            .into(),
+                    ),
+                ]
+            })
             .collect();
 
         self.check_subagent_version(sub_agent_internal_publisher.clone());
@@ -404,10 +428,12 @@ where
         &self,
         executable_data: &ExecutableData,
         health_publisher: EventPublisher<(String, HealthWithStartTime)>,
+        current_pid: Arc<Mutex<Option<u32>>>,
     ) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
         let exec_data = executable_data.clone();
         let agent_id = self.agent_identity.id.clone();
+        let agent_type = self.agent_identity.agent_type_id.to_string();
         let log_to_file = self.file_logging_enable;
         let logging_path = self.file_logging_path.clone();
 
@@ -436,6 +462,7 @@ where
                 let health_handler = HealthHandler::new(exec_id.clone(), health_publisher.clone());
 
                 info!(%agent_id, %exec_id, "Starting executable");
+                metrics::record_agent_started(&agent_type);
                 let command = CommandOSNotStarted::new(
                     agent_id.clone(),
                     &exec_data,
@@ -446,14 +473,21 @@ where
                 let started = command.start().and_then(|cmd| cmd.stream());
 
                 let executable_result = started.and_then(|cmd| {
-                    wait_exit(
+                    // A poisoned lock still holds a valid `Option<u32>` - recovering it here
+                    // keeps process supervision running instead of taking down the
+                    // supervisor thread over a panic that happened elsewhere while holding
+                    // this trivial lock.
+                    *current_pid.lock().unwrap_or_else(|e| e.into_inner()) = Some(cmd.get_pid());
+                    let result = wait_exit(
                         cmd,
                         &stop_consumer,
                         HEALTHY_DELAY,
                         &health_handler,
                         &agent_id,
                         &exec_id,
-                    )
+                    );
+                    *current_pid.lock().unwrap_or_else(|e| e.into_inner()) = None;
+                    result
                 });
 
                 match executable_result {
@@ -463,15 +497,20 @@ where
                         if was_cancelled {
                             break;
                         }
+                        info!(%agent_id, %exec_id, "Executable not running");
+                        // Process ran and exited — record as a normal stop.
+                        metrics::record_agent_stopped(&agent_type, "exit");
                     }
                     Err(err) => {
                         warn!(%agent_id, %exec_id, "Launching executable: {err}");
                         debug!(%agent_id, %exec_id, "Error launching executable, marking as unhealthy");
                         health_handler.publish_unhealthy(format!("Error launching process: {err}"));
+                        info!(%agent_id, %exec_id, "Executable not running");
+                        // Launch failed before the process ran — use distinct reason
+                        // so dashboards can distinguish failed starts from normal exits.
+                        metrics::record_agent_stopped(&agent_type, "launch_error");
                     }
                 }
-
-                info!(%agent_id, %exec_id, "Executable not running");
 
                 if !restart_policy.should_retry() {
                     warn!(%agent_id, %exec_id, "Restart policy exceeded, executable won't restart anymore");
@@ -481,6 +520,7 @@ where
                 }
 
                 i += 1;
+                metrics::record_agent_restarted(&agent_type);
                 let restart_cancelled = wait_restart(&mut restart_policy, i, &stop_consumer);
                 if restart_cancelled {
                     break;
@@ -703,6 +743,7 @@ pub mod tests {
         HEALTH_CHECKER_THREAD_NAME, HealthCheckInterval, InitialDelay,
     };
     use crate::event::channel::pub_sub;
+    use crate::instrumentation::resource_sampler::RESOURCE_SAMPLER_THREAD_NAME;
     use crate::package::manager::tests::MockPackageManager;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
@@ -917,7 +958,9 @@ pub mod tests {
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME
+                || thread_context.thread_name() == RESOURCE_SAMPLER_THREAD_NAME
+            {
                 let _ = thread_context.stop();
             } else {
                 while !thread_context.is_thread_finished() {
@@ -1086,7 +1129,9 @@ persistent.txt:
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME
+                || thread_context.thread_name() == RESOURCE_SAMPLER_THREAD_NAME
+            {
                 let _ = thread_context.stop();
             } else {
                 while !thread_context.is_thread_finished() {
@@ -1137,7 +1182,9 @@ persistent.txt:
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME
+                || thread_context.thread_name() == RESOURCE_SAMPLER_THREAD_NAME
+            {
                 let _ = thread_context.stop();
             } else {
                 while !thread_context.is_thread_finished() {
@@ -1234,7 +1281,9 @@ persistent.txt:
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME
+                || thread_context.thread_name() == RESOURCE_SAMPLER_THREAD_NAME
+            {
                 let _ = thread_context.stop();
             } else {
                 while !thread_context.is_thread_finished() {
@@ -1299,9 +1348,9 @@ persistent.txt:
 
         let executables_clone = agent.executables.clone();
 
-        let executable_thread_contexts = executables_clone
-            .iter()
-            .map(|e| agent.start_process_thread(e, health_publisher.clone()));
+        let executable_thread_contexts = executables_clone.iter().map(|e| {
+            agent.start_process_thread(e, health_publisher.clone(), Arc::new(Mutex::new(None)))
+        });
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {

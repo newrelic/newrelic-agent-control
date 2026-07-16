@@ -12,6 +12,7 @@ use crate::checkers::version::k8s::checkers::{K8sAgentVersionChecker, spawn_vers
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
+use crate::instrumentation::metrics;
 use crate::k8s::annotations::Annotations;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::labels::Labels;
@@ -100,6 +101,8 @@ impl<C: K8sClient> SupervisorStarter for NotStartedSupervisorK8s<C> {
             k8s_config,
             ..
         } = self;
+
+        metrics::record_agent_started(&agent_identity.agent_type_id.to_string());
 
         Ok(StartedSupervisorK8s {
             thread_contexts,
@@ -337,11 +340,15 @@ impl<C: K8sClient> Supervisor for StartedSupervisorK8s<C> {
             ..
         } = self;
 
+        let agent_type = agent_identity.agent_type_id.to_string();
+
         let span = info_span!("stopping_supervisor", agent_id = %agent_identity.id);
         span.in_scope(|| thread_contexts.stop())
             .map_err(SupervisorError::StoppingPreviousSupervisor)?;
 
         debug!(agent_id = %agent_identity.id, "Old supervisor stopped");
+        metrics::record_agent_stopped(&agent_type, "update");
+        metrics::record_agent_restarted(&agent_type);
 
         // Build a supervisor starter from the new configuration...
         let new_starter = NotStartedSupervisorK8s::new(agent_identity, k8s_client, new_k8s_config);
@@ -353,8 +360,18 @@ impl<C: K8sClient> Supervisor for StartedSupervisorK8s<C> {
     }
 
     fn stop(self) -> Result<(), Self::StopError> {
-        let span = info_span!("stopping_supervisor", agent_id = %self.agent_identity.id);
-        span.in_scope(|| self.thread_contexts.stop())
+        let Self {
+            thread_contexts,
+            agent_identity,
+            ..
+        } = self;
+
+        let span = info_span!("stopping_supervisor", agent_id = %agent_identity.id);
+        let result = span.in_scope(|| thread_contexts.stop());
+        if result.is_ok() {
+            metrics::record_agent_stopped(&agent_identity.agent_type_id.to_string(), "removed");
+        }
+        result
     }
 }
 

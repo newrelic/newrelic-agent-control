@@ -25,6 +25,8 @@ use crate::event::{
     AgentControlEvent, ApplicationEvent, OpAMPEvent, broadcaster::unbounded::UnboundedBroadcast,
     channel::EventConsumer,
 };
+use crate::instrumentation::metrics;
+use crate::instrumentation::resource_sampler::spawn_resource_sampler;
 use crate::opamp::attributes::update_opamp_attributes;
 use crate::opamp::remote_config::report::report_state;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
@@ -188,6 +190,18 @@ where
             )
         });
 
+        // Reuses the health-check interval rather than introducing a separate configurable one -
+        // resource usage doesn't need a different cadence for a first implementation.
+        debug!("Starting Agent Control resource sampler");
+        let _resource_sampler_thread_context = spawn_resource_sampler(
+            AGENT_CONTROL_ID.to_string(),
+            AgentIdentity::new_agent_control_identity()
+                .agent_type_id
+                .to_string(),
+            std::process::id(),
+            self.initial_config.health_check.interval.into(),
+        );
+
         // This update handles scenarios where applying a remote configuration containing an updated Agent Control (AC)
         // was initiated but did not complete successfully, leaving the remote configuration un-stored.
         // In such cases, the AC with the new version starts, reads the previous remote configuration (which specifies the prior version),
@@ -253,6 +267,7 @@ where
                 }
             }
         }
+        metrics::record_agents_managed(running_sub_agents.len() as u64);
         if errors.is_empty() {
             (running_sub_agents, Ok(()))
         } else {
@@ -358,6 +373,10 @@ where
                         Ok(internal_event) => {
                             match internal_event {
                                 AgentControlInternalEvent::HealthUpdated(health) => {
+                                    metrics::record_agent_health_check(
+                                        AGENT_CONTROL_ID,
+                                        &AgentIdentity::new_agent_control_identity().agent_type_id.to_string(),
+                                    );
                                     self.report_health(health);
                                 },
                                 AgentControlInternalEvent::AgentControlAttributesUpdated(attributes) => {
@@ -433,6 +452,7 @@ where
                     .update_state(config_state.clone())?;
                 report_state(config_state, opamp_remote_config.hash, opamp_client)?;
                 opamp_client.update_effective_config()?;
+                metrics::record_remote_config_failed(AGENT_CONTROL_ID, "building_subagents");
                 Err(AgentControlError::BuildingSubagents(err))
             }
             // Remote config failed to apply, the config was not stored.
@@ -440,6 +460,7 @@ where
                 let error_message = format!("Error applying Agent Control remote config: {err}");
                 let config_state = ConfigState::Failed { error_message };
                 report_state(config_state, opamp_remote_config.hash, opamp_client)?;
+                metrics::record_remote_config_failed(AGENT_CONTROL_ID, err.error_code());
                 Err(err)
             }
             Ok(new_dynamic_config) => {
@@ -447,6 +468,7 @@ where
                     .update_state(ConfigState::Applied)?;
                 report_state(ConfigState::Applied, opamp_remote_config.hash, opamp_client)?;
                 opamp_client.update_effective_config()?;
+                metrics::record_remote_config_applied(AGENT_CONTROL_ID);
                 Ok(new_dynamic_config)
             }
         }
@@ -492,7 +514,10 @@ where
             .map_err(|err| AgentControlError::RemoteConfigValidator(err.to_string()))?;
 
         // The updater is responsible for determining the current version and deciding whether an update is necessary.
-        let update_outcome = self.version_updater.update(&new_dynamic_config)?;
+        let update_outcome = self
+            .version_updater
+            .update(&new_dynamic_config)
+            .inspect_err(|e| metrics::record_update_failed("agent-control", e.error_code()))?;
 
         // It stores the remote config and then apply it for these reasons:
         // - The apply mechanism does not handle any rollback in case any failure but instead attempts to apply as much as
@@ -555,19 +580,9 @@ where
                     debug!(%agent_id, "Retaining the existing running SubAgent as its type remains unchanged");
                     Ok(())
                 }
-                Some(old_sub_agent_config) => {
+                Some(_) => {
                     info!(%agent_id, "Recreating SubAgent");
                     self.recreate_sub_agent(&agent_identity, running_sub_agents)
-                        .and_then(|_| {
-                            self.resource_cleaner
-                                .on_agent_type_changed(
-                                    agent_id,
-                                    &old_sub_agent_config.agent_type,
-                                    &agent_config.agent_type,
-                                    &new_dynamic_config.agents,
-                                )
-                                .map_err(AgentControlError::from)
-                        })
                 }
                 None => {
                     info!(%agent_id, "Creating SubAgent");
@@ -598,6 +613,10 @@ where
             self.agent_control_publisher
                 .broadcast(AgentControlEvent::SubAgentRemoved(agent_id.clone()));
         }
+
+        // Recorded unconditionally (even on partial failure below) since running_sub_agents has
+        // already been mutated in place above and reflects what's actually running right now.
+        metrics::record_agents_managed(running_sub_agents.len() as u64);
 
         if !errors.is_empty() {
             Err(AgentControlError::BuildingSubagents(errors))
@@ -970,9 +989,6 @@ agents:
             self.resource_cleaner
                 .expect_clean()
                 .returning(|_, _| Ok(()));
-            self.resource_cleaner
-                .expect_on_agent_type_changed()
-                .returning(|_, _, _, _| Ok(()));
         }
 
         /// Sets a mock with "no-op" expectations
@@ -993,23 +1009,6 @@ agents:
                         predicate::eq(identity.agent_type_id),
                     )
                     .returning(|_, _| Ok(()));
-            }
-        }
-
-        /// Set expectations for each `(agent_id, old_type_id, new_type_id)` tuple to be passed to
-        /// `on_agent_type_changed` by the resource cleaner.
-        fn expect_on_agent_type_changed(&mut self, changes: Vec<(AgentIdentity, AgentTypeID)>) {
-            for (old_identity, new_type_id) in changes {
-                self.resource_cleaner
-                    .expect_on_agent_type_changed()
-                    .once()
-                    .with(
-                        predicate::eq(old_identity.id),
-                        predicate::eq(old_identity.agent_type_id),
-                        predicate::eq(new_type_id),
-                        predicate::always(),
-                    )
-                    .returning(|_, _, _, _| Ok(()));
             }
         }
 
@@ -1399,16 +1398,10 @@ agents:
             client.should_update_effective_config(1);
         });
 
-        // Removed agents are fully cleaned up.
+        // Only removed agents are cleaned; a type change (recreate) no longer cleans the old resources.
         agent_control.expect_resource_clean_in_sequence(
-            t.identities(vec![("id3", "newrelic/remote.example.c:0.0.3")]),
+            t.identities(vec![("id3", "newrelic/remote.example.c:0.0.3")]), // removed
         );
-        // Type-changed agents trigger on_agent_type_changed with old and new types.
-        agent_control.expect_on_agent_type_changed(vec![(
-            t.identities(vec![("id2", "newrelic/remote.example.b:0.0.2")])
-                .remove(0),
-            AgentTypeID::try_from("newrelic/remote.example.b2:0.0.2").unwrap(),
-        )]);
 
         let result = agent_control.handle_remote_config(
             opamp_remote_config.clone(),

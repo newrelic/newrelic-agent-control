@@ -25,6 +25,7 @@ use crate::event::SubAgentEvent::SubAgentStarted;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
+use crate::instrumentation::metrics;
 use crate::opamp::attributes::update_opamp_attributes;
 use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config::OpampRemoteConfig;
@@ -364,9 +365,18 @@ where
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
 
+                                metrics::record_agent_health_check(
+                                    &self.identity.id.to_string(),
+                                    &self.identity.agent_type_id.to_string(),
+                                );
+
                                 let health_state = Health::from(health.clone());
                                 if !is_health_state_equal_to_previous_state(&previous_health, &health_state) {
                                     log_health_info(&health_state);
+                                    metrics::record_agent_health_transition(
+                                        &self.identity.agent_type_id.to_string(),
+                                        health_state.is_healthy(),
+                                    );
                                 }
                                 previous_health = Some(health_state);
                                 let _ = on_health(
@@ -430,18 +440,22 @@ where
 
         match parsed_remote_config_result {
             // Some configuration correctly parsed: apply configuration or build supervisor if there was none
-            Ok(Some(remote_config)) => self.apply_or_build_and_start_supervisor(
-                remote_config.config.clone(),
-                Some(&remote_config),
-                &config.hash,
-                old_supervisor,
-                opamp_client,
-            ),
+            Ok(Some(remote_config)) => {
+                metrics::record_remote_config_applied(&self.identity.id.to_string());
+                self.apply_or_build_and_start_supervisor(
+                    remote_config.config.clone(),
+                    Some(&remote_config),
+                    &config.hash,
+                    old_supervisor,
+                    opamp_client,
+                )
+            }
             // No configuration --> 'reset-to-local'
             Ok(None) => self.reset_to_local_config(&config, old_supervisor, opamp_client),
             // Report error parsing configuration and keep the previous supervisor
             Err(err) => {
                 warn!("Failed to parse remote configuration: {err}");
+                metrics::record_remote_config_rejected(err.error_code());
                 self.report_state(
                     ConfigState::Failed {
                         error_message: err.to_string(),

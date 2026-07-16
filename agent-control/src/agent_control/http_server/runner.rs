@@ -7,6 +7,7 @@ use crate::agent_control::http_server::config::ServerConfig;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::EventConsumer;
 use crate::event::{AgentControlEvent, SubAgentEvent};
+use crate::instrumentation::metrics;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use std::sync::Arc;
 use std::time::Duration;
@@ -127,6 +128,7 @@ impl Runner {
             )
             .inspect_err(|err| {
                 error!(error_msg = %err, "error running status server");
+                metrics::record_http_server_error("run", err.error_kind());
             });
 
         // Wait until the bridge is closed
@@ -145,7 +147,10 @@ impl Drop for StartedHttpServer {
         let _ = thread_context
             .stop()
             .inspect(|_| debug!("status server runner thread stopped"))
-            .inspect_err(|error_msg| error!("Error stopping Status Server: {error_msg}"));
+            .inspect_err(|error_msg| {
+                error!("Error stopping Status Server: {error_msg}");
+                metrics::record_http_server_error("stop", error_msg.error_kind());
+            });
     }
 }
 

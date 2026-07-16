@@ -6,5 +6,6 @@
 pub mod config;
 pub(crate) mod flush;
 pub mod metrics;
+pub mod resource_sampler;
 pub mod tracing;
 pub mod tracing_layers;

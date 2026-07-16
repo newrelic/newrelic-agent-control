@@ -1,6 +1,7 @@
 //! OpAMP client callbacks: process server messages and publish [`OpAMPEvent`]s.
 use super::effective_config::{error::EffectiveConfigError, loader::LoadEffectiveConfig};
 use crate::agent_control::agent_id::AgentID;
+use crate::instrumentation::metrics;
 use crate::opamp::remote_config::{
     ConfigurationMap, OpampRemoteConfig, OpampRemoteConfigError,
     hash::{ConfigState, Hash},
@@ -139,12 +140,15 @@ where
             "remote config received: {:?}", &remote_config
         );
 
+        metrics::record_remote_config_received();
+
         Ok(self
             .publisher
             .publish(OpAMPEvent::RemoteConfigReceived(remote_config))?)
     }
 
     fn publish_on_connect(&self) {
+        metrics::record_opamp_connected();
         let _ = self
             .publisher
             .publish(OpAMPEvent::Connected)
@@ -157,6 +161,7 @@ where
     }
 
     fn publish_on_connect_failed(&self, err: &ConnectionError) {
+        metrics::record_opamp_disconnected(classify_connection_error(err));
         let (code, reason) = if let HTTPClientError(UnsuccessfulResponse(code, reason)) = &err {
             (Some(*code), reason.clone())
         } else {
@@ -236,18 +241,43 @@ where
     }
 }
 
+/// Classifies a connection error into a stable, low-cardinality code suitable
+/// for metric labels. Shared by the log message (via [`describe`]) and the
+/// `opamp.disconnects_total` metric, so both stay in sync with a single
+/// source of truth for what happened.
+fn classify_connection_error(err: &ConnectionError) -> &'static str {
+    if let HTTPClientError(UnsuccessfulResponse(http_code, _)) = err {
+        match http_code {
+            400 => "malformed_request",
+            401 => "invalid_license_key",
+            403 => "forbidden",
+            404 => "not_found",
+            415 => "invalid_content_type",
+            500 => "server_error",
+            _ => "unknown_http_error",
+        }
+    } else {
+        "transport_error"
+    }
+}
+
+/// Human-readable description for a [`classify_connection_error`] code, used in log messages.
+fn describe(reason_code: &str) -> &'static str {
+    match reason_code {
+        "malformed_request" => "the request was malformed",
+        "invalid_license_key" => "check for missing or invalid license key",
+        "forbidden" => "the account provided is not allowed to use this resource",
+        "not_found" => "the requested resource was not found",
+        "invalid_content_type" => "Content-Type or Content-Encoding for the HTTP request was wrong",
+        "server_error" => "server-side problem",
+        _ => "unknown",
+    }
+}
+
 fn log_connection_error(err: &ConnectionError) {
+    let reason = describe(classify_connection_error(err));
     // Check if the error comes from receiving an undesired HTTP status code
     if let HTTPClientError(UnsuccessfulResponse(http_code, http_reason)) = &err {
-        let reason = match http_code {
-            400 => "the request was malformed",
-            401 => "check for missing or invalid license key",
-            403 => "the account provided is not allowed to use this resource",
-            404 => "the requested resource was not found",
-            415 => "Content-Type or Content-Encoding for the HTTP request was wrong",
-            500 => "server-side problem",
-            _ => "unknown",
-        };
         error!(
             http_code,
             http_reason, "OpAMP HTTP connection error: {reason}"
@@ -269,8 +299,47 @@ pub(crate) mod tests {
     };
     use crate::opamp::remote_config::{AGENT_CONFIG_PREFIX, ConfigurationMap, OpampRemoteConfig};
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
+    use rstest::rstest;
     use std::collections::HashMap;
     use std::time::Duration;
+
+    #[rstest]
+    #[case::malformed_request(400, "malformed_request")]
+    #[case::invalid_license_key(401, "invalid_license_key")]
+    #[case::forbidden(403, "forbidden")]
+    #[case::not_found(404, "not_found")]
+    #[case::invalid_content_type(415, "invalid_content_type")]
+    #[case::server_error(500, "server_error")]
+    #[case::unknown_http_error(599, "unknown_http_error")]
+    fn test_classify_connection_error_http(#[case] http_code: u16, #[case] expected: &str) {
+        let err = HTTPClientError(UnsuccessfulResponse(http_code, "reason".into()));
+        assert_eq!(classify_connection_error(&err), expected);
+    }
+
+    #[test]
+    fn test_classify_connection_error_transport() {
+        let err = HTTPClientError(HttpClientError::TransportError("boom".into()));
+        assert_eq!(classify_connection_error(&err), "transport_error");
+    }
+
+    #[rstest]
+    #[case::malformed_request("malformed_request")]
+    #[case::invalid_license_key("invalid_license_key")]
+    #[case::forbidden("forbidden")]
+    #[case::not_found("not_found")]
+    #[case::invalid_content_type("invalid_content_type")]
+    #[case::server_error("server_error")]
+    #[case::unknown_code("some_unmapped_code")]
+    fn test_describe_does_not_panic(#[case] reason_code: &str) {
+        // Every code classify_connection_error can produce must have a description;
+        // unmapped codes fall back to "unknown" rather than panicking.
+        let _ = describe(reason_code);
+    }
+
+    #[test]
+    fn test_describe_unknown_code_falls_back() {
+        assert_eq!(describe("not_a_real_code"), "unknown");
+    }
 
     #[test]
     fn test_connect() {

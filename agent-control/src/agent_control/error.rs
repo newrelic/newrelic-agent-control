@@ -60,6 +60,25 @@ pub enum AgentControlError {
     BuildingSubagents(BuildingSubagentErrors),
 }
 
+impl AgentControlError {
+    /// Returns a stable, low-cardinality error code suitable for metric labels.
+    pub fn error_code(&self) -> &'static str {
+        match self {
+            AgentControlError::ConfigResolve(_) => "config_resolve",
+            AgentControlError::OpAMPClient(_) => "opamp_client",
+            AgentControlError::OpAMPStartedClient(_) => "opamp_started_client",
+            AgentControlError::SubAgentBuilder(_) => "sub_agent_builder",
+            AgentControlError::SubAgentCollection(_) => "sub_agent_collection",
+            AgentControlError::RemoteConfig(_) => "remote_config",
+            AgentControlError::YAMLConfig(_) => "yaml_config",
+            AgentControlError::RemoteConfigValidator(_) => "remote_config_validator",
+            AgentControlError::ResourceCleaner(_) => "resource_cleaner",
+            AgentControlError::Updater(_) => "updater",
+            AgentControlError::BuildingSubagents(_) => "building_subagents",
+        }
+    }
+}
+
 /// Accumulates per-agent errors collected while building or applying sub-agents.
 #[derive(Debug, Default)]
 pub struct BuildingSubagentErrors(Vec<(AgentID, AgentControlError)>);
@@ -84,5 +103,22 @@ impl Display for BuildingSubagentErrors {
             .unwrap_or_default();
         write!(f, "[{errors}]")?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_code_is_stable_and_low_cardinality() {
+        assert_eq!(
+            AgentControlError::RemoteConfigValidator("bad config".to_string()).error_code(),
+            "remote_config_validator"
+        );
+        assert_eq!(
+            AgentControlError::BuildingSubagents(BuildingSubagentErrors::default()).error_code(),
+            "building_subagents"
+        );
     }
 }

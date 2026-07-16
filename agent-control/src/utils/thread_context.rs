@@ -93,6 +93,17 @@ pub enum ThreadContextStopperError {
     },
 }
 
+impl ThreadContextStopperError {
+    /// Returns a stable, low-cardinality error code suitable for metric labels.
+    pub fn error_kind(&self) -> &'static str {
+        match self {
+            ThreadContextStopperError::EventPublisherError { .. } => "event_publisher_error",
+            ThreadContextStopperError::JoinError { .. } => "join_error",
+            ThreadContextStopperError::StopTimeout { .. } => "stop_timeout",
+        }
+    }
+}
+
 impl<T> StartedThreadContext<T>
 where
     T: Send + 'static,
@@ -217,6 +228,23 @@ pub mod tests {
         pub fn is_thread_finished(&self) -> bool {
             self.join_handle.is_finished()
         }
+    }
+
+    #[rstest::rstest]
+    #[case::event_publisher_error(
+        ThreadContextStopperError::EventPublisherError { thread: "t".into(), error: "e".into() },
+        "event_publisher_error"
+    )]
+    #[case::join_error(
+        ThreadContextStopperError::JoinError { thread: "t".into(), error: "e".into() },
+        "join_error"
+    )]
+    #[case::stop_timeout(
+        ThreadContextStopperError::StopTimeout { thread: "t".into() },
+        "stop_timeout"
+    )]
+    fn test_error_kind(#[case] err: ThreadContextStopperError, #[case] expected: &str) {
+        assert_eq!(err.error_kind(), expected);
     }
 
     #[test]

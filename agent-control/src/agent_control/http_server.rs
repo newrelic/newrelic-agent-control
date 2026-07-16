@@ -36,3 +36,48 @@ pub enum StatusServerError {
     #[error("HTTP server thread failed during startup")]
     StartupChannelClosed,
 }
+
+impl StatusServerError {
+    /// Returns a stable, low-cardinality error code suitable for metric labels.
+    pub fn error_kind(&self) -> &'static str {
+        match self {
+            StatusServerError::StatusServerError(_) => "status_server_error",
+            StatusServerError::BuildingServerError(_) => "building_server_error",
+            StatusServerError::ServerConsumerError(_) => "server_consumer_error",
+            StatusServerError::JoinHandleError(_) => "join_handle_error",
+            StatusServerError::BindError(_) => "bind_error",
+            StatusServerError::StartupTimeout(_) => "startup_timeout",
+            StatusServerError::StartupChannelClosed => "startup_channel_closed",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case::status_server_error(StatusServerError::StatusServerError("x".into()), "status_server_error")]
+    #[case::building_server_error(
+        StatusServerError::BuildingServerError("x".into()),
+        "building_server_error"
+    )]
+    #[case::server_consumer_error(
+        StatusServerError::ServerConsumerError(RecvError),
+        "server_consumer_error"
+    )]
+    #[case::join_handle_error(StatusServerError::JoinHandleError("x".into()), "join_handle_error")]
+    #[case::bind_error(StatusServerError::BindError("x".into()), "bind_error")]
+    #[case::startup_timeout(
+        StatusServerError::StartupTimeout(std::time::Duration::from_secs(1)),
+        "startup_timeout"
+    )]
+    #[case::startup_channel_closed(
+        StatusServerError::StartupChannelClosed,
+        "startup_channel_closed"
+    )]
+    fn test_error_kind(#[case] err: StatusServerError, #[case] expected: &str) {
+        assert_eq!(err.error_kind(), expected);
+    }
+}

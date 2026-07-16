@@ -24,6 +24,17 @@ pub enum RemoteConfigParserError {
     InvalidValues(String),
 }
 
+impl RemoteConfigParserError {
+    /// Returns a stable, low-cardinality error code suitable for metric labels.
+    pub fn error_code(&self) -> &'static str {
+        match self {
+            RemoteConfigParserError::Validation(_) => "validation_failed",
+            RemoteConfigParserError::RemoteConfigLoad(_) => "remote_config_load_failed",
+            RemoteConfigParserError::InvalidValues(_) => "invalid_values",
+        }
+    }
+}
+
 /// Defines how to parse the OpAMP remote configuration in order to validate it and extract
 /// the RemoteConfig with the corresponding values as [YAMLConfig] and Hash with status.
 pub trait RemoteConfigParser {
@@ -176,6 +187,20 @@ pub mod tests {
     use predicates::prelude::predicate;
     use rstest::rstest;
     use serde_json::json;
+
+    #[rstest]
+    #[case::validation(RemoteConfigParserError::Validation("bad".into()), "validation_failed")]
+    #[case::remote_config_load(
+        RemoteConfigParserError::RemoteConfigLoad("bad".into()),
+        "remote_config_load_failed"
+    )]
+    #[case::invalid_values(
+        RemoteConfigParserError::InvalidValues("bad".into()),
+        "invalid_values"
+    )]
+    fn test_error_code(#[case] err: RemoteConfigParserError, #[case] expected: &str) {
+        assert_eq!(err.error_code(), expected);
+    }
 
     mock! {
         pub RemoteConfigParser {}

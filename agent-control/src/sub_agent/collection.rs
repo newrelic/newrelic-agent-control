@@ -35,6 +35,11 @@ where
         self.0.insert(agent_id, sub_agent)
     }
 
+    /// Current number of sub-agents in this collection.
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
+
     pub(crate) fn stop(self) {
         self.0.into_iter().for_each(|(_, sub_agent)| {
             info!("Stopping sub agent");
