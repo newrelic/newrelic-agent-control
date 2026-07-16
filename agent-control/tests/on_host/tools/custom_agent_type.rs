@@ -145,63 +145,47 @@ impl OnHostCustomAgentTypeBuilder {
         }
     }
 
-    pub fn with_executables(self, executables: Option<&str>) -> Self {
-        Self {
-            executables: executables.map(|e| serde_saphyr::from_str(e).unwrap()),
-            ..self
-        }
+    pub fn with_executables(mut self, executables: Option<&str>) -> Self {
+        self.executables = executables.map(|e| serde_saphyr::from_str(e).unwrap());
+        self
     }
 
-    pub fn with_health(self, health: Option<&str>) -> Self {
-        Self {
-            health: health.map(|h| serde_saphyr::from_str(h).unwrap()),
-            ..self
-        }
+    pub fn with_health(mut self, health: Option<&str>) -> Self {
+        self.health = health.map(|h| serde_saphyr::from_str(h).unwrap());
+        self
     }
 
-    pub fn with_filesystem(self, filesystem: Option<&str>) -> Self {
-        Self {
-            filesystem: filesystem.map(|f| serde_saphyr::from_str(f).unwrap()),
-            ..self
-        }
+    pub fn with_filesystem(mut self, filesystem: Option<&str>) -> Self {
+        self.filesystem = filesystem.map(|f| serde_saphyr::from_str(f).unwrap());
+        self
     }
 
-    pub fn with_shared_filesystem(self, shared_filesystem: Option<&str>) -> Self {
-        Self {
-            shared_filesystem: shared_filesystem.map(|f| serde_saphyr::from_str(f).unwrap()),
-            ..self
-        }
+    pub fn with_shared_filesystem(mut self, shared_filesystem: Option<&str>) -> Self {
+        self.shared_filesystem = shared_filesystem.map(|f| serde_saphyr::from_str(f).unwrap());
+        self
     }
 
-    pub fn with_packages(self, packages: Option<&str>) -> Self {
-        Self {
-            packages: packages.map(|f| serde_saphyr::from_str(f).unwrap()),
-            ..self
-        }
+    pub fn with_packages(mut self, packages: Option<&str>) -> Self {
+        self.packages = packages.map(|f| serde_saphyr::from_str(f).unwrap());
+        self
     }
 
-    pub fn with_variables(self, variables: &str) -> Self {
-        Self {
-            common: self.common.with_variables(variables),
-            ..self
-        }
+    pub fn with_variables(mut self, variables: &str) -> Self {
+        self.common = self.common.with_variables(variables);
+        self
     }
 
-    pub fn with_agent_type_id(self, agent_type_id: &str) -> Self {
-        Self {
-            common: self.common.with_agent_type_id(agent_type_id),
-            ..self
-        }
+    pub fn with_agent_type_id(mut self, agent_type_id: &str) -> Self {
+        self.common.agent_type_id = AgentTypeID::try_from(agent_type_id).unwrap();
+        self
     }
 
-    pub fn without_deployment(self) -> Self {
-        Self {
-            executables: None,
-            health: None,
-            filesystem: None,
-            shared_filesystem: None,
-            ..self
-        }
+    pub fn without_deployment(mut self) -> Self {
+        self.executables = None;
+        self.health = None;
+        self.filesystem = None;
+        self.shared_filesystem = None;
+        self
     }
 
     pub fn write(self, local_dir: PathBuf) -> String {

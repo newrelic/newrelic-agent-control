@@ -199,32 +199,24 @@ release:
         }
     }
 
-    pub fn with_variables(self, variables: &str) -> Self {
-        Self {
-            common: self.common.with_variables(variables),
-            ..self
-        }
+    pub fn with_variables(mut self, variables: &str) -> Self {
+        self.common = self.common.with_variables(variables);
+        self
     }
 
-    pub fn with_health(self, health: Option<&str>) -> Self {
-        Self {
-            health: health.map(|h| serde_saphyr::from_str(h).unwrap()),
-            ..self
-        }
+    pub fn with_health(mut self, health: Option<&str>) -> Self {
+        self.health = health.map(|h| serde_saphyr::from_str(h).unwrap());
+        self
     }
 
-    pub fn with_objects(self, objects: Option<&str>) -> Self {
-        Self {
-            objects: objects.map(|o| serde_saphyr::from_str(o).unwrap()),
-            ..self
-        }
+    pub fn with_objects(mut self, objects: Option<&str>) -> Self {
+        self.objects = objects.map(|o| serde_saphyr::from_str(o).unwrap());
+        self
     }
 
-    pub fn with_agent_type_id(self, agent_type_id: &str) -> Self {
-        Self {
-            common: self.common.with_agent_type_id(agent_type_id),
-            ..self
-        }
+    pub fn with_agent_type_id(mut self, agent_type_id: &str) -> Self {
+        self.common.agent_type_id = AgentTypeID::try_from(agent_type_id).unwrap();
+        self
     }
 
     pub fn write(self, local_dir: &Path) -> String {

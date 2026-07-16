@@ -18,18 +18,9 @@ impl CommonCustomAgentTypeBuilder {
         }
     }
 
-    pub fn with_variables(self, variables: &str) -> Self {
-        Self {
-            variables: Some(serde_saphyr::from_str(variables).unwrap()),
-            ..self
-        }
-    }
-
-    pub fn with_agent_type_id(self, agent_type_id: &str) -> Self {
-        Self {
-            agent_type_id: AgentTypeID::try_from(agent_type_id).unwrap(),
-            ..self
-        }
+    pub fn with_variables(mut self, variables: &str) -> Self {
+        self.variables = Some(serde_saphyr::from_str(variables).unwrap());
+        self
     }
 
     pub fn write(&self, local_dir: &Path, content: &str) -> String {
