@@ -1,0 +1,167 @@
+# Reusable workflow that publishes Agent Control release notes to the docs site.
+#
+# Given a tag (which should be the version), it:
+#   1. Checks out this repo at the tag.
+#   2. Generates `agent-control-<version>.mdx` from that revision's CHANGELOG.md.
+#   3. Pushes the file to a branch on `newrelic/docs-website` and opens a PR
+#      against its `develop` branch.
+name: 📞 Publish public docs release notes
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: >-
+          Released version to publish notes for, without a `v` prefix
+          (e.g. `1.19.0`). Must match an existing git tag and the version
+          in the CHANGELOG.md heading (`## v<version> - <date>`).
+        required: true
+        type: string
+    secrets:
+      app_id:
+        description: >-
+          GitHub App ID used to authenticate to the docs repo (via
+          actions/create-github-app-token). The app must be installed on the docs
+          repo with `contents: write` and `pull_requests: write`. Optional: when
+          unset, publishing is skipped.
+        required: true
+      app_private_key:
+        description: GitHub App private key matching `app_id`.
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  PUBLIC_DOCS_REPO: newrelic/docs-website
+  PUBLIC_DOCS_REPO_NAME: docs-website
+
+jobs:
+  publish:
+    name: Publish release notes
+    runs-on: ubuntu-latest
+    outputs:
+      # Non-empty only when publishing was actually attempted, so the cleanup
+      # job knows whether a branch may need removing.
+      docs-branch: ${{ steps.meta.outputs.branch_name || '' }}
+    steps:
+      - name: Prepare
+        id: meta
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          cleaned=$(echo "$VERSION" | sed 's/\./-/g')
+          echo "branch_name=chore/agent-control-release-notes-${cleaned}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout at release tag
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Generate release notes MDX
+        run: ./tools/generate_docs_release_notes/run.sh CHANGELOG.md "${{ inputs.version }}"
+
+      # Mint a token scoped to the docs repo. The app must be installed there;
+      # owner/repositories select that installation.
+      - name: Generate docs app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ env.PUBLIC_DOCS_REPO_NAME }}
+
+      # Commit the .mdx onto a new branch in the docs repo via the GraphQL
+      # `createCommitOnBranch` mutation (same approach as the pre-release PR
+      # workflow) so the commit is signed automatically and we avoid a
+      # third-party action. Targets the docs repo, based on its `develop` tip.
+      - name: Commit MDX to docs-website branch (signed via API)
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ env.PUBLIC_DOCS_REPO }}
+          BRANCH: ${{ steps.meta.outputs.branch_name }}
+          MDX_FILE: "agent-control-${{ inputs.version }}.mdx"
+          MDX_PATH: "src/content/docs/release-notes/agent-control-release-notes/agent-control-${{ inputs.version }}.mdx"
+          VERSION: ${{ inputs.version }}
+        run: |
+          # Base the branch on the current tip of the docs repo's default target
+          # branch (`develop`), not our checkout.
+          BASE_SHA=$(gh api "repos/$REPO/commits/develop" --jq '.sha')
+
+          # Create the branch ref on the docs repo at that commit.
+          # Fails with 422 "Reference already exists" if the branch is present.
+          gh api -X POST "repos/$REPO/git/refs" \
+            -f ref="refs/heads/$BRANCH" \
+            -f sha="$BASE_SHA"
+
+          # Write the mutation to a file and feed it to gh via --input <file>.
+          jq -n \
+            --rawfile mdx "$MDX_FILE" \
+            --arg repo "$REPO" \
+            --arg branch "$BRANCH" \
+            --arg msg "chore(agent control): add release notes for v$VERSION" \
+            --arg oid "$BASE_SHA" \
+            --arg mdx_path "$MDX_PATH" \
+            '{
+              query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }",
+              variables: {
+                input: {
+                  branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                  message: {headline: $msg},
+                  expectedHeadOid: $oid,
+                  fileChanges: {
+                    additions: [
+                      {path: $mdx_path, contents: ($mdx | @base64)}
+                    ]
+                  }
+                }
+              }
+            }' > "$RUNNER_TEMP/mutation.json"
+
+          gh api graphql --input "$RUNNER_TEMP/mutation.json"
+
+      - name: Create docs-website PR
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: "https://github.com/${{ env.PUBLIC_DOCS_REPO }}"
+          HEAD: "${{ steps.meta.outputs.branch_name }}"
+          TITLE: "Agent Control release notes for v${{ inputs.version }}"
+          BODY: "Automated PR: Agent Control release notes for v${{ inputs.version }}."
+        run: |
+          gh pr create \
+            --base "develop" \
+            --repo "$REPO" \
+            --head "$HEAD" \
+            --title "$TITLE" \
+            --body "$BODY"
+
+  # Remove the orphaned docs branch if publishing failed after the branch was
+  # pushed. Runs only when publishing was attempted (docs-branch non-empty).
+  delete-docs-branch-on-fail:
+    name: Delete docs branch on fail
+    needs: [publish]
+    runs-on: ubuntu-latest
+    if: failure() && needs.publish.outputs.docs-branch != ''
+    steps:
+      - name: Generate docs app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ env.PUBLIC_DOCS_REPO_NAME }}
+
+      - name: Checkout docs-website
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          repository: ${{ env.PUBLIC_DOCS_REPO }}
+
+      - name: Delete branch
+        env:
+          BRANCH: ${{ needs.publish.outputs.docs-branch }}
+        run: |
+          # Tolerate the branch not existing (failure before the copy step pushed it).
+          git push origin --delete "$BRANCH" --force || true
