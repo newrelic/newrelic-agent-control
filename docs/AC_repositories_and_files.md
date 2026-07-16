@@ -24,9 +24,8 @@ The remote configurations and in general any files expected to dynamically chang
 - The remote configurations, the hash and its state of AC and each sub-agent are stored in their respective subfolder inside `fleet-data`, in a file named `remote_config.yaml`.
 - On the other hand, host identifiers and the agent ULID are store in `instance_id.yaml`.
  - Moreover, `filesystem` is the directory where Agent Control renders each sub-agent's declared files. An agent may also write
-its own files here; these survive restarts **unless they live inside a directory AC declared as ephemeral** (the default), which AC
-wipes on stop and before each re-render. To keep agent-created data across restarts, place it under a `persistent` directory or a path
-AC doesn't manage. See [Persistence in Filesystem](./INTEGRATING_AGENTS.md#persistence-in-filesystem).
+its own files here; these always survive restarts, except inside a `dir_content_from_map` directory, which is fully deleted and
+re-rendered on every write. See [Filesystem entry lifecycle](./INTEGRATING_AGENTS.md#filesystem-entry-lifecycle).
 - `shared-filesystem` is a directory shared across all sub-agents (not suffixed per agent) where an agent type's `shared_filesystem`
 entries are written, so other sub-agents (e.g. the infrastructure agent) can read them. See [`shared_filesystem`](./INTEGRATING_AGENTS.md#shared_filesystem).
 

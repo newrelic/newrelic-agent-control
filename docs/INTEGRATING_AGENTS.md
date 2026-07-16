@@ -418,13 +418,11 @@ And this `filesystem` block:
 filesystem:
   newrelic-infra.yaml:
     kind: file
-    persistent: true
     text: |
       ${nr-var:config_agent}
 
   config:
     kind: dir
-    persistent: true
 
   logging.d:
     kind: dir_content_from_map
@@ -435,7 +433,6 @@ filesystem:
     entries:
       data:
         kind: dir
-        persistent: true
       newrelic-infra.yaml:
         kind: file
         text: |
@@ -461,19 +458,19 @@ config_logging:
 
 The runtime produces the following on disk under `${nr-sub:filesystem_agent_dir}`. Each kind is shown in isolation.
 
-**`kind: file`**: single file rendered from the templated `text:` field. `persistent: true` keeps it across agent-control stop and restarts.
+**`kind: file`**: single file rendered from the templated `text:` field. It survives agent-control stop and restart.
 
 ```
 newrelic-infra.yaml      ← contents from ${nr-var:config_agent}
 ```
 
-**`kind: dir`**: an explicitly declared directory. With no `entries:` it's just an (optionally persistent) empty directory; with `entries:` it builds a tree, where each child is itself any of the three kinds, including another `dir`, so recursion is uniform.
+**`kind: dir`**: an explicitly declared directory. With no `entries:` it's just an empty directory; with `entries:` it builds a tree, where each child is itself any of the three kinds, including another `dir`, so recursion is uniform.
 
 ```
-config/                  ← empty, persistent
+config/                  ← empty
 
 agent/
-├── data/                ← empty, persistent
+├── data/                ← empty
 └── newrelic-infra.yaml  ← contents from ${nr-var:config_agent}
 ```
 
@@ -493,7 +490,6 @@ logging.d/
 | `kind`           | yes      | —       | Must be `file`.                                                                                                  |
 | `text`           | *        | —       | Inline file body. May reference `${nr-var:…}` / `${nr-sub:…}`. Mutually exclusive with `copy_from_file`.         |
 | `copy_from_file` | *        | —       | Path of a source file whose bytes are copied into this entry (e.g. a binary from a package dir). Mutually exclusive with `text`. |
-| `persistent`     | no       | `false` | If `true`, survives sub-agent stop/restart.                                                                     |
 
 *Exactly one of `text` or `copy_from_file` is required. `copy_from_file` copies the source byte-for-byte, preserving its permissions (e.g. the executable bit on Unix), and its source must resolve to a path within `${nr-sub:remote_dir}`.
 
@@ -503,7 +499,6 @@ logging.d/
 |--------------|----------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `kind`       | yes      | —       | Must be `dir`.                                                                                                                                             |
 | `entries`    | no       | `{}`    | Map of child entries (any kind). Recursive. Each key must be a single path segment, not a sub-path.                                                        |
-| `persistent` | no       | `false` | If `true`, this directory survives stop/restart. Not inherited, each child is judged by its own `persistent` flag (see [Persistence](#persistence-in-filesystem)). |
 
 **`dir_content_from_map`** — a directory whose set of files is computed at deploy time from a `map[string]yaml` variable. The map's keys become filenames; the values become file contents.
 
@@ -512,31 +507,15 @@ logging.d/
 | `kind`       | yes      | —       | Must be `dir_content_from_map`.                                                                                        |
 | `source`     | yes      | —       | Reference to a `map[string]yaml` variable (`${nr-var:…}`).                                                             |
 
-##### Persistence in Filesystem
+##### Filesystem entry lifecycle
 
-Every `file` and `dir` entry accepts a boolean `persistent:` (default `false`). The `persistent` flag controls whether the entry's on-disk path is wiped when the tree is cleaned: on sub-agent stop, and just before every (re)write of the tree (start, restart, and config apply). Ephemeral entries are wiped at those points; persistent entries are kept. Wiping before each write means leftover ephemeral content never carries across — even after an ungraceful shutdown (crash/SIGKILL) that skipped the stop-time cleanup.
+Every `file` and `dir` entry survives sub-agent stop, restart, and config-apply: nothing is wiped at those points. `write` only ever overwrites the paths it declares; it never touches anything else on disk, so agent-process-created files (declared or not) are left alone.
 
-**`persistent` applies per entry and does not cascade to children.** When cleaning (on stop, and before each (re)write), cleanup walks the declared tree: a persistent entry is kept and the walk descends into its children, while an ephemeral entry is deleted together with its entire on-disk subtree (a recursive `remove_dir_all`, which stops the walk there). So a nested path survives cleanup only if **every declared node on the path is `persistent: true`**.
+**`dir_content_from_map` is the one exception**: instead of reconciling individual files like a `dir`, its whole directory is treated as a single unit, fully derived from its `map[string]yaml` variable. Every write deletes the directory and recreates it from the current map, rather than merging changes into what's already there. Like a `file: text` entry, its on-disk content is entirely determined by the current variable value, so unchanged variables produce the exact same files across a stop, restart, or config-apply, and a key removed from the map is gone after the next write. Unlike `file`/`dir`, though, this reconciliation is unconditional: any content that lands in the directory by other means (for example, the agent process writing into it) is wiped on every write too, not only when the map itself changes.
 
-**An entry removed from the agent type while the sub-agent is stopped is not reclaimed.** Cleanup only ever walks the *currently declared* tree, so a path that is no longer declared is kept on disk if its parent is persistent, even if it used to be ephemeral.
+**On start, Agent Control reclaims top-level paths that are no longer declared at all** under the sub-agent's filesystem directory. Declared `dir`'s contents are kept.
 
-**`dir_content_from_map` has no `persistent` flag.** Agent Control re-renders the projected files on every write, so it is always ephemeral. A `persistent:` key left in the YAML is silently ignored, so older configs still parse.
-
-###### Lifecycle
-
-- **Ephemeral (`persistent: false`, default).** Wiped on sub-agent stop, and again just before every (re)write of the tree (start, restart, config apply); the declared entry itself is then re-created by the write. Leftover content (including files the agent created inside an ephemeral directory) never carries across a restart, even an ungraceful one.
-- **Persistent (`persistent: true`).** Kept on stop and across (re)writes; only `write` re-renders its declared content.
-- **Removed from fleet.** When an agent is removed from the fleet config (via remote config or by being absent at AC startup after a previous deploy), its entire filesystem directory is deleted by `ResourceCleaner`. The `persistent` flag is bypassed.
-
-| Event              | Ephemeral (`persistent: false`)                 | Persistent (`persistent: true`)           |
-|--------------------|-------------------------------------------------|-------------------------------------------|
-| Agent start        | Wiped, then write                               | Kept; write                               |
-| Agent stop         | Path deleted                                    | Path kept                                 |
-| Agent restart      | Wiped, then write                               | Kept; write                               |
-| Config update      | Wiped, then write                               | Kept; write                               |
-| Removed from fleet | Filesystem dir deleted by ResourceCleaner       | Filesystem dir deleted by ResourceCleaner |
-
-Agent-process-created files are never declared, so `write` leaves them untouched **except** files inside an *ephemeral* directory, which are wiped along with it on stop and before each (re)write. To keep agent-created content across restarts, place it under a `persistent` directory.
+**Removed from fleet.** When an agent is removed from the fleet config (via remote config or by being absent at AC startup after a previous deploy), its entire filesystem directory is deleted by `ResourceCleaner`, regardless of what it contains.
 
 ##### `shared_filesystem`
 
