@@ -102,6 +102,12 @@ fn resolve_reported_version_package<E: serde::de::Error>(
 }
 
 impl OnHost {
+    /// The per-agent filesystem entries this Agent Type declares. The paths (keys) are static,
+    /// so they are available without rendering.
+    pub fn filesystem(&self) -> &FileSystem {
+        &self.filesystem
+    }
+
     /// The files and directories this Agent Type declares in the shared filesystem.
     /// The paths are static because they are not [Templateable], therefore they are
     /// available without rendering.

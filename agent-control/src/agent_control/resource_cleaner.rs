@@ -8,6 +8,7 @@ use thiserror::Error;
 use crate::agent_type::agent_type_id::AgentTypeID;
 
 use super::agent_id::AgentID;
+use super::config::SubAgentsMap;
 
 /// Represents a mechanism to clean up resources when called. Intended to be used by Agent Control
 /// for cleaning up sub-agent resources, Kubernetes objects or on-host packages.
@@ -17,6 +18,17 @@ pub trait ResourceCleaner {
         &self,
         agent_id: &AgentID,
         agent_type: &AgentTypeID,
+    ) -> Result<(), ResourceCleanerError>;
+
+    /// Cleans up resources that belonged to the old type but are no longer needed by the new type.
+    /// `active_agents` is the full set of agents that will be active after this reconciliation
+    /// cycle; it is used to protect shared resources that other agents still declare.
+    fn on_agent_type_changed(
+        &self,
+        agent_id: &AgentID,
+        old_agent_type: &AgentTypeID,
+        new_agent_type: &AgentTypeID,
+        active_agents: &SubAgentsMap,
     ) -> Result<(), ResourceCleanerError>;
 }
 
@@ -39,6 +51,14 @@ pub(crate) mod tests {
                 &self,
                 agent_id: &AgentID,
                 agent_type: &AgentTypeID,
+            ) -> Result<(), ResourceCleanerError>;
+
+            fn on_agent_type_changed(
+                &self,
+                agent_id: &AgentID,
+                old_agent_type: &AgentTypeID,
+                new_agent_type: &AgentTypeID,
+                active_agents: &SubAgentsMap,
             ) -> Result<(), ResourceCleanerError>;
         }
     }

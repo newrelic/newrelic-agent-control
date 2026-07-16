@@ -211,7 +211,10 @@ where
 
     fn stop(self) -> Result<(), ThreadContextStopperError> {
         let stop_result = stop_supervisor_threads(self.thread_contexts);
-        if let Err(err) = self.filesystem.delete_ephemeral() {
+        if let Err(err) = self
+            .filesystem
+            .delete_ephemeral(&LocalFile, &DirectoryManagerFs)
+        {
             warn!(?err, "filesystem ephemeral cleanup failed on stop");
         }
         stop_result
@@ -345,8 +348,22 @@ where
         let (health_publisher, health_consumer) = pub_sub();
 
         // Ensure all ephemeral entries are removed before start in case it didn't work on stop.
-        if let Err(err) = self.filesystem.delete_ephemeral() {
-            warn!(?err, "filesystem ephemeral cleanup failed on start");
+        if let Err(err) = self
+            .filesystem
+            .delete_ephemeral(&LocalFile, &DirectoryManagerFs)
+        {
+            warn!(?err, "filesystem: ephemeral cleanup failed on start");
+        }
+
+        // Ensure all non-declared files and dirs not on a declared persistent dir are deleted.
+        if let Err(err) = self
+            .filesystem
+            .delete_not_declared(&LocalFile, &DirectoryManagerFs)
+        {
+            warn!(
+                ?err,
+                "filesystem: not declared entries cleanup failed on start"
+            );
         }
 
         self.filesystem

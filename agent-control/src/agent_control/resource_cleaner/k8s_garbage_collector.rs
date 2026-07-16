@@ -192,6 +192,19 @@ impl ResourceCleaner for K8sGarbageCollector {
         self.collect(id, agent_type_id)?;
         Ok(())
     }
+
+    fn on_agent_type_changed(
+        &self,
+        agent_id: &AgentID,
+        old_agent_type: &AgentTypeID,
+        _new_agent_type: &AgentTypeID,
+        _active_agents: &SubAgentsMap,
+    ) -> Result<(), ResourceCleanerError> {
+        // Only objects annotated with the old type are removed. Objects created by the new
+        // sub-agent already carry the new type annotation, so they are left intact.
+        self.collect(agent_id, old_agent_type)?;
+        Ok(())
+    }
 }
 
 /// Garbage collector operation modes.
@@ -540,6 +553,60 @@ mod tests {
             namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
         };
         assert!(gc.collect(&agent_id, &agent_type_id).is_ok());
+    }
+
+    /// `on_agent_type_changed` calls `collect` with the OLD type. Objects annotated with the new
+    /// type (created by the recreated sub-agent) are not touched because `collect` in Collect mode
+    /// only deletes objects whose annotation matches the passed type exactly.
+    #[test]
+    fn on_agent_type_changed_collects_old_type_objects_only() {
+        let type_meta = TypeMeta::default();
+        let agent_id = AgentID::try_from("foo-agent").unwrap();
+        let old_type = AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
+        let new_type = AgentTypeID::try_from("newrelic/com.example.foo:0.0.2").unwrap();
+
+        // Only the object annotated with the OLD type should be deleted.
+        let old_obj = new_dynamic_object(&agent_id, Some(&old_type), TEST_NAMESPACE);
+        let new_obj = new_dynamic_object(&agent_id, Some(&new_type), TEST_NAMESPACE);
+
+        let type_meta_clone = type_meta.clone();
+        let mut k8s_client = MockK8sClient::default();
+        k8s_client
+            .expect_list_configmaps()
+            .once()
+            .returning(|_, _| Ok(vec![]));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE_AGENTS),
+            )
+            .returning(|_, _| Ok(vec![]));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(
+                predicate::eq(type_meta_clone),
+                predicate::eq(TEST_NAMESPACE),
+            )
+            .return_once(move |_, _| Ok(vec![old_obj, new_obj]));
+        k8s_client
+            .expect_delete_dynamic_object()
+            .once()
+            .returning(|_, _| Ok(either::Either::Right(kube::core::Status::default())));
+
+        let gc = K8sGarbageCollector {
+            k8s_client: Arc::new(k8s_client),
+            cr_type_meta: vec![type_meta],
+            namespace: TEST_NAMESPACE.to_string(),
+            namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
+        };
+
+        assert!(
+            gc.collect(&agent_id, &old_type).is_ok(),
+            "collect with old type must succeed and delete only the old-type object"
+        );
     }
 
     // RetainConfig mode: object for INACTIVE agent without owned-by annotation is skipped.
