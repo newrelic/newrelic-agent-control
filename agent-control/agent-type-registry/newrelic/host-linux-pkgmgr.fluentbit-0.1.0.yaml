@@ -1,0 +1,63 @@
+namespace: newrelic
+name: pkgmgr.fluentbit
+version: 0.1.0
+platform: host
+operating_system: linux
+protocol_version: "1.0"
+variables:
+  logging.yaml:
+    description: "infra agent logging config"
+    type: yaml
+    required: true
+  version:
+    description: "target fluent-bit version to install/upgrade to via the host package manager"
+    type: string
+    required: true
+deployment:
+  shared_filesystem:
+    logging.d:
+      kind: dir
+      persistent: true
+      entries:
+        logging.yaml:
+          kind: file
+          text: |
+            ${nr-var:logging.yaml}
+        status_endpoint.yaml:
+          kind: file
+          text: |
+            logs:
+              - name: fb-status-endpoint
+                fluentbit:
+                  config_file: ${nr-sub:filesystem_agent_dir}/health_service.conf
+  filesystem:
+    health_service.conf:
+      kind: file
+      text: |
+        [SERVICE]
+            Flush 1
+            Daemon Off
+            HTTP_Server On
+            HTTP_Listen 0.0.0.0
+            HTTP_PORT 5040
+            Health_Check On
+  packages:
+    hook_carrier:
+      download:
+        oci:
+          # Hardcoded and unrelated to fluent-bit: this package's content is never used or run.
+          # It exists only because packages.<id>.download.oci is required to attach a
+          # post_download_hook. Version pinned to the same value as NR_OTEL_COLLECTOR_VERSION
+          # in .goreleaser.yml, since it is a real, published, signed artifact.
+          repository: newrelic/nrdot-agent-artifacts
+          version: "1.5.0"
+          public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrdot/jwks.json
+      post_download_hook:
+        path: bash
+        args:
+          # POC placeholder: copy pkgmgr-fluentbit-install.sh to this exact path on the target
+          # host before starting AC. A shipped version would instead deliver the script inside
+          # the OCI package and reference it as ${nr-sub:packages.hook_carrier.dir}/install.sh.
+          - /tmp/pkgmgr-fluentbit-install.sh
+        env:
+          FLUENT_BIT_VERSION: ${nr-var:version}

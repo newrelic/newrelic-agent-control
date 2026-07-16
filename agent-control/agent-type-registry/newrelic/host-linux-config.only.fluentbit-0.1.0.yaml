@@ -1,0 +1,22 @@
+namespace: newrelic
+name: config.only.fluentbit
+version: 0.1.0
+platform: host
+operating_system: linux
+protocol_version: "1.0"
+variables:
+  logging.yaml:
+    description: "infra agent logging config"
+    type: yaml
+    required: true
+deployment:
+  shared_filesystem:
+    logging.d:
+      kind: dir
+      persistent: true
+      entries:
+        logging.yaml:
+          kind: file
+          text: |
+            ${nr-var:logging.yaml}
+

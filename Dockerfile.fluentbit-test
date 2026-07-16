@@ -1,0 +1,7 @@
+FROM debian:12
+
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+    curl \
+    gnupg \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*

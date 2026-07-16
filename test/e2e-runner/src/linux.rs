@@ -61,5 +61,8 @@ pub fn run_linux_e2e() {
         LinuxScenarios::PostDownloadHookFailure(args) => {
             scenarios::post_download_hook::test_post_download_hook_failure(args);
         }
+        LinuxScenarios::FluentBitAgent(args) => {
+            scenarios::fluent_bit_agent::test_installation_with_standalone_fluent_bit(args);
+        }
     };
 }

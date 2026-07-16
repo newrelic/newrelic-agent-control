@@ -1,5 +1,6 @@
 pub mod ebpf_agent;
 pub mod fleet_control;
+pub mod fluent_bit_agent;
 pub mod infra_agent;
 pub mod nrdot_agent;
 pub mod post_download_hook;

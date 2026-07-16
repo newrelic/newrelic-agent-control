@@ -10,11 +10,6 @@ variables:
     type: yaml
     required: false
     default: ""
-  config_logging:
-    description: "map of YAML config for logging"
-    type: map[string]yaml
-    required: false
-    default: { }
   backoff_delay:
     description: "seconds until next retry if agent fails to start"
     type: string
@@ -69,9 +64,6 @@ deployment:
           kind: file
           text: |
             ${nr-var:config_agent}
-    logging.d:
-      kind: dir_content_from_map
-      source: ${nr-var:config_logging}
     # Agent data root (NRIA_AGENT_DIR). Persistent so the agent's stored data survives restarts
     newrelic-infra:
       kind: dir
@@ -82,6 +74,10 @@ deployment:
         tmp:
           kind: dir
   shared_filesystem:
+    # shared dir between infra-agent and fluent bit agent type
+    logging.d:
+      kind: dir
+      persistent: true
     # OHIs config folders.
     # infra-agent is configured through NRIA_PLUGIN_DIR, to read configs from this folder.
     infra-agent-ohi-configs:
@@ -131,7 +127,7 @@ deployment:
         NRIA_SAFE_BIN_DIR: "${nr-sub:shared_filesystem_dir}/infra-agent-ohi-binaries"
         # Config folders where integrations and logging configs parsed from local/remote values are stored and looked for.
         NRIA_PLUGIN_DIR: "${nr-sub:shared_filesystem_dir}/infra-agent-ohi-configs"
-        NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:filesystem_agent_dir}/logging.d"
+        NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:shared_filesystem_dir}/logging.d"
         # Where parsers.conf and out_newrelic.so are placed and fb.db will be created
         NRIA_LOGGING_HOME_DIR: "${nr-sub:packages.infra-agent.dir}/logging"
         # NRIA_LOGGING_BIN_DIR is not added because it continues being installed with apt, yum, zypp in its current location.

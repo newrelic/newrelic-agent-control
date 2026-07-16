@@ -173,6 +173,30 @@ pub fn build_tar_gz_package(files: &[(&str, &str)]) -> (tempfile::TempDir, PathB
     (dir, archive_path)
 }
 
+// Builds a `tar.gz` archive containing the given files, copied from real paths on disk.
+// Unlike `build_tar_gz_package`, this preserves the source files' permission bits (e.g.
+// executable bits), since `fs::copy` on Unix carries over the source file's mode.
+pub fn build_tar_gz_package_from_files(files: &[(&str, &Path)]) -> (tempfile::TempDir, PathBuf) {
+    let dir = tempfile::tempdir().expect("failed to create temp dir for package");
+    for (name, source) in files {
+        std::fs::copy(source, dir.path().join(name))
+            .unwrap_or_else(|e| panic!("failed to copy {name} from {}: {e}", source.display()));
+    }
+
+    let archive_path = dir.path().join("package.tar.gz");
+    let mut cmd = Command::new("tar");
+    cmd.arg("-czf").arg(&archive_path).arg("-C").arg(dir.path());
+    for (name, _) in files {
+        cmd.arg(name);
+    }
+    let status = cmd
+        .status()
+        .expect("failed to run tar to build the package");
+    assert!(status.success(), "tar failed to build the package");
+
+    (dir, archive_path)
+}
+
 // Pushes `archive` to the local registry under a unique tag and signs it.
 pub fn push_and_sign(archive: &Path, media_type: PackageMediaType) -> PushedPackage {
     let publisher = PackagePublisher::new(

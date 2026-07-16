@@ -56,6 +56,10 @@ enum LinuxScenarios {
     /// Installs a sub-agent whose OCI package defines a failing `post_download_hook`, and verifies
     /// that the hook runs but the agent is not started because the hook returns a non-zero exit code.
     PostDownloadHookFailure(InstallationArgs),
+    /// Runs a standalone Fluent Bit as its own on-host sub-agent (no Infrastructure agent
+    /// installed), via a dynamically-registered `newrelic/io.fluentbit:0.1.0` agent type, and
+    /// checks that it forwards records to New Relic.
+    FluentBitAgent(InstallationArgs),
 }
 
 #[derive(Debug, clap::Subcommand)]
