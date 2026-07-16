@@ -56,7 +56,7 @@ where
 {
     type NotStartedSubAgent = SubAgent<O::Client, B, R, Y, A>;
 
-    #[instrument(skip_all, fields(id = %agent_identity.id),name = "build_agent")]
+    #[instrument(skip_all, fields(agent_id = %agent_identity.id),name = "build_agent")]
     fn build(
         &self,
         agent_identity: &AgentIdentity,

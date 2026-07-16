@@ -20,7 +20,7 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 use thiserror::Error;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, instrument, warn};
 
 /// [`OCIPackageManager`] backed by the default OCI downloader and filesystem directory manager.
 pub type DefaultOCIPackageManager =
@@ -378,6 +378,7 @@ where
     /// The Package Manager keeps track of the latest installed package. Each install operation executes
     /// an older packages purge operation. The purge operation retains the latest tracked package (current in execution)
     /// and new installed. The main goal of this is to avoid a never ending disk usage growth on package updates.
+    #[instrument(skip_all, fields(%agent_id))]
     fn install(
         &self,
         agent_id: &AgentID,
@@ -419,9 +420,10 @@ where
         Ok(installed_package)
     }
 
+    #[instrument(skip_all, fields(%agent_id))]
     fn uninstall(
         &self,
-        _agent_id: &AgentID,
+        agent_id: &AgentID,
         package: InstalledPackageData,
     ) -> Result<(), OCIPackageManagerError> {
         self.directory_manager

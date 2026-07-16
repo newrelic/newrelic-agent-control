@@ -13,7 +13,7 @@ impl<S> StartedSubAgents<S>
 where
     S: StartedSubAgent,
 {
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip_all, fields(%agent_id))]
     pub(crate) fn stop_and_remove(
         &mut self,
         agent_id: &AgentID,
@@ -26,7 +26,7 @@ where
                 ))?;
 
         info!("Stopping sub agent");
-        Self::stop_sub_agent(sub_agent);
+        Self::stop_sub_agent(agent_id, sub_agent);
 
         Ok(())
     }
@@ -41,14 +41,14 @@ where
     }
 
     pub(crate) fn stop(self) {
-        self.0.into_iter().for_each(|(_, sub_agent)| {
-            info!("Stopping sub agent");
-            Self::stop_sub_agent(sub_agent);
+        self.0.into_iter().for_each(|(agent_id, sub_agent)| {
+            info!(%agent_id, "Stopping sub agent");
+            Self::stop_sub_agent(&agent_id, sub_agent);
         })
     }
 
-    #[tracing::instrument(skip_all)]
-    fn stop_sub_agent(sub_agent: S) {
+    #[tracing::instrument(skip_all, fields(%agent_id))]
+    fn stop_sub_agent(agent_id: &AgentID, sub_agent: S) {
         let _ = sub_agent
             .stop()
             .inspect_err(|err| error!(%err, "Error stopping sub agent"));

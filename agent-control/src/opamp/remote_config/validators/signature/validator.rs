@@ -13,6 +13,7 @@ use std::time::Duration;
 use thiserror::Error;
 use tracing::error;
 use tracing::info;
+use tracing::instrument;
 use tracing::warn;
 use url::Url;
 
@@ -112,9 +113,14 @@ impl SignatureValidator {
 impl RemoteConfigValidator for SignatureValidator {
     type Err = SignatureValidatorError;
 
+    #[instrument(
+        skip_all,
+        name = "validate_remote_config_signature",
+        fields(agent_id = %agent_identity.id)
+    )]
     fn validate(
         &self,
-        _: &AgentIdentity,
+        agent_identity: &AgentIdentity,
         opamp_remote_config: &OpampRemoteConfig,
     ) -> Result<(), Self::Err> {
         // Noop validation

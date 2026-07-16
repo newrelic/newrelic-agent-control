@@ -43,7 +43,7 @@ use std::process::ExitStatus;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 use thiserror::Error;
-use tracing::{Dispatch, debug, dispatcher, error, info, warn};
+use tracing::{Dispatch, debug, dispatcher, error, info, info_span, warn};
 
 const WAIT_FOR_EXIT_TIMEOUT: Duration = Duration::from_secs(1);
 const HEALTHY_DELAY: Duration = Duration::from_secs(10);
@@ -171,12 +171,17 @@ where
             &onhost_config.packages,
         );
 
-        stop_supervisor_threads(thread_contexts).map_err(|err| {
-            if let Err(err) = &installation_result {
-                error!("Failure stopping supervisor. Note that installation also failed: {err}",);
-            }
-            SupervisorError::Stop(err)
-        })?;
+        {
+            let _span = info_span!("stopping_supervisor", agent_id = %agent_identity.id).entered();
+            stop_supervisor_threads(thread_contexts).map_err(|err| {
+                if let Err(err) = &installation_result {
+                    error!(
+                        "Failure stopping supervisor. Note that installation also failed: {err}",
+                    );
+                }
+                SupervisorError::Stop(err)
+            })?;
+        }
 
         installation_result.map_err(SupervisorError::Install)?;
 
@@ -190,6 +195,8 @@ where
                     .with_restart_policy(e.restart_policy.into())
             })
             .collect();
+
+        let agent_id_for_span = agent_identity.id.clone();
 
         let starter = NotStartedSupervisorOnHost::new(
             agent_identity,
@@ -206,7 +213,10 @@ where
 
         // No explicit file deletion is needed on apply: spin_up re-renders the filesystem. Its
         // `delete_ephemeral` freshens ephemeral state before `write` materializes the declared tree.
-        let new_started_supervisor = starter.spin_up(internal_publisher)?;
+        let new_started_supervisor = {
+            let _span = info_span!("starting_supervisor", agent_id = %agent_id_for_span).entered();
+            starter.spin_up(internal_publisher)?
+        };
 
         Ok(new_started_supervisor)
     }
@@ -461,34 +471,41 @@ where
                 // Otherwise, the published time won't be updated.
                 let health_handler = HealthHandler::new(exec_id.clone(), health_publisher.clone());
 
-                info!(%agent_id, %exec_id, "Starting executable");
-                metrics::record_agent_started(&agent_type);
-                let command = CommandOSNotStarted::new(
-                    agent_id.clone(),
-                    &exec_data,
-                    log_to_file,
-                    logging_path.clone(),
-                );
+                let executable_result = {
+                    let _span = info_span!("supervise_process", %agent_id, %exec_id).entered();
 
-                let started = command.start().and_then(|cmd| cmd.stream());
-
-                let executable_result = started.and_then(|cmd| {
-                    // A poisoned lock still holds a valid `Option<u32>` - recovering it here
-                    // keeps process supervision running instead of taking down the
-                    // supervisor thread over a panic that happened elsewhere while holding
-                    // this trivial lock.
-                    *current_pid.lock().unwrap_or_else(|e| e.into_inner()) = Some(cmd.get_pid());
-                    let result = wait_exit(
-                        cmd,
-                        &stop_consumer,
-                        HEALTHY_DELAY,
-                        &health_handler,
-                        &agent_id,
-                        &exec_id,
+                    info!(%agent_id, %exec_id, "Starting executable");
+                    metrics::record_agent_started(&agent_type);
+                    let command = CommandOSNotStarted::new(
+                        agent_id.clone(),
+                        &exec_data,
+                        log_to_file,
+                        logging_path.clone(),
                     );
-                    *current_pid.lock().unwrap_or_else(|e| e.into_inner()) = None;
-                    result
-                });
+
+                    let started = command.start().and_then(|cmd| cmd.stream());
+
+                    // Excludes the restart-policy backoff wait below - that's dead time, not
+                    // this span's process runtime.
+                    started.and_then(|cmd| {
+                        // A poisoned lock still holds a valid `Option<u32>` - recovering it here
+                        // keeps process supervision running instead of taking down the
+                        // supervisor thread over a panic that happened elsewhere while holding
+                        // this trivial lock.
+                        *current_pid.lock().unwrap_or_else(|e| e.into_inner()) =
+                            Some(cmd.get_pid());
+                        let result = wait_exit(
+                            cmd,
+                            &stop_consumer,
+                            HEALTHY_DELAY,
+                            &health_handler,
+                            &agent_id,
+                            &exec_id,
+                        );
+                        *current_pid.lock().unwrap_or_else(|e| e.into_inner()) = None;
+                        result
+                    })
+                };
 
                 match executable_result {
                     Ok((exit_status, was_cancelled)) => {
@@ -539,7 +556,7 @@ fn install_packages<PM: PackageManager>(
     packages: &RenderedPackages,
 ) -> Result<(), InstallPackageError> {
     for (id, package) in packages {
-        debug!(%id, "Installing package");
+        debug!(%agent_id, package_id = %id, "Installing package");
         package_manager
             .install(
                 agent_id,
@@ -553,7 +570,7 @@ fn install_packages<PM: PackageManager>(
                 id: id.to_string(),
                 err_msg: err.to_string(),
             })?;
-        debug!(%id, "Package successfully installed");
+        debug!(%agent_id, package_id = %id, "Package successfully installed");
     }
     Ok(())
 }
@@ -684,15 +701,18 @@ fn handle_exit(
 
 #[derive(Clone)]
 struct HealthHandler {
-    id: String,
+    exec_id: String,
     health_publisher: EventPublisher<(String, HealthWithStartTime)>,
     time: SystemTime,
 }
 
 impl HealthHandler {
-    fn new(id: String, health_publisher: EventPublisher<(String, HealthWithStartTime)>) -> Self {
+    fn new(
+        exec_id: String,
+        health_publisher: EventPublisher<(String, HealthWithStartTime)>,
+    ) -> Self {
         Self {
-            id,
+            exec_id,
             health_publisher,
             time: SystemTime::now(),
         }
@@ -712,8 +732,11 @@ impl HealthHandler {
 
     fn publish_health(&self, health: Health) {
         let health = HealthWithStartTime::new(health, self.time);
-        if let Err(err) = self.health_publisher.publish((self.id.clone(), health)) {
-            error!("Publishing health status for {}: {err}", self.id);
+        if let Err(err) = self
+            .health_publisher
+            .publish((self.exec_id.clone(), health))
+        {
+            error!(exec_id = %self.exec_id, %err, "Publishing health status failed");
         }
     }
 }

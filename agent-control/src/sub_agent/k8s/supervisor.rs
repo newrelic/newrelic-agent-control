@@ -356,7 +356,8 @@ impl<C: K8sClient> Supervisor for StartedSupervisorK8s<C> {
         // ...and start it
         debug!(agent_id = %new_starter.agent_identity.id, "Starting new supervisor");
 
-        new_starter.start(sub_agent_internal_publisher)
+        let span = info_span!("starting_supervisor", agent_id = %new_starter.agent_identity.id);
+        span.in_scope(|| new_starter.start(sub_agent_internal_publisher))
     }
 
     fn stop(self) -> Result<(), Self::StopError> {

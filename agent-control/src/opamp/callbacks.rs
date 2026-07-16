@@ -27,7 +27,7 @@ use opamp_client::{
 };
 use std::string::FromUtf8Error;
 use thiserror::Error;
-use tracing::{debug, error, trace};
+use tracing::{debug, error, instrument, trace};
 
 /// Errors produced while handling OpAMP callbacks.
 #[derive(Debug, Error)]
@@ -77,6 +77,7 @@ where
     }
 
     /// Assembles a `RemoteConfig` from the OpAMP message and publish the `crate::event::OpAMPEvent::RemoteConfigReceived`.
+    #[instrument(skip_all, name = "process_remote_config", fields(agent_id = %self.agent_id))]
     fn process_remote_config(
         &self,
         msg_remote_config: AgentRemoteConfig,
@@ -154,6 +155,7 @@ where
             .publish(OpAMPEvent::Connected)
             .inspect_err(|err| {
                 error!(
+                    %self.agent_id,
                     error_msg = %err,
                     "error publishing opamp_event.connected"
                 )
@@ -175,7 +177,7 @@ where
                 error!(
                     %self.agent_id,
                     error_msg = %err,
-                    "error publishing opamp_event.connected"
+                    "error publishing opamp_event.connect_failed"
                 )
             });
     }
@@ -192,7 +194,7 @@ where
     }
 
     fn on_connect_failed(&self, err: ConnectionError) {
-        log_connection_error(&err);
+        log_connection_error(&self.agent_id, &err);
         self.publish_on_connect_failed(&err);
     }
 
@@ -226,6 +228,7 @@ where
         Ok(())
     }
 
+    #[instrument(skip_all, fields(agent_id = %self.agent_id))]
     fn get_effective_config(&self) -> Result<EffectiveConfig, Self::Error> {
         debug!("OpAMP get effective config");
 
@@ -274,16 +277,17 @@ fn describe(reason_code: &str) -> &'static str {
     }
 }
 
-fn log_connection_error(err: &ConnectionError) {
+fn log_connection_error(agent_id: &AgentID, err: &ConnectionError) {
     let reason = describe(classify_connection_error(err));
     // Check if the error comes from receiving an undesired HTTP status code
     if let HTTPClientError(UnsuccessfulResponse(http_code, http_reason)) = &err {
         error!(
+            %agent_id,
             http_code,
             http_reason, "OpAMP HTTP connection error: {reason}"
         );
     } else {
-        error!("OpAMP HTTP connection error: {err}")
+        error!(%agent_id, "OpAMP HTTP connection error: {err}")
     }
 }
 

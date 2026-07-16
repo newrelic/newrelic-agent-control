@@ -141,7 +141,7 @@ where
     /// remote configuration, spawns the health-checker, applies any pending self-update, and then
     /// processes events until a graceful shutdown is requested, returning the shutdown reason.
     pub fn run(self) -> Result<GracefulShutdownReason, AgentControlError> {
-        let ac_startup_span = info_span!("start_agent_control", id = AGENT_CONTROL_ID);
+        let ac_startup_span = info_span!("start_agent_control", agent_id = AGENT_CONTROL_ID);
         let _ac_startup_span_guard = ac_startup_span.enter();
         info!("Starting the agents supervisor runtime");
         // This is a first-time run and we already read the config earlier, the `initial_config` contains
@@ -230,7 +230,7 @@ where
     //  * Recreate the Final Agent using the Agent Type and the latest persisted config
     //  * Build a Stopped Sub Agent
     //  * Run the Sub Agent and add it to the Running Sub Agents
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(agent_id = %agent_identity.id))]
     fn recreate_sub_agent(
         &self,
         agent_identity: &AgentIdentity,
@@ -253,6 +253,7 @@ where
         let mut running_sub_agents = StartedSubAgents::default();
         let mut errors = BuildingSubagentErrors::default();
 
+        let _build_sub_agents_span = info_span!("build_sub_agents").entered();
         for (agent_id, agent_config) in sub_agents {
             let agent_identity = AgentIdentity::from((agent_id, &agent_config.agent_type));
 
@@ -267,6 +268,7 @@ where
                 }
             }
         }
+        drop(_build_sub_agents_span);
         metrics::record_agents_managed(running_sub_agents.len() as u64);
         if errors.is_empty() {
             (running_sub_agents, Ok(()))
@@ -333,7 +335,7 @@ where
         loop {
             select! {
                 recv(&opamp_receiver.as_ref()) -> opamp_event_res => {
-                    let span = info_span!("process_fleet_event", id=AGENT_CONTROL_ID);
+                    let span = info_span!("process_fleet_event", agent_id=AGENT_CONTROL_ID);
                     let _span_guard = span.enter();
                     match opamp_event_res {
                         Err(_) => {
@@ -364,7 +366,7 @@ where
                     }
                 },
                 recv(&self.agent_control_internal_consumer.as_ref()) -> internal_event_res => {
-                    let span = info_span!("process_event", id=AGENT_CONTROL_ID);
+                    let span = info_span!("process_event", agent_id=AGENT_CONTROL_ID);
                     let _span_guard = span.enter();
                     match internal_event_res {
                         Err(err) => {
@@ -382,7 +384,7 @@ where
                                 AgentControlInternalEvent::AgentControlAttributesUpdated(attributes) => {
                                     let _ = self.opamp_client.as_ref().map(|c|
                                         update_opamp_attributes(c, attributes.clone())
-                                    .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message")));
+                                    .inspect_err(|e| error!(error = %e, "processing version message")));
                                     self.agent_control_publisher.broadcast(AgentControlEvent::AgentDescriptionUpdated(attributes));
                                 },
                                 AgentControlInternalEvent::SelfUpdateRestartRequested() => {
@@ -395,9 +397,9 @@ where
                     }
                 }
                 recv(self.application_event_consumer.as_ref()) -> agent_control_event => {
-                    let span = info_span!("process_application_event", id=AGENT_CONTROL_ID);
+                    let span = info_span!("process_application_event", agent_id=AGENT_CONTROL_ID);
                     let _span_guard = span.enter();
-                    let _= agent_control_event.inspect_err(|err| error!(error = %err, select_arm = "application_event_consumer", "Receiving application event"));
+                    let _= agent_control_event.inspect_err(|err| error!(error = %err, "Receiving application event"));
                     debug!("Stopping Agent Control event processor");
                     self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
                     sub_agents.stop();
@@ -405,7 +407,7 @@ where
                 },
                 recv(uptime_reporter.receiver()) -> _tick => { let _ = uptime_reporter.report(); },
                 recv(&self_update_retry_ticker) -> _tick => {
-                    let span = info_span!("self_update_retry", id=AGENT_CONTROL_ID);
+                    let span = info_span!("self_update_retry", agent_id=AGENT_CONTROL_ID);
                     let _span_guard = span.enter();
                     if let Err(err) = self.version_updater.retry() {
                         debug!(error_msg = %err, "Scheduled self-update retry suppressed or failed");
@@ -419,6 +421,7 @@ where
     /// Configuration will be reported as applying to OpAMP
     /// Valid configuration will be applied and reported as applied to OpAMP
     /// If the configuration is invalid, it will be reported as error to OpAMP
+    #[instrument(skip_all, name = "handle_remote_config", fields(agent_id = AGENT_CONTROL_ID))]
     fn handle_remote_config(
         &self,
         opamp_remote_config: OpampRemoteConfig,

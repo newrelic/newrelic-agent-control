@@ -51,7 +51,7 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::SystemTime;
 use supervisor::{Supervisor, SupervisorBuilder, SupervisorStarter};
-use tracing::{debug, error, info, info_span, trace, warn};
+use tracing::{debug, error, info, info_span, instrument, trace, warn};
 
 /// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisor.
 pub trait NotStartedSubAgent {
@@ -275,7 +275,7 @@ where
     /// OpAMP client.
     pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
         spawn_named_thread("Subagent runtime", move || {
-            let span = info_span!("start_agent", id=%self.identity.id);
+            let span = info_span!("start_agent", agent_id=%self.identity.id);
             let _span_guard = span.enter();
 
             let mut supervisor = self.init_supervisor();
@@ -322,18 +322,15 @@ where
             loop {
                 select! {
                     recv(opamp_receiver.as_ref()) -> opamp_event_res => {
-                        let span = info_span!("process_fleet_event", id=%self.identity.id);
+                        let span = info_span!("process_fleet_event", agent_id=%self.identity.id);
                         let _span_guard = span.enter();
                         match opamp_event_res {
                             Err(e) => {
-                                debug!(error = %e, select_arm = "sub_agent_opamp_consumer", "Channel closed");
+                                debug!(error = %e, "Channel closed");
                                 break;
                             },
                             Ok(OpAMPEvent::RemoteConfigReceived(config)) => {
-                                debug!(
-                                    select_arm = "sub_agent_opamp_consumer",
-                                    "Remote config received"
-                                );
+                                debug!("Remote config received");
                                 // This branch only makes sense with a valid OpAMP client
                                 let Some(opamp_client) = &self.maybe_opamp_client else {
                                     debug!("Got remote config without OpAMP being enabled");
@@ -350,20 +347,20 @@ where
                         }
                     },
                     recv(&self.sub_agent_internal_consumer.as_ref()) -> sub_agent_internal_event_res => {
-                        let span = info_span!("process_event", id=%self.identity.id);
+                        let span = info_span!("process_event", agent_id=%self.identity.id);
                         let _span_guard = span.enter();
                         match sub_agent_internal_event_res {
                             Err(e) => {
-                                debug!(error = %e, select_arm = "sub_agent_internal_consumer", "Channel closed");
+                                debug!(error = %e, "Channel closed");
                                 break;
                             },
                             Ok(SubAgentInternalEvent::StopRequested) => {
-                                debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");
+                                debug!("StopRequested");
                                 stop_supervisor(supervisor);
                                 break;
                             },
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
-                                debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
+                                debug!(?health, "AgentHealthInfo");
 
                                 metrics::record_agent_health_check(
                                     &self.identity.id.to_string(),
@@ -385,13 +382,13 @@ where
                                     self.sub_agent_publisher.clone(),
                                     self.identity.clone(),
                                 )
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "Processing health message"));
+                                .inspect_err(|e| error!(error = %e, "Processing health message"));
                             },
                             Ok(SubAgentInternalEvent::AgentAttributesUpdated(attributes)) => {
                                 debug!("Updating SubAgent attributes with: {:?}", attributes);
                                 let _ = self.maybe_opamp_client.as_ref().map(|c|
                                     update_opamp_attributes(c, attributes.clone())
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing update agent attributes message")));
+                                .inspect_err(|e| error!(error = %e, "processing update agent attributes message")));
 
                                 self.sub_agent_publisher.broadcast(SubAgentEvent::AgentDescriptionUpdated(self.identity.clone(), attributes));
                             }
@@ -406,6 +403,7 @@ where
     }
 
     /// This function handles the remote config received from OpAMP.
+    #[instrument(skip_all, name = "handle_remote_config", fields(agent_id = %self.identity.id))]
     fn handle_remote_config(
         &self,
         opamp_client: &C,

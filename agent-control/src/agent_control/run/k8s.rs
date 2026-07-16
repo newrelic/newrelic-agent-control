@@ -54,7 +54,7 @@ use resource_detection::system::hostname::get_hostname;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, info_span, warn};
 
 /// Agent Control variable name carrying the namespace where AC resources live.
 pub const NAMESPACE_VARIABLE_NAME: &str = "namespace";
@@ -133,24 +133,27 @@ impl AgentControlRunner {
             ));
 
         // Build and start AC OpAMP client
-        let (maybe_client, maybe_opamp_consumer) = opamp_client_builder
-            .as_ref()
-            .map(|builder| -> Result<_, RunError> {
-                info!("Starting Agent Control OpAMP client");
-                let opamp_start_settings = build_ac_opamp_start_settings(
-                    &instance_id_getter,
-                    &agent_identity,
-                    agent_description,
-                    &k8s_config,
-                )?;
-                builder
-                    .build_and_start(agent_identity, opamp_start_settings)
-                    .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))
-            })
-            // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-            .transpose()?
-            .map(|(client, consumer)| (Some(client), Some(consumer)))
-            .unwrap_or_default();
+        let (maybe_client, maybe_opamp_consumer) = {
+            let _opamp_connect_span = info_span!("opamp_client_connect").entered();
+            opamp_client_builder
+                .as_ref()
+                .map(|builder| -> Result<_, RunError> {
+                    info!("Starting Agent Control OpAMP client");
+                    let opamp_start_settings = build_ac_opamp_start_settings(
+                        &instance_id_getter,
+                        &agent_identity,
+                        agent_description,
+                        &k8s_config,
+                    )?;
+                    builder
+                        .build_and_start(agent_identity, opamp_start_settings)
+                        .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))
+                })
+                // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
+                .transpose()?
+                .map(|(client, consumer)| (Some(client), Some(consumer)))
+                .unwrap_or_default()
+        };
 
         let agent_control_variables = HashMap::from([
             (

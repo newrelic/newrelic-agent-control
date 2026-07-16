@@ -61,7 +61,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tracing::{debug, info};
+use tracing::{debug, info, info_span};
 
 /// Agent Control variable name carrying the host id.
 pub const HOST_ID_VARIABLE_NAME: &str = "host_id";
@@ -167,20 +167,23 @@ impl AgentControlRunner {
             ));
 
         // Build and start AC OpAMP client
-        let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
-            .as_ref()
-            .map(|builder| {
-                let opamp_start_settings = build_ac_opamp_start_settings(
-                    &instance_id_getter,
-                    &agent_identity,
-                    agent_description,
-                )?;
-                start_ac_opamp_client(builder, agent_identity, opamp_start_settings)
-            })
-            // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-            .transpose()?
-            .map(|(client, consumer)| (Some(client), Some(consumer)))
-            .unwrap_or_default();
+        let (maybe_client, maybe_sa_opamp_consumer) = {
+            let _opamp_connect_span = info_span!("opamp_client_connect").entered();
+            opamp_client_builder
+                .as_ref()
+                .map(|builder| {
+                    let opamp_start_settings = build_ac_opamp_start_settings(
+                        &instance_id_getter,
+                        &agent_identity,
+                        agent_description,
+                    )?;
+                    start_ac_opamp_client(builder, agent_identity, opamp_start_settings)
+                })
+                // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
+                .transpose()?
+                .map(|(client, consumer)| (Some(client), Some(consumer)))
+                .unwrap_or_default()
+        };
 
         let template_renderer = TemplateRenderer::default()
             .with_agent_control_variables(agent_control_variables.clone().into_iter());

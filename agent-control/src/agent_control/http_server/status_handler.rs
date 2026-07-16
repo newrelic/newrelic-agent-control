@@ -7,7 +7,9 @@ use actix_web::web::Data;
 use actix_web::{HttpResponse, Responder};
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::instrument;
 
+#[instrument(skip_all, name = "http_status_request")]
 pub(super) async fn status_handler(status: Data<Arc<RwLock<Status>>>) -> impl Responder {
     metrics::record_http_server_request("status");
 
