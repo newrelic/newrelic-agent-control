@@ -1,9 +1,10 @@
 # Reusable workflow that publishes Agent Control release notes to the docs site.
 #
-# Given a tag (which should be the version), it:
-#   1. Checks out this repo at the tag.
-#   2. Generates `agent-control-<version>.mdx` from that revision's CHANGELOG.md.
-#   3. Pushes the file to a branch on `newrelic/docs-website` and opens a PR
+# Given a released `version` (== its prefix-less git tag), it:
+#   1. Checks out the current ref (where the generator script lives).
+#   2. Reads that version's CHANGELOG.md from the release tag and generates
+#      `agent-control-<version>.mdx` from it.
+#   3. Commits the file to a branch on `newrelic/docs-website` and opens a PR
 #      against its `develop` branch.
 name: 📞 Publish public docs release notes
 
@@ -53,13 +54,17 @@ jobs:
           cleaned=$(echo "$VERSION" | sed 's/\./-/g')
           echo "branch_name=chore/agent-control-release-notes-${cleaned}" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout at release tag
+      - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          ref: ${{ inputs.version }}
+          fetch-depth: 0
 
       - name: Generate release notes MDX
-        run: ./tools/generate_docs_release_notes/run.sh CHANGELOG.md "${{ inputs.version }}"
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git show "refs/tags/${VERSION}:CHANGELOG.md" > "${RUNNER_TEMP}/CHANGELOG.md"
+          ./tools/generate_docs_release_notes/run.sh "${RUNNER_TEMP}/CHANGELOG.md" "${VERSION}"
 
       # Mint a token scoped to the docs repo. The app must be installed there;
       # owner/repositories select that installation.
