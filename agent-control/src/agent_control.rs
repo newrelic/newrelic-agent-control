@@ -588,10 +588,11 @@ where
                 errors.push(agent_id.clone(), err.into());
             };
 
-            if let Err(err) = self
-                .resource_cleaner
-                .clean(agent_id, &agent_config.agent_type)
-            {
+            if let Err(err) = self.resource_cleaner.on_agent_removed(
+                agent_id,
+                &agent_config.agent_type,
+                &new_dynamic_config.agents,
+            ) {
                 errors.push(agent_id.clone(), err.into());
             };
 
@@ -627,7 +628,7 @@ where
 mod tests {
     use super::AgentControl;
     use super::agent_id::AgentID;
-    use super::config::{AgentControlConfig, AgentControlDynamicConfig};
+    use super::config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentsMap};
     use super::config_repository::repository::AgentControlDynamicConfigRepository;
     use super::config_repository::repository::tests::InMemoryAgentControlDynamicConfigRepository;
     use super::config_validator::tests::TestDynamicConfigValidator;
@@ -832,6 +833,11 @@ agents:
                 .collect()
         }
 
+        /// Gets the [SubAgentsMap] the provided config declares.
+        fn agents_map_from_config(&self, s: &str) -> SubAgentsMap {
+            AgentControlDynamicConfig::try_from(s).unwrap().agents
+        }
+
         /// Helper to easily build identities
         fn identities(&self, values: Vec<(&str, &str)>) -> Vec<AgentIdentity> {
             values
@@ -968,8 +974,8 @@ agents:
         /// Sets a resource cleaner with "no-op" expectations
         fn set_noop_resource_cleaner(&mut self) {
             self.resource_cleaner
-                .expect_clean()
-                .returning(|_, _| Ok(()));
+                .expect_on_agent_removed()
+                .returning(|_, _, _| Ok(()));
             self.resource_cleaner
                 .expect_on_agent_type_changed()
                 .returning(|_, _, _, _| Ok(()));
@@ -980,19 +986,26 @@ agents:
             self.version_updater = MockVersionUpdater::new_no_op();
         }
 
-        /// Set expectations in sequence for each provided [AgentIdentity] to be _cleaned_ by the resource cleaner.
-        fn expect_resource_clean_in_sequence(&mut self, identities: Vec<AgentIdentity>) {
+        /// Set expectations in sequence for each provided [AgentIdentity] to be _cleaned_ by the
+        /// resource cleaner, asserting `active_agents` (the agents expected to remain active
+        /// after the removal) is passed through unchanged.
+        fn expect_resource_clean_in_sequence(
+            &mut self,
+            identities: Vec<AgentIdentity>,
+            active_agents: SubAgentsMap,
+        ) {
             let mut seq = Sequence::new();
             for identity in identities {
                 self.resource_cleaner
-                    .expect_clean()
+                    .expect_on_agent_removed()
                     .once()
                     .in_sequence(&mut seq)
                     .with(
                         predicate::eq(identity.id),
                         predicate::eq(identity.agent_type_id),
+                        predicate::eq(active_agents.clone()),
                     )
-                    .returning(|_, _| Ok(()));
+                    .returning(|_, _, _| Ok(()));
             }
         }
 
@@ -1269,6 +1282,7 @@ agents:
         });
         agent_control.expect_resource_clean_in_sequence(
             t.identities_from_agents_config(previous_remote_config),
+            t.agents_map_from_config(local_config),
         );
 
         // Local agents should start
@@ -1402,6 +1416,7 @@ agents:
         // Removed agents are fully cleaned up.
         agent_control.expect_resource_clean_in_sequence(
             t.identities(vec![("id3", "newrelic/remote.example.c:0.0.3")]),
+            t.agents_map_from_config(remote_config),
         );
         // Type-changed agents trigger on_agent_type_changed with old and new types.
         agent_control.expect_on_agent_type_changed(vec![(
