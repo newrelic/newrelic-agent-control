@@ -120,6 +120,16 @@ locals {
       operator      = "below_or_equals"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
+    {
+      # Fires if no self-instrumentation logs are received in a 10-minute window,
+      # which indicates AC has stopped emitting OTel logs (crash, misconfiguration, etc.).
+      name               = "Self-instrumentation logs presence"
+      threshold          = 0
+      duration           = 600
+      aggregation_window = 600
+      operator           = "below_or_equals"
+      template_name      = "./alert_nrql_templates/log_presence.tftpl"
+    },
   ]
 
   // Platform-specific memory conditions.
