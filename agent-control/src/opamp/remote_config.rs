@@ -1,6 +1,7 @@
 //! Remote configuration received via OpAMP: its model, configuration map, hashes, and validators.
 use crate::agent_control::agent_id::AgentID;
 use crate::opamp::remote_config::hash::ConfigState;
+use crate::opamp::remote_config::signature::ConfigID;
 use crate::opamp::remote_config::{hash::Hash, signature::SignatureData};
 use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, EffectiveConfig};
 use signature::Signatures;
@@ -140,7 +141,7 @@ impl OpampRemoteConfig {
 
 /// This structure represents the actual configuration values that are stored in the remote config.
 #[derive(Debug, Default, PartialEq, Clone)]
-pub struct ConfigurationMap(HashMap<String, String>);
+pub struct ConfigurationMap(HashMap<ConfigID, String>);
 
 impl ConfigurationMap {
     /// Creates a configuration map from the given key-value pairs.
