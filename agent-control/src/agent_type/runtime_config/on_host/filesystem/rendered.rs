@@ -105,13 +105,6 @@ impl FileSystem {
     /// Deletes the on-disk path of every top-level entry that is not declared. Never descends into
     /// a declared `dir`'s own contents: those are left to the agent (or an earlier agent-type
     /// version) to own, and are only re-rendered by `write`, not pruned.
-    ///
-    /// # Known limitation: previously-declared entries inside a declared directory
-    ///
-    /// When AC configuration is changed **locally**, a file which **was** declared inside a directory
-    /// in a previous agent-type version but is no longer declared in the current one survives
-    /// since directory contents are never pruned. We would need to save a separate state of what was
-    /// written in order to handle this.
     pub fn delete_not_declared(
         &self,
         file_ops: &impl FileDeleter,
