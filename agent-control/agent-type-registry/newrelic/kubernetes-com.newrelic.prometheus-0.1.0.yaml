@@ -32,7 +32,7 @@ variables:
       default: "https://newrelic.github.io/newrelic-prometheus-configurator"
       variants:
         ac_config_field: "chart_repository_urls"
-        values: ["https://newrelic.github.io/newrelic-prometheus-configurator"]
+        values: [ "https://newrelic.github.io/newrelic-prometheus-configurator" ]
     secret_reference:
       description: "HelmRepository secret reference (secretRef)"
       type: yaml
@@ -118,9 +118,11 @@ deployment:
           - kind: Secret
             name: values-${nr-sub:agent_id}
             valuesKey: default.yaml
-          - kind: Secret
-            name: values-${nr-sub:agent_id}
-            valuesKey: values.yaml
+          # Notice that the order matters, the values.yaml will
+          # override the global.yaml values if they are defined in both files.
           - kind: Secret
             name: values-${nr-sub:agent_id}
             valuesKey: global.yaml
+          - kind: Secret
+            name: values-${nr-sub:agent_id}
+            valuesKey: values.yaml
