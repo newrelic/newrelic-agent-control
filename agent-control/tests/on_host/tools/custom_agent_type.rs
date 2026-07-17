@@ -18,6 +18,25 @@ pub struct OnHostCustomAgentTypeBuilder {
 
 impl Default for OnHostCustomAgentTypeBuilder {
     fn default() -> Self {
+        #[cfg(target_family = "unix")]
+        let executables = r#"
+- id: "trap-term-sleep"
+  path: "sh"
+  args:
+    - tests/on_host/data/sleep_60.sh
+"#;
+        #[cfg(target_family = "windows")]
+        let executables = r#"
+- id: "trap-term-sleep"
+  path: "powershell.exe"
+  args:
+    - -NoProfile
+    - -ExecutionPolicy
+    - Bypass
+    - -File
+    - tests\\on_host\\data\\sleep_60.ps1
+"#;
+
         Self::empty()
             .with_variables(
                 r#"
@@ -28,18 +47,15 @@ fake_variable:
   default: "default"
 "#,
             )
-            .with_executables(Some(&Self::default_executables()))
+            .with_executables(Some(executables))
             .with_health(Some(
-                serde_saphyr::from_str(
-                    r#"
+                r#"
 interval: 60s
 initial_delay: 0s
 timeout: 15s
 checks:
   - kind: Process
 "#,
-                )
-                .unwrap(),
             ))
     }
 }
@@ -95,32 +111,6 @@ impl Display for OnHostCustomAgentTypeBuilder {
 }
 
 impl OnHostCustomAgentTypeBuilder {
-    #[cfg(target_family = "unix")]
-    fn default_executables() -> String {
-        r#"
-- id: "trap-term-sleep"
-  path: "sh"
-  args:
-    - tests/on_host/data/sleep_60.sh
-"#
-        .to_string()
-    }
-
-    #[cfg(target_family = "windows")]
-    fn default_executables() -> String {
-        r#"
-- id: "trap-term-sleep"
-  path: "powershell.exe"
-  args:
-    - -NoProfile
-    - -ExecutionPolicy
-    - Bypass
-    - -File
-    - tests\\on_host\\data\\sleep_60.ps1
-"#
-        .to_string()
-    }
-
     pub fn empty() -> Self {
         Self {
             common: CommonCustomAgentTypeBuilder::new(
