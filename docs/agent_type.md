@@ -414,7 +414,7 @@ deployment:
 Agent Control ships a set of embedded agent types (see
 [`agent-control/agent-type-registry/newrelic/`](../agent-control/agent-type-registry/newrelic)). You can add your own —
 or override an embedded one — by placing the definition YAML in the *dynamic agent types* directory. Custom definitions
-take precedence over embedded ones with the same id.
+take precedence over any other definition with the same id (namespace + name + version).
 
 The current layout expects **a directory** at `/etc/newrelic-agent-control/dynamic-agent-types/` containing one file per
 agent type.
