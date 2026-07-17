@@ -49,7 +49,7 @@ rstest = "0.26.1"
 serial_test = "3.5.0"
 windows = "0.62.2"
 windows-sys = "0.61.2"
-aws-lc-rs = "1.17.1"
+aws-lc-rs = "1.17.3"
 opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.41" }
 oci-client = { version = "0.17.0", default-features = false }
 tokio = "1.53.0"
