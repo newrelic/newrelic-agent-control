@@ -110,7 +110,7 @@ output_file = f'agent-control-{release_date}.mdx'
 
 lines = [
     '---',
-    'subject: Agent control',
+    'subject: Agent Control',
     f"releaseDate: '{release_date}'",
     f'version: {version}',
 ]
