@@ -10,8 +10,8 @@
 #                        together, so no separate partial file is needed).
 #   <VERSION>            Bare version, no `v` prefix (e.g. 1.99.0).
 #
-# Writes `agent-control-<VERSION>.mdx` to the current directory and prints the
-# output path on success.
+# Writes `agent-control-<YYYY-MM-DD>.mdx` (release date) to the current
+# directory and prints the output path on success.
 #
 # Requires: python3.
 
@@ -106,7 +106,7 @@ def yaml_list(items):
     return '[' + ', '.join(escaped) + ']'
 
 
-output_file = f'agent-control-{version}.mdx'
+output_file = f'agent-control-{release_date}.mdx'
 
 lines = [
     '---',
