@@ -18,22 +18,18 @@ pub struct OnHostCustomAgentTypeBuilder {
 
 impl Default for OnHostCustomAgentTypeBuilder {
     fn default() -> Self {
-        Self {
-            common: CommonCustomAgentTypeBuilder::new(Self::default_agent_type_id())
-                .with_variables(
-                    r#"
+        Self::empty()
+            .with_variables(
+                r#"
 fake_variable:
   description: "fake variable to verify remote config"
   type: "string"
   required: false
   default: "default"
 "#,
-                ),
-            executables: Some(Self::default_executables()),
-            filesystem: None,
-            shared_filesystem: None,
-            packages: None,
-            health: Some(
+            )
+            .with_executables(Some(&Self::default_executables()))
+            .with_health(Some(
                 serde_saphyr::from_str(
                     r#"
 interval: 60s
@@ -44,8 +40,7 @@ checks:
 "#,
                 )
                 .unwrap(),
-            ),
-        }
+            ))
     }
 }
 
@@ -100,27 +95,20 @@ impl Display for OnHostCustomAgentTypeBuilder {
 }
 
 impl OnHostCustomAgentTypeBuilder {
-    fn default_agent_type_id() -> AgentTypeID {
-        AgentTypeID::try_from("newrelic/com.newrelic.custom_agent:0.1.0").unwrap()
-    }
-
     #[cfg(target_family = "unix")]
-    fn default_executables() -> serde_json::Value {
-        serde_saphyr::from_str(
-            r#"
+    fn default_executables() -> String {
+        r#"
 - id: "trap-term-sleep"
   path: "sh"
   args:
     - tests/on_host/data/sleep_60.sh
-"#,
-        )
-        .unwrap()
+"#
+        .to_string()
     }
 
     #[cfg(target_family = "windows")]
-    fn default_executables() -> serde_json::Value {
-        serde_saphyr::from_str(
-            r#"
+    fn default_executables() -> String {
+        r#"
 - id: "trap-term-sleep"
   path: "powershell.exe"
   args:
@@ -129,14 +117,15 @@ impl OnHostCustomAgentTypeBuilder {
     - Bypass
     - -File
     - tests\\on_host\\data\\sleep_60.ps1
-"#,
-        )
-        .unwrap()
+"#
+        .to_string()
     }
 
     pub fn empty() -> Self {
         Self {
-            common: CommonCustomAgentTypeBuilder::new(Self::default_agent_type_id()),
+            common: CommonCustomAgentTypeBuilder::new(
+                AgentTypeID::try_from("newrelic/com.newrelic.custom_agent:0.1.0").unwrap(),
+            ),
             executables: None,
             health: None,
             filesystem: None,
