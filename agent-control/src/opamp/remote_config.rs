@@ -145,7 +145,7 @@ pub struct ConfigurationMap(HashMap<ConfigID, String>);
 
 impl ConfigurationMap {
     /// Creates a configuration map from the given key-value pairs.
-    pub fn new(config_map: HashMap<String, String>) -> Self {
+    pub fn new(config_map: HashMap<ConfigID, String>) -> Self {
         Self(config_map)
     }
 }
@@ -226,8 +226,8 @@ mod tests {
     ) {
         let opamp_config = testing_agent_config(config_map);
 
-        let result: HashMap<&String, &String> = opamp_config.agent_configs_iter().collect();
-        let expected: HashMap<String, String> = serde_json::from_value(expected).unwrap();
+        let result: HashMap<&ConfigID, &String> = opamp_config.agent_configs_iter().collect();
+        let expected: HashMap<ConfigID, String> = serde_json::from_value(expected).unwrap();
 
         assert_eq!(result.len(), expected.len());
         for (expected_key, expected_value) in &expected {
