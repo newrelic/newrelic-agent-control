@@ -126,7 +126,17 @@ release_url = (
     f'https://github.com/newrelic/newrelic-super-agent/releases/tag/{version}'
 )
 
+def markdown_section(title, items):
+    if not items:
+        return ''
+    bullets = '\n'.join(f'- {item}' for item in items)
+    return f'## {title}\n\n{bullets}\n\n'
+
+
 content = '\n'.join(lines) + '\n\n'
+content += markdown_section('Features', features)
+content += markdown_section('Fixes', bugs)
+content += markdown_section('Security', security)
 content += (
     'For a detailed description of changes, see the '
     f'[release notes]({release_url}).\n'
