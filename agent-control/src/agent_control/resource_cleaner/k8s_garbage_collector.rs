@@ -187,7 +187,12 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
 }
 
 impl ResourceCleaner for K8sGarbageCollector {
-    fn clean(&self, id: &AgentID, agent_type_id: &AgentTypeID) -> Result<(), ResourceCleanerError> {
+    fn on_agent_removed(
+        &self,
+        id: &AgentID,
+        agent_type_id: &AgentTypeID,
+        _active_agents: &SubAgentsMap,
+    ) -> Result<(), ResourceCleanerError> {
         // Call the collect method to perform garbage collection.
         self.collect(id, agent_type_id)?;
         Ok(())

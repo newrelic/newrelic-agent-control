@@ -14,10 +14,13 @@ use super::config::SubAgentsMap;
 /// for cleaning up sub-agent resources, Kubernetes objects or on-host packages.
 pub trait ResourceCleaner {
     /// Cleans up resources associated with the given agent ID and agent type ID.
-    fn clean(
+    /// `active_agents` is the full set of agents that remain active after this removal; it is
+    /// used to protect shared resources that other agents still declare.
+    fn on_agent_removed(
         &self,
         agent_id: &AgentID,
         agent_type: &AgentTypeID,
+        active_agents: &SubAgentsMap,
     ) -> Result<(), ResourceCleanerError>;
 
     /// Cleans up resources that belonged to the old type but are no longer needed by the new type.
@@ -47,10 +50,11 @@ pub(crate) mod tests {
         pub ResourceCleaner {}
 
         impl ResourceCleaner for ResourceCleaner {
-            fn clean(
+            fn on_agent_removed(
                 &self,
                 agent_id: &AgentID,
                 agent_type: &AgentTypeID,
+                active_agents: &SubAgentsMap,
             ) -> Result<(), ResourceCleanerError>;
 
             fn on_agent_type_changed(

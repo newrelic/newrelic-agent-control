@@ -205,6 +205,7 @@ where
             let paths = self.declared_shared_paths(&definition);
             all_shared_paths.files.extend(paths.files);
             all_shared_paths.managed_dirs.extend(paths.managed_dirs);
+            all_shared_paths.declared_dirs.extend(paths.declared_dirs);
         }
         Ok(all_shared_paths)
     }
@@ -235,33 +236,33 @@ where
         Ok(())
     }
 
-    /// Removes a removed agent's shared paths: its files and whole managed directories. Co-owned
-    /// directories are never declared, so they stay. Errors propagate so a failed cleanup surfaces.
-    fn remove_agent_shared_paths(
+    /// Removes `agent_type`'s shared paths that no agent in `active_agents` still declares: its
+    /// files, whole managed directories, and co-owned directories nobody else references anymore.
+    fn remove_orphaned_shared_paths(
         &self,
         agent_type: &AgentTypeID,
+        active_agents: &SubAgentsMap,
     ) -> Result<(), OnHostCleanerError> {
         let definition = self.get_definition(agent_type)?;
         let declared = self.declared_shared_paths(&definition);
-        for path in declared.files.iter().chain(&declared.managed_dirs) {
-            remove_path(path).map_err(|source| OnHostCleanerError::SharedFilesystem {
-                path: path.clone(),
-                source,
-            })?;
-        }
-        Ok(())
+        let active = self.declared_shared_paths_from_all_agents(active_agents)?;
+        delete_stale_paths(&declared, &active)
+            .map_err(|(path, source)| OnHostCleanerError::SharedFilesystem { path, source })
     }
 
-    /// Deletes shared files no configured agent owns. Directories are not deleted (as can they be co-owned).
+    /// Deletes shared files no configured agent owns, and directories (managed or co-owned) no
+    /// configured agent declares.
     fn reconcile_shared_filesystem(&self, configured: &SubAgentsMap) {
         let mut expected_files = HashSet::new();
-        let mut owned_managed_dirs = HashSet::new();
+        let mut managed_dirs = HashSet::new();
+        let mut declared_dirs = HashSet::new();
         for agent_config in configured.values() {
             match self.get_definition(&agent_config.agent_type) {
                 Ok(definition) => {
                     let declared = self.declared_shared_paths(&definition);
                     expected_files.extend(declared.files);
-                    owned_managed_dirs.extend(declared.managed_dirs);
+                    managed_dirs.extend(declared.managed_dirs);
+                    declared_dirs.extend(declared.declared_dirs);
                 }
                 Err(err) => {
                     warn!(
@@ -276,7 +277,8 @@ where
         if let Err(err) = reconcile_shared_dir(
             &self.shared_filesystem_base,
             &expected_files,
-            &owned_managed_dirs,
+            &managed_dirs,
+            &declared_dirs,
         ) {
             warn!(?err, base = ?self.shared_filesystem_base, "shared filesystem reconcile failed");
         }
@@ -293,6 +295,7 @@ fn delete_stale_paths(
         .files
         .difference(&new.files)
         .chain(old.managed_dirs.difference(&new.managed_dirs))
+        .chain(old.declared_dirs.difference(&new.declared_dirs))
     {
         remove_path(path).map_err(|e| (path.clone(), e))?;
     }
@@ -311,12 +314,17 @@ fn remove_path(path: &Path) -> io::Result<()> {
     }
 }
 
-/// Recursively deletes files under `dir` not in `expected_files`, keeping all directories. A dir in
-/// `owned_managed_dirs` is kept whole (not descended into).
+/// Recursively deletes files under `dir` not in `expected_files`. For a subdirectory found along
+/// the way:
+/// - in `managed_dirs`: kept whole, not descended into.
+/// - in `declared_dirs` (but not `managed_dirs`): kept, and recursed into to prune stray
+///   contents.
+/// - in neither (no configured agent declares it): removed wholesale, not descended into.
 fn reconcile_shared_dir(
     dir: &Path,
     expected_files: &HashSet<PathBuf>,
-    owned_managed_dirs: &HashSet<PathBuf>,
+    managed_dirs: &HashSet<PathBuf>,
+    declared_dirs: &HashSet<PathBuf>,
 ) -> io::Result<()> {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
@@ -327,10 +335,14 @@ fn reconcile_shared_dir(
     for entry in entries {
         let path = entry?.path();
         if path.is_dir() {
-            if owned_managed_dirs.contains(&path) {
+            if managed_dirs.contains(&path) {
                 continue;
             }
-            reconcile_shared_dir(&path, expected_files, owned_managed_dirs)?;
+            if declared_dirs.contains(&path) {
+                reconcile_shared_dir(&path, expected_files, managed_dirs, declared_dirs)?;
+            } else {
+                remove_path(&path)?;
+            }
         } else if !expected_files.contains(&path) {
             remove_path(&path)?;
         }
@@ -347,16 +359,17 @@ where
     R: AgentTypeRegistry,
 {
     #[instrument(skip_all, name = "agent_resource_clean", fields(%agent_id))]
-    fn clean(
+    fn on_agent_removed(
         &self,
         agent_id: &AgentID,
         agent_type: &AgentTypeID,
+        active_agents: &SubAgentsMap,
     ) -> Result<(), ResourceCleanerError> {
         if agent_id == &AgentID::AgentControl {
             return Err(OnHostCleanerError::AgentControlId.into());
         }
         self.remove_agent_resources(agent_id)?;
-        self.remove_agent_shared_paths(agent_type)?;
+        self.remove_orphaned_shared_paths(agent_type, active_agents)?;
         Ok(())
     }
 
@@ -633,7 +646,11 @@ mod tests {
             MockAgentPackagesRemover::new().removing(&[id.as_str()]),
         );
 
-        assert!(cleaner.clean(&id, &any_type_id()).is_ok());
+        assert!(
+            cleaner
+                .on_agent_removed(&id, &any_type_id(), &configured(&[]))
+                .is_ok()
+        );
     }
 
     /// When the directory manager's `delete` fails, `clean` propagates the error rather than
@@ -660,7 +677,9 @@ mod tests {
             MockAgentPackagesRemover::new().removing(&[]),
         );
 
-        let err = cleaner.clean(&id, &any_type_id()).unwrap_err();
+        let err = cleaner
+            .on_agent_removed(&id, &any_type_id(), &configured(&[]))
+            .unwrap_err();
         assert!(err.0.contains("agent filesystem directory"));
     }
 
@@ -690,7 +709,9 @@ mod tests {
             package_remover,
         );
 
-        let err = cleaner.clean(&id, &any_type_id()).unwrap_err();
+        let err = cleaner
+            .on_agent_removed(&id, &any_type_id(), &configured(&[]))
+            .unwrap_err();
         assert!(err.0.contains("failed to remove agent packages"));
     }
 
@@ -712,7 +733,8 @@ mod tests {
             package_remover,
         );
 
-        let result = cleaner.clean(&AgentID::AgentControl, &any_type_id());
+        let result =
+            cleaner.on_agent_removed(&AgentID::AgentControl, &any_type_id(), &configured(&[]));
 
         assert!(result.is_err());
     }
@@ -862,8 +884,11 @@ mod tests {
         .purge_stale_agents([]);
     }
 
+    /// A removed agent's own file and whole managed directory are deleted, and the co-owned
+    /// drop-zone directory they shared with another agent is kept because that agent is still
+    /// active and still declares it.
     #[test]
-    fn remove_agent_shared_paths_deletes_owned_and_keeps_co_owned() {
+    fn remove_orphaned_shared_paths_keeps_dir_still_owned_by_active_agent() {
         let tmp = tempfile::TempDir::new().unwrap();
         let shared = tmp.path().to_path_buf();
         std::fs::create_dir_all(shared.join("ohi-configs")).unwrap();
@@ -880,28 +905,77 @@ mod tests {
             "additional-files": { "kind": "dir_content_from_map", "source": "${nr-var:ohi_additional_files}" },
         }));
         let type_id = AgentTypeID::try_from("test/ohi:0.0.1").unwrap();
+        // The other agent independently declares the same co-owned drop-zone directory.
+        let other_definition = host_type_with_shared(serde_json::json!({
+            "ohi-configs": {
+                "kind": "dir",
+                "entries": { "nri-other.yaml": { "kind": "file", "text": "other" } },
+            },
+        }));
+        let other_type_id = AgentTypeID::try_from("test/other:0.0.1").unwrap();
+
         let mut registry = MockAgentTypeRegistry::new();
         registry.should_get(type_id.clone(), &definition);
+        registry.should_get(other_type_id.clone(), &other_definition);
 
         shared_cleaner(registry, shared.clone())
-            .remove_agent_shared_paths(&type_id)
+            .remove_orphaned_shared_paths(
+                &type_id,
+                &configured(&[("other-agent", "test/other:0.0.1")]),
+            )
             .expect("shared path removal should succeed");
 
         assert!(
             !shared.join("ohi-configs").join("nri-redis.yaml").exists(),
-            "the agent's own file must be removed"
+            "the removed agent's own file must be deleted"
         );
         assert!(
             !shared.join("additional-files").exists(),
-            "the agent's whole managed directory must be removed"
+            "the removed agent's whole managed directory must be deleted"
         );
         assert!(
             shared.join("ohi-configs").is_dir(),
-            "the co-owned drop-zone directory must be kept"
+            "the co-owned directory must be kept: another active agent still declares it"
         );
         assert!(
             shared.join("ohi-configs").join("nri-other.yaml").exists(),
-            "another agent's sibling file must be kept"
+            "the other active agent's sibling file must be kept"
+        );
+    }
+
+    /// A removed agent's co-owned drop-zone directory is deleted wholesale once no active agent
+    /// declares it anymore.
+    #[test]
+    fn remove_orphaned_shared_paths_removes_dir_no_active_agent_declares_anymore() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let shared = tmp.path().to_path_buf();
+        std::fs::create_dir_all(shared.join("ohi-configs")).unwrap();
+        std::fs::write(shared.join("ohi-configs").join("nri-redis.yaml"), "redis").unwrap();
+        std::fs::create_dir_all(shared.join("additional-files")).unwrap();
+        std::fs::write(shared.join("additional-files").join("app.log"), "log").unwrap();
+
+        let definition = host_type_with_shared(serde_json::json!({
+            "ohi-configs": {
+                "kind": "dir",
+                "entries": { "nri-redis.yaml": { "kind": "file", "text": "redis" } },
+            },
+            "additional-files": { "kind": "dir_content_from_map", "source": "${nr-var:ohi_additional_files}" },
+        }));
+        let type_id = AgentTypeID::try_from("test/ohi:0.0.1").unwrap();
+        let mut registry = MockAgentTypeRegistry::new();
+        registry.should_get(type_id.clone(), &definition);
+
+        shared_cleaner(registry, shared.clone())
+            .remove_orphaned_shared_paths(&type_id, &configured(&[]))
+            .expect("shared path removal should succeed");
+
+        assert!(
+            !shared.join("ohi-configs").exists(),
+            "the co-owned directory must be removed: no active agent declares it anymore"
+        );
+        assert!(
+            !shared.join("additional-files").exists(),
+            "the removed agent's whole managed directory must be deleted"
         );
     }
 
@@ -950,7 +1024,27 @@ mod tests {
         );
         assert!(
             shared.join("ohi-configs").is_dir(),
-            "co-owned directories must never be deleted"
+            "a co-owned directory a configured agent still declares must be kept"
+        );
+    }
+
+    /// A leftover directory no configured agent declares anymore is removed wholesale, not just
+    /// emptied of its stray contents.
+    #[test]
+    fn reconcile_shared_dir_removes_directory_no_configured_agent_declares() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let shared = tmp.path().to_path_buf();
+        std::fs::create_dir_all(shared.join("stale-configs")).unwrap();
+        std::fs::write(shared.join("stale-configs").join("leftover.yaml"), "old").unwrap();
+
+        // No configured agent declares anything, so the registry is never consulted.
+        let registry = MockAgentTypeRegistry::new();
+
+        shared_cleaner(registry, shared.clone()).reconcile_shared_filesystem(&configured(&[]));
+
+        assert!(
+            !shared.join("stale-configs").exists(),
+            "a directory no configured agent declares must be removed wholesale"
         );
     }
 
@@ -1014,9 +1108,47 @@ mod tests {
         );
     }
 
+    /// On a type bump, a `kind: dir` node the old type declared but the new type drops is removed
+    /// as a directory, not just emptied of its child file.
+    #[test]
+    fn on_type_change_removes_dir_absent_in_new_type() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let fs_base = tmp.path().to_path_buf();
+        let agent = agent_id("my-agent");
+        let agent_dir = fs_base.join(agent.as_str());
+        std::fs::create_dir_all(agent_dir.join("extra")).unwrap();
+        std::fs::write(agent_dir.join("extra").join("a.yaml"), "a").unwrap();
+
+        let old_type_id = AgentTypeID::try_from("test/oldagent:0.0.1").unwrap();
+        let new_type_id = AgentTypeID::try_from("test/newagent:0.0.2").unwrap();
+
+        let old_definition = host_type_with_filesystem(serde_json::json!({
+            "extra": {
+                "kind": "dir",
+                "entries": { "a.yaml": { "kind": "file", "text": "a" } },
+            },
+        }));
+        let new_definition = host_type_with_filesystem(serde_json::json!({}));
+
+        let mut registry = MockAgentTypeRegistry::new();
+        registry.should_get(old_type_id.clone(), &old_definition);
+        registry.should_get(new_type_id.clone(), &new_definition);
+        registry.should_get(new_type_id.clone(), &new_definition);
+
+        let active = configured(&[(agent.as_str(), "test/newagent:0.0.2")]);
+        agent_filesystem_cleaner(registry, fs_base.clone())
+            .reconcile_filesystems_on_type_change(&agent, &old_type_id, &new_type_id, &active)
+            .expect("reconcile must succeed");
+
+        assert!(
+            !agent_dir.join("extra").exists(),
+            "a dir node absent in the new type must be removed, not just emptied"
+        );
+    }
+
     /// On a type bump, shared paths absent from the new type are deleted. Paths declared in both
-    /// types are kept. Managed dirs absent in the new type are removed. Co-owned directories are
-    /// never deleted.
+    /// types are kept. Managed dirs absent in the new type are removed. A co-owned directory the
+    /// new type still declares is kept.
     #[test]
     fn on_type_change_removes_shared_paths_absent_in_new_type() {
         let tmp = tempfile::TempDir::new().unwrap();
@@ -1085,7 +1217,48 @@ mod tests {
         );
         assert!(
             shared.join("ohi-configs").is_dir(),
-            "co-owned directory must never be deleted"
+            "a co-owned directory still declared by the new type must be kept"
+        );
+    }
+
+    /// On a type bump, a `kind: dir` node the old type declared but the new type drops is removed
+    /// wholesale, as long as no other active agent declares it either.
+    #[test]
+    fn on_type_change_removes_shared_dir_no_active_agent_declares() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let shared = tmp.path().to_path_buf();
+
+        std::fs::create_dir_all(shared.join("old-configs")).unwrap();
+        std::fs::write(shared.join("old-configs").join("a.yaml"), "a").unwrap();
+
+        let old_type_id = AgentTypeID::try_from("test/oldagent:0.0.1").unwrap();
+        let new_type_id = AgentTypeID::try_from("test/newagent:0.0.2").unwrap();
+
+        let old_definition = host_type_with_shared(serde_json::json!({
+            "old-configs": {
+                "kind": "dir",
+                "entries": { "a.yaml": { "kind": "file", "text": "a" } },
+            },
+        }));
+        let new_definition = host_type_with_shared(serde_json::json!({}));
+
+        let mut registry = MockAgentTypeRegistry::new();
+        registry.should_get(old_type_id.clone(), &old_definition);
+        registry.should_get(new_type_id.clone(), &new_definition);
+        registry.should_get(new_type_id.clone(), &new_definition);
+
+        shared_cleaner(registry, shared.clone())
+            .reconcile_filesystems_on_type_change(
+                &agent_id("test-agent"),
+                &old_type_id,
+                &new_type_id,
+                &configured(&[("test-agent", "test/newagent:0.0.2")]),
+            )
+            .expect("reconcile must succeed");
+
+        assert!(
+            !shared.join("old-configs").exists(),
+            "a dir node no active agent declares anymore must be removed, not just emptied"
         );
     }
 
