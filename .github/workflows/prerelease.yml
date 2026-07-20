@@ -157,7 +157,7 @@ jobs:
 
   onhost-e2e:
     needs: [ third-party-notices-check ]
-    uses: component_onhost_e2e.yml
+    uses: ./.github/workflows/component_onhost_e2e.yml
     with:
       caller_workflow: prerelease
     secrets:

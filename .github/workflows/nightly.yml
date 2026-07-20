@@ -116,7 +116,7 @@ jobs:
           apt_skip_mirror: true
 
   onhost-e2e:
-    uses: component_onhost_e2e.yml
+    uses: ./.github/workflows/component_onhost_e2e.yml
     with:
       caller_workflow: nightly
     secrets:
