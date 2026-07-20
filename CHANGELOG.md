@@ -14,11 +14,9 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
-### bugfix
-- Added identifying attributes for each package specified in the agentType as `package.version.<id>`.
-- RPM packages now restore `local_config.yaml` from the `.rpmsave` backup left by a prior uninstall.
+## v1.19.0 - 2026-07-20
 
-### enhancement
+### 🚀 Enhancements
 - On-host and Kubernetes: when an agent's type is bumped via a live remote config update, Agent Control now reconciles both per-agent and shared filesystems, deleting paths declared by the old type that no longer appear in any active agent's declarations. Co-owned shared paths still claimed by another active agent are preserved. On Kubernetes, k8s objects annotated with the old type are garbage-collected while new-type resources are left intact.
 - Adds `oci-utils` CLI to `test/crates/oci-test-utils` for pushing agent packages and agent type definitions to OCI registries from the command line (dev/test tooling; not published).
 - On-host agent-type parsing now validates `reported_version_package`: it must reference a declared package, and is required when more than one package is defined. Invalid configurations are rejected at parse time with a descriptive error. This `reported_version_package` will be used to know which version to report as `agent.version`.
@@ -28,6 +26,27 @@ Remember that the keywords that you can use are the following:
 - On-host: added support for nri-redis agentType for both Linux and Windows.
 - On-host health config: replaced the flat `health.http:` / `health.file:` fields with an explicit `checks:` list. Each entry is discriminated by `kind:` (`Process`, `Http`, or `File`). The previously implicit supervised-process health check is now declared as `kind: Process`. An omitted or empty `checks:` list disables health reporting entirely.
 - On-host filesystem entries (`file`/`dir`) now always survive sub-agent stop, restart, and config-apply. A stray `persistent:` key in existing agent-type YAML is ignored rather than rejected.
+
+### 🐞 Bug fixes
+- Added identifying attributes for each package specified in the agentType as `package.version.<id>`.
+- RPM packages now restore `local_config.yaml` from the `.rpmsave` backup left by a prior uninstall.
+
+### ⛓️ Dependencies
+- Updated rust crate bytes to 1.12.1
+- Updated rust crate regex to 1.13.1
+- Updated rust to v1.97.1
+- Updated alpine/helm to v4.2.3
+- Updated rust crate toml to 1.1.3
+- Updated rust crate syn to v3
+- Updated rust crate clap to 4.6.2
+- Updated rust crate tokio to 1.53.0
+- Updated rust crate aws-lc-rs to 1.17.3
+- Updated rust crate thiserror to 2.0.19
+- Updated rust crate serde to 1.0.229
+- Updated rust crate async-trait to 0.1.91
+- Updated rust crate futures to 0.3.33
+- Updated rust crate quote to 1.0.47
+- Updated rust crate serde_json to 1.0.151
 
 ## v1.18.0 - 2026-07-06
 
