@@ -25,9 +25,9 @@ Remember that the keywords that you can use are the following:
 - Add support for `copy_from_file` for on-host "in-agent" filesystem.
 - Add support for `shared_filesystem` in on-host agent types. It includes a single-owner rule: two agents claiming the same path in the shared-filesystem are invalid and reported as Failed.
 - On-host self-update: skip sub-agent reconciliation when a self-update is in progress. When a single remote config both bumps the Agent Control version and changes a sub-agent's `agent_type`, the changed sub-agent is no longer recreated moments before the process restarts; the new config is stored and re-applied cleanly by the restarted process, avoiding a redundant sub-agent restart and telemetry gap.
+- On-host: added support for nri-redis agentType for both Linux and Windows.
 - On-host health config: replaced the flat `health.http:` / `health.file:` fields with an explicit `checks:` list. Each entry is discriminated by `kind:` (`Process`, `Http`, or `File`). The previously implicit supervised-process health check is now declared as `kind: Process`. An omitted or empty `checks:` list disables health reporting entirely.
 - On-host filesystem entries (`file`/`dir`) now always survive sub-agent stop, restart, and config-apply. A stray `persistent:` key in existing agent-type YAML is ignored rather than rejected.
-- On-host: added support for nri-redis for testing purposes
 
 ## v1.18.0 - 2026-07-06
 

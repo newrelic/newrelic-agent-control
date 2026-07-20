@@ -10,7 +10,7 @@ variables:
     type: yaml
     required: true
   version:
-    description: "OCI package version for nri-redis"
+    description: "Agent version"
     type: string
     required: true
   oci:
@@ -18,10 +18,10 @@ variables:
       description: "OCI repository name for nri-redis"
       type: string
       required: false
-      default: newrelic/newrelic-agent-control-redis-dev
+      default: newrelic/nrdot-agent-artifacts
       variants:
         ac_config_field: "oci_repository_urls"
-        values: [ "newrelic/newrelic-agent-control-redis-dev" ]
+        values: [ "newrelic/nrdot-agent-artifacts" ]
 deployment:
   packages:
     nri-redis:

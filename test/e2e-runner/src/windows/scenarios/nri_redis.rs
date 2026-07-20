@@ -19,9 +19,13 @@ const DEV_OCI_REGISTRY: &str = "ghcr.io";
 const DEV_INFRA_AGENT_REPO: &str = "newrelic/newrelic-agent-control-infrastructure-dev";
 const DEV_INFRA_AGENT_VERSION: &str = "v1.78.0";
 const DEV_NRI_REDIS_REPO: &str = "newrelic/newrelic-agent-control-redis-dev";
-const DEV_NRI_REDIS_VERSION: &str = "0.0.1";
 
 pub fn test_nri_redis(args: InstallationArgs) {
+    let redis_version = args
+        .redis_version
+        .clone()
+        .expect("--redis-version is required for this scenario");
+
     let test_id = format!(
         "onhost-e2e-nri-redis_{}",
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f"),
@@ -89,7 +93,9 @@ config_integration:
       interval: 15s
       labels:
         host.id: {test_id}
-version: {DEV_NRI_REDIS_VERSION}
+version: {redis_version}
+oci:
+  repository: {DEV_NRI_REDIS_REPO}
 "#
         ),
     );

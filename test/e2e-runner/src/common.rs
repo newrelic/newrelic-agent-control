@@ -90,6 +90,10 @@ pub struct InstallationArgs {
     /// Version of the NRDot OCI image to use in tests
     #[arg(long)]
     pub nrdot_version: Option<String>,
+
+    /// Version of the Redis OCI image to use in tests
+    #[arg(long)]
+    pub redis_version: Option<String>,
 }
 
 /// Arguments for Fleet Control scenarios that also install Agent Control

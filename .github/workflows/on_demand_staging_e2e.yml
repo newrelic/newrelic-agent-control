@@ -13,6 +13,7 @@ permissions:
 env:
   HOST_E2E_INFRA_AGENT_VERSION: "1.78.0"
   HOST_E2E_NRDOT_VERSION: "1.21.0"
+  HOST_E2E_REDIS_VERSION: "0.0.1"
 
 jobs:
   build-packages:
@@ -64,7 +65,8 @@ jobs:
             --agent-control-version "0.600.${{ github.run_id }}" \
             --recipes-repo-branch "main" \
             --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" \
-            --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}"
+            --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}" \
+            --redis-version "${{ env.HOST_E2E_REDIS_VERSION }}"
 
       - name: Report test result to New Relic
         if: always()
