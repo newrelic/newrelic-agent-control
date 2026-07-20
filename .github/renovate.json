@@ -58,7 +58,7 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^\\.github/workflows/.*\\.yaml$/"
+        "/^\\.github/workflows/.*\\.yml$/"
       ],
       "depNameTemplate": "newrelic/infrastructure-agent-artifacts",
       "packageNameTemplate": "newrelic/infrastructure-agent-artifacts",
@@ -70,7 +70,7 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^\\.github/workflows/.*\\.yaml$/"
+        "/^\\.github/workflows/.*\\.yml$/"
       ],
       "depNameTemplate": "newrelic/nrdot-agent-artifacts",
       "packageNameTemplate": "newrelic/nrdot-agent-artifacts",
