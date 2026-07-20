@@ -82,41 +82,13 @@ jobs:
           username: ${{ secrets.OHAI_DOCKER_HUB_ID }}
           password: ${{ secrets.OHAI_DOCKER_HUB_PASSWORD }}
 
-      - name: Build and push images
-        if: ${{ inputs.push }}
+      - name: Build images (push=${{ inputs.push }})
         run: |
-          docker buildx build \
-            --push \
-            --platform=$DOCKER_PLATFORMS \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ inputs.image-tag }} \
-            --file Dockerfiles/Dockerfile_agent_control \
-            --attest type=provenance,mode=max \
-            --attest type=sbom \
-            .
-          docker buildx build \
-            --push \
-            --platform=$DOCKER_PLATFORMS \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ inputs.image-tag }} \
-            --file Dockerfiles/Dockerfile_agent_control_cli \
-            --attest type=provenance,mode=max \
-            --attest type=sbom \
-            .
-
-      - name: Build images
-        if: ${{ ! inputs.push }}
-        run: |
-          docker buildx build \
-            --platform=$DOCKER_PLATFORMS \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ inputs.image-tag }} \
-            --file Dockerfiles/Dockerfile_agent_control \
-            --attest type=provenance,mode=max \
-            --attest type=sbom \
-            .
-          
-          docker buildx build \
-            --platform=$DOCKER_PLATFORMS \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ inputs.image-tag }} \
-            --file Dockerfiles/Dockerfile_agent_control_cli \
-            --attest type=provenance,mode=max \
-            --attest type=sbom \
-            .
+          make image/agent-control image/agent-control-cli \
+            DOCKER_PLATFORMS=$DOCKER_PLATFORMS \
+            IMAGE_TAG=${{ inputs.image-tag }} \
+            PUSH=${{ inputs.push }} \
+            LOAD=false \
+            ATTEST=true \
+            DOCKER_IMAGE_NAME_AGENT_CONTROL=$DOCKER_IMAGE_NAME_AGENT_CONTROL \
+            DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI=$DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI
