@@ -68,36 +68,28 @@ deployment:
     logging.d:
       kind: dir_content_from_map
       source: ${nr-var:config_logging}
-    # Agent data root (NRIA_AGENT_DIR). Persistent so the agent's stored data survives restarts
+    # Agent data root (NRIA_AGENT_DIR).
     newrelic-infra:
       kind: dir
-      persistent: true
       entries:
-        # NRIA_AGENT_TEMP_DIR: fluent-bit scratch that the agent does not clean up. Declared
-        # ephemeral so AC reclaims it on every (re)start instead of letting it grow unbounded.
         tmp:
           kind: dir
-        # Logging integration directory expected by fluentBit; persistent (like its parent) so any
-        # state it holds survives restarts.
+        # Logging integration directory expected by fluentBit.
         newrelic-integrations:
           kind: dir
-          persistent: true
           entries:
             logging:
               kind: dir
-              persistent: true
   shared_filesystem:
     # OHIs config folders.
     # infra-agent is configured through NRIA_PLUGIN_DIR, to read configs from this folder.
     infra-agent-ohi-configs:
       kind: dir
-      persistent: true
     # OHIs binaries folder.
     # infra-agent is configured through NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR and NRIA_SAFE_BIN_DIR,
     # to read binaries from this folder.
     infra-agent-ohi-binaries:
       kind: dir
-      persistent: true
       entries:
         nri-flex.exe:
           kind: file

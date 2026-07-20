@@ -202,22 +202,13 @@ where
             onhost_config.shared_filesystem,
         );
 
-        // No explicit file deletion is needed on apply: spin_up re-renders the filesystem. Its
-        // `delete_ephemeral` freshens ephemeral state before `write` materializes the declared tree.
         let new_started_supervisor = starter.spin_up(internal_publisher)?;
 
         Ok(new_started_supervisor)
     }
 
     fn stop(self) -> Result<(), ThreadContextStopperError> {
-        let stop_result = stop_supervisor_threads(self.thread_contexts);
-        if let Err(err) = self
-            .filesystem
-            .delete_ephemeral(&LocalFile, &DirectoryManagerFs)
-        {
-            warn!(?err, "filesystem ephemeral cleanup failed on stop");
-        }
-        stop_result
+        stop_supervisor_threads(self.thread_contexts)
     }
 }
 
@@ -347,15 +338,7 @@ where
     ) -> Result<StartedSupervisorOnHost<PM>, SupervisorError> {
         let (health_publisher, health_consumer) = pub_sub();
 
-        // Ensure all ephemeral entries are removed before start in case it didn't work on stop.
-        if let Err(err) = self
-            .filesystem
-            .delete_ephemeral(&LocalFile, &DirectoryManagerFs)
-        {
-            warn!(?err, "filesystem: ephemeral cleanup failed on start");
-        }
-
-        // Ensure all non-declared files and dirs not on a declared persistent dir are deleted.
+        // Ensure all top-level non-declared files and dirs are deleted.
         if let Err(err) = self
             .filesystem
             .delete_not_declared(&LocalFile, &DirectoryManagerFs)
@@ -928,81 +911,14 @@ pub mod tests {
     }
 
     #[test]
-    fn test_stop_runs_filesystem_delete_ephemeral() {
+    fn test_start_deletes_undeclared_entries() {
         let tmp_dir = tempfile::TempDir::new().unwrap();
         let yaml = r#"
-ephemeral.txt:
+declared.txt:
   kind: file
-  text: e
-persistent.txt:
-  kind: file
-  text: p
-  persistent: true
-"#;
-        let variables = Variables::from_iter(vec![(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
-            Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
-        )]);
-        let filesystem = serde_saphyr::from_str::<ParsedFileSystem>(yaml)
-            .unwrap()
-            .template_with(&variables)
-            .unwrap();
-
-        let agent_identity = AgentIdentity::from((
-            "stop-test-agent".to_owned().try_into().unwrap(),
-            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
-        ));
-
-        let supervisor = NotStartedSupervisorOnHost::new(
-            agent_identity,
-            vec![],
-            None,
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            false,
-            PathBuf::default(),
-            filesystem,
-            SharedFileSystem::test_empty(),
-        );
-
-        let (publisher, _consumer) = pub_sub();
-        let started = supervisor.start(publisher).expect("start");
-
-        let ephemeral_path = tmp_dir.path().join("ephemeral.txt");
-        let persistent_path = tmp_dir.path().join("persistent.txt");
-        assert!(
-            ephemeral_path.exists(),
-            "spin_up should have written ephemeral.txt"
-        );
-        assert!(
-            persistent_path.exists(),
-            "spin_up should have written persistent.txt"
-        );
-
-        let stop_result = started.stop();
-        assert!(stop_result.is_ok(), "stop should succeed: {stop_result:?}");
-
-        assert!(
-            !ephemeral_path.exists(),
-            "stop should have removed the ephemeral file"
-        );
-        assert!(
-            persistent_path.exists(),
-            "stop should have left the persistent file alone"
-        );
-    }
-
-    #[test]
-    fn test_start_resets_ephemeral_entries_before_write() {
-        let tmp_dir = tempfile::TempDir::new().unwrap();
-        let yaml = r#"
-ephemeral-dir:
+  text: d
+declared-dir:
   kind: dir
-persistent.txt:
-  kind: file
-  text: p
-  persistent: true
 "#;
         let variables = Variables::from_iter(vec![(
             Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
@@ -1013,12 +929,19 @@ persistent.txt:
             .template_with(&variables)
             .unwrap();
 
-        // Simulate leftover state from an ungraceful previous run (stop-time cleanup skipped):
-        // an agent-created file inside the ephemeral dir.
-        let stale_file = tmp_dir.path().join("ephemeral-dir").join("stale.txt");
-        fs::create_dir_all(stale_file.parent().unwrap()).unwrap();
-        fs::write(&stale_file, "stale").unwrap();
-        assert!(stale_file.exists());
+        // Simulate a leftover file from a previous agent-type version that no longer declares it.
+        let undeclared_path = tmp_dir.path().join("undeclared.txt");
+        fs::write(&undeclared_path, "stale").unwrap();
+
+        // Content nested inside a declared dir is never pruned, no matter how deep, since
+        // delete_not_declared only reclaims top-level undeclared paths.
+        let nested_path = tmp_dir
+            .path()
+            .join("declared-dir")
+            .join("some-sub-dir")
+            .join("some-file.txt");
+        fs::create_dir_all(nested_path.parent().unwrap()).unwrap();
+        fs::write(&nested_path, "nested").unwrap();
 
         let agent_identity = AgentIdentity::from((
             "start-test-agent".to_owned().try_into().unwrap(),
@@ -1040,14 +963,18 @@ persistent.txt:
         let (publisher, _consumer) = pub_sub();
         let started = supervisor.start(publisher).expect("start");
 
-        // The ephemeral dir is wiped before the write, so leftover content is gone; the dir itself
-        // is re-created by the write, and the persistent entry is present.
         assert!(
-            !stale_file.exists(),
-            "startup should have removed stale content from the ephemeral dir"
+            !undeclared_path.exists(),
+            "start should have removed the undeclared top-level file"
         );
-        assert!(tmp_dir.path().join("ephemeral-dir").is_dir());
-        assert!(tmp_dir.path().join("persistent.txt").exists());
+        assert!(
+            tmp_dir.path().join("declared.txt").exists(),
+            "start should have written the declared file"
+        );
+        assert!(
+            nested_path.exists(),
+            "content nested inside a declared dir must survive, declared or not"
+        );
 
         let _ = started.stop();
     }

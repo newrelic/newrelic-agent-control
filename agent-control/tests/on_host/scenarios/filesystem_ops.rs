@@ -316,35 +316,26 @@ deployment:
   filesystem:
     config:
       kind: dir
-      persistent: true
       entries:
         newrelic-infra.yaml:
           kind: file
-          persistent: true
           text: |-
             ${{nr-var:config_agent}}
     logging.d:
       kind: dir
-      persistent: true
       entries:
         logging.yaml:
           kind: file
-          persistent: true
           text: |-
             ${{nr-var:config_logging}}
-    # This directory needs to persist across restarts for the infra agent. Every level down to
-    # the leaf must be persistent: an ephemeral ancestor is wiped (with its whole subtree) on stop.
     newrelic-infra:
       kind: dir
-      persistent: true
       entries:
         newrelic-integrations:
           kind: dir
-          persistent: true
           entries:
             logging:
               kind: dir
-              persistent: true
 "#,
         ),
         dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -480,84 +471,4 @@ fn read_file_and_expect_content(
             e
         )),
     }
-}
-
-#[test]
-fn ephemeral_entries_wiped_on_stop() {
-    let opamp_server = FakeServer::start(tokio_runtime().handle());
-
-    let dirs = TempBasePaths::default();
-
-    let agent_id = "ephemeral-agent";
-
-    create_file(
-        format!(
-            r#"
-namespace: test
-name: ephemeral
-version: 0.0.0
-platform: host
-operating_system: {AGENT_CONTROL_MODE_ON_HOST}
-protocol_version: "1.0"
-variables: {{}}
-deployment:
-  filesystem:
-    ephemeral.txt:
-      kind: file
-      text: "ephemeral content"
-    persistent.txt:
-      kind: file
-      persistent: true
-      text: "persistent content"
-"#,
-        ),
-        dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
-    );
-
-    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(format!(
-            "\n  {agent_id}:\n    agent_type: \"test/ephemeral:0.0.0\"\n"
-        ))
-        .write(dirs.local_dir());
-    create_local_config(
-        agent_id.to_string(),
-        NO_CONFIG.to_string(),
-        dirs.local_dir(),
-    );
-
-    let base_paths = dirs.base_paths();
-
-    let ephemeral_path = base_paths
-        .remote_dir
-        .join(AGENT_FILESYSTEM_FOLDER_NAME)
-        .join(agent_id)
-        .join("ephemeral.txt");
-    let persistent_path = base_paths
-        .remote_dir
-        .join(AGENT_FILESYSTEM_FOLDER_NAME)
-        .join(agent_id)
-        .join("persistent.txt");
-
-    {
-        let _agent_control =
-            start_agent_control_with_custom_config(base_paths.clone(), AGENT_CONTROL_MODE_ON_HOST);
-
-        retry(30, Duration::from_secs(1), || {
-            read_file_and_expect_content(&ephemeral_path, "ephemeral content")?;
-            read_file_and_expect_content(&persistent_path, "persistent content")?;
-            Ok(())
-        });
-    }
-    // After AC drops the supervisor calls delete_ephemeral.
-    retry(30, Duration::from_secs(1), || {
-        if ephemeral_path.exists() {
-            return Err(format!("ephemeral file still on disk: {ephemeral_path:?}").into());
-        }
-        if !persistent_path.exists() {
-            return Err(
-                format!("persistent file should still be present: {persistent_path:?}").into(),
-            );
-        }
-        Ok(())
-    });
 }

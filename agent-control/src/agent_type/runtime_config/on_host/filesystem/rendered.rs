@@ -2,10 +2,10 @@
 use fs::file::copier::FileCopier;
 use fs::file::deleter::FileDeleter;
 use fs::{directory_manager::DirectoryManager, file::writer::FileWriter};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use tracing::{trace, warn};
+use tracing::trace;
 
 /// Rendered filesystem tree, ready to be materialized on disk.
 ///
@@ -33,15 +33,11 @@ pub enum RenderedEntry {
     File {
         /// Where the file's bytes come from.
         content: FileContent,
-        /// The persistency attribute marking its lifecycle.
-        persistent: bool,
     },
     /// A directory containing child entries keyed by their relative path.
     Dir {
         /// The dictionary containing each children path and the entry.
         children: HashMap<PathBuf, RenderedEntry>,
-        /// The persistency attribute marking its lifecycle.
-        persistent: bool,
     },
     /// A directory whose files were projected from a map (filename to content).
     DirContentFromMap {
@@ -51,15 +47,6 @@ pub enum RenderedEntry {
 }
 
 impl RenderedEntry {
-    fn persistent(&self) -> bool {
-        match self {
-            Self::File { persistent, .. } | Self::Dir { persistent, .. } => *persistent,
-            // `dir_content_from_map` has no persistent flag: Agent Control re-renders its
-            // projected files on every write, so it is always treated as ephemeral.
-            Self::DirContentFromMap { .. } => false,
-        }
-    }
-
     /// Materializes this entry (and its subtree) on disk at `path`. `file_ops` provides both the
     /// write and copy capabilities (a single type, [`LocalFile`], implements both in production).
     fn write(
@@ -96,38 +83,6 @@ impl RenderedEntry {
             }
         }
     }
-
-    /// Deletes this entry's on-disk path if it is ephemeral. A persistent directory is kept, but
-    /// the walk recurses so ephemeral descendants are still cleaned; an ephemeral ancestor is
-    /// removed recursively, taking any persistent descendants with it.
-    fn delete_ephemeral(
-        &self,
-        path: &Path,
-        file_ops: &impl FileDeleter,
-        dir_manager: &impl DirectoryManager,
-    ) -> Result<(), FileSystemEntriesError> {
-        if !self.persistent() {
-            if path.exists() {
-                let result = match self {
-                    Self::File { .. } => file_ops.delete(path),
-                    _ => dir_manager.delete(path),
-                };
-                result
-                    .map_err(|err| {
-                        FileSystemEntriesError(format!("deleting {}: {err}", path.display()))
-                    })
-                    .inspect_err(|err| warn!(?err, ?path, "delete_ephemeral failed"))?;
-            }
-            return Ok(());
-        }
-        // Persistent: keep this node, but its children may still be ephemeral.
-        if let Self::Dir { children, .. } = self {
-            for (sub, child) in children {
-                child.delete_ephemeral(&path.join(sub), file_ops, dir_manager)?;
-            }
-        }
-        Ok(())
-    }
 }
 
 impl FileSystem {
@@ -147,28 +102,9 @@ impl FileSystem {
         Ok(())
     }
 
-    /// Deletes the on-disk path of every ephemeral entry in the tree.
-    /// A persistent entry whose ancestor is ephemeral is wiped along with the ancestor
-    pub fn delete_ephemeral(
-        &self,
-        file_ops: &impl FileDeleter,
-        dir_manager: &impl DirectoryManager,
-    ) -> Result<(), FileSystemEntriesError> {
-        for (path, entry) in &self.entries {
-            entry.delete_ephemeral(path, file_ops, dir_manager)?;
-        }
-        Ok(())
-    }
-
-    /// Deletes the on-disk path of every entry in the filesystem that is not declared and is not a
-    /// child of a persistent declared directory.
-    ///
-    /// # Known limitation — previously-declared entries inside persistent directories
-    ///
-    /// Persistent directories are skipped entirely so that runtime files the agent wrote (and
-    /// never declared) are preserved. The unavoidable side-effect is that a file which *was*
-    /// declared inside a persistent directory in a previous type version but is no longer declared
-    /// in the current one also survives. We would need to save the state to handle this case
+    /// Deletes the on-disk path of every top-level entry that is not declared. Never descends into
+    /// a declared `dir`'s own contents: those are left to the agent (or an earlier agent-type
+    /// version) to own, and are only re-rendered by `write`, not pruned.
     pub fn delete_not_declared(
         &self,
         file_ops: &impl FileDeleter,
@@ -178,14 +114,26 @@ impl FileSystem {
             Some(p) => p.to_path_buf(),
             None => return Ok(()),
         };
-        // Top-level entry keys are absolute; strip to filename so the recursive helper
-        // can look items up by their single-component relative name at each level.
-        let declared: HashMap<PathBuf, &RenderedEntry> = self
+        // Top-level entry keys are absolute; strip to filename so they can be compared against
+        // the single-component names `dir_manager.list` returns.
+        let declared: HashSet<PathBuf> = self
             .entries
-            .iter()
-            .filter_map(|(abs, entry)| abs.file_name().map(|n| (PathBuf::from(n), entry)))
+            .keys()
+            .filter_map(|abs| abs.file_name().map(PathBuf::from))
             .collect();
-        prune_undeclared(&base_dir, &declared, file_ops, dir_manager)
+        // list() returns an empty vec when the directory does not exist — no extra NotFound handling needed.
+        let children = dir_manager
+            .list(&base_dir)
+            .map_err(|e| FileSystemEntriesError(format!("listing {}: {e}", base_dir.display())))?;
+        for abs in children {
+            let name = PathBuf::from(abs.file_name().unwrap_or_default());
+            if !declared.contains(&name) {
+                delete_path(&abs, file_ops, dir_manager).map_err(|e| {
+                    FileSystemEntriesError(format!("deleting {}: {e}", abs.display()))
+                })?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -211,45 +159,6 @@ impl SharedFileSystem {
         }
         Ok(())
     }
-}
-
-/// Walks `dir` on disk and deletes every item whose single-component name is absent from
-/// `declared`. Persistent `Dir` entries are skipped entirely, their contents are agent-managed.
-/// Non-persistent `Dir` entries are recursed into. `DirContentFromMap` dirs are skipped,
-/// their cleanup is owned by `write()`, which deletes and recreates the directory.
-fn prune_undeclared(
-    dir: &Path,
-    declared: &HashMap<PathBuf, &RenderedEntry>,
-    file_ops: &impl FileDeleter,
-    dir_manager: &impl DirectoryManager,
-) -> Result<(), FileSystemEntriesError> {
-    // list() returns an empty vec when the directory does not exist — no extra NotFound handling needed.
-    let children = dir_manager
-        .list(dir)
-        .map_err(|e| FileSystemEntriesError(format!("listing {}: {e}", dir.display())))?;
-    for abs in children {
-        let name = PathBuf::from(abs.file_name().unwrap_or_default());
-        match declared.get(&name) {
-            None => {
-                delete_path(&abs, file_ops, dir_manager).map_err(|e| {
-                    FileSystemEntriesError(format!("deleting {}: {e}", abs.display()))
-                })?;
-            }
-            Some(entry) => match *entry {
-                // Skip. write() owns the on-disk state for these entries.
-                RenderedEntry::File { .. } | RenderedEntry::DirContentFromMap { .. } => {}
-                RenderedEntry::Dir {
-                    persistent: true, ..
-                } => {}
-                RenderedEntry::Dir { children, .. } => {
-                    let child_refs: HashMap<PathBuf, &RenderedEntry> =
-                        children.iter().map(|(k, v)| (k.clone(), v)).collect();
-                    prune_undeclared(&abs, &child_refs, file_ops, dir_manager)?;
-                }
-            },
-        }
-    }
-    Ok(())
 }
 
 /// Creates `dir` (and any missing parents), with error context. Safe if it already exists.
@@ -339,41 +248,192 @@ mod tests {
         }
     }
 
-    fn file_entry(persistent: bool) -> RenderedEntry {
+    fn file_entry_with_text(text: &str) -> RenderedEntry {
         RenderedEntry::File {
-            content: FileContent::Text("x".into()),
-            persistent,
+            content: FileContent::Text(text.into()),
         }
     }
 
-    fn dir_entry(persistent: bool, children: HashMap<PathBuf, RenderedEntry>) -> RenderedEntry {
-        RenderedEntry::Dir {
-            children,
-            persistent,
+    fn file_entry_copy(source: PathBuf) -> RenderedEntry {
+        RenderedEntry::File {
+            content: FileContent::Copy(source),
         }
+    }
+
+    fn dir_entry(children: HashMap<PathBuf, RenderedEntry>) -> RenderedEntry {
+        RenderedEntry::Dir { children }
     }
 
     fn map_dir_entry(files: HashMap<PathBuf, String>) -> RenderedEntry {
         RenderedEntry::DirContentFromMap { files }
     }
 
-    fn fs_with(entries: HashMap<PathBuf, RenderedEntry>) -> FileSystem {
-        FileSystem::new(entries)
+    #[test]
+    fn write_creates_file_with_text_content_and_missing_parent_dir() {
+        let tmp = TempDir::new().unwrap();
+        let target_dir = tmp.path().join("does-not-exist-yet");
+        let target_path = target_dir.join("file.txt");
+
+        let fs = FileSystem::new(HashMap::from([(
+            target_path.clone(),
+            file_entry_with_text("hello"),
+        )]));
+        fs.write(&LocalFile, &DirectoryManagerFs).unwrap();
+
+        assert!(target_dir.is_dir(), "missing parent dir must be created");
+        assert_eq!(std::fs::read_to_string(&target_path).unwrap(), "hello");
     }
 
-    /// Undeclared top-level file is deleted; declared file is kept.
     #[test]
-    fn delete_not_declared_removes_undeclared_top_level_file() {
+    fn write_copies_file_content_from_source() {
+        let tmp = TempDir::new().unwrap();
+        let source = tmp.path().join("source.bin");
+        let source_bytes = [0xFFu8, 0x00, b'b', b'i', b'n'];
+        std::fs::write(&source, source_bytes).unwrap();
+
+        let target_path = tmp.path().join("does-not-exist-yet").join("dest.bin");
+        let fs = FileSystem::new(HashMap::from([(
+            target_path.clone(),
+            file_entry_copy(source),
+        )]));
+        fs.write(&LocalFile, &DirectoryManagerFs).unwrap();
+
+        assert_eq!(std::fs::read(&target_path).unwrap(), source_bytes);
+    }
+
+    #[test]
+    fn write_creates_dir_and_recurses_into_children() {
+        let tmp = TempDir::new().unwrap();
+        let base = tmp.path();
+
+        let fs = FileSystem::new(HashMap::from([(
+            base.join("parent"),
+            dir_entry(HashMap::from([
+                (PathBuf::from("child.txt"), file_entry_with_text("child")),
+                (PathBuf::from("empty-nested"), dir_entry(HashMap::new())),
+            ])),
+        )]));
+        fs.write(&LocalFile, &DirectoryManagerFs).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(base.join("parent/child.txt")).unwrap(),
+            "child"
+        );
+        assert!(base.join("parent/empty-nested").is_dir());
+    }
+
+    #[test]
+    fn write_dir_content_from_map_creates_files_from_map() {
+        let tmp = TempDir::new().unwrap();
+        let base = tmp.path();
+
+        let fs = FileSystem::new(HashMap::from([(
+            base.join("logging.d"),
+            map_dir_entry(HashMap::from([
+                (PathBuf::from("a.yaml"), "a-content".to_string()),
+                (PathBuf::from("b.yaml"), "b-content".to_string()),
+            ])),
+        )]));
+        fs.write(&LocalFile, &DirectoryManagerFs).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(base.join("logging.d/a.yaml")).unwrap(),
+            "a-content"
+        );
+        assert_eq!(
+            std::fs::read_to_string(base.join("logging.d/b.yaml")).unwrap(),
+            "b-content"
+        );
+    }
+
+    #[test]
+    fn write_dir_content_from_map_creates_dir_when_map_is_empty() {
+        let tmp = TempDir::new().unwrap();
+        let base = tmp.path();
+
+        let fs = FileSystem::new(HashMap::from([(
+            base.join("logging.d"),
+            map_dir_entry(HashMap::new()),
+        )]));
+        fs.write(&LocalFile, &DirectoryManagerFs).unwrap();
+
+        assert!(base.join("logging.d").is_dir());
+    }
+
+    #[test]
+    fn write_dir_content_from_map_clears_directory_before_rewrite() {
+        let tmp = TempDir::new().unwrap();
+        let base = tmp.path();
+
+        let first = FileSystem::new(HashMap::from([(
+            base.join("logging.d"),
+            map_dir_entry(HashMap::from([(
+                PathBuf::from("a.yaml"),
+                "a-content".to_string(),
+            )])),
+        )]));
+        first.write(&LocalFile, &DirectoryManagerFs).unwrap();
+        // Content that lands in the directory by other means (e.g. the agent process) is not
+        // tracked by the map, but is still cleared: the whole directory is wiped before rewrite.
+        std::fs::write(base.join("logging.d/untracked.txt"), "stray").unwrap();
+
+        let second = FileSystem::new(HashMap::from([(
+            base.join("logging.d"),
+            map_dir_entry(HashMap::from([(
+                PathBuf::from("b.yaml"),
+                "b-content".to_string(),
+            )])),
+        )]));
+        second.write(&LocalFile, &DirectoryManagerFs).unwrap();
+
+        assert!(
+            !base.join("logging.d/a.yaml").exists(),
+            "key dropped from the map must be gone"
+        );
+        assert!(
+            !base.join("logging.d/untracked.txt").exists(),
+            "untracked content must be gone: the directory is cleared before rewrite"
+        );
+        assert_eq!(
+            std::fs::read_to_string(base.join("logging.d/b.yaml")).unwrap(),
+            "b-content"
+        );
+    }
+
+    /// Writing a `File` entry at a path that already holds different content overwrites it.
+    #[test]
+    fn write_overwrites_previously_written_file_content() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("file.txt");
+
+        FileSystem::new(HashMap::from([(path.clone(), file_entry_with_text("v1"))]))
+            .write(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
+        FileSystem::new(HashMap::from([(path.clone(), file_entry_with_text("v2"))]))
+            .write(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "v2");
+    }
+
+    #[test]
+    fn delete_not_declared_removes_undeclared() {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
 
         std::fs::write(base.join("declared.yaml"), "d").unwrap();
         std::fs::write(base.join("undeclared.yaml"), "u").unwrap();
 
-        let fs = fs_with(HashMap::from([(
-            base.join("declared.yaml"),
-            file_entry(false),
-        )]));
+        std::fs::create_dir(base.join("declared-dir")).unwrap();
+        std::fs::write(base.join("declared-dir/inner.txt"), "inner").unwrap();
+
+        std::fs::create_dir(base.join("undeclared-dir")).unwrap();
+        std::fs::write(base.join("undeclared-dir/inner.txt"), "inner").unwrap();
+
+        let fs = FileSystem::new(HashMap::from([
+            (base.join("declared.yaml"), file_entry_with_text("x")),
+            (base.join("declared-dir"), dir_entry(HashMap::new())),
+        ]));
 
         fs.delete_not_declared(&LocalFile, &DirectoryManagerFs)
             .unwrap();
@@ -386,67 +446,17 @@ mod tests {
             !base.join("undeclared.yaml").exists(),
             "undeclared file must be deleted"
         );
-    }
-
-    /// Undeclared files inside a non-persistent declared dir are deleted; declared children kept.
-    #[test]
-    fn delete_not_declared_recurses_into_non_persistent_dir() {
-        let tmp = TempDir::new().unwrap();
-        let base = tmp.path();
-        std::fs::create_dir(base.join("config")).unwrap();
-        std::fs::write(base.join("config/declared.yaml"), "d").unwrap();
-        std::fs::write(base.join("config/runtime.log"), "r").unwrap();
-
-        let fs = fs_with(HashMap::from([(
-            base.join("config"),
-            dir_entry(
-                false,
-                HashMap::from([(PathBuf::from("declared.yaml"), file_entry(false))]),
-            ),
-        )]));
-
-        fs.delete_not_declared(&LocalFile, &DirectoryManagerFs)
-            .unwrap();
-
         assert!(
-            base.join("config/declared.yaml").exists(),
-            "declared child must be kept"
+            base.join("declared-dir/inner.txt").exists(),
+            "a file inside a declared dir must be kept, even though it isn't itself declared"
         );
         assert!(
-            !base.join("config/runtime.log").exists(),
-            "undeclared child must be deleted"
+            !base.join("undeclared-dir").exists(),
+            "an undeclared dir, and everything inside it, must be deleted"
         );
     }
 
-    /// Nothing inside a persistent declared dir is touched, even if undeclared.
-    #[test]
-    fn delete_not_declared_skips_persistent_dir_contents() {
-        let tmp = TempDir::new().unwrap();
-        let base = tmp.path();
-        std::fs::create_dir(base.join("data")).unwrap();
-        std::fs::write(base.join("data/agent-state.db"), "state").unwrap();
-        std::fs::write(base.join("data/undeclared-but-inside-persistent.txt"), "x").unwrap();
-
-        let fs = fs_with(HashMap::from([(
-            base.join("data"),
-            dir_entry(true, HashMap::new()),
-        )]));
-
-        fs.delete_not_declared(&LocalFile, &DirectoryManagerFs)
-            .unwrap();
-
-        assert!(
-            base.join("data/agent-state.db").exists(),
-            "contents of persistent dir must be kept"
-        );
-        assert!(
-            base.join("data/undeclared-but-inside-persistent.txt")
-                .exists(),
-            "undeclared files inside persistent dir must be kept"
-        );
-    }
-
-    /// DirContentFromMap dirs are skipped by delete_not_declared, write() owns their cleanup.
+    /// DirContentFromMap dirs contents are skipped by delete_not_declared, write() owns their cleanup.
     #[test]
     fn delete_not_declared_skips_map_dir_contents() {
         let tmp = TempDir::new().unwrap();
@@ -455,7 +465,7 @@ mod tests {
         std::fs::write(base.join("logging.d/syslog.yaml"), "sys").unwrap();
         std::fs::write(base.join("logging.d/stale.yaml"), "stale").unwrap();
 
-        let fs = fs_with(HashMap::from([(
+        let fs = FileSystem::new(HashMap::from([(
             base.join("logging.d"),
             map_dir_entry(HashMap::from([(
                 PathBuf::from("syslog.yaml"),
