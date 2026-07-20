@@ -1,41 +1,44 @@
-//! Redis lifecycle for the nri-redis E2E scenario on Windows. Downloads a
-//! self-contained Redis-x64 5.x zip from tporadowski/redis, extracts it, and
-//! runs `redis-server.exe` on `localhost:6379`. Cleanup is deterministic via
-//! [LongRunningProcess]'s Drop.
+//! Redis lifecycle for the nri-redis E2E scenario on Windows. Installs
+//! Memurai Developer (Redis-compatible, Windows-native) via Chocolatey and
+//! ensures its Windows service is running on `localhost:6379`. Cleanup is
+//! deterministic via [Redis]'s Drop: the service is stopped.
 
-use crate::common::exec::LongRunningProcess;
 use crate::common::test::retry_panic;
-use crate::windows::powershell::{download_file, extract};
-use crate::windows::utils::as_user_dir;
+use crate::windows::powershell::exec_ps;
+use crate::windows::service::{STATUS_RUNNING, check_service_status};
 use std::net::TcpStream;
-use std::process::Command;
 use std::time::Duration;
 use tracing::info;
 
-const REDIS_URL: &str =
-    "https://github.com/tporadowski/redis/releases/download/v5.0.14.1/Redis-x64-5.0.14.1.zip";
-const REDIS_ZIP: &str = "\\redis.zip";
-const REDIS_DIR: &str = "\\redis";
-const REDIS_BIN: &str = "\\redis\\redis-server.exe";
+const CHOCO_PACKAGE: &str = "memurai-developer";
+const MEMURAI_SERVICE: &str = "Memurai";
 
-pub struct Redis {
-    _process: LongRunningProcess,
-}
+pub struct Redis;
 
 impl Redis {
     pub fn start() -> Self {
-        let zip_path = as_user_dir(REDIS_ZIP);
-        let extract_path = as_user_dir(REDIS_DIR);
-        let bin_path = as_user_dir(REDIS_BIN);
+        info!(
+            package = CHOCO_PACKAGE,
+            "Installing Memurai Developer via Chocolatey"
+        );
+        exec_ps(format!(
+            "choco install {CHOCO_PACKAGE} -y --no-progress --limit-output"
+        ))
+        .unwrap_or_else(|err| panic!("Failed to install {CHOCO_PACKAGE} via Chocolatey: {err}"));
 
-        info!(url = REDIS_URL, "Downloading Redis for Windows");
-        download_file(REDIS_URL, &zip_path);
-        extract(&zip_path, &extract_path);
+        info!(
+            service = MEMURAI_SERVICE,
+            "Ensuring Memurai service is running"
+        );
+        exec_ps(format!("Start-Service -Name '{MEMURAI_SERVICE}'"))
+            .unwrap_or_else(|err| panic!("Failed to start '{MEMURAI_SERVICE}' service: {err}"));
 
-        info!("Spawning redis-server on localhost:6379");
-        let mut cmd = Command::new(&bin_path);
-        cmd.args(["--port", "6379", "--protected-mode", "no"]);
-        let process = LongRunningProcess::spawn(cmd);
+        retry_panic(
+            30,
+            Duration::from_secs(1),
+            "Memurai service running",
+            || check_service_status(MEMURAI_SERVICE, STATUS_RUNNING),
+        );
 
         retry_panic(60, Duration::from_secs(1), "redis TCP connect", || {
             TcpStream::connect_timeout(&"127.0.0.1:6379".parse().unwrap(), Duration::from_secs(1))
@@ -43,7 +46,15 @@ impl Redis {
                 .map_err(|e| format!("TCP connect to Redis: {e}").into())
         });
 
-        info!("Redis is ready on localhost:6379");
-        Self { _process: process }
+        info!("Memurai is ready on localhost:6379");
+        Self
+    }
+}
+
+impl Drop for Redis {
+    fn drop(&mut self) {
+        info!(service = MEMURAI_SERVICE, "Stopping Memurai service");
+        // Swallow errors: teardown must not double-panic during unwinding.
+        let _ = exec_ps(format!("Stop-Service -Name '{MEMURAI_SERVICE}' -Force"));
     }
 }

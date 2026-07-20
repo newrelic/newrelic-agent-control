@@ -1,5 +1,5 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
-use crate::common::ohai::{
+use crate::common::ohi::{
     EMBEDDED_WINDOWS_OHI_BINARIES, SHARED_WINDOWS_FILESYSTEM_DIR, check_ohi_shared_filesystem,
 };
 use crate::common::on_drop::CleanUp;

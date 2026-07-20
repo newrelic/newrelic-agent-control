@@ -679,14 +679,14 @@ static AGENT_TYPE_REDIS: LazyLock<AgentTypeValuesTestCase> =
                 (
                     "mandatory fields only",
                     r#"
-                config_integration: "integrations: []"
+                config: "integrations: []"
                 version: "v1.15.2"
                 "#,
                 ),
                 (
                     "check all value types are correct",
                     r#"
-                config_integration: "integrations: []"
+                config: "integrations: []"
                 version: "v1.15.2"
                 oci.repository: "newrelic/nri-redis"
                 "#,
@@ -700,14 +700,14 @@ static AGENT_TYPE_REDIS: LazyLock<AgentTypeValuesTestCase> =
                 (
                     "mandatory fields only",
                     r#"
-                config_integration: "integrations: []"
+                config: "integrations: []"
                 version: "v1.15.2"
                 "#,
                 ),
                 (
                     "check all value types are correct",
                     r#"
-                config_integration: "integrations: []"
+                config: "integrations: []"
                 version: "v1.15.2"
                 oci.repository: "newrelic/nri-redis"
                 "#,

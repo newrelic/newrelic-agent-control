@@ -1,6 +1,6 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::nrql::{self, Region};
-use crate::common::ohai::{
+use crate::common::ohi::{
     EMBEDDED_LINUX_OHI_BINARIES, EMBEDDED_LINUX_OHI_CONFIGS, SHARED_LINUX_FILESYSTEM_DIR,
     check_ohi_shared_filesystem,
 };
@@ -87,7 +87,7 @@ oci:
         &linux::local_config_path("nr-redis"),
         format!(
             r#"
-config_integration:
+config:
   integrations:
     - name: nri-redis
       env:
@@ -96,7 +96,7 @@ config_integration:
         REMOTE_MONITORING: "true"
       interval: 15s
       labels:
-        host.id: {test_id}
+        test.id: {test_id}
 version: {redis_version}
 oci:
   repository: {DEV_NRI_REDIS_REPO}
@@ -107,7 +107,7 @@ oci:
     linux::service::restart_service(linux::SERVICE_NAME);
 
     let nrql_query =
-        format!(r#"SELECT * FROM RedisSample WHERE `label.host.id` = '{test_id}' LIMIT 1"#);
+        format!(r#"SELECT * FROM RedisSample WHERE `label.test.id` = '{test_id}' LIMIT 1"#);
     info!(nrql = nrql_query, "Waiting for RedisSample data in NRDB");
     retry_panic(60, Duration::from_secs(10), "RedisSample NRQL", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)

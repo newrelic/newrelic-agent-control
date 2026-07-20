@@ -1,6 +1,6 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::nrql::Region;
-use crate::common::ohai::{
+use crate::common::ohi::{
     EMBEDDED_LINUX_OHI_BINARIES, EMBEDDED_LINUX_OHI_CONFIGS, SHARED_LINUX_FILESYSTEM_DIR,
     check_ohi_shared_filesystem,
 };

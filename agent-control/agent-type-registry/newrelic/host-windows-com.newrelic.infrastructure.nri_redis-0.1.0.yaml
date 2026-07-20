@@ -5,7 +5,7 @@ platform: host
 operating_system: windows
 protocol_version: "1.0"
 variables:
-  config_integration:
+  config:
     description: "nri-redis integration YAML consumed by the infra-agent"
     type: yaml
     required: true
@@ -18,10 +18,10 @@ variables:
       description: "OCI repository name for nri-redis"
       type: string
       required: false
-      default: newrelic/nrdot-agent-artifacts
+      default: newrelic/nri-redis-artifacts
       variants:
         ac_config_field: "oci_repository_urls"
-        values: [ "newrelic/nrdot-agent-artifacts" ]
+        values: [ "newrelic/nri-redis-artifacts" ]
 deployment:
   packages:
     nri-redis:
@@ -36,7 +36,8 @@ deployment:
       entries:
         nri-redis.yaml:
           kind: file
-          text: ${nr-var:config_integration}
+          text: |
+            ${nr-var:config}
     infra-agent-ohi-binaries:
       kind: dir
       entries:

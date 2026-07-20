@@ -531,7 +531,7 @@ shared_filesystem:
     entries:
       nri-redis.yaml:
         kind: file
-        text: ${nr-var:config_integration}
+        text: ${nr-var:config}
   # OHI binary, copied from this agent's package dir into the shared location.
   infra-agent-ohi-binaries:
     kind: dir
