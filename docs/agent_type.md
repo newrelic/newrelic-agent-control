@@ -409,7 +409,17 @@ deployment:
     initial_delay: 10s # Defaults to 30s.
 ```
 
-## Development
+## Development Custom agent types
+
+Agent Control ships a set of embedded agent types (see
+[`agent-control/agent-type-registry/newrelic/`](../agent-control/agent-type-registry/newrelic)). You can add your own —
+or override an embedded one — by placing the definition YAML in the *dynamic agent types* directory. Custom definitions
+take precedence over any other definition with the same id (namespace + name + version).
+
+The current layout expects **a directory** at `/etc/newrelic-agent-control/dynamic-agent-types/` containing one file per
+agent type.
+
+### On-host
 
 This guideline shows how to build a custom agent type and integrate it with the agent control on-host. The [telegraf agent](https://www.influxdata.com/time-series-platform/telegraf/) is used as a reference.
 
@@ -482,3 +492,52 @@ This guideline shows how to build a custom agent type and integrate it with the 
     ```
 
 5. Restart Agent Control.
+
+### Kubernetes
+
+In-cluster, the same `/etc/newrelic-agent-control/dynamic-agent-types/` directory is populated by mounting a ConfigMap.
+Each ConfigMap key becomes a file inside the directory, so a single ConfigMap can carry multiple agent types.
+
+1. Create the ConfigMap in the namespace where Agent Control runs. The `--from-file=<key>=<path>` form names each
+   entry; that `<key>` is the file name that will appear under the mount:
+
+   ```sh
+   kubectl create configmap dynamic-agent \
+     --from-file=dynamic-agent-type=./agent-control/agent-type-registry/newrelic/kubernetes-com.newrelic.infrastructure-0.1.0.yaml \
+     -n newrelic-agent-control
+   ```
+
+   For multiple types, append more `--from-file=<key>=<path>` — one per file.
+
+2. Mount that ConfigMap on the Agent Control pod through the deployment chart values, matching the layout used in the
+   dynamic-agent-type k8s e2e ([`test/k8s-e2e/dynamic/ac-values-dynamic.yml`](../test/k8s-e2e/dynamic/ac-values-dynamic.yml)):
+
+   ```yaml
+   agentControlDeployment:
+     chartValues:
+       # [...]
+       extraVolumeMounts:
+         - name: dynamic
+           mountPath: /etc/newrelic-agent-control/dynamic-agent-types
+           readOnly: true
+       extraVolumes:
+         - name: dynamic
+           configMap:
+             name: dynamic-agent
+   ```
+
+3. Reference the type by its id in the AC config and supply variable values through `agentsConfig`. Each key under an
+   agent's `agentsConfig` entry maps to a variable declared by the type:
+
+   ```yaml
+   agentControlDeployment:
+     chartValues:
+       config:
+         agents:
+           infra:
+             agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+    # [...]
+   ```
+
+   To pick up a fresh ConfigMap, `helm upgrade` (or restart the AC pod).
+

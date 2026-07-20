@@ -871,7 +871,7 @@ Before AC can create a sub-agent, it must resolve the agent type referenced in y
 
 Only definitions that target the environment of the running binary are considered: the on-host binary only sees `host` definitions matching its operating system, and the Kubernetes binary only sees `kubernetes` definitions (see [Agent Type Metadata](#agent-type-metadata)). A definition that targets a different platform is treated as not found, so the lookup falls through to the next source.
 
-This precedence is what makes the custom directory useful for development: you can add a brand-new agent type, or iterate on and override an existing one, simply by dropping a file there — without rebuilding AC or editing the embedded registry — while still falling back to the built-in and remote sources for everything else. For a step-by-step walkthrough of adding a custom on-host agent type, see the [development guide in the agent type overview](../agent-control/src/agent_type/README.md#development).
+This precedence is what makes the custom directory useful for development: you can add a brand-new agent type, or iterate on and override an existing one, simply by dropping a file there — without rebuilding AC or editing the embedded registry — while still falling back to the built-in and remote sources for everything else. For a step-by-step walkthrough of adding a custom on-host agent type, see the [development guide in the agent type overview](./agent_type.md#development-custom-agent-types).
 
 ## Applying configurations
 
