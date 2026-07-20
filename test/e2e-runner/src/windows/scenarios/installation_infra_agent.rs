@@ -1,4 +1,7 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
+use crate::common::ohi::{
+    EMBEDDED_WINDOWS_OHI_BINARIES, SHARED_WINDOWS_FILESYSTEM_DIR, check_ohi_shared_filesystem,
+};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::{retry, retry_panic};
 use crate::common::{InstallationArgs, RecipeData, nrql};
@@ -100,6 +103,19 @@ version: {infra_agent_version}
     retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     });
+
+    retry_panic(
+        30,
+        Duration::from_secs(2),
+        "shared filesystem OHI binaries and configs",
+        || {
+            check_ohi_shared_filesystem(
+                SHARED_WINDOWS_FILESYSTEM_DIR,
+                &EMBEDDED_WINDOWS_OHI_BINARIES,
+                &[],
+            )
+        },
+    );
 
     info!("Test completed successfully");
 }

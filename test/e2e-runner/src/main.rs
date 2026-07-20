@@ -56,6 +56,9 @@ enum LinuxScenarios {
     /// Installs a sub-agent whose OCI package defines a failing `post_download_hook`, and verifies
     /// that the hook runs but the agent is not started because the hook returns a non-zero exit code.
     PostDownloadHookFailure(InstallationArgs),
+    /// Installs Agent Control with a mirrored infra-agent OCI and a custom nri-redis OCI,
+    /// spins up a local Redis instance, and verifies that RedisSample data lands in NRDB.
+    NriRedis(InstallationArgs),
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -89,6 +92,9 @@ enum WindowsScenarios {
     /// This is useful when Agent Control is already deployed and you only need to trigger and monitor Fleet Control tests.
     /// Requires --fleet-id and --fleet-control-token arguments.
     FleetControlApi(FleetControlApiArgs),
+    /// Installs Agent Control with a mirrored infra-agent OCI and a custom nri-redis OCI,
+    /// spins up a local Redis instance, and verifies that RedisSample data lands in NRDB.
+    NriRedis(InstallationArgs),
 }
 
 #[derive(Parser)]

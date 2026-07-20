@@ -3,6 +3,7 @@ use crate::{WindowsCli, WindowsScenarios, init_logging};
 use clap::Parser;
 
 pub mod install;
+pub mod redis;
 pub mod scenarios;
 
 mod health;
@@ -65,6 +66,9 @@ pub fn run_windows_e2e() {
         }
         WindowsScenarios::FleetControlApi(args) => {
             fleet_control_api::run_fleet_control_api(&args.fleet_control);
+        }
+        WindowsScenarios::NriRedis(args) => {
+            scenarios::nri_redis::test_nri_redis(args);
         }
     }
 }

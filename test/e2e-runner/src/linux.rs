@@ -3,6 +3,7 @@ use crate::{LinuxCli, LinuxScenarios, init_logging};
 use clap::Parser;
 
 pub mod install;
+pub mod redis;
 pub mod scenarios;
 
 mod bash;
@@ -60,6 +61,9 @@ pub fn run_linux_e2e() {
         }
         LinuxScenarios::PostDownloadHookFailure(args) => {
             scenarios::post_download_hook::test_post_download_hook_failure(args);
+        }
+        LinuxScenarios::NriRedis(args) => {
+            scenarios::nri_redis::test_nri_redis(args);
         }
     };
 }

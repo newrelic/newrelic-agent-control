@@ -1,6 +1,7 @@
 pub mod fleet_control;
 pub mod installation_infra_agent;
 pub mod installation_nrdot;
+pub mod nri_redis;
 pub mod proxy;
 pub mod remote_config;
 pub mod self_update;

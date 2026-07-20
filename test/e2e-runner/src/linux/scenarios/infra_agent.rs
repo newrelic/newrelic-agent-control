@@ -1,7 +1,11 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::nrql::Region;
+use crate::common::ohi::{
+    EMBEDDED_LINUX_OHI_BINARIES, EMBEDDED_LINUX_OHI_CONFIGS, SHARED_LINUX_FILESYSTEM_DIR,
+    check_ohi_shared_filesystem,
+};
 use crate::common::on_drop::CleanUp;
-use crate::common::test::{TestResult, retry_panic};
+use crate::common::test::retry_panic;
 use crate::common::{InstallationArgs, RecipeData};
 use crate::{
     common::nrql,
@@ -10,14 +14,8 @@ use crate::{
         install::{install_agent_control_from_recipe, tear_down_test},
     },
 };
-use std::path::Path;
 use std::time::Duration;
 use tracing::info;
-
-const SHARED_FILESYSTEM_DIR: &str = "/var/lib/newrelic-agent-control/shared-filesystem";
-const SHARED_OHI_BINARIES_DIR: &str = "infra-agent-ohi-binaries";
-const SHARED_OHI_CONFIGS_DIR: &str = "infra-agent-ohi-configs";
-const EMBEDDED_OHI_BINARIES: [&str; 3] = ["nri-flex", "nri-docker", "nri-prometheus"];
 
 pub fn test_installation_with_infra_agent(args: InstallationArgs) {
     let infra_version = args
@@ -102,29 +100,14 @@ version: {}
         30,
         Duration::from_secs(2),
         "shared filesystem OHI binaries and configs",
-        check_ohi_shared_filesystem,
+        || {
+            check_ohi_shared_filesystem(
+                SHARED_LINUX_FILESYSTEM_DIR,
+                EMBEDDED_LINUX_OHI_BINARIES.as_slice(),
+                EMBEDDED_LINUX_OHI_CONFIGS.as_slice(),
+            )
+        },
     );
 
     info!("Test completed successfully");
-}
-
-fn check_ohi_shared_filesystem() -> TestResult<()> {
-    let binaries_dir = Path::new(SHARED_FILESYSTEM_DIR).join(SHARED_OHI_BINARIES_DIR);
-    for binary in EMBEDDED_OHI_BINARIES {
-        let path = binaries_dir.join(binary);
-        if !path.is_file() {
-            return Err(format!("expected OHI binary not found at {}", path.display()).into());
-        }
-    }
-
-    let ohi_configs_path = Path::new(SHARED_FILESYSTEM_DIR).join(SHARED_OHI_CONFIGS_DIR);
-    if !ohi_configs_path.is_dir() {
-        return Err(format!(
-            "expected OHI config not found at {}",
-            ohi_configs_path.display()
-        )
-        .into());
-    }
-
-    Ok(())
 }
