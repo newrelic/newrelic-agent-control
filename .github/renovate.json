@@ -72,6 +72,18 @@
       "managerFilePatterns": [
         "/^\\.github/workflows/.*\\.yml$/"
       ],
+      "depNameTemplate": "newrelic/nri-redis-artifacts",
+      "packageNameTemplate": "newrelic/nri-redis-artifacts",
+      "datasourceTemplate": "docker",
+      "matchStrings": [
+        "HOST_E2E_REDIS_VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.*\\.yml$/"
+      ],
       "depNameTemplate": "newrelic/nrdot-agent-artifacts",
       "packageNameTemplate": "newrelic/nrdot-agent-artifacts",
       "datasourceTemplate": "docker",
