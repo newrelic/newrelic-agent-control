@@ -8,13 +8,6 @@ use tracing::{debug, warn};
 
 use crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadHook;
 
-#[cfg(unix)]
-use {
-    std::fs::{metadata, set_permissions},
-    std::os::unix::fs::PermissionsExt,
-    std::path::Path,
-};
-
 /// Errors that can occur while executing a post-download hook.
 #[derive(thiserror::Error, Debug)]
 pub enum PostDownloadHookExecutionError {
@@ -38,18 +31,6 @@ pub enum PostDownloadHookExecutionError {
     Timeout(Duration),
 }
 
-#[cfg(unix)]
-fn make_executable_if_exists(path: &str) {
-    let file_path = Path::new(path);
-    if file_path.is_file()
-        && let Ok(meta) = metadata(file_path)
-    {
-        let mut perms = meta.permissions();
-        perms.set_mode(0o755);
-        let _ = set_permissions(file_path, perms);
-    }
-}
-
 /// Runs a package's post-download hook within its installation directory.
 pub struct PostDownloadHookExecutor {
     package_dir: PathBuf,
@@ -71,9 +52,6 @@ impl PostDownloadHookExecutor {
             args = ?post_download_hook.args,
             "Executing post-download hook"
         );
-
-        #[cfg(unix)]
-        make_executable_if_exists(&post_download_hook.path);
 
         let mut cmd = Command::new(&post_download_hook.path);
         cmd.args(&post_download_hook.args.0)
@@ -299,49 +277,6 @@ mod tests {
             create_script_hook(script_path, vec![config_path.to_string_lossy().to_string()]);
 
         assert!(executor.execute(&post_download_hook).is_ok());
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn test_direct_script_execution_without_execute_permission() {
-        let (_temp_dir, script_path, executor) = setup_test_script("direct_script");
-
-        create_script(&script_path, "echo 'Direct execution works'", 0);
-
-        // Explicitly remove execute permissions
-        let mut perms = metadata(&script_path).unwrap().permissions();
-        perms.set_mode(0o644);
-        set_permissions(&script_path, perms).unwrap();
-
-        // Verify script is NOT executable before test
-        let perms_before = metadata(&script_path).unwrap().permissions();
-        assert_eq!(
-            perms_before.mode() & 0o111,
-            0,
-            "Script should not be executable initially"
-        );
-
-        // Execute script directly (path points to script, not interpreter)
-        let post_download_hook = create_post_download_hook(
-            script_path.to_string_lossy().to_string(),
-            vec![script_path.to_string_lossy().to_string()],
-        );
-
-        let result = executor.execute(&post_download_hook);
-
-        // Should succeed because make_executable_if_exists() makes it executable
-        assert!(
-            result.is_ok(),
-            "Direct script execution should work after auto-chmod"
-        );
-
-        // Verify script is now executable
-        let perms_after = metadata(&script_path).unwrap().permissions();
-        assert_eq!(
-            perms_after.mode() & 0o111,
-            0o111,
-            "Script should be executable after execution"
-        );
     }
 
     #[test]
