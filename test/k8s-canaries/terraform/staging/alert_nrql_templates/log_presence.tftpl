@@ -1,4 +1,4 @@
 SELECT count(*)
 FROM Log
 WHERE cluster_name = '${instance_id}'
-AND entity.name = 'agent-control-self-instrumentation'
+AND service.name = 'agent-control-self-instrumentation'
