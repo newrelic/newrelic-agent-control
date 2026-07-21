@@ -8,6 +8,9 @@ use tracing::{debug, warn};
 
 use crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadHook;
 
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(300);
+const POLL_INTERVAL: Duration = Duration::from_millis(100);
+
 /// Errors that can occur while executing a post-download hook.
 #[derive(thiserror::Error, Debug)]
 pub enum PostDownloadHookExecutionError {
@@ -31,15 +34,28 @@ pub enum PostDownloadHookExecutionError {
     Timeout(Duration),
 }
 
+/// Reads an optional child output stream (stdout/stderr) to completion.
+fn capture_output(stream: Option<impl Read>) -> String {
+    let mut buf = Vec::new();
+    if let Some(mut reader) = stream {
+        let _ = reader.read_to_end(&mut buf);
+    }
+    String::from_utf8_lossy(&buf).into_owned()
+}
+
 /// Runs a package's post-download hook within its installation directory.
 pub struct PostDownloadHookExecutor {
     package_dir: PathBuf,
+    timeout: Duration,
 }
 
 impl PostDownloadHookExecutor {
     /// Creates an executor that runs hooks inside `package_dir`.
     pub fn new(package_dir: PathBuf) -> Self {
-        Self { package_dir }
+        Self {
+            package_dir,
+            timeout: DEFAULT_TIMEOUT,
+        }
     }
 
     /// Executes the given post-download hook, returning an error on failure or timeout.
@@ -57,7 +73,7 @@ impl PostDownloadHookExecutor {
         cmd.args(&post_download_hook.args.0)
             .current_dir(&self.package_dir)
             .env("PACKAGE_DIR", &self.package_dir)
-            .stdout(Stdio::null())
+            .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .envs(&post_download_hook.env.0);
 
@@ -71,10 +87,14 @@ impl PostDownloadHookExecutor {
             }
         })?;
 
+        // Drain stdout/stderr on dedicated threads avoiding deadlocks due to full pipe buffer.
+        let stdout_handle = child.stdout.take();
+        let stdout_reader = thread::spawn(move || capture_output(stdout_handle));
+        let stderr_handle = child.stderr.take();
+        let stderr_reader = thread::spawn(move || capture_output(stderr_handle));
+
         // Wait for completion with timeout
-        let timeout = Duration::from_secs(300);
-        let deadline = Instant::now() + timeout;
-        const POLL_INTERVAL: Duration = Duration::from_millis(100);
+        let deadline = Instant::now() + self.timeout;
 
         loop {
             match child
@@ -82,40 +102,45 @@ impl PostDownloadHookExecutor {
                 .expect("failed to check process status - internal OS error")
             {
                 Some(status) => {
-                    let stderr = child
-                        .stderr
-                        .take()
-                        .and_then(|mut stderr| {
-                            let mut buf = Vec::new();
-                            stderr.read_to_end(&mut buf).ok().map(|_| buf)
-                        })
-                        .unwrap_or_default();
+                    let stdout = stdout_reader.join().unwrap_or_default();
+                    let stderr = stderr_reader.join().unwrap_or_default();
 
                     if status.success() {
                         debug!(
                             path = %post_download_hook.path,
+                            stdout = %stdout,
+                            stderr = %stderr,
                             "Post-download hook completed successfully"
                         );
                         return Ok(());
                     } else {
-                        let stderr_str = String::from_utf8_lossy(&stderr).to_string();
                         warn!(
                             path = %post_download_hook.path,
                             exit_code = ?status.code(),
-                            stderr = %stderr_str,
+                            stdout = %stdout,
+                            stderr = %stderr,
                             "Post-download hook execution failed"
                         );
                         return Err(PostDownloadHookExecutionError::ExecutionFailed(
                             status.code(),
-                            stderr_str,
+                            stderr,
                         ));
                     }
                 }
                 None => {
                     if Instant::now() >= deadline {
+                        // TODO improve this to close the process tree
                         let _ = child.kill();
                         let _ = child.wait();
-                        return Err(PostDownloadHookExecutionError::Timeout(timeout));
+                        let stdout = stdout_reader.join().unwrap_or_default();
+                        let stderr = stderr_reader.join().unwrap_or_default();
+                        warn!(
+                            path = %post_download_hook.path,
+                            stdout = %stdout,
+                            stderr = %stderr,
+                            "Post-download hook timed out"
+                        );
+                        return Err(PostDownloadHookExecutionError::Timeout(self.timeout));
                     }
                     thread::sleep(POLL_INTERVAL);
                 }
@@ -132,6 +157,7 @@ mod tests {
     use std::io::Write;
     use std::path::{Path, PathBuf};
     use tempfile::TempDir;
+    use tracing_test::traced_test;
 
     use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env};
 
@@ -160,6 +186,45 @@ mod tests {
             writeln!(file, "{}", content).unwrap();
             writeln!(file, "exit /b {}", exit_code).unwrap();
         }
+    }
+
+    /// Returns a script command that writes `text` to stdout without a trailing newline.
+    /// Avoiding the trailing newline keeps a field's value on a single log line, which the
+    /// line-scoped `logs_contain` assertions rely on.
+    fn print_stdout_no_newline(text: &str) -> String {
+        #[cfg(unix)]
+        return format!("printf '{text}'");
+
+        #[cfg(windows)]
+        return format!("<nul set /p x={text}");
+    }
+
+    /// Returns a script command that writes `text` to stderr without a trailing newline.
+    fn print_stderr_no_newline(text: &str) -> String {
+        #[cfg(unix)]
+        return format!("printf '{text}' >&2");
+
+        #[cfg(windows)]
+        return format!("<nul set /p x={text} 1>&2");
+    }
+
+    /// Returns a script command that blocks for approximately 5 seconds.
+    fn sleep_command() -> String {
+        #[cfg(unix)]
+        return "sleep 5".to_string();
+
+        #[cfg(windows)]
+        return "ping -n 6 127.0.0.1 >nul".to_string();
+    }
+
+    /// Joins script commands into a single line using the platform's statement separator
+    fn join_commands(commands: &[String]) -> String {
+        #[cfg(unix)]
+        let separator = "; ";
+        #[cfg(windows)]
+        let separator = " & ";
+
+        commands.join(separator)
     }
 
     /// Returns the script file extension for the current platform
@@ -238,6 +303,85 @@ mod tests {
             result.unwrap_err(),
             PostDownloadHookExecutionError::ExecutionFailed { .. }
         ));
+    }
+
+    #[traced_test]
+    #[test]
+    fn test_execute_successful_post_download_hook_logs_stdout_and_stderr() {
+        let (_temp_dir, script_path, executor) =
+            setup_test_script("successful_hook_output_logging");
+
+        let content = join_commands(&[
+            print_stdout_no_newline("hook-stdout-line"),
+            print_stderr_no_newline("hook-stderr-line"),
+        ]);
+        create_script(&script_path, &content, 0);
+
+        let post_download_hook = create_script_hook(script_path, vec![]);
+        let result = executor.execute(&post_download_hook);
+
+        assert!(result.is_ok());
+        assert!(logs_contain("Post-download hook completed successfully"));
+        assert!(logs_contain("stdout=hook-stdout-line"));
+        assert!(logs_contain("stderr=hook-stderr-line"));
+    }
+
+    #[traced_test]
+    #[test]
+    fn test_execute_failing_post_download_hook_logs_stdout_and_stderr() {
+        let (_temp_dir, script_path, executor) = setup_test_script("failing_hook_output_logging");
+
+        let content = join_commands(&[
+            print_stdout_no_newline("about-to-fail"),
+            print_stderr_no_newline("hook-stderr-line"),
+        ]);
+        create_script(&script_path, &content, 1);
+
+        let post_download_hook = create_script_hook(script_path, vec![]);
+        let result = executor.execute(&post_download_hook);
+
+        match result.unwrap_err() {
+            PostDownloadHookExecutionError::ExecutionFailed(exit_code, stderr) => {
+                assert_eq!(exit_code, Some(1));
+                assert!(stderr.contains("hook-stderr-line"));
+            }
+            other => panic!("expected ExecutionFailed, got {other:?}"),
+        }
+        assert!(logs_contain("Post-download hook execution failed"));
+        assert!(logs_contain("stdout=about-to-fail"));
+        assert!(logs_contain("stderr=hook-stderr-line"));
+    }
+
+    #[traced_test]
+    #[test]
+    fn test_execute_timeout_logs_partial_output() {
+        let temp_dir = TempDir::new().unwrap();
+        let script_path = temp_dir
+            .path()
+            .join(format!("hanging_hook.{}", script_extension()));
+
+        let content = join_commands(&[
+            print_stdout_no_newline("partial-stdout"),
+            print_stderr_no_newline("partial-stderr"),
+            sleep_command(),
+        ]);
+        create_script(&script_path, &content, 0);
+
+        let post_download_hook = create_script_hook(script_path, vec![]);
+        let executor = PostDownloadHookExecutor {
+            package_dir: temp_dir.path().to_path_buf(),
+            timeout: Duration::from_millis(200),
+        };
+
+        let result = executor.execute(&post_download_hook);
+
+        assert!(matches!(
+            result.unwrap_err(),
+            PostDownloadHookExecutionError::Timeout(_)
+        ));
+        assert!(logs_contain("Post-download hook timed out"));
+        assert!(logs_contain("stdout=partial-stdout"));
+        assert!(logs_contain("stderr=partial-stderr"));
     }
 
     #[test]
