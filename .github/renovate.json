@@ -120,6 +120,18 @@
       "managerFilePatterns": [
         "/^\\.github/workflows/.*\\.yml$/"
       ],
+      "depNameTemplate": "newrelic/nri-mysql-artifacts",
+      "packageNameTemplate": "newrelic/nri-mysql-artifacts",
+      "datasourceTemplate": "docker",
+      "matchStrings": [
+        "HOST_E2E_MYSQL_VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.*\\.yml$/"
+      ],
       "depNameTemplate": "newrelic/nrdot-agent-artifacts",
       "packageNameTemplate": "newrelic/nrdot-agent-artifacts",
       "datasourceTemplate": "docker",

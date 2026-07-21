@@ -98,6 +98,10 @@ pub fn get_all_ohi_to_test(args: &InstallationArgs) -> Vec<Ohi> {
         .postgresql_version
         .clone()
         .expect("--postgresql-version is required for this scenario");
+    let mysql_version = args
+        .mysql_version
+        .clone()
+        .expect("--mysql-version is required for this scenario");
 
     vec![
         Ohi {
@@ -123,6 +127,12 @@ pub fn get_all_ohi_to_test(args: &InstallationArgs) -> Vec<Ohi> {
             agent_type_id: "newrelic/com.newrelic.infrastructure.nri_postgresql:0.1.0",
             repo: "newrelic/newrelic-agent-control-postgresql-dev",
             version: postgresql_version,
+        },
+        Ohi {
+            name: "nri-mysql",
+            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_mysql:0.1.0",
+            repo: "newrelic/newrelic-agent-control-mysql-dev",
+            version: mysql_version,
         },
     ]
 }
