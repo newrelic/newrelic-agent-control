@@ -33,6 +33,59 @@ build-%:
 tilt-up:
 	tilt up ; tilt down
 
+##########################################
+# 		     Image targets 			 #
+##########################################
+DOCKER_IMAGE_NAME_AGENT_CONTROL ?= newrelic/newrelic-agent-control
+DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI ?= newrelic/newrelic-agent-control-cli
+DOCKER_PLATFORMS ?= linux/$(ARCH)
+IMAGE_TAG ?= local
+# PUSH pushes to the registry; LOAD loads into the local docker daemon instead
+# (single platform only). ATTEST attaches provenance/SBOM attestations, which
+# requires PUSH.
+PUSH ?= false
+LOAD ?= true
+ATTEST ?= false
+
+DOCKERFILE_AGENT_CONTROL := Dockerfiles/Dockerfile_agent_control
+DOCKERFILE_AGENT_CONTROL_CLI := Dockerfiles/Dockerfile_agent_control_cli
+
+ATTEST_FLAGS := --attest type=provenance,mode=max --attest type=sbom
+
+DOCKER_BUILD_OUTPUT_FLAG = $(if $(filter true,$(PUSH)),--push,$(if $(filter true,$(LOAD)),--load))
+DOCKER_BUILD_ATTEST_FLAGS = $(if $(filter true,$(ATTEST)),$(ATTEST_FLAGS))
+
+# Assumes the binaries for $(DOCKER_PLATFORMS) already exist under ./bin (e.g.
+# `make build-agent-control-k8s`). No build prerequisite on purpose, so CI can
+# call these directly without triggering a second, differently-configured
+# build. Use `make image` for a one-command local build.
+.PHONY: image/agent-control
+image/agent-control:
+	docker buildx build \
+		--platform=$(DOCKER_PLATFORMS) \
+		-t $(DOCKER_IMAGE_NAME_AGENT_CONTROL):$(IMAGE_TAG) \
+		--file $(DOCKERFILE_AGENT_CONTROL) \
+		$(DOCKER_BUILD_OUTPUT_FLAG) \
+		$(DOCKER_BUILD_ATTEST_FLAGS) \
+		.
+
+.PHONY: image/agent-control-cli
+image/agent-control-cli:
+	docker buildx build \
+		--platform=$(DOCKER_PLATFORMS) \
+		-t $(DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI):$(IMAGE_TAG) \
+		--file $(DOCKERFILE_AGENT_CONTROL_CLI) \
+		$(DOCKER_BUILD_OUTPUT_FLAG) \
+		$(DOCKER_BUILD_ATTEST_FLAGS) \
+		.
+
+.PHONY: image
+image:
+	$(MAKE) build-agent-control-k8s
+	$(MAKE) build-agent-control-k8s-cli
+	$(MAKE) image/agent-control
+	$(MAKE) image/agent-control-cli
+
 COVERAGE_OUT_FORMAT ?= lcov
 COVERAGE_OUT_FILEPATH ?= coverage/lcov.info
 coverage: llvm-cov

@@ -139,6 +139,30 @@ To address it, increase the number of file descriptors for the current shell ses
 ulimit -n 4096
 ```
 
+### Building a container image
+
+To build the Agent Control container image locally (the same image used for the Kubernetes deployment), without
+needing `minikube`/`tilt`:
+
+```sh
+make image
+```
+
+This compiles the `newrelic-agent-control-k8s` and `newrelic-agent-control-k8s-cli` binaries and builds both images,
+loading them into your local docker daemon as `newrelic/newrelic-agent-control:local` and
+`newrelic/newrelic-agent-control-cli:local`. `ARCH` defaults to `arm64`; on an `amd64` host, pass it explicitly, e.g.
+`make image ARCH=amd64`.
+
+Useful variables to override (see the `Makefile` for the full list): `ARCH`, `IMAGE_TAG`,
+`DOCKER_IMAGE_NAME_AGENT_CONTROL[_CLI]`, `PUSH`. For example, to build only the main image with a custom tag:
+
+```sh
+make image/agent-control IMAGE_TAG=my-test
+```
+
+This same `make image/agent-control[-cli]` target is used by the CI workflows that build and publish the image, so a
+local build failure here is a good early signal that the image build is broken.
+
 ## Troubleshooting
 
 See [diagnose issues with agent control logging](https://docs.newrelic.com/docs/new-relic-control/agent-control/troubleshooting/).
