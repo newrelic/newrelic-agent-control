@@ -20,6 +20,8 @@ use std::fmt::{self, Display};
 use std::str::FromStr;
 use thiserror::Error;
 
+use crate::agent_control::defaults::AGENT_CONTROL_VERSION;
+
 // Generated from `package.metadata.agent_type_protocol_version` in agent-control/Cargo.toml by
 // build.rs; defines `SUPPORTED_PROTOCOL_VERSION` (the maximum protocol version this Agent Control
 // understands).
@@ -40,7 +42,7 @@ pub enum ProtocolVersionError {
     InvalidFormat(String),
     /// The major version differs from the supported one (a breaking schema change).
     #[error(
-        "unsupported protocol_version {target}: newer than supported (this agent control supports up to {supported})"
+        "unsupported protocol_version {target}: newer than supported (Agent Control {AGENT_CONTROL_VERSION} supports up to {supported})"
     )]
     Incompatible {
         /// The version to be validated.
@@ -142,8 +144,8 @@ mod tests {
     #[case(pv(1, 0), pv(1, 6), Ok(()))]
     #[case(pv(0, 9), pv(1, 6), Ok(()))]
     // Anything newer than supported is too new, whether by minor or major.
-    #[case(pv(1, 7), pv(1, 6), Err(ProtocolVersionError::Incompatible { target: pv(1, 7), supported: pv(1, 6) }))]
-    #[case(pv(2, 0), pv(1, 6), Err(ProtocolVersionError::Incompatible { target: pv(2, 0), supported: pv(1, 6) }))]
+    #[case(pv(1, 7), pv(1, 6), Err(ProtocolVersionError::Incompatible { target: pv(1, 7), supported: pv(1, 6)}))]
+    #[case(pv(2, 0), pv(1, 6), Err(ProtocolVersionError::Incompatible { target: pv(2, 0), supported: pv(1, 6)}))]
     fn compatibility_matrix(
         #[case] target: ProtocolVersion,
         #[case] supported: ProtocolVersion,

@@ -14,6 +14,10 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+### enhancement
+- Added `agent-type validate --file <path>` subcommand to `newrelic-agent-control-cli` and `newrelic-agent-control-k8s-cli` for schema-level validation of agent type definition files.
+
+
 ## v1.19.1 - 2026-07-23
 
 ### ⛓️ Dependencies

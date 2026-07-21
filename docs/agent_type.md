@@ -419,6 +419,13 @@ take precedence over any other definition with the same id (namespace + name + v
 The current layout expects **a directory** at `/etc/newrelic-agent-control/dynamic-agent-types/` containing one file per
 agent type.
 
+Before dropping a definition into that directory, you can check its schema (required fields, field types, and format
+constraints) without running Agent Control at all:
+
+```sh
+newrelic-agent-control-cli agent-type validate --file my-custom-agent-type.yaml
+```
+
 ### On-host
 
 This guideline shows how to build a custom agent type and integrate it with the agent control on-host. The [telegraf agent](https://www.influxdata.com/time-series-platform/telegraf/) is used as a reference.
@@ -540,4 +547,3 @@ Each ConfigMap key becomes a file inside the directory, so a single ConfigMap ca
    ```
 
    To pick up a fresh ConfigMap, `helm upgrade` (or restart the AC pod).
-

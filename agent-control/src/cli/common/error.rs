@@ -22,6 +22,10 @@ pub enum CliError {
     /// A filesystem operation failed.
     #[error("file system error: {0}")]
     FileSystemError(String),
+
+    /// The input data provided to the command was invalid.
+    #[error("{0}")]
+    Validation(String),
 }
 
 impl From<CliError> for ExitCode {
@@ -38,6 +42,7 @@ impl From<CliError> for ExitCode {
             CliError::Tracing(_) => Self::from(70),
             CliError::Command(_) => Self::from(1),
             CliError::FileSystemError(_) => Self::from(1),
+            CliError::Validation(_) => Self::from(65),
         }
     }
 }
