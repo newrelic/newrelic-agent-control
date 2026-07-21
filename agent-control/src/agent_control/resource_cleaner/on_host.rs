@@ -205,7 +205,7 @@ where
             let paths = self.declared_shared_paths(&definition);
             all_shared_paths.owned_files.extend(paths.owned_files);
             all_shared_paths.owned_dirs.extend(paths.owned_dirs);
-            all_shared_paths.shared_dirs.extend(paths.shared_dirs);
+            all_shared_paths.dirs.extend(paths.dirs);
         }
         Ok(all_shared_paths)
     }
@@ -255,14 +255,14 @@ where
     fn reconcile_shared_filesystem(&self, configured: &SubAgentsMap) {
         let mut expected_files = HashSet::new();
         let mut owned_dirs = HashSet::new();
-        let mut shared_dirs = HashSet::new();
+        let mut dirs = HashSet::new();
         for agent_config in configured.values() {
             match self.get_definition(&agent_config.agent_type) {
                 Ok(definition) => {
                     let declared = self.declared_shared_paths(&definition);
                     expected_files.extend(declared.owned_files);
                     owned_dirs.extend(declared.owned_dirs);
-                    shared_dirs.extend(declared.shared_dirs);
+                    dirs.extend(declared.dirs);
                 }
                 Err(err) => {
                     warn!(
@@ -278,7 +278,7 @@ where
             &self.shared_filesystem_base,
             &expected_files,
             &owned_dirs,
-            &shared_dirs,
+            &dirs,
         ) {
             warn!(?err, base = ?self.shared_filesystem_base, "shared filesystem reconcile failed");
         }
@@ -295,7 +295,7 @@ fn delete_stale_paths(
         .owned_files
         .difference(&new.owned_files)
         .chain(old.owned_dirs.difference(&new.owned_dirs))
-        .chain(old.shared_dirs.difference(&new.shared_dirs))
+        .chain(old.dirs.difference(&new.dirs))
     {
         remove_path(path).map_err(|e| (path.clone(), e))?;
     }

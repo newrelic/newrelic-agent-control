@@ -160,8 +160,8 @@ impl Templateable for SharedFileSystem {
     }
 }
 
-/// The shared-filesystem paths an Agent Type declares ownership of, rooted under a base directory
-/// and split by ownership granularity.
+/// The filesystem paths an Agent Type declares ownership of, rooted under a base directory and split by ownership
+/// granularity.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct DeclaredPaths {
     /// Files owned individually. Several agents may drop sibling files into the same
@@ -172,7 +172,7 @@ pub struct DeclaredPaths {
     pub owned_dirs: HashSet<PathBuf>,
     /// Shared `kind: dir` nodes. Several agents may declare the same one; a directory is only
     /// safe to remove once no agent declares it here anymore.
-    pub shared_dirs: HashSet<PathBuf>,
+    pub dirs: HashSet<PathBuf>,
 }
 
 impl SharedFileSystem {
@@ -197,7 +197,7 @@ fn collect_declared_paths(path: &Path, entry: &FilesystemEntry, declared: &mut D
             declared.owned_files.insert(path.to_path_buf());
         }
         FilesystemEntry::Dir { entries, .. } => {
-            declared.shared_dirs.insert(path.to_path_buf());
+            declared.dirs.insert(path.to_path_buf());
             for (key, child) in entries {
                 collect_declared_paths(&path.join(key), child, declared);
             }
@@ -1176,7 +1176,7 @@ projected:
             "`dir_content_from_map` must be reported as a whole-directory owner"
         );
         assert_eq!(
-            declared.shared_dirs,
+            declared.dirs,
             HashSet::from([base.join("co-owned"), base.join("co-owned").join("nested"),]),
             "every `kind: dir` node, including nested ones, must be reported as co-owned"
         );
@@ -1189,6 +1189,6 @@ projected:
         let declared = SharedFileSystem::default().declared_paths(tmp_dir.path());
         assert!(declared.owned_files.is_empty());
         assert!(declared.owned_dirs.is_empty());
-        assert!(declared.shared_dirs.is_empty());
+        assert!(declared.dirs.is_empty());
     }
 }
