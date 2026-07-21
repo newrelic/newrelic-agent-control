@@ -75,6 +75,8 @@
                 api-key: "{{ nr_license_key }}"
               logs:
                 enabled: true
+              custom_attributes:
+                host.name: "{{ inventory_hostname }}"
           agents:
             infra:
               agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"

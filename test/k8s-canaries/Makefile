@@ -119,6 +119,7 @@ endif
     --set agentControlDeployment.chartValues.config.override.self_instrumentation.opentelemetry.custom_attributes."label\.app\.kubernetes\.io/name"=agent-control \
     --set agentControlDeployment.chartValues.config.override.self_instrumentation.opentelemetry.endpoint="$(OTLP_ENDPOINT)" \
     --set agentControlDeployment.chartValues.config.override.self_instrumentation.opentelemetry.headers.api-key=$(NR_LICENSE_KEY) \
+    --set agentControlDeployment.chartValues.config.override.self_instrumentation.opentelemetry.logs.enabled=true \
     --set agentControlDeployment.chartValues.config.fleet_control.fleet_id="$(FLEET_ID)" \
     --set agentControlDeployment.chartValues.systemIdentity.create=false \
     --set agentControlDeployment.chartValues.systemIdentity.secretName="sys-identity" \

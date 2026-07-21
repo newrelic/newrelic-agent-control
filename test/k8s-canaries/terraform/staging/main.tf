@@ -103,6 +103,15 @@ module "alerts" {
       operator      = "below_or_equals"
       template_name = "./alert_nrql_templates/generic_metric_count.tftpl"
     },
+    {
+      # Fires if no self-instrumentation logs are received in a 10-minute window.
+      name               = "Self-instrumentation logs presence"
+      threshold          = 0
+      duration           = 600
+      aggregation_window = 600
+      operator           = "below_or_equals"
+      template_name      = "./alert_nrql_templates/log_presence.tftpl"
+    },
   ]
 }
 
