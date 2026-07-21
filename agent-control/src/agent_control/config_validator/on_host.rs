@@ -34,9 +34,9 @@ impl AgentSharedPaths {
             Deployment::K8s(_) => DeclaredPaths::default(),
         };
         let claimed: Vec<PathBuf> = declared
-            .files
+            .owned_files
             .into_iter()
-            .chain(declared.managed_dirs)
+            .chain(declared.owned_dirs)
             .collect();
         Self {
             agent_id,

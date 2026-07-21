@@ -203,9 +203,9 @@ where
         for config in agents.values() {
             let definition = self.get_definition(&config.agent_type)?;
             let paths = self.declared_shared_paths(&definition);
-            all_shared_paths.files.extend(paths.files);
-            all_shared_paths.managed_dirs.extend(paths.managed_dirs);
-            all_shared_paths.declared_dirs.extend(paths.declared_dirs);
+            all_shared_paths.owned_files.extend(paths.owned_files);
+            all_shared_paths.owned_dirs.extend(paths.owned_dirs);
+            all_shared_paths.shared_dirs.extend(paths.shared_dirs);
         }
         Ok(all_shared_paths)
     }
@@ -254,15 +254,15 @@ where
     /// configured agent declares.
     fn reconcile_shared_filesystem(&self, configured: &SubAgentsMap) {
         let mut expected_files = HashSet::new();
-        let mut managed_dirs = HashSet::new();
-        let mut declared_dirs = HashSet::new();
+        let mut owned_dirs = HashSet::new();
+        let mut shared_dirs = HashSet::new();
         for agent_config in configured.values() {
             match self.get_definition(&agent_config.agent_type) {
                 Ok(definition) => {
                     let declared = self.declared_shared_paths(&definition);
-                    expected_files.extend(declared.files);
-                    managed_dirs.extend(declared.managed_dirs);
-                    declared_dirs.extend(declared.declared_dirs);
+                    expected_files.extend(declared.owned_files);
+                    owned_dirs.extend(declared.owned_dirs);
+                    shared_dirs.extend(declared.shared_dirs);
                 }
                 Err(err) => {
                     warn!(
@@ -277,8 +277,8 @@ where
         if let Err(err) = reconcile_shared_dir(
             &self.shared_filesystem_base,
             &expected_files,
-            &managed_dirs,
-            &declared_dirs,
+            &owned_dirs,
+            &shared_dirs,
         ) {
             warn!(?err, base = ?self.shared_filesystem_base, "shared filesystem reconcile failed");
         }
@@ -292,10 +292,10 @@ fn delete_stale_paths(
     new: &DeclaredPaths,
 ) -> Result<(), (PathBuf, io::Error)> {
     for path in old
-        .files
-        .difference(&new.files)
-        .chain(old.managed_dirs.difference(&new.managed_dirs))
-        .chain(old.declared_dirs.difference(&new.declared_dirs))
+        .owned_files
+        .difference(&new.owned_files)
+        .chain(old.owned_dirs.difference(&new.owned_dirs))
+        .chain(old.shared_dirs.difference(&new.shared_dirs))
     {
         remove_path(path).map_err(|e| (path.clone(), e))?;
     }
@@ -316,15 +316,15 @@ fn remove_path(path: &Path) -> io::Result<()> {
 
 /// Recursively deletes files under `dir` not in `expected_files`. For a subdirectory found along
 /// the way:
-/// - in `managed_dirs`: kept whole, not descended into.
-/// - in `declared_dirs` (but not `managed_dirs`): kept, and recursed into to prune stray
+/// - in `owned_dirs`: kept whole, not descended into.
+/// - in `shared_dirs` (but not `owned_dirs`): kept, and recursed into to prune stray
 ///   contents.
 /// - in neither (no configured agent declares it): removed wholesale, not descended into.
 fn reconcile_shared_dir(
     dir: &Path,
     expected_files: &HashSet<PathBuf>,
-    managed_dirs: &HashSet<PathBuf>,
-    declared_dirs: &HashSet<PathBuf>,
+    owned_dirs: &HashSet<PathBuf>,
+    shared_dirs: &HashSet<PathBuf>,
 ) -> io::Result<()> {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
@@ -335,11 +335,11 @@ fn reconcile_shared_dir(
     for entry in entries {
         let path = entry?.path();
         if path.is_dir() {
-            if managed_dirs.contains(&path) {
+            if owned_dirs.contains(&path) {
                 continue;
             }
-            if declared_dirs.contains(&path) {
-                reconcile_shared_dir(&path, expected_files, managed_dirs, declared_dirs)?;
+            if shared_dirs.contains(&path) {
+                reconcile_shared_dir(&path, expected_files, owned_dirs, shared_dirs)?;
             } else {
                 remove_path(&path)?;
             }

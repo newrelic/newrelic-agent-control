@@ -165,14 +165,14 @@ impl Templateable for SharedFileSystem {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct DeclaredPaths {
     /// Files owned individually. Several agents may drop sibling files into the same
-    /// co-owned directory, but no two may own the exact same file path.
-    pub files: HashSet<PathBuf>,
+    /// shared directory, but no two may own the exact same file path.
+    pub owned_files: HashSet<PathBuf>,
     /// Directories owned as a whole: the entire subtree is managed as a unit, and no
     /// other agent may own anything at or under the path.
-    pub managed_dirs: HashSet<PathBuf>,
-    /// Co-owned `kind: dir` nodes. Several agents may declare the same one; a directory is only
+    pub owned_dirs: HashSet<PathBuf>,
+    /// Shared `kind: dir` nodes. Several agents may declare the same one; a directory is only
     /// safe to remove once no agent declares it here anymore.
-    pub declared_dirs: HashSet<PathBuf>,
+    pub shared_dirs: HashSet<PathBuf>,
 }
 
 impl SharedFileSystem {
@@ -189,21 +189,21 @@ impl SharedFileSystem {
 
 /// Recursively gathers the paths declared by `entry` (rooted at `path`) into `declared`.
 ///
-/// `Dir` entries are co-owned drop zones: the directory path is tracked separately in
-/// `declared_dirs` (not `files`/`managed_dirs`), since several agents may declare the same one.
+/// `Dir` entries are shared drop zones: the directory path is tracked separately in
+/// `shared_dirs` (not `owned_files`/`owned_dirs`), since several agents may declare the same one.
 fn collect_declared_paths(path: &Path, entry: &FilesystemEntry, declared: &mut DeclaredPaths) {
     match entry {
         FilesystemEntry::File { .. } => {
-            declared.files.insert(path.to_path_buf());
+            declared.owned_files.insert(path.to_path_buf());
         }
         FilesystemEntry::Dir { entries, .. } => {
-            declared.declared_dirs.insert(path.to_path_buf());
+            declared.shared_dirs.insert(path.to_path_buf());
             for (key, child) in entries {
                 collect_declared_paths(&path.join(key), child, declared);
             }
         }
         FilesystemEntry::DirContentFromMap { .. } => {
-            declared.managed_dirs.insert(path.to_path_buf());
+            declared.owned_dirs.insert(path.to_path_buf());
         }
     }
 }
@@ -1162,7 +1162,7 @@ projected:
         let declared = shared.declared_paths(base);
 
         assert_eq!(
-            declared.files,
+            declared.owned_files,
             HashSet::from([
                 base.join("top-file"),
                 base.join("co-owned").join("nri-redis.yaml"),
@@ -1171,12 +1171,12 @@ projected:
             "every `kind: file` must be reported, and the co-owned dir path must not be"
         );
         assert_eq!(
-            declared.managed_dirs,
+            declared.owned_dirs,
             HashSet::from([base.join("projected")]),
             "`dir_content_from_map` must be reported as a whole-directory owner"
         );
         assert_eq!(
-            declared.declared_dirs,
+            declared.shared_dirs,
             HashSet::from([base.join("co-owned"), base.join("co-owned").join("nested"),]),
             "every `kind: dir` node, including nested ones, must be reported as co-owned"
         );
@@ -1187,8 +1187,8 @@ projected:
     fn declared_paths_of_empty_is_empty() {
         let tmp_dir = TempDir::new().unwrap();
         let declared = SharedFileSystem::default().declared_paths(tmp_dir.path());
-        assert!(declared.files.is_empty());
-        assert!(declared.managed_dirs.is_empty());
-        assert!(declared.declared_dirs.is_empty());
+        assert!(declared.owned_files.is_empty());
+        assert!(declared.owned_dirs.is_empty());
+        assert!(declared.shared_dirs.is_empty());
     }
 }
