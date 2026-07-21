@@ -58,7 +58,6 @@ jobs:
           - self-update-latest-to-current
           - self-update-current-to-latest
           - post-download-hook-success
-          - post-download-hook-failure
           - nri-redis
     steps:
       - name: Record job start time

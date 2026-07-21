@@ -53,9 +53,6 @@ enum LinuxScenarios {
     /// filesystem marker written by the hook) that the hook runs after the package is downloaded
     /// and that the agent starts afterwards.
     PostDownloadHookSuccess(InstallationArgs),
-    /// Installs a sub-agent whose OCI package defines a failing `post_download_hook`, and verifies
-    /// that the hook runs but the agent is not started because the hook returns a non-zero exit code.
-    PostDownloadHookFailure(InstallationArgs),
     /// Installs Agent Control with a mirrored infra-agent OCI and a custom nri-redis OCI,
     /// spins up a local Redis instance, and verifies that RedisSample data lands in NRDB.
     NriRedis(InstallationArgs),

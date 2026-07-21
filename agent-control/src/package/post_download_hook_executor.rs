@@ -1,5 +1,5 @@
 //! Executes a package's post-download hook command after extraction, enforcing a timeout.
-use std::io::{Error as IoError, ErrorKind, Read};
+use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::thread;
@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use tracing::{debug, warn};
 
 use crate::agent_type::runtime_config::on_host::package::rendered::PostDownloadHook;
+use crate::utils::process_group::{ProcessGroup, ProcessGroupError};
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(300);
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -14,16 +15,9 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// Errors that can occur while executing a post-download hook.
 #[derive(thiserror::Error, Debug)]
 pub enum PostDownloadHookExecutionError {
-    /// The configured hook command could not be found.
-    #[error("command not found: {path}")]
-    CommandNotFound {
-        /// Path of the command that could not be found.
-        path: String,
-    },
-
-    /// The hook command could not be spawned.
-    #[error("failed to spawn command '{0}': {1}")]
-    SpawnFailed(String, #[source] IoError),
+    /// The hook command could not be spawned or its process group could not be established.
+    #[error("failed to run command '{0}': {1}")]
+    SpawnFailed(String, #[source] ProcessGroupError),
 
     /// The hook ran but exited with a non-zero status.
     #[error("script execution failed with exit code {0:?}\nstderr: {1}")]
@@ -77,14 +71,8 @@ impl PostDownloadHookExecutor {
             .stderr(Stdio::piped())
             .envs(&post_download_hook.env.0);
 
-        let mut child = cmd.spawn().map_err(|e| {
-            if e.kind() == ErrorKind::NotFound {
-                PostDownloadHookExecutionError::CommandNotFound {
-                    path: post_download_hook.path.clone(),
-                }
-            } else {
-                PostDownloadHookExecutionError::SpawnFailed(post_download_hook.path.clone(), e)
-            }
+        let (mut child, process_group) = ProcessGroup::spawn(cmd).map_err(|e| {
+            PostDownloadHookExecutionError::SpawnFailed(post_download_hook.path.clone(), e)
         })?;
 
         // Drain stdout/stderr on dedicated threads avoiding deadlocks due to full pipe buffer.
@@ -129,8 +117,7 @@ impl PostDownloadHookExecutor {
                 }
                 None => {
                     if Instant::now() >= deadline {
-                        // TODO improve this to close the process tree
-                        let _ = child.kill();
+                        let _ = process_group.kill();
                         let _ = child.wait();
                         let stdout = stdout_reader.join().unwrap_or_default();
                         let stderr = stderr_reader.join().unwrap_or_default();
@@ -383,6 +370,75 @@ mod tests {
         assert!(logs_contain("stderr=partial-stderr"));
         assert!(!logs_contain("discarded-stdout"));
         assert!(!logs_contain("discarded-stderr"));
+    }
+
+    /// Checks whether a process with the given pid is still alive, without sending a signal.
+    #[cfg(unix)]
+    fn is_process_running(pid: i32) -> bool {
+        use nix::sys::signal::kill;
+        use nix::unistd::Pid;
+
+        kill(Pid::from_raw(pid), None).is_ok()
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_std_pipes_are_closed_on_timeout() {
+        use crate::utils::retry::retry;
+
+        let temp_dir = TempDir::new().unwrap();
+        let script_path = temp_dir.path().join(format!(
+            "hanging_hook_with_grandchild.{}",
+            script_extension()
+        ));
+        let grandchild_pid_file = temp_dir.path().join("grandchild.pid");
+
+        create_script(
+            &script_path,
+            &format!(
+                "(echo $$ > {}; sleep 5) & wait",
+                grandchild_pid_file.display()
+            ),
+            0,
+        );
+
+        let post_download_hook = create_script_hook(script_path, vec![]);
+        let executor = PostDownloadHookExecutor {
+            package_dir: temp_dir.path().to_path_buf(),
+            timeout: Duration::from_millis(500),
+        };
+
+        let start = std::time::Instant::now();
+        let result = executor.execute(&post_download_hook);
+
+        assert!(matches!(
+            result.unwrap_err(),
+            PostDownloadHookExecutionError::Timeout(_)
+        ));
+        // A group-kill returns promptly; a leaked grandchild holding the piped stdout/stderr open
+        // would otherwise block `execute` until it exits on its own (here, after its 5s sleep).
+        assert!(
+            start.elapsed() < Duration::from_secs(2),
+            "execute() took {:?}, suggesting it blocked waiting on the grandchild",
+            start.elapsed()
+        );
+
+        let grandchild_pid: i32 = retry(50, Duration::from_millis(100), || {
+            std::fs::read_to_string(&grandchild_pid_file)
+                .ok()
+                .and_then(|content| content.trim().parse().ok())
+                .ok_or("grandchild pid file not written yet")
+        })
+        .expect("grandchild never wrote its pid file");
+
+        retry(50, Duration::from_millis(100), || {
+            if is_process_running(grandchild_pid) {
+                Err("grandchild still running")
+            } else {
+                Ok::<(), &str>(())
+            }
+        })
+        .expect("grandchild was not killed by the timeout");
     }
 
     #[test]

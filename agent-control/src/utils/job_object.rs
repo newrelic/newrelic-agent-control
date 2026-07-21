@@ -1,6 +1,5 @@
 //! Windows Job Object wrapper for terminating a process and its descendants as a group.
 
-use crate::sub_agent::on_host::command::error::CommandError;
 use std::os::windows::io::AsRawHandle;
 use std::process::Child;
 use tracing::error;
@@ -11,6 +10,11 @@ use windows::Win32::System::JobObjects::{
     SetInformationJobObject, TerminateJobObject,
 };
 
+/// Error produced by a Windows Job Object operation.
+#[derive(thiserror::Error, Debug)]
+#[error("{0}")]
+pub struct JobObjectError(String);
+
 /// Represents a Windows Job Object used to manage and control a group of processes.
 /// When the Job Object is killed or dropped, all associated processes are terminated.
 pub struct JobObject {
@@ -18,10 +22,10 @@ pub struct JobObject {
 }
 impl JobObject {
     /// Creates a new JobObject with the "kill on job close" configuration.
-    pub fn new() -> Result<Self, CommandError> {
+    pub fn new() -> Result<Self, JobObjectError> {
         unsafe {
             let handle = CreateJobObjectW(None, None)
-                .map_err(|e| CommandError::WinError(format!("creating JobObject: {e}")))?;
+                .map_err(|e| JobObjectError(format!("creating JobObject: {e}")))?;
 
             // Set the JobObject to kill all associated processes when the JobObject is closed.
             let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
@@ -32,28 +36,27 @@ impl JobObject {
                 &limits as *const _ as *const _,
                 std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
             )
-            .map_err(|e| CommandError::WinError(format!("setting JobObject information: {e}")))?;
+            .map_err(|e| JobObjectError(format!("setting JobObject information: {e}")))?;
 
             Ok(Self { handle })
         }
     }
 
     /// Assigns the given process to this JobObject. The process will be terminated when the JobObject is closed.
-    pub fn assign_process(&self, process: &Child) -> Result<(), CommandError> {
+    pub fn assign_process(&self, process: &Child) -> Result<(), JobObjectError> {
         unsafe {
             let process_handle = HANDLE(process.as_raw_handle());
-            AssignProcessToJobObject(self.handle, process_handle).map_err(|e| {
-                CommandError::WinError(format!("assigning process to JobObject: {e}"))
-            })?;
+            AssignProcessToJobObject(self.handle, process_handle)
+                .map_err(|e| JobObjectError(format!("assigning process to JobObject: {e}")))?;
         }
         Ok(())
     }
 
     /// Kills the JobObject, terminating all associated processes.
-    pub fn kill(self) -> Result<(), CommandError> {
+    pub fn kill(self) -> Result<(), JobObjectError> {
         unsafe {
             TerminateJobObject(self.handle, 0)
-                .map_err(|e| CommandError::WinError(format!("closing JobObject handle: {e}")))?;
+                .map_err(|e| JobObjectError(format!("closing JobObject handle: {e}")))?;
         }
         Ok(())
     }

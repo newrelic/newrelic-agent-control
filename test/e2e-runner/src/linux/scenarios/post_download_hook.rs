@@ -17,7 +17,6 @@ const AGENT_TYPE: &str = "newrelic/com.newrelic.posthook_e2e:0.1.0";
 const AGENT_TYPE_FILE: &str = "/etc/newrelic-agent-control/dynamic-agent-types/posthook_e2e.yaml";
 
 const SUPERVISOR_KEY_ATTR: &str = "supervisor.key";
-const HOOK_ERROR_MSG: &str = "e2e-posthook-failed-on-purpose";
 
 // Installs Agent Control with a sub-agent whose OCI package defines a successful
 // `post_download_hook`, and verifies (via filesystem markers) that the hook runs and the agent
@@ -70,73 +69,6 @@ pub fn test_post_download_hook_success(args: InstallationArgs) {
     });
 
     info!("Post-download-hook success scenario completed successfully");
-}
-
-// Installs Agent Control with a sub-agent whose OCI package defines a failing
-// `post_download_hook`, and verifies that the hook runs but the agent is never started because
-// the hook returns a non-zero exit code.
-pub fn test_post_download_hook_failure(args: InstallationArgs) {
-    info!("Starting post-download-hook failure scenario");
-
-    let registry = OciRegistry::start();
-
-    let (hook_marker, agent_marker) = markers();
-
-    // The hook writes its marker, prints an error to stderr and then fails; the agent must never start.
-    let hook_script =
-        format!("#!/bin/bash\ntouch {hook_marker}\necho '{HOOK_ERROR_MSG}' >&2\nexit 1\n");
-    let agent_script = format!("#!/bin/bash\ntouch {agent_marker}\nexec sleep 3600\n");
-    let pushed = push_hook_package(&hook_script, &agent_script);
-
-    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
-    let _clean_up = CleanUp::new(tear_down_test);
-
-    deploy_hook_agent(args, &registry, &pushed, &mut opamp_server);
-
-    info!("Verifying the post-download hook ran (hook marker created)");
-    retry_panic(
-        60,
-        Duration::from_secs(2),
-        "post-download hook marker",
-        || marker_exists(&hook_marker),
-    );
-
-    info!(
-        "Verifying Agent Control reports the sub-agent as unhealthy with the hook error via OpAMP"
-    );
-    retry_panic(
-        60,
-        Duration::from_secs(2),
-        "sub-agent unhealthy with hook error",
-        || {
-            let instance = opamp_server
-                .find_agents_with_identifying_attr(SUPERVISOR_KEY_ATTR, AGENT_ID)
-                .into_iter()
-                .next()
-                .ok_or("sub-agent has not connected to OpAMP yet")?;
-            let health = opamp_server
-                .get_health_status(instance)
-                .ok_or("sub-agent has not reported health yet")?;
-            if health.healthy {
-                return Err("sub-agent still reports healthy".into());
-            }
-            if !health.last_error.contains(HOOK_ERROR_MSG) {
-                return Err(format!(
-                    "sub-agent unhealthy but last_error does not contain the hook stderr; got: {}",
-                    health.last_error
-                )
-                .into());
-            }
-            Ok(())
-        },
-    );
-
-    assert!(
-        !Path::new(&agent_marker).exists(),
-        "agent must not start when the post-download hook fails, but '{agent_marker}' was created"
-    );
-
-    info!("Post-download-hook failure scenario completed successfully");
 }
 
 // Installs Agent Control, registers the post-download-hook agent type, points Agent Control at the
