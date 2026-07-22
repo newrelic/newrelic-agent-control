@@ -163,8 +163,11 @@ impl SharedFileSystem {
     }
 }
 
-/// Creates `dir` (and any missing parents), with error context. Safe if it already exists. Clears
-/// a stale file left at `dir` first (e.g. by a previous Agent Type declaring it as `kind: file`).
+/// Creates `dir` (and any missing parents), with error context. Clears a stale file left at
+/// `dir` first (e.g. by a previous Agent Type declaring it as `kind: file`). Does nothing if
+/// `dir` already exists as a directory: on Windows, `dir_manager.create` also resets on-disk
+/// permissions to Administrators-only, which would strip access from whatever already owns a
+/// pre-existing directory.
 fn ensure_dir(
     file_ops: &impl FileDeleter,
     dir_manager: &impl DirectoryManager,
@@ -172,6 +175,9 @@ fn ensure_dir(
 ) -> Result<(), FileSystemEntriesError> {
     clear_if_wrong_shape(dir, true, file_ops, dir_manager)
         .map_err(|err| FileSystemEntriesError(format!("clearing {dir:?}: {err}")))?;
+    if dir.is_dir() {
+        return Ok(());
+    }
     trace!("Creating directory {}", dir.display());
     dir_manager
         .create(dir)
