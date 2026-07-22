@@ -32,7 +32,7 @@ permissions:
 
 # NOTE: The below environment vars are bumped automatically by Renovate
 env:
-  HOST_E2E_INFRA_AGENT_VERSION: "1.78.0"
+  HOST_E2E_INFRA_AGENT_VERSION: "1.78.1"
 
 jobs:
   build-packages:
