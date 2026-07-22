@@ -91,9 +91,6 @@ deployment:
     infra-agent-ohi-binaries:
       kind: dir
       entries:
-        nri-flex.exe:
-          kind: file
-          copy_from_file: ${nr-sub:packages.infra-agent.dir}\\integrations\\nri-flex.exe
         nri-prometheus.exe:
           kind: file
           copy_from_file: ${nr-sub:packages.infra-agent.dir}\\integrations\\nri-prometheus.exe
