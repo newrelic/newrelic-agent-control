@@ -1,4 +1,4 @@
-SELECT max(${metric}) OR 0
+SELECT ${metric}
 FROM ${sample}
 WHERE (
   hostname = '${instance_id}'
