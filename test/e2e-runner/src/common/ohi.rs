@@ -5,9 +5,8 @@ use std::path::Path;
 pub const SHARED_LINUX_FILESYSTEM_DIR: &str = "/var/lib/newrelic-agent-control/shared-filesystem";
 pub const SHARED_WINDOWS_FILESYSTEM_DIR: &str =
     r"C:\ProgramData\New Relic\newrelic-agent-control\shared-filesystem";
-pub const EMBEDDED_LINUX_OHI_BINARIES: [&str; 3] = ["nri-flex", "nri-prometheus", "nri-docker"];
-pub const EMBEDDED_WINDOWS_OHI_BINARIES: [&str; 5] = [
-    "nri-flex.exe",
+pub const EMBEDDED_LINUX_OHI_BINARIES: [&str; 2] = ["nri-prometheus", "nri-docker"];
+pub const EMBEDDED_WINDOWS_OHI_BINARIES: [&str; 4] = [
     "nri-prometheus.exe",
     "nr-winpkg.exe",
     "nri-winservices.exe",
