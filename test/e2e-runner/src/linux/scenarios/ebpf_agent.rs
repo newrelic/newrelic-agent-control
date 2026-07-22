@@ -15,18 +15,25 @@ use config::DEBUG_LOGGING_CONFIG;
 use std::time::Duration;
 use tracing::info;
 
+// Dev OCI packages pre-populated on ghcr.io.
+// When production ebpf-agent OCI ships, delete this scenario's dev-registry wiring and point at the real registry/repo.
+const DEV_OCI_REGISTRY: &str = "ghcr.io";
+const DEV_INFRA_AGENT_REPO: &str = "newrelic/newrelic-agent-control-infrastructure-dev";
+const DEV_INFRA_AGENT_VERSION: &str = "v1.78.0";
+const DEV_EBPF_AGENT_REPO: &str = "newrelic/newrelic-agent-control-ebpf-dev";
+
 pub fn test_ebpf_agent(args: InstallationArgs) {
-    let infra_version = args
-        .infra_agent_version
+    let ebpf_version = args
+        .ebpf_agent_version
         .clone()
-        .expect("--infra-agent-version is required for this scenario");
+        .expect("--ebpf-agent-version is required for this scenario");
 
     let staging = args.nr_region == Region::Staging;
 
     let recipe_data = RecipeData {
         args,
         monitoring_source: "infra-agent".to_string(),
-        recipe_list: "agent-control,ebpf-agent-installer".to_string(),
+        recipe_list: "agent-control".to_string(),
         ..Default::default()
     };
 
@@ -40,6 +47,8 @@ pub fn test_ebpf_agent(args: InstallationArgs) {
     );
 
     info!("Setup Agent Control config with eBPF");
+    // Point AC at the dev packages on ghcr.io. Signature verification is disabled because the
+    // dev packages are not signed with New Relic's production key.
     let config = format!(
         r#"
 host_id: {test_id}
@@ -48,6 +57,15 @@ agents:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
   nr-ebpf:
     agent_type: "newrelic/com.newrelic.ebpf:0.1.0"
+oci:
+  registry: {DEV_OCI_REGISTRY}
+agent_type_var_constraints:
+  variants:
+    oci_repository_urls:
+      - {DEV_INFRA_AGENT_REPO}
+      - {DEV_EBPF_AGENT_REPO}
+agent_packages:
+  signature_verification_enabled: false
 {DEBUG_LOGGING_CONFIG}
 "#
     );
@@ -56,16 +74,22 @@ agents:
     let ebpf_config = if staging {
         format!(
             r#"
-config_agent:
+config:
   DEPLOYMENT_NAME: {test_id}
   OTLP_ENDPOINT: staging-otlp.nr-data.net:443
+oci:
+  repository: {DEV_EBPF_AGENT_REPO}
+version: "{ebpf_version}"
     "#
         )
     } else {
         format!(
             r#"
-config_agent:
+config:
   DEPLOYMENT_NAME: {test_id}
+oci:
+  repository: {DEV_EBPF_AGENT_REPO}
+version: "{ebpf_version}"
     "#
         )
     };
@@ -78,9 +102,10 @@ config_agent:
 config_agent:
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
   staging: {staging}
-version: {}
-"#,
-            infra_version
+version: {DEV_INFRA_AGENT_VERSION}
+oci:
+  repository: {DEV_INFRA_AGENT_REPO}
+"#
         ),
     );
 
