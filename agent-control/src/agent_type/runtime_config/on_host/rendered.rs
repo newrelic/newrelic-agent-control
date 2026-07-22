@@ -1,12 +1,10 @@
 //! On-host deployment configuration after templating.
+use crate::agent_type::runtime_config::on_host::filesystem::{Agent, Shared};
 use crate::agent_type::runtime_config::on_host::package::PackageID;
 use crate::agent_type::runtime_config::on_host::package::rendered::Package;
 use crate::agent_type::runtime_config::{
     health_config::rendered::OnHostHealthConfig,
-    on_host::{
-        executable::rendered::Executable,
-        filesystem::rendered::{FileSystem, SharedFileSystem},
-    },
+    on_host::{executable::rendered::Executable, filesystem::rendered::FileSystem},
 };
 use std::collections::HashMap;
 
@@ -20,9 +18,9 @@ pub struct OnHost {
     /// Enables and define health checks configuration.
     pub health: Option<OnHostHealthConfig>,
     /// Files and directories to materialize on disk for each agent.
-    pub filesystem: FileSystem,
+    pub filesystem: FileSystem<Agent>,
     /// Files and directories to materialize in the base shared across sub-agents.
-    pub shared_filesystem: SharedFileSystem,
+    pub shared_filesystem: FileSystem<Shared>,
     /// Packages to download for this agent.
     pub packages: RenderedPackages,
     /// Main OCI Package version reported as the `agent.version`.

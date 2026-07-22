@@ -4,7 +4,7 @@ use super::templateable_value::TemplateableValue;
 use crate::agent_type::definition::{Variables, include_packages_variables};
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::runtime_config::on_host::executable::Executable;
-use crate::agent_type::runtime_config::on_host::filesystem::{FileSystem, SharedFileSystem};
+use crate::agent_type::runtime_config::on_host::filesystem::{Agent, Entries, FileSystem, Shared};
 use crate::agent_type::runtime_config::on_host::package::{Package, PackageID};
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::agent_type::templates::Templateable;
@@ -25,9 +25,9 @@ pub struct OnHost {
     enable_file_logging: TemplateableValue<bool>,
     /// Enables and defines health checks configuration.
     health: Option<OnHostHealthConfig>,
-    filesystem: FileSystem,
+    filesystem: FileSystem<Agent>,
     packages: Packages,
-    shared_filesystem: SharedFileSystem,
+    shared_filesystem: FileSystem<Shared>,
     /// Package whose OCI version is reported as the `agent.version` identifying attribute.
     reported_version_package: Option<PackageID>,
 }
@@ -48,9 +48,9 @@ impl<'de> Deserialize<'de> for OnHost {
             #[serde(default)]
             health: Option<OnHostHealthConfig>,
             #[serde(default)]
-            filesystem: FileSystem,
+            filesystem: Entries,
             #[serde(default)]
-            shared_filesystem: SharedFileSystem,
+            shared_filesystem: Entries,
             #[serde(default)]
             packages: Packages,
             #[serde(default)]
@@ -64,8 +64,8 @@ impl<'de> Deserialize<'de> for OnHost {
             executables: raw.executables,
             enable_file_logging: raw.enable_file_logging,
             health: raw.health,
-            filesystem: raw.filesystem,
-            shared_filesystem: raw.shared_filesystem,
+            filesystem: FileSystem::new(raw.filesystem),
+            shared_filesystem: FileSystem::new(raw.shared_filesystem),
             packages: raw.packages,
             reported_version_package,
         })
@@ -104,14 +104,14 @@ fn resolve_reported_version_package<E: serde::de::Error>(
 impl OnHost {
     /// The per-agent filesystem entries this Agent Type declares. The paths (keys) are static,
     /// so they are available without rendering.
-    pub fn filesystem(&self) -> &FileSystem {
+    pub fn filesystem(&self) -> &FileSystem<Agent> {
         &self.filesystem
     }
 
     /// The files and directories this Agent Type declares in the shared filesystem.
     /// The paths are static because they are not [Templateable], therefore they are
     /// available without rendering.
-    pub fn shared_filesystem(&self) -> &SharedFileSystem {
+    pub fn shared_filesystem(&self) -> &FileSystem<Shared> {
         &self.shared_filesystem
     }
 }
@@ -838,7 +838,7 @@ executables:
             enable_file_logging: TemplateableValue::default(),
             health: None,
             filesystem: FileSystem::default(),
-            shared_filesystem: SharedFileSystem::default(),
+            shared_filesystem: FileSystem::default(),
             packages: Default::default(),
             reported_version_package: None,
         };

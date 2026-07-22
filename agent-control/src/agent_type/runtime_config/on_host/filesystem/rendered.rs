@@ -1,20 +1,49 @@
 //! Rendered filesystem tree and the logic to materialize it on disk.
+use super::{Agent, FileSystemKind};
 use fs::file::copier::FileCopier;
 use fs::file::deleter::FileDeleter;
 use fs::{directory_manager::DirectoryManager, file::writer::FileWriter};
 use std::collections::{HashMap, HashSet};
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tracing::trace;
 
 /// Rendered filesystem tree, ready to be materialized on disk.
 ///
-/// Top-level keys (`entries`) are absolute paths under the sub-agent's filesystem dir; children
-/// inside a `Dir` are kept relative to their parent — recursion in [`FileSystem::write`] joins
-/// them onto the parent path.
-#[derive(Debug, Clone, PartialEq)]
-pub struct FileSystem {
-    pub(super) entries: HashMap<PathBuf, RenderedEntry>,
+/// Top-level keys are absolute paths (per-agent or shared, depending on `K`); children inside a
+/// `Dir` are kept relative to their parent — recursion in [`FileSystem::write`] joins them onto
+/// the parent path.
+///
+/// The type parameter `K` distinguishes the on-disk root the tree was rendered against — per-agent
+/// (`FileSystem<Agent>`, rooted at `${nr-sub:filesystem_agent_dir}`) or shared across sub-agents
+/// (`FileSystem<Shared>`, rooted at `${nr-sub:shared_filesystem_dir}`) — and thereby the pruning
+/// semantics that apply to it. [`FileSystem::delete_not_declared`] is only defined on
+/// `FileSystem<Agent>`, so calling it on the shared tree is a compile error.
+pub struct FileSystem<K>(HashMap<PathBuf, RenderedEntry>, PhantomData<K>);
+
+impl<K: FileSystemKind> FileSystem<K> {
+    pub(super) fn new(entries: HashMap<PathBuf, RenderedEntry>) -> Self {
+        Self(entries, PhantomData)
+    }
+}
+
+impl<K: FileSystemKind> std::fmt::Debug for FileSystem<K> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("FileSystem").field(&self.0).finish()
+    }
+}
+
+impl<K: FileSystemKind> Clone for FileSystem<K> {
+    fn clone(&self) -> Self {
+        Self::new(self.0.clone())
+    }
+}
+
+impl<K: FileSystemKind> PartialEq for FileSystem<K> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
 }
 
 /// The source of a rendered file's bytes.
@@ -85,39 +114,42 @@ impl RenderedEntry {
     }
 }
 
-impl FileSystem {
-    pub(super) fn new(entries: HashMap<PathBuf, RenderedEntry>) -> Self {
-        Self { entries }
-    }
-
-    /// Writes the declared tree under `base_dir`, overwriting any declared paths already on disk.
+impl<K: FileSystemKind> FileSystem<K> {
+    /// Writes the declared tree, overwriting any declared paths already on disk. Applies to both
+    /// kinds.
     pub fn write(
         &self,
         file_ops: &(impl FileWriter + FileCopier),
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
-        for (path, entry) in &self.entries {
+        for (path, entry) in &self.0 {
             entry.write(path, file_ops, dir_manager)?;
         }
         Ok(())
     }
+}
 
+impl FileSystem<Agent> {
     /// Deletes the on-disk path of every top-level entry that is not declared. Never descends into
     /// a declared `dir`'s own contents: those are left to the agent (or an earlier agent-type
     /// version) to own, and are only re-rendered by `write`, not pruned.
+    ///
+    /// Defined only on `FileSystem<Agent>`: shared filesystems have multi-agent ownership and are
+    /// reconciled by the top-level resource cleaner, not by per-agent supervisor logic, so calling
+    /// this on `FileSystem<Shared>` is a compile error.
     pub fn delete_not_declared(
         &self,
         file_ops: &impl FileDeleter,
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
-        let base_dir = match self.entries.keys().next().and_then(|p| p.parent()) {
+        let base_dir = match self.0.keys().next().and_then(|p| p.parent()) {
             Some(p) => p.to_path_buf(),
             None => return Ok(()),
         };
         // Top-level entry keys are absolute; strip to filename so they can be compared against
         // the single-component names `dir_manager.list` returns.
         let declared: HashSet<PathBuf> = self
-            .entries
+            .0
             .keys()
             .filter_map(|abs| abs.file_name().map(PathBuf::from))
             .collect();
@@ -132,30 +164,6 @@ impl FileSystem {
                     FileSystemEntriesError(format!("deleting {}: {e}", abs.display()))
                 })?;
             }
-        }
-        Ok(())
-    }
-}
-
-/// Rendered shared filesystem tree, materialized under the base shared across sub-agents.
-#[derive(Debug, Clone, PartialEq)]
-pub struct SharedFileSystem {
-    entries: HashMap<PathBuf, RenderedEntry>,
-}
-
-impl SharedFileSystem {
-    pub(super) fn new(entries: HashMap<PathBuf, RenderedEntry>) -> Self {
-        Self { entries }
-    }
-
-    /// Materializes the declared tree on disk. Existing files are overwritten; nothing is pruned.
-    pub fn write(
-        &self,
-        file_ops: &(impl FileWriter + FileCopier),
-        dir_manager: &impl DirectoryManager,
-    ) -> Result<(), FileSystemEntriesError> {
-        for (path, entry) in &self.entries {
-            entry.write(path, file_ops, dir_manager)?;
         }
         Ok(())
     }
@@ -236,13 +244,7 @@ mod tests {
     use fs::file::LocalFile;
     use tempfile::TempDir;
 
-    impl FileSystem {
-        pub(crate) fn test_empty() -> Self {
-            Self::new(HashMap::new())
-        }
-    }
-
-    impl SharedFileSystem {
+    impl<K: FileSystemKind> FileSystem<K> {
         pub(crate) fn test_empty() -> Self {
             Self::new(HashMap::new())
         }
@@ -274,7 +276,7 @@ mod tests {
         let target_dir = tmp.path().join("does-not-exist-yet");
         let target_path = target_dir.join("file.txt");
 
-        let fs = FileSystem::new(HashMap::from([(
+        let fs = FileSystem::<Agent>::new(HashMap::from([(
             target_path.clone(),
             file_entry_with_text("hello"),
         )]));
@@ -292,7 +294,7 @@ mod tests {
         std::fs::write(&source, source_bytes).unwrap();
 
         let target_path = tmp.path().join("does-not-exist-yet").join("dest.bin");
-        let fs = FileSystem::new(HashMap::from([(
+        let fs = FileSystem::<Agent>::new(HashMap::from([(
             target_path.clone(),
             file_entry_copy(source),
         )]));
@@ -306,7 +308,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
 
-        let fs = FileSystem::new(HashMap::from([(
+        let fs = FileSystem::<Agent>::new(HashMap::from([(
             base.join("parent"),
             dir_entry(HashMap::from([
                 (PathBuf::from("child.txt"), file_entry_with_text("child")),
@@ -327,7 +329,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
 
-        let fs = FileSystem::new(HashMap::from([(
+        let fs = FileSystem::<Agent>::new(HashMap::from([(
             base.join("logging.d"),
             map_dir_entry(HashMap::from([
                 (PathBuf::from("a.yaml"), "a-content".to_string()),
@@ -351,7 +353,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
 
-        let fs = FileSystem::new(HashMap::from([(
+        let fs = FileSystem::<Agent>::new(HashMap::from([(
             base.join("logging.d"),
             map_dir_entry(HashMap::new()),
         )]));
@@ -365,7 +367,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
 
-        let first = FileSystem::new(HashMap::from([(
+        let first = FileSystem::<Agent>::new(HashMap::from([(
             base.join("logging.d"),
             map_dir_entry(HashMap::from([(
                 PathBuf::from("a.yaml"),
@@ -377,7 +379,7 @@ mod tests {
         // tracked by the map, but is still cleared: the whole directory is wiped before rewrite.
         std::fs::write(base.join("logging.d/untracked.txt"), "stray").unwrap();
 
-        let second = FileSystem::new(HashMap::from([(
+        let second = FileSystem::<Agent>::new(HashMap::from([(
             base.join("logging.d"),
             map_dir_entry(HashMap::from([(
                 PathBuf::from("b.yaml"),
@@ -406,10 +408,10 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let path = tmp.path().join("file.txt");
 
-        FileSystem::new(HashMap::from([(path.clone(), file_entry_with_text("v1"))]))
+        FileSystem::<Agent>::new(HashMap::from([(path.clone(), file_entry_with_text("v1"))]))
             .write(&LocalFile, &DirectoryManagerFs)
             .unwrap();
-        FileSystem::new(HashMap::from([(path.clone(), file_entry_with_text("v2"))]))
+        FileSystem::<Agent>::new(HashMap::from([(path.clone(), file_entry_with_text("v2"))]))
             .write(&LocalFile, &DirectoryManagerFs)
             .unwrap();
 
@@ -430,7 +432,7 @@ mod tests {
         std::fs::create_dir(base.join("undeclared-dir")).unwrap();
         std::fs::write(base.join("undeclared-dir/inner.txt"), "inner").unwrap();
 
-        let fs = FileSystem::new(HashMap::from([
+        let fs = FileSystem::<Agent>::new(HashMap::from([
             (base.join("declared.yaml"), file_entry_with_text("x")),
             (base.join("declared-dir"), dir_entry(HashMap::new())),
         ]));
@@ -465,7 +467,7 @@ mod tests {
         std::fs::write(base.join("logging.d/syslog.yaml"), "sys").unwrap();
         std::fs::write(base.join("logging.d/stale.yaml"), "stale").unwrap();
 
-        let fs = FileSystem::new(HashMap::from([(
+        let fs = FileSystem::<Agent>::new(HashMap::from([(
             base.join("logging.d"),
             map_dir_entry(HashMap::from([(
                 PathBuf::from("syslog.yaml"),

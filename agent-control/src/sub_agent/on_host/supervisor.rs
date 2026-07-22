@@ -7,8 +7,9 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConfig;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::{
-    FileSystem, FileSystemEntriesError, SharedFileSystem,
+    FileSystem, FileSystemEntriesError,
 };
+use crate::agent_type::runtime_config::on_host::filesystem::{Agent, Shared};
 use crate::agent_type::runtime_config::on_host::package::PackageID;
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::checkers::health::health_checker::{Health, HealthCheckerError, spawn_health_checker};
@@ -93,7 +94,7 @@ where
     /// Directory where executable output is logged when file logging is enabled.
     pub logging_path: PathBuf,
     /// The agent's filesystem.
-    pub filesystem: FileSystem,
+    pub filesystem: FileSystem<Agent>,
 }
 
 /// An on-host supervisor ready to be started.
@@ -109,8 +110,8 @@ where
     package_manager: Arc<PM>,
     packages_config: RenderedPackages,
     reported_version_package: Option<PackageID>,
-    filesystem: FileSystem,
-    shared_filesystem: SharedFileSystem,
+    filesystem: FileSystem<Agent>,
+    shared_filesystem: FileSystem<Shared>,
 }
 
 impl<PM> SupervisorStarter for NotStartedSupervisorOnHost<PM>
@@ -228,8 +229,8 @@ where
         package_manager: Arc<PM>,
         file_logging_enable: bool,
         file_logging_path: PathBuf,
-        filesystem: FileSystem,
-        shared_filesystem: SharedFileSystem,
+        filesystem: FileSystem<Agent>,
+        shared_filesystem: FileSystem<Shared>,
     ) -> Self {
         NotStartedSupervisorOnHost {
             agent_identity,
@@ -672,7 +673,9 @@ pub mod tests {
     use crate::agent_type::definition::Variables;
     use crate::agent_type::runtime_config::health_config::HealthCheckTimeout;
     use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env, Executable};
-    use crate::agent_type::runtime_config::on_host::filesystem::FileSystem as ParsedFileSystem;
+    use crate::agent_type::runtime_config::on_host::filesystem::{
+        Entries as ParsedEntries, FileSystem as ParsedFileSystem,
+    };
     use crate::agent_type::runtime_config::on_host::package::rendered::{
         Download, Oci, Package, Repository, Version,
     };
@@ -741,7 +744,7 @@ pub mod tests {
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
+            FileSystem::test_empty(),
         );
 
         let (publisher, consumer) = pub_sub();
@@ -846,7 +849,7 @@ pub mod tests {
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
+            FileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -893,7 +896,7 @@ pub mod tests {
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
+            FileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -924,10 +927,10 @@ declared-dir:
             Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
             Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
         )]);
-        let filesystem = serde_saphyr::from_str::<ParsedFileSystem>(yaml)
-            .unwrap()
-            .template_with(&variables)
-            .unwrap();
+        let filesystem =
+            ParsedFileSystem::<Agent>::new(serde_saphyr::from_str::<ParsedEntries>(yaml).unwrap())
+                .template_with(&variables)
+                .unwrap();
 
         // Simulate a leftover file from a previous agent-type version that no longer declares it.
         let undeclared_path = tmp_dir.path().join("undeclared.txt");
@@ -957,7 +960,7 @@ declared-dir:
             false,
             PathBuf::default(),
             filesystem,
-            SharedFileSystem::test_empty(),
+            FileSystem::test_empty(),
         );
 
         let (publisher, _consumer) = pub_sub();
@@ -1006,7 +1009,7 @@ declared-dir:
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
+            FileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1057,7 +1060,7 @@ declared-dir:
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
+            FileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1108,7 +1111,7 @@ declared-dir:
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
+            FileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1154,7 +1157,7 @@ declared-dir:
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
+            FileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1219,7 +1222,7 @@ declared-dir:
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
+            FileSystem::test_empty(),
         );
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1401,7 +1404,7 @@ declared-dir:
             true,
             logging_path.clone(),
             FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
+            FileSystem::test_empty(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1436,7 +1439,7 @@ declared-dir:
             enable_file_logging: true,
             health: None,
             filesystem: FileSystem::test_empty(),
-            shared_filesystem: SharedFileSystem::test_empty(),
+            shared_filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
             reported_version_package: None,
         };
@@ -1531,7 +1534,7 @@ declared-dir:
             false,
             logging_path.clone(),
             FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
+            FileSystem::test_empty(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1566,7 +1569,7 @@ declared-dir:
             enable_file_logging: true,
             health: None,
             filesystem: FileSystem::test_empty(),
-            shared_filesystem: SharedFileSystem::test_empty(),
+            shared_filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
             reported_version_package: None,
         };
@@ -1659,7 +1662,7 @@ declared-dir:
             true,
             logging_path.clone(),
             FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
+            FileSystem::test_empty(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1694,7 +1697,7 @@ declared-dir:
             enable_file_logging: false,
             health: None,
             filesystem: FileSystem::test_empty(),
-            shared_filesystem: SharedFileSystem::test_empty(),
+            shared_filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
             reported_version_package: None,
         };
@@ -1772,7 +1775,7 @@ declared-dir:
             false,
             PathBuf::default(),
             FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
+            FileSystem::test_empty(),
         );
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
@@ -1846,7 +1849,7 @@ declared-dir:
             false,
             logging_path.clone(),
             FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
+            FileSystem::test_empty(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1881,7 +1884,7 @@ declared-dir:
             enable_file_logging: false,
             health: None,
             filesystem: FileSystem::test_empty(),
-            shared_filesystem: SharedFileSystem::test_empty(),
+            shared_filesystem: FileSystem::test_empty(),
             packages: get_empty_packages(),
             reported_version_package: None,
         };

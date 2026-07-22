@@ -9,12 +9,6 @@
 //! Top-level keys are interpreted relative to the sub-agent's dedicated filesystem directory
 //! (`${nr-sub:filesystem_agent_dir}`).
 
-use std::{
-    collections::{HashMap, HashSet},
-    io::{Error as IOError, ErrorKind},
-    path::{Component, Path, PathBuf},
-};
-
 use crate::agent_type::{
     agent_attributes::AgentAttributes,
     definition::Variables,
@@ -26,16 +20,63 @@ use crate::agent_type::{
 };
 use serde::Deserialize;
 use serde::de::Error;
+use std::{
+    collections::{HashMap, HashSet},
+    io::{Error as IOError, ErrorKind},
+    marker::PhantomData,
+    path::{Component, Path, PathBuf},
+};
 
 pub mod rendered;
+
+/// Top-level entries of a filesystem tree, keyed by their (validated) leaf path.
+pub type Entries = HashMap<SafePath, FilesystemEntry>;
+
+/// Marker trait tagging the on-disk root a [`FileSystem`] is rendered against.
+pub trait FileSystemKind {}
+
+/// Per-agent filesystem, rooted at `${nr-sub:filesystem_agent_dir}`.
+pub enum Agent {}
+/// Shared filesystem across sub-agents, rooted at `${nr-sub:shared_filesystem_dir}`.
+pub enum Shared {}
+
+impl FileSystemKind for Agent {}
+impl FileSystemKind for Shared {}
 
 /// Filesystem configuration for an on-host sub-agent: a tree of files, directories, and
 /// directories whose contents are projected from `map[string]yaml` variables.
 ///
 /// Every entry is tagged with a `kind:`. `dir` entries may contain further entries under
 /// `entries:`, recursively.
-#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
-pub struct FileSystem(HashMap<SafePath, FilesystemEntry>);
+///
+/// The type parameter `K` distinguishes the base directory the tree is rooted at (and the pruning
+/// semantics attached to it):
+/// - `FileSystem<Agent>` — per-agent tree at `${nr-sub:filesystem_agent_dir}`.
+/// - `FileSystem<Shared>` — cross-agent tree at `${nr-sub:shared_filesystem_dir}`.
+pub struct FileSystem<K>(Entries, PhantomData<K>);
+
+impl<K: FileSystemKind> Default for FileSystem<K> {
+    fn default() -> Self {
+        Self::new(Entries::default())
+    }
+}
+
+impl<K: FileSystemKind> std::fmt::Debug for FileSystem<K> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("FileSystem").field(&self.0).finish()
+    }
+}
+impl<K: FileSystemKind> Clone for FileSystem<K> {
+    fn clone(&self) -> Self {
+        Self::new(self.0.clone())
+    }
+}
+
+impl<K: FileSystemKind> PartialEq for FileSystem<K> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
 
 /// One entry in a filesystem tree. The `kind` discriminator selects which fields are required.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -99,10 +140,10 @@ impl From<SafePath> for PathBuf {
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct DirEntriesMap(HashMap<SafePath, String>);
 
-impl FileSystem {
-    /// Whether no entries are declared.
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
+impl<K: FileSystemKind> FileSystem<K> {
+    /// Wraps a set of parsed top-level entries as a filesystem of the requested kind.
+    pub fn new(entries: Entries) -> Self {
+        Self(entries, PhantomData)
     }
 
     /// Collects all on-disk paths this filesystem declares, rooted under `base_dir`.
@@ -131,32 +172,31 @@ impl FileSystem {
     }
 }
 
-impl Templateable for FileSystem {
-    type Output = rendered::FileSystem;
+impl Templateable for FileSystem<Agent> {
+    type Output = rendered::FileSystem<Agent>;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         let base_dir = PathBuf::from(filesystem_agent_dir(variables)?);
-        let entries = self.render_entries(&base_dir, variables)?;
-        Ok(rendered::FileSystem::new(entries))
+        Ok(rendered::FileSystem::new(
+            self.render_entries(&base_dir, variables)?,
+        ))
     }
 }
 
-/// Files and directories shared across sub-agents, rooted at `${nr-sub:shared_filesystem_dir}`.
-#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
-pub struct SharedFileSystem(FileSystem);
-
-impl Templateable for SharedFileSystem {
-    type Output = rendered::SharedFileSystem;
+impl Templateable for FileSystem<Shared> {
+    type Output = rendered::FileSystem<Shared>;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        // Return early if no shared entries are declared. Agent Types that don't use shared-filesystem aren't
-        // enforced to provide the `${nr-sub:shared_filesystem_dir}` variable.
+        // Return early if no shared entries are declared. Agent Types that don't use
+        // shared-filesystem aren't enforced to provide the `${nr-sub:shared_filesystem_dir}`
+        // variable.
         if self.0.is_empty() {
-            return Ok(rendered::SharedFileSystem::new(HashMap::new()));
+            return Ok(rendered::FileSystem::new(HashMap::new()));
         }
         let base_dir = PathBuf::from(shared_filesystem_dir(variables)?);
-        let entries = self.0.render_entries(&base_dir, variables)?;
-        Ok(rendered::SharedFileSystem::new(entries))
+        Ok(rendered::FileSystem::new(
+            self.render_entries(&base_dir, variables)?,
+        ))
     }
 }
 
@@ -173,18 +213,6 @@ pub struct DeclaredPaths {
     /// Co-owned `kind: dir` nodes. Several agents may declare the same one; a directory is only
     /// safe to remove once no agent declares it here anymore.
     pub declared_dirs: HashSet<PathBuf>,
-}
-
-impl SharedFileSystem {
-    /// Collects the on-disk paths this shared filesystem declares ownership of, rooted under
-    /// `base_dir`.
-    pub fn declared_paths(&self, base_dir: &Path) -> DeclaredPaths {
-        let mut declared = DeclaredPaths::default();
-        for (key, entry) in &self.0.0 {
-            collect_declared_paths(&base_dir.join(key), entry, &mut declared);
-        }
-        declared
-    }
 }
 
 /// Recursively gathers the paths declared by `entry` (rooted at `path`) into `declared`.
@@ -404,6 +432,16 @@ mod tests {
     use serde_json::Value;
     use tempfile::TempDir;
 
+    /// Parse a YAML fragment as a per-agent `FileSystem<Agent>` tree.
+    fn parse_agent_fs(yaml: &str) -> FileSystem<Agent> {
+        FileSystem::<Agent>::new(serde_saphyr::from_str::<Entries>(yaml).unwrap())
+    }
+
+    /// Parse a YAML fragment as a shared-across-agents `FileSystem<Shared>` tree.
+    fn parse_shared_fs(yaml: &str) -> FileSystem<Shared> {
+        FileSystem::<Shared>::new(serde_saphyr::from_str::<Entries>(yaml).unwrap())
+    }
+
     #[rstest]
     #[case::can_basic_path("valid/path", Result::is_ok)]
     #[case::can_nested_dirs("another/valid/path", Result::is_ok)]
@@ -428,7 +466,7 @@ mod tests {
             Variable::new_final_string_variable("/base/dir"),
         )]);
 
-        let fs_input = FileSystem(HashMap::from([(
+        let fs_input = FileSystem::<Agent>::new(HashMap::from([(
             PathBuf::from("newrelic.yaml").try_into().unwrap(),
             FilesystemEntry::File {
                 text: Some(TemplateableValue::from_template("hello".to_string())),
@@ -438,7 +476,7 @@ mod tests {
 
         let rendered = fs_input.template_with(&variables).unwrap();
 
-        let expected = rendered::FileSystem::new(HashMap::from([(
+        let expected = rendered::FileSystem::<Agent>::new(HashMap::from([(
             PathBuf::from("/base/dir/newrelic.yaml"),
             RenderedEntry::File {
                 content: rendered::FileContent::Text("hello".to_string()),
@@ -454,8 +492,8 @@ nri-redis:
   kind: file
   copy_from_file: ${nr-sub:packages.nri-redis.dir}/nri-redis
 "#;
-        let parsed = serde_saphyr::from_str::<FileSystem>(yaml).unwrap();
-        match parsed.0.get(&SafePath(PathBuf::from("nri-redis"))).unwrap() {
+        let parsed = serde_saphyr::from_str::<Entries>(yaml).unwrap();
+        match parsed.get(&SafePath(PathBuf::from("nri-redis"))).unwrap() {
             FilesystemEntry::File {
                 text,
                 copy_from_file,
@@ -498,7 +536,7 @@ nri-redis:
         let source = remote.join("packages").join("nri-redis");
 
         let variables = fs_variables(&agent_dir, remote);
-        let fs_input = FileSystem(HashMap::from([(
+        let fs_input = FileSystem::<Agent>::new(HashMap::from([(
             PathBuf::from("nri-redis").try_into().unwrap(),
             FilesystemEntry::File {
                 text: None,
@@ -510,7 +548,7 @@ nri-redis:
 
         let rendered = fs_input.template_with(&variables).unwrap();
 
-        let expected = rendered::FileSystem::new(HashMap::from([(
+        let expected = rendered::FileSystem::<Agent>::new(HashMap::from([(
             agent_dir.join("nri-redis"),
             RenderedEntry::File {
                 content: rendered::FileContent::Copy(source),
@@ -536,7 +574,7 @@ nri-redis:
         let escapes_base = remote.join("..").join("outside-secret");
 
         for source in [outside_sibling, escapes_base] {
-            let fs_input = FileSystem(HashMap::from([(
+            let fs_input = FileSystem::<Agent>::new(HashMap::from([(
                 PathBuf::from("nri-redis").try_into().unwrap(),
                 FilesystemEntry::File {
                     text: None,
@@ -571,7 +609,7 @@ nri-redis:
             Namespace::SubAgent.namespaced_name(AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR),
             Variable::new_final_string_variable("/base/dir"),
         )]);
-        let fs_input = FileSystem(HashMap::from([(
+        let fs_input = FileSystem::<Agent>::new(HashMap::from([(
             PathBuf::from("f").try_into().unwrap(),
             FilesystemEntry::File {
                 text,
@@ -596,7 +634,7 @@ nri-redis:
 
         // Source lives directly under the (temp) remote dir, so it passes confinement.
         let variables = fs_variables(&base, tmp_dir.path());
-        let fs_input = FileSystem(HashMap::from([(
+        let fs_input = FileSystem::<Agent>::new(HashMap::from([(
             PathBuf::from("nri-redis").try_into().unwrap(),
             FilesystemEntry::File {
                 text: None,
@@ -623,7 +661,7 @@ nri-redis:
     #[test]
     fn templating_fails_without_filesystem_agent_dir_variable() {
         let variables = Variables::default();
-        let fs_input = FileSystem(HashMap::from([(
+        let fs_input = FileSystem::<Agent>::new(HashMap::from([(
             PathBuf::from("any").try_into().unwrap(),
             FilesystemEntry::Dir {
                 entries: HashMap::new(),
@@ -657,7 +695,7 @@ nri-redis:
   kind: dir
 "#
         );
-        let parsed = serde_saphyr::from_str::<FileSystem>(&yaml);
+        let parsed = serde_saphyr::from_str::<Entries>(&yaml);
         assert_eq!(
             parsed.is_ok(),
             should_parse,
@@ -677,7 +715,7 @@ nri-redis:
   kind: dir
 "#
         );
-        let parsed = serde_saphyr::from_str::<FileSystem>(&yaml);
+        let parsed = serde_saphyr::from_str::<Entries>(&yaml);
         assert!(parsed.is_err(), "input: {yaml}, parsed: {parsed:?}");
     }
 
@@ -730,25 +768,24 @@ agent:
 
     #[test]
     fn parses_all_three_kinds() {
-        let parsed = serde_saphyr::from_str::<FileSystem>(FILESYSTEM_EXAMPLE).unwrap();
-        assert_eq!(parsed.0.len(), 4);
+        let parsed = serde_saphyr::from_str::<Entries>(FILESYSTEM_EXAMPLE).unwrap();
+        assert_eq!(parsed.len(), 4);
 
         let file_entry = parsed
-            .0
             .get(&SafePath(PathBuf::from("newrelic-infra.yaml")))
             .unwrap();
         assert!(matches!(file_entry, FilesystemEntry::File { .. }));
 
-        let empty_dir = parsed.0.get(&SafePath(PathBuf::from("config"))).unwrap();
+        let empty_dir = parsed.get(&SafePath(PathBuf::from("config"))).unwrap();
         assert!(matches!(empty_dir, FilesystemEntry::Dir { entries, .. } if entries.is_empty()));
 
-        let dir_from_map = parsed.0.get(&SafePath(PathBuf::from("logging.d"))).unwrap();
+        let dir_from_map = parsed.get(&SafePath(PathBuf::from("logging.d"))).unwrap();
         assert!(matches!(
             dir_from_map,
             FilesystemEntry::DirContentFromMap { .. }
         ));
 
-        let nested_dir = parsed.0.get(&SafePath(PathBuf::from("agent"))).unwrap();
+        let nested_dir = parsed.get(&SafePath(PathBuf::from("agent"))).unwrap();
         let FilesystemEntry::Dir { entries, .. } = nested_dir else {
             panic!("expected agent to be a Dir, got {nested_dir:?}");
         };
@@ -771,7 +808,7 @@ agent:
 foo:
   kind: invented
 "#;
-        let parsed = serde_saphyr::from_str::<FileSystem>(yaml);
+        let parsed = serde_saphyr::from_str::<Entries>(yaml);
         assert!(parsed.is_err(), "parsed: {parsed:?}");
     }
 
@@ -780,7 +817,9 @@ foo:
     /// projects the map's keys as files.
     #[test]
     fn rendered_files_on_disk() {
-        let parsed = serde_saphyr::from_str::<FileSystem>(FILESYSTEM_EXAMPLE).unwrap();
+        let parsed = FileSystem::<Agent>::new(
+            serde_saphyr::from_str::<Entries>(FILESYSTEM_EXAMPLE).unwrap(),
+        );
         let tmp_dir = TempDir::new().unwrap();
         let variables = example_variables(&tmp_dir.path().to_string_lossy());
 
@@ -849,8 +888,7 @@ projected:
             ),
         ]);
 
-        serde_saphyr::from_str::<FileSystem>(first_yaml)
-            .unwrap()
+        parse_agent_fs(first_yaml)
             .template_with(&variables_first)
             .unwrap()
             .write(&LocalFile, &DirectoryManagerFs)
@@ -893,8 +931,7 @@ projected:
             ),
         ]);
 
-        serde_saphyr::from_str::<FileSystem>(second_yaml)
-            .unwrap()
+        parse_agent_fs(second_yaml)
             .template_with(&variables_second)
             .unwrap()
             .write(&LocalFile, &DirectoryManagerFs)
@@ -974,8 +1011,7 @@ logging.d:
             ),
         ]);
 
-        serde_saphyr::from_str::<FileSystem>(v1_yaml)
-            .unwrap()
+        parse_agent_fs(v1_yaml)
             .template_with(&variables_v1)
             .unwrap()
             .write(&LocalFile, &DirectoryManagerFs)
@@ -1006,8 +1042,7 @@ logging.d:
             ),
         ]);
 
-        serde_saphyr::from_str::<FileSystem>(v2_yaml)
-            .unwrap()
+        parse_agent_fs(v2_yaml)
             .template_with(&variables_v2)
             .unwrap()
             .write(&LocalFile, &DirectoryManagerFs)
@@ -1051,8 +1086,7 @@ infra-agent-ohi-configs:
       kind: file
       text: "integration: redis"
 "#;
-        serde_saphyr::from_str::<SharedFileSystem>(yaml)
-            .unwrap()
+        parse_shared_fs(yaml)
             .template_with(&shared_variables(&shared, tmp_dir.path()))
             .unwrap()
             .write(&LocalFile, &DirectoryManagerFs)
@@ -1073,8 +1107,7 @@ infra-agent-ohi-configs:
         // Two sub-agents can write entries into the same shared base, both should remain.
         for (name, content) in [("agent-a.yaml", "a"), ("agent-b.yaml", "b")] {
             let yaml = format!("{name}:\n  kind: file\n  text: {content}");
-            serde_saphyr::from_str::<SharedFileSystem>(&yaml)
-                .unwrap()
+            parse_shared_fs(&yaml)
                 .template_with(&variables)
                 .unwrap()
                 .write(&LocalFile, &DirectoryManagerFs)
@@ -1096,7 +1129,7 @@ infra-agent-ohi-configs:
         std::fs::write(&source, source_bytes).unwrap();
 
         // Built from structs (not YAML) to keep the source path platform-native.
-        let shared_fs = SharedFileSystem(FileSystem(HashMap::from([(
+        let shared_fs = FileSystem::<Shared>::new(HashMap::from([(
             PathBuf::from("nri-redis").try_into().unwrap(),
             FilesystemEntry::File {
                 text: None,
@@ -1104,7 +1137,7 @@ infra-agent-ohi-configs:
                     source.to_string_lossy().to_string(),
                 )),
             },
-        )])));
+        )]));
 
         shared_fs
             .template_with(&shared_variables(&shared, remote))
@@ -1121,7 +1154,7 @@ infra-agent-ohi-configs:
     /// An empty (unused) shared filesystem renders even when `shared_filesystem_dir` is absent.
     #[test]
     fn empty_shared_filesystem_renders_without_shared_dir_variable() {
-        SharedFileSystem::default()
+        FileSystem::<Shared>::new(Entries::default())
             .template_with(&Variables::default())
             .expect("empty shared filesystem must render without the shared dir variable")
             .write(&LocalFile, &DirectoryManagerFs)
@@ -1153,7 +1186,7 @@ projected:
   kind: dir_content_from_map
   source: ${nr-var:m}
 "#;
-        let shared = serde_saphyr::from_str::<SharedFileSystem>(yaml).unwrap();
+        let shared = parse_shared_fs(yaml);
         // A real temp dir gives an absolute, platform-native base (path literals like `/shared` are
         // not absolute on Windows). `declared_paths` never touches disk, so the dir need not exist.
         let tmp_dir = TempDir::new().unwrap();
@@ -1186,7 +1219,7 @@ projected:
     #[test]
     fn declared_paths_of_empty_is_empty() {
         let tmp_dir = TempDir::new().unwrap();
-        let declared = SharedFileSystem::default().declared_paths(tmp_dir.path());
+        let declared = FileSystem::<Shared>::new(Entries::default()).declared_paths(tmp_dir.path());
         assert!(declared.files.is_empty());
         assert!(declared.managed_dirs.is_empty());
         assert!(declared.declared_dirs.is_empty());
