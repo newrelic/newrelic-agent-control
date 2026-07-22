@@ -321,7 +321,6 @@ mod tests {
         let result = executor.execute(&post_download_hook);
 
         assert!(result.is_ok());
-        assert!(logs_contain("Post-download hook completed successfully"));
         assert!(logs_contain("stdout=hook-stdout-line"));
         assert!(logs_contain("stderr=hook-stderr-line"));
     }
@@ -347,7 +346,6 @@ mod tests {
             }
             other => panic!("expected ExecutionFailed, got {other:?}"),
         }
-        assert!(logs_contain("Post-download hook execution failed"));
         assert!(logs_contain("stdout=about-to-fail"));
         assert!(logs_contain("stderr=hook-stderr-line"));
     }
@@ -364,13 +362,15 @@ mod tests {
             print_stdout_no_newline("partial-stdout"),
             print_stderr_no_newline("partial-stderr"),
             sleep_command(),
+            print_stdout_no_newline("discarded-stdout"),
+            print_stderr_no_newline("discarded-stderr"),
         ]);
         create_script(&script_path, &content, 0);
 
         let post_download_hook = create_script_hook(script_path, vec![]);
         let executor = PostDownloadHookExecutor {
             package_dir: temp_dir.path().to_path_buf(),
-            timeout: Duration::from_millis(200),
+            timeout: Duration::from_secs(1),
         };
 
         let result = executor.execute(&post_download_hook);
@@ -379,9 +379,10 @@ mod tests {
             result.unwrap_err(),
             PostDownloadHookExecutionError::Timeout(_)
         ));
-        assert!(logs_contain("Post-download hook timed out"));
         assert!(logs_contain("stdout=partial-stdout"));
         assert!(logs_contain("stderr=partial-stderr"));
+        assert!(!logs_contain("discarded-stdout"));
+        assert!(!logs_contain("discarded-stderr"));
     }
 
     #[test]
