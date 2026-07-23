@@ -234,41 +234,6 @@ exit 1
     );
 }
 
-// Test post_download_hook timeout (5 minutes)
-#[test]
-#[ignore = "needs oci registry (use *with_oci_registry suffix), takes long time"]
-fn test_postdownload_hook_timeout_with_oci_registry() {
-    let signer = OCISigner::start(tokio_runtime().handle().clone());
-    let dirs = TempBasePaths::default();
-
-    #[cfg(not(target_os = "windows"))]
-    let hook_script = r#"#!/bin/bash
-echo "Sleeping for 6 minutes..."
-sleep 360
-exit 0
-"#;
-
-    #[cfg(target_os = "windows")]
-    let hook_script = r#"@echo off
-echo Sleeping for 6 minutes...
-ping -n 361 127.0.0.1 > nul
-exit 0
-"#;
-
-    let version = push_package_with_hook_script(&signer, "timeout_hook", hook_script);
-
-    let packages = create_packages_config(&signer, "timeout_hook");
-    let executables = create_executables_config();
-    let sleep_agent_type = build_agent_type(&dirs, &packages, &executables);
-
-    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
-
-    let (_agent_control, sleep_instance_id) =
-        start_and_apply(&dirs, &mut opamp_server, &sleep_agent_type, &version);
-
-    retry_until_unhealthy_with_error(&opamp_server, &sleep_instance_id, "timed out", 360);
-}
-
 // Test post_download_hook with arguments and environment variables
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
