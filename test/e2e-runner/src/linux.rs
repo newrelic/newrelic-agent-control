@@ -11,7 +11,7 @@ mod service;
 
 // This default path is also used in the postinstall.sh script of the packages.
 // It must be kept in sync with the path defined in the script.
-const DEFAULT_AC_CONFIG_PATH: &str =
+pub const DEFAULT_AC_CONFIG_PATH: &str =
     "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml";
 
 pub fn local_config_path(agent_id: &str) -> String {
@@ -58,6 +58,9 @@ pub fn run_linux_e2e() {
         }
         LinuxScenarios::NriRedis(args) => {
             scenarios::nri_redis::test_nri_redis(args);
+        }
+        LinuxScenarios::AllOhisNoService(args) => {
+            scenarios::all_ohis_no_service::test_all_ohis_no_service(args);
         }
     };
 }
