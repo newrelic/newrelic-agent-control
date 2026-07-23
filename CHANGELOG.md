@@ -14,6 +14,18 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+## v1.19.1 - 2026-07-23
+
+### ⛓️ Dependencies
+- Updated rust crate clap to 4.6.4
+- Updated rust crate tokio to 1.53.1
+- Updated rust crate glob to 0.3.4
+- Updated rust crate tokio-stream to 0.1.19
+- Updated rust crate syn to 3.0.3
+
+### 🐞 Bug fixes
+- On-host: the infra agentType has been fixed removing nri-flex binary copy.
+
 ## v1.19.0 - 2026-07-20
 
 ### 🚀 Enhancements
