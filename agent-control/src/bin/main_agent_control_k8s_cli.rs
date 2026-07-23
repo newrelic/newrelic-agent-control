@@ -68,7 +68,7 @@ fn main() -> ExitCode {
         return err.into();
     }
 
-    let result: Result<(), CliError> = match cli.operation {
+    let result = match cli.operation {
         Operations::InstallAgentControl(agent_control_data) => {
             apply_resources(InstallAgentControl, &cli.namespace, &agent_control_data)
                 .map_err(CliError::from)
