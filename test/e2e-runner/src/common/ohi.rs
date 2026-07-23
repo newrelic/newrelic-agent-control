@@ -86,14 +86,14 @@ pub fn get_all_ohi_to_test(args: &InstallationArgs) -> Vec<Ohi> {
         .redis_version
         .clone()
         .expect("--redis-version is required for this scenario");
-    // let nginx_version = args
-    //     .nginx_version
-    //     .clone()
-    //     .expect("--nginx-version is required for this scenario");
-    // let apache_version = args
-    //     .apache_version
-    //     .clone()
-    //     .expect("--apache-version is required for this scenario");
+    let nginx_version = args
+        .nginx_version
+        .clone()
+        .expect("--nginx-version is required for this scenario");
+    let apache_version = args
+        .apache_version
+        .clone()
+        .expect("--apache-version is required for this scenario");
 
     vec![
         Ohi {
@@ -102,18 +102,18 @@ pub fn get_all_ohi_to_test(args: &InstallationArgs) -> Vec<Ohi> {
             repo: "newrelic/newrelic-agent-control-redis-dev",
             version: redis_version,
         },
-        // Ohi {
-        //     name: "nri-nginx",
-        //     agent_type_id: "newrelic/com.newrelic.infrastructure.nri_nginx:0.1.0",
-        //     repo: "newrelic/newrelic-agent-control-nginx-dev",
-        //     version: nginx_version,
-        // },
-        // Ohi {
-        //     name: "nri-apache",
-        //     agent_type_id: "newrelic/com.newrelic.infrastructure.nri_apache:0.1.0",
-        //     repo: "newrelic/newrelic-agent-control-apache-dev",
-        //     version: apache_version,
-        // },
+        Ohi {
+            name: "nri-nginx",
+            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_nginx:0.1.0",
+            repo: "newrelic/newrelic-agent-control-nginx-dev",
+            version: nginx_version,
+        },
+        Ohi {
+            name: "nri-apache",
+            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_apache:0.1.0",
+            repo: "newrelic/newrelic-agent-control-apache-dev",
+            version: apache_version,
+        },
     ]
 }
 

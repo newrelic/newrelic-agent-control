@@ -813,7 +813,7 @@ fn k8s_remove_crd_after_dynamic_resource_initialized() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
-// this test is related to the workaround in place to avoid httpcan s://github.com/kube-rs/kube/issues/1796
+// this test is related to the workaround in place to avoid https://github.com/kube-rs/kube/issues/1796
 // Once that it is properly fixed, this test can be removed
 async fn k8s_client_does_not_hang_in_case_of_incomplete_message() {
     let now = SystemTime::now();
