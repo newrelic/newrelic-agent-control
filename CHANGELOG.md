@@ -23,6 +23,9 @@ Remember that the keywords that you can use are the following:
 - Updated rust crate tokio-stream to 0.1.19
 - Updated rust crate syn to 3.0.3
 
+### 🐞 Bug fixes
+- On-host: the infra agentType has been fixed removing nri-flex binary copy.
+
 ## v1.19.0 - 2026-07-20
 
 ### 🚀 Enhancements
