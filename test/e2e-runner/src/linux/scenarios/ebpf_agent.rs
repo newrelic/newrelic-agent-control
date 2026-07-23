@@ -75,7 +75,7 @@ agent_packages:
     let ebpf_config = format!(
         r#"
 config:
-  deploymentName: "{test_id}"
+  deploymentName: "wrong-name"
   region: "{region}"
 oci:
   repository: {DEV_EBPF_AGENT_REPO}
