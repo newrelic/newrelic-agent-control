@@ -10,6 +10,7 @@ pub mod protocol_version;
 pub mod registry;
 pub mod render;
 pub mod runtime_config;
+pub mod semantic_validation;
 pub mod templates;
 pub mod templates_function;
 pub mod trivial_value;

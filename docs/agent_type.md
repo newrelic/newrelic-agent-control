@@ -420,7 +420,8 @@ The current layout expects **a directory** at `/etc/newrelic-agent-control/dynam
 agent type.
 
 Before dropping a definition into that directory, you can check its schema (required fields, field types, and format
-constraints) without running Agent Control at all:
+constraints) and semantics (every `${nr-var:X}` reference in `deployment` has a matching `variables` declaration)
+without running Agent Control at all:
 
 ```sh
 newrelic-agent-control-cli agent-type validate --file my-custom-agent-type.yaml

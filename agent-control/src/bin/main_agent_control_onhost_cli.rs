@@ -33,7 +33,7 @@ enum Commands {
 /// Commands to operate on agent type definitions.
 #[derive(Debug, clap::Subcommand)]
 enum AgentTypeCommand {
-    /// Validates an agent type definition file (schema-level checks only).
+    /// Validates an agent type definition file (schema and semantic checks).
     Validate(agent_type_validation::Args),
 }
 

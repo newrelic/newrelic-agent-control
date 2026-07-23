@@ -853,8 +853,8 @@ Only definitions that target the environment of the running binary are considere
 This precedence is what makes the custom directory useful for development: you can add a brand-new agent type, or iterate on and override an existing one, simply by dropping a file there — without rebuilding AC or editing the embedded registry — while still falling back to the built-in and remote sources for everything else. For a step-by-step walkthrough of adding a custom on-host agent type, see the [development guide in the agent type overview](./agent_type.md#development-custom-agent-types).
 
 Whichever source a definition is headed for, you can check its schema (required fields, field types, and format
-constraints) beforehand, without running AC at all, using the `agent-type validate` subcommand shipped with the CLI
-binaries:
+constraints) and semantics (every `${nr-var:X}` reference in `deployment` has a matching `variables` declaration)
+beforehand, without running AC at all, using the `agent-type validate` subcommand shipped with the CLI binaries:
 
 ```sh
 newrelic-agent-control-cli agent-type validate --file <path-to-file>.yaml
