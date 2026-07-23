@@ -1,10 +1,8 @@
-//! Remote configuration validators (signature and regex) and their static-dispatch enum.
-pub mod regexes;
+//! Remote configuration validators.
 pub mod signature;
 
 use super::OpampRemoteConfig;
 use crate::sub_agent::identity::AgentIdentity;
-use regexes::RegexValidator;
 use signature::validator::SignatureValidator;
 use std::{fmt::Display, sync::Arc};
 use thiserror::Error;
@@ -31,8 +29,6 @@ pub struct SupportedRemoteConfigValidatorError(String);
 pub enum SupportedRemoteConfigValidator {
     /// Validates remote config signatures.
     Signature(Arc<SignatureValidator>),
-    /// Validates remote config content against denied-pattern regexes.
-    Regex(RegexValidator),
 }
 
 impl RemoteConfigValidator for SupportedRemoteConfigValidator {
@@ -44,9 +40,6 @@ impl RemoteConfigValidator for SupportedRemoteConfigValidator {
     ) -> Result<(), SupportedRemoteConfigValidatorError> {
         match self {
             Self::Signature(s) => s
-                .validate(agent_identity, opamp_remote_config)
-                .map_err(|e| SupportedRemoteConfigValidatorError(e.to_string())),
-            Self::Regex(r) => r
                 .validate(agent_identity, opamp_remote_config)
                 .map_err(|e| SupportedRemoteConfigValidatorError(e.to_string())),
         }

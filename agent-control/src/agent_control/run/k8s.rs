@@ -39,7 +39,6 @@ use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
 use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::agent_description;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
-use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::secret_retriever::k8s::retrieve::K8sSecretRetriever;
 use crate::secrets_provider::SecretsProviders;
 use crate::secrets_provider::k8s_secret::K8sSecretProvider;
@@ -186,10 +185,9 @@ impl AgentControlRunner {
         let supervisor_builder = SupervisorBuilderK8s::new(k8s_client.clone(), k8s_config.clone());
 
         let signature_validator = Arc::new(self.signature_validator);
-        let remote_config_validators = vec![
-            SupportedRemoteConfigValidator::Signature(signature_validator.clone()),
-            SupportedRemoteConfigValidator::Regex(RegexValidator::default()),
-        ];
+        let remote_config_validators = vec![SupportedRemoteConfigValidator::Signature(
+            signature_validator.clone(),
+        )];
 
         let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
 
