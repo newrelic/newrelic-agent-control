@@ -82,7 +82,7 @@ flate2 = { workspace = true }
 tar = { workspace = true }
 zip = "8.6.0"
 oci-client = { workspace = true, features = ["rustls-tls"], default-features = false }
-rustls-pki-types = { version = "1.15.0", features = ["std"] }
+rustls-pki-types = { version = "1.15.1", features = ["std"] }
 dhat = { version = "0.3.3", optional = true }
 
 [target.'cfg(target_family = "unix")'.dependencies]
