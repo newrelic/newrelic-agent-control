@@ -71,28 +71,17 @@ agent_packages:
     );
     config::update_config(linux::DEFAULT_AC_CONFIG_PATH, config);
     // eBPF agent config
-    let ebpf_config = if staging {
-        format!(
-            r#"
+    let region = if staging { "staging" } else { "US" };
+    let ebpf_config = format!(
+        r#"
 config:
-  DEPLOYMENT_NAME: {test_id}
-  OTLP_ENDPOINT: staging-otlp.nr-data.net:443
+  deploymentName: "{test_id}"
+  region: "{region}"
 oci:
   repository: {DEV_EBPF_AGENT_REPO}
 version: "{ebpf_version}"
     "#
-        )
-    } else {
-        format!(
-            r#"
-config:
-  DEPLOYMENT_NAME: {test_id}
-oci:
-  repository: {DEV_EBPF_AGENT_REPO}
-version: "{ebpf_version}"
-    "#
-        )
-    };
+    );
     write_agent_local_config(&linux::local_config_path("nr-ebpf"), ebpf_config);
     // Infra agent config: it is used to generate traffic for eBPF metrics to appear
     write_agent_local_config(
