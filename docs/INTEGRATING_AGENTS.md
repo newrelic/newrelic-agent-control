@@ -860,6 +860,13 @@ binaries:
 newrelic-agent-control-cli agent-type validate --file <path-to-file>.yaml
 ```
 
+Or, without installing the binary, via the published Docker image, mounting the directory that contains the file:
+
+```sh
+docker run --rm -v "$(pwd)":/data newrelic/newrelic-agent-control-cli:latest \
+  agent-type validate --file /data/<path-to-file>.yaml
+```
+
 ## Applying configurations
 
 The first time it runs, whether it's using static configs or when already running and receiving remote configuration values from FC, AC will create an internal entity called a *supervisor* for each of the declared sub-agents. Each of these supervisors have the following responsibilities:
