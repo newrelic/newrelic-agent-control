@@ -24,6 +24,10 @@ jobs:
       gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
       pfx_certificate_base64: ${{ secrets.OHAI_PFX_CERTIFICATE_BASE64 }}
       pfx_passphrase: ${{ secrets.OHAI_PFX_PASSPHRASE }}
+      nr_account_id: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
+      nr_license_key: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
+      nr_user_api_key: ${{ secrets.AC_NR_USER_API_KEY }}
+      slack_webhook_url: ${{ secrets.AC_SLACK_WEBHOOK }}
 
   build-image:
     name: Build and Push nightly image
