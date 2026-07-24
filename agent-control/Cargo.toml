@@ -57,7 +57,7 @@ kube = { version = "4.2.0", default-features = false, features = [
   "aws-lc-rs",
 ] }
 k8s-openapi = { version = "0.28.0", features = ["earliest"] }
-either = { version = "1.16.0" }
+either = { version = "1.17.0" }
 
 crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
 tracing-appender = "0.2.5"
