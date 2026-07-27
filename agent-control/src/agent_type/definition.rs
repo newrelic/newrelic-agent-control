@@ -106,6 +106,12 @@ impl AgentTypeDefinition {
     /// `protocol_version` before the document is converted into the definition.
     pub fn from_slice(content: &[u8]) -> Result<Self, AgentTypeDefinitionParseError> {
         let document: serde_json::Value = serde_saphyr::from_slice(content)?;
+        Self::from_value(document)
+    }
+
+    /// Builds an [AgentTypeDefinition] from an already-parsed document, validating the
+    /// `protocol_version` before the document is converted into the definition.
+    pub fn from_value(document: serde_json::Value) -> Result<Self, AgentTypeDefinitionParseError> {
         protocol_version::validate(&document)?;
         let definition = serde_json::from_value::<RawAgentTypeDefinition>(document)?.0;
         Ok(definition)

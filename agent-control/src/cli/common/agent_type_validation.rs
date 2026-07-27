@@ -1,7 +1,7 @@
 //! Implementation of the `agent-type validate` command.
 use std::{fs, path::PathBuf};
 
-use crate::agent_type::definition::AgentTypeDefinition;
+use crate::agent_type::validation;
 use crate::cli::common::error::CliError;
 use tracing::info;
 
@@ -14,13 +14,15 @@ pub struct Args {
 }
 
 /// Reads the agent type file and validates its schema (required fields, field types and format
-/// constraints), reporting any issue found.
+/// constraints) and semantics (every `${nr-var:X}` reference in `deployment` matches a
+/// `variables` declaration, and every `${nr-xxx:...}` reference uses a known namespace),
+/// reporting any issue found.
 pub fn validate(args: Args) -> Result<(), CliError> {
     let content = fs::read(&args.file).map_err(|err| {
         CliError::FileSystemError(format!("reading '{}': {err}", args.file.display()))
     })?;
 
-    let definition = AgentTypeDefinition::from_slice(&content).map_err(|err| {
+    validation::validate(&content).map_err(|err| {
         CliError::Validation(format!(
             "invalid agent type definition on '{}': {}",
             args.file.display(),
@@ -29,7 +31,6 @@ pub fn validate(args: Args) -> Result<(), CliError> {
     })?;
 
     info!(
-        agent_type = %definition.agent_type_id(),
         file = %args.file.display(),
         "Agent type definition is valid"
     );
@@ -40,7 +41,6 @@ pub fn validate(args: Args) -> Result<(), CliError> {
 mod tests {
     use super::*;
     use assert_matches::assert_matches;
-    use rstest::rstest;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -55,48 +55,7 @@ variables: {}
 deployment: {}
 "#;
 
-    const VALID_K8S_YAML: &str = r#"
-namespace: newrelic
-name: test
-version: 0.0.1
-protocol_version: "1.0"
-platform: kubernetes
-variables: {}
-deployment:
-  objects: {}
-"#;
-
-    const MISSING_REQUIRED_FIELD_YAML: &str = r#"
-namespace: newrelic
-name: test
-version: 0.0.1
-protocol_version: "1.0"
-platform: kubernetes
-"#;
-
     const MALFORMED_YAML: &str = "name: [unclosed";
-
-    const MISSING_PROTOCOL_VERSION_YAML: &str = r#"
-namespace: newrelic
-name: test
-version: 0.0.1
-platform: kubernetes
-variables: {}
-deployment:
-  objects: {}
-"#;
-
-    // A far-future version is newer than this Agent Control understands.
-    const TOO_NEW_PROTOCOL_VERSION_YAML: &str = r#"
-namespace: newrelic
-name: test
-version: 0.0.1
-protocol_version: "9999.0"
-platform: kubernetes
-variables: {}
-deployment:
-  objects: {}
-"#;
 
     fn write_file(content: &str) -> NamedTempFile {
         let mut file = NamedTempFile::new().expect("failed to create temp file");
@@ -105,11 +64,9 @@ deployment:
         file
     }
 
-    #[rstest]
-    #[case::host(VALID_HOST_YAML)]
-    #[case::k8s(VALID_K8S_YAML)]
-    fn test_validate_accepts_valid_definitions(#[case] yaml: &str) {
-        let file = write_file(yaml);
+    #[test]
+    fn test_validate_accepts_a_valid_definition_file() {
+        let file = write_file(VALID_HOST_YAML);
         let args = Args {
             file: file.path().to_path_buf(),
         };
@@ -117,13 +74,9 @@ deployment:
         assert_matches!(validate(args), Ok(()));
     }
 
-    #[rstest]
-    #[case::missing_field(MISSING_REQUIRED_FIELD_YAML)]
-    #[case::malformed_yaml(MALFORMED_YAML)]
-    #[case::missing_protocol_version(MISSING_PROTOCOL_VERSION_YAML)]
-    #[case::too_new_protocol_version(TOO_NEW_PROTOCOL_VERSION_YAML)]
-    fn test_validate_rejects_invalid_definitions(#[case] yaml: &str) {
-        let file = write_file(yaml);
+    #[test]
+    fn test_validate_reports_an_invalid_definition_file() {
+        let file = write_file(MALFORMED_YAML);
         let args = Args {
             file: file.path().to_path_buf(),
         };
