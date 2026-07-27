@@ -110,10 +110,6 @@ pub struct InstallationArgs {
     /// Version of the nri-postgresql OCI image to use in tests
     #[arg(long)]
     pub postgresql_version: Option<String>,
-
-    /// Version of the nri-mysql OCI image to use in tests
-    #[arg(long)]
-    pub mysql_version: Option<String>,
 }
 
 /// Arguments for Fleet Control scenarios that also install Agent Control
