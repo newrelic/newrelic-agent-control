@@ -37,6 +37,8 @@ use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifi
 use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
 use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::agent_description;
+use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
+use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::package::oci::downloader::OCIPackageArtifactDownloader;
 use crate::package::oci::package_manager::OCIPackageManager;
 use crate::secret_retriever::on_host::retrieve::OnHostSecretRetriever;
@@ -204,7 +206,10 @@ impl AgentControlRunner {
         };
 
         let signature_validator = Arc::new(self.signature_validator);
-        let remote_config_validators = vec![signature_validator.clone()];
+        let remote_config_validators = vec![
+            SupportedRemoteConfigValidator::Signature(signature_validator.clone()),
+            SupportedRemoteConfigValidator::Regex(RegexValidator::default()),
+        ];
         let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
 
         let opamp_builder =
@@ -275,7 +280,7 @@ impl AgentControlRunner {
             maybe_sa_opamp_consumer,
             agent_control_internal_publisher,
             agent_control_internal_consumer,
-            signature_validator,
+            SupportedRemoteConfigValidator::Signature(signature_validator),
             dynamic_config_validator,
             resource_cleaner,
             self_updater,

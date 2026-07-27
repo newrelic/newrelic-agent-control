@@ -21,7 +21,6 @@ Remember that the keywords that you can use are the following:
 - On-host: added nri-memcached Agent Type.
 - Added `agent-type validate --file <path>` subcommand to `newrelic-agent-control-cli` and `newrelic-agent-control-k8s-cli` for schema-level validation of agent type definition files.
 - Extended `agent-type validate` with semantic validation: every `${nr-var:X}` reference in `deployment` must have a matching `variables` declaration.
-- Remove static regex validator for newrelic-infra Agent Type.
 
 
 
