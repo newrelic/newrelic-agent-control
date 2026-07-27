@@ -31,6 +31,8 @@ env:
   HOST_E2E_INFRA_AGENT_VERSION: "1.78.1"
   HOST_E2E_NRDOT_VERSION: "1.21.0"
   HOST_E2E_REDIS_VERSION: "0.0.1"
+  HOST_E2E_NGINX_VERSION: "0.0.1"
+  HOST_E2E_APACHE_VERSION: "0.0.1"
   HOST_E2E_EBPF_AGENT_VERSION: "0.0.1"
 
 jobs:
@@ -58,6 +60,7 @@ jobs:
           - self-update-latest-to-current
           - self-update-current-to-latest
           - nri-redis
+          - all-ohis-no-service
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
@@ -86,6 +89,8 @@ jobs:
             --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" \
             --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}" \
             --redis-version "${{ env.HOST_E2E_REDIS_VERSION }}" \
+            --apache-version "${{ env.HOST_E2E_APACHE_VERSION }}" \
+            --nginx-version "${{ env.HOST_E2E_NGINX_VERSION }}" \
             --ebpf-agent-version "${{ env.HOST_E2E_EBPF_AGENT_VERSION }}"
 
       - name: Report test result to New Relic
@@ -124,6 +129,7 @@ jobs:
           - self-update-latest-to-current
           - self-update-current-to-latest
           - nri-redis
+          - all-ohis-no-service
     steps:
       - name: Record job start time
         shell: bash
@@ -153,6 +159,8 @@ jobs:
             --recipes-repo-branch "main" `
             --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" `
             --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}" `
+            --apache-version "${{ env.HOST_E2E_APACHE_VERSION }}" `
+            --nginx-version "${{ env.HOST_E2E_NGINX_VERSION }}" `
             --redis-version "${{ env.HOST_E2E_REDIS_VERSION }}"
 
       - name: Report test result to New Relic

@@ -1,3 +1,4 @@
+pub mod all_ohis_no_service;
 pub mod fleet_control;
 pub mod installation_infra_agent;
 pub mod installation_nrdot;

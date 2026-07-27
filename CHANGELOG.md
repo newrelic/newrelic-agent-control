@@ -15,6 +15,7 @@ Remember that the keywords that you can use are the following:
 ## Unreleased
 
 ### enhancement
+- On-host: added apache and nginx agentTypes
 - Added `agent-type validate --file <path>` subcommand to `newrelic-agent-control-cli` and `newrelic-agent-control-k8s-cli` for schema-level validation of agent type definition files.
 - Remove static regex validator for newrelic-infra Agent Type.
 

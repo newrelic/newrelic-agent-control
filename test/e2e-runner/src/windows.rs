@@ -16,7 +16,7 @@ const AGENT_CONTROL_DIRS: &[&str] = &[
     r"C:\ProgramData\New Relic\newrelic-agent-control\",
 ];
 
-const DEFAULT_AC_CONFIG_PATH: &str =
+pub const DEFAULT_AC_CONFIG_PATH: &str =
     r"C:\Program Files\New Relic\newrelic-agent-control\local-data\agent-control\local_config.yaml";
 
 const DEFAULT_LOG_PATH: &str =
@@ -69,6 +69,9 @@ pub fn run_windows_e2e() {
         }
         WindowsScenarios::NriRedis(args) => {
             scenarios::nri_redis::test_nri_redis(args);
+        }
+        WindowsScenarios::AllOhisNoService(args) => {
+            scenarios::all_ohis_no_service::test_all_ohis_no_service(args);
         }
     }
 }

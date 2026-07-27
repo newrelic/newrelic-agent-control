@@ -1,3 +1,6 @@
+use crate::common::InstallationArgs;
+use crate::common::config::DEBUG_LOGGING_CONFIG;
+use crate::common::config::{update_config, write_agent_local_config};
 use crate::common::test::TestResult;
 use std::fs::read_dir;
 use std::path::Path;
@@ -58,4 +61,147 @@ pub fn check_ohi_shared_filesystem(
     }
 
     Ok(())
+}
+
+// TODO  Dev OCI repositories will be deleted once the real oci packages are available
+const DEV_OCI_REGISTRY: &str = "ghcr.io";
+const DEV_INFRA_AGENT_REPO: &str = "newrelic/newrelic-agent-control-infrastructure-dev";
+const DEV_INFRA_AGENT_VERSION: &str = "v1.78.0";
+
+/// A single OHI's plumbing for this scenario: everything needed to wire the sub-agent, render its
+/// integration config, and grep the AC log for its invocation.
+pub struct Ohi {
+    /// name of the integration.
+    pub name: &'static str,
+    /// Full agent-type reference to install.
+    pub agent_type_id: &'static str,
+    /// Dev OCI repository the package is pulled from.
+    pub repo: &'static str,
+    /// OCI package version to pin.
+    pub version: String,
+}
+
+pub fn get_all_ohi_to_test(args: &InstallationArgs) -> Vec<Ohi> {
+    let redis_version = args
+        .redis_version
+        .clone()
+        .expect("--redis-version is required for this scenario");
+    let nginx_version = args
+        .nginx_version
+        .clone()
+        .expect("--nginx-version is required for this scenario");
+    let apache_version = args
+        .apache_version
+        .clone()
+        .expect("--apache-version is required for this scenario");
+
+    vec![
+        Ohi {
+            name: "nri-redis",
+            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_redis:0.1.0",
+            repo: "newrelic/newrelic-agent-control-redis-dev",
+            version: redis_version,
+        },
+        Ohi {
+            name: "nri-nginx",
+            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_nginx:0.1.0",
+            repo: "newrelic/newrelic-agent-control-nginx-dev",
+            version: nginx_version,
+        },
+        Ohi {
+            name: "nri-apache",
+            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_apache:0.1.0",
+            repo: "newrelic/newrelic-agent-control-apache-dev",
+            version: apache_version,
+        },
+    ]
+}
+
+pub const TEST_LABEL: &str = "test.label";
+pub const TEST_LABEL_VALUE: &str = "1.2.3";
+
+/// No service is hit by ohis but the infra-agent still logs
+/// the invocation with the label, which is what we assert on.
+pub fn update_infra_configs_for_ohis_without_service(ohis: &[Ohi]) {
+    // AC-level config: infra-agent + one sub-agent per OHI, and every OHI's dev repo declared in
+    // the OCI variants.
+    let agents_block = ohis
+        .iter()
+        .map(|o| format!("  {}:\n    agent_type: \"{}\"\n", o.name, o.agent_type_id,))
+        .collect::<String>();
+    let oci_variants_block = ohis
+        .iter()
+        .map(|o| format!("      - {}\n", o.repo))
+        .collect::<String>();
+
+    #[cfg(target_family = "unix")]
+    let config_path = crate::linux::DEFAULT_AC_CONFIG_PATH;
+    #[cfg(target_family = "windows")]
+    let config_path = crate::windows::DEFAULT_AC_CONFIG_PATH;
+    update_config(
+        config_path,
+        format!(
+            r#"
+agents:
+  nr-infra:
+    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+{agents_block}
+oci:
+  registry: {DEV_OCI_REGISTRY}
+agent_type_var_constraints:
+  variants:
+    oci_repository_urls:
+      - {DEV_INFRA_AGENT_REPO}
+{oci_variants_block}
+agent_packages:
+  signature_verification_enabled: false
+{DEBUG_LOGGING_CONFIG}
+"#
+        ),
+    );
+
+    #[cfg(target_family = "unix")]
+    let config_path = crate::linux::local_config_path("nr-infra");
+    #[cfg(target_family = "windows")]
+    let config_path = crate::windows::local_config_path("nr-infra");
+
+    write_agent_local_config(
+        &config_path,
+        format!(
+            r#"
+config_agent:
+  license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
+  log:
+    level: debug
+version: {DEV_INFRA_AGENT_VERSION}
+oci:
+  repository: {DEV_INFRA_AGENT_REPO}
+"#
+        ),
+    );
+
+    for ohi in ohis {
+        #[cfg(target_family = "unix")]
+        let config_path = crate::linux::local_config_path(ohi.name);
+        #[cfg(target_family = "windows")]
+        let config_path = crate::windows::local_config_path(ohi.name);
+
+        write_agent_local_config(
+            &config_path,
+            format!(
+                r#"
+config:
+  integrations:
+    - name: {}
+      interval: 15s
+      labels:
+        {}: {}
+version: {}
+oci:
+  repository: {}
+"#,
+                ohi.name, TEST_LABEL, TEST_LABEL_VALUE, ohi.version, ohi.repo,
+            ),
+        );
+    }
 }

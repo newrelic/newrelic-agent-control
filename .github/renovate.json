@@ -84,6 +84,30 @@
       "managerFilePatterns": [
         "/^\\.github/workflows/.*\\.yml$/"
       ],
+      "depNameTemplate": "newrelic/nri-nginx-artifacts",
+      "packageNameTemplate": "newrelic/nri-nginx-artifacts",
+      "datasourceTemplate": "docker",
+      "matchStrings": [
+        "HOST_E2E_NGINX_VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.*\\.yml$/"
+      ],
+      "depNameTemplate": "newrelic/nri-apache-artifacts",
+      "packageNameTemplate": "newrelic/nri-apache-artifacts",
+      "datasourceTemplate": "docker",
+      "matchStrings": [
+        "HOST_E2E_APACHE_VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.*\\.yml$/"
+      ],
       "depNameTemplate": "newrelic/nrdot-agent-artifacts",
       "packageNameTemplate": "newrelic/nrdot-agent-artifacts",
       "datasourceTemplate": "docker",
