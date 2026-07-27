@@ -6,7 +6,7 @@ use std::fmt::Display;
 pub type NamespacedVariableName = String;
 
 /// Namespace defines the supported namespace names for variables definition.
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Namespace {
     /// Variables defined in the agent type.
     Variable,
@@ -28,6 +28,17 @@ pub enum Namespace {
 }
 
 impl Namespace {
+    /// All supported namespace variants.
+    pub const ALL: [Namespace; 7] = [
+        Namespace::Variable,
+        Namespace::SubAgent,
+        Namespace::AgentControl,
+        Namespace::EnvironmentVariable,
+        Namespace::Vault,
+        Namespace::File,
+        Namespace::K8sSecret,
+    ];
+
     const PREFIX: &'static str = "nr-";
     /// Separator between a namespace prefix and the variable name.
     pub const PREFIX_NS_SEPARATOR: &'static str = ":";
