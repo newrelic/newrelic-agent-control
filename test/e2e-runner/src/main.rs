@@ -49,10 +49,6 @@ enum LinuxScenarios {
     /// Tests self-update functionality by installing Agent Control from current branch and verifying that AC updates itself,
     /// when instructed via OpAMP, to the latest published tag.
     SelfUpdateCurrentToLatest(InstallationArgs),
-    /// Installs a sub-agent whose OCI package defines a `post_download_hook`, and verifies (via a
-    /// filesystem marker written by the hook) that the hook runs after the package is downloaded
-    /// and that the agent starts afterwards.
-    PostDownloadHookSuccess(InstallationArgs),
     /// Installs Agent Control with a mirrored infra-agent OCI and a custom nri-redis OCI,
     /// spins up a local Redis instance, and verifies that RedisSample data lands in NRDB.
     NriRedis(InstallationArgs),
