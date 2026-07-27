@@ -152,7 +152,12 @@ fn test_postdownload_hook_command_not_found_with_oci_registry() {
     let (_agent_control, sleep_instance_id) =
         start_and_apply(&dirs, &mut opamp_server, &sleep_agent_type, &version);
 
-    retry_until_unhealthy_with_error(&opamp_server, &sleep_instance_id, "command not found", 60);
+    retry_until_unhealthy_with_error(
+        &opamp_server,
+        &sleep_instance_id,
+        "failed to spawn process",
+        60,
+    );
 }
 
 // Test that stderr output is captured in error message

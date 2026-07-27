@@ -20,7 +20,7 @@ use super::{
     },
 };
 #[cfg(target_family = "windows")]
-use crate::sub_agent::on_host::command::job_object::JobObject;
+use crate::utils::job_object::JobObject;
 
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
