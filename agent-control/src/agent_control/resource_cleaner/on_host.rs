@@ -194,7 +194,9 @@ where
         }
     }
 
-    /// Union of shared-filesystem paths declared by every agent in `agents`.
+    /// Union of shared-filesystem paths declared by every agent in `agents`. Once combined, no two
+    /// agents may claim the same `exclusive` path, and a `dirs` node is safe to remove only once
+    /// none of them still declares it.
     fn declared_shared_paths_from_all_agents(
         &self,
         agents: &SubAgentsMap,
@@ -203,9 +205,8 @@ where
         for config in agents.values() {
             let definition = self.get_definition(&config.agent_type)?;
             let paths = self.declared_shared_paths(&definition);
-            all_shared_paths.files.extend(paths.files);
-            all_shared_paths.managed_dirs.extend(paths.managed_dirs);
-            all_shared_paths.declared_dirs.extend(paths.declared_dirs);
+            all_shared_paths.exclusive.extend(paths.exclusive);
+            all_shared_paths.dirs.extend(paths.dirs);
         }
         Ok(all_shared_paths)
     }
@@ -250,19 +251,17 @@ where
             .map_err(|(path, source)| OnHostCleanerError::SharedFilesystem { path, source })
     }
 
-    /// Deletes shared files no configured agent owns, and directories (managed or co-owned) no
-    /// configured agent declares.
+    /// Deletes shared paths no configured agent declares: exclusive paths no longer claimed by
+    /// anyone, and `dirs` nodes no configured agent references anymore.
     fn reconcile_shared_filesystem(&self, configured: &SubAgentsMap) {
-        let mut expected_files = HashSet::new();
-        let mut managed_dirs = HashSet::new();
-        let mut declared_dirs = HashSet::new();
+        let mut exclusive = HashSet::new();
+        let mut dirs = HashSet::new();
         for agent_config in configured.values() {
             match self.get_definition(&agent_config.agent_type) {
                 Ok(definition) => {
                     let declared = self.declared_shared_paths(&definition);
-                    expected_files.extend(declared.files);
-                    managed_dirs.extend(declared.managed_dirs);
-                    declared_dirs.extend(declared.declared_dirs);
+                    exclusive.extend(declared.exclusive);
+                    dirs.extend(declared.dirs);
                 }
                 Err(err) => {
                     warn!(
@@ -274,12 +273,7 @@ where
             }
         }
 
-        if let Err(err) = reconcile_shared_dir(
-            &self.shared_filesystem_base,
-            &expected_files,
-            &managed_dirs,
-            &declared_dirs,
-        ) {
+        if let Err(err) = reconcile_shared_dir(&self.shared_filesystem_base, &exclusive, &dirs) {
             warn!(?err, base = ?self.shared_filesystem_base, "shared filesystem reconcile failed");
         }
     }
@@ -292,10 +286,9 @@ fn delete_stale_paths(
     new: &DeclaredPaths,
 ) -> Result<(), (PathBuf, io::Error)> {
     for path in old
-        .files
-        .difference(&new.files)
-        .chain(old.managed_dirs.difference(&new.managed_dirs))
-        .chain(old.declared_dirs.difference(&new.declared_dirs))
+        .exclusive
+        .difference(&new.exclusive)
+        .chain(old.dirs.difference(&new.dirs))
     {
         remove_path(path).map_err(|e| (path.clone(), e))?;
     }
@@ -314,17 +307,18 @@ fn remove_path(path: &Path) -> io::Result<()> {
     }
 }
 
-/// Recursively deletes files under `dir` not in `expected_files`. For a subdirectory found along
-/// the way:
-/// - in `managed_dirs`: kept whole, not descended into.
-/// - in `declared_dirs` (but not `managed_dirs`): kept, and recursed into to prune stray
-///   contents.
+/// Recursively deletes paths under `dir` not declared by any configured agent. For a subdirectory
+/// found along the way:
+/// - in `exclusive`: kept whole, not descended into (an individually-owned file or a whole managed
+///   subtree can't have stray contents pruned from it).
+/// - in `dirs` (but not `exclusive`): kept, and recursed into to prune stray contents.
 /// - in neither (no configured agent declares it): removed wholesale, not descended into.
+///
+/// A non-directory entry not in `exclusive` is removed.
 fn reconcile_shared_dir(
     dir: &Path,
-    expected_files: &HashSet<PathBuf>,
-    managed_dirs: &HashSet<PathBuf>,
-    declared_dirs: &HashSet<PathBuf>,
+    exclusive: &HashSet<PathBuf>,
+    dirs: &HashSet<PathBuf>,
 ) -> io::Result<()> {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
@@ -335,15 +329,15 @@ fn reconcile_shared_dir(
     for entry in entries {
         let path = entry?.path();
         if path.is_dir() {
-            if managed_dirs.contains(&path) {
+            if exclusive.contains(&path) {
                 continue;
             }
-            if declared_dirs.contains(&path) {
-                reconcile_shared_dir(&path, expected_files, managed_dirs, declared_dirs)?;
+            if dirs.contains(&path) {
+                reconcile_shared_dir(&path, exclusive, dirs)?;
             } else {
                 remove_path(&path)?;
             }
-        } else if !expected_files.contains(&path) {
+        } else if !exclusive.contains(&path) {
             remove_path(&path)?;
         }
     }
@@ -1045,6 +1039,36 @@ mod tests {
         assert!(
             !shared.join("stale-configs").exists(),
             "a directory no configured agent declares must be removed wholesale"
+        );
+    }
+
+    /// An `exclusive` path is kept whole even if it unexpectedly exists on disk as a directory.
+    #[test]
+    fn reconcile_keeps_exclusive_path_even_if_unexpectedly_a_directory() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let shared = tmp.path().to_path_buf();
+        // `declared-file` is declared as `kind: file`, but on disk it is (unexpectedly) a
+        // directory with stray contents.
+        std::fs::create_dir_all(shared.join("declared-file")).unwrap();
+        std::fs::write(shared.join("declared-file").join("stray.txt"), "stray").unwrap();
+
+        let definition = host_type_with_shared(serde_json::json!({
+            "declared-file": { "kind": "file", "text": "hi" },
+        }));
+        let type_id = AgentTypeID::try_from("test/ohi:0.0.1").unwrap();
+        let mut registry = MockAgentTypeRegistry::new();
+        registry.should_get(type_id, &definition);
+
+        shared_cleaner(registry, shared.clone())
+            .reconcile_shared_filesystem(&configured(&[("ohi-agent", "test/ohi:0.0.1")]));
+
+        assert!(
+            shared.join("declared-file").is_dir(),
+            "an exclusive path is kept whole even if its on-disk shape doesn't match what was declared"
+        );
+        assert!(
+            shared.join("declared-file").join("stray.txt").exists(),
+            "contents under an exclusive path are not pruned, since it's treated as an opaque unit"
         );
     }
 

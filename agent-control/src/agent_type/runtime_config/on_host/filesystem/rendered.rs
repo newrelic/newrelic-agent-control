@@ -47,12 +47,15 @@ pub enum RenderedEntry {
 }
 
 impl RenderedEntry {
-    /// Materializes this entry (and its subtree) on disk at `path`. `file_ops` provides both the
-    /// write and copy capabilities (a single type, [`LocalFile`], implements both in production).
+    /// Materializes this entry (and its subtree) on disk at `path`. `file_ops` provides the write,
+    /// copy and delete capabilities (a single type, [`LocalFile`], implements all three in
+    /// production). Delete is needed to clear a stale entry whose on-disk shape doesn't match what
+    /// is declared here anymore, e.g. after an Agent Type update changes a path's `kind` between
+    /// `file` and `dir`/`dir_content_from_map`.
     fn write(
         &self,
         path: &Path,
-        file_ops: &(impl FileWriter + FileCopier),
+        file_ops: &(impl FileWriter + FileCopier + FileDeleter),
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
         match self {
@@ -61,7 +64,7 @@ impl RenderedEntry {
                 FileContent::Copy(source) => copy_file(file_ops, dir_manager, path, source),
             },
             Self::Dir { children, .. } => {
-                ensure_dir(dir_manager, path)?;
+                ensure_dir(file_ops, dir_manager, path)?;
                 for (sub_path, child) in children {
                     let child_path = path.join(sub_path);
                     trace!("Recursing into child entry {}", child_path.display());
@@ -70,12 +73,11 @@ impl RenderedEntry {
                 Ok(())
             }
             Self::DirContentFromMap { files, .. } => {
-                // Without this delete, a remote cfg that removes a file from the map would leave
+                // Without this clear, a remote cfg that removes a file from the map would leave
                 // the old file on disk until the agent control is stopped.
-                dir_manager
-                    .delete(path)
+                delete_path(path, file_ops, dir_manager)
                     .map_err(|err| FileSystemEntriesError(format!("clearing {path:?}: {err}")))?;
-                ensure_dir(dir_manager, path)?;
+                ensure_dir(file_ops, dir_manager, path)?;
                 for (file_name, content) in files {
                     write_file(file_ops, dir_manager, &path.join(file_name), content)?;
                 }
@@ -93,7 +95,7 @@ impl FileSystem {
     /// Writes the declared tree under `base_dir`, overwriting any declared paths already on disk.
     pub fn write(
         &self,
-        file_ops: &(impl FileWriter + FileCopier),
+        file_ops: &(impl FileWriter + FileCopier + FileDeleter),
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
         for (path, entry) in &self.entries {
@@ -151,7 +153,7 @@ impl SharedFileSystem {
     /// Materializes the declared tree on disk. Existing files are overwritten; nothing is pruned.
     pub fn write(
         &self,
-        file_ops: &(impl FileWriter + FileCopier),
+        file_ops: &(impl FileWriter + FileCopier + FileDeleter),
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
         for (path, entry) in &self.entries {
@@ -161,11 +163,21 @@ impl SharedFileSystem {
     }
 }
 
-/// Creates `dir` (and any missing parents), with error context. Safe if it already exists.
+/// Creates `dir` (and any missing parents), with error context. Clears a stale file left at
+/// `dir` first (e.g. by a previous Agent Type declaring it as `kind: file`). Does nothing if
+/// `dir` already exists as a directory: on Windows, `dir_manager.create` also resets on-disk
+/// permissions to Administrators-only, which would strip access from whatever already owns a
+/// pre-existing directory.
 fn ensure_dir(
+    file_ops: &impl FileDeleter,
     dir_manager: &impl DirectoryManager,
     dir: &Path,
 ) -> Result<(), FileSystemEntriesError> {
+    clear_if_wrong_shape(dir, true, file_ops, dir_manager)
+        .map_err(|err| FileSystemEntriesError(format!("clearing {dir:?}: {err}")))?;
+    if dir.is_dir() {
+        return Ok(());
+    }
     trace!("Creating directory {}", dir.display());
     dir_manager
         .create(dir)
@@ -173,8 +185,10 @@ fn ensure_dir(
 }
 
 /// Writes `content` to `path`, creating its parent directory first. Overwrites an existing file.
+/// Clears a stale directory left at `path` first (e.g. by a previous Agent Type declaring it as
+/// `kind: dir` or `dir_content_from_map`).
 fn write_file(
-    file_writer: &impl FileWriter,
+    file_ops: &(impl FileWriter + FileDeleter),
     dir_manager: &impl DirectoryManager,
     path: &Path,
     content: &str,
@@ -184,15 +198,18 @@ fn write_file(
     let parent = path
         .parent()
         .ok_or_else(|| FileSystemEntriesError(format!("{} has no parent dir", path.display())))?;
-    ensure_dir(dir_manager, parent)?;
-    file_writer
+    ensure_dir(file_ops, dir_manager, parent)?;
+    clear_if_wrong_shape(path, false, file_ops, dir_manager)
+        .map_err(|err| FileSystemEntriesError(format!("clearing {path:?}: {err}")))?;
+    file_ops
         .write(path, content.to_owned())
         .map_err(|err| FileSystemEntriesError(format!("creating file {path:?}: {err}")))
 }
 
 /// Copies `source` to `path`, creating its parent directory first. Overwrites an existing file.
+/// Clears a stale directory left at `path` first, for the same reason as [`write_file`].
 fn copy_file(
-    file_copier: &impl FileCopier,
+    file_ops: &(impl FileCopier + FileDeleter),
     dir_manager: &impl DirectoryManager,
     path: &Path,
     source: &Path,
@@ -205,17 +222,37 @@ fn copy_file(
     let parent = path
         .parent()
         .ok_or_else(|| FileSystemEntriesError(format!("{} has no parent dir", path.display())))?;
-    ensure_dir(dir_manager, parent)?;
-    file_copier
+    ensure_dir(file_ops, dir_manager, parent)?;
+    clear_if_wrong_shape(path, false, file_ops, dir_manager)
+        .map_err(|err| FileSystemEntriesError(format!("clearing {path:?}: {err}")))?;
+    file_ops
         .copy(source, path)
         .map_err(|err| FileSystemEntriesError(format!("copying {source:?} to {path:?}: {err}")))
 }
-/// Deletes the file or directory at `path`.
+
+/// Removes whatever currently occupies `path` if it exists and its on-disk shape (directory vs.
+/// file) doesn't match `expect_dir`. A missing path is not an error.
+fn clear_if_wrong_shape(
+    path: &Path,
+    expect_dir: bool,
+    file_ops: &impl FileDeleter,
+    dir_manager: &impl DirectoryManager,
+) -> std::io::Result<()> {
+    if path.exists() && path.is_dir() != expect_dir {
+        delete_path(path, file_ops, dir_manager)?;
+    }
+    Ok(())
+}
+
+/// Deletes the file or directory at `path`. A missing path is not an error.
 fn delete_path(
     path: &Path,
     file_ops: &impl FileDeleter,
     dir_manager: &impl DirectoryManager,
 ) -> std::io::Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
     trace!("Deleting path {}", path.display());
     if path.is_dir() {
         dir_manager.delete(path)
@@ -414,6 +451,101 @@ mod tests {
             .unwrap();
 
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "v2");
+    }
+
+    /// Writing a `kind: file` entry clears a stale directory left there by a previous Agent Type.
+    #[test]
+    fn write_replaces_stale_directory_with_declared_file() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("entry");
+        std::fs::create_dir_all(&path).unwrap();
+        std::fs::write(path.join("leftover.txt"), "old").unwrap();
+
+        FileSystem::new(HashMap::from([(
+            path.clone(),
+            file_entry_with_text("hello"),
+        )]))
+        .write(&LocalFile, &DirectoryManagerFs)
+        .unwrap();
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "hello");
+    }
+
+    /// Writing a `kind: dir` entry clears a stale file left there by a previous Agent Type.
+    #[test]
+    fn write_replaces_stale_file_with_declared_dir() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("entry");
+        std::fs::write(&path, "old").unwrap();
+
+        FileSystem::new(HashMap::from([(
+            path.clone(),
+            dir_entry(HashMap::from([(
+                PathBuf::from("child.txt"),
+                file_entry_with_text("child"),
+            )])),
+        )]))
+        .write(&LocalFile, &DirectoryManagerFs)
+        .unwrap();
+
+        assert!(path.is_dir());
+        assert_eq!(
+            std::fs::read_to_string(path.join("child.txt")).unwrap(),
+            "child"
+        );
+    }
+
+    /// Writing a `dir_content_from_map` entry clears a stale file left there by a previous Agent Type.
+    #[test]
+    fn write_dir_content_from_map_replaces_stale_file_with_declared_dir() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("entry");
+        std::fs::write(&path, "old").unwrap();
+
+        FileSystem::new(HashMap::from([(
+            path.clone(),
+            map_dir_entry(HashMap::from([(
+                PathBuf::from("a.yaml"),
+                "a-content".to_string(),
+            )])),
+        )]))
+        .write(&LocalFile, &DirectoryManagerFs)
+        .unwrap();
+
+        assert!(path.is_dir());
+        assert_eq!(
+            std::fs::read_to_string(path.join("a.yaml")).unwrap(),
+            "a-content"
+        );
+    }
+
+    /// Writing a `Dir` entry that already exists correctly must not touch its existing contents.
+    #[test]
+    fn write_dir_does_not_delete_existing_directory_contents_when_shape_already_matches() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("managed-dir");
+        std::fs::create_dir_all(&path).unwrap();
+        std::fs::write(path.join("untracked.txt"), "untracked").unwrap();
+
+        FileSystem::new(HashMap::from([(
+            path.clone(),
+            dir_entry(HashMap::from([(
+                PathBuf::from("declared.txt"),
+                file_entry_with_text("declared"),
+            )])),
+        )]))
+        .write(&LocalFile, &DirectoryManagerFs)
+        .unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(path.join("untracked.txt")).unwrap(),
+            "untracked",
+            "untracked content in an already-correct directory must survive"
+        );
+        assert_eq!(
+            std::fs::read_to_string(path.join("declared.txt")).unwrap(),
+            "declared"
+        );
     }
 
     #[test]

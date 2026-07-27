@@ -33,11 +33,7 @@ impl AgentSharedPaths {
             // K8s agent-types are not expected on on-host validation
             Deployment::K8s(_) => DeclaredPaths::default(),
         };
-        let claimed: Vec<PathBuf> = declared
-            .files
-            .into_iter()
-            .chain(declared.managed_dirs)
-            .collect();
+        let claimed: Vec<PathBuf> = declared.exclusive.into_iter().collect();
         Self {
             agent_id,
             agent_type,
