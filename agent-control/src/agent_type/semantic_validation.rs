@@ -12,13 +12,15 @@ use crate::agent_type::definition::VariableDefinitionTree;
 use crate::agent_type::templates::template_re;
 use crate::agent_type::variable::namespace::Namespace;
 
-#[derive(Error, Debug, PartialEq, Eq)]
-#[error(
-    "undeclared variable(s) referenced in deployment: {}",
-    .undeclared_variables.iter().cloned().collect::<Vec<_>>().join(", ")
-)]
-pub struct SemanticValidationError {
-    undeclared_variables: BTreeSet<String>,
+#[derive(Error, Debug)]
+pub enum SemanticValidationError {
+    #[error("failed to parse deployment section: {0}")]
+    Deserialize(#[from] serde_saphyr::Error),
+    #[error(
+        "undeclared variable(s) referenced in deployment: {}",
+        .0.iter().map(String::as_str).collect::<Vec<_>>().join(", ")
+    )]
+    UndeclaredVariables(BTreeSet<String>),
 }
 
 /// Validates that every `${nr-var:X}` reference in `deployment` has a matching declaration in
@@ -32,9 +34,7 @@ pub fn validate_variable_references(
         deployment: serde_json::Value,
     }
 
-    let Deployment { deployment } = serde_saphyr::from_slice(raw_agent_type_content).expect(
-        "content should already be valid, having been parsed by AgentTypeDefinition::from_slice",
-    );
+    let Deployment { deployment } = serde_saphyr::from_slice(raw_agent_type_content)?;
 
     let declared_variables: BTreeSet<String> = variables.clone().flatten().into_keys().collect();
     let referenced_variables = referenced_variable_names(&deployment);
@@ -48,9 +48,9 @@ pub fn validate_variable_references(
         return Ok(());
     }
 
-    Err(SemanticValidationError {
+    Err(SemanticValidationError::UndeclaredVariables(
         undeclared_variables,
-    })
+    ))
 }
 
 /// Collects the set of `nr-var` names referenced anywhere in `deployment`, ignoring other
@@ -74,6 +74,7 @@ fn referenced_variable_names(deployment: &serde_json::Value) -> BTreeSet<String>
 mod tests {
     use super::*;
     use crate::agent_type::definition::AgentTypeDefinition;
+    use assert_matches::assert_matches;
     use rstest::rstest;
 
     fn parse(yaml: &str) -> (Vec<u8>, VariableDefinitionTree) {
@@ -208,12 +209,27 @@ deployment:
         let result = validate_variable_references(&content, &variables);
 
         if expected_undeclared.is_empty() {
-            assert_eq!(Ok(()), result);
-        } else {
-            let expected = SemanticValidationError {
-                undeclared_variables: expected_undeclared.iter().map(|s| s.to_string()).collect(),
-            };
-            assert_eq!(Err(expected), result);
+            assert_matches!(result, Ok(()));
+            return;
         }
+
+        let expected: BTreeSet<String> =
+            expected_undeclared.iter().map(|s| s.to_string()).collect();
+        match result {
+            Err(SemanticValidationError::UndeclaredVariables(undeclared_variables)) => {
+                assert_eq!(undeclared_variables, expected);
+            }
+            other => panic!("expected UndeclaredVariables error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_validate_reports_deserialize_error_for_malformed_content() {
+        let result = validate_variable_references(
+            b"deployment: [unclosed",
+            &VariableDefinitionTree::default(),
+        );
+
+        assert_matches!(result, Err(SemanticValidationError::Deserialize(_)));
     }
 }
