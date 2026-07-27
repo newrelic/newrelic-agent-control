@@ -815,6 +815,54 @@ static AGENT_TYPE_APACHE: LazyLock<AgentTypeValuesTestCase> =
         ..Default::default()
     });
 
+static AGENT_TYPE_POSTGRESQL: LazyLock<AgentTypeValuesTestCase> =
+    LazyLock::new(|| AgentTypeValuesTestCase {
+        agent_type: "newrelic/com.newrelic.infrastructure.nri_postgresql:0.1.0",
+        values_linux: AgentTypeValues {
+            cases: HashMap::from([
+                (
+                    "mandatory fields only",
+                    r#"
+                config: "integrations: []"
+                version: "v1.15.2"
+                "#,
+                ),
+                (
+                    "check all value types are correct",
+                    r#"
+                config: "integrations: []"
+                version: "v1.15.2"
+                oci.repository: "newrelic/nri-postgresql"
+                "#,
+                ),
+            ]),
+            ..Default::default()
+        }
+        .into(),
+        values_windows: AgentTypeValues {
+            cases: HashMap::from([
+                (
+                    "mandatory fields only",
+                    r#"
+                config: "integrations: []"
+                version: "v1.15.2"
+                "#,
+                ),
+                (
+                    "check all value types are correct",
+                    r#"
+                config: "integrations: []"
+                version: "v1.15.2"
+                oci.repository: "newrelic/nri-postgresql"
+                "#,
+                ),
+            ]),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    });
+
 fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesTestCase> {
     [
         &AGENT_TYPE_APM_DOTNET,
@@ -835,6 +883,7 @@ fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesT
         &AGENT_TYPE_REDIS,
         &AGENT_TYPE_NGINX,
         &AGENT_TYPE_APACHE,
+        &AGENT_TYPE_POSTGRESQL,
     ]
     .into_iter()
     .map(Deref::deref)

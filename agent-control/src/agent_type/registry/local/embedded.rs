@@ -34,8 +34,8 @@ mod tests {
     /// Per-environment counts of embedded agent type definitions. Updating these requires
     /// adding/removing files in `agent-type-registry/`.
     const KUBERNETES_AGENT_TYPE_AMOUNT: usize = 15;
-    const LINUX_AGENT_TYPE_AMOUNT: usize = 7;
-    const WINDOWS_AGENT_TYPE_AMOUNT: usize = 5;
+    const LINUX_AGENT_TYPE_AMOUNT: usize = 8;
+    const WINDOWS_AGENT_TYPE_AMOUNT: usize = 6;
 
     #[test]
     fn embedded_definitions_count_per_environment() {
