@@ -17,6 +17,7 @@ env:
   HOST_E2E_REDIS_VERSION: "0.0.1"
   HOST_E2E_NGINX_VERSION: "0.0.1"
   HOST_E2E_APACHE_VERSION: "0.0.1"
+  HOST_E2E_POSTGRESQL_VERSION: "0.0.1"
 
 jobs:
   build-packages:
@@ -72,6 +73,7 @@ jobs:
             --redis-version "${{ env.HOST_E2E_REDIS_VERSION }}" \
             --apache-version "${{ env.HOST_E2E_APACHE_VERSION }}" \
             --nginx-version "${{ env.HOST_E2E_NGINX_VERSION }}" \
+            --postgresql-version "${{ env.HOST_E2E_POSTGRESQL_VERSION }}" \
             --ebpf-agent-version "${{ env.HOST_E2E_EBPF_AGENT_VERSION }}"
 
       - name: Report test result to New Relic

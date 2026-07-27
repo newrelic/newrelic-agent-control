@@ -94,6 +94,10 @@ pub fn get_all_ohi_to_test(args: &InstallationArgs) -> Vec<Ohi> {
         .apache_version
         .clone()
         .expect("--apache-version is required for this scenario");
+    let postgresql_version = args
+        .postgresql_version
+        .clone()
+        .expect("--postgresql-version is required for this scenario");
 
     vec![
         Ohi {
@@ -113,6 +117,12 @@ pub fn get_all_ohi_to_test(args: &InstallationArgs) -> Vec<Ohi> {
             agent_type_id: "newrelic/com.newrelic.infrastructure.nri_apache:0.1.0",
             repo: "newrelic/newrelic-agent-control-apache-dev",
             version: apache_version,
+        },
+        Ohi {
+            name: "nri-postgresql",
+            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_postgresql:0.1.0",
+            repo: "newrelic/newrelic-agent-control-postgresql-dev",
+            version: postgresql_version,
         },
     ]
 }
