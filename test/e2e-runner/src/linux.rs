@@ -56,9 +56,6 @@ pub fn run_linux_e2e() {
         LinuxScenarios::SelfUpdateCurrentToLatest(args) => {
             scenarios::self_update::test_self_update_from_current_to_latest(args);
         }
-        LinuxScenarios::PostDownloadHookSuccess(args) => {
-            scenarios::post_download_hook::test_post_download_hook_success(args);
-        }
         LinuxScenarios::NriRedis(args) => {
             scenarios::nri_redis::test_nri_redis(args);
         }
