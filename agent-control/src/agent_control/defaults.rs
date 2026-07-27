@@ -181,17 +181,6 @@ pub fn default_custom_capabilities() -> CustomCapabilities {
     }
 }
 
-/// Agent type name of the New Relic infrastructure agent.
-pub const AGENT_TYPE_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure";
-/// Agent type name of the New Relic OpenTelemetry collector (NRDOT).
-pub const AGENT_TYPE_NAME_NRDOT: &str = "com.newrelic.opentelemetry.collector";
-
-// Fleet Control auto generated agent id
-/// Fleet-Control auto-generated agent id for the infrastructure agent.
-pub const AGENT_ID_INFRA_AGENT: &str = "nr-infra";
-/// Fleet-Control auto-generated agent id for NRDOT.
-pub const AGENT_ID_NRDOT: &str = "nrdot";
-
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
