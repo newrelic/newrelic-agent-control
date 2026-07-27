@@ -92,8 +92,8 @@ enum WindowsScenarios {
     /// Installs Agent Control with a mirrored infra-agent OCI and a custom nri-redis OCI,
     /// spins up a local Redis instance, and verifies that RedisSample data lands in NRDB.
     NriRedis(InstallationArgs),
-    /// Installs Agent Control with the infra-agent and every OHI sub-agent side-by-side (nri-nginx,
-    /// nri-apache) but does NOT start any monitored service. Verifies from the AC log that the
+    /// Installs Agent Control with the infra-agent and every OHI sub-agent side-by-side
+    /// but does NOT start any monitored service. Verifies from the AC log that the
     /// infra-agent invoked each OHI binary with the expected config
     AllOhisNoService(InstallationArgs),
 }

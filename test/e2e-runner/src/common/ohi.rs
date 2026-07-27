@@ -117,9 +117,14 @@ pub fn get_all_ohi_to_test(args: &InstallationArgs) -> Vec<Ohi> {
     ]
 }
 
+pub const TEST_LABEL: &str = "test.label";
+pub const TEST_LABEL_VALUE: &str = "1.2.3";
+
+/// No service is hit by ohis but the infra-agent still logs
+/// the invocation with the label, which is what we assert on.
 pub fn update_infra_configs_for_ohis_without_service(ohis: &[Ohi]) {
     // AC-level config: infra-agent + one sub-agent per OHI, and every OHI's dev repo declared in
-    // the OCI variants so signature verification stays consistent with the nri-redis scenario.
+    // the OCI variants.
     let agents_block = ohis
         .iter()
         .map(|o| format!("  {}:\n    agent_type: \"{}\"\n", o.name, o.agent_type_id,))
@@ -129,7 +134,7 @@ pub fn update_infra_configs_for_ohis_without_service(ohis: &[Ohi]) {
         .map(|o| format!("      - {}\n", o.repo))
         .collect::<String>();
 
-    #[cfg(target_os = "linux")]
+    #[cfg(target_family = "unix")]
     let config_path = crate::linux::DEFAULT_AC_CONFIG_PATH;
     #[cfg(target_family = "windows")]
     let config_path = crate::windows::DEFAULT_AC_CONFIG_PATH;
@@ -155,7 +160,7 @@ agent_packages:
         ),
     );
 
-    #[cfg(target_os = "linux")]
+    #[cfg(target_family = "unix")]
     let config_path = crate::linux::local_config_path("nr-infra");
     #[cfg(target_family = "windows")]
     let config_path = crate::windows::local_config_path("nr-infra");
@@ -175,11 +180,8 @@ oci:
         ),
     );
 
-    // Per-OHI local config: a single integration entry. No real
-    // service target — each OHI binary will fail its health check, but the infra-agent still logs
-    // the invocation with the label, which is what we assert on.
     for ohi in ohis {
-        #[cfg(target_os = "linux")]
+        #[cfg(target_family = "unix")]
         let config_path = crate::linux::local_config_path(ohi.name);
         #[cfg(target_family = "windows")]
         let config_path = crate::windows::local_config_path(ohi.name);
@@ -193,12 +195,12 @@ config:
     - name: {}
       interval: 15s
       labels:
-        test.label: 1.2.3
+        {}: {}
 version: {}
 oci:
   repository: {}
 "#,
-                ohi.name, ohi.version, ohi.repo,
+                ohi.name, TEST_LABEL, TEST_LABEL_VALUE, ohi.version, ohi.repo,
             ),
         );
     }

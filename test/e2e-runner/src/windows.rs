@@ -16,7 +16,7 @@ const AGENT_CONTROL_DIRS: &[&str] = &[
     r"C:\ProgramData\New Relic\newrelic-agent-control\",
 ];
 
-pub(crate) const DEFAULT_AC_CONFIG_PATH: &str =
+pub const DEFAULT_AC_CONFIG_PATH: &str =
     r"C:\Program Files\New Relic\newrelic-agent-control\local-data\agent-control\local_config.yaml";
 
 const DEFAULT_LOG_PATH: &str =
