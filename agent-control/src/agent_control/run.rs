@@ -4,13 +4,16 @@ use super::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
     DYNAMIC_AGENT_TYPES_DIR,
 };
-use crate::agent_control::config::{AgentControlConfig, AgentControlConfigError};
+use crate::agent_control::config::{
+    AgentControlConfig, AgentControlConfigError, AgentTypeConfig, OciConfig,
+};
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_type::oci::downloader::OCIAgentTypeArtifactDownloader;
 use crate::agent_type::registry::{Registry, RegistryConfig};
 use crate::command::RunnerContext;
 use crate::data_store::DataStore;
+use crate::environment::Environment;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
 use crate::oci;
@@ -18,7 +21,7 @@ use crate::opamp::remote_config::validators::signature::validator::SignatureVali
 use crate::values::ConfigRepo;
 use oci_client::client::ClientConfig;
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tracing::debug;
@@ -131,8 +134,13 @@ impl AgentControlRunner {
             runtime.clone(),
         )?;
 
-        let agent_type_registry =
-            Arc::new(build_agent_type_registry(&context, oci_client.clone())?);
+        let agent_type_registry = Arc::new(build_agent_type_registry(
+            &context.bootstrap_config.agent_types,
+            &context.bootstrap_config.oci,
+            context.running_mode,
+            &context.base_paths.local_dir,
+            oci_client.clone(),
+        )?);
 
         let signature_validator = context
             .bootstrap_config
@@ -163,11 +171,18 @@ impl AgentControlRunner {
     }
 }
 
-fn build_agent_type_registry(
-    context: &RunnerContext,
+/// Builds the production agent type registry (local + remote, with caching).
+///
+/// Exposed as `pub` so integration tests can exercise the exact wiring used at startup, e.g. to
+/// verify the remote layer is actually cached, rather than reassembling an equivalent by hand.
+pub fn build_agent_type_registry(
+    agent_types: &AgentTypeConfig,
+    oci: &OciConfig,
+    running_mode: Environment,
+    local_dir: &Path,
     oci_client: oci::Client,
 ) -> Result<Registry, AgentControlConfigError> {
-    let default_remote = &context.bootstrap_config.agent_types.default_remote;
+    let default_remote = &agent_types.default_remote;
     let signature_verification_enabled = default_remote.signature_verification_enabled.into();
     let default_public_key_url = &default_remote.public_key_url;
 
@@ -181,16 +196,16 @@ fn build_agent_type_registry(
 
     let downloader = OCIAgentTypeArtifactDownloader::new(
         oci_client,
-        context.bootstrap_config.oci.registry.clone(),
+        oci.registry.clone(),
         default_remote.repository.clone(),
-        context.bootstrap_config.oci.auth.clone(),
+        oci.auth.clone(),
         public_key_url,
     );
 
     Ok(Registry::build(
-        context.running_mode,
+        running_mode,
         RegistryConfig {
-            dynamic_agent_types_path: context.base_paths.local_dir.join(DYNAMIC_AGENT_TYPES_DIR),
+            dynamic_agent_types_path: local_dir.join(DYNAMIC_AGENT_TYPES_DIR),
         },
         downloader,
     ))
