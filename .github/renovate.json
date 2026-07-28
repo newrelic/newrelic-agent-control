@@ -120,6 +120,18 @@
       "managerFilePatterns": [
         "/^\\.github/workflows/.*\\.yml$/"
       ],
+      "depNameTemplate": "newrelic/ebpf-agent-artifacts",
+      "packageNameTemplate": "newrelic/ebpf-agent-artifacts",
+      "datasourceTemplate": "docker",
+      "matchStrings": [
+        "HOST_E2E_EBPF_AGENT_VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.*\\.yml$/"
+      ],
       "depNameTemplate": "newrelic/nrdot-agent-artifacts",
       "packageNameTemplate": "newrelic/nrdot-agent-artifacts",
       "datasourceTemplate": "docker",
