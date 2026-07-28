@@ -50,7 +50,7 @@ jobs:
         with:
           agent-type: NRAgentControl
           version: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
-          git-ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+          git-ref: "feat/send-protocol-version-to-catalog"
           newrelic-client-id: ${{ secrets.AC_NEWRELIC_CLIENT_ID }}
           newrelic-private-key: ${{ secrets.AC_NEWRELIC_PRIVATE_KEY }}
           # shared newrelic key to instrument the go binary used in the action
