@@ -129,6 +129,7 @@ deployment:
         NRIA_STATUS_SERVER_ENABLED: true
         NRIA_STATUS_SERVER_PORT: "${nr-var:health_port}"
         NR_HOST_ID: "${nr-ac:host_id}"
+        AC_SHARED_CFG: "${nr-sub:shared_filesystem_dir}/infra-agent-ohi-configs"
       restart_policy:
         backoff_strategy:
           type: fixed
