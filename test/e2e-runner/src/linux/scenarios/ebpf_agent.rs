@@ -15,14 +15,12 @@ use config::DEBUG_LOGGING_CONFIG;
 use std::time::Duration;
 use tracing::info;
 
-// Dev OCI packages pre-populated on ghcr.io.
-// When production ebpf-agent OCI ships, delete this scenario's dev-registry wiring and point at the real registry/repo.
-const DEV_OCI_REGISTRY: &str = "ghcr.io";
-const DEV_INFRA_AGENT_REPO: &str = "newrelic/newrelic-agent-control-infrastructure-dev";
-const DEV_INFRA_AGENT_VERSION: &str = "v1.78.0";
-const DEV_EBPF_AGENT_REPO: &str = "newrelic/newrelic-agent-control-ebpf-dev";
-
 pub fn test_ebpf_agent(args: InstallationArgs) {
+    let infra_agent_version = args
+        .infra_agent_version
+        .clone()
+        .expect("--infra-agent-version is required for this scenario");
+
     let ebpf_version = args
         .ebpf_agent_version
         .clone()
@@ -57,15 +55,6 @@ agents:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
   nr-ebpf:
     agent_type: "newrelic/com.newrelic.ebpf:0.1.0"
-oci:
-  registry: {DEV_OCI_REGISTRY}
-agent_type_var_constraints:
-  variants:
-    oci_repository_urls:
-      - {DEV_INFRA_AGENT_REPO}
-      - {DEV_EBPF_AGENT_REPO}
-agent_packages:
-  signature_verification_enabled: false
 {DEBUG_LOGGING_CONFIG}
 "#
     );
@@ -77,8 +66,6 @@ agent_packages:
 config:
   deploymentName: "{test_id}"
   region: "{region}"
-oci:
-  repository: {DEV_EBPF_AGENT_REPO}
 version: "{ebpf_version}"
     "#
     );
@@ -91,9 +78,7 @@ version: "{ebpf_version}"
 config_agent:
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
   staging: {staging}
-version: {DEV_INFRA_AGENT_VERSION}
-oci:
-  repository: {DEV_INFRA_AGENT_REPO}
+version: {infra_agent_version}
 "#
         ),
     );
