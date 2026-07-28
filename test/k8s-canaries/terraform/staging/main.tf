@@ -120,7 +120,7 @@ module "alerts" {
       # presence conditions miss because AC itself keeps running and emitting.
       name               = "Agent Control supervisor unhealthy"
       threshold          = 0
-      duration           = 300
+      duration           = 900
       aggregation_window = 300
       operator           = "above"
       template_name      = "./alert_nrql_templates/agent_unhealthy.tftpl"
@@ -130,8 +130,8 @@ module "alerts" {
       # ERROR-level self-instrumentation logs but do not necessarily flip a sub-agent to unhealthy.
       name               = "Agent Control error logs"
       threshold          = 0
-      duration           = 300
-      aggregation_window = 300
+      duration           = 1800
+      aggregation_window = 600
       operator           = "above"
       template_name      = "./alert_nrql_templates/log_error_presence.tftpl"
     },
