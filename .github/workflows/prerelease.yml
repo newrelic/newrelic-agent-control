@@ -13,7 +13,7 @@ jobs:
     name: Check third party licenses
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: newrelic/rust-licenses-noticer@aafd951d814aa31bbe4a5b463fd52ba208905562 # v1.0.4
         with:
           template-file: THIRD_PARTY_NOTICES.md.tmpl
@@ -62,7 +62,7 @@ jobs:
     name: Upload to S3
     needs: [ build-packages ]
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
