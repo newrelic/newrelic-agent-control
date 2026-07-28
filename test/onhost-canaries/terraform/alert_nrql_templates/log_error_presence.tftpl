@@ -1,0 +1,9 @@
+SELECT count(*)
+FROM Log
+WHERE `host.name` = '${instance_id}'
+AND service.name = 'agent-control-self-instrumentation'
+AND (
+  level = 'ERROR'
+  OR message LIKE '%exited unsuccessfully%'
+  OR message LIKE '%Restart policy exceeded%'
+)

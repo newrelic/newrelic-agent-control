@@ -112,6 +112,20 @@ module "alerts" {
       operator           = "below_or_equals"
       template_name      = "./alert_nrql_templates/log_presence.tftpl"
     },
+    {
+      # Fires when Agent Control reports an unhealthy supervisor: an ERROR-level self-instrumentation
+      # log, or the WARN signatures AC emits while a sub-agent's executable is crash-looping
+      # ("Executable exited unsuccessfully") or has been given up on ("Restart policy exceeded").
+      # This catches "AC is alive but a supervised sub-agent is unhealthy" — the case the metric/log
+      # presence conditions miss because AC itself keeps running and emitting. Requires the errors to
+      # persist for 5 minutes to avoid alerting on a single transient failure.
+      name               = "Agent Control supervisor unhealthy"
+      threshold          = 0
+      duration           = 300
+      aggregation_window = 60
+      operator           = "above"
+      template_name      = "./alert_nrql_templates/log_error_presence.tftpl"
+    },
   ]
 }
 

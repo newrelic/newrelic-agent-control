@@ -227,19 +227,33 @@
       debug:
         var: version.stdout
 
-    - name: Update agents configuration in local_config.yaml
+    - name: Update agents and self-instrumentation configuration in local_config.yaml
       ansible.windows.win_powershell:
         script: |
           $configPath = "C:\Program Files\New Relic\newrelic-agent-control\local-data\agent-control\local_config.yaml"
           $content = Get-Content $configPath -Raw
-          
+
+          # Enable self-instrumentation (OTel logs) alongside the sub-agent, mirroring the Linux play.
+          # This exports Agent Control's own logs to New Relic so the canary alerts that rely on
+          # `service.name = 'agent-control-self-instrumentation'` have data on Windows.
           $oldAgents = "agents: {}"
           $newAgents = @"
+          log:
+            level: debug
+          self_instrumentation:
+            opentelemetry:
+              endpoint: "{{ otlp_endpoint }}"
+              headers:
+                api-key: "{{ nr_license_key }}"
+              logs:
+                enabled: true
+              custom_attributes:
+                host.name: "{{ inventory_hostname }}"
           agents:
             nr-infra:
               agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
           "@
-          
+
           $newContent = $content -replace [regex]::Escape($oldAgents), $newAgents
           [IO.File]::WriteAllText($configPath, $newContent)
 
