@@ -15,6 +15,7 @@ Remember that the keywords that you can use are the following:
 ## Unreleased
 
 ### enhancement
+- Kubernetes: `--release-name` is now optional on `uninstall-agent-control`; omitting it skips deleting the release's own HelmRelease/HelmRepository CRs.
 - On-host: added nri-apache and nri-nginx agentTypes.
 - On-host: added nri-postgresql agentType.
 - On-host: added nri-mysql agentType.
