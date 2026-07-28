@@ -2,4 +2,5 @@ SELECT count(*)
 FROM Log
 WHERE `host.name` = '${instance_id}'
 AND service.name = 'agent-control-self-instrumentation'
-AND severity.text = 'ERROR'
+AND message = 'AgentHealthInfo'
+AND health LIKE '%Unhealthy%'
