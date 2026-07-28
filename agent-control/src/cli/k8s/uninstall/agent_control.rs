@@ -12,6 +12,7 @@ use crate::k8s::labels::Labels;
 use clap::Parser;
 use kube::api::TypeMeta;
 use std::collections::HashSet;
+use tracing::info;
 
 /// Arguments for the Agent Control uninstall command.
 #[derive(Debug, Clone, Parser)]
@@ -20,9 +21,9 @@ pub struct AgentControlUninstallData {
     #[arg(long)]
     pub namespace_agents: String,
 
-    /// Name of the Helm release.
+    /// Name of the Helm release. Omit to skip deleting the release's own HelmRelease/HelmRepository CRs.
     #[arg(long)]
-    pub release_name: String,
+    pub release_name: Option<String>,
 }
 
 /// Removes the Agent Control custom resources and all owned objects from the given namespaces.
@@ -38,7 +39,12 @@ pub fn uninstall_agent_control(
     } = uninstall_data;
 
     // we delete first the AC so that it does not interfere (by recreating resources that we have just deleted).
-    delete_agent_control_crs(&k8s_client, &kinds_available, namespace, release_name)?;
+    match release_name {
+        Some(release_name) => {
+            delete_agent_control_crs(&k8s_client, &kinds_available, namespace, release_name)?;
+        }
+        None => info!("No release name provided, skipping deletion of Agent Control own CRs"),
+    }
 
     // We filter the static list of objects we want to delete against what is actually available in the cluster.
     let valid_objects_to_delete = objects_to_delete(&kinds_available);
@@ -84,7 +90,7 @@ fn delete_owned_objects(
 /// Moreover, it adds ConfigMap to the list since it is not part of the default_group_version_kinds().
 /// it also filters away object that are not available in the cluster.
 /// On top of it, in the fluxless scenarios it loads the HelmRelease and HelmRepository CRs to be deleted,
-/// but it it a noop since they are not actually present in the cluster.
+/// but it is a noop since they are not actually present in the cluster.
 fn objects_to_delete(kinds_available: &HashSet<TypeMeta>) -> Vec<TypeMeta> {
     let mut tm_to_delete = default_group_version_kinds();
 
