@@ -13,14 +13,12 @@ use crate::windows::service::{STATUS_RUNNING, restart_service};
 use std::time::Duration;
 use tracing::info;
 
-// Dev OCI packages pre-populated on ghcr.io.
-// When production nri-redis OCI ships, delete this scenario's dev-registry wiring and point at the real registry/repos.
-const DEV_OCI_REGISTRY: &str = "ghcr.io";
-const DEV_INFRA_AGENT_REPO: &str = "newrelic/newrelic-agent-control-infrastructure-dev";
-const DEV_INFRA_AGENT_VERSION: &str = "v1.78.0";
-const DEV_NRI_REDIS_REPO: &str = "newrelic/newrelic-agent-control-redis-dev";
-
 pub fn test_nri_redis(args: InstallationArgs) {
+    let infra_agent_version = args
+        .infra_agent_version
+        .clone()
+        .expect("--infra-agent-version is required for this scenario");
+
     let redis_version = args
         .redis_version
         .clone()
@@ -50,15 +48,6 @@ agents:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
   nr-redis:
     agent_type: "newrelic/com.newrelic.infrastructure.nri_redis:0.1.0"
-oci:
-  registry: {DEV_OCI_REGISTRY}
-agent_type_var_constraints:
-  variants:
-    oci_repository_urls:
-      - {DEV_INFRA_AGENT_REPO}
-      - {DEV_NRI_REDIS_REPO}
-agent_packages:
-  signature_verification_enabled: false
 {DEBUG_LOGGING_CONFIG}
 "#
         ),
@@ -72,9 +61,7 @@ config_agent:
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
   log:
     level: debug
-version: {DEV_INFRA_AGENT_VERSION}
-oci:
-  repository: {DEV_INFRA_AGENT_REPO}
+version: {infra_agent_version}
 "#
         ),
     );
@@ -94,8 +81,6 @@ config:
       labels:
         test.id: {test_id}
 version: {redis_version}
-oci:
-  repository: {DEV_NRI_REDIS_REPO}
 "#
         ),
     );
