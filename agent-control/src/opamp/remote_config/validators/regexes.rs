@@ -1,0 +1,982 @@
+//! Regex-based validator that rejects remote configs containing denied patterns.
+use super::RemoteConfigValidator;
+use crate::agent_control::defaults::AGENT_TYPE_NAME_INFRA_AGENT;
+use crate::agent_type::agent_type_id::AgentTypeID;
+use crate::opamp::remote_config::OpampRemoteConfig;
+use crate::sub_agent::identity::AgentIdentity;
+use regex::Regex;
+use std::collections::HashMap;
+use thiserror::Error;
+
+/// Errors produced by the regex validator.
+#[derive(Error, Debug)]
+pub enum RegexValidatorError {
+    /// A denied pattern was found in the configuration.
+    #[error("invalid config: restricted values detected in the config: {0} is not allowed")]
+    InvalidConfig(String),
+
+    /// A validation regex failed to compile.
+    #[error("error compiling regex: {0}")]
+    RegexError(#[from] regex::Error),
+}
+
+#[derive(Debug, PartialEq, Hash, Eq)]
+pub(super) struct AgentTypeFQNName(String);
+
+/// The Config validator is responsible for matching a series of regexes on the content
+/// of the retrieved remote config and returning an error if a match is found.
+/// If getting the default remote config fails, the validator will return as valid
+/// because we leave that kind of error handling to the store_remote_config_hash_and_values
+/// on the event_processor.
+pub struct RegexValidator {
+    rules: HashMap<AgentTypeFQNName, Vec<(String, Regex)>>,
+}
+
+impl RemoteConfigValidator for RegexValidator {
+    type Err = RegexValidatorError;
+    fn validate(
+        &self,
+        agent_identity: &AgentIdentity,
+        opamp_remote_config: &OpampRemoteConfig,
+    ) -> Result<(), RegexValidatorError> {
+        // This config will fail further on the event processor.
+        opamp_remote_config
+            .agent_configs_iter()
+            .try_for_each(|(_, raw_config)| {
+                self.validate_regex_rules(&agent_identity.agent_type_id, raw_config)
+            })?;
+
+        Ok(())
+    }
+}
+
+impl RegexValidator {
+    fn try_new() -> Result<Self, RegexValidatorError> {
+        Ok(Self {
+            rules: HashMap::from([(
+                AgentTypeFQNName(AGENT_TYPE_NAME_INFRA_AGENT.to_string()),
+                vec![
+                    (
+                        "arbitrary command execution via 'command' field".to_string(),
+                        Regex::new(REGEX_COMMAND_FIELD)?,
+                    ),
+                    (
+                        "arbitrary command execution via 'exec' field".to_string(),
+                        Regex::new(REGEX_EXEC_FIELD)?,
+                    ),
+                    (
+                        "arbitrary command execution via 'binary_path' field".to_string(),
+                        Regex::new(REGEX_BINARY_PATH_FIELD)?,
+                    ),
+                    (
+                        "'nri-flex' integration usage".to_string(),
+                        Regex::new(REGEX_NRI_FLEX)?,
+                    ),
+                    (
+                        "setting environment variables '${nr-env:HTTP_PROXY}' or '{{PROXY_HOST}}' in proxy configuration".to_string(),
+                        Regex::new(REGEX_PROXY_ENV_VAR)?,
+                    ),
+                ],
+            )]),
+        })
+    }
+
+    fn validate_regex_rules(
+        &self,
+        agent_type_id: &AgentTypeID,
+        raw_config: &str,
+    ) -> Result<(), RegexValidatorError> {
+        let agent_type_name = AgentTypeFQNName(agent_type_id.name().to_string());
+        if !self.rules.contains_key(&agent_type_name) {
+            return Ok(());
+        }
+
+        for (rule_name, regex) in self.rules[&agent_type_name].iter() {
+            if regex.is_match(raw_config) {
+                return Err(RegexValidatorError::InvalidConfig(rule_name.to_string()));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Default for RegexValidator {
+    fn default() -> Self {
+        // Notice that we allow an expect here since all regexes are hardcoded
+        Self::try_new().expect("Failed to compile config validation regexes")
+    }
+}
+
+// Infra Agent Integrations (OHI)
+
+/// Matches a `command:` field (including hex-escaped variants) used for arbitrary command execution.
+///
+/// Denies any config for integrations that contains a discovery command (see the
+/// [infrastructure-agent discovery source]):
+///
+/// ```yaml
+/// discovery:
+///   command:
+///     # Use the following optional arguments:
+///     # --namespaces: Comma separated list of namespaces to discover pods on
+///     # --tls: Use secure (TLS) connection
+///     # --port: Port used to connect to the kubelet. Default is 10255
+///     exec: /var/db/newrelic-infra/nri-discovery-kubernetes
+///     match:
+///       label.app: mysql
+/// ```
+///
+/// It also denies the Infra Agent [custom secret management command]:
+///
+/// ```yaml
+/// variables:
+///   myToken:
+///     command:
+///       path: '/path/to/my-custom-auth-json'
+///       args: ["--domain", "myDomain", "--other_param", "otherValue"]
+///       ttl: 24h
+/// ```
+///
+/// [infrastructure-agent discovery source]: https://github.com/newrelic/infrastructure-agent/blob/1.55.1/pkg/databind/internal/discovery/command.go#L14
+/// [custom secret management command]: https://docs.newrelic.com/docs/infrastructure/host-integrations/installation/secrets-management/#custom-commands
+pub static REGEX_COMMAND_FIELD: &str =
+    r"(c|\\x63)(o|\\x6f)(m|\\x6d)(m|\\x6d)(a|\\x61)(n|\\x6e)(d|\\x64)\s*:";
+
+/// Matches an `exec:` field (including hex-escaped variants) used for arbitrary command execution.
+///
+/// Denies integrations performing arbitrary command execution (see the
+/// [host integration `exec` specification]):
+///
+/// ```yaml
+/// - name: my-integration
+///   exec: /usr/bin/python /opt/integrations/my-script.py --host=127.0.0.1
+/// ```
+///
+/// [host integration `exec` specification]: https://docs.newrelic.com/docs/infrastructure/host-integrations/infrastructure-integrations-sdk/specifications/host-integrations-standard-configuration-format/#exec
+pub static REGEX_EXEC_FIELD: &str = r"(e|\\x65)(x|\\x78)(e|\\x65)(c|\\x63)\s*:";
+
+/// Matches a `binary_path` field (case-insensitive, including hex-escaped variants).
+///
+/// Denies specific binary paths (e.g. `nri-apache`, see its [config sample]):
+///
+/// ```yaml
+/// - name: nri-apache
+///   env:
+///     INVENTORY: "true"
+///     # status_url is used to identify the monitored entity to which the inventory will be attached.
+///     STATUS_URL: http://127.0.0.1/server-status?auto
+///
+///     # binary_path is used to specify the path of the apache binary file (i.e. "C:\Apache\bin\httpd.exe").
+///     # By default the integration automatically discovers the binary on "/usr/sbin/httpd" or
+///     # "/usr/sbin/apache2ctl". Use this setting for any other location.
+///     # BINARY_PATH: ""
+/// ```
+///
+/// The regex uses the inline flags `(?i:exp)` (case-insensitive) and `(?flags:exp)` (set flags for
+/// `exp`, non-capturing).
+///
+/// [config sample]: https://github.com/newrelic/nri-apache/blob/v1.12.6/apache-config.yml.sample#L35
+pub static REGEX_BINARY_PATH_FIELD: &str = r"(?i:(b|\\x62)(i|\\x69)(n|\\x6e)(a|\\x61)(r|\\x72)(y|\\x79)(_|\x5f)(p|\\x70)(a|\\x61)(t|\\x74)(h|\\x68))";
+
+/// Matches usage of the `nri-flex` integration (including hex-escaped variants).
+///
+/// Denies using `nri-flex`.
+pub static REGEX_NRI_FLEX: &str =
+    r"(n|\\x6e)(r|\\x72)(i|\\x69)(\-|\\x2d)(f|\\x66)(l|\\x6c)(e|\\x65)(x|\\x78)";
+
+/// Matches environment-variable placeholders in a `proxy` field (infra-agent or agent-control syntax).
+///
+/// Denies environment-variable syntax in the proxy configuration. This prevents using `{{VAR_NAME}}`
+/// (infra-agent syntax) or `${nr-env:VAR_NAME}` (agent-control syntax) in the `proxy` field:
+///
+/// ```yaml
+/// proxy: http://{{PROXY_HOST}}:8080
+/// proxy: ${nr-env:HTTP_PROXY}
+/// ```
+pub static REGEX_PROXY_ENV_VAR: &str = r"(?i:(p|\\x70)(r|\\x72)(o|\\x6f)(x|\\x78)(y|\\x79))\s*:.*(\{\{|\$\{(n|\\x6e)(r|\\x72)(\-|\\x2d)(e|\\x65)(n|\\x6e)(v|\\x76):)";
+
+#[cfg(test)]
+pub(super) mod tests {
+    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::defaults::AGENT_TYPE_NAME_INFRA_AGENT;
+    use crate::agent_control::defaults::AGENT_TYPE_NAME_NRDOT;
+    use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::opamp::remote_config::AGENT_CONFIG_PREFIX;
+    use crate::opamp::remote_config::hash::{ConfigState, Hash};
+    use crate::opamp::remote_config::validators::RemoteConfigValidator;
+    use crate::opamp::remote_config::validators::regexes::{RegexValidator, RegexValidatorError};
+    use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
+    use crate::sub_agent::identity::AgentIdentity;
+    use assert_matches::assert_matches;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_validate() {
+        let content = r#"
+        health_port: 18003
+        config_agent:
+          staging: true
+          enable_process_metrics: true
+          status_server_enabled: true
+          status_server_port: 18003
+          log:
+            level: info
+          license_key: '{{NEW_RELIC_LICENSE_KEY}}'
+          custom_attributes:
+            nr_deployed_by: newrelic-cli
+
+        config_integrations:
+          docker-config.yml:
+            integrations:
+              - name: nri-docker
+                when:
+                  feature: docker_enabled
+                  file_exists: /var/run/docker.sock
+                interval: 15s
+              # This configuration is no longer included in nri-ecs images.
+              # it is kept for legacy reasons, but the new one is located in https://github.com/newrelic/nri-ecs
+              - name: nri-docker
+                when:
+                  feature: docker_enabled
+                  env_exists:
+                    FARGATE: "true"
+                interval: 15s
+                        integrations:
+              - name: nri-other
+                exec: /bin/crowdstrike-falcon
+                interval: 15s
+        "#;
+        let remote_config = OpampRemoteConfig::new(
+            test_id(),
+            Hash::from("this-is-a-hash"),
+            ConfigState::Applying,
+            ConfigurationMap::new(HashMap::from([(
+                AGENT_CONFIG_PREFIX.to_string(),
+                content.to_string(),
+            )])),
+        );
+        let validator = RegexValidator::default();
+        let agent_identity = AgentIdentity {
+            id: test_id(),
+            agent_type_id: AgentTypeID::try_from(
+                format!("newrelic/{AGENT_TYPE_NAME_INFRA_AGENT}:0.0.1").as_str(),
+            )
+            .unwrap(),
+        };
+
+        let validation_result = validator.validate(&agent_identity, &remote_config);
+        assert_eq!(
+            validation_result.unwrap_err().to_string(),
+            "invalid config: restricted values detected in the config: arbitrary command execution via 'exec' field is not allowed"
+        );
+    }
+
+    pub static VALID_ONHOST_NRDOT_CONFIG: &str = r#"
+config:
+
+  extensions:
+    health_check:
+
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+        http:
+
+    hostmetrics:
+      collection_interval: 20s
+      scrapers:
+        cpu:
+          metrics:
+            system.cpu.time:
+              enabled: false
+            system.cpu.utilization:
+              enabled: true
+        load:
+        memory:
+          metrics:
+            system.memory.utilization:
+              enabled: true
+        paging:
+          metrics:
+            system.paging.utilization:
+              enabled: false
+            system.paging.faults:
+              enabled: false
+        filesystem:
+          metrics:
+            system.filesystem.utilization:
+              enabled: true
+        disk:
+          metrics:
+            system.disk.merged:
+              enabled: false
+            system.disk.pending_operations:
+              enabled: false
+            system.disk.weighted_io_time:
+              enabled: false
+        network:
+          metrics:
+            system.network.connections:
+              enabled: false
+        processes:
+        process:
+          metrics:
+            process.cpu.utilization:
+              enabled: true
+            process.cpu.time:
+              enabled: false
+
+    filelog:
+      include:
+        - /var/log/alternatives.log
+        - /var/log/cloud-init.log
+        - /var/log/auth.log
+        - /var/log/dpkg.log
+        - /var/log/syslog
+        - /var/log/messages
+        - /var/log/secure
+        - /var/log/yum.log
+
+  processors:
+    # group system.cpu metrics by cpu
+    metricstransform:
+      transforms:
+        - include: system.cpu.utilization
+          action: update
+          operations:
+            - action: aggregate_labels
+              label_set: [ state ]
+              aggregation_type: mean
+        - include: system.paging.operations
+          action: update
+          operations:
+            - action: aggregate_labels
+              label_set: [ direction ]
+              aggregation_type: sum
+    # remove system.cpu metrics for states
+    filter/exclude_cpu_utilization:
+      metrics:
+        datapoint:
+          - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+          - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+          - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+    filter/exclude_memory_utilization:
+      metrics:
+        datapoint:
+          - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+          - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+          - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+          - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+          - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+    filter/exclude_memory_usage:
+      metrics:
+        datapoint:
+          - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+          - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+    filter/exclude_filesystem_utilization:
+      metrics:
+        datapoint:
+          - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+    filter/exclude_filesystem_usage:
+      metrics:
+        datapoint:
+          - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+          - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+    filter/exclude_filesystem_inodes_usage:
+      metrics:
+        datapoint:
+          - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+          - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+    filter/exclude_system_disk:
+      metrics:
+        datapoint:
+          - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+          - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+          - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+          - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+          - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+    filter/exclude_system_paging:
+      metrics:
+        datapoint:
+          - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
+          - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
+    filter/exclude_network:
+      metrics:
+        datapoint:
+          - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+
+    attributes/exclude_system_paging:
+      include:
+        match_type: strict
+        metric_names:
+          - system.paging.operations
+      actions:
+        - key: type
+          action: delete
+
+    transform:
+      trace_statements:
+        - context: span
+          statements:
+            - truncate_all(attributes, 4095)
+            - truncate_all(resource.attributes, 4095)
+      log_statements:
+        - context: log
+          statements:
+            - truncate_all(attributes, 4095)
+            - truncate_all(resource.attributes, 4095)
+
+    # used to prevent out of memory situations on the collector
+    memory_limiter:
+      check_interval: 1s
+      limit_mib: 100
+
+    batch:
+
+    resource:
+      attributes:
+        - key: host.display_name
+          action: upsert
+          value: '{{ display_name }}'
+
+    resourcedetection:
+      detectors: ["env", "system"]
+      system:
+        hostname_sources: ["os"]
+        resource_attributes:
+          host.id:
+            enabled: true
+
+    resourcedetection/cloud:
+      detectors: ["gcp", "ec2", "azure"]
+      timeout: 2s
+      ec2:
+        resource_attributes:
+          host.name:
+            enabled: false
+
+  exporters:
+    logging:
+    otlp:
+      endpoint: staging-otlp.nr-data.net:4317
+      headers:
+        api-key: '{{ nr_license_key_canaries }}'
+
+  service:
+"#;
+
+    #[test]
+    fn test_valid_configs_are_allowed() {
+        let config_validator = RegexValidator::default();
+
+        let config = remote_config(GOOD_INFRA_AGENT_CONFIG);
+        let result = config_validator.validate(&infra_agent(), &config);
+        assert!(result.is_ok());
+
+        let config = remote_config(VALID_ONHOST_NRDOT_CONFIG);
+        let result = config_validator.validate(&nrdot(), &config);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_invalid_configs_are_blocked() {
+        struct TestCase {
+            _name: &'static str,
+            agent_identity: AgentIdentity,
+            config: &'static str,
+        }
+        impl TestCase {
+            fn run(self) {
+                let config_validator = RegexValidator::default();
+                let remote_config = remote_config(self.config);
+                let err = config_validator
+                    .validate(&self.agent_identity, &remote_config)
+                    .unwrap_err();
+
+                assert_matches!(err, RegexValidatorError::InvalidConfig(_));
+            }
+        }
+        let test_cases = vec![
+            TestCase {
+                _name: "infra-agent config with nri-flex should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_NRI_FLEX,
+            },
+            TestCase {
+                _name: "infra-agent config with hexadecimal nri-flex should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_NRI_FLEX_HEXADECIMAL,
+            },
+            TestCase {
+                _name: "infra-agent config with command should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_COMMAND,
+            },
+            TestCase {
+                _name: "infra-agent config with exec should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_EXEC,
+            },
+            TestCase {
+                _name: "infra-agent config with exec hexadecimal should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_EXEC_HEXADECIMAL,
+            },
+            TestCase {
+                _name: "infra-agent config with binary_path uppercase should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_BINARY_PATH_UPPERCASE,
+            },
+            TestCase {
+                _name: "infra-agent config with binary_path lowercase should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_BINARY_PATH_LOWERCASE,
+            },
+            TestCase {
+                _name: "infra-agent config with proxy using infra agent env var syntax should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_PROXY_INFRA_ENV_VAR,
+            },
+            TestCase {
+                _name: "infra-agent config with proxy using agent control env var syntax should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_PROXY_AGENT_CONTROL_ENV_VAR,
+            },
+            TestCase {
+                _name: "infra-agent config with proxy using hexadecimal encoded env var syntax should be invalid",
+                agent_identity: infra_agent(),
+                config: CONFIG_WITH_PROXY_ENV_VAR_HEXADECIMAL,
+            },
+        ];
+
+        for test_case in test_cases {
+            test_case.run();
+        }
+    }
+
+    ///////////////////////////////////////////////////////
+    // Helpers
+    ///////////////////////////////////////////////////////
+    fn test_id() -> AgentID {
+        AgentID::try_from("test").unwrap()
+    }
+
+    fn infra_agent() -> AgentIdentity {
+        AgentIdentity {
+            id: test_id(),
+            agent_type_id: AgentTypeID::try_from(
+                format!("newrelic/{AGENT_TYPE_NAME_INFRA_AGENT}:0.0.1").as_str(),
+            )
+            .unwrap(),
+        }
+    }
+
+    fn nrdot() -> AgentIdentity {
+        AgentIdentity {
+            id: test_id(),
+            agent_type_id: AgentTypeID::try_from(
+                format!("newrelic/{AGENT_TYPE_NAME_NRDOT}:0.0.1").as_str(),
+            )
+            .unwrap(),
+        }
+    }
+
+    fn remote_config(config: &str) -> OpampRemoteConfig {
+        OpampRemoteConfig::new(
+            test_id(),
+            Hash::from("this-is-a-hash"),
+            ConfigState::Applying,
+            ConfigurationMap::new(HashMap::from([(
+                AGENT_CONFIG_PREFIX.to_string(),
+                config.to_string(),
+            )])),
+        )
+    }
+
+    // config containing nri-flex integration to be denied
+    const CONFIG_WITH_NRI_FLEX: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+
+# Configuration for New Relic Integrations
+config_integrations:
+  flex.yml:
+    integrations:
+      - name: nri-flex
+        offset: 10s
+        config:
+          name: RandomNumbers
+          apis:
+            - name: someService
+              entity: someEntity
+              url: https://jsonplaceholder.typicode.com/todos/1
+              math:
+                sum: ${id} + ${userId} + 1
+"#;
+
+    // config containing nri-flex via hexadecimal  to be denied
+    const CONFIG_WITH_NRI_FLEX_HEXADECIMAL: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+
+# Configuration for New Relic Integrations
+config_integrations:
+  flex.yml:
+    integrations:
+      - name: nri\x2dflex
+        offset: 10s
+        config:
+          name: RandomNumbers
+          apis:
+            - name: someService
+              entity: someEntity
+              url: https://jsonplaceholder.typicode.com/todos/1
+              math:
+                sum: ${id} + ${userId} + 1
+"#;
+
+    // config with `command` field to be denied
+    const CONFIG_WITH_COMMAND: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+
+# Configuration for New Relic Integrations
+config_integrations:
+  mysql.yml: |
+    integrations:
+      - name: nri-mysql
+        offset: 10s
+        config:
+          name: RandomNumbers
+          command: an extra command
+  mysql.yml: |
+    integrations:
+      - name: nri-mysql
+        env:
+          HOSTNAME: the-mysql-host
+          PORT: the-mysql-port
+          USERNAME: ${nr-env:MYSQL_USER}
+          PASSWORD: ${nr-env:MYSQL_PASSWORD}
+          REMOTE_MONITORING: true
+        interval: 10s
+        labels:
+          env: production
+          role: write-replica
+        inventory_source: config/mysql
+"#;
+
+    // config with `exec` field to be denied
+    const CONFIG_WITH_EXEC: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+
+# Configuration for New Relic Integrations
+config_integrations:
+  mysql.yml:
+    integrations:
+      - name: nri-mysql
+        offset: 10s
+        config:
+          name: RandomNumbers
+          exec: an extra command
+"#;
+
+    // config with `exec` hexadecimal field to be denied
+    const CONFIG_WITH_EXEC_HEXADECIMAL: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+
+# Configuration for New Relic Integrations
+config_integrations:
+  mysql.yml:
+    integrations:
+      - name: nri-mysql
+        offset: 10s
+        config:
+          name: RandomNumbers
+          \x65\x78\x65\x63: an extra command
+"#;
+
+    // config with `binary_path` field to be denied
+    const CONFIG_WITH_BINARY_PATH_UPPERCASE: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+
+# Configuration for New Relic Integrations
+config_integrations:
+  apache.yml:
+    - name: nri-apache
+      env:
+        INVENTORY: "true"
+        STATUS_URL: http://127.0.0.1/server-status?auto
+        BINARY_PATH: "/usr/bin/whatever"
+        # https://github.com/newrelic/infra-integrations-sdk/blob/master/docs/entity-definition.md
+        REMOTE_MONITORING: true
+      interval: 60s
+      labels:
+        env: production
+        role: load_balancer
+      inventory_source: config/apache
+"#;
+
+    // config with `binary_path` field to be denied
+    const CONFIG_WITH_BINARY_PATH_LOWERCASE: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+
+# Configuration for New Relic Integrations
+config_integrations:
+  apache.yml:
+    - name: nri-apache
+      env:
+        INVENTORY: "true"
+        STATUS_URL: http://127.0.0.1/server-status?auto
+        binary_path: "/usr/bin/whatever"
+        # https://github.com/newrelic/infra-integrations-sdk/blob/master/docs/entity-definition.md
+        REMOTE_MONITORING: true
+      interval: 60s
+      labels:
+        env: production
+        role: load_balancer
+      inventory_source: config/apache
+"#;
+
+    // config with proxy using infra agent environment variable syntax to be denied
+    const CONFIG_WITH_PROXY_INFRA_ENV_VAR: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  proxy: http://{{PROXY_HOST}}:8080
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+"#;
+
+    // config with proxy using agent control environment variable syntax to be denied
+    const CONFIG_WITH_PROXY_AGENT_CONTROL_ENV_VAR: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  proxy: ${nr-env:HTTP_PROXY}
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+"#;
+
+    // config with proxy using hexadecimal encoded nr-env syntax to be denied
+    const CONFIG_WITH_PROXY_ENV_VAR_HEXADECIMAL: &str = r#"
+################################################
+# Values file for Infrastructure Agent 0.1.0
+################################################
+
+# Configuration for the Infrastructure Agent
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  staging: true
+  display_name: host-display-name
+  proxy: ${nr\x2denv:HTTP_PROXY}
+  enable_process_metrics: true
+  log:
+    level: debug
+    forward: true
+"#;
+
+    // infra agent config to be allowed
+    const GOOD_INFRA_AGENT_CONFIG: &str = r#"
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
+  fedramp: true
+  payload_compression_level: 7
+  display_name: new_name
+  passthrough_environment:
+    - ONE
+    - TWO
+  custom_attributes:
+    environment: production
+    service: login service
+    team: alpha-team
+  enable_process_metrics: true
+  include_matching_metrics:
+    metric.attribute:
+      - regex "pattern"
+      - "string"
+      - "string-with-wildcard*"
+      - ${nr-env:METRIC_ATTRIBUTE}
+  log:
+    file: /tmp/agent.log
+    format: json
+    level: smart
+    forward: false
+    stdout: false
+    smart_level_entry_limit: 500
+    exclude_filters:
+      "*":
+    include_filters:
+      integration_name:
+        - nri-powerdns
+  network_interface_filters:
+    prefix:
+      - dummy
+      - lo
+    index-1:
+      - tun
+  disable_all_plugins: false
+  cloud_security_group_refresh_sec: 60
+  daemontools_interval_sec: 15
+  dpkg_interval_sec: 30
+  facter_interval_sec: 30
+  kernel_modules_refresh_sec: 10
+  network_interface_interval_sec: 60
+  rpm_interval_sec: 30
+  selinux_interval_sec: 30
+  sshd_config_refresh_sec: 15
+  supervisor_interval_sec: 15
+  sysctl_interval_sec: 60
+  systemd_interval_sec: 30
+  sysvinit_interval_sec: 30
+  upstart_interval_sec: 30
+  users_refresh_sec: 15
+  windows_services_refresh_sec: 30
+  windows_updates_refresh_sec: 60
+  metrics_network_sample_rate: 10
+  metrics_process_sample_rate: 20
+  metrics_storage_sample_rate: 20
+  metrics_system_sample_rate: 5
+  selinux_enable_semodule: true
+  http_server_enabled: true
+  http_server_host: localhost
+  http_server_port: 8001
+  ca_bundle_dir: /etc/my-certificates
+  ca_bundle_file: /etc/my-certificates/secureproxy.pem
+  ignore_system_proxy: false
+  proxy: https://user:password@hostname:port
+  proxy_validate_certificates: false
+  max_procs: 1
+  agent_dir: /some/dir
+  plugin_dir: /another/dir
+  entityname_integrations_v2_update: false
+  pid_file: /some/pid/file
+  app_data_dir: /some/app/data_dir
+  cloud_max_retry_count: 10
+  cloud_retry_backoff_sec: 60
+  cloud_metadata_expiry_sec: 300
+  disable_cloud_metadata: false
+  disable_cloud_instance_id: false
+  startup_connection_retries: 6
+  logging_retry_limit: 5
+  startup_connection_retry_time: 5s
+  startup_connection_timeout: 10s
+  container_cache_metadata_limit: 60
+  docker_api_version: 1.24
+  custom_supported_file_systems:
+  file_devices_ignored:
+  ignored_inventory:
+  ignore_reclaimable: false
+  supervisor_rpc_sock:
+  proxy_config_plugin: true
+  facter_home_dir:
+  strip_command_line: true
+  dns_hostname_resolution: true
+  override_hostname: custom.hostname.org
+  override_hostname_short: custom-hostname
+  remove_entities_period: 48h
+  enable_win_update_plugin: false
+  legacy_storage_sampler: false
+  win_process_priority_class: Normal
+  win_removable_drives: true
+  disable_zero_mem_process_filter: false
+"#;
+}
