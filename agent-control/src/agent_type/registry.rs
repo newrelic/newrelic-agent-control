@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 use tracing::{debug, warn};
 
+use self::caching::CachingRegistry;
 use self::local::LocalRegistry;
 use self::remote::RemoteRegistry;
 use super::agent_type_id::AgentTypeID;
@@ -83,8 +84,9 @@ impl<R: AgentTypeRegistry> Registry<R> {
 pub enum SupportedRegistry {
     /// In-memory registry of embedded and custom agent types.
     Local(LocalRegistry),
-    /// Registry that pulls agent types from a remote OCI registry.
-    Remote(RemoteRegistry<OCIAgentTypeArtifactDownloader>),
+    /// Registry that pulls agent types from a remote OCI registry, memoizing successful lookups
+    /// since a downloaded artifact is immutable for a given [AgentTypeID].
+    Remote(CachingRegistry<RemoteRegistry<OCIAgentTypeArtifactDownloader>>),
 }
 
 impl AgentTypeRegistry for SupportedRegistry {
@@ -108,7 +110,7 @@ impl Registry<SupportedRegistry> {
         downloader: OCIAgentTypeArtifactDownloader,
     ) -> Self {
         let local = LocalRegistry::new(env, config.dynamic_agent_types_path);
-        let remote = RemoteRegistry::new(env, downloader);
+        let remote = CachingRegistry::new(RemoteRegistry::new(env, downloader));
         Self::new(vec![
             SupportedRegistry::Local(local),
             SupportedRegistry::Remote(remote),
