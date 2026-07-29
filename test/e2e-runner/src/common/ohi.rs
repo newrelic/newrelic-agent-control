@@ -82,10 +82,6 @@ pub struct Ohi {
 }
 
 pub fn get_all_ohi_to_test(args: &InstallationArgs) -> Vec<Ohi> {
-    let redis_version = args
-        .redis_version
-        .clone()
-        .expect("--redis-version is required for this scenario");
     let nginx_version = args
         .nginx_version
         .clone()
@@ -99,12 +95,14 @@ pub fn get_all_ohi_to_test(args: &InstallationArgs) -> Vec<Ohi> {
         .clone()
         .expect("--postgresql-version is required for this scenario");
 
+    // TODO once all integrations are available we get migrate the whole test to prod, for the time being
+    // we need to keep leveraging the dev package
     vec![
         Ohi {
             name: "nri-redis",
             agent_type_id: "newrelic/com.newrelic.infrastructure.nri_redis:0.1.0",
             repo: "newrelic/newrelic-agent-control-redis-dev",
-            version: redis_version,
+            version: "0.0.1".into(),
         },
         Ohi {
             name: "nri-nginx",
