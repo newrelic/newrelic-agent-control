@@ -9,9 +9,7 @@ use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::rendered::OnHost;
 use crate::agent_type::runtime_config::rendered;
 use crate::agent_type::variable::constraints::VariableConstraints;
-use crate::agent_type::variable::secret_variables::{
-    SecretVariables, SecretVariablesError, load_env_vars,
-};
+use crate::agent_type::variable::secret_variables::{SecretVariables, SecretVariablesError};
 use crate::secrets_provider::SecretsProviders;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
@@ -181,15 +179,14 @@ where
                 EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(e.to_string())
             })?;
 
-        // Values are expanded substituting all ${nr-env...} with environment variables.
-        // Notice that only environment variables are taken into consideration (no other vars for example)
-        let secret_variables = SecretVariables::try_from(values.clone())?;
-        let env_vars = load_env_vars();
+        let secret_variables =
+            SecretVariables::get_from(values.clone(), agent_type.runtime_config.clone())?;
+
         let secrets = secret_variables.load_secrets(&self.secrets_providers)?;
 
         let runtime_config = self
             .renderer
-            .render(agent_type, values, attributes, env_vars, secrets)?;
+            .render(agent_type, values, attributes, secrets)?;
 
         Ok(EffectiveAgent::new(agent_identity.clone(), runtime_config))
     }

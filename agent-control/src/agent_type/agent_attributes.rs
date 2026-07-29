@@ -2,6 +2,7 @@
 use super::variable::{Variable, namespace::Namespace};
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{AGENT_FILESYSTEM_FOLDER_NAME, SHARED_FILESYSTEM_FOLDER_NAME};
+use crate::agent_type::variable::namespace::NamespacedVariableName;
 use std::{collections::HashMap, path::PathBuf};
 use thiserror::Error;
 use tracing::debug;
@@ -56,7 +57,7 @@ impl AgentAttributes {
     }
 
     /// returns the variables from the sub-agent attributes source 'nr-sub'.
-    pub fn sub_agent_variables(&self) -> HashMap<String, Variable> {
+    pub fn sub_agent_variables(&self) -> HashMap<NamespacedVariableName, Variable> {
         HashMap::from([
             (
                 Namespace::SubAgent.namespaced_name(Self::VARIABLE_SUB_AGENT_ID),

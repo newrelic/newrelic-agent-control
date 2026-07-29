@@ -14,7 +14,7 @@ use thiserror::Error;
 /// The YAMLConfig represent any YAML config that the AgentControl can read and store.
 /// It enforces that the root of the tree is a hashmap and not an array or a single element.
 #[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
-pub struct YAMLConfig(HashMap<String, serde_json::Value>);
+pub struct YAMLConfig(HashMap<String, Value>);
 
 impl YAMLConfig {
     /// Returns true if the YAMLConfig is empty.

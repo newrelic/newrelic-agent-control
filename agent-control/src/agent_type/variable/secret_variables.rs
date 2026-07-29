@@ -1,6 +1,6 @@
 //! Extraction and loading of secret variables referenced from a sub-agent configuration.
-use std::collections::{HashMap, HashSet};
-
+use crate::agent_type::runtime_config::Runtime;
+use crate::agent_type::variable::namespace::NamespacedVariableName;
 use crate::{
     agent_type::{
         templates::template_re,
@@ -9,6 +9,7 @@ use crate::{
     secrets_provider::{Registry, SecretsProvider},
     values::yaml_config::YAMLConfig,
 };
+use std::collections::{HashMap, HashSet};
 
 /// Represents the prefix used for namespaced variables.
 /// Example: "nr-vault", "nr-var", etc.
@@ -62,14 +63,19 @@ impl From<&str> for SecretVariables {
     }
 }
 
-impl TryFrom<YAMLConfig> for SecretVariables {
-    type Error = SecretVariablesError;
-
-    fn try_from(config: YAMLConfig) -> Result<Self, Self::Error> {
-        let config: String = config
+impl SecretVariables {
+    pub fn get_from(
+        user_values: YAMLConfig,
+        runtime: Runtime,
+    ) -> Result<Self, SecretVariablesError> {
+        let user_values: String = user_values
             .try_into()
             .map_err(|_| SecretVariablesError::YamlParseError)?;
-        Ok(SecretVariables::from(config.as_str()))
+
+        // We are taking the definition of the secrets from both user_values and agent_type_runtime
+        Ok(SecretVariables::from(
+            format!("{}{:?}", user_values, runtime).as_str(),
+        ))
     }
 }
 
@@ -95,7 +101,7 @@ impl SecretVariables {
     pub fn load_secrets<S: SecretsProvider>(
         &self,
         secrets_providers_registry: &Registry<S>,
-    ) -> Result<HashMap<String, Variable>, SecretVariablesError> {
+    ) -> Result<HashMap<NamespacedVariableName, Variable>, SecretVariablesError> {
         if secrets_providers_registry.is_empty() {
             return Ok(HashMap::new());
         }
@@ -130,18 +136,6 @@ impl SecretVariables {
             .expect("Namespace format should be valid");
         self.variables.entry(prefix).or_default().insert(var_name);
     }
-}
-
-/// Loads all environment variables present in the system.
-pub fn load_env_vars() -> HashMap<String, Variable> {
-    std::env::vars_os()
-        .map(|(k, v)| {
-            (
-                Namespace::EnvironmentVariable.namespaced_name(k.to_string_lossy()),
-                Variable::new_final_string_variable(v.to_string_lossy().to_string()),
-            )
-        })
-        .collect::<HashMap<String, Variable>>()
 }
 
 #[cfg(test)]
