@@ -1,6 +1,6 @@
 use newrelic_agent_control::sub_agent::on_host::command::command_os::CommandOSNotStarted;
 use newrelic_agent_control::sub_agent::on_host::command::executable_data::ExecutableData;
-use newrelic_agent_control::sub_agent::on_host::command::logging::file_logger::FileLoggingConfigSubAgent;
+use newrelic_agent_control::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
 use newrelic_agent_control::sub_agent::on_host::command::restart_policy::RestartPolicy;
 use std::collections::HashMap;
 use std::process::Command;
@@ -32,7 +32,7 @@ fn non_blocking_runner() {
             restart_policy: RestartPolicy::default(),
             shutdown_timeout: Default::default(),
         },
-        FileLoggingConfigSubAgent::default(),
+        SubAgentFileLoggingConfig::default(),
     );
 
     let mut started_cmd = cmd.start().unwrap();
@@ -56,7 +56,7 @@ fn command_shutdown_when_sigterm_is_ignored() {
             restart_policy: Default::default(),
             shutdown_timeout: Duration::from_millis(100),
         },
-        FileLoggingConfigSubAgent::default(),
+        SubAgentFileLoggingConfig::default(),
     )
     .start()
     .unwrap();
@@ -106,7 +106,7 @@ fn command_shutdown_kill_orphan_process() {
             restart_policy: Default::default(),
             shutdown_timeout: Duration::from_millis(100),
         },
-        FileLoggingConfigSubAgent::default(),
+        SubAgentFileLoggingConfig::default(),
     )
     .start()
     .unwrap();

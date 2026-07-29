@@ -66,7 +66,7 @@ log:
   show_spans: false # Show spans information as logs. It includes additional details which may be useful for debugging purposes.
 ```
 
-Notice that rotation and retention cannot be configured and is fixed to be daily with 15 days of retention.
+Notice that rotation and retention cannot be configured and is fixed to be daily with 30 days of retention.
 
 ### fleet_control
 

@@ -14,7 +14,7 @@ use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use crate::sub_agent::on_host::command::logging::file_logger::FileLoggingConfigSubAgent;
+use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
 use crate::sub_agent::on_host::supervisor::{NotStartedSupervisorOnHost, SupervisorError};
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::SupervisorBuilder;
@@ -168,7 +168,7 @@ where
             on_host.packages,
             on_host.reported_version_package,
             self.package_manager.clone(),
-            FileLoggingConfigSubAgent {
+            SubAgentFileLoggingConfig {
                 enabled: on_host.enable_file_logging,
                 base_path: self.logging_base_path.clone(),
             },

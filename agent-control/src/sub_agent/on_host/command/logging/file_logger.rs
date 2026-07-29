@@ -23,7 +23,7 @@ const MAX_LOG_FILES_SUB_AGENT: usize = 30;
 pub struct FileLoggerError(String);
 
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
-pub struct FileLoggingConfigSubAgent {
+pub struct SubAgentFileLoggingConfig {
     pub enabled: bool,
     // Default value is being set by `ConfigPatcher` right after deserialization.
     pub base_path: PathBuf,
@@ -33,11 +33,11 @@ pub struct FileLoggingConfigSubAgent {
 /// The file will be rotated daily and the file name will be in the format `<timestamp>.<suffix>`
 /// e.g. `2027-12-01.stdout.log`. Only the MAX_LOG_FILES_SUB_AGENT most recent rotated files are retained.
 pub fn file_logger(
-    agent_id: AgentID,
-    file_logging_config: FileLoggingConfigSubAgent,
+    agent_id: &AgentID,
+    file_logging_config: SubAgentFileLoggingConfig,
     file_name_suffix: &str,
 ) -> Result<FileLogger, FileLoggerError> {
-    let file_dir = file_logging_config.base_path.join(&agent_id);
+    let file_dir = file_logging_config.base_path.join(agent_id);
 
     let file_appender = RollingFileAppender::builder()
         .rotation(Rotation::DAILY)
