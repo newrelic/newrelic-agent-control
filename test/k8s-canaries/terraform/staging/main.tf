@@ -113,19 +113,6 @@ module "alerts" {
       template_name      = "./alert_nrql_templates/log_presence.tftpl"
     },
     {
-      # Fires when a supervised sub-agent reports unhealthy. AC logs an `AgentHealthInfo` event on
-      # every health-check tick (~30s) whose `health` attribute reads `Healthy(...)`/`Unhealthy(...)`;
-      # we match the unhealthy variant. This is the direct "AC is alive but a sub-agent is unhealthy"
-      # signal — e.g. an executable crash-looping or a failing health check — which the metric/log
-      # presence conditions miss because AC itself keeps running and emitting.
-      name               = "Agent Control supervisor unhealthy"
-      threshold          = 0
-      duration           = 900
-      aggregation_window = 300
-      operator           = "above"
-      template_name      = "./alert_nrql_templates/agent_unhealthy.tftpl"
-    },
-    {
       # Distinct tripwire for AC-internal hard errors (panics, config/OpAMP failures) that surface as
       # ERROR-level self-instrumentation logs but do not necessarily flip a sub-agent to unhealthy.
       name               = "Agent Control error logs"

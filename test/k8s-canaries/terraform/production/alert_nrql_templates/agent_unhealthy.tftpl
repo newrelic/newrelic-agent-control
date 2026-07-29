@@ -1,6 +1,0 @@
-SELECT count(*)
-FROM Log
-WHERE clusterName = '${instance_id}'
-AND service.name = 'agent-control-self-instrumentation'
-AND message = 'AgentHealthInfo'
-AND health LIKE '%Unhealthy%'
