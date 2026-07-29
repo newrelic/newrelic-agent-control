@@ -20,11 +20,10 @@ Remember that the keywords that you can use are the following:
 - On-host: added nri-postgresql agentType.
 - On-host: added nri-mysql agentType.
 - On-host: added nri-memcached Agent Type.
+- Log files rotated have now 30 days of retention.
 - Added `agent-type validate --file <path>` subcommand to `newrelic-agent-control-cli` and `newrelic-agent-control-k8s-cli` for schema-level validation of agent type definition files.
 - Extended `agent-type validate` with semantic validation: every `${nr-var:X}` reference in `deployment` must have a matching `variables` declaration.
 - Enable cache for remote Agent Type registry
-
-
 
 ## v1.19.1 - 2026-07-23
 

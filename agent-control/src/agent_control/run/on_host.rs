@@ -201,7 +201,7 @@ impl AgentControlRunner {
         ));
 
         let supervisor_builder = SupervisorBuilderOnHost {
-            logging_path: self.base_paths.log_dir,
+            logging_base_path: self.base_paths.log_dir,
             package_manager: agents_package_manager,
         };
 
