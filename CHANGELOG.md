@@ -14,7 +14,9 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
-### enhancement
+## v1.20.0 - 2026-07-29
+
+### 🚀 Enhancements
 - Kubernetes: `--release-name` is now optional on `uninstall-agent-control`; omitting it skips deleting the release's own HelmRelease/HelmRepository CRs.
 - On-host: added nri-apache and nri-nginx agentTypes.
 - On-host: added nri-postgresql agentType.
@@ -24,6 +26,17 @@ Remember that the keywords that you can use are the following:
 - Added `agent-type validate --file <path>` subcommand to `newrelic-agent-control-cli` and `newrelic-agent-control-k8s-cli` for schema-level validation of agent type definition files.
 - Extended `agent-type validate` with semantic validation: every `${nr-var:X}` reference in `deployment` must have a matching `variables` declaration.
 - Enable cache for remote Agent Type registry
+
+### ⛓️ Dependencies
+- Updated rust crate kube to 4.2.0
+- Updated rust crate rustls-pki-types to 1.15.1
+- Updated rust crate base64 to 0.23.0
+- Updated rust crate either to 1.17.0
+- Updated rust crate jsonwebtoken to v11
+- Updated rust crate serial_test to v4
+- Updated rust crate schemars to 1.2.2
+- Updated alpine/kubectl to v1.36.3
+- Updated rust crate toml to 1.1.4
 
 ## v1.19.1 - 2026-07-23
 

@@ -1323,6 +1323,13 @@ Distributed under the following license(s):
 * Unlicense
 * MIT
 
+## jiff-core <https://crates.io/crates/jiff-core>
+
+Distributed under the following license(s):
+
+* Unlicense
+* MIT
+
 ## jni <https://crates.io/crates/jni>
 
 Distributed under the following license(s):
@@ -1553,13 +1560,6 @@ Distributed under the following license(s):
 * MIT
 
 ## mime <https://crates.io/crates/mime>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## minimal-lexical <https://crates.io/crates/minimal-lexical>
 
 Distributed under the following license(s):
 
