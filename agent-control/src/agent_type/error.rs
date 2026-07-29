@@ -31,9 +31,6 @@ pub enum AgentTypeError {
     /// A `kind: file` entry is invalid
     #[error("invalid filesystem file entry: {0}")]
     InvalidFileEntry(String),
-    /// The configured backoff strategy type is not recognized.
-    #[error("unknown backoff strategy type: {0}")]
-    UnknownBackoffStrategyType(String),
     /// The provided value is not one of the allowed variants.
     #[error("invalid value provided. Variants allowed: {0}")]
     InvalidVariant(String),

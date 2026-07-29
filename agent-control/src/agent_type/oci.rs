@@ -52,6 +52,7 @@ fn environment_prefix(environment: Environment) -> &'static str {
 mod tests {
     use super::*;
     use crate::agent_type::agent_type_id::{NAME_NAMESPACE_MAX_LENGTH, VERSION_MAX_LENGTH};
+    use strum::IntoEnumIterator;
 
     /// Maximum length of an OCI image tag (see the OCI distribution spec).
     const MAX_TAG_LENGTH: usize = 128;
@@ -77,7 +78,7 @@ mod tests {
     /// compile when a variant is added, forcing a re-check here.
     #[test]
     fn longest_tag_never_overflows() {
-        for environment in Environment::all() {
+        for environment in Environment::iter() {
             let longest_tag_length = environment_prefix(environment).len()
                 + SEPARATORS_COUNT
                 + NAME_NAMESPACE_MAX_LENGTH

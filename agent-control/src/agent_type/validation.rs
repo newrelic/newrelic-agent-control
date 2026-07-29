@@ -6,6 +6,7 @@ use thiserror::Error;
 use crate::agent_type::definition::{AgentTypeDefinition, AgentTypeDefinitionParseError};
 use crate::agent_type::templates::template_re;
 use crate::agent_type::variable::namespace::Namespace;
+use strum::IntoEnumIterator;
 
 #[derive(Error, Debug)]
 pub enum ValidationError {
@@ -19,7 +20,7 @@ pub enum ValidationError {
     )]
     UndeclaredVariables(BTreeSet<String>),
     #[error(
-        "unknown namespace(s) referenced in deployment: {}",
+        "unknown variable namespace(s) referenced in deployment: {}",
         .0.iter().map(String::as_str).collect::<Vec<_>>().join(", ")
     )]
     UnknownNamespaces(BTreeSet<String>),
@@ -37,7 +38,7 @@ struct VariableReference<'a> {
 /// - **Undeclared variable**: every `${nr-var:X}` reference found anywhere in
 ///   `deployment` must have a matching declaration in `variables`.
 /// - **Unknown namespace**: every `${nr-xxx:...}` reference found anywhere in `deployment`
-///   must use one of the namespaces in [`Namespace::ALL`].
+///   must use one of the [`Namespace`] variants.
 pub fn validate(raw_agent_type_content: &[u8]) -> Result<(), ValidationError> {
     let document: serde_json::Value = serde_saphyr::from_slice(raw_agent_type_content)?;
     let definition = AgentTypeDefinition::from_value(document.clone())?;
@@ -77,10 +78,9 @@ fn referenced_variables(deployment_text: &str) -> Vec<VariableReference<'_>> {
 }
 
 /// Returns the set of namespace prefixes (e.g. `nr-bogus`) among `references` that don't match
-/// any [`Namespace::ALL`] variant.
+/// any [`Namespace`] variant.
 fn unknown_namespaces(references: &[VariableReference]) -> BTreeSet<String> {
-    let known_namespaces: BTreeSet<String> =
-        Namespace::ALL.iter().map(ToString::to_string).collect();
+    let known_namespaces: BTreeSet<String> = Namespace::iter().map(|ns| ns.to_string()).collect();
 
     references
         .iter()

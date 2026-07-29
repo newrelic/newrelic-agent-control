@@ -1,12 +1,13 @@
 //! Namespaces used to prefix agent type variable names (e.g. `nr-var`, `nr-env`, `nr-vault`).
 use std::fmt::Display;
+use strum::{EnumIter, IntoEnumIterator};
 
 /// Holds the variable name prefixed with the namespace.
 /// Example: "nr-env:MY_ENV_VAR" for the environment variable "MY_ENV_VAR".
 pub type NamespacedVariableName = String;
 
 /// Namespace defines the supported namespace names for variables definition.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
 pub enum Namespace {
     /// Variables defined in the agent type.
     Variable,
@@ -28,17 +29,6 @@ pub enum Namespace {
 }
 
 impl Namespace {
-    /// All supported namespace variants.
-    pub const ALL: [Namespace; 7] = [
-        Namespace::Variable,
-        Namespace::SubAgent,
-        Namespace::AgentControl,
-        Namespace::EnvironmentVariable,
-        Namespace::Vault,
-        Namespace::File,
-        Namespace::K8sSecret,
-    ];
-
     const PREFIX: &'static str = "nr-";
     /// Separator between a namespace prefix and the variable name.
     pub const PREFIX_NS_SEPARATOR: &'static str = ":";
@@ -65,14 +55,20 @@ impl Namespace {
 
     /// Returns whether the given namespaced name belongs to a secret namespace.
     pub fn is_secret_variable(s: &str) -> bool {
-        [
-            Namespace::Vault,
-            Namespace::K8sSecret,
-            Namespace::File,
-            Namespace::EnvironmentVariable,
-        ]
-        .iter()
-        .any(|ns| s.starts_with(ns.to_string().as_str()))
+        Self::iter()
+            .filter(Namespace::is_secret)
+            .any(|ns| s.starts_with(ns.to_string().as_str()))
+    }
+
+    /// Whether this namespace holds "secret" variables (loaded on every remote config fetch).
+    fn is_secret(&self) -> bool {
+        match self {
+            Namespace::Variable | Namespace::SubAgent | Namespace::AgentControl => false,
+            Namespace::EnvironmentVariable
+            | Namespace::Vault
+            | Namespace::File
+            | Namespace::K8sSecret => true,
+        }
     }
 }
 
