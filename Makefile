@@ -17,6 +17,7 @@ $(TARGETS):
 ##########################################
 include test/k8s-canaries/Makefile
 include test/onhost-canaries/Makefile
+include test/fleet-canaries/Makefile
 
 help:
 	@echo "## Available targets:"

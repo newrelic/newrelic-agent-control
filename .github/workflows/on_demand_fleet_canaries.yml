@@ -1,0 +1,34 @@
+name: 🐤 On-Demand fleet canaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      canary_dir:
+        description: "Canary directory (staging/production)"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "on-demand-fleet-canaries-${{ inputs.canary_dir }}"
+  cancel-in-progress: false
+
+jobs:
+  fleet_canaries_infra:
+    name: Fleet canaries infrastructure apply
+    uses: ./.github/workflows/component_fleet_canaries_infra.yml
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      canary_dir: ${{ inputs.canary_dir }}
+      apply: true
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+      SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
