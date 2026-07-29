@@ -14,6 +14,7 @@ use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
+use crate::sub_agent::on_host::command::logging::file_logger::FileLoggingConfigSubAgent;
 use crate::sub_agent::on_host::supervisor::{NotStartedSupervisorOnHost, SupervisorError};
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::SupervisorBuilder;
@@ -122,7 +123,7 @@ where
     PM: PackageManager,
 {
     /// Directory where executable output is logged when file logging is enabled.
-    pub logging_path: PathBuf,
+    pub logging_base_path: PathBuf,
     /// Package manager used to install agent packages.
     pub package_manager: Arc<PM>,
 }
@@ -167,8 +168,10 @@ where
             on_host.packages,
             on_host.reported_version_package,
             self.package_manager.clone(),
-            on_host.enable_file_logging,
-            self.logging_path.to_path_buf(),
+            FileLoggingConfigSubAgent {
+                enabled: on_host.enable_file_logging,
+                base_path: self.logging_base_path.clone(),
+            },
             on_host.filesystem,
             on_host.shared_filesystem,
         ))

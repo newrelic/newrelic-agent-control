@@ -1,6 +1,9 @@
 //! File logging for executable output, using a daily-rotating appender and a thread-local subscriber.
 
-use std::{io::Write, path::Path};
+use crate::agent_control::agent_id::AgentID;
+use serde::Deserialize;
+use std::io::Write;
+use std::path::PathBuf;
 use thiserror::Error;
 use tracing::{level_filters::LevelFilter, subscriber::DefaultGuard};
 use tracing_appender::{
@@ -12,17 +15,33 @@ use tracing_subscriber::{
     fmt::format::{DefaultFields, Format, Full},
 };
 
+const MAX_LOG_FILES_SUB_AGENT: usize = 30;
+
 /// Error produced while building a file logger.
 #[derive(Debug, Error)]
 #[error("{0}")]
 pub struct FileLoggerError(String);
 
+#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
+pub struct FileLoggingConfigSubAgent {
+    pub enabled: bool,
+    // Default value is being set by `ConfigPatcher` right after deserialization.
+    pub base_path: PathBuf,
+}
+
 /// Creates a new file logger writing to a file in the provided directory with the provided suffix.
 /// The file will be rotated daily and the file name will be in the format `<timestamp>.<suffix>`
-/// e.g. `2027-12-01.stdout.log`.
-pub fn file_logger(file_dir: &Path, file_name_suffix: &str) -> Result<FileLogger, FileLoggerError> {
+/// e.g. `2027-12-01.stdout.log`. Only the MAX_LOG_FILES_SUB_AGENT most recent rotated files are retained.
+pub fn file_logger(
+    agent_id: AgentID,
+    file_logging_config: FileLoggingConfigSubAgent,
+    file_name_suffix: &str,
+) -> Result<FileLogger, FileLoggerError> {
+    let file_dir = file_logging_config.base_path.join(&agent_id);
+
     let file_appender = RollingFileAppender::builder()
         .rotation(Rotation::DAILY)
+        .max_log_files(MAX_LOG_FILES_SUB_AGENT)
         .filename_suffix(file_name_suffix.to_string())
         .build(file_dir)
         .map_err(|e| FileLoggerError(format!("building file appender: {}", e)))?;

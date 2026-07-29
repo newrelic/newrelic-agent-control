@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 
+const MAX_LOG_FILES_AC: usize = 30;
+
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 pub(crate) struct FileLoggingConfig {
     pub(crate) enabled: bool,
@@ -28,6 +30,7 @@ impl FileLoggingConfig {
 
         let file_appender = RollingFileAppender::builder()
             .rotation(Rotation::DAILY)
+            .max_log_files(MAX_LOG_FILES_AC)
             .filename_suffix(log_file.file_name())
             .build(log_file.parent)
             .map_err(|e| LoggingConfigError::FileLoggingConfig(e.to_string()))?;
