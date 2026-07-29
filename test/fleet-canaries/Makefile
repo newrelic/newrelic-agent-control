@@ -3,8 +3,6 @@ CURR_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 FLEET_TF_DIR := $(CURR_DIR)terraform
 
-.DEFAULT_GOAL := all
-
 # For production, use the production credentials (both staging and production secrets are available on
 # GHA). `account_id` is intentionally NOT passed: each terraform environment defaults to its own
 # fleet-data account (staging 12213068 / production 6425865), which is distinct from the canary
@@ -13,26 +11,20 @@ ifeq ($(CANARY_DIR), production)
 	NEW_RELIC_API_KEY = $(NEW_RELIC_PROD_API_KEY)
 endif
 
-.PHONY: all
-all:
-	@echo "No default target"
-
-define check_env_var
-	@! test -n "$$$(1)" && echo "$1 missing" && exit 1
-endef
-
+# Validate required env vars. Checks are inlined here (rather than reusing the shared `check_env_var`
+# macro) so this Makefile does not redefine names shared with the k8s/onhost canary Makefiles — a
+# redefinition would win globally (last include) and change their behavior.
 define check_fleet_tf_env_vars
-	$(call check_env_var,CANARY_DIR)
+	if [ -z "$$CANARY_DIR" ]; then echo "CANARY_DIR missing"; exit 1; fi; \
 	if [ "$$CANARY_DIR" = "staging" ]; then \
-		$(call check_env_var,NEW_RELIC_API_KEY); \
+		if [ -z "$$NEW_RELIC_API_KEY" ]; then echo "NEW_RELIC_API_KEY missing"; exit 1; fi; \
 	elif [ "$$CANARY_DIR" = "production" ]; then \
-		$(call check_env_var,NEW_RELIC_PROD_API_KEY); \
+		if [ -z "$$NEW_RELIC_PROD_API_KEY" ]; then echo "NEW_RELIC_PROD_API_KEY missing"; exit 1; fi; \
 	else \
-		echo "CANARY_DIR must be either 'staging' or 'production'. Got '$(CANARY_DIR)'"; \
-		exit 1; \
-	fi
-	$(call check_env_var,SLACK_WEBHOOK_URL)
-	$(call check_env_var,EMAILS)
+		echo "CANARY_DIR must be either 'staging' or 'production'. Got '$$CANARY_DIR'"; exit 1; \
+	fi; \
+	if [ -z "$$SLACK_WEBHOOK_URL" ]; then echo "SLACK_WEBHOOK_URL missing"; exit 1; fi; \
+	if [ -z "$$EMAILS" ]; then echo "EMAILS missing"; exit 1; fi
 endef
 
 .PHONY: test/fleet-canaries/terraform-plan
