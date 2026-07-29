@@ -1,0 +1,100 @@
+name: 🔁🐤 Scheduled onhost canary config rotation
+
+# Every 6 hours, deploy the *next* config version in an ordered set to the
+# canary fleet using test/onhost-canaries/scripts/fleet_deployment.sh.
+# Each run pairs NRInfra with one rotating companion (FluentBit or
+# NRPrometheusAgent). After the last entry the rotation wraps back to the first.
+
+on:
+  schedule:
+    # Every 6 hours (UTC). Minute offset from :00 to dodge the top-of-hour
+    # scheduler backlog that delays cron workflows on GitHub-hosted runners.
+    - cron: "37 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never overlap rotation runs (each run already deploys every environment combination).
+  group: scheduled-k8s-canary-config-rotation
+  cancel-in-progress: false
+
+env:
+  # ---------------------------------------------------------------------------
+  # Fleet IDs
+  # ---------------------------------------------------------------------------
+  # AC Staging Account `k8s-canaries-staging` fleet
+  FLEET_ID_STAGING: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk1ZDE1NC1iNTI0LTdhMTYtYWExYS0wYzQ2Y2VhOGFiMzg"
+  # AC US Production Account `k8s-canaries-production` fleet
+  FLEET_ID_PRODUCTION: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVlYzZhLTYwNjItNzZiZS1iOWE0LTA4MzZlZmE2MGY4YQ"
+
+  # ---------------------------------------------------------------------------
+  # NRInfra spec — always included in every deployment to not break the alerts.
+  # (canaries-k8s-infra-config)
+  # ---------------------------------------------------------------------------
+  INFRA_SPEC_PRODUCTION: "NRInfra:*:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0OC1iNGVmLTc1NDUtYWFiMS1mMTY2YzVhZTlmYTk"
+  INFRA_SPEC_STAGING: "NRInfra:*:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmE0MGItNTM2MS03ZDllLTgyZTMtNTI4YWVlYjI5ZTA3"
+
+  # ---------------------------------------------------------------------------
+  # Rotating companion specs — one is picked per run and deployed alongside NRInfra.
+  #   First  -> FluentBit          * (canaries-k8s-fluentbit-config)
+  #   Second -> NRPrometheusAgent  * (canaries-k8s-prom-config)
+  # ---------------------------------------------------------------------------
+  AGENT_SPECS_PRODUCTION: >-
+    FluentBit:*:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0YS0xODE2LTcyMDEtYTIwNi00ZTQ4ZTA3ZjUxYzI
+    NRPrometheusAgent:*:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0OS03YjFjLTcyZGEtYWQ1Yi03OGQ1M2VjY2FlM2Q
+  AGENT_SPECS_STAGING: >-
+    FluentBit:*:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmE0MTktMTA2MS03YWJkLWFkMzgtMmU3ZjU2YTM5MGM2
+    NRPrometheusAgent:*:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmE0MTUtNDc1Zi03MTg5LThiYmUtNTc5NDUwNjA4NjBj
+
+jobs:
+  rotate-config-deployment:
+    name: Deploy next config in rotation (${{ matrix.environment }})
+    runs-on: linux-4-core-nr-control
+    strategy:
+      # A failure on one environment must not skip the other.
+      fail-fast: false
+      matrix:
+        environment: [staging, production]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Resolve fleet and select rotating spec
+        id: target
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
+        run: |
+          if [ "${ENVIRONMENT}" = "production" ]; then
+            FLEET_ID="${FLEET_ID_PRODUCTION}"
+            INFRA_SPEC="${INFRA_SPEC_PRODUCTION}"
+            SPECS_STR="${AGENT_SPECS_PRODUCTION}"
+          else
+            FLEET_ID="${FLEET_ID_STAGING}"
+            INFRA_SPEC="${INFRA_SPEC_STAGING}"
+            SPECS_STR="${AGENT_SPECS_STAGING}"
+          fi
+
+          read -ra SPECS <<< "${SPECS_STR}"
+          COUNT=${#SPECS[@]}
+
+          # github.run_number increments on every workflow run, so
+          # ((run_number - 1) % COUNT) walks the set in order and wraps.
+          RUN_NUMBER=${{ github.run_number }}
+          INDEX=$(( (RUN_NUMBER - 1) % COUNT ))
+          ROTATING_SPEC="${SPECS[$INDEX]}"
+
+          echo "[${ENVIRONMENT}] rotation: run #${RUN_NUMBER} -> index ${INDEX} of ${COUNT} -> NRInfra + ${ROTATING_SPEC}"
+          echo "fleet_id=${FLEET_ID}"         >> "$GITHUB_OUTPUT"
+          echo "infra_spec=${INFRA_SPEC}"     >> "$GITHUB_OUTPUT"
+          echo "rotating_spec=${ROTATING_SPEC}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and deploy fleet deployment
+        env:
+          NEW_RELIC_API_KEY: ${{ matrix.environment == 'production' && secrets.AC_PROD_E2E_API_KEY || secrets.AC_FC_STAG_E2E_API_KEY }}
+          FLEET_ID: ${{ steps.target.outputs.fleet_id }}
+          ENVIRONMENT: ${{ matrix.environment }}
+        run: |
+          chmod +x test/scripts/fleet_deployment.sh
+          test/scripts/fleet_deployment.sh \
+            "${{ steps.target.outputs.infra_spec }}" \
+            "${{ steps.target.outputs.rotating_spec }}"

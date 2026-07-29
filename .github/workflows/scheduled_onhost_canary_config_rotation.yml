@@ -1,7 +1,7 @@
 name: 🔁🐤 Scheduled onhost canary config rotation
 
 # Every 6 hours, deploy the *next* config version in an ordered set to the
-# canary fleet using test/onhost-canaries/scripts/fleet_deployment.sh.
+# canary fleet using test/scripts/fleet_deployment.sh.
 # Each run advances one step through the set; after the last entry it wraps
 # back to the first. This is a rotation (one deployment per run), not a matrix
 # fan-out.
@@ -117,6 +117,6 @@ jobs:
           FLEET_ID: ${{ steps.target.outputs.fleet_id }}
           ENVIRONMENT: ${{ matrix.environment }}
         run: |
-          chmod +x test/onhost-canaries/scripts/fleet_deployment.sh
-          test/onhost-canaries/scripts/fleet_deployment.sh \
+          chmod +x test/scripts/fleet_deployment.sh
+          test/scripts/fleet_deployment.sh \
             "${{ steps.target.outputs.spec }}"
