@@ -8,7 +8,7 @@ terraform {
   backend "s3" {
     bucket         = "agent-control-terraform-states"
     dynamodb_table = "agent-control-terraform-states"
-    key            = "fleet_production/terraform-states-backend.tfstate"
+    key            = "fleet_canary_alerts_staging/terraform-states-backend.tfstate"
     region         = "us-east-2"
   }
 }
@@ -16,5 +16,5 @@ terraform {
 provider "newrelic" {
   account_id = var.account_id
   api_key    = var.api_key
-  region     = "US"
+  region     = "Staging"
 }

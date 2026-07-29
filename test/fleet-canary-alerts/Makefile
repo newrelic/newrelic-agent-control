@@ -27,15 +27,15 @@ define check_fleet_tf_env_vars
 	if [ -z "$$EMAILS" ]; then echo "EMAILS missing"; exit 1; fi
 endef
 
-.PHONY: test/fleet-canaries/terraform-plan
-test/fleet-canaries/terraform-plan:
+.PHONY: test/fleet-canary-alerts/terraform-plan
+test/fleet-canary-alerts/terraform-plan:
 	@$(call check_fleet_tf_env_vars)
 	@terraform -chdir=$(FLEET_TF_DIR)/$(CANARY_DIR) init && \
 	terraform -chdir=$(FLEET_TF_DIR)/$(CANARY_DIR) plan \
 	-var="api_key=$(NEW_RELIC_API_KEY)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)" -var="emails=$(EMAILS)"
 
-.PHONY: test/fleet-canaries/terraform-apply
-test/fleet-canaries/terraform-apply:
+.PHONY: test/fleet-canary-alerts/terraform-apply
+test/fleet-canary-alerts/terraform-apply:
 	@$(call check_fleet_tf_env_vars)
 	@terraform -chdir=$(FLEET_TF_DIR)/$(CANARY_DIR) init && \
 	terraform -chdir=$(FLEET_TF_DIR)/$(CANARY_DIR) apply -auto-approve \

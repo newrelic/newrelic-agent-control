@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - test/k8s-canaries/terraform/**
+      - test/k8s-canaries/Makefile
+      - Makefile
       - .github/workflows/component_k8s_canaries_infra.yml
       - .github/workflows/push_pr_k8s_canaries_plan.yml
 

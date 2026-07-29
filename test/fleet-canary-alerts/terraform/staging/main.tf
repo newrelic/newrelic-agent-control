@@ -36,10 +36,10 @@ module "alerts" {
   account_id        = var.account_id
   slack_webhook_url = var.slack_webhook_url
   emails            = var.emails
-  policies_prefix   = "Agent Control canaries fleet monitoring"
+  policies_prefix   = "Agent Control fleet health alerts"
 
   region      = "Staging"
-  instance_id = "Agent_Control_Canaries_Fleet"
+  instance_id = "Agent_Control_Fleet_Health"
 
   conditions = [
     {

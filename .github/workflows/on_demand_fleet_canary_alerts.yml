@@ -15,13 +15,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: "on-demand-fleet-canaries-${{ inputs.canary_dir }}"
+  group: "on-demand-fleet-canary-alerts-${{ inputs.canary_dir }}"
   cancel-in-progress: false
 
 jobs:
-  fleet_canaries_infra:
+  fleet_canary_alerts_infra:
     name: Fleet canaries infrastructure apply
-    uses: ./.github/workflows/component_fleet_canaries_infra.yml
+    uses: ./.github/workflows/component_fleet_canary_alerts_infra.yml
     permissions:
       id-token: write
       contents: read

@@ -201,8 +201,8 @@ jobs:
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
       SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
 
-  fleet_canaries_infra:
-    uses: ./.github/workflows/component_fleet_canaries_infra.yml
+  fleet_canary_alerts_infra:
+    uses: ./.github/workflows/component_fleet_canary_alerts_infra.yml
     permissions:
       id-token: write
       contents: read
