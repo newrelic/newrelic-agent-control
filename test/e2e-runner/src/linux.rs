@@ -59,6 +59,9 @@ pub fn run_linux_e2e() {
         LinuxScenarios::NriRedis(args) => {
             scenarios::nri_redis::test_nri_redis(args);
         }
+        LinuxScenarios::NriFlex(args) => {
+            scenarios::nri_flex::test_nri_flex(args);
+        }
         LinuxScenarios::AllOhisNoService(args) => {
             scenarios::all_ohis_no_service::test_all_ohis_no_service(args);
         }

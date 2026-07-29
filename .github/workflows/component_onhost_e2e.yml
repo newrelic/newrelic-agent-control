@@ -36,6 +36,7 @@ env:
   HOST_E2E_APACHE_VERSION: "1.17.3"
   HOST_E2E_MEMCACHED_VERSION: "2.9.3"
   HOST_E2E_EBPF_AGENT_VERSION: "1.5.0"
+  HOST_E2E_FLEX_VERSION: "0.0.1" # TODO: use packaged version when ready
 
 jobs:
   build-packages:
@@ -62,6 +63,7 @@ jobs:
           - self-update-latest-to-current
           - self-update-current-to-latest
           - nri-redis
+          - nri-flex
           - all-ohis-no-service
     steps:
       - name: Record job start time
@@ -94,6 +96,7 @@ jobs:
             --apache-version "${{ env.HOST_E2E_APACHE_VERSION }}" \
             --nginx-version "${{ env.HOST_E2E_NGINX_VERSION }}" \
             --memcached-version "${{ env.HOST_E2E_MEMCACHED_VERSION }}" \
+            --flex-version "${{ env.HOST_E2E_FLEX_VERSION }}" \
             --ebpf-agent-version "${{ env.HOST_E2E_EBPF_AGENT_VERSION }}"
 
       - name: Report test result to New Relic
@@ -132,6 +135,7 @@ jobs:
           - self-update-latest-to-current
           - self-update-current-to-latest
           - nri-redis
+          - nri-flex
           - all-ohis-no-service
     steps:
       - name: Record job start time
@@ -166,6 +170,7 @@ jobs:
             --nginx-version "${{ env.HOST_E2E_NGINX_VERSION }}" `
             --memcached-version "${{ env.HOST_E2E_MEMCACHED_VERSION }}" `
             --redis-version "${{ env.HOST_E2E_REDIS_VERSION }}"
+            --flex-version "${{ env.HOST_E2E_FLEX_VERSION }}"
 
       - name: Report test result to New Relic
         if: always()
