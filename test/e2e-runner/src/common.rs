@@ -7,6 +7,7 @@ pub mod docker_hub;
 pub mod exec;
 pub mod file;
 pub mod fleet_control_api;
+pub mod http_stub;
 pub mod logs;
 pub mod nrql;
 pub mod oci;
@@ -110,6 +111,10 @@ pub struct InstallationArgs {
     /// Version of the nri-postgresql OCI image to use in tests
     #[arg(long)]
     pub postgresql_version: Option<String>,
+
+    /// Version of the nri-flex OCI image to use in tests
+    #[arg(long)]
+    pub flex_version: Option<String>,
 }
 
 /// Arguments for Fleet Control scenarios that also install Agent Control

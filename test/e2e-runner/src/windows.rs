@@ -70,6 +70,9 @@ pub fn run_windows_e2e() {
         WindowsScenarios::NriRedis(args) => {
             scenarios::nri_redis::test_nri_redis(args);
         }
+        WindowsScenarios::NriFlex(args) => {
+            scenarios::nri_flex::test_nri_flex(args);
+        }
         WindowsScenarios::AllOhisNoService(args) => {
             scenarios::all_ohis_no_service::test_all_ohis_no_service(args);
         }

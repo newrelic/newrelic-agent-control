@@ -120,6 +120,18 @@
       "managerFilePatterns": [
         "/^\\.github/workflows/.*\\.yml$/"
       ],
+      "depNameTemplate": "newrelic/nri-flex-artifacts",
+      "packageNameTemplate": "newrelic/nri-flex-artifacts",
+      "datasourceTemplate": "docker",
+      "matchStrings": [
+        "HOST_E2E_FLEX_VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.*\\.yml$/"
+      ],
       "depNameTemplate": "newrelic/ebpf-agent-artifacts",
       "packageNameTemplate": "newrelic/ebpf-agent-artifacts",
       "datasourceTemplate": "docker",

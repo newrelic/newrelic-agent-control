@@ -959,6 +959,54 @@ static AGENT_TYPE_MEMCACHED: LazyLock<AgentTypeValuesTestCase> =
         ..Default::default()
     });
 
+static AGENT_TYPE_FLEX: LazyLock<AgentTypeValuesTestCase> =
+    LazyLock::new(|| AgentTypeValuesTestCase {
+        agent_type: "newrelic/com.newrelic.infrastructure.nri_flex:0.1.0",
+        values_linux: AgentTypeValues {
+            cases: HashMap::from([
+                (
+                    "mandatory fields only",
+                    r#"
+                config: "integrations: []"
+                version: "v1.18.8"
+                "#,
+                ),
+                (
+                    "check all value types are correct",
+                    r#"
+                config: "integrations: []"
+                version: "v1.18.8"
+                oci.repository: "newrelic/nri-flex"
+                "#,
+                ),
+            ]),
+            ..Default::default()
+        }
+        .into(),
+        values_windows: AgentTypeValues {
+            cases: HashMap::from([
+                (
+                    "mandatory fields only",
+                    r#"
+                config: "integrations: []"
+                version: "v1.18.8"
+                "#,
+                ),
+                (
+                    "check all value types are correct",
+                    r#"
+                config: "integrations: []"
+                version: "v1.18.8"
+                oci.repository: "newrelic/nri-flex"
+                "#,
+                ),
+            ]),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    });
+
 fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesTestCase> {
     [
         &AGENT_TYPE_APM_DOTNET,
@@ -982,6 +1030,7 @@ fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesT
         &AGENT_TYPE_POSTGRESQL,
         &AGENT_TYPE_MYSQL,
         &AGENT_TYPE_MEMCACHED,
+        &AGENT_TYPE_FLEX,
     ]
     .into_iter()
     .map(Deref::deref)
