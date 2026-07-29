@@ -1,0 +1,4 @@
+SELECT count(*)
+FROM AgentHeartbeat
+WHERE agentHealthStatus IS FALSE
+FACET agentType, fleetGuid

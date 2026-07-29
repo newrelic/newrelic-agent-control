@@ -31,19 +31,27 @@ Advantages over the previous log-based approach: it's a stable, structured, serv
 (no `Debug`-string parsing), it's per agent-type, it covers all managed agents, and it needs neither
 self-instrumentation nor any Agent Control code change.
 
+## Environments
+
+Staging and production are separate New Relic platforms, so each has its own directory with its own
+account and provider region — exactly like the on-host and k8s canary configs:
+
+| Dir | NR region | Fleet-data account |
+|-----|-----------|--------------------|
+| `terraform/staging`    | `Staging` | `12213068` |
+| `terraform/production` | `US`      | `6425865`  |
+
 ## Deploying
 
 ```bash
-cd terraform/staging
+cd terraform/staging   # or terraform/production
 terraform init -reconfigure
 terraform apply \
-  -var "account_id=12213068" \
   -var "api_key=$NEW_RELIC_API_KEY" \
   -var "slack_webhook_url=$SLACK_WEBHOOK_URL" \
   -var "emails=$EMAILS"
 ```
 
-> **Important:** `account_id` must be the **fleet-data** account that receives `AgentHeartbeat`
-> (`12213068` for staging), which is **not** the canary telemetry account used by the other canary
-> configs. The provided `api_key` must have write access to it. A `production/` directory can be
-> added the same way once the production fleet-data account is known.
+> **Important:** `account_id` defaults to the **fleet-data** account that receives `AgentHeartbeat`
+> (`12213068` staging / `6425865` production), which is **not** the canary telemetry account used by
+> the other canary configs. The provided `api_key` must have write access to that account.
