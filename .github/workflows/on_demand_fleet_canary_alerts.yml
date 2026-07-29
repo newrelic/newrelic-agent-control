@@ -1,4 +1,4 @@
-name: 🐤 On-Demand fleet canaries
+name: 🐤 On-Demand fleet canary alerts
 
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   fleet_canary_alerts_infra:
-    name: Fleet canaries infrastructure apply
+    name: Fleet canary alerts infrastructure apply
     uses: ./.github/workflows/component_fleet_canary_alerts_infra.yml
     permissions:
       id-token: write

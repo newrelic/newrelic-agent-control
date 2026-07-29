@@ -1,4 +1,4 @@
-name: 🐤 Plan fleet canaries infrastructure changes
+name: 🐤 Plan fleet canary alerts infrastructure changes
 
 on:
   push:

@@ -1,4 +1,4 @@
-name: 📞 fleet canaries infra operation
+name: 📞 fleet canary alerts infra operation
 
 on:
   workflow_call:
