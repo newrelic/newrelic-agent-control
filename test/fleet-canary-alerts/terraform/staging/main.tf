@@ -50,7 +50,15 @@ module "alerts" {
   policies_prefix   = "Agent Control fleet health alerts"
 
   region      = "Staging"
+  environment = "staging"
   instance_id = "Agent_Control_Fleet_Health"
+
+  # One issue (and one notification) per unhealthy agentType/fleetGuid, so each Slack message names the
+  # specific offending agent. Combined with the 30-day violation time limit below, an agent notifies once
+  # when it goes unhealthy, stays quiet while it remains unhealthy, and only re-notifies if it recovers
+  # and then fails again (rather than re-notifying hourly).
+  incident_preference          = "PER_CONDITION_AND_TARGET"
+  violation_time_limit_seconds = 2592000
 
   conditions = [
     {

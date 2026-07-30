@@ -1,8 +1,12 @@
 resource "newrelic_alert_policy" "alert_policy_config" {
-  name = format("%s: %s", var.region, var.instance_id)
+  name                = format("%s: %s", var.region, var.instance_id)
+  incident_preference = var.incident_preference
 }
 
 locals {
+  # Environment label for notifications; falls back to `region` when not explicitly set.
+  environment = var.environment != "" ? var.environment : var.region
+
   policies_with_instance_id = [
     for cond in var.conditions : {
       policy_id   = newrelic_alert_policy.alert_policy_config.id
@@ -46,6 +50,7 @@ resource "newrelic_notification_channel" "slack_channel" {
     key   = "payload"
     value = templatefile("${path.module}/alert_slack_payload.tftpl", {
       instance_id = var.instance_id
+      environment = local.environment
     })
   }
 }
@@ -93,7 +98,7 @@ resource "newrelic_nrql_alert_condition" "condition_nrql_canary" {
   account_id                   = var.account_id
   policy_id                    = local.policies_with_instance_id[count.index].policy_id
   name                         = local.policies_with_instance_id[count.index].condition.name
-  violation_time_limit_seconds = 3600
+  violation_time_limit_seconds = try(local.policies_with_instance_id[count.index].condition.violation_time_limit_seconds, var.violation_time_limit_seconds)
 
   # Defaults values from https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/nrql_alert_condition#example-usage
   aggregation_window = try(local.policies_with_instance_id[count.index].condition.aggregation_window, 60)

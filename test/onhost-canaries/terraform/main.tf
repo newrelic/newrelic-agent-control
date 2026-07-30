@@ -413,6 +413,7 @@ resource "newrelic_notification_channel" "slack_channel" {
     key   = "payload"
     value = templatefile("${path.module}/../../terraform/modules/nr_alerts/alert_slack_payload.tftpl", {
       instance_id = each.key
+      environment = var.nr_region
     })
   }
 }

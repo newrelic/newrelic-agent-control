@@ -15,11 +15,11 @@
       "fields": [
         {
           "type": "mrkdwn",
-          "text": "*Condition:*\n{{escape accumulations.conditionName.[0]}}"
+          "text": "*Environment:*\n${environment}"
         },
         {
           "type": "mrkdwn",
-          "text": "*Priority:*\n{{priority}}"
+          "text": "*Condition:*\n{{escape accumulations.conditionName.[0]}}"
         },
         {
           "type": "mrkdwn",
@@ -27,9 +27,20 @@
         },
         {
           "type": "mrkdwn",
+          "text": "*Priority:*\n{{priority}}"
+        },
+        {
+          "type": "mrkdwn",
           "text": "*Status:*\n{{#if issueClosedAt}}CLOSED{{else}}OPEN{{/if}}"
         }
       ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Unhealthy agent(s):*\n{{escape issueTitle}}"
+      }
     }
   ]
 }

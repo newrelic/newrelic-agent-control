@@ -1,4 +1,3 @@
-SELECT count(*)
+SELECT filter(count(*), WHERE agentHealthStatus IS FALSE)
 FROM AgentHeartbeat
-WHERE agentHealthStatus IS FALSE
 FACET agentType, fleetGuid
