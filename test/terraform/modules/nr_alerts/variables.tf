@@ -28,6 +28,12 @@ variable "environment" {
   default = ""
 }
 
+# Short label shown at the top of the Slack notification identifying the kind of canary alert
+# (e.g. "Agent Control — Fleet health canary"). Defaults to a generic canary label.
+variable "alert_subtitle" {
+  default = "Agent Control canary alert"
+}
+
 # Alert policy issue grouping. PER_POLICY groups every violation into one issue; PER_CONDITION_AND_TARGET
 # opens a separate issue per faceted target (e.g. per agentType/fleetGuid) so each notification names the
 # specific offender.

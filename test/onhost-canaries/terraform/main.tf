@@ -412,8 +412,9 @@ resource "newrelic_notification_channel" "slack_channel" {
   property {
     key   = "payload"
     value = templatefile("${path.module}/../../terraform/modules/nr_alerts/alert_slack_payload.tftpl", {
-      instance_id = each.key
-      environment = var.nr_region
+      instance_id    = each.key
+      environment    = var.nr_region
+      alert_subtitle = "Agent Control — On-host canary"
     })
   }
 }
