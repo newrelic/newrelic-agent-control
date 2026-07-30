@@ -50,6 +50,11 @@ pub trait AgentTypeRegistry {
         &self,
         agent_type_id: &AgentTypeID,
     ) -> Result<AgentTypeDefinition, AgentTypeRegistryError>;
+
+    /// Human-readable label identifying this registry, used in composite-registry logs.
+    fn label(&self) -> &'static str {
+        "registry"
+    }
 }
 
 /// Holds the information to initialize a [Registry].
@@ -99,6 +104,13 @@ impl AgentTypeRegistry for SupportedRegistry {
             Self::Remote(r) => r.get(agent_type_id),
         }
     }
+
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Local(r) => r.label(),
+            Self::Remote(r) => r.label(),
+        }
+    }
 }
 
 impl Registry<SupportedRegistry> {
@@ -124,12 +136,14 @@ impl<R: AgentTypeRegistry> AgentTypeRegistry for Registry<R> {
         agent_type_id: &AgentTypeID,
     ) -> Result<AgentTypeDefinition, AgentTypeRegistryError> {
         let mut last_err = AgentTypeRegistryError::NotFound(agent_type_id.to_string());
-        for (index, inner) in self.registries.iter().enumerate() {
+        for inner in self.registries.iter() {
+            let registry = inner.label();
             match inner.get(agent_type_id) {
                 Ok(def) => {
                     debug!(
                         agent_type_id = %agent_type_id,
-                        "Agent type definition found on registry layer \"{index}\"",
+                        registry,
+                        "Agent type definition found",
                     );
                     return Ok(def);
                 }
@@ -138,14 +152,16 @@ impl<R: AgentTypeRegistry> AgentTypeRegistry for Registry<R> {
                         AgentTypeRegistryError::NotFound(_) => {
                             debug!(
                                 agent_type_id = %agent_type_id,
+                                registry,
                                 error = %err,
-                                "Agent type definition not found on registry layer \"{index}\"; falling through to the next layer",
+                                "Agent type definition not found; falling through to the next registry",
                             );
                         }
                         _ => warn!(
                             agent_type_id = %agent_type_id,
+                            registry,
                             error = %err,
-                            "Agent type definition error on registry layer \"{index}\"; falling through to the next layer",
+                            "Agent type definition lookup failed; falling through to the next registry",
                         ),
                     }
 

@@ -74,6 +74,10 @@ impl<D: OCIAgentTypeDownloader> AgentTypeRegistry for RemoteRegistry<D> {
 
         Ok(definition)
     }
+
+    fn label(&self) -> &'static str {
+        "remote registry"
+    }
 }
 
 #[cfg(test)]

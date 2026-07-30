@@ -53,6 +53,10 @@ impl<R: AgentTypeRegistry> AgentTypeRegistry for CachingRegistry<R> {
 
         Ok(definition)
     }
+
+    fn label(&self) -> &'static str {
+        self.inner.label()
+    }
 }
 
 #[cfg(test)]
