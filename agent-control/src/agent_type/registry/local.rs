@@ -32,6 +32,10 @@ impl AgentTypeRegistry for LocalRegistry {
             .cloned()
             .ok_or(AgentTypeRegistryError::NotFound(agent_type_id.to_string()))
     }
+
+    fn label(&self) -> &'static str {
+        "local registry"
+    }
 }
 
 impl LocalRegistry {
