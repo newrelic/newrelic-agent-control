@@ -141,6 +141,7 @@ mod tests {
     use crate::agent_type::runtime_config::on_host::package::rendered::Repository;
     use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
     use crate::agent_type::variable::Variable;
+    use crate::agent_type::variable::namespace::{Namespace, NamespacedVariableName};
     use rstest::rstest;
     use url::Url;
 
@@ -156,16 +157,16 @@ mod tests {
 
         let mut variables = Variables::new();
         variables.insert(
-            "nr-var:repository".to_string(),
+            NamespacedVariableName::new(Namespace::Variable, "repository"),
             Variable::new_final_string_variable("repo".to_string()),
         );
         variables.insert(
-            "nr-var:version".to_string(),
+            NamespacedVariableName::new(Namespace::Variable, "version"),
             Variable::new_final_string_variable(version.clone()),
         );
         if let Some(pk) = &public_key_url {
             variables.insert(
-                "nr-var:public-key".to_string(),
+                NamespacedVariableName::new(Namespace::Variable, "public-key"),
                 Variable::new_final_string_variable(pk.to_string()),
             );
         }
@@ -193,15 +194,15 @@ mod tests {
 
         let mut variables = Variables::new();
         variables.insert(
-            "nr-var:version".to_string(),
+            NamespacedVariableName::new(Namespace::Variable, "version"),
             Variable::new_final_string_variable("1.0.0".to_string()),
         );
         variables.insert(
-            "nr-var:script-path".to_string(),
+            NamespacedVariableName::new(Namespace::Variable, "script-path"),
             Variable::new_final_string_variable("/opt/install.sh".to_string()),
         );
         variables.insert(
-            "nr-var:env-value".to_string(),
+            NamespacedVariableName::new(Namespace::Variable, "env-value"),
             Variable::new_final_string_variable("test-value".to_string()),
         );
 

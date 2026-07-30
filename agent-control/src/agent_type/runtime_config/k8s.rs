@@ -203,6 +203,7 @@ mod tests {
     };
     use crate::agent_type::templates::Templateable;
     use crate::agent_type::variable::Variable;
+    use crate::agent_type::variable::namespace::{Namespace, NamespacedVariableName};
     use crate::agent_type::version_config::{VersionCheckerInitialDelay, VersionCheckerInterval};
 
     const RUNTIME_WITH_K8S_DEPLOYMENT: &str = r#"
@@ -321,15 +322,15 @@ objects:
         let value = "test_value";
         let variables = Variables::from([
             (
-                "nr-var:any".to_string(),
+                NamespacedVariableName::new(Namespace::Variable, "any"),
                 Variable::new_string(String::default(), true, None, Some(value.to_string())),
             ),
             (
-                "nr-sub:agent_id".to_string(),
+                NamespacedVariableName::new(Namespace::SubAgent, "agent_id"),
                 Variable::new_final_string_variable(test_agent_id.to_string()),
             ),
             (
-                "nr-ac:namespace".to_string(),
+                NamespacedVariableName::new(Namespace::AgentControl, "namespace"),
                 Variable::new_final_string_variable(test_namespace.to_string()),
             ),
         ]);
@@ -382,15 +383,15 @@ health:
 
         let variables = Variables::from([
             (
-                "nr-sub:agent_id".to_string(),
+                NamespacedVariableName::new(Namespace::SubAgent, "agent_id"),
                 Variable::new_final_string_variable("my-agent".to_string()),
             ),
             (
-                "nr-ac:namespace".to_string(),
+                NamespacedVariableName::new(Namespace::AgentControl, "namespace"),
                 Variable::new_final_string_variable("newrelic".to_string()),
             ),
             (
-                "nr-ac:namespace_agents".to_string(),
+                NamespacedVariableName::new(Namespace::AgentControl, "namespace_agents"),
                 Variable::new_final_string_variable("newrelic-agents".to_string()),
             ),
         ]);

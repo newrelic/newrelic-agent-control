@@ -4,7 +4,33 @@ use strum::{EnumIter, IntoEnumIterator};
 
 /// Holds the variable name prefixed with the namespace.
 /// Example: "nr-env:MY_ENV_VAR" for the environment variable "MY_ENV_VAR".
-pub type NamespacedVariableName = String;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NamespacedVariableName {
+    namespace: Namespace,
+    name: String,
+}
+
+impl NamespacedVariableName {
+    /// Builds a [`NamespacedVariableName`] from its namespace and unprefixed name.
+    pub fn new(namespace: Namespace, name: impl Into<String>) -> Self {
+        Self {
+            namespace,
+            name: name.into(),
+        }
+    }
+}
+
+impl Display for NamespacedVariableName {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(
+            formatter,
+            "{}{}{}",
+            self.namespace,
+            Namespace::PREFIX_NS_SEPARATOR,
+            self.name
+        )
+    }
+}
 
 /// Namespace defines the supported namespace names for variables definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
@@ -48,11 +74,6 @@ impl Namespace {
     const K8S_SECRET: &'static str = "kubesec";
     const FILE_SECRET: &'static str = "file";
 
-    /// Prefixes `name` with this namespace, producing a [`NamespacedVariableName`].
-    pub fn namespaced_name(&self, name: impl AsRef<str>) -> NamespacedVariableName {
-        format!("{}{}{}", self, Self::PREFIX_NS_SEPARATOR, name.as_ref())
-    }
-
     /// Returns whether the given namespaced name belongs to a secret namespace.
     pub fn is_secret_variable(s: &str) -> bool {
         Self::iter()
@@ -94,31 +115,31 @@ mod tests {
     fn test_namespaced_name() {
         assert_eq!(
             "nr-var:test".to_string(),
-            Namespace::Variable.namespaced_name("test")
+            NamespacedVariableName::new(Namespace::Variable, "test").to_string()
         );
         assert_eq!(
             "nr-sub:test".to_string(),
-            Namespace::SubAgent.namespaced_name("test")
+            NamespacedVariableName::new(Namespace::SubAgent, "test").to_string()
         );
         assert_eq!(
             "nr-env:test".to_string(),
-            Namespace::EnvironmentVariable.namespaced_name("test")
+            NamespacedVariableName::new(Namespace::EnvironmentVariable, "test").to_string()
         );
         assert_eq!(
             "nr-ac:test".to_string(),
-            Namespace::AgentControl.namespaced_name("test")
+            NamespacedVariableName::new(Namespace::AgentControl, "test").to_string()
         );
         assert_eq!(
             "nr-vault:test".to_string(),
-            Namespace::Vault.namespaced_name("test")
+            NamespacedVariableName::new(Namespace::Vault, "test").to_string()
         );
         assert_eq!(
             "nr-kubesec:test".to_string(),
-            Namespace::K8sSecret.namespaced_name("test")
+            NamespacedVariableName::new(Namespace::K8sSecret, "test").to_string()
         );
         assert_eq!(
             "nr-file:test".to_string(),
-            Namespace::File.namespaced_name("test")
+            NamespacedVariableName::new(Namespace::File, "test").to_string()
         );
     }
 }

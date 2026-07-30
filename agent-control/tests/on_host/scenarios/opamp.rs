@@ -17,7 +17,7 @@ use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_FLEET_DATA, STORE_KEY_OPAMP_DATA_CONFIG,
 };
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
-use newrelic_agent_control::agent_type::variable::namespace::Namespace;
+use newrelic_agent_control::agent_type::variable::namespace::{Namespace, NamespacedVariableName};
 use newrelic_agent_control::on_host::file_store::build_config_name;
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::values::yaml_config::YAMLConfig;
@@ -222,7 +222,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 
     let values_config = format!(
         "fake_variable: ${{{}}}",
-        Namespace::EnvironmentVariable.namespaced_name("my_env_var")
+        NamespacedVariableName::new(Namespace::EnvironmentVariable, "my_env_var")
     );
     create_local_config(
         agent_id.to_string(),
@@ -240,7 +240,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
             // Then the retrieved effective config should match the expected local cfg
             let expected_config = format!(
                 "fake_variable: ${{{}}}\n",
-                Namespace::EnvironmentVariable.namespaced_name("my_env_var")
+                NamespacedVariableName::new(Namespace::EnvironmentVariable, "my_env_var")
             );
 
             check_latest_effective_config_is_expected(

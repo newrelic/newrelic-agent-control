@@ -27,8 +27,8 @@ impl TemplateRenderer {
         agent_type: AgentType,
         values: YAMLConfig,
         attributes: AgentAttributes,
-        env_vars: HashMap<String, Variable>,
-        secrets: HashMap<String, Variable>,
+        env_vars: HashMap<NamespacedVariableName, Variable>,
+        secrets: HashMap<NamespacedVariableName, Variable>,
     ) -> Result<Runtime, AgentTypeError> {
         // Get empty variables and runtime_config from the agent-type
         let (variables, runtime_config) = (agent_type.variables, agent_type.runtime_config);
@@ -59,7 +59,7 @@ impl TemplateRenderer {
             ac_variables: variables
                 .map(|(name, value)| {
                     (
-                        Namespace::AgentControl.namespaced_name(name.as_str()),
+                        NamespacedVariableName::new(Namespace::AgentControl, name.as_str()),
                         value,
                     )
                 })
@@ -84,13 +84,13 @@ impl TemplateRenderer {
     fn build_namespaced_variables(
         &self,
         variables: HashMap<String, Variable>,
-        env_vars: HashMap<String, Variable>,
+        env_vars: HashMap<NamespacedVariableName, Variable>,
         attributes: &AgentAttributes,
     ) -> HashMap<NamespacedVariableName, Variable> {
         // Set the namespaced name to variables
         let vars_iter = variables
             .into_iter()
-            .map(|(name, var)| (Namespace::Variable.namespaced_name(&name), var));
+            .map(|(name, var)| (NamespacedVariableName::new(Namespace::Variable, &name), var));
         // Get the namespaced variables from sub-agent attributes
         let sub_agent_vars_iter = attributes.sub_agent_variables().into_iter();
 
@@ -372,11 +372,11 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 
         let env_vars = HashMap::from([
             (
-                Namespace::EnvironmentVariable.namespaced_name("MY_VARIABLE"),
+                NamespacedVariableName::new(Namespace::EnvironmentVariable, "MY_VARIABLE"),
                 Variable::new_final_string_variable("my-value".to_string()),
             ),
             (
-                Namespace::EnvironmentVariable.namespaced_name("MY_VARIABLE_2"),
+                NamespacedVariableName::new(Namespace::EnvironmentVariable, "MY_VARIABLE_2"),
                 Variable::new_final_string_variable("my-value-2".to_string()),
             ),
         ]);
@@ -432,11 +432,11 @@ config:
 
         let secrets = HashMap::from([
             (
-                Namespace::EnvironmentVariable.namespaced_name("DOUBLE_EXPANSION"),
+                NamespacedVariableName::new(Namespace::EnvironmentVariable, "DOUBLE_EXPANSION"),
                 Variable::new_final_string_variable("test".to_string()),
             ),
             (
-                Namespace::EnvironmentVariable.namespaced_name("DOUBLE_EXPANSION_2"),
+                NamespacedVariableName::new(Namespace::EnvironmentVariable, "DOUBLE_EXPANSION_2"),
                 Variable::new_final_string_variable("test-2".to_string()),
             ),
         ]);
@@ -518,7 +518,7 @@ deployment:
         let attributes = testing_agent_attributes(&agent_id);
 
         let env_vars = HashMap::from([(
-            Namespace::EnvironmentVariable.namespaced_name("my_variable"),
+            NamespacedVariableName::new(Namespace::EnvironmentVariable, "my_variable"),
             Variable::new_final_string_variable("my-value".to_string()),
         )]);
 

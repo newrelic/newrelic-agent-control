@@ -17,7 +17,10 @@ use crate::{
         agent_type_id::AgentTypeID,
         registry::AgentTypeRegistry,
         render::{TemplateRenderer, tests::testing_agent_attributes},
-        variable::{Variable, namespace::Namespace},
+        variable::{
+            Variable,
+            namespace::{Namespace, NamespacedVariableName},
+        },
     },
     values::yaml_config::YAMLConfig,
 };
@@ -38,7 +41,7 @@ struct AgentTypeValuesTestCase {
 #[derive(Debug, Default)]
 struct AgentTypeValues {
     cases: HashMap<CaseDescription, YamlContents>,
-    additional_env: HashMap<String, Variable>,
+    additional_env: HashMap<NamespacedVariableName, Variable>,
 }
 
 static AGENT_TYPE_APM_DOTNET: LazyLock<AgentTypeValuesTestCase> =
@@ -191,23 +194,23 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
             ]),
             additional_env: HashMap::from([
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
                     Variable::new_final_string_variable("abcd1234".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_CLUSTER_NAME"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
                     Variable::new_final_string_variable("my-test-cluster".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_STAGING"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_STAGING"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LOW_DATA_MODE"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_LOW_DATA_MODE"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_VERBOSE_LOG"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_VERBOSE_LOG"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
             ]),
@@ -272,11 +275,11 @@ static AGENT_TYPE_K8S_AGENT_OPERATOR: LazyLock<AgentTypeValuesTestCase> =
             ]),
             additional_env: HashMap::from([
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
                     Variable::new_final_string_variable("abcd1234".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_CLUSTER_NAME"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
                     Variable::new_final_string_variable("my-test-cluster".to_string()),
                 ),
             ]),
@@ -304,23 +307,23 @@ static AGENT_TYPE_PROMETHEUS: LazyLock<AgentTypeValuesTestCase> =
             ]),
             additional_env: HashMap::from([
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
                     Variable::new_final_string_variable("abcd1234".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_CLUSTER_NAME"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
                     Variable::new_final_string_variable("my-test-cluster".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_STAGING"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_STAGING"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LOW_DATA_MODE"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_LOW_DATA_MODE"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_VERBOSE_LOG"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_VERBOSE_LOG"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
             ]),
@@ -348,19 +351,19 @@ static AGENT_TYPE_FLUENTBIT: LazyLock<AgentTypeValuesTestCase> =
             ]),
             additional_env: HashMap::from([
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
                     Variable::new_final_string_variable("abcd1234".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_CLUSTER_NAME"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
                     Variable::new_final_string_variable("my-test-cluster".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_STAGING"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_STAGING"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LOW_DATA_MODE"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_LOW_DATA_MODE"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
             ]),
@@ -388,23 +391,23 @@ static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
             ]),
             additional_env: HashMap::from([
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
                     Variable::new_final_string_variable("abcd1234".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_CLUSTER_NAME"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
                     Variable::new_final_string_variable("my-test-cluster".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_STAGING"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_STAGING"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LOW_DATA_MODE"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_LOW_DATA_MODE"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_VERBOSE_LOG"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_VERBOSE_LOG"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
             ]),
@@ -465,23 +468,23 @@ static AGENT_TYPE_OTEL_COLLECTOR_OLD: LazyLock<AgentTypeValuesTestCase> =
             ]),
             additional_env: HashMap::from([
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
                     Variable::new_final_string_variable("abcd1234".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_CLUSTER_NAME"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
                     Variable::new_final_string_variable("my-test-cluster".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_STAGING"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_STAGING"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LOW_DATA_MODE"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_LOW_DATA_MODE"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_VERBOSE_LOG"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_VERBOSE_LOG"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
             ]),
@@ -526,23 +529,23 @@ static AGENT_TYPE_PIPELINE_CONTROL_GATEWAY: LazyLock<AgentTypeValuesTestCase> =
             ]),
             additional_env: HashMap::from([
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
                     Variable::new_final_string_variable("abcd1234".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_CLUSTER_NAME"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
                     Variable::new_final_string_variable("my-test-cluster".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_STAGING"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_STAGING"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LOW_DATA_MODE"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_LOW_DATA_MODE"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_VERBOSE_LOG"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_VERBOSE_LOG"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
             ]),
@@ -644,19 +647,19 @@ static AGENT_TYPE_EBPF: LazyLock<AgentTypeValuesTestCase> =
             ]),
             additional_env: HashMap::from([
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
                     Variable::new_final_string_variable("abcd1234".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_CLUSTER_NAME"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
                     Variable::new_final_string_variable("my-test-cluster".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_STAGING"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_STAGING"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
                 (
-                    Namespace::EnvironmentVariable.namespaced_name("NR_VERBOSE_LOG"),
+                    NamespacedVariableName::new(Namespace::EnvironmentVariable, "NR_VERBOSE_LOG"),
                     Variable::new_final_string_variable("true".to_string()),
                 ),
             ]),

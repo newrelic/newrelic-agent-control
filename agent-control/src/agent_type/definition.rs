@@ -18,7 +18,7 @@ use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::OnHost;
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::agent_type::variable::constraints::VariableConstraints;
-use crate::agent_type::variable::namespace::Namespace;
+use crate::agent_type::variable::namespace::{Namespace, NamespacedVariableName};
 use crate::package::oci::package_manager::get_package_path;
 use crate::{agent_control::agent_id::AgentID, package::manager::PackageData};
 use crate::{agent_type::variable::tree::VarTree, values::yaml_config::YAMLConfig};
@@ -312,11 +312,15 @@ fn update_specs(
 ///           default: info
 /// ```
 /// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${nr-var:system.logging.level}`.
-pub(crate) type Variables = HashMap<String, Variable>;
+pub(crate) type Variables = HashMap<NamespacedVariableName, Variable>;
 
 impl From<VariableTree> for Variables {
     fn from(value: VariableTree) -> Self {
-        value.flatten()
+        value
+            .flatten()
+            .into_iter()
+            .map(|(name, var)| (NamespacedVariableName::new(Namespace::Variable, name), var))
+            .collect()
     }
 }
 
@@ -366,7 +370,10 @@ pub fn include_packages_variables(
         debug!(package_id = %package_id, path = %path.display(), "Setting reserved variable for package directory");
 
         variables.insert(
-            Namespace::SubAgent.namespaced_name(format!("packages.{}.dir", package_id)),
+            NamespacedVariableName::new(
+                Namespace::SubAgent,
+                format!("packages.{}.dir", package_id),
+            ),
             Variable::new_final_string_variable(path.to_string_lossy()),
         );
     }
@@ -376,7 +383,7 @@ pub fn include_packages_variables(
 
 /// Returns the final value of the sub-agent variable with the given name, if present.
 pub fn get_sub_agent_variable(variables: &Variables, variable_name: &str) -> Option<String> {
-    let key = Namespace::SubAgent.namespaced_name(variable_name);
+    let key = NamespacedVariableName::new(Namespace::SubAgent, variable_name);
     variables
         .get(&key)
         .and_then(Variable::get_final_value)
