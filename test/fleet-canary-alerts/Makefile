@@ -4,11 +4,12 @@ CURR_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 FLEET_TF_DIR := $(CURR_DIR)terraform
 
 # For production, use the production credentials (both staging and production secrets are available on
-# GHA). `account_id` is intentionally NOT passed: each terraform environment defaults to its own
-# fleet-data account (staging 12213068 / production 6425865), which is distinct from the canary
-# telemetry account used by the other canary configs.
+# GHA). The alert resources are created in the canary *telemetry* account (NEW_RELIC_ACCOUNT_ID, same
+# as the other canary alerts); the condition then queries the fleet-data account cross-account via the
+# terraform `data_account_id` (defaulted per environment in the tf config).
 ifeq ($(CANARY_DIR), production)
 	NEW_RELIC_API_KEY = $(NEW_RELIC_PROD_API_KEY)
+	NEW_RELIC_ACCOUNT_ID = $(NEW_RELIC_PROD_ACCOUNT_ID)
 endif
 
 # Validate required env vars. Checks are inlined here (rather than reusing the shared `check_env_var`
@@ -17,8 +18,10 @@ endif
 define check_fleet_tf_env_vars
 	if [ -z "$$CANARY_DIR" ]; then echo "CANARY_DIR missing"; exit 1; fi; \
 	if [ "$$CANARY_DIR" = "staging" ]; then \
+		if [ -z "$$NEW_RELIC_ACCOUNT_ID" ]; then echo "NEW_RELIC_ACCOUNT_ID missing"; exit 1; fi; \
 		if [ -z "$$NEW_RELIC_API_KEY" ]; then echo "NEW_RELIC_API_KEY missing"; exit 1; fi; \
 	elif [ "$$CANARY_DIR" = "production" ]; then \
+		if [ -z "$$NEW_RELIC_PROD_ACCOUNT_ID" ]; then echo "NEW_RELIC_PROD_ACCOUNT_ID missing"; exit 1; fi; \
 		if [ -z "$$NEW_RELIC_PROD_API_KEY" ]; then echo "NEW_RELIC_PROD_API_KEY missing"; exit 1; fi; \
 	else \
 		echo "CANARY_DIR must be either 'staging' or 'production'. Got '$$CANARY_DIR'"; exit 1; \
@@ -32,18 +35,18 @@ test/fleet-canary-alerts/terraform-plan:
 	@$(call check_fleet_tf_env_vars)
 	@terraform -chdir=$(FLEET_TF_DIR)/$(CANARY_DIR) init && \
 	terraform -chdir=$(FLEET_TF_DIR)/$(CANARY_DIR) plan \
-	-var="api_key=$(NEW_RELIC_API_KEY)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)" -var="emails=$(EMAILS)"
+	-var="account_id=$(NEW_RELIC_ACCOUNT_ID)" -var="api_key=$(NEW_RELIC_API_KEY)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)" -var="emails=$(EMAILS)"
 
 .PHONY: test/fleet-canary-alerts/terraform-apply
 test/fleet-canary-alerts/terraform-apply:
 	@$(call check_fleet_tf_env_vars)
 	@terraform -chdir=$(FLEET_TF_DIR)/$(CANARY_DIR) init && \
 	terraform -chdir=$(FLEET_TF_DIR)/$(CANARY_DIR) apply -auto-approve \
-	-var="api_key=$(NEW_RELIC_API_KEY)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)" -var="emails=$(EMAILS)"
+	-var="account_id=$(NEW_RELIC_ACCOUNT_ID)" -var="api_key=$(NEW_RELIC_API_KEY)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)" -var="emails=$(EMAILS)"
 
 .PHONY: test/fleet-canary-alerts/terraform-destroy
 test/fleet-canary-alerts/terraform-destroy:
 	@$(call check_fleet_tf_env_vars)
 	@terraform -chdir=$(FLEET_TF_DIR)/$(CANARY_DIR) init && \
 	terraform -chdir=$(FLEET_TF_DIR)/$(CANARY_DIR) destroy -auto-approve \
-	-var="api_key=$(NEW_RELIC_API_KEY)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)" -var="emails=$(EMAILS)"
+	-var="account_id=$(NEW_RELIC_ACCOUNT_ID)" -var="api_key=$(NEW_RELIC_API_KEY)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)" -var="emails=$(EMAILS)"

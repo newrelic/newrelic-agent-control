@@ -112,6 +112,11 @@ resource "newrelic_nrql_alert_condition" "condition_nrql_canary" {
         local.policies_with_instance_id[count.index].condition
       )
     )
+    # Optional cross-account query: evaluate the NRQL against a different account than the one the
+    # condition lives in. Used by the fleet alerts, whose AgentHeartbeat data lives in the fleet
+    # account while the condition is created in the (writable) canary telemetry account. Defaults to
+    # the condition's own account when unset.
+    data_account_id = try(local.policies_with_instance_id[count.index].condition.data_account_id, null)
   }
 
   critical {

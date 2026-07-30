@@ -7,15 +7,25 @@
 # by `agentType` and `fleetGuid`, covering every managed agent across every canary fleet (on-host and
 # k8s) at once — so a single fleet-wide alert replaces the per-instance, log-based "supervisor
 # unhealthy" conditions. This root config owns that alert and is deployed once.
+#
+# The alert is created in the canary *telemetry* account (same account and key as the other canary
+# alerts, where we have write access) and uses the NRQL condition's `data_account_id` to evaluate
+# against the fleet-data account cross-account — so no write access to the fleet account is needed,
+# only read. See `data_account_id` below.
 
 variable "account_id" {
-  description = "New Relic fleet-data account ID that receives AgentHeartbeat events. This is NOT the canary telemetry account; for production it is 6425865."
+  description = "New Relic canary telemetry account ID the alert resources are created in (the production canary account, i.e. NEW_RELIC_PROD_ACCOUNT_ID). Write access required."
+  type        = string
+}
+
+variable "data_account_id" {
+  description = "New Relic fleet-data account ID that receives AgentHeartbeat events; the NRQL condition queries it cross-account. Production = 6425865 (read access required)."
   type        = string
   default     = "6425865"
 }
 
 variable "api_key" {
-  description = "New Relic User API key with write access to the fleet-data account."
+  description = "New Relic User API key with write access to the telemetry account and read access to the fleet-data account."
   type        = string
 }
 
@@ -48,11 +58,15 @@ module "alerts" {
       # per fleet that stays unhealthy for 15 minutes straight (persistent, not a transient blip),
       # covering all canary fleets (on-host + k8s) from one refactor-proof structured signal — no
       # self-instrumentation and no Agent Control code change required.
+      #
+      # `data_account_id` makes the condition (created in this telemetry account) evaluate the query
+      # against the fleet-data account where AgentHeartbeat actually lives.
       name               = "Agent Control agent unhealthy"
       threshold          = 0
       duration           = 900
       aggregation_window = 300
       operator           = "above"
+      data_account_id    = var.data_account_id
       template_name      = "./alert_nrql_templates/agent_heartbeat_unhealthy.tftpl"
     },
   ]
