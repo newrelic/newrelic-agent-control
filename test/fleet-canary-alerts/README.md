@@ -11,10 +11,11 @@ K8sContainerSample, self-instrumentation Logs) that lands in the canary **teleme
 Agent **health**, on the other hand, is reported by Fleet Control **server-side** as `AgentHeartbeat`
 events, which land in a separate **fleet-data** account (`12213068` staging / `6425865` production).
 Each heartbeat carries a structured `agentHealthStatus` boolean keyed by `agentType` and `fleetGuid`,
-so one fleet-wide query covers every managed agent across every canary fleet — on-host and k8s — at
-once. Because that data is account-wide (not per host/cluster), this alert is defined **once** in its
-own root config rather than duplicated in the on-host and k8s configs. It replaces the per-instance,
-log-based "supervisor unhealthy" conditions that used to live in those configs.
+so one query — restricted to **our** canary fleets (see the filter note below) — covers every managed
+agent across those fleets, on-host and k8s, at once. Because it's a single fleet-level query (not per
+host/cluster), this alert is defined **once** in its own root config rather than duplicated in the
+on-host and k8s configs. It replaces the per-instance, log-based "supervisor unhealthy" conditions that
+used to live in those configs.
 
 ## Where the alert lives (cross-account)
 
@@ -36,8 +37,19 @@ Fires per `agentType`/`fleetGuid` that reports unhealthy continuously for 15 min
 not a transient blip:
 
 ```sql
-SELECT count(*) FROM AgentHeartbeat WHERE agentHealthStatus IS FALSE FACET agentType, fleetGuid
+SELECT filter(count(*), WHERE agentHealthStatus IS FALSE)
+FROM AgentHeartbeat
+WHERE fleetGuid IN (<our canary fleet GUIDs>)
+FACET agentType, fleetGuid
 ```
+
+> **Critical — the `fleetGuid IN (…)` filter is not optional.** The fleet-data account holds
+> `AgentHeartbeat` for many fleets — in **production (`6425865`) it's the entire customer base** — so
+> without this filter the alert would page us for *any customer's* unhealthy agents. `FACET fleetGuid`
+> only *groups*; it does not restrict. The allow-list is the `fleet_guids` variable per environment,
+> which must match the `FLEET_ID_*` / `WINDOWS_FLEET_ID_*` values in `component_onhost_canaries.yml` and
+> `component_k8s_canaries.yml` (the canaries' actual fleets). `filter(count(*), …)` (rather than
+> `WHERE agentHealthStatus IS FALSE`) makes a recovered fleet emit `0` so its incident closes.
 
 Advantages over the previous log-based approach: it's a stable, structured, server-side signal
 (no `Debug`-string parsing), it's per agent-type, it covers all managed agents, and it needs neither

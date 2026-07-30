@@ -24,6 +24,21 @@ variable "data_account_id" {
   default     = "6425865"
 }
 
+# CRITICAL: the production fleet-data account (6425865) holds AgentHeartbeat for the ENTIRE customer
+# base, so the alert MUST restrict to our canary fleets — a bare FACET would still evaluate every
+# customer's agents and page us for their unhealthy agents. These are the production canary fleet entity
+# GUIDs, i.e. the FLEET_ID_PRODUCTION / WINDOWS_FLEET_ID_PRODUCTION values the canaries are provisioned
+# with. Keep in sync with component_onhost_canaries.yml and component_k8s_canaries.yml.
+variable "fleet_guids" {
+  description = "Canary fleet entity GUIDs to restrict the AgentHeartbeat query to (production)."
+  type        = list(string)
+  default = [
+    "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWFlM2EyLTA3OTctNzczYS05Y2JjLWMzNzZkMjAwMWFkZg", # on-host Linux (FLEET_ID_PRODUCTION)
+    "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWMyMjljLWVhYTQtN2JmNi04YWIyLTU2ZWI0YjE2ZWZjZQ", # on-host Windows (WINDOWS_FLEET_ID_PRODUCTION)
+    "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVlYzZhLTYwNjItNzZiZS1iOWE0LTA4MzZlZmE2MGY4YQ", # k8s (FLEET_ID_PRODUCTION)
+  ]
+}
+
 variable "api_key" {
   description = "New Relic User API key with write access to the telemetry account and read access to the fleet-data account."
   type        = string
@@ -76,6 +91,7 @@ module "alerts" {
       aggregation_window = 300
       operator           = "above"
       data_account_id    = var.data_account_id
+      fleet_guids        = var.fleet_guids
       template_name      = "./alert_nrql_templates/agent_heartbeat_unhealthy.tftpl"
     },
   ]
