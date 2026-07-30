@@ -40,3 +40,10 @@ test/fleet-canary-alerts/terraform-apply:
 	@terraform -chdir=$(FLEET_TF_DIR)/$(CANARY_DIR) init && \
 	terraform -chdir=$(FLEET_TF_DIR)/$(CANARY_DIR) apply -auto-approve \
 	-var="api_key=$(NEW_RELIC_API_KEY)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)" -var="emails=$(EMAILS)"
+
+.PHONY: test/fleet-canary-alerts/terraform-destroy
+test/fleet-canary-alerts/terraform-destroy:
+	@$(call check_fleet_tf_env_vars)
+	@terraform -chdir=$(FLEET_TF_DIR)/$(CANARY_DIR) init && \
+	terraform -chdir=$(FLEET_TF_DIR)/$(CANARY_DIR) destroy -auto-approve \
+	-var="api_key=$(NEW_RELIC_API_KEY)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)" -var="emails=$(EMAILS)"

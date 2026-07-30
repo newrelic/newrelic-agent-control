@@ -166,7 +166,7 @@ jobs:
       contents: read
     with:
       canary_dir: staging
-      apply: true
+      operation: apply
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}

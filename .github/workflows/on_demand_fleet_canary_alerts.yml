@@ -10,6 +10,15 @@ on:
         options:
           - staging
           - production
+      operation:
+        description: "Terraform operation to run"
+        required: true
+        type: choice
+        default: apply
+        options:
+          - apply
+          - destroy
+          - plan
 
 permissions:
   contents: read
@@ -20,14 +29,14 @@ concurrency:
 
 jobs:
   fleet_canary_alerts_infra:
-    name: Fleet canary alerts infrastructure apply
+    name: Fleet canary alerts infrastructure ${{ inputs.operation }}
     uses: ./.github/workflows/component_fleet_canary_alerts_infra.yml
     permissions:
       id-token: write
       contents: read
     with:
       canary_dir: ${{ inputs.canary_dir }}
-      apply: true
+      operation: ${{ inputs.operation }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}

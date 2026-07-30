@@ -32,7 +32,7 @@ jobs:
           - canary_dir: production
     with:
       canary_dir: ${{ matrix.canary_dir }}
-      apply: false
+      operation: plan
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
