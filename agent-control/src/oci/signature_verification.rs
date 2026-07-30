@@ -93,9 +93,7 @@ impl Client {
                     .client
                     .fetch_manifest_digest(reference, auth)
                     .await
-                    .map_err(|err| {
-                        OciClientError::Verify(format!("could not fetch manifest: {err}"))
-                    })?;
+                    .map_err(|err| OciClientError::PullManifest(err.into()))?;
                 debug!(%digest, "Manifest digest resolved");
                 digest
             }

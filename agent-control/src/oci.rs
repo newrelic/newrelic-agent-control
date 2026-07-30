@@ -88,7 +88,7 @@ impl Client {
             self.client
                 .pull_blob(reference, layer, &mut file)
                 .await
-                .map_err(|err| OciClientError::PullBlob(err.to_string().into()))?;
+                .map_err(|err| OciClientError::PullBlob(err.into()))?;
 
             // Ensure all data is flushed to disk before returning
             file.sync_data().await.map_err(|err| {
@@ -116,7 +116,7 @@ impl Client {
                 .client
                 .pull_blob_stream(reference, layer)
                 .await
-                .map_err(|err| OciClientError::PullBlob(err.to_string().into()))?;
+                .map_err(|err| OciClientError::PullBlob(err.into()))?;
 
             // Cheap up-front rejection based on the advertised content length. This is
             // attacker-controlled (it may understate the size or be absent), so it is only an
@@ -506,7 +506,7 @@ pub mod tests {
         let fetcher = create_fetcher();
         let result = fetcher.fetch(&reference, None, pull_first_layer);
         assert_matches!(result, Err(OciClientError::AttemptsExceeded(msg)) => {
-            assert!(msg.contains("pulling image manifest"), "{msg}");
+            assert!(msg.contains("the requested version does not exist in the registry"), "{msg}");
         });
     }
 
