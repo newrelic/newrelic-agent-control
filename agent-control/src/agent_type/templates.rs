@@ -759,6 +759,9 @@ mod tests {
         let key = assert_matches!(
             normalized_var("does.not.exists", &variables).unwrap_err(),
             AgentTypeError::MissingTemplateKey(s) => s);
-        assert_eq!("does.not.exists".to_string(), key);
+        assert_eq!(
+            "Cannot split does.not.exists with the separator :".to_string(),
+            key
+        );
     }
 }
