@@ -14,17 +14,7 @@ Each heartbeat carries a structured `agentHealthStatus` boolean keyed by `agentT
 so one query — restricted to **our** canary fleets (see the filter note below) — covers every managed
 agent across those fleets, on-host and k8s, at once. Because it's a single fleet-level query (not per
 host/cluster), this alert is defined **once** in its own root config rather than duplicated in the
-on-host and k8s configs. It replaces the per-instance, log-based "supervisor unhealthy" conditions that
-used to live in those configs.
-
-## Where the alert lives (cross-account)
-
-The alert resources (policy, condition, Slack/email destinations, workflow) are created in the canary
-**telemetry** account — the *same* account and API key as the other canary alerts, where we have
-write access. The NRQL condition then uses `data_account_id` to evaluate its query **against the
-fleet-data account**, cross-account. This means we only need **read** access to the fleet-data account
-(which is available), not write — avoiding the alert/notification create permissions we don't have
-there.
+on-host and k8s configs.
 
 | Env | Alert created in (`account_id`, write) | Queries (`data_account_id`, read) | Region |
 |-----|----------------------------------------|-----------------------------------|--------|
@@ -33,8 +23,7 @@ there.
 
 ## The alert
 
-Fires per `agentType`/`fleetGuid` that reports unhealthy continuously for 15 minutes — persistent,
-not a transient blip:
+Fires per `agentType`/`fleetGuid` that reports unhealthy continuously for 15 minutes:
 
 ```sql
 SELECT filter(count(*), WHERE agentHealthStatus IS FALSE)
@@ -43,17 +32,13 @@ WHERE fleetGuid IN (<our canary fleet GUIDs>)
 FACET agentType, fleetGuid
 ```
 
-> **Critical — the `fleetGuid IN (…)` filter is not optional.** The fleet-data account holds
+> **The `fleetGuid IN (…)` filter is not optional.** The fleet-data account holds
 > `AgentHeartbeat` for many fleets — in **production (`6425865`) it's the entire customer base** — so
-> without this filter the alert would page us for *any customer's* unhealthy agents. `FACET fleetGuid`
-> only *groups*; it does not restrict. The allow-list is the `fleet_guids` variable per environment,
-> which must match the `FLEET_ID_*` / `WINDOWS_FLEET_ID_*` values in `component_onhost_canaries.yml` and
-> `component_k8s_canaries.yml` (the canaries' actual fleets). `filter(count(*), …)` (rather than
-> `WHERE agentHealthStatus IS FALSE`) makes a recovered fleet emit `0` so its incident closes.
-
-Advantages over the previous log-based approach: it's a stable, structured, server-side signal
-(no `Debug`-string parsing), it's per agent-type, it covers all managed agents, and it needs neither
-self-instrumentation nor any Agent Control code change.
+> without this filter the alert would page us for *any customer's* unhealthy agents.
+> The allow-list is the `fleet_guids` variable per environment, which must match the `FLEET_ID_*`
+> / `WINDOWS_FLEET_ID_*` values in `component_onhost_canaries.yml` and `component_k8s_canaries.yml`
+> (the canaries' actual fleets). `filter(count(*), …)` (rather than `WHERE agentHealthStatus IS FALSE`
+> makes a recovered fleet emit `0` so its incident closes.
 
 ## Deploying
 
