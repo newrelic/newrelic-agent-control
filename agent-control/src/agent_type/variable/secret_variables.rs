@@ -4,7 +4,10 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     agent_type::{
         templates::template_re,
-        variable::{Variable, namespace::Namespace},
+        variable::{
+            Variable,
+            namespace::{Namespace, VariableName},
+        },
     },
     secrets_provider::{Registry, SecretsProvider},
     values::yaml_config::YAMLConfig,
@@ -95,7 +98,7 @@ impl SecretVariables {
     pub fn load_secrets<S: SecretsProvider>(
         &self,
         secrets_providers_registry: &Registry<S>,
-    ) -> Result<HashMap<String, Variable>, SecretVariablesError> {
+    ) -> Result<HashMap<VariableName, Variable>, SecretVariablesError> {
         if secrets_providers_registry.is_empty() {
             return Ok(HashMap::new());
         }
@@ -114,7 +117,7 @@ impl SecretVariables {
                     }
                 })?;
                 result.insert(
-                    namespace.namespaced_name(secret_path),
+                    VariableName::new(*namespace, secret_path),
                     Variable::new_final_string_variable(secret_value),
                 );
             }
@@ -133,15 +136,15 @@ impl SecretVariables {
 }
 
 /// Loads all environment variables present in the system.
-pub fn load_env_vars() -> HashMap<String, Variable> {
+pub fn load_env_vars() -> HashMap<VariableName, Variable> {
     std::env::vars_os()
         .map(|(k, v)| {
             (
-                Namespace::EnvironmentVariable.namespaced_name(k.to_string_lossy()),
+                VariableName::new(Namespace::EnvironmentVariable, k.to_string_lossy()),
                 Variable::new_final_string_variable(v.to_string_lossy().to_string()),
             )
         })
-        .collect::<HashMap<String, Variable>>()
+        .collect::<HashMap<VariableName, Variable>>()
 }
 
 #[cfg(test)]
@@ -216,7 +219,10 @@ eof"#;
         assert_eq!(
             result,
             HashMap::from([(
-                "nr-vault:sourceA:my_database:admin/credentials:username".to_string(),
+                VariableName::new(
+                    Namespace::Vault,
+                    "sourceA:my_database:admin/credentials:username"
+                ),
                 Variable::new_final_string_variable("mocked_value_D".to_string())
             )])
         );
