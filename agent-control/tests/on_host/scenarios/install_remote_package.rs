@@ -206,7 +206,7 @@ fn test_unsigned_artifact_makes_remote_config_fail_with_oci_registry() {
             if config_status.status == RemoteConfigStatuses::Failed as i32
                 && config_status
                     .error_message
-                    .contains("signature verification failed")
+                    .contains("failure pulling signature")
             {
                 Ok(())
             } else {

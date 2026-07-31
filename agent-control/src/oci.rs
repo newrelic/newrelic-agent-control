@@ -70,7 +70,7 @@ impl Client {
     ) -> Result<(OciImageManifest, String), OciClientError> {
         self.runtime
             .block_on(self.client.pull_image_manifest(reference, auth))
-            .map_err(|err| OciClientError::PullManifest(err.into()))
+            .map_err(|err| OciClientError::PullArtifactManifest(err.into()))
     }
 
     /// Pulls  the specified blob through [oci_client::Client::pull_blob] and stores it in the specified file path.
@@ -347,7 +347,7 @@ pub mod tests {
         let result =
             client.verify_signature(&image_ref, &jwks_server.url, &RegistryAuth::Anonymous);
 
-        assert_matches!(result, Err(OciClientError::Verify(_)));
+        assert_matches!(result, Err(OciClientError::PullSignatureManifest(_)));
     }
 
     #[test]
@@ -483,7 +483,8 @@ pub mod tests {
             )
             .unwrap_err();
         assert!(
-            err.to_string().contains("signature verification failed"),
+            err.to_string()
+                .contains("failure pulling signature manifest"),
             "{err}"
         );
     }

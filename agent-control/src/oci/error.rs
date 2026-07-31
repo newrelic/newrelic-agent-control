@@ -9,7 +9,9 @@ pub enum OciClientError {
     #[error("could not build the OCI client: {0}")]
     Build(String),
     #[error("failure pulling artifact manifest: {0}")]
-    PullManifest(OciErrorMessage),
+    PullArtifactManifest(OciErrorMessage),
+    #[error("failure pulling signature manifest: {0}")]
+    PullSignatureManifest(OciErrorMessage),
     #[error("failure pulling artifact blob: {0}")]
     PullBlob(OciErrorMessage),
     #[error("invalid reference format generated: {0}")]
