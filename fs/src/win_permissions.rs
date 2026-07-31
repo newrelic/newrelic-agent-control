@@ -110,6 +110,7 @@ pub mod tests {
         Security::{
             ACCESS_ALLOWED_ACE, ACL_SIZE_INFORMATION, AclSizeInformation,
             Authorization::GetNamedSecurityInfoW, EqualSid, GetAce, GetAclInformation,
+            INHERITED_ACE,
         },
         Storage::FileSystem::{DELETE, FILE_GENERIC_READ, FILE_GENERIC_WRITE},
     };
@@ -190,5 +191,91 @@ pub mod tests {
                 "ACE should have FILE_GENERIC_READ, FILE_GENERIC_WRITE, and DELETE permissions"
             );
         }
+    }
+
+    /// VERIFICATION-ONLY (do not merge): asserts a runtime-created child inherited the Administrators
+    /// ACE. On pre-fix `main` the directory's ACE is non-inheritable, so nothing is inherited and this
+    /// is expected to FAIL here — proving the test in the fix PR actually catches the bug.
+    fn assert_inherited_admin_ace(path: &Path) {
+        let mut admin_sid_size = SECURITY_MAX_SID_SIZE;
+        let mut admin_sid: Vec<u8> = vec![0; admin_sid_size as usize];
+
+        unsafe {
+            assert_ne!(
+                CreateWellKnownSid(
+                    WinBuiltinAdministratorsSid,
+                    ptr::null_mut(),
+                    admin_sid.as_mut_ptr() as *mut _,
+                    &mut admin_sid_size,
+                ),
+                0,
+                "Failed to create administrator SID"
+            );
+
+            let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+            let mut dacl: *mut ACL = ptr::null_mut();
+            let mut security_descriptor: *mut std::ffi::c_void = ptr::null_mut();
+            let result = GetNamedSecurityInfoW(
+                path_wstr.as_ptr(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                &mut dacl,
+                ptr::null_mut(),
+                &mut security_descriptor,
+            );
+            assert_eq!(result, ERROR_SUCCESS, "Failed to get child security info");
+            assert!(!dacl.is_null(), "child DACL should not be null");
+
+            let mut acl_size_info: ACL_SIZE_INFORMATION = std::mem::zeroed();
+            assert_ne!(
+                GetAclInformation(
+                    dacl,
+                    &mut acl_size_info as *mut _ as *mut _,
+                    std::mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
+                    AclSizeInformation,
+                ),
+                0,
+                "Failed to get child ACL information"
+            );
+
+            let mut inherited_admin = false;
+            for i in 0..acl_size_info.AceCount {
+                let mut ace_ptr: *mut std::ffi::c_void = ptr::null_mut();
+                if GetAce(dacl, i as u32, &mut ace_ptr) == 0 {
+                    continue;
+                }
+                let ace = &*(ace_ptr as *const ACCESS_ALLOWED_ACE);
+                let is_inherited = (ace.Header.AceFlags & (INHERITED_ACE as u8)) != 0;
+                let sid_in_ace = &ace.SidStart as *const u32 as *mut std::ffi::c_void;
+                let is_admin = EqualSid(sid_in_ace, admin_sid.as_mut_ptr() as *mut _) != 0;
+                if is_inherited && is_admin {
+                    inherited_admin = true;
+                    break;
+                }
+            }
+            assert!(
+                inherited_admin,
+                "child must have an INHERITED Administrators ACE — proof it inherited the managed \
+                 directory's access. Pre-fix (non-inheritable) code inherits nothing, so this fails."
+            );
+        }
+    }
+
+    /// VERIFICATION-ONLY (do not merge). See `assert_inherited_admin_ace`.
+    #[test]
+    fn child_created_in_managed_directory_inherits_admin_access() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let managed_dir = tempdir.path().join("nr-infra");
+        std::fs::create_dir(&managed_dir).unwrap();
+
+        set_file_permissions_for_administrator(&managed_dir)
+            .expect("hardening the directory should succeed");
+
+        let child = managed_dir.join("newrelic-infra.log");
+        std::fs::write(&child, b"heartbeat").expect("creating the child file should succeed");
+
+        assert_inherited_admin_ace(&child);
     }
 }
