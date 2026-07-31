@@ -34,8 +34,12 @@ resource "newrelic_workflow" "workflow" {
     channel_id = newrelic_notification_channel.slack_channel.id
   }
 
-  destination {
-    channel_id = newrelic_notification_channel.email_channel.id
+  # Email is opt-out: enabled by default (k8s/onhost canary alerts), disabled for the fleet alert.
+  dynamic "destination" {
+    for_each = var.enable_email ? [1] : []
+    content {
+      channel_id = newrelic_notification_channel.email_channel[0].id
+    }
   }
 }
 
@@ -57,9 +61,10 @@ resource "newrelic_notification_channel" "slack_channel" {
 }
 
 resource "newrelic_notification_channel" "email_channel" {
+  count          = var.enable_email ? 1 : 0
   name           = var.instance_id
   type           = "EMAIL"
-  destination_id = newrelic_notification_destination.email.id
+  destination_id = newrelic_notification_destination.email[0].id
   product        = "IINT"
 
   property {
@@ -79,8 +84,9 @@ resource "newrelic_notification_destination" "slack_webhook" {
 }
 
 resource "newrelic_notification_destination" "email" {
-  name = "Email"
-  type = "EMAIL"
+  count = var.enable_email ? 1 : 0
+  name  = "Email"
+  type  = "EMAIL"
 
   property {
     key   = "email"

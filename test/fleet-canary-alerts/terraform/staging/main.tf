@@ -68,6 +68,7 @@ module "alerts" {
   environment    = "staging"
   instance_id    = "Agent_Control_Fleet_Health"
   alert_subtitle = "Agent Control — Fleet health canary"
+  enable_email   = false
 
   # One issue (and one notification) per unhealthy agentType/fleetGuid, so each Slack message names the
   # specific offending agent. Combined with the 30-day violation time limit below, an agent notifies once

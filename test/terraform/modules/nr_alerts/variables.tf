@@ -60,6 +60,11 @@ variable "slack_webhook_url" {
   description = "Slack webhook where New Relic will send alerts"
 }
 
+# When true (default) the alert also notifies via email; set false to notify via Slack only.
+variable "enable_email" {
+  default = true
+}
+
 variable "emails" {
   description = "Comma-separated list of emails to receive alert notifications"
 }
