@@ -24,7 +24,7 @@ use crate::agent_type::{
     trivial_value::TrivialValue,
     variable::{
         Variable,
-        namespace::{Namespace, NamespacedVariableName},
+        namespace::{Namespace, VariableName},
     },
 };
 use serde::Deserialize;
@@ -272,7 +272,7 @@ impl Templateable for FilesystemEntry {
 }
 
 fn filesystem_agent_dir(variables: &Variables) -> Result<String, AgentTypeError> {
-    let key = NamespacedVariableName::new(
+    let key = VariableName::new(
         Namespace::SubAgent,
         AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
     );
@@ -284,7 +284,7 @@ fn filesystem_agent_dir(variables: &Variables) -> Result<String, AgentTypeError>
 
 /// Resolves `${nr-sub:shared_filesystem_dir}`, the base for the shared filesystem tree.
 fn shared_filesystem_dir(variables: &Variables) -> Result<String, AgentTypeError> {
-    let key = NamespacedVariableName::new(
+    let key = VariableName::new(
         Namespace::SubAgent,
         AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR,
     );
@@ -297,8 +297,7 @@ fn shared_filesystem_dir(variables: &Variables) -> Result<String, AgentTypeError
 /// The root a `copy_from_file` source must stay within: the sub-agent's AC data dir
 /// (`${nr-sub:remote_dir}`), which contains packages and the per-agent and shared filesystem dirs.
 fn copy_source_base(variables: &Variables) -> Result<PathBuf, AgentTypeError> {
-    let key =
-        NamespacedVariableName::new(Namespace::SubAgent, AgentAttributes::VARIABLE_REMOTE_DIR);
+    let key = VariableName::new(Namespace::SubAgent, AgentAttributes::VARIABLE_REMOTE_DIR);
     match variables.get(&key).and_then(Variable::get_final_value) {
         Some(TrivialValue::String(s)) => Ok(PathBuf::from(s)),
         _ => Err(AgentTypeError::MissingValue(key.to_string())),
@@ -431,7 +430,7 @@ mod tests {
     #[test]
     fn templates_top_level_file() {
         let variables = Variables::from_iter(vec![(
-            NamespacedVariableName::new(
+            VariableName::new(
                 Namespace::SubAgent,
                 AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
             ),
@@ -487,17 +486,14 @@ nri-redis:
     fn fs_variables(agent_dir: &Path, remote_dir: &Path) -> Variables {
         Variables::from_iter(vec![
             (
-                NamespacedVariableName::new(
+                VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
                 ),
                 Variable::new_final_string_variable(agent_dir.to_string_lossy()),
             ),
             (
-                NamespacedVariableName::new(
-                    Namespace::SubAgent,
-                    AgentAttributes::VARIABLE_REMOTE_DIR,
-                ),
+                VariableName::new(Namespace::SubAgent, AgentAttributes::VARIABLE_REMOTE_DIR),
                 Variable::new_final_string_variable(remote_dir.to_string_lossy()),
             ),
         ])
@@ -584,7 +580,7 @@ nri-redis:
         #[case] copy_from_file: Option<TemplateableValue<String>>,
     ) {
         let variables = Variables::from_iter(vec![(
-            NamespacedVariableName::new(
+            VariableName::new(
                 Namespace::SubAgent,
                 AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
             ),
@@ -655,7 +651,7 @@ nri-redis:
             err.to_string(),
             format!(
                 "missing value for key: {}",
-                NamespacedVariableName::new(
+                VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR
                 )
@@ -728,18 +724,18 @@ agent:
     fn example_variables(base_dir: &str) -> Variables {
         Variables::from_iter(vec![
             (
-                NamespacedVariableName::new(
+                VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
                 ),
                 Variable::new_final_string_variable(base_dir),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "config_agent"),
+                VariableName::new(Namespace::Variable, "config_agent"),
                 Variable::new_final_string_variable("license_key: REDACTED\n"),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "config_logging"),
+                VariableName::new(Namespace::Variable, "config_logging"),
                 Variable::new(
                     String::default(),
                     false,
@@ -865,14 +861,14 @@ projected:
         ]);
         let variables_first = Variables::from_iter(vec![
             (
-                NamespacedVariableName::new(
+                VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
                 ),
                 Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "proj"),
+                VariableName::new(Namespace::Variable, "proj"),
                 Variable::new(String::default(), false, None, Some(proj_first)),
             ),
         ]);
@@ -912,14 +908,14 @@ projected:
         )]);
         let variables_second = Variables::from_iter(vec![
             (
-                NamespacedVariableName::new(
+                VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
                 ),
                 Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "proj"),
+                VariableName::new(Namespace::Variable, "proj"),
                 Variable::new(String::default(), false, None, Some(proj_second)),
             ),
         ]);
@@ -988,14 +984,14 @@ logging.d:
 
         let variables_v1 = Variables::from_iter(vec![
             (
-                NamespacedVariableName::new(
+                VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
                 ),
                 Variable::new_final_string_variable(base.to_string_lossy()),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "logs"),
+                VariableName::new(Namespace::Variable, "logs"),
                 Variable::new(
                     String::default(),
                     false,
@@ -1023,14 +1019,14 @@ logging.d:
         // Second write: only file-2.conf in the map; file-1.conf is gone.
         let variables_v2 = Variables::from_iter(vec![
             (
-                NamespacedVariableName::new(
+                VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
                 ),
                 Variable::new_final_string_variable(base.to_string_lossy()),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "logs"),
+                VariableName::new(Namespace::Variable, "logs"),
                 Variable::new(
                     String::default(),
                     false,
@@ -1064,17 +1060,14 @@ logging.d:
     fn shared_variables(shared_dir: &Path, remote_dir: &Path) -> Variables {
         Variables::from_iter(vec![
             (
-                NamespacedVariableName::new(
+                VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR,
                 ),
                 Variable::new_final_string_variable(shared_dir.to_string_lossy()),
             ),
             (
-                NamespacedVariableName::new(
-                    Namespace::SubAgent,
-                    AgentAttributes::VARIABLE_REMOTE_DIR,
-                ),
+                VariableName::new(Namespace::SubAgent, AgentAttributes::VARIABLE_REMOTE_DIR),
                 Variable::new_final_string_variable(remote_dir.to_string_lossy()),
             ),
         ])

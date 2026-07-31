@@ -1,7 +1,7 @@
 //! Sub-agent attributes used to build the reserved variables that template an agent type.
 use super::variable::{
     Variable,
-    namespace::{Namespace, NamespacedVariableName},
+    namespace::{Namespace, VariableName},
 };
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{AGENT_FILESYSTEM_FOLDER_NAME, SHARED_FILESYSTEM_FOLDER_NAME};
@@ -59,28 +59,22 @@ impl AgentAttributes {
     }
 
     /// returns the variables from the sub-agent attributes source 'nr-sub'.
-    pub fn sub_agent_variables(&self) -> HashMap<NamespacedVariableName, Variable> {
+    pub fn sub_agent_variables(&self) -> HashMap<VariableName, Variable> {
         HashMap::from([
             (
-                NamespacedVariableName::new(Namespace::SubAgent, Self::VARIABLE_SUB_AGENT_ID),
+                VariableName::new(Namespace::SubAgent, Self::VARIABLE_SUB_AGENT_ID),
                 Variable::new_final_string_variable(&self.agent_id),
             ),
             (
-                NamespacedVariableName::new(
-                    Namespace::SubAgent,
-                    Self::VARIABLE_FILESYSTEM_AGENT_DIR,
-                ),
+                VariableName::new(Namespace::SubAgent, Self::VARIABLE_FILESYSTEM_AGENT_DIR),
                 Variable::new_final_string_variable(self.agent_filesystem_dir.to_string_lossy()),
             ),
             (
-                NamespacedVariableName::new(
-                    Namespace::SubAgent,
-                    Self::VARIABLE_SHARED_FILESYSTEM_DIR,
-                ),
+                VariableName::new(Namespace::SubAgent, Self::VARIABLE_SHARED_FILESYSTEM_DIR),
                 Variable::new_final_string_variable(self.shared_filesystem_dir.to_string_lossy()),
             ),
             (
-                NamespacedVariableName::new(Namespace::SubAgent, Self::VARIABLE_REMOTE_DIR),
+                VariableName::new(Namespace::SubAgent, Self::VARIABLE_REMOTE_DIR),
                 Variable::new_final_string_variable(self.remote_dir.to_string_lossy()),
             ),
         ])
@@ -93,8 +87,8 @@ mod tests {
     use crate::agent_control::defaults::AGENT_CONTROL_DATA_DIR;
     use crate::agent_type::trivial_value::TrivialValue;
 
-    fn final_string(vars: &HashMap<NamespacedVariableName, Variable>, name: &str) -> String {
-        let key = NamespacedVariableName::new(Namespace::SubAgent, name);
+    fn final_string(vars: &HashMap<VariableName, Variable>, name: &str) -> String {
+        let key = VariableName::new(Namespace::SubAgent, name);
         match vars
             .get(&key)
             .and_then(Variable::get_final_value)

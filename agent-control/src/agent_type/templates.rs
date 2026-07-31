@@ -15,7 +15,7 @@ use super::error::AgentTypeError;
 use super::templates_function::{Function, SupportedFunction};
 use super::variable::Variable;
 use super::variable::variable_type::VariableType;
-use crate::agent_type::variable::namespace::{Namespace, NamespacedVariableName};
+use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use regex::Regex;
 use std::sync::OnceLock;
 use strum::IntoEnumIterator;
@@ -85,7 +85,7 @@ fn normalized_var<'a>(
         .ok_or_else(|| {
             AgentTypeError::MissingTemplateKey(format!("Namespace of {name} is unknown"))
         })?;
-    let key = NamespacedVariableName::new(namespace, unprefixed);
+    let key = VariableName::new(namespace, unprefixed);
     variables
         .get(&key)
         .ok_or(AgentTypeError::MissingTemplateKey(name.to_string()))
@@ -220,7 +220,7 @@ fn template_yaml_value_string(
 mod tests {
     use super::*;
     use crate::agent_type::variable::fields::Fields;
-    use crate::agent_type::variable::namespace::{Namespace, NamespacedVariableName};
+    use crate::agent_type::variable::namespace::{Namespace, VariableName};
     use assert_matches::assert_matches;
     use rstest::rstest;
     use serde_json::Number;
@@ -234,7 +234,7 @@ mod tests {
         #[case] expected_out: &str,
     ) {
         let variables = Variables::from([(
-            NamespacedVariableName::new(Namespace::Variable, "foo"),
+            VariableName::new(Namespace::Variable, "foo"),
             Variable::new_string(String::default(), true, None, Some(var_content.to_string())),
         )]);
         let input = format!("${{nr-var:foo{var_functions}}}");
@@ -258,7 +258,7 @@ mod tests {
     fn test_template_string() {
         let variables = Variables::from([
             (
-                NamespacedVariableName::new(Namespace::Variable, "name"),
+                VariableName::new(Namespace::Variable, "name"),
                 Variable::new_string(
                     String::default(),
                     true,
@@ -267,7 +267,7 @@ mod tests {
                 ),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "age"),
+                VariableName::new(Namespace::Variable, "age"),
                 Variable::new(String::default(), true, None, Some(Number::from(30))),
             ),
         ]);
@@ -284,7 +284,7 @@ mod tests {
     fn test_template_value_mapping() {
         let variables = Variables::from([
             (
-                NamespacedVariableName::new(Namespace::Variable, "change.me.string"),
+                VariableName::new(Namespace::Variable, "change.me.string"),
                 Variable::new_string(
                     String::default(),
                     true,
@@ -293,11 +293,11 @@ mod tests {
                 ),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "change.me.bool"),
+                VariableName::new(Namespace::Variable, "change.me.bool"),
                 Variable::new(String::default(), true, None, Some(true)),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "change.me.number"),
+                VariableName::new(Namespace::Variable, "change.me.number"),
                 Variable::new(String::default(), true, None, Some(Number::from(42))),
             ),
         ]);
@@ -334,7 +334,7 @@ mod tests {
     fn test_template_value_sequence() {
         let variables = Variables::from([
             (
-                NamespacedVariableName::new(Namespace::Variable, "change.me.string"),
+                VariableName::new(Namespace::Variable, "change.me.string"),
                 Variable::new_string(
                     String::default(),
                     true,
@@ -343,11 +343,11 @@ mod tests {
                 ),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "change.me.bool"),
+                VariableName::new(Namespace::Variable, "change.me.bool"),
                 Variable::new(String::default(), true, None, Some(true)),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "change.me.number"),
+                VariableName::new(Namespace::Variable, "change.me.number"),
                 Variable::new(String::default(), true, None, Some(Number::from(42))),
             ),
         ]);
@@ -380,7 +380,7 @@ mod tests {
     fn test_template_yaml() {
         let variables = Variables::from([
             (
-                NamespacedVariableName::new(Namespace::Variable, "change.me.string"),
+                VariableName::new(Namespace::Variable, "change.me.string"),
                 Variable::new_string(
                     String::default(),
                     true,
@@ -389,15 +389,15 @@ mod tests {
                 ),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "change.me.bool"),
+                VariableName::new(Namespace::Variable, "change.me.bool"),
                 Variable::new(String::default(), true, None, Some(true)),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "change.me.number"),
+                VariableName::new(Namespace::Variable, "change.me.number"),
                 Variable::new(String::default(), true, None, Some(Number::from(42))),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "change.me.yaml"),
+                VariableName::new(Namespace::Variable, "change.me.yaml"),
                 Variable::new(
                     String::default(),
                     true,
@@ -409,7 +409,7 @@ mod tests {
                 ),
             ),
             (
-                NamespacedVariableName::new(Namespace::Variable, "change.me.yaml.map"),
+                VariableName::new(Namespace::Variable, "change.me.yaml.map"),
                 Variable::new(
                     String::default(),
                     true,
@@ -422,7 +422,7 @@ mod tests {
             ),
             (
                 // Expansion inside variable's values is not supported.
-                NamespacedVariableName::new(Namespace::Variable, "yaml.with.var.placeholder"),
+                VariableName::new(Namespace::Variable, "yaml.with.var.placeholder"),
                 Variable::new(
                     String::default(),
                     true,
@@ -551,7 +551,7 @@ mod tests {
             TestCase {
                 name: "missing required value key",
                 variables: Variables::from([(
-                    NamespacedVariableName::new(Namespace::Variable, "yaml"),
+                    VariableName::new(Namespace::Variable, "yaml"),
                     Fields::<serde_json::Value>::new(true, None, None).into(),
                 )]),
                 input: "${nr-var:yaml}",
@@ -560,7 +560,7 @@ mod tests {
             TestCase {
                 name: "missing non-required key",
                 variables: Variables::from([(
-                    NamespacedVariableName::new(Namespace::Variable, "yaml"),
+                    VariableName::new(Namespace::Variable, "yaml"),
                     Fields::<serde_json::Value>::new(false, None, None).into(),
                 )]),
                 input: "${nr-var:yaml}",
@@ -595,7 +595,7 @@ mod tests {
             TestCase {
                 name: "simple string",
                 variables: Variables::from([(
-                    NamespacedVariableName::new(Namespace::Variable, "simple.string.var"),
+                    VariableName::new(Namespace::Variable, "simple.string.var"),
                     Variable::new_string(String::default(), true, None, Some("Value".to_string())),
                 )]),
                 expectations: vec![
@@ -616,7 +616,7 @@ mod tests {
             TestCase {
                 name: "string with yaml",
                 variables: Variables::from([(
-                    NamespacedVariableName::new(Namespace::Variable, "string.with.yaml.var"),
+                    VariableName::new(Namespace::Variable, "string.with.yaml.var"),
                     Variable::new_string(
                         String::default(),
                         true,
@@ -632,7 +632,7 @@ mod tests {
             TestCase {
                 name: "bool",
                 variables: Variables::from([(
-                    NamespacedVariableName::new(Namespace::Variable, "bool.var"),
+                    VariableName::new(Namespace::Variable, "bool.var"),
                     Variable::new(String::default(), true, None, Some(true)),
                 )]),
                 expectations: vec![
@@ -646,7 +646,7 @@ mod tests {
             TestCase {
                 name: "number",
                 variables: Variables::from([(
-                    NamespacedVariableName::new(Namespace::Variable, "number.var"),
+                    VariableName::new(Namespace::Variable, "number.var"),
                     Variable::new(String::default(), true, None, Some(Number::from(42))),
                 )]),
                 expectations: vec![(
@@ -658,15 +658,15 @@ mod tests {
                 name: "number, bool, and string",
                 variables: Variables::from([
                     (
-                        NamespacedVariableName::new(Namespace::Variable, "number.var"),
+                        VariableName::new(Namespace::Variable, "number.var"),
                         Variable::new(String::default(), true, None, Some(Number::from(42))),
                     ),
                     (
-                        NamespacedVariableName::new(Namespace::Variable, "bool.var"),
+                        VariableName::new(Namespace::Variable, "bool.var"),
                         Variable::new(String::default(), true, None, Some(true)),
                     ),
                     (
-                        NamespacedVariableName::new(Namespace::Variable, "simple.string.var"),
+                        VariableName::new(Namespace::Variable, "simple.string.var"),
                         Variable::new_string(
                             String::default(),
                             true,
@@ -689,7 +689,7 @@ mod tests {
             TestCase {
                 name: "yaml",
                 variables: Variables::from([(
-                    NamespacedVariableName::new(Namespace::Variable, "yaml.var"),
+                    VariableName::new(Namespace::Variable, "yaml.var"),
                     Variable::new(
                         String::default(),
                         true,
@@ -717,7 +717,7 @@ mod tests {
             TestCase {
                 name: "yaml from default value",
                 variables: Variables::from([(
-                    NamespacedVariableName::new(Namespace::Variable, "yaml.var"),
+                    VariableName::new(Namespace::Variable, "yaml.var"),
                     Variable::new(
                         String::default(),
                         false,
@@ -746,7 +746,7 @@ mod tests {
     #[test]
     fn test_normalized_var() {
         let variables = Variables::from([(
-            NamespacedVariableName::new(Namespace::Variable, "var.name"),
+            VariableName::new(Namespace::Variable, "var.name"),
             Variable::new_string(String::default(), true, None, Some("Value".to_string())),
         )]);
 

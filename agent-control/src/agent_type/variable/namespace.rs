@@ -5,13 +5,13 @@ use strum::{EnumIter, IntoEnumIterator};
 /// Holds the variable name prefixed with the namespace.
 /// Example: "nr-env:MY_ENV_VAR" for the environment variable "MY_ENV_VAR".
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct NamespacedVariableName {
+pub struct VariableName {
     namespace: Namespace,
     name: String,
 }
 
-impl NamespacedVariableName {
-    /// Builds a [`NamespacedVariableName`] from its namespace and unprefixed name.
+impl VariableName {
+    /// Builds a [`VariableName`] from its namespace and unprefixed name.
     pub fn new(namespace: Namespace, name: impl Into<String>) -> Self {
         Self {
             namespace,
@@ -20,7 +20,7 @@ impl NamespacedVariableName {
     }
 }
 
-impl Display for NamespacedVariableName {
+impl Display for VariableName {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(
             formatter,
@@ -115,31 +115,31 @@ mod tests {
     fn test_namespaced_name() {
         assert_eq!(
             "nr-var:test".to_string(),
-            NamespacedVariableName::new(Namespace::Variable, "test").to_string()
+            VariableName::new(Namespace::Variable, "test").to_string()
         );
         assert_eq!(
             "nr-sub:test".to_string(),
-            NamespacedVariableName::new(Namespace::SubAgent, "test").to_string()
+            VariableName::new(Namespace::SubAgent, "test").to_string()
         );
         assert_eq!(
             "nr-env:test".to_string(),
-            NamespacedVariableName::new(Namespace::EnvironmentVariable, "test").to_string()
+            VariableName::new(Namespace::EnvironmentVariable, "test").to_string()
         );
         assert_eq!(
             "nr-ac:test".to_string(),
-            NamespacedVariableName::new(Namespace::AgentControl, "test").to_string()
+            VariableName::new(Namespace::AgentControl, "test").to_string()
         );
         assert_eq!(
             "nr-vault:test".to_string(),
-            NamespacedVariableName::new(Namespace::Vault, "test").to_string()
+            VariableName::new(Namespace::Vault, "test").to_string()
         );
         assert_eq!(
             "nr-kubesec:test".to_string(),
-            NamespacedVariableName::new(Namespace::K8sSecret, "test").to_string()
+            VariableName::new(Namespace::K8sSecret, "test").to_string()
         );
         assert_eq!(
             "nr-file:test".to_string(),
-            NamespacedVariableName::new(Namespace::File, "test").to_string()
+            VariableName::new(Namespace::File, "test").to_string()
         );
     }
 }

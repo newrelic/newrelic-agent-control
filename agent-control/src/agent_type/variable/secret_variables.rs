@@ -6,7 +6,7 @@ use crate::{
         templates::template_re,
         variable::{
             Variable,
-            namespace::{Namespace, NamespacedVariableName},
+            namespace::{Namespace, VariableName},
         },
     },
     secrets_provider::{Registry, SecretsProvider},
@@ -98,7 +98,7 @@ impl SecretVariables {
     pub fn load_secrets<S: SecretsProvider>(
         &self,
         secrets_providers_registry: &Registry<S>,
-    ) -> Result<HashMap<NamespacedVariableName, Variable>, SecretVariablesError> {
+    ) -> Result<HashMap<VariableName, Variable>, SecretVariablesError> {
         if secrets_providers_registry.is_empty() {
             return Ok(HashMap::new());
         }
@@ -117,7 +117,7 @@ impl SecretVariables {
                     }
                 })?;
                 result.insert(
-                    NamespacedVariableName::new(*namespace, secret_path),
+                    VariableName::new(*namespace, secret_path),
                     Variable::new_final_string_variable(secret_value),
                 );
             }
@@ -136,15 +136,15 @@ impl SecretVariables {
 }
 
 /// Loads all environment variables present in the system.
-pub fn load_env_vars() -> HashMap<NamespacedVariableName, Variable> {
+pub fn load_env_vars() -> HashMap<VariableName, Variable> {
     std::env::vars_os()
         .map(|(k, v)| {
             (
-                NamespacedVariableName::new(Namespace::EnvironmentVariable, k.to_string_lossy()),
+                VariableName::new(Namespace::EnvironmentVariable, k.to_string_lossy()),
                 Variable::new_final_string_variable(v.to_string_lossy().to_string()),
             )
         })
-        .collect::<HashMap<NamespacedVariableName, Variable>>()
+        .collect::<HashMap<VariableName, Variable>>()
 }
 
 #[cfg(test)]
@@ -219,7 +219,7 @@ eof"#;
         assert_eq!(
             result,
             HashMap::from([(
-                NamespacedVariableName::new(
+                VariableName::new(
                     Namespace::Vault,
                     "sourceA:my_database:admin/credentials:username"
                 ),
