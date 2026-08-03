@@ -140,8 +140,6 @@ agents:
   nr-infra:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
 {agents_block}
-agent_packages:
-  signature_verification_enabled: false
 {DEBUG_LOGGING_CONFIG}
 "#
         ),
