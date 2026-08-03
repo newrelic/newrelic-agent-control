@@ -29,7 +29,7 @@ pub enum AgentControlError {
 
     /// Error building a sub-agent.
     #[error("{0}")]
-    SubAgentBuilder(#[from] SubAgentBuilderError),
+    SubAgentBuilder(Box<SubAgentBuilderError>),
 
     /// Error operating on the sub-agent collection.
     #[error("{0}")]

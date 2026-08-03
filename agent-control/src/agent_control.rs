@@ -249,7 +249,10 @@ where
                 }
                 Err(err) => {
                     debug!(%agent_id, "Error building sub agent");
-                    errors.push(agent_id.clone(), err.into());
+                    errors.push(
+                        agent_id.clone(),
+                        AgentControlError::SubAgentBuilder(Box::new(err)),
+                    );
                 }
             }
         }
@@ -273,7 +276,10 @@ where
     ) -> Result<(), AgentControlError> {
         running_sub_agents.insert(
             agent_identity.id.clone(),
-            self.sub_agent_builder.build(agent_identity)?.run(),
+            self.sub_agent_builder
+                .build(agent_identity)
+                .map_err(|err| AgentControlError::SubAgentBuilder(Box::new(err)))?
+                .run(),
         );
 
         Ok(())
