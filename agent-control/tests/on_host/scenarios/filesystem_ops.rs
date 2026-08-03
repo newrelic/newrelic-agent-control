@@ -146,9 +146,9 @@ variables:
     description: "Contents of an arbitrary string file"
     type: string
     required: true
-  some_mapstringyaml:
+  some_stringmap:
     description: "A directory structure"
-    type: map[string]yaml
+    type: string_map
     required: true
 deployment:
   filesystem:
@@ -180,7 +180,7 @@ deployment:
             File 2 contents with a variable: ${{nr-var:some_string}}
     "{fully_templated_dir}":
       kind: dir_content_from_map
-      source: ${{nr-var:some_mapstringyaml}}
+      source: ${{nr-var:some_stringmap}}
 "#,
         ),
         dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -195,7 +195,7 @@ deployment:
 "#
         ))
         .write(dirs.local_dir());
-    // Values. Contains 3 variables: a YAML, a string, and a map[string]yaml (to create files in a directory)
+    // Values. Contains 3 variables: a YAML, a string, and a string_map (to create files in a directory)
     create_local_config(
         agent_id.to_string(),
         format!(
@@ -203,7 +203,7 @@ deployment:
 yaml_file_contents:
   {yaml_var_content}
 some_string: "{string_var_content}"
-some_mapstringyaml:
+some_stringmap:
   file3.txt: "File 3 contents"
   file4.txt: |
     File 4 contents with a variable: {string_var_content}

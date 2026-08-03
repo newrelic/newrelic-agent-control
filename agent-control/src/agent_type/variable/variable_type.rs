@@ -29,9 +29,11 @@ pub enum VariableTypeDefinition {
     /// A number-typed variable.
     #[serde(rename = "number")]
     Number(FieldsDefinition<serde_json::Number>),
-    /// A `map[string]yaml`-typed variable.
-    #[serde(rename = "map[string]yaml")]
-    MapStringYaml(FieldsDefinition<HashMap<String, serde_json::Value>>),
+    /// A  map of string keys to string values.
+    /// A merged value that isn't already a string is accepted and encoded as
+    /// its YAML text form.
+    #[serde(rename = "string_map")]
+    StringMap(FieldsDefinition<HashMap<String, String>>),
     /// A yaml-typed variable.
     #[serde(rename = "yaml")]
     Yaml(YamlFieldsDefinition),
@@ -46,8 +48,8 @@ pub enum VariableType {
     Bool(Fields<bool>),
     /// A number-typed variable.
     Number(Fields<serde_json::Number>),
-    /// A `map[string]yaml`-typed variable.
-    MapStringYaml(Fields<HashMap<String, serde_json::Value>>),
+    /// A `string_map`-typed variable.
+    StringMap(Fields<HashMap<String, String>>),
     /// A yaml-typed variable.
     Yaml(Fields<serde_json::Value>),
 }
@@ -59,8 +61,8 @@ impl VariableTypeDefinition {
             VariableTypeDefinition::String(v) => VariableType::String(v.with_config(constraints)),
             VariableTypeDefinition::Bool(v) => VariableType::Bool(v.with_config(constraints)),
             VariableTypeDefinition::Number(v) => VariableType::Number(v.with_config(constraints)),
-            VariableTypeDefinition::MapStringYaml(v) => {
-                VariableType::MapStringYaml(v.with_config(constraints))
+            VariableTypeDefinition::StringMap(v) => {
+                VariableType::StringMap(v.with_config(constraints))
             }
             VariableTypeDefinition::Yaml(v) => VariableType::Yaml(v.with_config(constraints)),
         }
@@ -75,7 +77,7 @@ impl VariableType {
             VariableType::String(f) => f.inner.required,
             VariableType::Bool(f) => f.required,
             VariableType::Number(f) => f.required,
-            VariableType::MapStringYaml(f) => f.required,
+            VariableType::StringMap(f) => f.required,
             VariableType::Yaml(f) => f.required,
         }
     }
@@ -88,7 +90,7 @@ impl VariableType {
             VariableType::String(f) => f.set_final_value(serde_json::from_value(value)?),
             VariableType::Bool(f) => f.set_final_value(serde_json::from_value(value)?),
             VariableType::Number(f) => f.set_final_value(serde_json::from_value(value)?),
-            VariableType::MapStringYaml(f) => f.set_final_value(serde_json::from_value(value)?),
+            VariableType::StringMap(f) => f.set_final_value(parse_string_map(value)?),
             VariableType::Yaml(f) => f.set_final_value(value),
         }?;
         Ok(())
@@ -110,12 +112,12 @@ impl VariableType {
                 .or(f.default.as_ref())
                 .cloned()
                 .map(TrivialValue::Number),
-            VariableType::MapStringYaml(f) => f
+            VariableType::StringMap(f) => f
                 .final_value
                 .as_ref()
                 .or(f.default.as_ref())
                 .cloned()
-                .map(TrivialValue::MapStringYaml),
+                .map(TrivialValue::MapStringString),
             VariableType::Yaml(f) => f
                 .final_value
                 .as_ref()
@@ -124,6 +126,23 @@ impl VariableType {
                 .map(TrivialValue::Yaml),
         }
     }
+}
+
+fn parse_string_map(value: serde_json::Value) -> Result<HashMap<String, String>, AgentTypeError> {
+    let map: HashMap<String, serde_json::Value> = serde_json::from_value(value)?;
+    map.into_iter()
+        .map(|(key, value)| {
+            let value = match value {
+                serde_json::Value::String(s) => s,
+                other => serde_saphyr::to_string(&other).map_err(|e| {
+                    AgentTypeError::Parse(format!(
+                        "could not encode string_map value for '{key}': {e}"
+                    ))
+                })?,
+            };
+            Ok((key, value))
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -148,9 +167,9 @@ mod tests {
         }
     }
 
-    impl From<Fields<HashMap<String, serde_json::Value>>> for VariableType {
-        fn from(fields: Fields<HashMap<String, serde_json::Value>>) -> Self {
-            VariableType::MapStringYaml(fields)
+    impl From<Fields<HashMap<String, String>>> for VariableType {
+        fn from(fields: Fields<HashMap<String, String>>) -> Self {
+            VariableType::StringMap(fields)
         }
     }
 
@@ -158,5 +177,43 @@ mod tests {
         fn from(fields: Fields<serde_json::Value>) -> Self {
             VariableType::Yaml(fields)
         }
+    }
+
+    fn empty_string_map() -> VariableType {
+        VariableType::StringMap(Fields {
+            required: false,
+            default: Some(HashMap::new()),
+            final_value: None,
+        })
+    }
+
+    #[test]
+    fn string_map_merge_accepts_plain_string_value() {
+        let mut variable_type = empty_string_map();
+
+        variable_type
+            .merge_with_yaml_value(serde_json::json!({ "file.txt": "hello" }))
+            .unwrap();
+
+        let Some(TrivialValue::MapStringString(map)) = variable_type.get_final_value() else {
+            panic!("expected a MapStringString value");
+        };
+        assert_eq!(map.get("file.txt"), Some(&"hello".to_string()));
+    }
+
+    #[test]
+    fn string_map_merge_accepts_other_values() {
+        let mut variable_type = empty_string_map();
+
+        let nested = serde_json::json!({"logs": [{"name": "syslog"}]});
+        variable_type
+            .merge_with_yaml_value(serde_json::json!({ "logging.yml": nested.clone() }))
+            .unwrap();
+
+        let expected_content = serde_saphyr::to_string(&nested).unwrap();
+        let Some(TrivialValue::MapStringString(map)) = variable_type.get_final_value() else {
+            panic!("expected a MapStringString value");
+        };
+        assert_eq!(map.get("logging.yml"), Some(&expected_content));
     }
 }
