@@ -46,7 +46,7 @@ jobs:
           ls -lh /tmp/artifacts/
 
       - name: Upload agent metadata to New Relic
-        uses: newrelic/agent-metadata-action@5a6654e0866cfbad9ce1de68a5e016f888771548 # v1.3.0
+        uses: newrelic/agent-metadata-action@3c2fd71b50678a84e69c766d85f23b3f1c0ca58c # v1.4.0
         with:
           agent-type: NRAgentControl
           version: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
