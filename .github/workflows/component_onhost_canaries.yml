@@ -25,12 +25,13 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # AC Staging Account `host-canaries-staging` fleet
-  FLEET_ID_STAGING: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlhZTNiNS01Yjg5LTdkNjYtYWU0MC1lNmZkOTY2ZDFhMDA"
-  WINDOWS_FLEET_ID_STAGING: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTljMjNjYy0yM2I2LTc1OTYtODBkNy0yMzAzYWIyYzcwMTA"
+  # AC Staging Account `host-canaries-staging` fleet. Single source of truth for these GUIDs: the
+  # ONHOST_* repo variables, also consumed by the fleet-canary-alerts terraform plan/apply.
+  FLEET_ID_STAGING: "${{ vars.ONHOST_FLEET_ID_STAGING }}"
+  WINDOWS_FLEET_ID_STAGING: "${{ vars.ONHOST_WINDOWS_FLEET_ID_STAGING }}"
   # AC US Production Account `host-canaries-production` fleet
-  FLEET_ID_PRODUCTION: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWFlM2EyLTA3OTctNzczYS05Y2JjLWMzNzZkMjAwMWFkZg"
-  WINDOWS_FLEET_ID_PRODUCTION: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWMyMjljLWVhYTQtN2JmNi04YWIyLTU2ZWI0YjE2ZWZjZQ"
+  FLEET_ID_PRODUCTION: "${{ vars.ONHOST_FLEET_ID_PRODUCTION }}"
+  WINDOWS_FLEET_ID_PRODUCTION: "${{ vars.ONHOST_WINDOWS_FLEET_ID_PRODUCTION }}"
 
 jobs:
   install-ac:

@@ -20,24 +20,16 @@ variable "account_id" {
 }
 
 variable "data_account_id" {
-  description = "New Relic fleet-data account ID that receives AgentHeartbeat events; the NRQL condition queries it cross-account. Staging = 12213068 (read access required)."
+  description = "New Relic fleet-data account ID that receives AgentHeartbeat events; the NRQL condition queries it cross-account (read access required). Passed in from CI via the FLEET_DATA_ACCOUNT_ID_STAGING repo variable."
   type        = string
-  default     = "12213068"
 }
 
 # The fleet-data account holds AgentHeartbeat for MANY fleets (in production, the whole customer base),
 # so the alert MUST restrict to our canary fleets — a bare FACET would group by fleet but still evaluate
-# every customer's agents. These are the staging canary fleet entity GUIDs, i.e. the FLEET_ID_STAGING /
-# WINDOWS_FLEET_ID_STAGING values the canaries are provisioned with. Keep in sync with
-# component_onhost_canaries.yml and component_k8s_canaries.yml (the source of truth for FLEET_IDs).
+# every customer's agents.
 variable "fleet_guids" {
-  description = "Canary fleet entity GUIDs to restrict the AgentHeartbeat query to (staging)."
-  type        = list(string)
-  default = [
-    "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlhZTNiNS01Yjg5LTdkNjYtYWU0MC1lNmZkOTY2ZDFhMDA", # host-canaries-staging (on-host Linux)
-    "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTljMjNjYy0yM2I2LTc1OTYtODBkNy0yMzAzYWIyYzcwMTA", # agent_control_canaries (on-host Windows)
-    "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk1ZDE1NC1iNTI0LTdhMTYtYWExYS0wYzQ2Y2VhOGFiMzg", # k8s-canaries-staging-1
-  ]
+  description = "Comma-separated canary fleet entity GUIDs to restrict the AgentHeartbeat query to (staging). Passed in from CI via the ONHOST_FLEET_ID_STAGING/ONHOST_WINDOWS_FLEET_ID_STAGING/K8S_FLEET_ID_STAGING repo variables — the single source of truth also used by component_onhost_canaries.yml and component_k8s_canaries.yml."
+  type        = string
 }
 
 variable "api_key" {
@@ -93,7 +85,7 @@ module "alerts" {
       aggregation_window = 300
       operator           = "above"
       data_account_id    = var.data_account_id
-      fleet_guids        = var.fleet_guids
+      fleet_guids        = split(",", var.fleet_guids)
       template_name      = "./alert_nrql_templates/agent_heartbeat_unhealthy.tftpl"
     },
   ]
