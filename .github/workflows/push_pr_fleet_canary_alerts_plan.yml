@@ -5,6 +5,7 @@ on:
     paths:
       - test/fleet-canary-alerts/terraform/**
       - test/fleet-canary-alerts/Makefile
+      - test/terraform/modules/nr_alerts/**
       - Makefile
       - .github/workflows/component_fleet_canary_alerts_infra.yml
       - .github/workflows/push_pr_fleet_canary_alerts_plan.yml

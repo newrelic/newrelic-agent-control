@@ -5,6 +5,7 @@ on:
     paths:
       - test/k8s-canaries/terraform/**
       - test/k8s-canaries/Makefile
+      - test/terraform/modules/nr_alerts/**
       - Makefile
       - .github/workflows/component_k8s_canaries_infra.yml
       - .github/workflows/push_pr_k8s_canaries_plan.yml
