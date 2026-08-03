@@ -19,6 +19,7 @@ jobs:
         uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
         with:
           webhook-type: webhook-trigger
+          retries: '0'
           payload: |
             {
               "text": ":warning: [${{ inputs.message }}] @hero check <${{ env.GITHUB_JOB_URL }}>"
