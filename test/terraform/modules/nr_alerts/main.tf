@@ -73,6 +73,16 @@ resource "newrelic_notification_channel" "email_channel" {
   }
 }
 
+# Adding `count` above changes this resource's address from `email_channel` to `email_channel[0]`.
+# Existing state (created before email became opt-out) still has it at the un-indexed address —
+# make the migration explicit rather than relying on the CLI's implicit same-instance inference,
+# which fails with "Unsupported `moved` across resource types" when the new count evaluates to 0
+# (the fleet alert's case, since it sets enable_email = false).
+moved {
+  from = newrelic_notification_channel.email_channel
+  to   = newrelic_notification_channel.email_channel[0]
+}
+
 resource "newrelic_notification_destination" "slack_webhook" {
   name = "SlackWebhook"
   type = "WEBHOOK"
@@ -92,6 +102,11 @@ resource "newrelic_notification_destination" "email" {
     key   = "email"
     value = var.emails
   }
+}
+
+moved {
+  from = newrelic_notification_destination.email
+  to   = newrelic_notification_destination.email[0]
 }
 
 # Uncomment this to "debug" the generated structure
