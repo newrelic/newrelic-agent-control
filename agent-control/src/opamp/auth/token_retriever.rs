@@ -4,7 +4,7 @@ use crate::http::client::HttpBuildError;
 use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
-use crate::secret_retriever;
+use crate::opamp::secret_retriever;
 use chrono::DateTime;
 use nr_auth::{
     TokenRetriever, TokenRetrieverError,

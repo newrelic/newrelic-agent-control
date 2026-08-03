@@ -1,7 +1,7 @@
 //! Retrieves the OpAMP authentication secret from a Kubernetes Secret.
 
 use crate::agent_control::config::K8sConfig;
-use crate::secret_retriever::OpampSecretRetriever;
+use crate::opamp::secret_retriever::OpampSecretRetriever;
 use crate::secrets_provider::SecretsProvider;
 use crate::secrets_provider::k8s_secret::K8sSecretProvider;
 

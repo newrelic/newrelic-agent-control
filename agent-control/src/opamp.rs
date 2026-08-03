@@ -9,6 +9,7 @@ pub mod http;
 pub mod instance_id;
 pub mod operations;
 pub mod remote_config;
+pub mod secret_retriever;
 
 /// HTTP-like status code reported as the last error of an OpAMP operation.
 pub type LastErrorCode = u16;
