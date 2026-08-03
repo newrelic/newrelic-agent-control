@@ -34,11 +34,16 @@ resource "newrelic_workflow" "workflow" {
     channel_id = newrelic_notification_channel.slack_channel.id
   }
 
-  # Email is opt-out: enabled by default (k8s/onhost canary alerts), disabled for the fleet alert.
+  # Email is opt-out: attached by default (k8s/onhost canary alerts), skipped for the fleet alert
+  # (Slack only). The email_channel/email resources themselves are still created unconditionally
+  # below — gating them behind `count` would require moving pre-existing state to an indexed
+  # address, which Terraform/OpenTofu rejects when the target count is 0 (as it is here). Leaving
+  # them unconditional costs one unused notification channel per opted-out alert but keeps the
+  # address stable for every existing state.
   dynamic "destination" {
     for_each = var.enable_email ? [1] : []
     content {
-      channel_id = newrelic_notification_channel.email_channel[0].id
+      channel_id = newrelic_notification_channel.email_channel.id
     }
   }
 }
@@ -61,26 +66,15 @@ resource "newrelic_notification_channel" "slack_channel" {
 }
 
 resource "newrelic_notification_channel" "email_channel" {
-  count          = var.enable_email ? 1 : 0
   name           = var.instance_id
   type           = "EMAIL"
-  destination_id = newrelic_notification_destination.email[0].id
+  destination_id = newrelic_notification_destination.email.id
   product        = "IINT"
 
   property {
     key   = "subject"
     value = "Alert: ${var.instance_id}"
   }
-}
-
-# Adding `count` above changes this resource's address from `email_channel` to `email_channel[0]`.
-# Existing state (created before email became opt-out) still has it at the un-indexed address —
-# make the migration explicit rather than relying on the CLI's implicit same-instance inference,
-# which fails with "Unsupported `moved` across resource types" when the new count evaluates to 0
-# (the fleet alert's case, since it sets enable_email = false).
-moved {
-  from = newrelic_notification_channel.email_channel
-  to   = newrelic_notification_channel.email_channel[0]
 }
 
 resource "newrelic_notification_destination" "slack_webhook" {
@@ -94,19 +88,13 @@ resource "newrelic_notification_destination" "slack_webhook" {
 }
 
 resource "newrelic_notification_destination" "email" {
-  count = var.enable_email ? 1 : 0
-  name  = "Email"
-  type  = "EMAIL"
+  name = "Email"
+  type = "EMAIL"
 
   property {
     key   = "email"
     value = var.emails
   }
-}
-
-moved {
-  from = newrelic_notification_destination.email
-  to   = newrelic_notification_destination.email[0]
 }
 
 # Uncomment this to "debug" the generated structure
