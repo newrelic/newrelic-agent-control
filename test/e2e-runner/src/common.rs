@@ -107,9 +107,9 @@ pub struct InstallationArgs {
     #[arg(long)]
     pub apache_version: Option<String>,
 
-    /// Version of the nri-postgresql OCI image to use in tests
+    /// Version of the nri-memcached OCI image to use in tests
     #[arg(long)]
-    pub postgresql_version: Option<String>,
+    pub memcached_version: Option<String>,
 }
 
 /// Arguments for Fleet Control scenarios that also install Agent Control
