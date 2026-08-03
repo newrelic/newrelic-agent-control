@@ -1,4 +1,5 @@
 //! Renders an [`AgentType`] together with user values into a runtime configuration for a sub-agent.
+use crate::agent_type::definition::VariableTree;
 use crate::agent_type::{
     agent_attributes::AgentAttributes,
     definition::AgentType,
@@ -27,27 +28,48 @@ impl TemplateRenderer {
         agent_type: AgentType,
         values: YAMLConfig,
         attributes: AgentAttributes,
-        env_vars: HashMap<VariableName, Variable>,
         secrets: HashMap<VariableName, Variable>,
     ) -> Result<Runtime, AgentTypeError> {
         // Get empty variables and runtime_config from the agent-type
-        let (variables, runtime_config) = (agent_type.variables, agent_type.runtime_config);
+        let (variable_tree, runtime_config) = (agent_type.variables, agent_type.runtime_config);
 
-        // Values are expanded substituting all ${nr-env...} with environment variables.
-        // Notice that only environment variables and secrets are taken into consideration (no other vars for example)
-        let values_expanded = values.template_with(&secrets)?;
+        let expanded_user_variables =
+            Self::get_expanded_user_variables(variable_tree, values, &secrets)?;
 
-        // Fill agent variables
-        let filled_variables = variables.fill_with_values(values_expanded)?.flatten();
-
-        Self::check_all_vars_are_populated(&filled_variables)?;
+        // Only envVars are kept and can be used to expand the runtime template, the other secrets
+        // can be used for double expansion of the user values only
+        let env_vars = secrets
+            .into_iter()
+            .filter(|(name, _)| *name.namespace() == Namespace::EnvironmentVariable)
+            .collect();
 
         // Setup namespaced variables
-        let ns_variables = self.build_namespaced_variables(filled_variables, env_vars, &attributes);
+        let ns_variables =
+            self.chain_namespaced_variables(expanded_user_variables, env_vars, &attributes);
+
         // Render runtime config
         let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
 
         Ok(rendered_runtime_config)
+    }
+
+    fn get_expanded_user_variables(
+        variable_tree: VariableTree,
+        values: YAMLConfig,
+        secrets: &HashMap<VariableName, Variable>,
+    ) -> Result<HashMap<VariableName, Variable>, AgentTypeError> {
+        // Values are expanded substituting all ${nr-env, nr-values} performing double expansions.
+        // Notice that only data coming from secrets providers taken into consideration (no other vars for example)
+        let values_expanded = values.template_with(secrets)?;
+
+        // Fill agent data in the variables tree
+        let flat_variable_tree = variable_tree.fill_with_values(values_expanded)?.flatten();
+        Self::check_all_vars_are_populated(&flat_variable_tree)?;
+        // Set the namespaced name to variables
+        Ok(flat_variable_tree
+            .into_iter()
+            .map(|(name, var)| (VariableName::new(Namespace::Variable, &name), var))
+            .collect())
     }
 
     /// Adds variables to the renderer with the agent-control namespace.
@@ -81,23 +103,17 @@ impl TemplateRenderer {
         Ok(())
     }
 
-    fn build_namespaced_variables(
+    fn chain_namespaced_variables(
         &self,
-        variables: HashMap<String, Variable>,
-        env_vars: HashMap<VariableName, Variable>,
+        expanded_user_variables: HashMap<VariableName, Variable>,
+        environment_variables: HashMap<VariableName, Variable>,
         attributes: &AgentAttributes,
     ) -> HashMap<VariableName, Variable> {
-        // Set the namespaced name to variables
-        let vars_iter = variables
-            .into_iter()
-            .map(|(name, var)| (VariableName::new(Namespace::Variable, &name), var));
-        // Get the namespaced variables from sub-agent attributes
-        let sub_agent_vars_iter = attributes.sub_agent_variables().into_iter();
-
         // Join all variables together
-        vars_iter
-            .chain(sub_agent_vars_iter)
-            .chain(env_vars)
+        expanded_user_variables
+            .into_iter()
+            .chain(attributes.sub_agent_variables())
+            .chain(environment_variables)
             .chain(self.ac_variables.clone())
             .collect::<HashMap<VariableName, Variable>>()
     }
@@ -144,13 +160,7 @@ pub(crate) mod tests {
 
         let renderer = TemplateRenderer::default();
         let runtime_config = renderer
-            .render(
-                agent_type,
-                values,
-                attributes,
-                HashMap::new(),
-                HashMap::new(),
-            )
+            .render(agent_type, values, attributes, HashMap::new())
             .unwrap();
 
         let mut bin_stack = vec!["/opt/first", "/opt/second"].into_iter();
@@ -181,13 +191,7 @@ pub(crate) mod tests {
         let attributes = testing_agent_attributes(&agent_id);
 
         let renderer = TemplateRenderer::default();
-        let result = renderer.render(
-            agent_type,
-            values,
-            attributes,
-            HashMap::new(),
-            HashMap::new(),
-        );
+        let result = renderer.render(agent_type, values, attributes, HashMap::new());
         assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
             assert_eq!(vars, vec!["config_path".to_string()])
         })
@@ -201,13 +205,7 @@ pub(crate) mod tests {
         let attributes = testing_agent_attributes(&agent_id);
 
         let renderer = TemplateRenderer::default();
-        let result = renderer.render(
-            agent_type,
-            values,
-            attributes,
-            HashMap::new(),
-            HashMap::new(),
-        );
+        let result = renderer.render(agent_type, values, attributes, HashMap::new());
         assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
             assert_eq!(vars, vec!["config_path".to_string()])
         })
@@ -222,13 +220,7 @@ pub(crate) mod tests {
 
         let renderer = TemplateRenderer::default();
         let runtime_config = renderer
-            .render(
-                agent_type,
-                values,
-                attributes,
-                HashMap::new(),
-                HashMap::new(),
-            )
+            .render(agent_type, values, attributes, HashMap::new())
             .unwrap();
 
         let on_host_deployment = runtime_config.deployment.on_host();
@@ -263,13 +255,7 @@ pub(crate) mod tests {
 
         let renderer = TemplateRenderer::default();
         let runtime_config = renderer
-            .render(
-                agent_type,
-                values,
-                attributes,
-                HashMap::new(),
-                HashMap::new(),
-            )
+            .render(agent_type, values, attributes, HashMap::new())
             .unwrap();
 
         let on_host_deployment = runtime_config.deployment.on_host();
@@ -344,13 +330,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 
         let renderer = TemplateRenderer::default();
         let runtime_config = renderer
-            .render(
-                agent_type,
-                values,
-                attributes,
-                HashMap::new(),
-                HashMap::new(),
-            )
+            .render(agent_type, values, attributes, HashMap::new())
             .unwrap();
 
         let k8s = runtime_config.deployment.k8s();
@@ -400,8 +380,7 @@ substituted_2: my-value-2
             serde_saphyr::from_str(expected_spec_yaml).unwrap();
 
         let renderer = TemplateRenderer::default();
-        let runtime_config =
-            renderer.render(agent_type, values, attributes, env_vars, HashMap::new());
+        let runtime_config = renderer.render(agent_type, values, attributes, env_vars);
 
         let k8s = runtime_config.unwrap().deployment.k8s();
         let cr1 = k8s.objects.get("cr1").unwrap();
@@ -454,8 +433,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
             serde_saphyr::from_str(expected_spec_yaml).unwrap();
 
         let renderer = TemplateRenderer::default();
-        let runtime_config =
-            renderer.render(agent_type, values, attributes, HashMap::new(), secrets);
+        let runtime_config = renderer.render(agent_type, values, attributes, secrets);
 
         let k8s = runtime_config.unwrap().deployment.k8s();
         let values = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
@@ -470,13 +448,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
         let attributes = testing_agent_attributes(&agent_id);
 
         let renderer = TemplateRenderer::default();
-        let runtime_config = renderer.render(
-            agent_type,
-            values,
-            attributes,
-            HashMap::new(),
-            HashMap::new(),
-        );
+        let runtime_config = renderer.render(agent_type, values, attributes, HashMap::new());
 
         assert_matches!(
             runtime_config.unwrap_err(),
@@ -523,8 +495,7 @@ deployment:
         )]);
 
         let renderer = TemplateRenderer::default();
-        let runtime_config =
-            renderer.render(agent_type, values, attributes, env_vars, HashMap::new());
+        let runtime_config = renderer.render(agent_type, values, attributes, env_vars);
 
         assert_matches!(
             runtime_config.unwrap_err(),
@@ -563,13 +534,7 @@ deployment:
         let renderer = TemplateRenderer::default()
             .with_agent_control_variables(agent_control_variables.into_iter());
         let runtime_config = renderer
-            .render(
-                agent_type,
-                values,
-                attributes,
-                HashMap::new(),
-                HashMap::new(),
-            )
+            .render(agent_type, values, attributes, HashMap::new())
             .unwrap();
         assert_eq!(
             exec_rendered::Args(vec!("fake_value".to_string())),
@@ -582,6 +547,117 @@ deployment:
                 .args
                 .clone()
         );
+    }
+
+    #[test]
+    fn test_render_env_in_runtime_and_all_secrets_expand_user_values() {
+        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let attributes = testing_agent_attributes(&agent_id);
+
+        let agent_type = AgentType::build_for_testing(
+            r#"
+name: k8s_agent_type
+namespace: newrelic
+version: 0.0.1
+platform: kubernetes
+variables:
+  my_yaml:
+    description: "yaml with double-expanded secrets"
+    type: yaml
+    required: true
+deployment:
+  objects:
+    cr1:
+      apiVersion: group/version
+      kind: ObjectKind
+      metadata:
+        name: test
+        namespace: test-namespace
+      spec:
+        env_direct: ${nr-env:ENV}
+        from_sub_agent: ${nr-sub:agent_id}
+        values: ${nr-var:my_yaml}
+"#,
+        );
+
+        let values = testing_values(
+            r#"
+my_yaml:
+  vault_field: ${nr-vault:V_KEY}
+  kubesec_field: ${nr-kubesec:K_KEY}
+  env_field: ${nr-env:ENV}
+"#,
+        );
+
+        let secrets = HashMap::from([
+            (
+                VariableName::new(Namespace::EnvironmentVariable, "ENV"),
+                Variable::new_final_string_variable("env-value".to_string()),
+            ),
+            (
+                VariableName::new(Namespace::Vault, "V_KEY"),
+                Variable::new_final_string_variable("vault-value".to_string()),
+            ),
+            (
+                VariableName::new(Namespace::K8sSecret, "K_KEY"),
+                Variable::new_final_string_variable("kubesec-value".to_string()),
+            ),
+        ]);
+
+        let expected_spec_yaml = r#"
+env_direct: env-value
+from_sub_agent: some-agent-id
+values:
+  vault_field: vault-value
+  kubesec_field: kubesec-value
+  env_field: env-value
+"#;
+        let expected_spec: serde_json::Value = serde_saphyr::from_str(expected_spec_yaml).unwrap();
+
+        let renderer = TemplateRenderer::default();
+        let rendered = renderer
+            .render(agent_type, values, attributes, secrets)
+            .unwrap();
+        let k8s = rendered.deployment.k8s();
+        let spec = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
+        assert_eq!(&expected_spec, spec);
+    }
+
+    #[test]
+    fn test_render_fails_when_non_env_secret_referenced_in_runtime() {
+        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let attributes = testing_agent_attributes(&agent_id);
+
+        let agent_type = AgentType::build_for_testing(
+            r#"
+name: k8s_agent_type
+namespace: newrelic
+version: 0.0.1
+platform: kubernetes
+variables: {}
+deployment:
+  objects:
+    cr1:
+      apiVersion: group/version
+      kind: ObjectKind
+      metadata:
+        name: test
+        namespace: test-namespace
+      spec:
+        vault: ${nr-vault:V_KEY}
+"#,
+        );
+
+        let secrets = HashMap::from([(
+            VariableName::new(Namespace::Vault, "V_KEY"),
+            Variable::new_final_string_variable("vault-value".to_string()),
+        )]);
+
+        let renderer = TemplateRenderer::default();
+        let err = renderer
+            .render(agent_type, YAMLConfig::default(), attributes, secrets)
+            .unwrap_err();
+        assert_matches!(err, AgentTypeError::MissingTemplateKey(_));
     }
 
     // Agent Type and Values definitions
