@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use crate::agent_control::config::OpAMPClientConfig;
 use crate::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
 use crate::opamp::auth::config::ProviderConfig;
-use crate::secret_retriever::OpampSecretRetriever;
+use crate::opamp::secret_retriever::OpampSecretRetriever;
 use crate::secrets_provider::SecretsProvider;
 
 /// Helper struct to determine the path and retrieve the secret using the File provider.
@@ -69,7 +69,7 @@ where
 mod tests {
     use super::*;
     use crate::opamp::auth::config::{AuthConfig, LocalConfig};
-    use crate::secret_retriever::test_mocks::MockSecretsProvider;
+    use crate::opamp::secret_retriever::test_mocks::MockSecretsProvider;
     use mockall::predicate::*;
     use std::path::PathBuf;
 

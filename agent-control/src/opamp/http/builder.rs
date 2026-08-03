@@ -10,7 +10,7 @@ use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::http::client::HttpOpAMPClient;
-use crate::secret_retriever::OpampSecretRetriever;
+use crate::opamp::secret_retriever::OpampSecretRetriever;
 use opamp_client::http::http_client::HttpClient as OpampHttpClient;
 
 /// Default client timeout is 30 seconds

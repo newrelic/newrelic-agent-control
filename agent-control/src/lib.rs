@@ -19,7 +19,6 @@ pub mod on_host;
 pub mod opamp;
 pub mod package;
 pub mod resource_ownership;
-pub mod secret_retriever;
 pub mod secrets_provider;
 pub mod signature;
 pub mod sub_agent;

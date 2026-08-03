@@ -40,7 +40,7 @@ use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::agent_description;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
-use crate::secret_retriever::k8s::retrieve::K8sSecretRetriever;
+use crate::opamp::secret_retriever::k8s::retrieve::K8sSecretRetriever;
 use crate::secrets_provider::SecretsProviders;
 use crate::secrets_provider::k8s_secret::K8sSecretProvider;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
