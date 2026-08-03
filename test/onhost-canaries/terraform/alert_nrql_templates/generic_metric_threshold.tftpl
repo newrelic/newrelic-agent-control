@@ -1,5 +1,5 @@
 SELECT max(${metric}) OR 0
-FROM ${sample}
+FROM ProcessSample
 WHERE (
   hostname = '${instance_id}'
   AND processDisplayName LIKE 'newrelic-agent-control%'

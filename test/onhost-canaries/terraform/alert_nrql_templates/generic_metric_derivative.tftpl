@@ -1,5 +1,5 @@
 SELECT ${metric}
-FROM ${sample}
+FROM ProcessSample
 WHERE (
   hostname = '${instance_id}'
   AND processDisplayName LIKE 'newrelic-agent-control%'

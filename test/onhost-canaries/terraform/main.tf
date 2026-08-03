@@ -87,7 +87,6 @@ locals {
     {
       name          = "CPU usage (percentage)"
       metric        = "cpuPercent"
-      sample        = "ProcessSample"
       threshold     = 0.06
       duration      = 3600
       operator      = "above"
@@ -96,7 +95,6 @@ locals {
     {
       name          = "Read bytes rate"
       metric        = "ioReadBytesPerSecond"
-      sample        = "ProcessSample"
       threshold     = 500000
       duration      = 300
       operator      = "above"
@@ -105,7 +103,6 @@ locals {
     {
       name          = "Written bytes rate"
       metric        = "ioWriteBytesPerSecond"
-      sample        = "ProcessSample"
       threshold     = 20000
       duration      = 300
       operator      = "above"
@@ -114,7 +111,6 @@ locals {
     {
       name          = "Agent Control metrics presence"
       metric        = "*"
-      sample        = "ProcessSample"
       threshold     = 0
       duration      = 3600
       operator      = "below_or_equals"
@@ -149,7 +145,6 @@ locals {
       {
         name          = "Memory usage (bytes)"
         metric        = "memoryResidentSizeBytes"
-        sample        = "ProcessSample"
         threshold     = 42000000
         duration      = 600
         operator      = "above"
@@ -170,7 +165,6 @@ locals {
         # In our case, we want 2 data points to be above the threshold, so the duration is 3 hours * 2 = 6 hours.
         name               = "Memory growth (bytes/hour)"
         metric             = "derivative(memoryResidentSizeBytes, 1 hour)"
-        sample             = "ProcessSample"
         aggregation_window = 10800
         slide_by           = 3600
         threshold          = 210000
@@ -185,7 +179,6 @@ locals {
         # For the purpose of leak detection using memoryVirtualSizeBytes reflects better the AC memory intent of usage,
         # as memoryResidentSizeBytes gets heavily affected by the way windows manages memory.
         metric        = "memoryVirtualSizeBytes"
-        sample        = "ProcessSample"
         threshold     = 35000000
         duration      = 600
         operator      = "above"
@@ -208,7 +201,6 @@ locals {
         # For the purpose of leak detection using memoryVirtualSizeBytes reflects better the AC memory intent of usage,
         # as memoryResidentSizeBytes gets heavily affected by the way windows manages memory.
         metric             = "derivative(memoryVirtualSizeBytes, 1 hour)"
-        sample             = "ProcessSample"
         aggregation_window = 10800
         slide_by           = 3600
         threshold          = 210000
@@ -372,64 +364,6 @@ module "alerts" {
 
   region      = var.nr_region
   instance_id = each.key
-  property {
-    key   = "payload"
-    value = templatefile("${path.module}/../../terraform/modules/nr_alerts/alert_slack_payload.tftpl", {
-      instance_id    = each.key
-      environment    = var.nr_region
-      alert_subtitle = "Agent Control — On-host canary"
-    })
-  }
-}
-
-resource "newrelic_notification_channel" "email_channel" {
-  for_each = local.instance_alerts
-
-  name           = "${each.key}-email"
-  type           = "EMAIL"
-  destination_id = newrelic_notification_destination.email.id
-  product        = "IINT"
-
-  property {
-    key   = "subject"
-    value = "Alert: ${each.key}"
-  }
-}
-
-# Create workflow for each instance
-resource "newrelic_workflow" "workflow" {
-  for_each = local.instance_alerts
-
-  name                  = each.key
-  muting_rules_handling = "NOTIFY_ALL_ISSUES"
-
-  issues_filter {
-    name = "Issue Filter"
-    type = "FILTER"
-    predicate {
-      attribute = "labels.policyIds"
-      operator  = "EXACTLY_MATCHES"
-      values    = [newrelic_alert_policy.alert_policy[each.key].id]
-    }
-  }
-
-  destination {
-    channel_id = newrelic_notification_channel.slack_channel[each.key].id
-  }
-
-  destination {
-    channel_id = newrelic_notification_channel.email_channel[each.key].id
-  }
-}
-
-# Create NRQL alert conditions
-resource "newrelic_nrql_alert_condition" "condition" {
-  for_each = { for item in local.alert_conditions_flat : item.unique_key => item }
-
-  account_id                   = var.account_id
-  policy_id                    = each.value.policy_id
-  name                         = each.value.condition.name
-  violation_time_limit_seconds = 3600
 
   conditions = each.value.conditions
 }
