@@ -93,9 +93,7 @@ impl Client {
                     .client
                     .fetch_manifest_digest(reference, auth)
                     .await
-                    .map_err(|err| {
-                        OciClientError::Verify(format!("could not fetch manifest: {err}"))
-                    })?;
+                    .map_err(|err| OciClientError::PullArtifactManifest(err.into()))?;
                 debug!(%digest, "Manifest digest resolved");
                 digest
             }
@@ -110,9 +108,7 @@ impl Client {
             .client
             .pull_image_manifest(&signature_ref, auth)
             .await
-            .map_err(|err| {
-                OciClientError::Verify(format!("could not fetch signature manifest: {err}"))
-            })?;
+            .map_err(|err| OciClientError::PullSignatureManifest(err.into()))?;
 
         // Try to validate signature for each valid signature in the manifest's layers
         for layer in signature_manifest.layers {
@@ -481,7 +477,7 @@ mod tests {
                 &RegistryAuth::Anonymous,
             ));
 
-        assert_matches!(result, Err(OciClientError::Verify(_)));
+        assert_matches!(result, Err(OciClientError::PullSignatureManifest(_)));
     }
 
     #[test]

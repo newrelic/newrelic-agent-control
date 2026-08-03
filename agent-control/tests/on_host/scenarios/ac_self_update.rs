@@ -237,7 +237,7 @@ agents: {{}}
             if status.status != RemoteConfigStatuses::Failed as i32 {
                 return Err(format!("expected Failed status, got: {}", status.status).into());
             }
-            if !status.error_message.contains("signature verification") {
+            if !status.error_message.contains("failure pulling signature") {
                 return Err(format!(
                     "expected error message to contain 'signature verification', got: {}",
                     status.error_message

@@ -70,7 +70,7 @@ impl Client {
     ) -> Result<(OciImageManifest, String), OciClientError> {
         self.runtime
             .block_on(self.client.pull_image_manifest(reference, auth))
-            .map_err(|err| OciClientError::PullManifest(err.into()))
+            .map_err(|err| OciClientError::PullArtifactManifest(err.into()))
     }
 
     /// Pulls  the specified blob through [oci_client::Client::pull_blob] and stores it in the specified file path.
@@ -88,7 +88,7 @@ impl Client {
             self.client
                 .pull_blob(reference, layer, &mut file)
                 .await
-                .map_err(|err| OciClientError::PullBlob(err.to_string().into()))?;
+                .map_err(|err| OciClientError::PullBlob(err.into()))?;
 
             // Ensure all data is flushed to disk before returning
             file.sync_data().await.map_err(|err| {
@@ -116,7 +116,7 @@ impl Client {
                 .client
                 .pull_blob_stream(reference, layer)
                 .await
-                .map_err(|err| OciClientError::PullBlob(err.to_string().into()))?;
+                .map_err(|err| OciClientError::PullBlob(err.into()))?;
 
             // Cheap up-front rejection based on the advertised content length. This is
             // attacker-controlled (it may understate the size or be absent), so it is only an
@@ -347,7 +347,7 @@ pub mod tests {
         let result =
             client.verify_signature(&image_ref, &jwks_server.url, &RegistryAuth::Anonymous);
 
-        assert_matches!(result, Err(OciClientError::Verify(_)));
+        assert_matches!(result, Err(OciClientError::PullSignatureManifest(_)));
     }
 
     #[test]
@@ -483,7 +483,8 @@ pub mod tests {
             )
             .unwrap_err();
         assert!(
-            err.to_string().contains("signature verification failed"),
+            err.to_string()
+                .contains("failure pulling signature manifest"),
             "{err}"
         );
     }
@@ -506,7 +507,7 @@ pub mod tests {
         let fetcher = create_fetcher();
         let result = fetcher.fetch(&reference, None, pull_first_layer);
         assert_matches!(result, Err(OciClientError::AttemptsExceeded(msg)) => {
-            assert!(msg.contains("pulling image manifest"), "{msg}");
+            assert!(msg.contains("the requested version does not exist in the registry"), "{msg}");
         });
     }
 
