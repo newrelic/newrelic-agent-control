@@ -93,6 +93,12 @@ impl AgentControlRunner {
     pub fn run_onhost(self) -> Result<GracefulShutdownReason, RunError> {
         let local_dir = self.base_paths.local_dir;
         let remote_dir = self.base_paths.remote_dir;
+
+        // Windows-only: repair the managed data tree before anything reads/writes/deletes it (see
+        // `repair_managed_permissions` and NR-601065). Not applicable on other platforms.
+        #[cfg(target_family = "windows")]
+        repair_managed_permissions([remote_dir.as_path(), local_dir.as_path()]);
+
         let file_store = Arc::new(FileStore::new_local_fs(
             local_dir.clone(),
             remote_dir.clone(),
@@ -291,6 +297,35 @@ impl AgentControlRunner {
 }
 
 /// Resolves the on-host instance [`Identifiers`] (host id, hostname, fleet id) from the config.
+/// Repairs Administrators-only permissions across Agent Control's managed data `roots` at startup.
+///
+/// An older agent-control hardened its managed directories with a NON-inheritable ACE. On upgrade
+/// that wiped pre-existing runtime-created files across the data tree — sub-agent logs under
+/// `filesystem/`, stored remote configs under `fleet-data/`, local data — leaving them with an
+/// *empty* DACL that denies everyone, including the LocalSystem process itself. Symptoms ranged from
+/// a sub-agent unable to open its log to "Access is denied" deleting a stored remote config during
+/// decommission (NR-601065).
+///
+/// Re-stamps the Administrators-only permissions recursively over each root, repairing only entries
+/// whose DACL is actually broken. Agent Control owns these files, so the rewrite succeeds even on an
+/// empty DACL, and it restores read/write/delete. Best-effort: a repair failure is logged, not
+/// fatal, so it never blocks startup.
+///
+/// Windows-only: on other platforms directory permissions are applied at creation time and there is
+/// no empty-DACL failure mode, so there is nothing to repair.
+#[cfg(target_family = "windows")]
+fn repair_managed_permissions<'a>(roots: impl IntoIterator<Item = &'a std::path::Path>) {
+    for root in roots {
+        debug!("repairing managed permissions under {}", root.display());
+        if let Err(err) = fs::directory_manager::ensure_permissions_recursive(root) {
+            tracing::warn!(
+                "repairing managed permissions under {}: {err}",
+                root.display()
+            );
+        }
+    }
+}
+
 pub fn ac_identifiers(config: &AgentControlConfig) -> Result<Identifiers, RunError> {
     let fleet_id = config
         .fleet_control

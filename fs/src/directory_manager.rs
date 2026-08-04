@@ -83,6 +83,49 @@ impl DirectoryManagerFs {
     }
 }
 
+/// Repairs the managed Administrators-only permissions across `path` and everything beneath it,
+/// re-stamping only the entries that are actually broken.
+///
+/// On Windows, for each entry it checks (via [`crate::win_permissions::permissions_need_repair`])
+/// whether the DACL already grants the managed Administrators access. It re-stamps only entries that
+/// do not — empty (denies everyone incl. SYSTEM), NULL, unreadable, or populated-but-insufficient
+/// (e.g. the old `Administrators:(R,W)` with no DELETE that blocks decommission, or a non-inheritable
+/// directory ACE) — the states an older agent-control left behind on upgrade (NR-601065). A
+/// conforming entry is left untouched, so a healthy tree is not rewritten on every startup. It always
+/// recurses into directories to find broken children, and a broken directory is stamped *before* its
+/// contents are listed so it becomes listable first. Agent Control owns these files, so the rewrite
+/// succeeds even on an empty DACL.
+///
+/// On non-Windows platforms permissions are applied at creation time, so this is a no-op. A missing
+/// path is not an error.
+pub fn ensure_permissions_recursive(path: &Path) -> io::Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+    #[cfg(target_family = "windows")]
+    {
+        if crate::win_permissions::permissions_need_repair(path) {
+            tracing::debug!(path = %path.display(), "repairing broken managed permissions");
+            crate::win_permissions::set_file_permissions_for_administrator(path).map_err(
+                |err| {
+                    io::Error::other(format!(
+                        "setting windows permissions for {}: {err}",
+                        path.display()
+                    ))
+                },
+            )?;
+        } else {
+            tracing::trace!(path = %path.display(), "managed permissions intact, skipping");
+        }
+        if path.is_dir() {
+            for entry in std::fs::read_dir(path)? {
+                ensure_permissions_recursive(&entry?.path())?;
+            }
+        }
+    }
+    Ok(())
+}
+
 ////////////////////////////////////////////////////////////////////////////////////
 // Mock
 ////////////////////////////////////////////////////////////////////////////////////
