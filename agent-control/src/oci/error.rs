@@ -24,6 +24,8 @@ pub enum OciClientError {
     FetchArtifact(String),
     #[error("download attempts exceeded, last error: {0}")]
     AttemptsExceeded(String),
+    #[error("failure listing repository tags: {0}")]
+    ListTags(OciErrorMessage),
 }
 
 /// Simple string wrapper to represent curated messages coming from [oci_client].
