@@ -19,6 +19,9 @@ Remember that the keywords that you can use are the following:
 - Removed the unused `fs::utils::FsError` type; `validate_path` already returns `io::Error` and had no callers relying on the dead enum.
 - Reports the `com.newrelic.remoteAgentTypeRepoReachable` OpAMP custom capability when the configured Agent Type OCI repository is reachable at startup.
 
+### bugfix
+- Windows: fixed files under Agent Control's managed directories being left with permissions it could not use — an empty DACL that denied access to everyone (including the LocalSystem account Agent Control and its sub-agents run as), or an older ACE that omitted the delete right — typically surfacing after an upgrade. This blocked a range of operations: a sub-agent could not open its own log (crash loop), and Agent Control could not delete a sub-agent's stored remote config or data when decommissioning it ("Access is denied"). Managed directories now use an inheritable Administrators ACE so runtime-created files inherit access, and Agent Control repairs already-affected installs on startup by re-stamping any managed entry that does not already grant the required access (read/write/execute/delete) across its data tree.
+
 ## v1.20.0 - 2026-07-29
 
 ### 🚀 Enhancements
