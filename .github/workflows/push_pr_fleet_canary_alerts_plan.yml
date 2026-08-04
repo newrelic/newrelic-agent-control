@@ -1,14 +1,14 @@
-name: 🐤 Plan k8s canaries infrastructure changes
+name: 🐤 Plan fleet canary alerts infrastructure changes
 
 on:
   push:
     paths:
-      - test/k8s-canaries/terraform/**
-      - test/k8s-canaries/Makefile
+      - test/fleet-canary-alerts/terraform/**
+      - test/fleet-canary-alerts/Makefile
       - test/terraform/modules/nr_alerts/**
       - Makefile
-      - .github/workflows/component_k8s_canaries_infra.yml
-      - .github/workflows/push_pr_k8s_canaries_plan.yml
+      - .github/workflows/component_fleet_canary_alerts_infra.yml
+      - .github/workflows/push_pr_fleet_canary_alerts_plan.yml
 
 permissions:
   contents: read
@@ -18,9 +18,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  plan_k8s_canaries:
+  plan_fleet_canary_alerts:
     name: infra changes ${{ matrix.canary_dir }}
-    uses: ./.github/workflows/component_k8s_canaries_infra.yml
+    uses: ./.github/workflows/component_fleet_canary_alerts_infra.yml
     permissions:
       # required to oidc AWS
       id-token: write
@@ -33,7 +33,7 @@ jobs:
           - canary_dir: production
     with:
       canary_dir: ${{ matrix.canary_dir }}
-      apply: false
+      operation: plan
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}

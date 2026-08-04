@@ -24,10 +24,11 @@ permissions:
   contents: read
 
 env:
-  # AC Staging Account `k8s-canaries-staging-1` fleet
-  FLEET_ID_STAGING: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk1ZDE1NC1iNTI0LTdhMTYtYWExYS0wYzQ2Y2VhOGFiMzg"
+  # AC Staging Account `k8s-canaries-staging-1` fleet. Single source of truth for these GUIDs: the
+  # K8S_FLEET_ID_* repo variables, also consumed by the fleet-canary-alerts terraform plan/apply.
+  FLEET_ID_STAGING: "${{ vars.K8S_FLEET_ID_STAGING }}"
   # AC US Production Account `k8s-canaries-production` fleet
-  FLEET_ID_PRODUCTION: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVlYzZhLTYwNjItNzZiZS1iOWE0LTA4MzZlZmE2MGY4YQ"
+  FLEET_ID_PRODUCTION: "${{ vars.K8S_FLEET_ID_PRODUCTION }}"
 
 jobs:
   helm_upgrade:

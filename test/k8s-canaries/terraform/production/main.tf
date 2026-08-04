@@ -111,5 +111,15 @@ module "alerts" {
       operator           = "below_or_equals"
       template_name      = "./alert_nrql_templates/log_presence.tftpl"
     },
+    {
+      # Distinct tripwire for AC-internal hard errors (panics, config/OpAMP failures) that surface as
+      # ERROR-level self-instrumentation logs but do not necessarily flip a sub-agent to unhealthy.
+      name               = "Agent Control error logs"
+      threshold          = 0
+      duration           = 1800
+      aggregation_window = 600
+      operator           = "above"
+      template_name      = "./alert_nrql_templates/log_error_presence.tftpl"
+    },
   ]
 }

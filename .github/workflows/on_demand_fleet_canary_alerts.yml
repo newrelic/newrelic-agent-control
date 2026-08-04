@@ -1,0 +1,43 @@
+name: 🐤 On-Demand fleet canary alerts
+
+on:
+  workflow_dispatch:
+    inputs:
+      canary_dir:
+        description: "Canary directory (staging/production)"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      operation:
+        description: "Terraform operation to run"
+        required: true
+        type: choice
+        default: apply
+        options:
+          - apply
+          - destroy
+          - plan
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "on-demand-fleet-canary-alerts-${{ inputs.canary_dir }}"
+  cancel-in-progress: false
+
+jobs:
+  fleet_canary_alerts_infra:
+    name: Fleet canary alerts infrastructure ${{ inputs.operation }}
+    uses: ./.github/workflows/component_fleet_canary_alerts_infra.yml
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      canary_dir: ${{ inputs.canary_dir }}
+      operation: ${{ inputs.operation }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+      SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}

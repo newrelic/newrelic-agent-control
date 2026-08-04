@@ -130,6 +130,16 @@ locals {
       operator           = "below_or_equals"
       template_name      = "./alert_nrql_templates/log_presence.tftpl"
     },
+    {
+      # Distinct tripwire for AC-internal hard errors (panics, config/OpAMP failures) that surface as
+      # ERROR-level self-instrumentation logs but do not necessarily flip a sub-agent to unhealthy.
+      name               = "Agent Control error logs"
+      threshold          = 0
+      duration           = 1800
+      aggregation_window = 600
+      operator           = "above"
+      template_name      = "./alert_nrql_templates/log_error_presence.tftpl"
+    },
   ]
 
   // Platform-specific memory conditions.
@@ -402,7 +412,9 @@ resource "newrelic_notification_channel" "slack_channel" {
   property {
     key   = "payload"
     value = templatefile("${path.module}/../../terraform/modules/nr_alerts/alert_slack_payload.tftpl", {
-      instance_id = each.key
+      instance_id    = each.key
+      environment    = var.nr_region
+      alert_subtitle = "Agent Control — On-host canary"
     })
   }
 }

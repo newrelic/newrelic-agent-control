@@ -1,0 +1,4 @@
+SELECT filter(count(*), WHERE agentHealthStatus IS FALSE)
+FROM AgentHeartbeat
+WHERE fleetGuid IN (${join(", ", formatlist("'%s'", fleet_guids))})
+FACET agentType, fleetGuid

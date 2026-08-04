@@ -1,0 +1,72 @@
+name: 📞 fleet canary alerts infra operation
+
+on:
+  workflow_call:
+    inputs:
+      canary_dir:
+        description: "Name of the tf directory to run the canary in. Valid values are `production` and `staging`."
+        required: true
+        type: string
+      operation:
+        description: "Terraform operation to run: plan, apply, or destroy."
+        required: true
+        type: string
+    secrets:
+      AWS_ROLE_ARN:
+        required: true
+      AWS_VPC_SUBNET:
+        required: true
+      SLACK_WEBHOOK_URL:
+        required: true
+
+permissions:
+  # required to oidc AWS
+  id-token: write
+  contents: read
+
+jobs:
+  infra_tf:
+    name: Prepare fleet infra
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-2
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set branch name
+        run: |
+          # Short name for current branch. For PRs, use target branch (base ref)
+          GIT_BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          # Is the ref a tag? If so, remove refs/tags/ prefix
+          GIT_BRANCH="${GIT_BRANCH#refs/tags/}"
+          echo "GIT_BRANCH=$GIT_BRANCH" >> "$GITHUB_ENV"
+
+      - name: Resolve fleet vars for canary_dir
+        run: |
+          # Single source of truth for these repo variables: the ONHOST_*/K8S_*/FLEET_DATA_ACCOUNT_ID_*
+          # vars, also consumed by component_onhost_canaries.yml and component_k8s_canaries.yml.
+          if [ "${{ inputs.canary_dir }}" = "production" ]; then
+            echo "DATA_ACCOUNT_ID=${{ vars.FLEET_DATA_ACCOUNT_ID_PRODUCTION }}" >> "$GITHUB_ENV"
+            echo "FLEET_GUIDS=${{ vars.ONHOST_FLEET_ID_PRODUCTION }},${{ vars.ONHOST_WINDOWS_FLEET_ID_PRODUCTION }},${{ vars.K8S_FLEET_ID_PRODUCTION }}" >> "$GITHUB_ENV"
+          else
+            echo "DATA_ACCOUNT_ID=${{ vars.FLEET_DATA_ACCOUNT_ID_STAGING }}" >> "$GITHUB_ENV"
+            echo "FLEET_GUIDS=${{ vars.ONHOST_FLEET_ID_STAGING }},${{ vars.ONHOST_WINDOWS_FLEET_ID_STAGING }},${{ vars.K8S_FLEET_ID_STAGING }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Execute operation
+        uses: newrelic/fargate-runner-action@121b96de1a4d7135204fd8a510927b0463df1b6b # main
+        with:
+          aws_region: us-east-2
+          container_make_target: "SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }} EMAILS=${{ vars.EMAILS }} DATA_ACCOUNT_ID=${{ env.DATA_ACCOUNT_ID }} FLEET_GUIDS=${{ env.FLEET_GUIDS }} CANARY_DIR=${{ inputs.canary_dir }} test/fleet-canary-alerts/terraform-${{ inputs.operation }}"
+          ecs_cluster_name: agent_control
+          task_definition_name: agent_control
+          cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
+          cloud_watch_logs_stream_name: ecs/test-agent_control
+          aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
+          repo_name: ${{ github.repository }}
+          git_clone_url: "ssh://git@github.com/${{ github.repository }}.git"
+          ref: "${{ env.GIT_BRANCH }}"

@@ -159,6 +159,19 @@ jobs:
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
       SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
 
+  fleet_canary_alerts_infra:
+    uses: ./.github/workflows/component_fleet_canary_alerts_infra.yml
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      canary_dir: staging
+      operation: apply
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+      SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
+
   k8s_canaries:
     uses: ./.github/workflows/component_k8s_canaries.yml
     needs: [ k8s_canaries_infra ]

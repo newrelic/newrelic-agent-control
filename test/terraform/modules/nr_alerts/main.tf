@@ -1,8 +1,12 @@
 resource "newrelic_alert_policy" "alert_policy_config" {
-  name = format("%s: %s", var.region, var.instance_id)
+  name                = format("%s: %s", var.region, var.instance_id)
+  incident_preference = var.incident_preference
 }
 
 locals {
+  # Environment label for notifications; falls back to `region` when not explicitly set.
+  environment = var.environment != "" ? var.environment : var.region
+
   policies_with_instance_id = [
     for cond in var.conditions : {
       policy_id   = newrelic_alert_policy.alert_policy_config.id
@@ -30,8 +34,17 @@ resource "newrelic_workflow" "workflow" {
     channel_id = newrelic_notification_channel.slack_channel.id
   }
 
-  destination {
-    channel_id = newrelic_notification_channel.email_channel.id
+  # Email is opt-out: attached by default (k8s/onhost canary alerts), skipped for the fleet alert
+  # (Slack only). The email_channel/email resources themselves are still created unconditionally
+  # below — gating them behind `count` would require moving pre-existing state to an indexed
+  # address, which Terraform/OpenTofu rejects when the target count is 0 (as it is here). Leaving
+  # them unconditional costs one unused notification channel per opted-out alert but keeps the
+  # address stable for every existing state.
+  dynamic "destination" {
+    for_each = var.enable_email ? [1] : []
+    content {
+      channel_id = newrelic_notification_channel.email_channel.id
+    }
   }
 }
 
@@ -45,7 +58,9 @@ resource "newrelic_notification_channel" "slack_channel" {
   property {
     key   = "payload"
     value = templatefile("${path.module}/alert_slack_payload.tftpl", {
-      instance_id = var.instance_id
+      instance_id    = var.instance_id
+      environment    = local.environment
+      alert_subtitle = var.alert_subtitle
     })
   }
 }
@@ -93,7 +108,7 @@ resource "newrelic_nrql_alert_condition" "condition_nrql_canary" {
   account_id                   = var.account_id
   policy_id                    = local.policies_with_instance_id[count.index].policy_id
   name                         = local.policies_with_instance_id[count.index].condition.name
-  violation_time_limit_seconds = 3600
+  violation_time_limit_seconds = try(local.policies_with_instance_id[count.index].condition.violation_time_limit_seconds, var.violation_time_limit_seconds)
 
   # Defaults values from https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/nrql_alert_condition#example-usage
   aggregation_window = try(local.policies_with_instance_id[count.index].condition.aggregation_window, 60)
@@ -112,6 +127,11 @@ resource "newrelic_nrql_alert_condition" "condition_nrql_canary" {
         local.policies_with_instance_id[count.index].condition
       )
     )
+    # Optional cross-account query: evaluate the NRQL against a different account than the one the
+    # condition lives in. Used by the fleet alerts, whose AgentHeartbeat data lives in the fleet
+    # account while the condition is created in the (writable) canary telemetry account. Defaults to
+    # the condition's own account when unset.
+    data_account_id = try(local.policies_with_instance_id[count.index].condition.data_account_id, null)
   }
 
   critical {
