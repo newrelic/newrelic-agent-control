@@ -1,4 +1,4 @@
-SELECT max(${metric}) OR 0
+SELECT count(${metric})
 FROM ProcessSample
 WHERE (
   hostname = '${instance_id}'

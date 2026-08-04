@@ -86,8 +86,7 @@ locals {
   common_alert_conditions = [
     {
       name          = "CPU usage (percentage)"
-      metric        = "max(cpuPercent) OR 0"
-      sample        = "ProcessSample"
+      metric        = "cpuPercent"
       threshold     = 0.06
       duration      = 3600
       operator      = "above"
@@ -95,8 +94,7 @@ locals {
     },
     {
       name          = "Read bytes rate"
-      metric        = "max(ioReadBytesPerSecond) OR 0"
-      sample        = "ProcessSample"
+      metric        = "ioReadBytesPerSecond"
       threshold     = 500000
       duration      = 300
       operator      = "above"
@@ -104,8 +102,7 @@ locals {
     },
     {
       name          = "Written bytes rate"
-      metric        = "max(ioWriteBytesPerSecond) OR 0"
-      sample        = "ProcessSample"
+      metric        = "ioWriteBytesPerSecond"
       threshold     = 20000
       duration      = 300
       operator      = "above"
@@ -113,12 +110,11 @@ locals {
     },
     {
       name          = "Agent Control metrics presence"
-      metric        = "count(*)"
-      sample        = "ProcessSample"
+      metric        = "*"
       threshold     = 0
       duration      = 3600
       operator      = "below_or_equals"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+      template_name = "./alert_nrql_templates/generic_metric_count.tftpl"
     },
     {
       # Fires if no self-instrumentation logs are received in a 10-minute window,
@@ -148,8 +144,7 @@ locals {
     linux = [
       {
         name          = "Memory usage (bytes)"
-        metric        = "max(memoryResidentSizeBytes) OR 0"
-        sample        = "ProcessSample"
+        metric        = "memoryResidentSizeBytes"
         threshold     = 42000000
         duration      = 600
         operator      = "above"
@@ -170,13 +165,12 @@ locals {
         # In our case, we want 2 data points to be above the threshold, so the duration is 3 hours * 2 = 6 hours.
         name               = "Memory growth (bytes/hour)"
         metric             = "derivative(memoryResidentSizeBytes, 1 hour)"
-        sample             = "ProcessSample"
         aggregation_window = 10800
         slide_by           = 3600
         threshold          = 210000
         duration           = 21600
         operator           = "above"
-        template_name      = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+        template_name      = "./alert_nrql_templates/generic_metric_derivative.tftpl"
       }
     ],
     windows = [
@@ -184,8 +178,7 @@ locals {
         name = "Memory usage (bytes)"
         # For the purpose of leak detection using memoryVirtualSizeBytes reflects better the AC memory intent of usage,
         # as memoryResidentSizeBytes gets heavily affected by the way windows manages memory.
-        metric        = "max(memoryVirtualSizeBytes) OR 0"
-        sample        = "ProcessSample"
+        metric        = "memoryVirtualSizeBytes"
         threshold     = 35000000
         duration      = 600
         operator      = "above"
@@ -208,13 +201,12 @@ locals {
         # For the purpose of leak detection using memoryVirtualSizeBytes reflects better the AC memory intent of usage,
         # as memoryResidentSizeBytes gets heavily affected by the way windows manages memory.
         metric             = "derivative(memoryVirtualSizeBytes, 1 hour)"
-        sample             = "ProcessSample"
         aggregation_window = 10800
         slide_by           = 3600
         threshold          = 210000
         duration           = 21600
         operator           = "above"
-        template_name      = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+        template_name      = "./alert_nrql_templates/generic_metric_derivative.tftpl"
       }
     ]
   }
@@ -237,18 +229,6 @@ locals {
       )
     }
   }
-
-  // Flatten the structure for creating individual alert conditions
-  alert_conditions_flat = flatten([
-    for instance_id, instance_data in local.instance_alerts : [
-      for idx, condition in instance_data.conditions : {
-        instance_id = instance_id
-        condition   = condition
-        policy_id   = newrelic_alert_policy.alert_policy[instance_id].id
-        unique_key  = "${instance_id}-${idx}"
-      }
-    ]
-  ])
 }
 
 # Create EC2 instances
@@ -371,145 +351,19 @@ output "ansible_inventory_content" {
   sensitive   = true
 }
 
+# Create alert policy, workflow, notification channels and NRQL conditions for each instance via the shared module
+module "alerts" {
+  source = "../../terraform/modules/nr_alerts"
 
-# Create alert policy for each instance
-resource "newrelic_alert_policy" "alert_policy" {
   for_each = local.instance_alerts
 
-  name = format("%s: %s", var.nr_region, each.key)
-}
+  api_key           = var.api_key
+  account_id        = var.account_id
+  slack_webhook_url = var.slack_webhook_url
+  emails            = var.emails
 
-# Create a single notification destination for all instances
-resource "newrelic_notification_destination" "slack_webhook" {
-  name = "SlackWebhook"
-  type = "WEBHOOK"
+  region      = var.nr_region
+  instance_id = each.key
 
-  property {
-    key   = "url"
-    value = var.slack_webhook_url
-  }
-}
-
-resource "newrelic_notification_destination" "email" {
-  name = "Email"
-  type = "EMAIL"
-
-  property {
-    key   = "email"
-    value = var.emails
-  }
-}
-
-# Create notification channel for each instance
-resource "newrelic_notification_channel" "slack_channel" {
-  for_each = local.instance_alerts
-
-  name           = "${each.key}-slack"
-  type           = "WEBHOOK"
-  destination_id = newrelic_notification_destination.slack_webhook.id
-  product        = "IINT"
-
-  property {
-    key   = "payload"
-    value = templatefile("${path.module}/../../terraform/modules/nr_alerts/alert_slack_payload.tftpl", {
-      instance_id    = each.key
-      environment    = var.nr_region
-      alert_subtitle = "Agent Control — On-host canary"
-    })
-  }
-}
-
-resource "newrelic_notification_channel" "email_channel" {
-  for_each = local.instance_alerts
-
-  name           = "${each.key}-email"
-  type           = "EMAIL"
-  destination_id = newrelic_notification_destination.email.id
-  product        = "IINT"
-
-  property {
-    key   = "subject"
-    value = "Alert: ${each.key}"
-  }
-}
-
-# Create workflow for each instance
-resource "newrelic_workflow" "workflow" {
-  for_each = local.instance_alerts
-
-  name                  = each.key
-  muting_rules_handling = "NOTIFY_ALL_ISSUES"
-
-  issues_filter {
-    name = "Issue Filter"
-    type = "FILTER"
-    predicate {
-      attribute = "labels.policyIds"
-      operator  = "EXACTLY_MATCHES"
-      values    = [newrelic_alert_policy.alert_policy[each.key].id]
-    }
-  }
-
-  destination {
-    channel_id = newrelic_notification_channel.slack_channel[each.key].id
-  }
-
-  destination {
-    channel_id = newrelic_notification_channel.email_channel[each.key].id
-  }
-}
-
-# Create NRQL alert conditions
-resource "newrelic_nrql_alert_condition" "condition" {
-  for_each = { for item in local.alert_conditions_flat : item.unique_key => item }
-
-  account_id                   = var.account_id
-  policy_id                    = each.value.policy_id
-  name                         = each.value.condition.name
-  violation_time_limit_seconds = 3600
-
-  # Defaults values from https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/nrql_alert_condition#example-usage
-  aggregation_window = try(each.value.condition.aggregation_window, 60)
-  slide_by           = try(each.value.condition.slide_by, 30)
-
-  nrql {
-    query = templatefile(
-      each.value.condition.template_name,
-      merge(
-        {
-          "instance_id" : each.value.instance_id,
-          "function" : null,
-          "wheres" : {},
-        },
-        each.value.condition
-      )
-    )
-  }
-
-  critical {
-    operator              = each.value.condition.operator
-    threshold             = each.value.condition.threshold
-    threshold_duration    = each.value.condition.duration
-    threshold_occurrences = "ALL"
-  }
-}
-
-output "alert_policies" {
-  description = "Created alert policies"
-  value = {
-    for k, v in newrelic_alert_policy.alert_policy : k => {
-      id   = v.id
-      name = v.name
-    }
-  }
-}
-
-output "alert_conditions" {
-  description = "Created alert conditions"
-  value = {
-    for k, v in newrelic_nrql_alert_condition.condition : k => {
-      name  = v.name
-      query = v.nrql[0].query
-    }
-  }
+  conditions = each.value.conditions
 }
