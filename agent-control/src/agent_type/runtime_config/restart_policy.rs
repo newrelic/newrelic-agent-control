@@ -2,7 +2,7 @@
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use strum::EnumString;
 use wrapper_with_default::WrapperWithDefault;
@@ -13,7 +13,7 @@ pub mod rendered;
 
 /// Defines the Restart Policy configuration.
 /// This policy outlines the procedures followed for restarting agents when their execution encounters failure.
-#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
 pub struct RestartPolicyConfig {
     /// Strategy configuration to retry in case of failure.
     #[serde(default)]
@@ -39,7 +39,7 @@ pub(super) const DEFAULT_BACKOFF_MAX_RETRIES: usize = 0;
 pub(super) const DEFAULT_BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 
 /// The delay applied before retrying a failed execution.
-#[derive(Debug, PartialEq, Clone, WrapperWithDefault)]
+#[derive(Debug, Serialize, PartialEq, Clone, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_BACKOFF_DELAY)]
 pub struct BackoffDelay(Duration);
 
@@ -51,7 +51,7 @@ impl BackoffDelay {
 }
 
 /// The interval after the last retry before retries reset.
-#[derive(Debug, PartialEq, Clone, WrapperWithDefault)]
+#[derive(Debug, Serialize, PartialEq, Clone, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_BACKOFF_LAST_RETRY_INTERVAL)]
 pub struct BackoffLastRetryInterval(Duration);
 
@@ -63,12 +63,12 @@ impl BackoffLastRetryInterval {
 }
 
 /// The maximum number of retries before giving up.
-#[derive(Debug, PartialEq, Clone, WrapperWithDefault)]
+#[derive(Debug, Serialize, PartialEq, Clone, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_BACKOFF_MAX_RETRIES)]
 pub struct MaxRetries(usize);
 
 /// Backoff strategy configuration controlling how failed executions are retried.
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(default)]
 pub struct BackoffStrategyConfig {
     /// The kind of backoff applied between retries.
@@ -102,7 +102,7 @@ impl Templateable for BackoffStrategyConfig {
 }
 
 /// The kind of backoff applied between retries.
-#[derive(Debug, Default, PartialEq, Clone, EnumString)]
+#[derive(Debug, Default, Serialize, PartialEq, Clone, EnumString)]
 #[strum(serialize_all = "lowercase")]
 pub enum BackoffStrategyType {
     /// A constant delay between retries.

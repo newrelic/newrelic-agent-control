@@ -27,8 +27,8 @@ use crate::agent_type::{
         namespace::{Namespace, VariableName},
     },
 };
-use serde::Deserialize;
 use serde::de::Error;
+use serde::{Deserialize, Serialize};
 
 pub mod rendered;
 
@@ -37,11 +37,11 @@ pub mod rendered;
 ///
 /// Every entry is tagged with a `kind:`. `dir` entries may contain further entries under
 /// `entries:`, recursively.
-#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq)]
 pub struct FileSystem(HashMap<SafePath, FilesystemEntry>);
 
 /// One entry in a filesystem tree. The `kind` discriminator selects which fields are required.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FilesystemEntry {
     /// A single file whose bytes come from exactly one of `text` (literal or templated content)
@@ -71,7 +71,7 @@ pub enum FilesystemEntry {
 
 /// A path validated to be relative and not escaping its base directory (no `..`, no absolute
 /// roots, no Windows prefixes).
-#[derive(Debug, Default, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq, Eq, Hash)]
 #[serde(try_from = "PathBuf")]
 pub struct SafePath(PathBuf);
 
@@ -99,7 +99,7 @@ impl From<SafePath> for PathBuf {
 
 /// Helper carrying the rendered output of a `${nr-var:map[string]yaml}` source — exists
 /// to satisfy the orphan rule when implementing `Templateable` for `TemplateableValue<_>`.
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Serialize, Default, PartialEq, Clone)]
 pub struct DirEntriesMap(HashMap<SafePath, String>);
 
 impl FileSystem {
@@ -145,7 +145,7 @@ impl Templateable for FileSystem {
 }
 
 /// Files and directories shared across sub-agents, rooted at `${nr-sub:shared_filesystem_dir}`.
-#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq)]
 pub struct SharedFileSystem(FileSystem);
 
 impl Templateable for SharedFileSystem {

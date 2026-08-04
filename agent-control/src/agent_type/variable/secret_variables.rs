@@ -10,7 +10,6 @@ use crate::{
         },
     },
     secrets_provider::{Registry, SecretsProvider},
-    values::yaml_config::YAMLConfig,
 };
 
 /// Represents the prefix used for namespaced variables.
@@ -65,17 +64,6 @@ impl From<&str> for SecretVariables {
     }
 }
 
-impl TryFrom<YAMLConfig> for SecretVariables {
-    type Error = SecretVariablesError;
-
-    fn try_from(config: YAMLConfig) -> Result<Self, Self::Error> {
-        let config: String = config
-            .try_into()
-            .map_err(|_| SecretVariablesError::YamlParseError)?;
-        Ok(SecretVariables::from(config.as_str()))
-    }
-}
-
 /// Errors produced while extracting or loading secret variables.
 #[derive(thiserror::Error, Debug)]
 pub enum SecretVariablesError {
@@ -89,8 +77,8 @@ pub enum SecretVariablesError {
     },
 
     /// The YAML config could not be parsed.
-    #[error("failed to parse yaml config")]
-    YamlParseError,
+    #[error("failed to parse yaml config: {0}")]
+    YamlParseError(String),
 }
 
 impl SecretVariables {

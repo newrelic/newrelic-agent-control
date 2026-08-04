@@ -5,7 +5,7 @@ use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
 use crate::checkers::health::health_checker::{HealthCheckInterval, InitialDelay};
 use duration_str::deserialize_duration;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::{collections::HashMap, time::Duration};
 use wrapper_with_default::WrapperWithDefault;
 
@@ -17,7 +17,7 @@ pub mod rendered;
 ///
 /// Defines the periodicity/timeout parameters and an explicit list of checks that the on-host
 /// supervisor should run. An empty (or omitted) `checks` list disables health reporting.
-#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq)]
 pub struct OnHostHealthConfig {
     /// The duration to wait between health checks.
     #[serde(default)]
@@ -58,12 +58,12 @@ where
 }
 
 /// The maximum duration a health check may run before being considered failed.
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_HEALTH_CHECK_TIMEOUT)]
 pub struct HealthCheckTimeout(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 /// A single on-host health check declaration.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(tag = "kind")]
 pub(crate) enum OnHostHealthCheckDefinition {
     Process,
@@ -71,7 +71,7 @@ pub(crate) enum OnHostHealthCheckDefinition {
     File(FileHealth),
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub(crate) struct FileHealth {
     pub(crate) path: String,
 }
@@ -85,7 +85,7 @@ impl Templateable for FileHealth {
 }
 
 /// Represents an HTTP-based port.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub(crate) struct HttpPort(pub(super) u16);
 
 impl From<HttpPort> for u16 {
@@ -109,7 +109,7 @@ impl Default for HttpPort {
 /// Represents an HTTP-based health check.
 ///
 /// For further details, refer to [Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/).
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub(crate) struct HttpHealth {
     #[serde(default)]
     pub(crate) host: TemplateableValue<HttpHost>,
@@ -141,7 +141,7 @@ impl Default for HttpHealth {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub(crate) struct HttpHost(String);
 
 impl Default for HttpHost {
@@ -162,7 +162,7 @@ impl From<String> for HttpHost {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub(crate) struct HttpPath(String);
 
 impl Default for HttpPath {

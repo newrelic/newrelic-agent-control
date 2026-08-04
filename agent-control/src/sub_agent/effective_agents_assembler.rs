@@ -8,14 +8,14 @@ use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::rendered::OnHost;
 use crate::agent_type::runtime_config::rendered;
+use crate::agent_type::variable::Variable;
 use crate::agent_type::variable::constraints::VariableConstraints;
-use crate::agent_type::variable::secret_variables::{
-    SecretVariables, SecretVariablesError, load_env_vars,
-};
+use crate::agent_type::variable::namespace::VariableName;
+use crate::agent_type::variable::secret_variables::{SecretVariables, SecretVariablesError};
 use crate::secrets_provider::SecretsProviders;
 use crate::sub_agent::identity::AgentIdentity;
-use crate::values::yaml_config::YAMLConfig;
-
+use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -175,21 +175,29 @@ where
             .get(&agent_identity.agent_type_id)?
             .with_constraints(&self.variable_constraints);
 
-        let attributes =
-            AgentAttributes::try_new(agent_identity.id.to_owned(), self.remote_dir.to_path_buf())
-                .map_err(|e| {
-                EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(e.to_string())
-            })?;
+        let agent_variables = AgentAttributes::get_agent_variables(
+            agent_identity.id.to_owned(),
+            self.remote_dir.to_path_buf(),
+        )
+        .map_err(|e| EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(e.to_string()))?;
 
-        // Values are expanded substituting all ${nr-env...} with environment variables.
-        // Notice that only environment variables are taken into consideration (no other vars for example)
-        let secret_variables = SecretVariables::try_from(values.clone())?;
-        let env_vars = load_env_vars();
-        let secrets = secret_variables.load_secrets(&self.secrets_providers)?;
+        let user_values: String = values
+            .clone()
+            .try_into()
+            .map_err(|e: YAMLConfigError| SecretVariablesError::YamlParseError(e.to_string()))?;
+        let runtime: String = serde_json::to_string(&agent_type.runtime_config)
+            .map_err(|e| SecretVariablesError::YamlParseError(e.to_string()))?;
+
+        let secret_variables_values = SecretVariables::from(user_values.as_str());
+        let secret_variables_runtime = SecretVariables::from(runtime.as_str());
+
+        let mut secrets: HashMap<VariableName, Variable> = HashMap::new();
+        secrets.extend(secret_variables_values.load_secrets(&self.secrets_providers)?);
+        secrets.extend(secret_variables_runtime.load_secrets(&self.secrets_providers)?);
 
         let runtime_config = self
             .renderer
-            .render(agent_type, values, attributes, env_vars, secrets)?;
+            .render(agent_type, values, agent_variables, secrets)?;
 
         Ok(EffectiveAgent::new(agent_identity.clone(), runtime_config))
     }

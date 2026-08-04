@@ -1,7 +1,7 @@
 //! On-host executable definition: binary path, arguments, environment and restart policy.
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::agent_type::{
     definition::Variables,
@@ -12,7 +12,7 @@ use crate::agent_type::{
 
 pub mod rendered;
 
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub(super) struct Executable {
     /// Executable identifier for the health checker.
     pub(super) id: String,
@@ -48,7 +48,7 @@ impl Templateable for Executable {
 }
 
 /// Command-line arguments, each a templateable value.
-#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Args(
     /// The argument list.
     pub Vec<TemplateableValue<String>>,
@@ -67,7 +67,7 @@ impl Templateable for Args {
 }
 
 /// Environment variables passed to the executable, each value templateable.
-#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Env(pub(super) HashMap<String, TemplateableValue<String>>);
 
 impl Templateable for Env {

@@ -4,11 +4,11 @@ use super::restart_policy::{BackoffDelay, BackoffLastRetryInterval, MaxRetries};
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::str::FromStr;
 
 /// Holds either a concrete value or a template string that resolves to a value of type `T`.
-#[derive(Debug, PartialEq, Clone, Default)]
+#[derive(Debug, Serialize, PartialEq, Clone, Default)]
 pub struct TemplateableValue<T> {
     value: Option<T>,
     pub(super) template: String,

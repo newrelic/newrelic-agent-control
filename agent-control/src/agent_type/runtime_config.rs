@@ -15,10 +15,11 @@ use super::error::AgentTypeError;
 use super::templates::Templateable;
 use k8s::K8s;
 use on_host::OnHost;
+use serde::Serialize;
 
 /// Strict structure that describes how to start a given agent with all needed binaries,
 /// arguments, env, etc.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Runtime {
     /// The deployment instructions for the agent.
     pub deployment: Deployment,
@@ -26,7 +27,7 @@ pub struct Runtime {
 
 /// Deployment of an agent type. Each variant carries the shape-specific config for that
 /// target.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum Deployment {
     /// An on-host deployment.

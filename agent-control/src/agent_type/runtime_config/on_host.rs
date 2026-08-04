@@ -8,7 +8,7 @@ use crate::agent_type::runtime_config::on_host::filesystem::{FileSystem, SharedF
 use crate::agent_type::runtime_config::on_host::package::{Package, PackageID};
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::agent_type::templates::Templateable;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{HashMap, HashSet};
 
 pub mod executable;
@@ -19,7 +19,7 @@ pub mod rendered;
 /// The definition for an on-host supervisor.
 ///
 /// It contains the instructions of what are the agent binaries, command-line arguments, the environment variables passed to it and the restart policy of the supervisor.
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize)]
 pub struct OnHost {
     executables: Vec<Executable>,
     enable_file_logging: TemplateableValue<bool>,

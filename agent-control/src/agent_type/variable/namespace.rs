@@ -18,6 +18,10 @@ impl VariableName {
             name: name.into(),
         }
     }
+
+    pub fn namespace(&self) -> &Namespace {
+        &self.namespace
+    }
 }
 
 impl Display for VariableName {

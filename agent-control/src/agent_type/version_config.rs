@@ -1,6 +1,6 @@
 //! Configuration for the agent type version checker (polling interval and initial delay).
 use duration_str::deserialize_duration;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use wrapper_with_default::WrapperWithDefault;
 
@@ -12,11 +12,11 @@ pub const AGENT_CONTROL_VERSION_CHECKER_INITIAL_DELAY: VersionCheckerInitialDela
     VersionCheckerInitialDelay(Duration::ZERO); // The Agent Control HelmRelease is supposed to exists when it starts.
 
 /// The duration to wait between version checks.
-#[derive(Debug, Clone, Deserialize, Copy, PartialEq, WrapperWithDefault)]
+#[derive(Debug, Clone, Deserialize, Serialize, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_VERSION_CHECKER_INTERVAL)]
 pub struct VersionCheckerInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 /// The initial delay before the first version check is performed.
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_VERSION_CHECKER_INITIAL_DELAY)]
 pub struct VersionCheckerInitialDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
