@@ -86,7 +86,7 @@ impl DirectoryManagerFs {
 /// Repairs the managed Administrators-only permissions across `path` and everything beneath it,
 /// re-stamping only the entries that are actually broken.
 ///
-/// On Windows, for each entry it checks (via [`crate::win_permissions::permissions_need_repair`])
+/// On Windows, for each entry it checks (via `win_permissions::permissions_need_repair`)
 /// whether the DACL already grants the managed Administrators access. It re-stamps only entries that
 /// do not — empty (denies everyone incl. SYSTEM), NULL, unreadable, or populated-but-insufficient
 /// (e.g. the old `Administrators:(R,W)` with no DELETE that blocks decommission, or a non-inheritable
