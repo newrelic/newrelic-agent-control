@@ -1105,7 +1105,7 @@ deployment:
         }
     }
 
-    fn sub_agent(
+    fn test_sub_agent(
         opamp_client: Option<MockStartedOpAMPClient>,
         supervisor_builder: MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>>,
         config_repository: Arc<InMemoryConfigRepository>,
@@ -1279,7 +1279,7 @@ deployment:
             TestAgent::status_apply_failed_config_error(apply_fail_reason),
         ]);
 
-        let sub_agent = sub_agent(
+        let sub_agent = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -1319,7 +1319,7 @@ deployment:
             TestAgent::status_applied(),
         ]);
 
-        let sub_agent = sub_agent(
+        let sub_agent = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -1369,7 +1369,7 @@ deployment:
             TestAgent::status_applied(),
         ]);
 
-        let sub_agent = sub_agent(
+        let sub_agent = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -1418,7 +1418,7 @@ deployment:
             TestAgent::status_apply_failed_config_error("start failed"),
         ]);
 
-        let sub_agent = sub_agent(
+        let sub_agent = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -1466,7 +1466,7 @@ deployment:
             TestAgent::status_failed(),
         ]);
 
-        let sub_agent = sub_agent(
+        let sub_agent = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -1510,7 +1510,7 @@ deployment:
                 .unwrap(),
         });
 
-        let sub_agent = sub_agent(
+        let sub_agent = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -1565,7 +1565,7 @@ deployment:
             TestAgent::status_applied(),
         ]);
 
-        let sub_agent = sub_agent(
+        let sub_agent = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -1622,7 +1622,7 @@ deployment:
             TestAgent::status_applied(),
         ]);
 
-        let sub_agent = sub_agent(
+        let sub_agent = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -1678,7 +1678,7 @@ deployment:
             TestAgent::status_applied(),
         ]);
 
-        let sub_agent = sub_agent(
+        let sub_agent = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -1736,7 +1736,7 @@ deployment:
             TestAgent::status_applied(),
         ]);
 
-        let sub_agent = sub_agent(
+        let sub_agent = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -1794,7 +1794,7 @@ deployment:
             TestAgent::status_applied(),
         ]);
 
-        let sub_agent = sub_agent(
+        let sub_agent = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -1848,7 +1848,7 @@ deployment:
         let supervisor_builder = expect_supervisor_do_not_build();
         opamp_client.should_set_remote_config_status_seq(vec![TestAgent::status_applied()]);
 
-        let sub_agent = sub_agent(
+        let sub_agent = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -1884,8 +1884,8 @@ deployment:
 
         let supervisor_builder = expect_supervisor_do_not_build();
 
-        let supervisor =
-            sub_agent(Some(opamp_client), supervisor_builder, config_repository).init_supervisor();
+        let supervisor = test_sub_agent(Some(opamp_client), supervisor_builder, config_repository)
+            .init_supervisor();
 
         assert!(supervisor.is_none());
     }
@@ -1902,8 +1902,8 @@ deployment:
 
         opamp_client.should_update_effective_config(1);
 
-        let supervisor =
-            sub_agent(Some(opamp_client), supervisor_builder, config_repository).init_supervisor();
+        let supervisor = test_sub_agent(Some(opamp_client), supervisor_builder, config_repository)
+            .init_supervisor();
 
         assert!(supervisor.is_some())
     }
@@ -1919,7 +1919,8 @@ deployment:
 
         let supervisor_builder = expect_supervisor_do_not_build();
 
-        let mut sub_agent = sub_agent(Some(opamp_client), supervisor_builder, config_repository);
+        let mut sub_agent =
+            test_sub_agent(Some(opamp_client), supervisor_builder, config_repository);
         // customize the effective_agent_assembler in order to use a different agent type
         sub_agent.effective_agent_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             Arc::new(TestAgent::agent_type_definition_with_required_var().into()),
@@ -1968,7 +1969,7 @@ deployment:
 
         opamp_client.should_update_effective_config(1);
 
-        let supervisor = sub_agent(
+        let supervisor = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -2008,7 +2009,7 @@ deployment:
         opamp_client.should_update_effective_config(1);
         opamp_client.should_set_remote_config_status(TestAgent::status_applied());
 
-        let supervisor = sub_agent(
+        let supervisor = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -2046,7 +2047,7 @@ deployment:
 
         opamp_client.should_set_remote_config_status(TestAgent::status_failed());
 
-        let supervisor = sub_agent(
+        let supervisor = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),
@@ -2094,7 +2095,7 @@ deployment:
 
         opamp_client.should_update_effective_config(1);
 
-        let supervisor = sub_agent(
+        let supervisor = test_sub_agent(
             Some(opamp_client),
             supervisor_builder,
             config_repository.clone(),

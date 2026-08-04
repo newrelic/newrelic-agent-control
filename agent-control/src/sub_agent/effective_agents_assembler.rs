@@ -175,14 +175,12 @@ where
             .get(&agent_identity.agent_type_id)?
             .with_constraints(&self.variable_constraints);
 
-        let attributes =
-            AgentAttributes::try_new(agent_identity.id.to_owned(), self.remote_dir.to_path_buf())
-                .map_err(|e| {
-                EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(e.to_string())
-            })?;
+        let agent_variables = AgentAttributes::get_agent_variables(
+            agent_identity.id.to_owned(),
+            self.remote_dir.to_path_buf(),
+        )
+        .map_err(|e| EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(e.to_string()))?;
 
-        // Values are expanded substituting all ${nr-env...} with environment variables.
-        // Notice that only environment variables are taken into consideration (no other vars for example)
         let config: String = values
             .clone()
             .try_into()
@@ -198,7 +196,7 @@ where
 
         let runtime_config = self
             .renderer
-            .render(agent_type, values, attributes, secrets)?;
+            .render(agent_type, values, agent_variables, secrets)?;
 
         Ok(EffectiveAgent::new(agent_identity.clone(), runtime_config))
     }

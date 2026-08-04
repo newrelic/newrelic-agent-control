@@ -27,7 +27,7 @@ impl TemplateRenderer {
         &self,
         agent_type: AgentType,
         values: YAMLConfig,
-        attributes: AgentAttributes,
+        agent_variables: HashMap<VariableName, Variable>,
         secrets: HashMap<VariableName, Variable>,
     ) -> Result<Runtime, AgentTypeError> {
         // Get empty variables and runtime_config from the agent-type
@@ -36,16 +36,9 @@ impl TemplateRenderer {
         let expanded_user_variables =
             Self::get_expanded_user_variables(variable_tree, values, &secrets)?;
 
-        // Only envVars are kept and can be used to expand the runtime template, the other secrets
-        // can be used for double expansion of the user values only
-        let env_vars = secrets
-            .into_iter()
-            .filter(|(name, _)| *name.namespace() == Namespace::EnvironmentVariable)
-            .collect();
-
         // Setup namespaced variables
         let ns_variables =
-            self.chain_namespaced_variables(expanded_user_variables, env_vars, &attributes);
+            self.chain_namespaced_variables(expanded_user_variables, secrets, agent_variables);
 
         // Render runtime config
         let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
@@ -107,12 +100,12 @@ impl TemplateRenderer {
         &self,
         expanded_user_variables: HashMap<VariableName, Variable>,
         environment_variables: HashMap<VariableName, Variable>,
-        attributes: &AgentAttributes,
+        agent_variables: HashMap<VariableName, Variable>,
     ) -> HashMap<VariableName, Variable> {
         // Join all variables together
         expanded_user_variables
             .into_iter()
-            .chain(attributes.sub_agent_variables())
+            .chain(agent_variables)
             .chain(environment_variables)
             .chain(self.ac_variables.clone())
             .collect::<HashMap<VariableName, Variable>>()
@@ -142,13 +135,14 @@ pub(crate) mod tests {
         serde_saphyr::from_str(yaml_values).unwrap()
     }
 
-    pub fn testing_agent_attributes(agent_id: &AgentID) -> AgentAttributes {
+    pub fn testing_agent_attributes(agent_id: &AgentID) -> HashMap<VariableName, Variable> {
         #[cfg(windows)]
         let root = "C:\\";
         #[cfg(not(windows))]
         let root = "/";
 
-        AgentAttributes::try_new(agent_id.clone(), PathBuf::from_str(root).unwrap()).unwrap()
+        AgentAttributes::get_agent_variables(agent_id.clone(), PathBuf::from_str(root).unwrap())
+            .unwrap()
     }
 
     #[test]
@@ -574,6 +568,7 @@ deployment:
         name: test
         namespace: test-namespace
       spec:
+        vault_field: ${nr-vault:V_KEY}
         env_direct: ${nr-env:ENV}
         from_sub_agent: ${nr-sub:agent_id}
         values: ${nr-var:my_yaml}
@@ -605,6 +600,7 @@ my_yaml:
         ]);
 
         let expected_spec_yaml = r#"
+vault_field: vault-value
 env_direct: env-value
 from_sub_agent: some-agent-id
 values:
@@ -621,43 +617,6 @@ values:
         let k8s = rendered.deployment.k8s();
         let spec = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
         assert_eq!(&expected_spec, spec);
-    }
-
-    #[test]
-    fn test_render_fails_when_non_env_secret_referenced_in_runtime() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let attributes = testing_agent_attributes(&agent_id);
-
-        let agent_type = AgentType::build_for_testing(
-            r#"
-name: k8s_agent_type
-namespace: newrelic
-version: 0.0.1
-platform: kubernetes
-variables: {}
-deployment:
-  objects:
-    cr1:
-      apiVersion: group/version
-      kind: ObjectKind
-      metadata:
-        name: test
-        namespace: test-namespace
-      spec:
-        vault: ${nr-vault:V_KEY}
-"#,
-        );
-
-        let secrets = HashMap::from([(
-            VariableName::new(Namespace::Vault, "V_KEY"),
-            Variable::new_final_string_variable("vault-value".to_string()),
-        )]);
-
-        let renderer = TemplateRenderer::default();
-        let err = renderer
-            .render(agent_type, YAMLConfig::default(), attributes, secrets)
-            .unwrap_err();
-        assert_matches!(err, AgentTypeError::MissingTemplateKey(_));
     }
 
     // Agent Type and Values definitions
