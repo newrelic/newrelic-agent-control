@@ -15,9 +15,9 @@ env:
   HOST_E2E_NRDOT_VERSION: "1.21.0"
   HOST_E2E_EBPF_AGENT_VERSION: "1.5.0"
   HOST_E2E_REDIS_VERSION: "1.15.2"
-  HOST_E2E_NGINX_VERSION: "0.0.1"
-  HOST_E2E_APACHE_VERSION: "0.0.1"
-  HOST_E2E_POSTGRESQL_VERSION: "0.0.1"
+  HOST_E2E_NGINX_VERSION: "3.8.3"
+  HOST_E2E_APACHE_VERSION: "1.17.3"
+  HOST_E2E_MEMCACHED_VERSION: "2.9.3"
 
 jobs:
   build-packages:
@@ -73,7 +73,7 @@ jobs:
             --redis-version "${{ env.HOST_E2E_REDIS_VERSION }}" \
             --apache-version "${{ env.HOST_E2E_APACHE_VERSION }}" \
             --nginx-version "${{ env.HOST_E2E_NGINX_VERSION }}" \
-            --postgresql-version "${{ env.HOST_E2E_POSTGRESQL_VERSION }}" \
+            --memcached-version "${{ env.HOST_E2E_MEMCACHED_VERSION }}" \
             --ebpf-agent-version "${{ env.HOST_E2E_EBPF_AGENT_VERSION }}"
 
       - name: Report test result to New Relic

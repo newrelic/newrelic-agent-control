@@ -108,11 +108,11 @@
       "managerFilePatterns": [
         "/^\\.github/workflows/.*\\.yml$/"
       ],
-      "depNameTemplate": "newrelic/nri-postgresql-artifacts",
-      "packageNameTemplate": "newrelic/nri-postgresql-artifacts",
+      "depNameTemplate": "newrelic/nri-memcached-artifacts",
+      "packageNameTemplate": "newrelic/nri-memcached-artifacts",
       "datasourceTemplate": "docker",
       "matchStrings": [
-        "HOST_E2E_POSTGRESQL_VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+        "HOST_E2E_MEMCACHED_VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
       ]
     },
     {
