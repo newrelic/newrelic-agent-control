@@ -181,14 +181,15 @@ where
         )
         .map_err(|e| EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(e.to_string()))?;
 
-        let config: String = values
+        let user_values: String = values
             .clone()
             .try_into()
             .map_err(|e: YAMLConfigError| SecretVariablesError::YamlParseError(e.to_string()))?;
+        let runtime: String = serde_json::to_string(&agent_type.runtime_config)
+            .map_err(|e| SecretVariablesError::YamlParseError(e.to_string()))?;
 
-        let secret_variables_values = SecretVariables::from(config.as_str());
-        let secret_variables_runtime =
-            SecretVariables::from(format!("{:?}", agent_type.runtime_config).as_str());
+        let secret_variables_values = SecretVariables::from(user_values.as_str());
+        let secret_variables_runtime = SecretVariables::from(runtime.as_str());
 
         let mut secrets: HashMap<VariableName, Variable> = HashMap::new();
         secrets.extend(secret_variables_values.load_secrets(&self.secrets_providers)?);

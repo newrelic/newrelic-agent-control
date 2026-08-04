@@ -6,13 +6,13 @@ use crate::agent_type::guid_config::{GuidCheckerInitialDelay, GuidCheckerInterva
 use crate::agent_type::templates::Templateable;
 use crate::agent_type::version_config::{VersionCheckerInitialDelay, VersionCheckerInterval};
 use crate::checkers::health::health_checker::{HealthCheckInterval, InitialDelay};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
 /// The definition for an K8s supervisor.
 ///
 /// It contains the instructions of what are the agent resources to be managed by the agent-control.
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct K8s {
     /// The Kubernetes objects (usually CRs) to manage, keyed by an arbitrary local name.
     pub objects: HashMap<String, K8sObject>,
@@ -27,7 +27,7 @@ pub struct K8s {
 }
 
 /// A K8s object, usually a CR, to be managed by the agent-control.
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct K8sObject {
     /// The object's `apiVersion`.
     #[serde(rename = "apiVersion")]
@@ -42,7 +42,7 @@ pub struct K8sObject {
 }
 
 /// Metadata for a managed Kubernetes object.
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct K8sObjectMeta {
     /// The object's labels.
     #[serde(default)]
@@ -101,7 +101,7 @@ impl Templateable for K8sObjectMeta {
 }
 
 /// The kind of Kubernetes resource to health-check.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub enum K8sHealthResourceKind {
     /// A Kubernetes Deployment.
@@ -117,7 +117,7 @@ pub enum K8sHealthResourceKind {
 }
 
 /// A single Kubernetes resource to include in health checking.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct K8sHealthCheckDefinition {
     pub(crate) name: String,
     pub(crate) namespace: String,
@@ -143,7 +143,7 @@ impl Templateable for K8sHealthCheckDefinition {
 }
 
 /// Health-check configuration for a Kubernetes deployment.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct K8sHealthConfig {
     /// The duration to wait between health checks.
     #[serde(default)]
@@ -172,7 +172,7 @@ impl Templateable for K8sHealthConfig {
 }
 
 /// Version-check configuration for a Kubernetes deployment.
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct K8sVersionConfig {
     /// The duration to wait between version checks.
     #[serde(default)]
@@ -183,7 +183,7 @@ pub struct K8sVersionConfig {
 }
 
 /// GUID-check configuration for a Kubernetes deployment.
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct K8sGuidCheckerConfig {
     /// The duration to wait between GUID checks.
     #[serde(default)]

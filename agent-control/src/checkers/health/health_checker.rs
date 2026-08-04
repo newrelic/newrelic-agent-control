@@ -8,7 +8,7 @@ use crate::k8s;
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use duration_str::deserialize_duration;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, SystemTimeError};
 use tracing::{debug, info_span};
@@ -24,12 +24,12 @@ const DEFAULT_INITIAL_DELAY: Duration = Duration::ZERO;
 pub type StatusTime = SystemTime;
 
 /// Interval between consecutive health checks (defaults to 60s).
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_HEALTH_CHECK_INTERVAL)]
 pub struct HealthCheckInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 /// Delay before the first health check is performed (defaults to zero).
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_INITIAL_DELAY)]
 pub struct InitialDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
 

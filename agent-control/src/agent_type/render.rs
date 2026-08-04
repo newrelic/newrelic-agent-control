@@ -1,7 +1,6 @@
 //! Renders an [`AgentType`] together with user values into a runtime configuration for a sub-agent.
 use crate::agent_type::definition::VariableTree;
 use crate::agent_type::{
-    agent_attributes::AgentAttributes,
     definition::AgentType,
     error::AgentTypeError,
     runtime_config::rendered::Runtime,
@@ -119,6 +118,7 @@ pub(crate) mod tests {
     use std::str::FromStr;
 
     use super::*;
+    use crate::agent_type::agent_attributes::AgentAttributes;
     use crate::agent_type::runtime_config::on_host::executable::rendered as exec_rendered;
     use crate::{
         agent_control::agent_id::AgentID,

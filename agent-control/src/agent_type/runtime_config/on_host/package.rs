@@ -7,12 +7,12 @@ use crate::agent_type::runtime_config::on_host::executable::{Args, Env};
 use crate::agent_type::runtime_config::on_host::package::rendered::{Repository, Version};
 use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
 use crate::agent_type::templates::Templateable;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 pub mod rendered;
 
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub(super) struct Package {
     /// Download defines the supported repository sources for the packages.
     pub download: Download,
@@ -25,14 +25,14 @@ pub(super) struct Package {
 pub type PackageID = String;
 
 /// Supported download sources for a package.
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct Download {
     /// OCI repository definition
     pub oci: Oci,
 }
 
 /// OCI download source for a package.
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct Oci {
     /// Repository name.
     pub repository: TemplateableValue<String>,
@@ -44,7 +44,7 @@ pub struct Oci {
 }
 
 /// A hook executed after a package has been downloaded and extracted.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct PostDownloadHook {
     /// Path to the command/executable to run.
     /// Can be an absolute path (e.g., "/bin/bash") or a command name to search in PATH (e.g., "bash").

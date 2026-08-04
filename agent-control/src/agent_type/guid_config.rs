@@ -1,6 +1,6 @@
 //! Configuration for the agent type GUID checker (polling interval and initial delay).
 use duration_str::deserialize_duration;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use wrapper_with_default::WrapperWithDefault;
 
@@ -12,11 +12,11 @@ pub const AGENT_CONTROL_GUID_CHECKER_INITIAL_DELAY: GuidCheckerInitialDelay =
     GuidCheckerInitialDelay(Duration::ZERO); // The Agent Control HelmRelease is supposed to exist when it starts.
 
 /// The duration to wait between GUID checks.
-#[derive(Debug, Clone, Deserialize, Copy, PartialEq, WrapperWithDefault)]
+#[derive(Debug, Clone, Deserialize, Serialize, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_GUID_CHECKER_INTERVAL)]
 pub struct GuidCheckerInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 /// The initial delay before the first GUID check is performed.
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_GUID_CHECKER_INITIAL_DELAY)]
 pub struct GuidCheckerInitialDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
