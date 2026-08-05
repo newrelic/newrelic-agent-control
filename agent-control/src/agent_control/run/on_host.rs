@@ -28,6 +28,7 @@ use crate::http::config::ProxyConfig;
 use crate::on_host::file_store::FileStore;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::callbacks::AgentCallbacks;
+use crate::opamp::capabilities::CustomCapability;
 use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::opamp::effective_config::loader::{EffectiveConfigLoader, EffectiveConfigLoaderBuilder};
@@ -174,6 +175,7 @@ impl AgentControlRunner {
                     &instance_id_getter,
                     &agent_identity,
                     agent_description,
+                    &self.dynamic_custom_capabilities,
                 )?;
                 start_ac_opamp_client(builder, agent_identity, opamp_start_settings)
             })
@@ -331,19 +333,25 @@ pub fn opamp_client_builder(
 }
 
 /// Builds the OpAMP [StartSettings] for Agent Control on-host.
+/// `dynamic_custom_capabilities` are additional custom capabilities computed from startup probes
+/// (e.g. Agent Type repository reachability), appended to the default custom capabilities.
 pub fn build_ac_opamp_start_settings(
     instance_id_getter: &impl InstanceIDGetter,
     agent_identity: &AgentIdentity,
     agent_description: AgentDescription,
+    dynamic_custom_capabilities: &[CustomCapability],
 ) -> Result<StartSettings, RunError> {
     let instance_id = instance_id_getter
         .get(&agent_identity.id)
         .map_err(|err| RunError(format!("error getting instance id: {err}")))?;
 
+    let mut custom_capabilities = default_custom_capabilities();
+    custom_capabilities.extend_from_slice(dynamic_custom_capabilities);
+
     Ok(StartSettings {
         instance_uid: instance_id.into(),
         capabilities: default_capabilities(),
-        custom_capabilities: Some(default_custom_capabilities().into()),
+        custom_capabilities: Some(custom_capabilities.into()),
         agent_description,
     })
 }

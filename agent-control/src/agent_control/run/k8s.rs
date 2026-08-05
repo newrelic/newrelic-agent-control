@@ -141,6 +141,7 @@ impl AgentControlRunner {
                     &agent_identity,
                     agent_description,
                     &k8s_config,
+                    &self.dynamic_custom_capabilities,
                 )?;
                 builder
                     .build_and_start(agent_identity, opamp_start_settings)
@@ -314,11 +315,14 @@ fn start_cd_version_checker(
 /// Builds the OpAMP [StartSettings] for Agent Control on Kubernetes.
 /// When `k8s_config.cd_remote_update` is false, the `k8s_config_only_agents` custom capability
 /// is added to signal that this agent is not managed by an agent-control-cd deployment.
+/// `dynamic_custom_capabilities` are additional custom capabilities computed from startup probes
+/// (e.g. Agent Type repository reachability), appended to the default custom capabilities.
 pub fn build_ac_opamp_start_settings(
     instance_id_getter: &impl InstanceIDGetter,
     agent_identity: &AgentIdentity,
     agent_description: AgentDescription,
     k8s_config: &K8sConfig,
+    dynamic_custom_capabilities: &[CustomCapability],
 ) -> Result<StartSettings, RunError> {
     let instance_id = instance_id_getter
         .get(&agent_identity.id)
@@ -328,6 +332,7 @@ pub fn build_ac_opamp_start_settings(
     if !k8s_config.cd_enabled {
         custom_capabilities.push(CustomCapability::K8sConfigOnlyAgents);
     }
+    custom_capabilities.extend_from_slice(dynamic_custom_capabilities);
 
     Ok(StartSettings {
         instance_uid: instance_id.into(),
@@ -428,6 +433,7 @@ mod tests {
             &agent_identity,
             agent_description(),
             &k8s_config,
+            &[],
         )
         .unwrap();
 
@@ -453,6 +459,7 @@ mod tests {
             &agent_identity,
             agent_description(),
             &k8s_config,
+            &[],
         )
         .unwrap();
 
