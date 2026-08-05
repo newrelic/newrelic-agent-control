@@ -4,7 +4,7 @@ use std::mem;
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr;
-use tracing::trace;
+use tracing::{debug, trace};
 use windows::Win32::Security::Authorization::{
     EXPLICIT_ACCESS_W, GetNamedSecurityInfoW, SE_FILE_OBJECT, SET_ACCESS, SetEntriesInAclW,
     SetNamedSecurityInfoW, TRUSTEE_IS_SID, TRUSTEE_W,
@@ -73,7 +73,7 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
     // The ACE is inheritable (`OBJECT_INHERIT_ACE` | `CONTAINER_INHERIT_ACE`) so child files and
     // subdirectories created later at runtime inherit Administrators access. On a leaf file these
     // inheritance flags are a no-op (Windows strips them); on a directory they are what lets a
-    // sub-agent open and rotate the log files it creates inside AC-managed directories.
+    // sub-agent manipulate the assets it creates inside AC-managed directories.
     //
     // Rights are the already-mapped specific rights (`FILE_GENERIC_*`), not the `GENERIC_*` aliases.
     //
@@ -272,7 +272,7 @@ pub fn ensure_permissions_recursive(path: &Path) -> io::Result<()> {
     }
 
     if permissions_need_repair(path) {
-        tracing::debug!(path = %path.display(), "repairing managed permissions");
+        debug!(path = %path.display(), "repairing managed permissions");
         set_file_permissions_for_administrator(path).map_err(|err| {
             io::Error::other(format!(
                 "setting windows permissions for {}: {err}",
@@ -280,7 +280,7 @@ pub fn ensure_permissions_recursive(path: &Path) -> io::Result<()> {
             ))
         })?;
     } else {
-        tracing::trace!(path = %path.display(), "managed permissions intact, skipping");
+        trace!(path = %path.display(), "managed permissions intact, skipping");
     }
 
     if path.is_dir() {
@@ -300,7 +300,7 @@ pub fn ensure_permissions_recursive(path: &Path) -> io::Result<()> {
 /// access. A missing root is not an error.
 pub fn ensure_managed_permissions<'a>(roots: impl IntoIterator<Item = &'a Path>) -> io::Result<()> {
     roots.into_iter().try_for_each(|root| {
-        tracing::debug!(path = %root.display(), "ensuring correct ACL for managed root");
+        debug!(path = %root.display(), "ensuring correct ACL for managed root");
         ensure_permissions_recursive(root)
     })
 }
@@ -400,7 +400,7 @@ pub mod tests {
             );
 
             // Inheritance flags only make sense on containers: for a directory the ACE must be
-            // inheritable so files and subdirectories a sub-agent creates at runtime inside it
+            // inheritable so e.g. files and subdirectories a sub-agent creates at runtime inside it
             // (e.g. newrelic-infra.log) inherit Administrators access instead of getting an empty
             // DACL that denies everyone. Windows strips OI|CI from ACEs on leaf files, so this is
             // asserted for directories only.
@@ -416,11 +416,8 @@ pub mod tests {
     }
 
     /// Asserts the object at `path` has at least one ACE that was **inherited** from its parent and
-    /// grants Administrators. This is the exact property the fix provides: a file a sub-agent creates
-    /// at runtime inside a managed directory inherits Administrators access. On the pre-fix
-    /// (non-inheritable) code nothing is inherited, so no ACE carries the INHERITED flag and this
-    /// fails — which a functional read/write cannot detect, because an admin creator gets a
-    /// permissive token-default DACL whenever nothing is inherited.
+    /// grants Administrators. e.g. a file a sub-agent creates
+    /// at runtime inside a managed directory inherits Administrators access.
     fn assert_inherited_admin_ace(path: &Path) {
         let mut admin_sid_size = SECURITY_MAX_SID_SIZE;
         let mut admin_sid: Vec<u8> = vec![0; admin_sid_size as usize];
@@ -488,8 +485,6 @@ pub mod tests {
         }
     }
 
-    /// Behavioral regression test for the bug this change fixes.
-    ///
     /// Agent Control hardens a directory, then at runtime a sub-agent creates files inside it (e.g.
     /// `newrelic-infra.log`) with no permissions of their own — they must *inherit* access from the
     /// directory. Before the ACE was made inheritable, such a child inherited nothing, which on the
@@ -601,16 +596,15 @@ pub mod tests {
         }
     }
 
-    /// Regression test for the **heal** path: a runtime-created child left with an empty DACL by an
+    /// Regression test for the **repairing permissions** path:
+    /// a runtime-created child left with an empty DACL by an
     /// older (pre-fix) Agent Control must regain Administrators access after the fix runs.
     ///
     /// This reproduces the true production state through the genuine pre-fix mechanism
     /// (`legacy_harden_non_inheritable`, which wipes the inherited-only child to an empty DACL), then
     /// proves the repair heals it. The repair is `ensure_permissions_recursive`, which re-stamps the
     /// Administrators DACL directly onto every existing entry — it does NOT rely on inheritance
-    /// propagation reaching an already-empty child. (In the field an upgrade did not heal, because
-    /// `ensure_dir` never re-hardened the existing managed dir at all — see NR-601065 — so relying on
-    /// propagation was doubly unsafe.) The `assert_dacl_is_empty` checkpoint guarantees we actually
+    /// propagation reaching an already-empty child. The `assert_dacl_is_empty` checkpoint guarantees we actually
     /// recreated the empty-DACL state and did not silently fall back to the token-default path.
     #[test]
     fn recursive_repair_heals_existing_empty_dacl_child_from_older_version() {
@@ -621,7 +615,7 @@ pub mod tests {
         // Start from the fixed state so the child is created inheritance-accepting (D:AI,
         // inherited-only) — the precondition for the propagation wipe. Creating the child after a
         // *non*-inheritable harden would instead give it an explicit token-default DACL, which never
-        // collapses to empty (and is why windows-latest cannot reproduce the production symptom).
+        // collapses to empty.
         set_file_permissions_for_administrator(&managed_dir)
             .expect("initial (fixed) hardening should succeed");
         let child = managed_dir.join("newrelic-infra.log");
@@ -631,18 +625,17 @@ pub mod tests {
         // Reproduce what an older Agent Control version did: re-harden the directory with a
         // non-inheritable, protected ACE. `SetNamedSecurityInfoW` propagation recomputes the existing
         // inherited-only child from a parent that now has nothing inheritable, collapsing its DACL to
-        // empty — denying everyone, including the LocalSystem sub-agent.
+        // empty — denying everyone.
         legacy_harden_non_inheritable(&managed_dir);
         assert_dacl_is_empty(&child);
         assert!(
             fs::OpenOptions::new().write(true).open(&child).is_err(),
-            "an empty-DACL child must be unopenable for write — this is the sub-agent's 'Access is denied'"
+            "an empty-DACL child must be unopenable for write ('Access is denied')"
         );
 
         // The fix: recursively re-stamp the managed permissions. This rewrites the empty child's DACL
         // directly (Agent Control owns it, so this works even on an empty DACL) — no reliance on
-        // inheritance propagation reaching the child. This is what runs on the next sub-agent start
-        // after upgrading to the fixed agent-control.
+        // inheritance propagation reaching the child.
         ensure_permissions_recursive(&managed_dir)
             .expect("recursive permission repair should succeed");
         assert_windows_permissions(&child); // child now carries its own Administrators entry
