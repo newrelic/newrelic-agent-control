@@ -3076,7 +3076,6 @@ dependencies = [
  "url",
  "windows",
  "windows-service",
- "windows-sys 0.61.2",
  "wrapper_with_default",
  "zip",
 ]
@@ -4049,7 +4048,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "windows-link",
- "windows-sys 0.61.2",
+ "windows-registry",
 ]
 
 [[package]]
