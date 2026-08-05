@@ -1,4 +1,4 @@
-//! Assembles an [EffectiveAgent] (rendered runtime configuration) from an agent identity and
+//! Renders an [EffectiveAgent] (rendered runtime configuration) from an agent identity and
 //! its YAML config, resolving the agent type, variables, and secrets.
 
 use crate::agent_type::agent_attributes::AgentAttributes;
@@ -22,26 +22,26 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use thiserror::Error;
 
-/// Errors produced while assembling an [EffectiveAgent].
+/// Errors produced while rendering an [EffectiveAgent].
 #[derive(Error, Debug)]
-pub enum EffectiveAgentsAssemblerError {
-    /// A generic assembly failure with a descriptive message.
-    #[error("error assembling agents: {0}")]
-    EffectiveAgentsAssemblerError(String),
+pub enum AgentRendererError {
+    /// A generic rendering failure with a descriptive message.
+    #[error("{0}")]
+    Generic(String),
     /// The agent type could not be retrieved from the registry.
-    #[error("error assembling agents: {0}")]
+    #[error("retrieving agent type: {0}")]
     Registry(#[from] AgentTypeRegistryError),
     /// YAML (de)serialization failed.
-    #[error("error assembling agents: {0}")]
+    #[error("deserializing yaml: {0}")]
     SerializationError(#[from] serde_saphyr::Error),
     /// A value could not be converted to/from JSON.
-    #[error("error assembling agents: {0}")]
+    #[error("converting value to json: {0}")]
     ValueConversionError(#[from] serde_json::Error),
     /// The agent type definition was invalid.
-    #[error("error assembling agents: {0}")]
+    #[error("rendering agent type: {0}")]
     AgentTypeError(#[from] AgentTypeError),
     /// Secret variables could not be loaded.
-    #[error("error loading secrets: {0}")]
+    #[error("loading secrets: {0}")]
     SecretVariablesError(#[from] SecretVariablesError),
 }
 
@@ -66,25 +66,21 @@ impl EffectiveAgent {
         }
     }
 
-    pub(crate) fn get_onhost_config(&self) -> Result<&OnHost, EffectiveAgentsAssemblerError> {
+    pub(crate) fn get_onhost_config(&self) -> Result<&OnHost, AgentRendererError> {
         match &self.runtime_config.deployment {
             rendered::Deployment::Host(on_host) => Ok(on_host),
-            rendered::Deployment::K8s(_) => Err(
-                EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
-                    "missing host deployment configuration".to_string(),
-                ),
-            ),
+            rendered::Deployment::K8s(_) => Err(AgentRendererError::Generic(
+                "missing host deployment configuration".to_string(),
+            )),
         }
     }
 
-    pub(crate) fn get_k8s_config(&self) -> Result<&K8s, EffectiveAgentsAssemblerError> {
+    pub(crate) fn get_k8s_config(&self) -> Result<&K8s, AgentRendererError> {
         match &self.runtime_config.deployment {
             rendered::Deployment::K8s(k8s) => Ok(k8s),
-            rendered::Deployment::Host(_) => Err(
-                EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
-                    "missing k8s deployment configuration".to_string(),
-                ),
-            ),
+            rendered::Deployment::Host(_) => Err(AgentRendererError::Generic(
+                "missing k8s deployment configuration".to_string(),
+            )),
         }
     }
 
@@ -94,39 +90,37 @@ impl EffectiveAgent {
 }
 
 impl TryFrom<EffectiveAgent> for K8s {
-    type Error = EffectiveAgentsAssemblerError;
+    type Error = AgentRendererError;
 
     fn try_from(value: EffectiveAgent) -> Result<Self, Self::Error> {
         match value.runtime_config.deployment {
             rendered::Deployment::K8s(k8s) => Ok(k8s),
-            rendered::Deployment::Host(_) => Err(
-                EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
-                    "missing k8s deployment configuration".to_string(),
-                ),
-            ),
+            rendered::Deployment::Host(_) => Err(AgentRendererError::Generic(
+                "missing k8s deployment configuration".to_string(),
+            )),
         }
     }
 }
 
-/// Assembles an [EffectiveAgent] from an agent identity and its YAML configuration.
-pub trait EffectiveAgentsAssembler {
-    /// Assemble an [EffectiveAgent] from an [AgentIdentity]. The implementer is responsible for
+/// Renders an [EffectiveAgent] from an agent identity and its YAML configuration.
+pub trait AgentRenderer {
+    /// Renders an [EffectiveAgent] from an [AgentIdentity]. The implementer is responsible for
     /// getting the AgentType and all needed values to render the Runtime config.
-    fn assemble_agent(
+    fn render_agent(
         &self,
         agent_identity: &AgentIdentity,
         yaml_config: YAMLConfig,
-    ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
+    ) -> Result<EffectiveAgent, AgentRendererError>;
 }
 
-/// Implements [EffectiveAgentsAssembler] and is responsible for:
+/// Implements [AgentRenderer] and is responsible for:
 /// - Getting [`AgentType`](crate::agent_type::definition::AgentType) from [AgentTypeRegistry]
 /// - Getting Local or Remote configs from [`ConfigRepository`](crate::values::config_repository::ConfigRepository)
 /// - Rendering the [`Runtime`](crate::agent_type::runtime_config::Runtime) configuration of an Agent
 ///
-/// Important: Assembling an Agent may mutate the state of external resources by creating
+/// Important: Rendering an Agent may mutate the state of external resources by creating
 /// or removing configs when the `Runtime` is rendered.
-pub struct LocalEffectiveAgentsAssembler<R>
+pub struct DefaultAgentRenderer<R>
 where
     R: AgentTypeRegistry,
 {
@@ -137,11 +131,11 @@ where
     remote_dir: PathBuf,
 }
 
-impl<R> LocalEffectiveAgentsAssembler<R>
+impl<R> DefaultAgentRenderer<R>
 where
     R: AgentTypeRegistry,
 {
-    /// Creates an assembler from an agent-type registry, agent-control variables, variable
+    /// Creates a renderer from an agent-type registry, agent-control variables, variable
     /// constraints, secrets providers, and the remote configuration directory.
     pub fn new(
         registry: Arc<R>,
@@ -150,7 +144,7 @@ where
         secrets_providers: SecretsProviders,
         remote_dir: &Path,
     ) -> Self {
-        LocalEffectiveAgentsAssembler {
+        DefaultAgentRenderer {
             registry,
             ac_variables: namespace_agent_control_variables(ac_variables),
             variable_constraints,
@@ -160,15 +154,15 @@ where
     }
 }
 
-impl<R> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R>
+impl<R> AgentRenderer for DefaultAgentRenderer<R>
 where
     R: AgentTypeRegistry,
 {
-    fn assemble_agent(
+    fn render_agent(
         &self,
         agent_identity: &AgentIdentity,
         values: YAMLConfig,
-    ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
+    ) -> Result<EffectiveAgent, AgentRendererError> {
         // Load the parsed definition and apply the AC-wide variable constraints to materialize
         // an [AgentType] ready for the renderer.
         let agent_type = self
@@ -180,7 +174,7 @@ where
             agent_identity.id.to_owned(),
             self.remote_dir.to_path_buf(),
         )
-        .map_err(|e| EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(e.to_string()))?;
+        .map_err(|e| AgentRendererError::Generic(e.to_string()))?;
 
         let user_values: String = values
             .clone()
@@ -306,19 +300,19 @@ pub(crate) mod tests {
     use std::str::FromStr;
 
     mock! {
-        pub EffectiveAgentAssembler {}
+        pub AgentRenderer {}
 
-        impl EffectiveAgentsAssembler for EffectiveAgentAssembler {
-            fn assemble_agent(
+        impl AgentRenderer for AgentRenderer {
+            fn render_agent(
                 &self,
                 agent_identity:&AgentIdentity,
                 yaml_config: YAMLConfig,
-            ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
+            ) -> Result<EffectiveAgent, AgentRendererError>;
 
         }
     }
 
-    impl<R> LocalEffectiveAgentsAssembler<R>
+    impl<R> DefaultAgentRenderer<R>
     where
         R: AgentTypeRegistry,
     {
@@ -334,7 +328,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_assemble_agents() {
+    fn test_render_agent() {
         // Mocks
         let mut registry = MockAgentTypeRegistry::new();
 
@@ -353,15 +347,15 @@ pub(crate) mod tests {
             &agent_type_definition,
         );
 
-        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(registry);
+        let renderer = DefaultAgentRenderer::new_for_testing(registry);
 
-        let effective_agent = assembler.assemble_agent(&agent_identity, values).unwrap();
+        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
 
         assert_eq!(agent_identity, effective_agent.agent_identity);
     }
 
     #[test]
-    fn test_assemble_agents_error_on_registry() {
+    fn test_render_agent_error_on_registry() {
         //Mocks
         let mut registry = MockAgentTypeRegistry::new();
 
@@ -373,13 +367,13 @@ pub(crate) mod tests {
 
         //Expectations
         registry.expect_get_not_found(AgentTypeID::try_from("namespace/name:0.0.1").unwrap());
-        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(registry);
+        let renderer = DefaultAgentRenderer::new_for_testing(registry);
 
-        let result = assembler.assemble_agent(&agent_identity, YAMLConfig::default());
+        let result = renderer.render_agent(&agent_identity, YAMLConfig::default());
 
         assert!(result.is_err());
         assert_eq!(
-            "error assembling agents: agent type namespace/name:0.0.1 not found",
+            "retrieving agent type: agent type namespace/name:0.0.1 not found",
             result.unwrap_err().to_string()
         );
     }

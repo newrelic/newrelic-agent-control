@@ -1,6 +1,6 @@
 //! Error types for sub-agent building, runtime, collection management, and stopping.
 
-use super::effective_agents_assembler::EffectiveAgentsAssemblerError;
+use super::agent_renderer::AgentRendererError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::values::config_repository::ConfigRepositoryError;
@@ -27,9 +27,9 @@ pub enum SubAgentError {
     /// A not-started OpAMP client operation failed.
     #[error("not started opamp client error: {0}")]
     NotStartedOpampClientError(#[from] NotStartedClientError),
-    /// The effective agent could not be assembled.
-    #[error("config assembler error: {0}")]
-    ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
+    /// The effective agent could not be rendered.
+    #[error("config render error: {0}")]
+    RenderError(#[from] AgentRendererError),
     /// The configuration repository returned an error.
     #[error("sub agent yaml config repository error: {0}")]
     ConfigRepositoryError(#[from] ConfigRepositoryError),
@@ -44,9 +44,9 @@ pub enum SubAgentBuilderError {
     /// A sub-agent error occurred during building.
     #[error("{0}")]
     SubAgent(#[from] SubAgentError),
-    /// The effective agent could not be assembled.
-    #[error("config assembler error: {0}")]
-    ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
+    /// The effective agent could not be rendered.
+    #[error("config render error: {0}")]
+    Renderer(#[from] AgentRendererError),
     /// The OpAMP client could not be built.
     #[error("OpAMP client error: {0}")]
     OpampClientBuilderError(String),

@@ -11,7 +11,7 @@ use crate::agent_control::run::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_V
 use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::environment::Environment;
-use crate::sub_agent::effective_agents_assembler::{
+use crate::sub_agent::agent_renderer::{
     namespace_agent_control_variables, render_runtime_config, tests::testing_agent_attributes,
 };
 use crate::{

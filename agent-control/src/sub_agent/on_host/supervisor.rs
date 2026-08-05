@@ -22,7 +22,7 @@ use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::opamp::attributes::publish_update_attributes_event;
 use crate::package::manager::{PackageData, PackageManager};
-use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssemblerError};
+use crate::sub_agent::agent_renderer::{AgentRendererError, EffectiveAgent};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::command_os::{CommandOSNotStarted, CommandOSStarted};
 use crate::sub_agent::on_host::command::error::CommandError;
@@ -64,7 +64,7 @@ pub enum SupervisorError {
     Install(InstallPackageError),
     /// The effective agent is missing its on-host runtime configuration.
     #[error("missing runtime configuration: {0}")]
-    RuntimeConfig(EffectiveAgentsAssemblerError),
+    RuntimeConfig(AgentRendererError),
     /// The supervisor threads could not be stopped.
     #[error("failure stopping supervisor: {0}")]
     Stop(ThreadContextStopperError),
@@ -681,7 +681,7 @@ pub mod tests {
     };
     use crate::event::channel::pub_sub;
     use crate::package::manager::tests::MockPackageManager;
-    use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
+    use crate::sub_agent::agent_renderer::EffectiveAgent;
     use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use crate::sub_agent::supervisor::Supervisor;

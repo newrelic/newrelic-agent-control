@@ -16,7 +16,7 @@ use crate::k8s::annotations::Annotations;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::labels::Labels;
 use crate::k8s::utils::retain_not_null;
-use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssemblerError};
+use crate::sub_agent::agent_renderer::{AgentRendererError, EffectiveAgent};
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::supervisor::{Supervisor, SupervisorStarter};
 use crate::utils::thread_context::{
@@ -45,13 +45,13 @@ pub enum SupervisorError {
     K8sConfig(String),
     /// The incoming effective agent configuration is invalid.
     #[error("the incoming configuration has errors: {0}")]
-    IncomingConfig(EffectiveAgentsAssemblerError),
+    IncomingConfig(AgentRendererError),
     /// The previous supervisor could not be stopped before applying a new configuration.
     #[error("error stopping previous supervisor: {0}")]
     StoppingPreviousSupervisor(ThreadContextStopperError),
     /// The effective agent is missing its k8s runtime configuration.
     #[error("missing runtime configuration: {0}")]
-    RuntimeConfig(EffectiveAgentsAssemblerError),
+    RuntimeConfig(AgentRendererError),
     /// A configured object's type is not in the supported resource list.
     #[error("unsupported Kubernetes object with api_version '{api_version}' and kind '{kind}'")]
     UnsupportedK8sObject {

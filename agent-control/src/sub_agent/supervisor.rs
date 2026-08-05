@@ -24,7 +24,7 @@
 
 use crate::{
     event::{SubAgentInternalEvent, channel::EventPublisher},
-    sub_agent::effective_agents_assembler::EffectiveAgent,
+    sub_agent::agent_renderer::EffectiveAgent,
 };
 
 use std::{error::Error, marker::Sized};

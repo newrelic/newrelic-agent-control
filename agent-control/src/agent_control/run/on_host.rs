@@ -43,7 +43,7 @@ use crate::package::oci::downloader::OCIPackageArtifactDownloader;
 use crate::package::oci::package_manager::OCIPackageManager;
 use crate::secrets_provider::SecretsProviders;
 use crate::secrets_provider::file::FileSecretProvider;
-use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
+use crate::sub_agent::agent_renderer::DefaultAgentRenderer;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
@@ -188,7 +188,7 @@ impl AgentControlRunner {
                 .map_err(|e| RunError(format!("failed to load secrets providers: {e}")))?;
         }
 
-        let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
+        let agent_renderer = Arc::new(DefaultAgentRenderer::new(
             self.agent_type_registry.clone(),
             agent_control_variables.into_iter(),
             self.bootstrap_config.agent_type_var_constraints,
@@ -217,7 +217,7 @@ impl AgentControlRunner {
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(remote_config_parser),
             yaml_config_repository,
-            effective_agents_assembler: agents_assembler,
+            agent_renderer,
             sub_agent_publisher: self.sub_agent_publisher,
         };
 

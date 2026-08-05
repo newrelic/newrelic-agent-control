@@ -11,7 +11,7 @@ use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::sub_agent_start_settings;
 use crate::package::manager::PackageManager;
 use crate::sub_agent::SubAgent;
-use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
+use crate::sub_agent::agent_renderer::{AgentRenderer, EffectiveAgent};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
@@ -35,14 +35,14 @@ where
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
-    A: EffectiveAgentsAssembler + Send + Sync + 'static,
+    A: AgentRenderer + Send + Sync + 'static,
 {
     pub(crate) opamp_builder: Option<O>,
     pub(crate) instance_id_getter: I,
     pub(crate) supervisor_builder: Arc<B>,
     pub(crate) remote_config_parser: Arc<R>,
     pub(crate) yaml_config_repository: Arc<Y>,
-    pub(crate) effective_agents_assembler: Arc<A>,
+    pub(crate) agent_renderer: Arc<A>,
     pub(crate) sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
 }
 
@@ -53,7 +53,7 @@ where
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
-    A: EffectiveAgentsAssembler + Send + Sync + 'static,
+    A: AgentRenderer + Send + Sync + 'static,
 {
     type NotStartedSubAgent = SubAgent<O::Client, B, R, Y, A>;
 
@@ -112,7 +112,7 @@ where
             pub_sub(),
             self.remote_config_parser.clone(),
             self.yaml_config_repository.clone(),
-            self.effective_agents_assembler.clone(),
+            self.agent_renderer.clone(),
         ))
     }
 }
@@ -191,7 +191,7 @@ mod tests {
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
-    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
+    use crate::sub_agent::agent_renderer::tests::MockAgentRenderer;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::tests::{MockSupervisor, MockSupervisorBuilder};
@@ -241,7 +241,7 @@ mod tests {
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(MockRemoteConfigParser::new()),
             yaml_config_repository: Arc::new(MockConfigRepository::new()),
-            effective_agents_assembler: Arc::new(MockEffectiveAgentAssembler::new()),
+            agent_renderer: Arc::new(MockAgentRenderer::new()),
             sub_agent_publisher: UnboundedBroadcast::default(),
         };
 
