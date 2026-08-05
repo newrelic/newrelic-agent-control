@@ -101,7 +101,7 @@ In terms of variable types, we currently support the following types listed in [
 * `number`: An numeric value, such as 42 or 0.25
 * `boolean`: A boolean value, which can be either *true* or *false*
 * `yaml`: The YAML type variable is used to handle multi-line strings that will be parsed as YAML such as Helm Charts values.
-* `map[string]yaml`: Handles YAML values that guarantee their top-level fields are strings. Useful for defining file system entries for on-host.
+* `string_map`: A map of string keys to string values. Used to project a set of files into a directory on-host (see `dir_content_from_map`), where map keys become filenames and values become file contents.
 
 ## Deployment
 

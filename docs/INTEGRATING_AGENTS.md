@@ -116,7 +116,7 @@ The value type that is accepted for this variable. As of now, the following type
 - `bool`.
 - `number`: Integer or floating point are supported.
 - `yaml`: An arbitrary YAML value, like an array, an object or even a scalar.
-- `map[string]yaml`: A YAML value where the top-level is guaranteed to consist on string keys for other values.
+- `string_map`: A map of string keys to string values, mainly used to project a set of files into a directory (see `dir_content_from_map` below).
 
 ##### `required` (`bool`)
 
@@ -377,9 +377,9 @@ files, which can be referenced in other fields via the variable `${nr-sub:filesy
 
 The files can be hardcoded, with the contents possibly containing templates, or the whole set of
 files can be templated, so a directory contains an arbitrary number of files (a place to use a
-`map[string]yaml` variable type). **The paths cannot be templated individually.**
+`string_map` variable type). **The paths cannot be templated individually.**
 
-Every directory and every file is declared with a `kind`, and directory trees are built recursively via an `entries:` field. A directory's contents can also be templated from a `map[string]yaml` variable using `kind: dir_content_from_map`, the map's keys become filenames and the values become file contents.
+Every directory and every file is declared with a `kind`, and directory trees are built recursively via an `entries:` field. A directory's contents can also be templated from a `string_map` variable using `kind: dir_content_from_map`, the map's keys become filenames and the values become file contents. File contents are plain text, so this works for any text-based file format, not just YAML.
 
 Each key names a single entry at its own level — it must be a single path segment (a leaf), not a slash-separated sub-path. A nested directory has to be spelled out level by level with explicit `kind: dir` + `entries:` blocks; a key such as `newrelic-infra/newrelic-integrations/logging` is rejected. Declare it as:
 
@@ -394,7 +394,7 @@ newrelic-infra:
           kind: dir
 ```
 
-This applies to projected filenames too: the keys of a `map[string]yaml` used by `dir_content_from_map` must also be single segments.
+This applies to projected filenames too: the keys of a `string_map` used by `dir_content_from_map` must also be single segments.
 
 The example below uses these variables:
 
@@ -406,8 +406,8 @@ variables:
     required: false
     default: ""
   config_logging:
-    description: "map of YAML config for logging"
-    type: map[string]yaml
+    description: "map of logging config file names to their contents"
+    type: string_map
     required: false
     default: {}
 ```
@@ -474,7 +474,7 @@ agent/
 └── newrelic-infra.yaml  ← contents from ${nr-var:config_agent}
 ```
 
-**`kind: dir_content_from_map`**: a directory whose entries are projected from a `map[string]yaml` variable at deploy time. Map keys become filenames; map values become file bodies.
+**`kind: dir_content_from_map`**: a directory whose entries are projected from a `string_map` variable at deploy time. Map keys become filenames; map values become file bodies.
 
 ```
 logging.d/
@@ -500,18 +500,18 @@ logging.d/
 | `kind`       | yes      | —       | Must be `dir`.                                                                                                                                             |
 | `entries`    | no       | `{}`    | Map of child entries (any kind). Recursive. Each key must be a single path segment, not a sub-path.                                                        |
 
-**`dir_content_from_map`** — a directory whose set of files is computed at deploy time from a `map[string]yaml` variable. The map's keys become filenames; the values become file contents.
+**`dir_content_from_map`** — a directory whose set of files is computed at deploy time from a `string_map` variable. The map's keys become filenames; the values become file contents.
 
 | Field        | Required | Default | Description                                                                                                            |
 |--------------|----------|---------|------------------------------------------------------------------------------------------------------------------------|
 | `kind`       | yes      | —       | Must be `dir_content_from_map`.                                                                                        |
-| `source`     | yes      | —       | Reference to a `map[string]yaml` variable (`${nr-var:…}`).                                                             |
+| `source`     | yes      | —       | Reference to a `string_map` variable (`${nr-var:…}`).                                                                  |
 
 ##### Filesystem entry lifecycle
 
 Every `file` and `dir` entry survives sub-agent stop, restart, and config-apply: nothing is wiped at those points. `write` only ever overwrites the paths it declares; it never touches anything else on disk, so agent-process-created files (declared or not) are left alone.
 
-**`dir_content_from_map` is the one exception**: instead of reconciling individual files like a `dir`, its whole directory is treated as a single unit, fully derived from its `map[string]yaml` variable. Every write deletes the directory and recreates it from the current map, rather than merging changes into what's already there. Like a `file: text` entry, its on-disk content is entirely determined by the current variable value, so unchanged variables produce the exact same files across a stop, restart, or config-apply, and a key removed from the map is gone after the next write. Unlike `file`/`dir`, though, this reconciliation is unconditional: any content that lands in the directory by other means (for example, the agent process writing into it) is wiped on every write too, not only when the map itself changes.
+**`dir_content_from_map` is the one exception**: instead of reconciling individual files like a `dir`, its whole directory is treated as a single unit, fully derived from its `string_map` variable. Every write deletes the directory and recreates it from the current map, rather than merging changes into what's already there. Like a `file: text` entry, its on-disk content is entirely determined by the current variable value, so unchanged variables produce the exact same files across a stop, restart, or config-apply, and a key removed from the map is gone after the next write. Unlike `file`/`dir`, though, this reconciliation is unconditional: any content that lands in the directory by other means (for example, the agent process writing into it) is wiped on every write too, not only when the map itself changes.
 
 **On start, Agent Control reclaims top-level paths that are no longer declared at all** under the sub-agent's filesystem directory. Declared `dir`'s contents are kept.
 

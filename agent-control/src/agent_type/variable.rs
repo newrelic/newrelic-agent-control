@@ -113,11 +113,11 @@ mod tests {
         }
     }
 
-    impl From<Fields<HashMap<String, serde_json::Value>>> for Variable {
-        fn from(kind_value: Fields<HashMap<String, serde_json::Value>>) -> Self {
+    impl From<Fields<HashMap<String, String>>> for Variable {
+        fn from(kind_value: Fields<HashMap<String, String>>) -> Self {
             Self {
                 description: String::new(),
-                variable_type: VariableType::MapStringYaml(kind_value),
+                variable_type: VariableType::StringMap(kind_value),
             }
         }
     }

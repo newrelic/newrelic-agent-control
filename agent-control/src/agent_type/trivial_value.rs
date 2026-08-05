@@ -22,9 +22,6 @@ pub enum TrivialValue {
     /// A map of string keys to string values.
     #[serde(skip)]
     MapStringString(Map<String, String>),
-    /// A map of string keys to arbitrary YAML values.
-    #[serde(skip)]
-    MapStringYaml(Map<String, serde_json::Value>),
 }
 
 impl TrivialValue {
@@ -49,20 +46,14 @@ impl Display for TrivialValue {
             ),
             TrivialValue::Bool(b) => write!(f, "{b}"),
             TrivialValue::Number(n) => write!(f, "{n}"),
-            TrivialValue::MapStringString(n) => {
-                let flatten: Vec<String> = n
-                    .iter()
-                    // FIXME is this what we really want? key=value?
-                    .map(|(key, value)| format!("{key}={value}")) 
-                    .collect();
-                write!(f, "{}", flatten.join(" "))
-            }
-            TrivialValue::MapStringYaml(n) => write!(
+            // Serialized as YAML text: `dir_content_from_map` re-parses this as a YAML mapping.
+            TrivialValue::MapStringString(n) => write!(
                 f,
                 "{}",
-                serde_saphyr::to_string(n)
-                    .expect("A value of type HashMap<String, serde_json::Value> should always be serializable")
-            )
+                serde_saphyr::to_string(n).expect(
+                    "A value of type HashMap<String, String> should always be serializable"
+                )
+            ),
         }
     }
 }

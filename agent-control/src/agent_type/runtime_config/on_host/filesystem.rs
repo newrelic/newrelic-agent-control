@@ -2,7 +2,7 @@
 //!
 //! Every entry under `filesystem:` is declared with an explicit `kind:` (`file`, `dir`, or
 //! `dir_content_from_map`). Directory trees are built recursively via the `entries:` field on
-//! `kind: dir`. A directory's contents may also be projected from a `map[string]yaml` variable
+//! `kind: dir`. A directory's contents may also be projected from a `string_map` variable
 //! using `kind: dir_content_from_map`, where map keys become filenames and values become file
 //! bodies.
 //!
@@ -27,13 +27,12 @@ use crate::agent_type::{
         namespace::{Namespace, VariableName},
     },
 };
-use serde::de::Error;
 use serde::{Deserialize, Serialize};
 
 pub mod rendered;
 
 /// Filesystem configuration for an on-host sub-agent: a tree of files, directories, and
-/// directories whose contents are projected from `map[string]yaml` variables.
+/// directories whose contents are projected from `string_map` variables.
 ///
 /// Every entry is tagged with a `kind:`. `dir` entries may contain further entries under
 /// `entries:`, recursively.
@@ -61,10 +60,10 @@ pub enum FilesystemEntry {
         #[serde(default)]
         entries: HashMap<SafePath, FilesystemEntry>,
     },
-    /// A directory whose set of files is computed at deploy time from a `map[string]yaml`
+    /// A directory whose set of files is computed at deploy time from a `string_map`
     /// variable. Map keys become filenames; values become file contents.
     DirContentFromMap {
-        /// The (templated) `map[string]yaml` source whose keys/values become files.
+        /// The (templated) `string_map` source whose keys/values become files.
         source: TemplateableValue<DirEntriesMap>,
     },
 }
@@ -97,8 +96,8 @@ impl From<SafePath> for PathBuf {
     }
 }
 
-/// Helper carrying the rendered output of a `${nr-var:map[string]yaml}` source — exists
-/// to satisfy the orphan rule when implementing `Templateable` for `TemplateableValue<_>`.
+/// Helper carrying the rendered output of a `${nr-var:string_map}` source, needed to
+/// satisfy the orphan rule when implementing `Templateable` for `TemplateableValue<_>`.
 #[derive(Debug, Serialize, Default, PartialEq, Clone)]
 pub struct DirEntriesMap(HashMap<SafePath, String>);
 
@@ -314,31 +313,14 @@ impl Templateable for TemplateableValue<DirEntriesMap> {
         let value: HashMap<SafePath, String> = if templated_string.is_empty() {
             HashMap::new()
         } else {
-            let map_string_value: HashMap<SafePath, serde_json::Value> =
-                serde_saphyr::from_str(&templated_string).map_err(|e| {
-                    AgentTypeError::ValueNotParseableFromString(format!(
-                        "Could not parse templated directory items as YAML: {e}"
-                    ))
-                })?;
-
-            map_string_value
-                .into_iter()
-                .map(|(k, v)| Ok((k, output_string(v)?)))
-                .collect::<Result<HashMap<_, _>, serde_saphyr::Error>>()?
+            serde_saphyr::from_str(&templated_string).map_err(|e| {
+                AgentTypeError::ValueNotParseableFromString(format!(
+                    "Could not parse templated directory items as a map of string keys to string values: {e}"
+                ))
+            })?
         };
 
         Ok(DirEntriesMap(value))
-    }
-}
-
-/// Converts a serde_json::Value to a String. Strings pass through; other variants are serialized
-/// as YAML.
-fn output_string(value: serde_json::Value) -> Result<String, serde_saphyr::Error> {
-    match value {
-        // Pass the string directly (serde_saphyr inserts literal syntax for multi-line strings)
-        serde_json::Value::String(s) => Ok(s),
-        // Else serialize the value to a YAML string using the default methods
-        v => serde_saphyr::to_string(&v).map_err(|e| serde_saphyr::Error::custom(e.to_string())),
     }
 }
 
@@ -407,7 +389,6 @@ mod tests {
     use fs::directory_manager::DirectoryManagerFs;
     use fs::file::LocalFile;
     use rstest::rstest;
-    use serde_json::Value;
     use tempfile::TempDir;
 
     #[rstest]
@@ -742,7 +723,7 @@ agent:
                     None,
                     Some(HashMap::from([(
                         "syslog.yaml".to_string(),
-                        Value::String("logs: []".to_string()),
+                        "logs: []".to_string(),
                     )])),
                 ),
             ),
@@ -856,8 +837,8 @@ projected:
   source: ${nr-var:proj}
 "#;
         let proj_first = HashMap::from([
-            ("a.yaml".to_string(), Value::String("a-content".to_string())),
-            ("b.yaml".to_string(), Value::String("b-content".to_string())),
+            ("a.yaml".to_string(), "a-content".to_string()),
+            ("b.yaml".to_string(), "b-content".to_string()),
         ]);
         let variables_first = Variables::from_iter(vec![
             (
@@ -902,10 +883,7 @@ projected:
   kind: dir_content_from_map
   source: ${nr-var:proj}
 "#;
-        let proj_second = HashMap::from([(
-            "a.yaml".to_string(),
-            Value::String("a-content-v2".to_string()),
-        )]);
+        let proj_second = HashMap::from([("a.yaml".to_string(), "a-content-v2".to_string())]);
         let variables_second = Variables::from_iter(vec![
             (
                 VariableName::new(
@@ -998,7 +976,7 @@ logging.d:
                     None,
                     Some(HashMap::from([(
                         "file-1.conf".to_string(),
-                        Value::String("config-1".to_string()),
+                        "config-1".to_string(),
                     )])),
                 ),
             ),
@@ -1033,7 +1011,7 @@ logging.d:
                     None,
                     Some(HashMap::from([(
                         "file-2.conf".to_string(),
-                        Value::String("config-2".to_string()),
+                        "config-2".to_string(),
                     )])),
                 ),
             ),

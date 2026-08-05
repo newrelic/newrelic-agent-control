@@ -11,8 +11,8 @@ variables:
     required: false
     default: ""
   config_logging:
-    description: "map of YAML config for logging"
-    type: map[string]yaml
+    description: "map of logging config file names to their contents"
+    type: string_map
     required: false
     default: { }
   backoff_delay:
