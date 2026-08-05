@@ -13,7 +13,7 @@ use crate::agent_type::variable::Variable;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use crate::agent_type::variable::secret_variables::{SecretVariables, SecretVariablesError};
-use crate::secrets_provider::SecretsProviders;
+use crate::secrets_provider::{Registry, SecretsProvider, SecretsProviderType};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
 use std::collections::HashMap;
@@ -120,20 +120,22 @@ pub trait AgentRenderer {
 ///
 /// Important: Rendering an Agent may mutate the state of external resources by creating
 /// or removing configs when the `Runtime` is rendered.
-pub struct DefaultAgentRenderer<R>
+pub struct DefaultAgentRenderer<R, S = SecretsProviderType>
 where
     R: AgentTypeRegistry,
+    S: SecretsProvider,
 {
     registry: Arc<R>,
     ac_variables: HashMap<VariableName, Variable>,
     variable_constraints: VariableConstraints,
-    secrets_providers: SecretsProviders,
+    secrets_providers: Registry<S>,
     remote_dir: PathBuf,
 }
 
-impl<R> DefaultAgentRenderer<R>
+impl<R, S> DefaultAgentRenderer<R, S>
 where
     R: AgentTypeRegistry,
+    S: SecretsProvider,
 {
     /// Creates a renderer from an agent-type registry, agent-control variables, variable
     /// constraints, secrets providers, and the remote configuration directory.
@@ -141,7 +143,7 @@ where
         registry: Arc<R>,
         ac_variables: impl Iterator<Item = (String, Variable)>,
         variable_constraints: VariableConstraints,
-        secrets_providers: SecretsProviders,
+        secrets_providers: Registry<S>,
         remote_dir: &Path,
     ) -> Self {
         DefaultAgentRenderer {
@@ -154,9 +156,10 @@ where
     }
 }
 
-impl<R> AgentRenderer for DefaultAgentRenderer<R>
+impl<R, S> AgentRenderer for DefaultAgentRenderer<R, S>
 where
     R: AgentTypeRegistry,
+    S: SecretsProvider,
 {
     fn render_agent(
         &self,
@@ -203,7 +206,7 @@ where
 }
 
 /// Renders an [`AgentType`] together with user values into a runtime configuration for a sub-agent.
-pub(crate) fn render_runtime_config(
+fn render_runtime_config(
     agent_type: AgentType,
     values: YAMLConfig,
     agent_variables: HashMap<VariableName, Variable>,
@@ -312,6 +315,44 @@ pub(crate) mod tests {
         }
     }
 
+    /// Error returned by [MockFixedSecretsProvider] when no fixed value is registered for a
+    /// requested secret path.
+    #[derive(Error, Debug)]
+    #[error("no fixed secret registered for {0}")]
+    pub struct FixedSecretError(String);
+
+    mock! {
+        pub FixedSecretsProvider {}
+
+        impl SecretsProvider for FixedSecretsProvider {
+            type Error = FixedSecretError;
+
+            fn get_secret(&self, secret_path: &str) -> Result<String, FixedSecretError>;
+        }
+    }
+
+    /// Builds a [`Registry`] that resolves `${nr-env:...}` references to the given fixed values,
+    /// without registering the real [`Env`](crate::secrets_provider::env::Env) provider and
+    /// therefore without touching real process environment variables.
+    pub fn env_secrets_registry_for_testing(
+        values: HashMap<&'static str, &'static str>,
+    ) -> Registry<MockFixedSecretsProvider> {
+        let values: HashMap<String, String> = values
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+
+        let mut provider = MockFixedSecretsProvider::new();
+        provider.expect_get_secret().returning(move |path| {
+            values
+                .get(path)
+                .cloned()
+                .ok_or_else(|| FixedSecretError(path.to_string()))
+        });
+
+        Registry::from(HashMap::from([(Namespace::EnvironmentVariable, provider)]))
+    }
+
     impl<R> DefaultAgentRenderer<R>
     where
         R: AgentTypeRegistry,
@@ -321,7 +362,7 @@ pub(crate) mod tests {
                 registry: Arc::new(registry),
                 ac_variables: HashMap::new(),
                 variable_constraints: VariableConstraints::default(),
-                secrets_providers: SecretsProviders::default(),
+                secrets_providers: Registry::default(),
                 remote_dir: PathBuf::default(),
             }
         }
