@@ -1,6 +1,9 @@
+use std::ffi;
+use std::mem;
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr;
+use tracing::trace;
 use windows_sys::Win32::Foundation::{ERROR_SUCCESS, GetLastError};
 use windows_sys::Win32::Security::Authorization::{
     EXPLICIT_ACCESS_W, GetNamedSecurityInfoW, SE_FILE_OBJECT, SET_ACCESS, SetEntriesInAclW,
@@ -129,7 +132,7 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
             ));
         }
 
-        tracing::trace!(path = %path.display(), "applied Administrators-only DACL");
+        trace!(path = %path.display(), "applied Administrators-only DACL");
         Ok(())
     }
 }
@@ -148,18 +151,28 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
 ///
 /// A conforming entry returns `false`, so a healthy tree is not rewritten on every startup — only the
 /// entries that actually lack the managed access are repaired.
+///
+/// Caveat: this looks for *any* matching Administrators `Allow` ACE with a sufficient mask, without
+/// regard to ACE order. It does not check whether an earlier `Deny` ACE in the same DACL would negate
+/// that `Allow` at Windows' actual access-check time — so a DACL with e.g. `[Deny Administrators:
+/// Delete][Allow Administrators: Modify]` would be reported as conforming even though delete is
+/// effectively denied. Not currently reachable: every DACL this code writes fully replaces the
+/// existing one (`SetEntriesInAclW` is called with no old ACL to merge), so
+/// `set_file_permissions_for_administrator` can never itself leave behind a stray `Deny` ACE for this
+/// function to misread. Noted here as a defense-in-depth gap in case a `Deny` ACE is ever introduced
+/// by something other than this code path (e.g. third-party security tooling).
 pub fn permissions_need_repair(path: &Path) -> bool {
-    let expected_mask = FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE;
-    let is_dir = path.is_dir();
-    let admin_sid = match get_administrator_sid() {
-        Ok(sid) => sid,
+    let Ok(admin_sid) = get_administrator_sid() else {
         // Can't even build the Administrators SID to compare against; err on the side of repairing.
-        Err(_) => return true,
+        return true;
     };
+
+    let expected_mask = FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE;
     let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+
     unsafe {
         let mut dacl: *mut ACL = ptr::null_mut();
-        let mut security_descriptor: *mut std::ffi::c_void = ptr::null_mut();
+        let mut security_descriptor: *mut ffi::c_void = ptr::null_mut();
         let result = GetNamedSecurityInfoW(
             path_wstr.as_ptr(),
             SE_FILE_OBJECT,
@@ -171,53 +184,53 @@ pub fn permissions_need_repair(path: &Path) -> bool {
             &mut security_descriptor,
         );
         if result != ERROR_SUCCESS {
-            tracing::trace!(path = %path.display(), error = result, "cannot read DACL, flagging permissions for repair");
+            trace!(path = %path.display(), error = result, "cannot read DACL, flagging permissions for repair");
             return true;
         }
         if dacl.is_null() {
             // A NULL DACL grants everyone; re-stamp to lock it back down to Administrators-only.
-            tracing::trace!(path = %path.display(), "NULL DACL (grants everyone), flagging permissions for repair");
+            trace!(path = %path.display(), "NULL DACL (grants everyone), flagging permissions for repair");
             return true;
         }
         let mut acl_size_info: ACL_SIZE_INFORMATION = std::mem::zeroed();
         if GetAclInformation(
             dacl,
             &mut acl_size_info as *mut _ as *mut _,
-            std::mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
+            mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
             AclSizeInformation,
         ) == 0
         {
-            tracing::trace!(path = %path.display(), "cannot read ACL info, flagging permissions for repair");
+            trace!(path = %path.display(), "cannot read ACL info, flagging permissions for repair");
             return true;
         }
         // Look for an Administrators Allow ACE that already grants the full managed rights (and, on a
         // directory, is inheritable). If we find one, the entry conforms and needs no repair.
         let required_inherit = (OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE) as u8;
         for i in 0..acl_size_info.AceCount {
-            let mut ace_ptr: *mut std::ffi::c_void = ptr::null_mut();
+            let mut ace_ptr: *mut ffi::c_void = ptr::null_mut();
             if GetAce(dacl, i, &mut ace_ptr) == 0 {
-                continue;
+                continue; // `GetAce` failed
             }
-            let Some(ace_ptr) = std::ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE) else {
+            let Some(ace_ptr) = ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE) else {
                 continue;
             };
             let ace = &*ace_ptr.as_ptr();
             if ace.Header.AceType != 0 {
                 continue; // ACCESS_ALLOWED_ACE_TYPE == 0; only Allow ACEs grant access
             }
-            let sid_in_ace = &ace.SidStart as *const u32 as *mut std::ffi::c_void;
+            let sid_in_ace = &ace.SidStart as *const u32 as *mut ffi::c_void;
             if EqualSid(sid_in_ace, admin_sid.as_ptr() as *mut _) == 0 {
                 continue; // not the Administrators ACE
             }
             if ace.Mask & expected_mask != expected_mask {
                 continue; // missing a required right (e.g. DELETE) -> not sufficient
             }
-            if is_dir && (ace.Header.AceFlags & required_inherit != required_inherit) {
+            if path.is_dir() && (ace.Header.AceFlags & required_inherit != required_inherit) {
                 continue; // a directory's managed ACE must be inheritable
             }
             return false; // conforming Administrators ACE found
         }
-        tracing::trace!(path = %path.display(), ace_count = acl_size_info.AceCount, "DACL lacks a conforming Administrators ACE (empty, or missing DELETE/execute/inheritance), flagging permissions for repair");
+        trace!(path = %path.display(), ace_count = acl_size_info.AceCount, "DACL lacks a conforming Administrators ACE (empty, or missing DELETE/execute/inheritance), flagging permissions for repair");
         true
     }
 }
@@ -225,6 +238,8 @@ pub fn permissions_need_repair(path: &Path) -> bool {
 #[cfg(test)]
 #[allow(missing_docs)] // test-support code
 pub mod tests {
+    use std::fs;
+
     use windows_sys::Win32::{
         Foundation::ERROR_SUCCESS,
         Security::{
@@ -262,7 +277,7 @@ pub mod tests {
             // Get file's DACL
             let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
             let mut dacl: *mut ACL = ptr::null_mut();
-            let mut security_descriptor: *mut std::ffi::c_void = ptr::null_mut();
+            let mut security_descriptor: *mut ffi::c_void = ptr::null_mut();
 
             let result = GetNamedSecurityInfoW(
                 path_wstr.as_ptr(),
@@ -283,7 +298,7 @@ pub mod tests {
             let info_result = GetAclInformation(
                 dacl,
                 &mut acl_size_info as *mut _ as *mut _,
-                std::mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
+                mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
                 AclSizeInformation,
             );
 
@@ -294,14 +309,14 @@ pub mod tests {
             );
 
             // Verify ACE is for Administrators with Read/Write permissions
-            let mut ace_ptr: *mut std::ffi::c_void = ptr::null_mut();
+            let mut ace_ptr: *mut ffi::c_void = ptr::null_mut();
             let ace_result = GetAce(dacl, 0, &mut ace_ptr);
             assert_ne!(ace_result, 0, "Failed to get ACE");
 
-            let ace_ptr = std::ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE)
+            let ace_ptr = ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE)
                 .expect("ACE pointer should not be null");
             let ace = &*ace_ptr.as_ptr();
-            let sid_in_ace = &ace.SidStart as *const u32 as *mut std::ffi::c_void;
+            let sid_in_ace = &ace.SidStart as *const u32 as *mut ffi::c_void;
             let sids_equal = EqualSid(sid_in_ace, admin_sid.as_mut_ptr() as *mut _);
             assert_ne!(sids_equal, 0, "ACE SID should match Administrators SID");
 
@@ -354,7 +369,7 @@ pub mod tests {
 
             let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
             let mut dacl: *mut ACL = ptr::null_mut();
-            let mut security_descriptor: *mut std::ffi::c_void = ptr::null_mut();
+            let mut security_descriptor: *mut ffi::c_void = ptr::null_mut();
             let result = GetNamedSecurityInfoW(
                 path_wstr.as_ptr(),
                 SE_FILE_OBJECT,
@@ -368,12 +383,12 @@ pub mod tests {
             assert_eq!(result, ERROR_SUCCESS, "Failed to get child security info");
             assert!(!dacl.is_null(), "child DACL should not be null");
 
-            let mut acl_size_info: ACL_SIZE_INFORMATION = std::mem::zeroed();
+            let mut acl_size_info: ACL_SIZE_INFORMATION = mem::zeroed();
             assert_ne!(
                 GetAclInformation(
                     dacl,
                     &mut acl_size_info as *mut _ as *mut _,
-                    std::mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
+                    mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
                     AclSizeInformation,
                 ),
                 0,
@@ -382,19 +397,18 @@ pub mod tests {
 
             let mut inherited_admin = false;
             for i in 0..acl_size_info.AceCount {
-                let mut ace_ptr: *mut std::ffi::c_void = ptr::null_mut();
+                let mut ace_ptr: *mut ffi::c_void = ptr::null_mut();
                 if GetAce(dacl, i, &mut ace_ptr) == 0 {
                     continue;
                 }
                 // Guard the raw pointer with NonNull before dereferencing (mirrors
                 // assert_windows_permissions and satisfies CodeQL's invalid-pointer check).
-                let Some(ace_ptr) = std::ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE)
-                else {
+                let Some(ace_ptr) = ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE) else {
                     continue;
                 };
                 let ace = &*ace_ptr.as_ptr();
                 let is_inherited = (ace.Header.AceFlags & (INHERITED_ACE as u8)) != 0;
-                let sid_in_ace = &ace.SidStart as *const u32 as *mut std::ffi::c_void;
+                let sid_in_ace = &ace.SidStart as *const u32 as *mut ffi::c_void;
                 let is_admin = EqualSid(sid_in_ace, admin_sid.as_mut_ptr() as *mut _) != 0;
                 if is_inherited && is_admin {
                     inherited_admin = true;
@@ -425,7 +439,7 @@ pub mod tests {
     fn child_created_in_managed_directory_inherits_admin_access() {
         let tempdir = tempfile::tempdir().unwrap();
         let managed_dir = tempdir.path().join("nr-infra");
-        std::fs::create_dir(&managed_dir).unwrap();
+        fs::create_dir(&managed_dir).unwrap();
 
         // Harden the directory the way Agent Control does for its managed filesystem.
         set_file_permissions_for_administrator(&managed_dir)
@@ -433,7 +447,7 @@ pub mod tests {
 
         // A sub-agent creates its log inside the managed directory (no permissions of its own).
         let child = managed_dir.join("newrelic-infra.log");
-        std::fs::write(&child, b"heartbeat").expect("creating the child file should succeed");
+        fs::write(&child, b"heartbeat").expect("creating the child file should succeed");
 
         // It must have inherited the Administrators ACE from the directory. Pre-fix this fails
         // because the directory's ACE was not inheritable.
@@ -492,7 +506,7 @@ pub mod tests {
         unsafe {
             let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
             let mut dacl: *mut ACL = ptr::null_mut();
-            let mut security_descriptor: *mut std::ffi::c_void = ptr::null_mut();
+            let mut security_descriptor: *mut ffi::c_void = ptr::null_mut();
             assert_eq!(
                 GetNamedSecurityInfoW(
                     path_wstr.as_ptr(),
@@ -512,12 +526,12 @@ pub mod tests {
                 "expected a present (empty) DACL; a null DACL would grant everyone — the repro is wrong"
             );
 
-            let mut acl_size_info: ACL_SIZE_INFORMATION = std::mem::zeroed();
+            let mut acl_size_info: ACL_SIZE_INFORMATION = mem::zeroed();
             assert_ne!(
                 GetAclInformation(
                     dacl,
                     &mut acl_size_info as *mut _ as *mut _,
-                    std::mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
+                    mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
                     AclSizeInformation,
                 ),
                 0,
@@ -546,7 +560,7 @@ pub mod tests {
     fn recursive_repair_heals_existing_empty_dacl_child_from_older_version() {
         let tempdir = tempfile::tempdir().unwrap();
         let managed_dir = tempdir.path().join("nr-infra");
-        std::fs::create_dir(&managed_dir).unwrap();
+        fs::create_dir(&managed_dir).unwrap();
 
         // Start from the fixed state so the child is created inheritance-accepting (D:AI,
         // inherited-only) — the precondition for the propagation wipe. Creating the child after a
@@ -555,7 +569,7 @@ pub mod tests {
         set_file_permissions_for_administrator(&managed_dir)
             .expect("initial (fixed) hardening should succeed");
         let child = managed_dir.join("newrelic-infra.log");
-        std::fs::write(&child, b"heartbeat").expect("creating the child file should succeed");
+        fs::write(&child, b"heartbeat").expect("creating the child file should succeed");
         assert_inherited_admin_ace(&child); // healthy start: inherited the directory's Administrators ACE
 
         // Reproduce what an older Agent Control version did: re-harden the directory with a
@@ -565,10 +579,7 @@ pub mod tests {
         legacy_harden_non_inheritable(&managed_dir);
         assert_dacl_is_empty(&child);
         assert!(
-            std::fs::OpenOptions::new()
-                .write(true)
-                .open(&child)
-                .is_err(),
+            fs::OpenOptions::new().write(true).open(&child).is_err(),
             "an empty-DACL child must be unopenable for write — this is the sub-agent's 'Access is denied'"
         );
 
@@ -580,7 +591,7 @@ pub mod tests {
             .expect("recursive permission repair should succeed");
         assert_windows_permissions(&child); // child now carries its own Administrators entry
         assert!(
-            std::fs::OpenOptions::new().write(true).open(&child).is_ok(),
+            fs::OpenOptions::new().write(true).open(&child).is_ok(),
             "after the repair the child must grant Administrators access and be openable"
         );
     }
@@ -591,7 +602,7 @@ pub mod tests {
     fn permissions_need_repair_flags_only_broken_entries() {
         let tempdir = tempfile::tempdir().unwrap();
         let dir = tempdir.path().join("nr-infra");
-        std::fs::create_dir(&dir).unwrap();
+        fs::create_dir(&dir).unwrap();
         set_file_permissions_for_administrator(&dir).expect("hardening should succeed");
 
         // A freshly-hardened directory, and a child that inherits its ACE, are both healthy.
@@ -600,7 +611,7 @@ pub mod tests {
             "a freshly-hardened directory must not be flagged for repair"
         );
         let child = dir.join("newrelic-infra.log");
-        std::fs::write(&child, b"heartbeat").expect("creating child should succeed");
+        fs::write(&child, b"heartbeat").expect("creating child should succeed");
         assert!(
             !permissions_need_repair(&child),
             "a child inheriting the Administrators ACE must not be flagged for repair"
@@ -622,14 +633,14 @@ pub mod tests {
     fn recursive_repair_heals_nested_empty_dacl_directory_and_file() {
         let tempdir = tempfile::tempdir().unwrap();
         let managed_dir = tempdir.path().join("nr-infra");
-        std::fs::create_dir(&managed_dir).unwrap();
+        fs::create_dir(&managed_dir).unwrap();
         set_file_permissions_for_administrator(&managed_dir).expect("hardening should succeed");
 
         // A sub-agent creates a nested data directory with a file inside; both inherit (healthy).
         let subdir = managed_dir.join("newrelic-infra");
-        std::fs::create_dir(&subdir).unwrap();
+        fs::create_dir(&subdir).unwrap();
         let nested_file = subdir.join("newrelic-infra.log");
-        std::fs::write(&nested_file, b"heartbeat").expect("creating nested file should succeed");
+        fs::write(&nested_file, b"heartbeat").expect("creating nested file should succeed");
 
         // An older version re-hardens the managed dir non-inheritably; propagation wipes the whole
         // inherited-only subtree — the nested directory *and* the file within it — to empty DACLs.
@@ -645,7 +656,7 @@ pub mod tests {
         assert_windows_permissions(&subdir);
         assert_windows_permissions(&nested_file);
         assert!(
-            std::fs::OpenOptions::new()
+            fs::OpenOptions::new()
                 .write(true)
                 .open(&nested_file)
                 .is_ok(),
@@ -659,10 +670,10 @@ pub mod tests {
     fn repair_restores_delete_so_managed_tree_is_removable() {
         let tempdir = tempfile::tempdir().unwrap();
         let managed_dir = tempdir.path().join("nr-infra");
-        std::fs::create_dir(&managed_dir).unwrap();
+        fs::create_dir(&managed_dir).unwrap();
         set_file_permissions_for_administrator(&managed_dir).expect("hardening should succeed");
         let child = managed_dir.join("newrelic-infra.log");
-        std::fs::write(&child, b"heartbeat").expect("creating child should succeed");
+        fs::write(&child, b"heartbeat").expect("creating child should succeed");
 
         // Older-version wipe: the child's DACL is now empty (grants DELETE to no one).
         legacy_harden_non_inheritable(&managed_dir);
@@ -673,7 +684,7 @@ pub mod tests {
             .expect("recursive permission repair should succeed");
 
         // Cleanup now succeeds where a decommission previously failed with os error 5.
-        std::fs::remove_dir_all(&managed_dir)
+        fs::remove_dir_all(&managed_dir)
             .expect("managed tree must be removable after the permission repair");
         assert!(!managed_dir.exists());
     }
@@ -727,10 +738,10 @@ pub mod tests {
     fn repair_reinstates_delete_on_read_write_only_file_from_older_version() {
         let tempdir = tempfile::tempdir().unwrap();
         let managed_dir = tempdir.path().join("fleet-data");
-        std::fs::create_dir(&managed_dir).unwrap();
+        fs::create_dir(&managed_dir).unwrap();
         set_file_permissions_for_administrator(&managed_dir).expect("hardening should succeed");
         let cfg = managed_dir.join("remote_config.yaml");
-        std::fs::write(&cfg, b"config: value").expect("creating config should succeed");
+        fs::write(&cfg, b"config: value").expect("creating config should succeed");
 
         // An older agent-control stamped it read/write only (no DELETE) - the field state.
         legacy_harden_read_write_only(&cfg);
@@ -746,7 +757,7 @@ pub mod tests {
         assert_windows_permissions(&cfg); // now Administrators Modify (read/write/execute/delete)
 
         // And the config is now deletable, so decommission cleanup succeeds.
-        std::fs::remove_file(&cfg).expect("config must be deletable after the repair");
+        fs::remove_file(&cfg).expect("config must be deletable after the repair");
     }
 
     /// A managed *directory* an older version hardened non-inheritably (`Administrators:(R,W,D)`, no
@@ -758,7 +769,7 @@ pub mod tests {
     fn repair_makes_a_non_inheritable_managed_directory_inheritable() {
         let tempdir = tempfile::tempdir().unwrap();
         let dir = tempdir.path().join("newrelic-infra");
-        std::fs::create_dir(&dir).unwrap();
+        fs::create_dir(&dir).unwrap();
 
         // Older version: protected Administrators (R,W,D) but NON-inheritable (no OI|CI).
         legacy_harden_non_inheritable(&dir);
