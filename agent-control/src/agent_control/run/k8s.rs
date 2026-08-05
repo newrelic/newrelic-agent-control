@@ -30,6 +30,7 @@ use crate::environment::Environment;
 use crate::event::channel::{EventPublisher, pub_sub};
 use crate::event::{AgentControlEvent, AgentControlInternalEvent};
 use crate::k8s::client::SyncK8sClient;
+use crate::opamp::capabilities::CustomCapability;
 use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilder;
@@ -63,8 +64,6 @@ pub const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
 
 /// Execution environment for the Kubernetes run mode.
 pub const AGENT_CONTROL_MODE_K8S: Environment = Environment::K8s;
-/// OpAMP custom capability signalling this AC is not managed by an agent-control-cd deployment.
-pub const K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY: &str = "com.newrelic.k8s_config_only_agents";
 
 impl AgentControlRunner {
     /// Runs Agent Control in Kubernetes mode until a graceful shutdown is requested.
@@ -330,15 +329,13 @@ pub fn build_ac_opamp_start_settings(
 
     let mut custom_capabilities = default_custom_capabilities();
     if !k8s_config.cd_enabled {
-        custom_capabilities
-            .capabilities
-            .push(K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY.to_string());
+        custom_capabilities.push(CustomCapability::K8sConfigOnlyAgents);
     }
 
     Ok(StartSettings {
         instance_uid: instance_id.into(),
         capabilities: default_capabilities(),
-        custom_capabilities: Some(custom_capabilities),
+        custom_capabilities: Some(custom_capabilities.into()),
         agent_description,
     })
 }
@@ -440,7 +437,7 @@ mod tests {
         let caps = settings.custom_capabilities.unwrap();
         assert!(
             caps.capabilities
-                .contains(&K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY.to_string()),
+                .contains(&CustomCapability::K8sConfigOnlyAgents.to_string()),
             "expected k8s_config_only_agents capability when cd_remote_update=false"
         );
     }
@@ -466,7 +463,7 @@ mod tests {
         assert!(
             !caps
                 .capabilities
-                .contains(&K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY.to_string()),
+                .contains(&CustomCapability::K8sConfigOnlyAgents.to_string()),
             "expected no k8s_config_only_agents capability when cd_remote_update=true"
         );
     }

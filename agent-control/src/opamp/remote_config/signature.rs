@@ -1,12 +1,11 @@
 //! Remote configuration signatures carried in OpAMP custom messages and their parsing.
+use crate::opamp::capabilities::CustomCapability;
 use crate::signature::public_key::SigningAlgorithm;
 use opamp_client::opamp::proto::CustomMessage;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Debug};
 use thiserror::Error;
 
-/// signature custom message capability
-pub const SIGNATURE_CUSTOM_CAPABILITY: &str = "com.newrelic.security.configSignature";
 /// signature custom message type
 pub const SIGNATURE_CUSTOM_MESSAGE_TYPE: &str = "newrelicRemoteConfigSignature";
 
@@ -180,7 +179,7 @@ impl TryFrom<&CustomMessage> for Signatures {
     type Error = SignatureError;
 
     fn try_from(custom_message: &CustomMessage) -> Result<Self, Self::Error> {
-        if custom_message.capability != SIGNATURE_CUSTOM_CAPABILITY {
+        if custom_message.capability != CustomCapability::Signature.as_str() {
             return Err(SignatureError::InvalidCapability);
         }
         if custom_message.r#type != SIGNATURE_CUSTOM_MESSAGE_TYPE {
@@ -199,6 +198,7 @@ impl TryFrom<&CustomMessage> for Signatures {
 pub mod tests {
     use super::SignatureData;
     use super::Signatures;
+    use crate::opamp::capabilities::CustomCapability;
     use crate::opamp::remote_config::signature::SigningAlgorithm;
     use opamp_client::opamp::proto::CustomMessage;
     use std::collections::HashMap;
@@ -248,7 +248,7 @@ pub mod tests {
             TestCase {
                 name: "complete valid message",
                 custom_message: CustomMessage {
-                    capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                    capability: CustomCapability::Signature.to_string(),
                     r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                     data: r#"{
                           "someConfigKey": [{
@@ -265,7 +265,7 @@ pub mod tests {
             TestCase {
                 name: "Unsupported + ED25519",
                 custom_message: CustomMessage {
-                    capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                    capability: CustomCapability::Signature.to_string(),
                     r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                     data: r#"{
                           "3936250589": [
@@ -296,7 +296,7 @@ pub mod tests {
     #[test]
     fn test_print_acc_err() {
         let custom_message = CustomMessage {
-            capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+            capability: CustomCapability::Signature.to_string(),
             r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
             data: r#"{
                           "1": [
@@ -323,7 +323,7 @@ pub mod tests {
     #[test]
     fn test_deserialize_signature_data_items_precedence() {
         let custom_message = CustomMessage {
-            capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+            capability: CustomCapability::Signature.to_string(),
             r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
             data: r#"{
                           "1": [
@@ -392,7 +392,7 @@ pub mod tests {
             TestCase {
                 name: "unknown",
                 custom_message: CustomMessage {
-                    capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                    capability: CustomCapability::Signature.to_string(),
                     r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                     data: r#"{
                           "3936250589": [{
@@ -408,7 +408,7 @@ pub mod tests {
             TestCase {
                 name: "rsa invalid length",
                 custom_message: CustomMessage {
-                    capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                    capability: CustomCapability::Signature.to_string(),
                     r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                     data: r#"{
                           "3936250589": [{
@@ -424,7 +424,7 @@ pub mod tests {
             TestCase {
                 name: "No data",
                 custom_message: CustomMessage {
-                    capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                    capability: CustomCapability::Signature.to_string(),
                     r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                     data: r#"{
                           "3936250589": []
@@ -436,7 +436,7 @@ pub mod tests {
             TestCase {
                 name: "One config_id with no data",
                 custom_message: CustomMessage {
-                    capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                    capability: CustomCapability::Signature.to_string(),
                     r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                     data: r#"{
                           "config_id1": [],

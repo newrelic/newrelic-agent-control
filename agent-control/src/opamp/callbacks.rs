@@ -262,11 +262,10 @@ pub(crate) mod tests {
     use super::*;
     use crate::event::OpAMPEvent;
     use crate::event::channel::pub_sub;
+    use crate::opamp::capabilities::CustomCapability;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoader;
     use crate::opamp::remote_config::hash::Hash;
-    use crate::opamp::remote_config::signature::{
-        SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
-    };
+    use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_MESSAGE_TYPE;
     use crate::opamp::remote_config::{AGENT_CONFIG_PREFIX, ConfigurationMap, OpampRemoteConfig};
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
     use std::collections::HashMap;
@@ -491,7 +490,7 @@ pub(crate) mod tests {
                         config_hash: valid_hash.as_bytes().to_vec(),
                     }),
                     custom_message: Some(CustomMessage {
-                        capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                        capability: CustomCapability::Signature.to_string(),
                         r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                         data: serde_json::json!({
                             AGENT_CONFIG_PREFIX: [{
@@ -523,7 +522,7 @@ pub(crate) mod tests {
                         config_hash: valid_hash.as_bytes().to_vec(),
                     }),
                     custom_message: Some(CustomMessage {
-                        capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                        capability: CustomCapability::Signature.to_string(),
                         r#type: "unsupported_type".to_string(),
                         data: r#"{
                             "unique": [{
@@ -577,7 +576,7 @@ pub(crate) mod tests {
                         config_hash: valid_hash.as_bytes().to_vec(),
                     }),
                     custom_message: Some(CustomMessage {
-                        capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                        capability: CustomCapability::Signature.to_string(),
                         r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                         data: "invalid signature".as_bytes().to_vec(),
                     }),
