@@ -19,7 +19,6 @@ use crate::agent_control::run::{
     AgentControlRunner, GracefulShutdownReason, RunError, setup_config_repository_and_store,
 };
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
-use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::agent_type::version_config::{
     AGENT_CONTROL_VERSION_CHECKER_INITIAL_DELAY, VersionCheckerInterval,
@@ -162,9 +161,6 @@ impl AgentControlRunner {
             ),
         ]);
 
-        let template_renderer = TemplateRenderer::default()
-            .with_agent_control_variables(agent_control_variables.clone().into_iter());
-
         let mut secrets_providers = SecretsProviders::default()
             .with_env()
             .with_k8s_secret(k8s_client.clone());
@@ -176,7 +172,7 @@ impl AgentControlRunner {
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             self.agent_type_registry.clone(),
-            template_renderer,
+            agent_control_variables.into_iter(),
             self.bootstrap_config.agent_type_var_constraints,
             secrets_providers,
             &self.base_paths.remote_dir,

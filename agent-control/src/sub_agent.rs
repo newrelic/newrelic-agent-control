@@ -819,7 +819,6 @@ pub mod tests {
     use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::registry::Registry;
-    use crate::agent_type::render::TemplateRenderer;
     use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::checkers::health::health_checker::{Healthy, Unhealthy};
     use crate::event::channel::pub_sub;
@@ -1115,7 +1114,7 @@ deployment:
 
         let effective_agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             Arc::new(TestAgent::agent_type_definition().into()),
-            TemplateRenderer::default(),
+            std::iter::empty(),
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),
@@ -1242,7 +1241,7 @@ deployment:
 
         let effective_agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             Arc::new(Registry::from(TestAgent::agent_type_definition())),
-            TemplateRenderer::default(),
+            std::iter::empty(),
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),
@@ -1924,7 +1923,7 @@ deployment:
         // customize the effective_agent_assembler in order to use a different agent type
         sub_agent.effective_agent_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             Arc::new(TestAgent::agent_type_definition_with_required_var().into()),
-            TemplateRenderer::default(),
+            std::iter::empty(),
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),

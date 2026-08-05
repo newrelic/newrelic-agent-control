@@ -18,7 +18,6 @@ use crate::agent_control::run::{
 };
 use crate::agent_control::version_updater::on_host::OnHostACUpdater;
 use crate::agent_control::version_updater::on_host::verify::ProcessVerifyExecutor;
-use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::checkers::health::noop::NoOpHealthChecker;
 use crate::environment::Environment;
@@ -182,9 +181,6 @@ impl AgentControlRunner {
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
-        let template_renderer = TemplateRenderer::default()
-            .with_agent_control_variables(agent_control_variables.clone().into_iter());
-
         let mut secrets_providers = SecretsProviders::default().with_env();
         if let Some(config) = &agent_control_config.secrets_providers {
             secrets_providers = secrets_providers
@@ -194,7 +190,7 @@ impl AgentControlRunner {
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             self.agent_type_registry.clone(),
-            template_renderer,
+            agent_control_variables.into_iter(),
             self.bootstrap_config.agent_type_var_constraints,
             secrets_providers,
             &remote_dir,

@@ -11,12 +11,14 @@ use crate::agent_control::run::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_V
 use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::environment::Environment;
+use crate::sub_agent::effective_agents_assembler::{
+    namespace_agent_control_variables, render_runtime_config, tests::testing_agent_attributes,
+};
 use crate::{
     agent_control::agent_id::AgentID,
     agent_type::{
         agent_type_id::AgentTypeID,
         registry::AgentTypeRegistry,
-        render::{TemplateRenderer, tests::testing_agent_attributes},
         variable::{
             Variable,
             namespace::{Namespace, VariableName},
@@ -1049,9 +1051,9 @@ fn iterate_test_cases(environment: Environment) {
 
         let agent_id = AgentID::try_from("random-agent-id").unwrap();
 
-        // Create the renderer with specifics for the environment
-        let renderer = match environment {
-            Environment::K8s => TemplateRenderer::default().with_agent_control_variables(
+        // Create the agent-control variables with specifics for the environment
+        let ac_variables = match environment {
+            Environment::K8s => namespace_agent_control_variables(
                 HashMap::from([
                     (
                         NAMESPACE_VARIABLE_NAME.to_string(),
@@ -1064,11 +1066,12 @@ fn iterate_test_cases(environment: Environment) {
                 ])
                 .into_iter(),
             ),
-            Environment::Linux | Environment::Windows => TemplateRenderer::default()
-                .with_agent_control_variables(iter::once((
+            Environment::Linux | Environment::Windows => {
+                namespace_agent_control_variables(iter::once((
                     HOST_ID_VARIABLE_NAME.to_string(),
                     Variable::new_final_string_variable("my-namespace".to_string()),
-                ))),
+                )))
+            }
         };
 
         values.cases.iter().for_each(|(scenario, yaml)| {
@@ -1079,11 +1082,12 @@ fn iterate_test_cases(environment: Environment) {
             let attributes = testing_agent_attributes(&agent_id);
             let variables = serde_saphyr::from_str::<YAMLConfig>(yaml).unwrap();
 
-            let result = renderer.render(
+            let result = render_runtime_config(
                 agent_type,
                 variables,
                 attributes,
                 values.additional_env.clone(),
+                ac_variables.clone(),
             );
 
             assert!(
