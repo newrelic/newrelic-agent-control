@@ -83,58 +83,6 @@ impl DirectoryManagerFs {
     }
 }
 
-/// Checks and repairs the managed Administrators-only permissions across `path` and everything beneath it,
-/// re-stamping only the entries that are actually broken.
-///
-/// On Windows, for each entry it checks (via `win_permissions::permissions_need_repair`)
-/// whether the DACL already grants the managed Administrators access. It attempts to re-stamp only
-/// entries whose ACE are:
-///
-/// - Empty (denies everyone incl. `SYSTEM`) or `NULL`.
-/// - Unreadable.
-/// - Populated but insufficient
-/// (e.g. the old `Administrators:(R,W)` with no `DELETE` that blocks decommission, or a non-inheritable
-/// directory ACE).
-///
-/// Conforming entries are left untouched, so a healthy tree is not rewritten on every startup. It always
-/// recurses into directories to find broken children, and a broken directory is stamped *before* its
-/// contents are listed so it becomes listable first. Agent Control owns these files, so the rewrite
-/// succeeds even on an empty DACL.
-///
-/// Caveats (not currently hit in practice, but worth knowing before extending this):
-/// - This walks the *whole* tree on every call, i.e. on every Agent Control startup, not just once
-///   after an upgrade. `permissions_need_repair` keeps each individual check cheap (no re-stamping of
-///   conforming entries), but a fleet with very large `filesystem/`/`fleet-data` trees still pays one
-///   ACL read per entry on every restart, indefinitely.
-/// - `path.is_dir()` and `read_dir` follow reparse points/symlinks, so a symlink planted inside a
-///   managed tree would be traversed and re-ACL'd rather than skipped. Low risk given the tree is
-///   Administrators-only to begin with, but there is no explicit guard against it.
-#[cfg(target_family = "windows")]
-pub fn ensure_permissions_recursive(path: &Path) -> io::Result<()> {
-    if !path.exists() {
-        return Ok(());
-    }
-
-    if crate::win_permissions::permissions_need_repair(path) {
-        tracing::debug!(path = %path.display(), "repairing managed permissions");
-        crate::win_permissions::set_file_permissions_for_administrator(path).map_err(|err| {
-            io::Error::other(format!(
-                "setting windows permissions for {}: {err}",
-                path.display()
-            ))
-        })?;
-    } else {
-        tracing::trace!(path = %path.display(), "managed permissions intact, skipping");
-    }
-
-    if path.is_dir() {
-        std::fs::read_dir(path)?
-            .try_for_each(|entry| ensure_permissions_recursive(&entry?.path()))?;
-    }
-
-    Ok(())
-}
-
 ////////////////////////////////////////////////////////////////////////////////////
 // Mock
 ////////////////////////////////////////////////////////////////////////////////////

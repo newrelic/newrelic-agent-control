@@ -1,4 +1,5 @@
 use std::ffi;
+use std::io;
 use std::mem;
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
@@ -75,11 +76,11 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
     // sub-agent open and rotate the log files it creates inside AC-managed directories.
     //
     // Rights are the already-mapped specific rights (`FILE_GENERIC_*`), not the `GENERIC_*` aliases.
-    // 
+    //
     // `FILE_GENERIC_EXECUTE` is included so that executables Agent Control places inside a managed
     // directory (notably the new binary the self-updater downloads and spawns for its dry-run verify)
     // inherit execute rights — and so the directory itself is traversable.
-    // 
+    //
     // Everything stays Administrators-only, so this is not a privilege widening.
     let access_entry = EXPLICIT_ACCESS_W {
         grfAccessPermissions: (FILE_GENERIC_READ
@@ -238,6 +239,70 @@ pub fn permissions_need_repair(path: &Path) -> bool {
         }
         !conforming
     }
+}
+
+/// Checks and repairs the managed Administrators-only permissions across `path` and everything
+/// beneath it, re-stamping only the entries that are actually broken.
+///
+/// For each entry it checks (via [`permissions_need_repair`]) whether the DACL already grants the
+/// managed Administrators access. It attempts to re-stamp only entries whose ACE are:
+///
+/// - Empty (denies everyone incl. `SYSTEM`) or `NULL`.
+/// - Unreadable.
+/// - Populated but insufficient (e.g. the old `Administrators:(R,W)` with no `DELETE` that blocks
+///   decommission, or a non-inheritable directory ACE).
+///
+/// Conforming entries are left untouched, so a healthy tree is not rewritten on every startup. It
+/// always recurses into directories to find broken children, and a broken directory is stamped
+/// *before* its contents are listed so it becomes listable first. Agent Control owns these files, so
+/// the rewrite succeeds even on an empty DACL.
+///
+/// Caveats (not currently hit in practice, but worth knowing before extending this):
+///
+/// - This walks the *whole* tree on every call, i.e. on every Agent Control startup, not just once
+///   after an upgrade. [`permissions_need_repair`] keeps each individual check cheap (no re-stamping
+///   of conforming entries), but a fleet with very large `filesystem/`/`fleet-data` trees still pays
+///   one ACL read per entry on every restart, indefinitely.
+/// - `path.is_dir()` and `read_dir` follow reparse points/symlinks, so a symlink planted inside a
+///   managed tree would be traversed and re-ACL'd rather than skipped. Low risk given the tree is
+///   Administrators-only to begin with, but there is no explicit guard against it.
+pub fn ensure_permissions_recursive(path: &Path) -> io::Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    if permissions_need_repair(path) {
+        tracing::debug!(path = %path.display(), "repairing managed permissions");
+        set_file_permissions_for_administrator(path).map_err(|err| {
+            io::Error::other(format!(
+                "setting windows permissions for {}: {err}",
+                path.display()
+            ))
+        })?;
+    } else {
+        tracing::trace!(path = %path.display(), "managed permissions intact, skipping");
+    }
+
+    if path.is_dir() {
+        std::fs::read_dir(path)?
+            .try_for_each(|entry| ensure_permissions_recursive(&entry?.path()))?;
+    }
+
+    Ok(())
+}
+
+/// Runs [`ensure_permissions_recursive`] over each root in `roots`, repairing the managed
+/// Administrators-only permissions across every root's tree (e.g. a sub-agent `filesystem/`, stored
+/// remote configs under `fleet-data/`, local data).
+///
+/// Fails fast: the first root — or any entry within it — that cannot be repaired aborts the whole
+/// call with that error, on the principle that a caller should not run on a data tree it cannot fully
+/// access. A missing root is not an error.
+pub fn ensure_managed_permissions<'a>(roots: impl IntoIterator<Item = &'a Path>) -> io::Result<()> {
+    roots.into_iter().try_for_each(|root| {
+        tracing::debug!(path = %root.display(), "ensuring correct ACL for managed root");
+        ensure_permissions_recursive(root)
+    })
 }
 
 #[cfg(test)]
@@ -578,7 +643,7 @@ pub mod tests {
         // directly (Agent Control owns it, so this works even on an empty DACL) — no reliance on
         // inheritance propagation reaching the child. This is what runs on the next sub-agent start
         // after upgrading to the fixed agent-control.
-        crate::directory_manager::ensure_permissions_recursive(&managed_dir)
+        ensure_permissions_recursive(&managed_dir)
             .expect("recursive permission repair should succeed");
         assert_windows_permissions(&child); // child now carries its own Administrators entry
         assert!(
@@ -639,7 +704,7 @@ pub mod tests {
         assert_dacl_is_empty(&subdir);
         assert_dacl_is_empty(&nested_file);
 
-        crate::directory_manager::ensure_permissions_recursive(&managed_dir)
+        ensure_permissions_recursive(&managed_dir)
             .expect("recursive permission repair should succeed");
 
         // The empty directory was repaired (hence listable, so recursion could descend into it), and
@@ -671,7 +736,7 @@ pub mod tests {
         assert_dacl_is_empty(&child);
 
         // The repair re-stamps DELETE (via the Administrators ACE) across the tree.
-        crate::directory_manager::ensure_permissions_recursive(&managed_dir)
+        ensure_permissions_recursive(&managed_dir)
             .expect("recursive permission repair should succeed");
 
         // Cleanup now succeeds where a decommission previously failed with os error 5.
@@ -739,7 +804,7 @@ pub mod tests {
         );
 
         // The repair re-stamps the full managed rights (Modify, which includes DELETE).
-        crate::directory_manager::ensure_permissions_recursive(&managed_dir)
+        ensure_permissions_recursive(&managed_dir)
             .expect("recursive permission repair should succeed");
         assert_windows_permissions(&cfg); // now Administrators Modify (read/write/execute/delete)
 
@@ -765,8 +830,7 @@ pub mod tests {
             "a non-inheritable managed directory must be flagged for repair"
         );
 
-        crate::directory_manager::ensure_permissions_recursive(&dir)
-            .expect("recursive permission repair should succeed");
+        ensure_permissions_recursive(&dir).expect("recursive permission repair should succeed");
 
         // assert_windows_permissions requires a directory's ACE to grant the full managed rights AND
         // be inheritable (OI|CI), so this proves the directory was normalized.
