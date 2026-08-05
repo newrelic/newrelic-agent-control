@@ -83,21 +83,23 @@ impl DirectoryManagerFs {
     }
 }
 
-/// Repairs the managed Administrators-only permissions across `path` and everything beneath it,
+/// Checks and repairs the managed Administrators-only permissions across `path` and everything beneath it,
 /// re-stamping only the entries that are actually broken.
 ///
 /// On Windows, for each entry it checks (via `win_permissions::permissions_need_repair`)
-/// whether the DACL already grants the managed Administrators access. It re-stamps only entries that
-/// do not — empty (denies everyone incl. SYSTEM), NULL, unreadable, or populated-but-insufficient
-/// (e.g. the old `Administrators:(R,W)` with no DELETE that blocks decommission, or a non-inheritable
-/// directory ACE) — the states an older agent-control left behind on upgrade (NR-601065). A
-/// conforming entry is left untouched, so a healthy tree is not rewritten on every startup. It always
+/// whether the DACL already grants the managed Administrators access. It attempts to re-stamp only
+/// entries whose ACE are:
+///
+/// - Empty (denies everyone incl. `SYSTEM`) or `NULL`.
+/// - Unreadable.
+/// - Populated but insufficient
+/// (e.g. the old `Administrators:(R,W)` with no `DELETE` that blocks decommission, or a non-inheritable
+/// directory ACE).
+///
+/// Conforming entries are left untouched, so a healthy tree is not rewritten on every startup. It always
 /// recurses into directories to find broken children, and a broken directory is stamped *before* its
 /// contents are listed so it becomes listable first. Agent Control owns these files, so the rewrite
 /// succeeds even on an empty DACL.
-///
-/// On non-Windows platforms permissions are applied at creation time, so this is a no-op. A missing
-/// path is not an error.
 ///
 /// Caveats (not currently hit in practice, but worth knowing before extending this):
 /// - This walks the *whole* tree on every call, i.e. on every Agent Control startup, not just once

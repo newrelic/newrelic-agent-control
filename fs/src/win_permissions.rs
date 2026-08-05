@@ -42,10 +42,10 @@ fn get_administrator_sid() -> Result<Vec<u8>, PermissionError> {
     Ok(sid)
 }
 
-/// set_file_permissions_for_administrator removes any other ACL from a file only granting
+/// Removes any other ACL from a file only granting
 /// read, write, execute, and delete to Administrators. DELETE is needed so the same Administrator
 /// that wrote the file can later remove it during filesystem reconciliation. Execute is needed so
-/// executables placed under a managed directory (e.g. the self-update binary) can be spawned and so
+/// executables placed under a managed directory (e.g. sub-agent assets) can be spawned and so
 /// managed directories stay traversable.
 ///
 /// The Administrators ACE is made inheritable (`OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE`) so
@@ -69,20 +69,17 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
     };
 
     // Define the access entry to allow read, write, and delete for the trustee.
-    // The ACE is inheritable (OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE) so child files and
+    // The ACE is inheritable (`OBJECT_INHERIT_ACE` | `CONTAINER_INHERIT_ACE`) so child files and
     // subdirectories created later at runtime inherit Administrators access. On a leaf file these
     // inheritance flags are a no-op (Windows strips them); on a directory they are what lets a
     // sub-agent open and rotate the log files it creates inside AC-managed directories.
     //
-    // Rights are the already-mapped specific rights (FILE_GENERIC_*), not the GENERIC_* aliases. An
-    // inheritable ACE carrying GENERIC_* rights makes Windows split it into two ACEs (an effective one
-    // plus an inherit-only one that preserves the generics for children to remap); using the specific
-    // rights keeps a single, clean, inheritable ACE while granting identical access.
-    //
-    // FILE_GENERIC_EXECUTE is included so that executables Agent Control places inside a managed
+    // Rights are the already-mapped specific rights (`FILE_GENERIC_*`), not the `GENERIC_*` aliases.
+    // 
+    // `FILE_GENERIC_EXECUTE` is included so that executables Agent Control places inside a managed
     // directory (notably the new binary the self-updater downloads and spawns for its dry-run verify)
-    // inherit execute rights — and so the directory itself is traversable. Without execute, the
-    // inherited ACL would let AC read/write the file but not run it, failing with "Access is denied".
+    // inherit execute rights — and so the directory itself is traversable.
+    // 
     // Everything stays Administrators-only, so this is not a privilege widening.
     let access_entry = EXPLICIT_ACCESS_W {
         grfAccessPermissions: (FILE_GENERIC_READ
@@ -99,8 +96,8 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
     let mut acl: *mut ACL = ptr::null_mut();
     unsafe {
         // https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setentriesinaclw
-        // creates a new ACL by merging new ACL into the AC provided in the 2nd parameter
-        // we pass None because we overwrite the old ACL
+        // creates a new ACL by merging new ACL into the AC provided in the 2nd parameter.
+        // We pass None because we overwrite the old ACL
         SetEntriesInAclW(Some(&[access_entry]), None, &mut acl)
             .ok()
             .map_err(|e| PermissionError(format!("Failed to set entries in ACL: {e}")))?;
@@ -127,8 +124,8 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
 }
 
 /// True iff `ace` is an `Allow` ACE for `admin_sid` granting the full managed rights
-/// (`FILE_GENERIC_READ | WRITE | EXECUTE | DELETE`, i.e. Modify) and — when `require_inheritable`
-/// (the entry is a directory) — inheritable (`OI|CI`). This is the policy that
+/// (`FILE_GENERIC_READ | WRITE | EXECUTE | DELETE`, i.e. Modify) and, when `require_inheritable`
+/// (the entry is a directory), inheritable (`OI|CI`). This is the policy that
 /// `permissions_need_repair` scans a DACL for; the only FFI it performs is the SID comparison.
 fn grants_managed_admin_access(
     ace: &ACCESS_ALLOWED_ACE,
@@ -156,19 +153,18 @@ fn grants_managed_admin_access(
     is_allow && is_admin && has_rights && inheritable
 }
 
-/// Returns whether `path`'s DACL must be re-stamped by the recursive repair — i.e. it does **not**
-/// already grant the managed Administrators access.
+/// Returns whether `path`'s DACL must be re-stamped by the recursive repair.
 ///
 /// It needs repair unless it contains an `Allow` ACE for `BUILTIN\Administrators` whose mask includes
 /// the full managed rights (`FILE_GENERIC_READ | WRITE | EXECUTE | DELETE`, i.e. Modify) and — for a
-/// directory — is inheritable (`OI|CI`). This catches every state an older agent-control left behind:
-///   * an **empty** DACL (zero ACEs, denies everyone incl. SYSTEM);
-///   * a **NULL** DACL (grants everyone) or an unreadable one;
-///   * a **populated but insufficient** DACL, e.g. the old `Administrators:(R,W)` (mask `0x12019f`,
+/// directory — is inheritable (`OI|CI`). This catches every state:
+///   - an **empty** DACL (zero ACEs, denies everyone incl. SYSTEM);
+///   - a **NULL** DACL (grants everyone) or an unreadable one;
+///   - a **populated but insufficient** DACL, e.g. the old `Administrators:(R,W)` (mask `0x12019f`,
 ///     no `DELETE`) that leaves stored remote configs undeletable on decommission, or a
 ///     non-inheritable directory ACE (NR-601065).
 ///
-/// A conforming entry returns `false`, so a healthy tree is not rewritten on every startup — only the
+/// A conforming entry returns `false`, so a healthy tree is not rewritten on every startup. Only the
 /// entries that actually lack the managed access are repaired.
 ///
 /// Caveat: this looks for *any* matching Administrators `Allow` ACE with a sufficient mask, without

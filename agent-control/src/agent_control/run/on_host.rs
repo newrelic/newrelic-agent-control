@@ -97,6 +97,7 @@ impl AgentControlRunner {
 
         // Windows-only: repair the managed data tree before anything reads/writes/deletes it (see
         // `repair_managed_permissions` and NR-601065). Not applicable on other platforms.
+        // NOTE: Early returns as we cannot ensure proper AC operation if permissions not right. 
         #[cfg(target_family = "windows")]
         repair_managed_permissions([remote_dir.as_path(), local_dir.as_path()])?;
 
@@ -303,21 +304,18 @@ impl AgentControlRunner {
 /// that wiped pre-existing runtime-created files across the data tree — sub-agent logs under
 /// `filesystem/`, stored remote configs under `fleet-data/`, local data — leaving them with an
 /// *empty* DACL that denies everyone, including the LocalSystem process itself. Symptoms ranged from
-/// a sub-agent unable to open its log to "Access is denied" deleting a stored remote config during
+/// a sub-agent unable to open its logs to "Access is denied" deleting a stored remote config during
 /// decommission (NR-601065).
 ///
-/// Re-stamps the Administrators-only permissions recursively over each root, repairing only entries
-/// whose DACL is actually broken. Agent Control owns these files, so the rewrite succeeds even on an
-/// empty DACL, and it restores read/write/delete. This fails fast: if any entry under any root cannot
+/// This function _re-stamps_ the Administrators-only permissions recursively over each root, repairing only entries
+/// whose DACL is actually broken. AC still owns these files, so the rewrite can succeed even on an
+/// empty DACL, and it restores read/write/delete.
+///
+/// This fails fast: if any entry under any root cannot
 /// be repaired (see [`fs::directory_manager::ensure_permissions_recursive`]) the error is propagated
 /// and Agent Control aborts startup rather than run on a data tree it cannot fully access — a
-/// partially-repaired tree is the very state that produced the crash loop and the "Access is denied"
-/// decommission failure (NR-601065), so continuing would risk silently repeating them.
-///
-/// This walks each root's entire tree on every startup (not just once after an upgrade), trading a
-/// small, indefinite per-boot cost — one ACL read per managed file/directory — for not needing any
-/// versioned "have I already repaired this" state. Fine for typical installs; worth revisiting if a
-/// fleet's managed trees (many rotated logs, many OHIs) ever make that cost noticeable.
+/// mixed-permission tree is the very state that produced the crash loop and the "Access is denied"
+/// decommission failure (NR-601065).
 ///
 /// Windows-only: on other platforms directory permissions are applied at creation time and there is
 /// no empty-DACL failure mode, so there is nothing to repair.
