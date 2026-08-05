@@ -4,20 +4,20 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr;
 use tracing::trace;
-use windows_sys::Win32::Foundation::{ERROR_SUCCESS, GetLastError};
-use windows_sys::Win32::Security::Authorization::{
+use windows::Win32::Security::Authorization::{
     EXPLICIT_ACCESS_W, GetNamedSecurityInfoW, SE_FILE_OBJECT, SET_ACCESS, SetEntriesInAclW,
     SetNamedSecurityInfoW, TRUSTEE_IS_SID, TRUSTEE_W,
 };
-use windows_sys::Win32::Security::{
+use windows::Win32::Security::{
     ACCESS_ALLOWED_ACE, ACL, ACL_SIZE_INFORMATION, AclSizeInformation, CONTAINER_INHERIT_ACE,
     CreateWellKnownSid, DACL_SECURITY_INFORMATION, EqualSid, GetAce, GetAclInformation,
-    OBJECT_INHERIT_ACE, PROTECTED_DACL_SECURITY_INFORMATION, SECURITY_MAX_SID_SIZE,
-    WinBuiltinAdministratorsSid,
+    OBJECT_INHERIT_ACE, PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID,
+    SECURITY_MAX_SID_SIZE, WinBuiltinAdministratorsSid,
 };
-use windows_sys::Win32::Storage::FileSystem::{
+use windows::Win32::Storage::FileSystem::{
     DELETE, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
 };
+use windows::core::{PCWSTR, PWSTR};
 
 /// Error returned when setting Windows file permissions (ACLs) fails.
 #[derive(Debug, thiserror::Error)]
@@ -30,19 +30,13 @@ fn get_administrator_sid() -> Result<Vec<u8>, PermissionError> {
 
     unsafe {
         // We define the buffer with the right size to be retrieved avoiding an error 122 (ERROR_INSUFICIENT_BUFFER)
-
-        if CreateWellKnownSid(
+        CreateWellKnownSid(
             WinBuiltinAdministratorsSid,
-            ptr::null_mut(),
-            sid.as_mut_ptr() as *mut _,
+            None,
+            Some(PSID(sid.as_mut_ptr() as *mut ffi::c_void)),
             &mut sid_size,
-        ) == 0
-        {
-            return Err(PermissionError(format!(
-                "Failed to create administrator SID. Error: {}",
-                GetLastError()
-            )));
-        }
+        )
+        .map_err(|e| PermissionError(format!("Failed to create administrator SID: {e}")))?;
     }
 
     Ok(sid)
@@ -70,7 +64,7 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
     // Define the trustee (windows ACL entity) with the current user SID
     let trustee = TRUSTEE_W {
         TrusteeForm: TRUSTEE_IS_SID,
-        ptstrName: admin_sid.as_ptr() as *mut _,
+        ptstrName: PWSTR(admin_sid.as_ptr() as *mut u16),
         ..Default::default()
     };
 
@@ -91,10 +85,11 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
     // inherited ACL would let AC read/write the file but not run it, failing with "Access is denied".
     // Everything stays Administrators-only, so this is not a privilege widening.
     let access_entry = EXPLICIT_ACCESS_W {
-        grfAccessPermissions: FILE_GENERIC_READ
+        grfAccessPermissions: (FILE_GENERIC_READ
             | FILE_GENERIC_WRITE
             | FILE_GENERIC_EXECUTE
-            | DELETE,
+            | DELETE)
+            .0,
         grfAccessMode: SET_ACCESS,
         grfInheritance: OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE,
         Trustee: trustee,
@@ -104,37 +99,61 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
     let mut acl: *mut ACL = ptr::null_mut();
     unsafe {
         // https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setentriesinaclw
-        // creates a new ACL by merging new ACL into the AC provided in the 3rd parameter
-        // we set it to null because we overwrite the old ACL
-        let result = SetEntriesInAclW(1, &access_entry, ptr::null_mut(), &mut acl);
-
-        if result != 0 {
-            return Err(PermissionError("Failed to set entries in ACL".to_string()));
-        }
+        // creates a new ACL by merging new ACL into the AC provided in the 2nd parameter
+        // we pass None because we overwrite the old ACL
+        SetEntriesInAclW(Some(&[access_entry]), None, &mut acl)
+            .ok()
+            .map_err(|e| PermissionError(format!("Failed to set entries in ACL: {e}")))?;
 
         // https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setnamedsecurityinfow
         // Set the security descriptor with the new ACL.
         // PROTECTED_DACL_SECURITY_INFORMATION is removing inheritance so the ACL will only
         // apply to administrators.
-        let result = SetNamedSecurityInfoW(
-            path_wstr.as_ptr(),
+        SetNamedSecurityInfoW(
+            PCWSTR(path_wstr.as_ptr()),
             SE_FILE_OBJECT,
             DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            acl,
-            ptr::null_mut(),
-        );
-
-        if result != 0 {
-            return Err(PermissionError(
-                "Failed to set security descriptor".to_string(),
-            ));
-        }
+            None,
+            None,
+            Some(acl as *const ACL),
+            None,
+        )
+        .ok()
+        .map_err(|e| PermissionError(format!("Failed to set security descriptor: {e}")))?;
 
         trace!(path = %path.display(), "applied Administrators-only DACL");
         Ok(())
     }
+}
+
+/// True iff `ace` is an `Allow` ACE for `admin_sid` granting the full managed rights
+/// (`FILE_GENERIC_READ | WRITE | EXECUTE | DELETE`, i.e. Modify) and — when `require_inheritable`
+/// (the entry is a directory) — inheritable (`OI|CI`). This is the policy that
+/// `permissions_need_repair` scans a DACL for; the only FFI it performs is the SID comparison.
+fn grants_managed_admin_access(
+    ace: &ACCESS_ALLOWED_ACE,
+    admin_sid: &[u8],
+    require_inheritable: bool,
+) -> bool {
+    let expected_mask = (FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE).0;
+    let required_inherit = (OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE).0 as u8;
+
+    // ACCESS_ALLOWED_ACE_TYPE == 0; only `Allow` ACEs grant access.
+    let is_allow = ace.Header.AceType == 0;
+    // EqualSid returns Ok only when the SIDs match; Err is the normal "different principal" signal,
+    // so a non-Administrators ACE simply fails this conjunct rather than being an error.
+    let is_admin = unsafe {
+        EqualSid(
+            PSID(&ace.SidStart as *const u32 as *mut ffi::c_void),
+            PSID(admin_sid.as_ptr() as *mut ffi::c_void),
+        )
+    }
+    .is_ok();
+    let has_rights = ace.Mask & expected_mask == expected_mask;
+    let inheritable =
+        !require_inheritable || ace.Header.AceFlags & required_inherit == required_inherit;
+
+    is_allow && is_admin && has_rights && inheritable
 }
 
 /// Returns whether `path`'s DACL must be re-stamped by the recursive repair — i.e. it does **not**
@@ -167,24 +186,24 @@ pub fn permissions_need_repair(path: &Path) -> bool {
         return true;
     };
 
-    let expected_mask = FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE;
     let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
 
     unsafe {
         let mut dacl: *mut ACL = ptr::null_mut();
-        let mut security_descriptor: *mut ffi::c_void = ptr::null_mut();
-        let result = GetNamedSecurityInfoW(
-            path_wstr.as_ptr(),
+        let mut security_descriptor = PSECURITY_DESCRIPTOR::default();
+        if let Err(err) = GetNamedSecurityInfoW(
+            PCWSTR(path_wstr.as_ptr()),
             SE_FILE_OBJECT,
             DACL_SECURITY_INFORMATION,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            &mut dacl,
-            ptr::null_mut(),
+            None,
+            None,
+            Some(&mut dacl),
+            None,
             &mut security_descriptor,
-        );
-        if result != ERROR_SUCCESS {
-            trace!(path = %path.display(), error = result, "cannot read DACL, flagging permissions for repair");
+        )
+        .ok()
+        {
+            trace!(path = %path.display(), error = %err.message(), "cannot read DACL, flagging permissions for repair");
             return true;
         }
         if dacl.is_null() {
@@ -193,45 +212,35 @@ pub fn permissions_need_repair(path: &Path) -> bool {
             return true;
         }
         let mut acl_size_info: ACL_SIZE_INFORMATION = std::mem::zeroed();
-        if GetAclInformation(
+        if let Err(err) = GetAclInformation(
             dacl,
             &mut acl_size_info as *mut _ as *mut _,
             mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
             AclSizeInformation,
-        ) == 0
-        {
-            trace!(path = %path.display(), "cannot read ACL info, flagging permissions for repair");
+        ) {
+            trace!(path = %path.display(), error = %err.message(), "cannot read ACL info, flagging permissions for repair");
             return true;
         }
-        // Look for an Administrators Allow ACE that already grants the full managed rights (and, on a
-        // directory, is inheritable). If we find one, the entry conforms and needs no repair.
-        let required_inherit = (OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE) as u8;
-        for i in 0..acl_size_info.AceCount {
+
+        // Conforming iff some `Allow` ACE already grants Administrators the full managed rights (and,
+        // on a directory, is inheritable) — the policy lives in `grants_managed_admin_access`. If no
+        // ACE qualifies (empty DACL, missing DELETE/execute, non-inheritable directory), repair.
+        let conforming = (0..acl_size_info.AceCount).any(|i| {
             let mut ace_ptr: *mut ffi::c_void = ptr::null_mut();
-            if GetAce(dacl, i, &mut ace_ptr) == 0 {
-                continue; // `GetAce` failed
+            if let Err(err) = GetAce(dacl, i, &mut ace_ptr) {
+                trace!(path = %path.display(), index = i, error = %err.message(), "GetAce failed while scanning DACL, skipping this ACE");
+                return false;
             }
-            let Some(ace_ptr) = ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE) else {
-                continue;
+            let Some(ace) = ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE) else {
+                return false;
             };
-            let ace = &*ace_ptr.as_ptr();
-            if ace.Header.AceType != 0 {
-                continue; // ACCESS_ALLOWED_ACE_TYPE == 0; only Allow ACEs grant access
-            }
-            let sid_in_ace = &ace.SidStart as *const u32 as *mut ffi::c_void;
-            if EqualSid(sid_in_ace, admin_sid.as_ptr() as *mut _) == 0 {
-                continue; // not the Administrators ACE
-            }
-            if ace.Mask & expected_mask != expected_mask {
-                continue; // missing a required right (e.g. DELETE) -> not sufficient
-            }
-            if path.is_dir() && (ace.Header.AceFlags & required_inherit != required_inherit) {
-                continue; // a directory's managed ACE must be inheritable
-            }
-            return false; // conforming Administrators ACE found
+            grants_managed_admin_access(&*ace.as_ptr(), &admin_sid, path.is_dir())
+        });
+
+        if !conforming {
+            trace!(path = %path.display(), ace_count = acl_size_info.AceCount, "DACL lacks a conforming Administrators ACE (empty, or missing DELETE/execute/inheritance), flagging permissions for repair");
         }
-        trace!(path = %path.display(), ace_count = acl_size_info.AceCount, "DACL lacks a conforming Administrators ACE (empty, or missing DELETE/execute/inheritance), flagging permissions for repair");
-        true
+        !conforming
     }
 }
 
@@ -240,7 +249,7 @@ pub fn permissions_need_repair(path: &Path) -> bool {
 pub mod tests {
     use std::fs;
 
-    use windows_sys::Win32::{
+    use windows::Win32::{
         Foundation::ERROR_SUCCESS,
         Security::{
             ACCESS_ALLOWED_ACE, ACL_SIZE_INFORMATION, AclSizeInformation,
@@ -266,27 +275,27 @@ pub mod tests {
 
         unsafe {
             // Get Administrator SID
-            let sid_result = CreateWellKnownSid(
+            CreateWellKnownSid(
                 WinBuiltinAdministratorsSid,
-                ptr::null_mut(),
-                admin_sid.as_mut_ptr() as *mut _,
+                None,
+                Some(PSID(admin_sid.as_mut_ptr() as *mut ffi::c_void)),
                 &mut admin_sid_size,
-            );
-            assert_ne!(sid_result, 0, "Failed to create administrator SID");
+            )
+            .expect("Failed to create administrator SID");
 
             // Get file's DACL
             let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
             let mut dacl: *mut ACL = ptr::null_mut();
-            let mut security_descriptor: *mut ffi::c_void = ptr::null_mut();
+            let mut security_descriptor = PSECURITY_DESCRIPTOR::default();
 
             let result = GetNamedSecurityInfoW(
-                path_wstr.as_ptr(),
+                PCWSTR(path_wstr.as_ptr()),
                 SE_FILE_OBJECT,
                 DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                &mut dacl,
-                ptr::null_mut(),
+                None,
+                None,
+                Some(&mut dacl),
+                None,
                 &mut security_descriptor,
             );
 
@@ -295,14 +304,13 @@ pub mod tests {
 
             // Verify exactly 1 ACE
             let mut acl_size_info: ACL_SIZE_INFORMATION = std::mem::zeroed();
-            let info_result = GetAclInformation(
+            GetAclInformation(
                 dacl,
                 &mut acl_size_info as *mut _ as *mut _,
                 mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
                 AclSizeInformation,
-            );
-
-            assert_ne!(info_result, 0, "Failed to get ACL information");
+            )
+            .expect("Failed to get ACL information");
             assert_eq!(
                 acl_size_info.AceCount, 1,
                 "Should have exactly 1 ACE (Administrators only)"
@@ -310,20 +318,21 @@ pub mod tests {
 
             // Verify ACE is for Administrators with Read/Write permissions
             let mut ace_ptr: *mut ffi::c_void = ptr::null_mut();
-            let ace_result = GetAce(dacl, 0, &mut ace_ptr);
-            assert_ne!(ace_result, 0, "Failed to get ACE");
+            GetAce(dacl, 0, &mut ace_ptr).expect("Failed to get ACE");
 
             let ace_ptr = ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE)
                 .expect("ACE pointer should not be null");
             let ace = &*ace_ptr.as_ptr();
-            let sid_in_ace = &ace.SidStart as *const u32 as *mut ffi::c_void;
-            let sids_equal = EqualSid(sid_in_ace, admin_sid.as_mut_ptr() as *mut _);
-            assert_ne!(sids_equal, 0, "ACE SID should match Administrators SID");
+            let sid_in_ace = PSID(&ace.SidStart as *const u32 as *mut ffi::c_void);
+            assert!(
+                EqualSid(sid_in_ace, PSID(admin_sid.as_mut_ptr() as *mut ffi::c_void)).is_ok(),
+                "ACE SID should match Administrators SID"
+            );
 
             // The ACE grants the specific file rights read/write/execute plus DELETE. Execute is
             // required so executables inheriting this ACE (e.g. the self-update binary) can be spawned.
             let expected_mask =
-                FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE;
+                (FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE).0;
             assert_eq!(
                 ace.Mask, expected_mask,
                 "ACE should have FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_GENERIC_EXECUTE, and DELETE permissions"
@@ -335,7 +344,7 @@ pub mod tests {
             // DACL that denies everyone. Windows strips OI|CI from ACEs on leaf files, so this is
             // asserted for directories only.
             if path.is_dir() {
-                let expected_flags = (OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE) as u8;
+                let expected_flags = (OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE).0 as u8;
                 assert_eq!(
                     ace.Header.AceFlags & expected_flags,
                     expected_flags,
@@ -356,49 +365,43 @@ pub mod tests {
         let mut admin_sid: Vec<u8> = vec![0; admin_sid_size as usize];
 
         unsafe {
-            assert_ne!(
-                CreateWellKnownSid(
-                    WinBuiltinAdministratorsSid,
-                    ptr::null_mut(),
-                    admin_sid.as_mut_ptr() as *mut _,
-                    &mut admin_sid_size,
-                ),
-                0,
-                "Failed to create administrator SID"
-            );
+            CreateWellKnownSid(
+                WinBuiltinAdministratorsSid,
+                None,
+                Some(PSID(admin_sid.as_mut_ptr() as *mut ffi::c_void)),
+                &mut admin_sid_size,
+            )
+            .expect("Failed to create administrator SID");
 
             let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
             let mut dacl: *mut ACL = ptr::null_mut();
-            let mut security_descriptor: *mut ffi::c_void = ptr::null_mut();
+            let mut security_descriptor = PSECURITY_DESCRIPTOR::default();
             let result = GetNamedSecurityInfoW(
-                path_wstr.as_ptr(),
+                PCWSTR(path_wstr.as_ptr()),
                 SE_FILE_OBJECT,
                 DACL_SECURITY_INFORMATION,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                &mut dacl,
-                ptr::null_mut(),
+                None,
+                None,
+                Some(&mut dacl),
+                None,
                 &mut security_descriptor,
             );
             assert_eq!(result, ERROR_SUCCESS, "Failed to get child security info");
             assert!(!dacl.is_null(), "child DACL should not be null");
 
             let mut acl_size_info: ACL_SIZE_INFORMATION = mem::zeroed();
-            assert_ne!(
-                GetAclInformation(
-                    dacl,
-                    &mut acl_size_info as *mut _ as *mut _,
-                    mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
-                    AclSizeInformation,
-                ),
-                0,
-                "Failed to get child ACL information"
-            );
+            GetAclInformation(
+                dacl,
+                &mut acl_size_info as *mut _ as *mut _,
+                mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
+                AclSizeInformation,
+            )
+            .expect("Failed to get child ACL information");
 
             let mut inherited_admin = false;
             for i in 0..acl_size_info.AceCount {
                 let mut ace_ptr: *mut ffi::c_void = ptr::null_mut();
-                if GetAce(dacl, i, &mut ace_ptr) == 0 {
+                if GetAce(dacl, i, &mut ace_ptr).is_err() {
                     continue;
                 }
                 // Guard the raw pointer with NonNull before dereferencing (mirrors
@@ -407,9 +410,10 @@ pub mod tests {
                     continue;
                 };
                 let ace = &*ace_ptr.as_ptr();
-                let is_inherited = (ace.Header.AceFlags & (INHERITED_ACE as u8)) != 0;
-                let sid_in_ace = &ace.SidStart as *const u32 as *mut ffi::c_void;
-                let is_admin = EqualSid(sid_in_ace, admin_sid.as_mut_ptr() as *mut _) != 0;
+                let is_inherited = (ace.Header.AceFlags & (INHERITED_ACE.0 as u8)) != 0;
+                let sid_in_ace = PSID(&ace.SidStart as *const u32 as *mut ffi::c_void);
+                let is_admin =
+                    EqualSid(sid_in_ace, PSID(admin_sid.as_mut_ptr() as *mut ffi::c_void)).is_ok();
                 if is_inherited && is_admin {
                     inherited_admin = true;
                     break;
@@ -465,35 +469,31 @@ pub mod tests {
         let admin_sid = get_administrator_sid().expect("failed to get administrator SID");
         let trustee = TRUSTEE_W {
             TrusteeForm: TRUSTEE_IS_SID,
-            ptstrName: admin_sid.as_ptr() as *mut _,
+            ptstrName: PWSTR(admin_sid.as_ptr() as *mut u16),
             ..Default::default()
         };
         let access_entry = EXPLICIT_ACCESS_W {
-            grfAccessPermissions: FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE,
+            grfAccessPermissions: (FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE).0,
             grfAccessMode: SET_ACCESS,
             grfInheritance: NO_INHERITANCE,
             Trustee: trustee,
         };
         unsafe {
             let mut acl: *mut ACL = ptr::null_mut();
-            assert_eq!(
-                SetEntriesInAclW(1, &access_entry, ptr::null_mut(), &mut acl),
-                0,
-                "legacy SetEntriesInAclW failed"
-            );
-            assert_eq!(
-                SetNamedSecurityInfoW(
-                    path_wstr.as_ptr(),
-                    SE_FILE_OBJECT,
-                    DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    acl,
-                    ptr::null_mut(),
-                ),
-                ERROR_SUCCESS,
-                "legacy SetNamedSecurityInfoW failed"
-            );
+            SetEntriesInAclW(Some(&[access_entry]), None, &mut acl)
+                .ok()
+                .expect("legacy SetEntriesInAclW failed");
+            SetNamedSecurityInfoW(
+                PCWSTR(path_wstr.as_ptr()),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                None,
+                None,
+                Some(acl as *const ACL),
+                None,
+            )
+            .ok()
+            .expect("legacy SetNamedSecurityInfoW failed");
         }
     }
 
@@ -506,37 +506,32 @@ pub mod tests {
         unsafe {
             let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
             let mut dacl: *mut ACL = ptr::null_mut();
-            let mut security_descriptor: *mut ffi::c_void = ptr::null_mut();
-            assert_eq!(
-                GetNamedSecurityInfoW(
-                    path_wstr.as_ptr(),
-                    SE_FILE_OBJECT,
-                    DACL_SECURITY_INFORMATION,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    &mut dacl,
-                    ptr::null_mut(),
-                    &mut security_descriptor,
-                ),
-                ERROR_SUCCESS,
-                "Failed to get child security info"
-            );
+            let mut security_descriptor = PSECURITY_DESCRIPTOR::default();
+            GetNamedSecurityInfoW(
+                PCWSTR(path_wstr.as_ptr()),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                None,
+                None,
+                Some(&mut dacl),
+                None,
+                &mut security_descriptor,
+            )
+            .ok()
+            .expect("Failed to get child security info");
             assert!(
                 !dacl.is_null(),
                 "expected a present (empty) DACL; a null DACL would grant everyone — the repro is wrong"
             );
 
             let mut acl_size_info: ACL_SIZE_INFORMATION = mem::zeroed();
-            assert_ne!(
-                GetAclInformation(
-                    dacl,
-                    &mut acl_size_info as *mut _ as *mut _,
-                    mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
-                    AclSizeInformation,
-                ),
-                0,
-                "Failed to get child ACL information"
-            );
+            GetAclInformation(
+                dacl,
+                &mut acl_size_info as *mut _ as *mut _,
+                mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
+                AclSizeInformation,
+            )
+            .expect("Failed to get child ACL information");
             assert_eq!(
                 acl_size_info.AceCount, 0,
                 "expected an EMPTY DACL (0 ACEs) reproducing the pre-fix propagation wipe; found {} ACE(s)",
@@ -698,35 +693,31 @@ pub mod tests {
         let admin_sid = get_administrator_sid().expect("failed to get administrator SID");
         let trustee = TRUSTEE_W {
             TrusteeForm: TRUSTEE_IS_SID,
-            ptstrName: admin_sid.as_ptr() as *mut _,
+            ptstrName: PWSTR(admin_sid.as_ptr() as *mut u16),
             ..Default::default()
         };
         let access_entry = EXPLICIT_ACCESS_W {
-            grfAccessPermissions: FILE_GENERIC_READ | FILE_GENERIC_WRITE, // no DELETE, no EXECUTE
+            grfAccessPermissions: (FILE_GENERIC_READ | FILE_GENERIC_WRITE).0, // no DELETE, no EXECUTE
             grfAccessMode: SET_ACCESS,
             grfInheritance: NO_INHERITANCE,
             Trustee: trustee,
         };
         unsafe {
             let mut acl: *mut ACL = ptr::null_mut();
-            assert_eq!(
-                SetEntriesInAclW(1, &access_entry, ptr::null_mut(), &mut acl),
-                0,
-                "legacy SetEntriesInAclW failed"
-            );
-            assert_eq!(
-                SetNamedSecurityInfoW(
-                    path_wstr.as_ptr(),
-                    SE_FILE_OBJECT,
-                    DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    acl,
-                    ptr::null_mut(),
-                ),
-                ERROR_SUCCESS,
-                "legacy SetNamedSecurityInfoW failed"
-            );
+            SetEntriesInAclW(Some(&[access_entry]), None, &mut acl)
+                .ok()
+                .expect("legacy SetEntriesInAclW failed");
+            SetNamedSecurityInfoW(
+                PCWSTR(path_wstr.as_ptr()),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                None,
+                None,
+                Some(acl as *const ACL),
+                None,
+            )
+            .ok()
+            .expect("legacy SetNamedSecurityInfoW failed");
         }
     }
 
