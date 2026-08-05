@@ -296,7 +296,6 @@ impl AgentControlRunner {
     }
 }
 
-/// Resolves the on-host instance [`Identifiers`] (host id, hostname, fleet id) from the config.
 /// Repairs Administrators-only permissions across Agent Control's managed data `roots` at startup.
 ///
 /// An older agent-control hardened its managed directories with a NON-inheritable ACE. On upgrade
@@ -308,24 +307,29 @@ impl AgentControlRunner {
 ///
 /// Re-stamps the Administrators-only permissions recursively over each root, repairing only entries
 /// whose DACL is actually broken. Agent Control owns these files, so the rewrite succeeds even on an
-/// empty DACL, and it restores read/write/delete. Best-effort: a repair failure is logged, not
-/// fatal, so it never blocks startup.
+/// empty DACL, and it restores read/write/delete. Best-effort at every level: a repair failure for one
+/// entry is logged and does not stop the rest of that entry's tree from being repaired (see
+/// [`fs::directory_manager::ensure_permissions_recursive`]), and a failure for one root does not stop
+/// the other roots from being attempted, so it never blocks startup.
+///
+/// This walks each root's entire tree on every startup (not just once after an upgrade), trading a
+/// small, indefinite per-boot cost — one ACL read per managed file/directory — for not needing any
+/// versioned "have I already repaired this" state. Fine for typical installs; worth revisiting if a
+/// fleet's managed trees (many rotated logs, many OHIs) ever make that cost noticeable.
 ///
 /// Windows-only: on other platforms directory permissions are applied at creation time and there is
 /// no empty-DACL failure mode, so there is nothing to repair.
 #[cfg(target_family = "windows")]
 fn repair_managed_permissions<'a>(roots: impl IntoIterator<Item = &'a std::path::Path>) {
-    for root in roots {
-        debug!("repairing managed permissions under {}", root.display());
-        if let Err(err) = fs::directory_manager::ensure_permissions_recursive(root) {
-            tracing::warn!(
-                "repairing managed permissions under {}: {err}",
-                root.display()
-            );
-        }
-    }
+    roots.into_iter().for_each(|root| {
+        debug!("ensuring correct ACL for directory {}", root.display());
+        fs::directory_manager::ensure_permissions_recursive(root).inspect_err(|e| {
+            tracing::warn!("ensuring correct ACL for directory {}: {e}", root.display());
+        });
+    });
 }
 
+/// Resolves the on-host instance [`Identifiers`] (host id, hostname, fleet id) from the config.
 pub fn ac_identifiers(config: &AgentControlConfig) -> Result<Identifiers, RunError> {
     let fleet_id = config
         .fleet_control
