@@ -34,8 +34,7 @@ impl FileWriter for LocalFile {
         file.write_all(content.as_bytes())?;
 
         #[cfg(target_family = "windows")]
-        crate::win_permissions::set_file_permissions_for_administrator(path)
-            .map_err(io::Error::other)?;
+        crate::win_permissions::set_file_permissions_for_administrator(path)?;
 
         file.sync_all()?;
         Ok(())

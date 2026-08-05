@@ -21,9 +21,20 @@ use windows::Win32::Storage::FileSystem::{
 use windows::core::{PCWSTR, PWSTR};
 
 /// Error returned when setting Windows file permissions (ACLs) fails.
+///
+/// Internal to this crate: nothing outside `fs` calls [`set_file_permissions_for_administrator`]
+/// directly, so this never needs to cross the crate boundary. Callers within `fs` convert it to
+/// [`io::Error`] — either via the [`From`] impl below when no extra context is needed, or with a
+/// `.map_err` that adds the path being operated on.
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
-pub struct PermissionError(String);
+pub(crate) struct PermissionError(String);
+
+impl From<PermissionError> for io::Error {
+    fn from(err: PermissionError) -> Self {
+        io::Error::other(err)
+    }
+}
 
 fn get_administrator_sid() -> Result<Vec<u8>, PermissionError> {
     let mut sid_size = SECURITY_MAX_SID_SIZE;
@@ -55,7 +66,7 @@ fn get_administrator_sid() -> Result<Vec<u8>, PermissionError> {
 /// flags, and with the DACL protected from parent inheritance below, such runtime-created files
 /// would be created with an empty DACL and be inaccessible even to the Administrator/LocalSystem
 /// process that created them ("Access is denied"). Inheritance keeps everything Administrators-only.
-pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), PermissionError> {
+pub(crate) fn set_file_permissions_for_administrator(path: &Path) -> Result<(), PermissionError> {
     // Conversion to UTF-16 format (native string representation in Windows OS)
     let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
 
