@@ -34,6 +34,12 @@ const DEFAULT_NO_RETRY_POLICY: BackoffPolicy = BackoffPolicy {
     jitter: false,
 };
 
+/// Default timeout for establishing the connection to the registry.
+const DEFAULT_OCI_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Default read timeout applied to every OCI operation..
+const DEFAULT_OCI_READ_TIMEOUT: Duration = Duration::from_secs(30);
+
 /// [oci_client::Client] wrapper with extended functionality.
 /// It also wraps all _async_ operations using the underlying runtime, all functions will
 /// block the current thread until completion.
@@ -53,7 +59,15 @@ impl Client {
         proxy_config: ProxyConfig,
         runtime: Arc<Runtime>,
     ) -> Result<Self, OciClientError> {
-        let client_config = proxy::setup_proxy(client_config, proxy_config.clone())?;
+        let mut client_config = proxy::setup_proxy(client_config, proxy_config.clone())?;
+
+        client_config
+            .connect_timeout
+            .get_or_insert(DEFAULT_OCI_CONNECT_TIMEOUT);
+        client_config
+            .read_timeout
+            .get_or_insert(DEFAULT_OCI_READ_TIMEOUT);
+
         let public_key_fetcher = Self::try_build_public_key_fetcher(proxy_config)?;
         Ok(Self {
             client: oci_client::Client::new(client_config),
