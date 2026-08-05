@@ -14,6 +14,9 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+### enhancement
+- Removed the direct `windows-sys` dependency from `agent-control` and `resource-detection`, migrating Windows FFI calls to the higher-level `windows`/`windows-registry` crates.
+
 ## v1.20.0 - 2026-07-29
 
 ### 🚀 Enhancements
