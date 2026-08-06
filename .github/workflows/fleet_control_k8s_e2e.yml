@@ -29,6 +29,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   build-packages:
@@ -84,7 +85,7 @@ jobs:
         with:
           tool: cargo-zigbuild@0.20.1
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      - uses: ./.github/actions/download-artifact-retry
         with:
           name: built-binaries-0.200.${{ github.run_id }}
           path: ./dist

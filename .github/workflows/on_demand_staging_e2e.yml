@@ -6,6 +6,7 @@ on:
 permissions:
   contents: read
   packages: write
+  actions: read
 
 # NOTE: The below environment vars are bumped automatically by Renovate so we always use the latest
 # versions of the packages in our E2E tests. If you change the names or move these values outside
@@ -49,7 +50,7 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/install-rust-toolchain
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      - uses: ./.github/actions/download-artifact-retry
         with:
           name: built-binaries-0.600.${{ github.run_id }}
           path: ./
