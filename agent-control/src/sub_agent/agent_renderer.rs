@@ -116,7 +116,7 @@ pub trait AgentRenderer {
 /// Implements [AgentRenderer] and is responsible for:
 /// - Getting [`AgentType`](crate::agent_type::definition::AgentType) from [AgentTypeRegistry]
 /// - Getting Local or Remote configs from [`ConfigRepository`](crate::values::config_repository::ConfigRepository)
-/// - Rendering the [`Runtime`](crate::agent_type::runtime_config::Runtime) configuration of an Agent
+/// - Rendering the [`Runtime`] configuration of an Agent
 ///
 /// Important: Rendering an Agent may mutate the state of external resources by creating
 /// or removing configs when the `Runtime` is rendered.
