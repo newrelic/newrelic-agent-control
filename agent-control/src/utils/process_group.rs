@@ -167,7 +167,7 @@ mod tests {
         let (mut child, process_group) =
             ProcessGroup::spawn(command).expect("failed to spawn process group");
 
-        let grandchild_pid: u32 = retry(50, Duration::from_millis(100), || {
+        let grandchild_pid: u32 = retry(50, Duration::from_millis(200), || {
             fs::read_to_string(&grandchild_pid_file)
                 .ok()
                 .and_then(|content| content.trim().parse().ok())
