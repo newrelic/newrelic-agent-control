@@ -28,6 +28,13 @@ pub struct K8sAgentControlConfigBuilder {
     secret_private_key_name: Option<String>,
     cr_type_meta: Option<String>,
     secrets_providers: Option<String>,
+    agent_types: Option<AgentTypes>,
+}
+
+struct AgentTypes {
+    signature_verification_enabled: bool,
+    repository: String,
+    public_key_url: String,
 }
 
 impl K8sAgentControlConfigBuilder {
@@ -44,6 +51,7 @@ impl K8sAgentControlConfigBuilder {
             secret_private_key_name: None,
             cr_type_meta: None,
             secrets_providers: None,
+            agent_types: None,
         }
     }
 
@@ -76,7 +84,6 @@ impl K8sAgentControlConfigBuilder {
         self
     }
 
-    #[cfg(unix)]
     pub fn with_cd_enabled(mut self, enabled: bool) -> Self {
         self.cd_enabled = Some(enabled);
         self
@@ -102,7 +109,6 @@ impl K8sAgentControlConfigBuilder {
         self
     }
 
-    #[cfg(unix)]
     pub fn with_secret_private_key_name(mut self, name: impl Into<String>) -> Self {
         self.secret_private_key_name = Some(name.into());
         self
@@ -115,6 +121,20 @@ impl K8sAgentControlConfigBuilder {
 
     pub fn with_secrets_providers(mut self, secrets_providers: impl Into<String>) -> Self {
         self.secrets_providers = Some(secrets_providers.into());
+        self
+    }
+
+    pub fn with_agent_types(
+        mut self,
+        signature_verification_enabled: bool,
+        repository: impl Into<String>,
+        public_key_url: impl Into<String>,
+    ) -> Self {
+        self.agent_types = Some(AgentTypes {
+            signature_verification_enabled,
+            repository: repository.into(),
+            public_key_url: public_key_url.into(),
+        });
         self
     }
 
@@ -192,12 +212,27 @@ impl K8sAgentControlConfigBuilder {
             .map(|sp| format!("secrets_providers:\n{sp}"))
             .unwrap_or_default();
 
+        let agent_types_block = self
+            .agent_types
+            .map(|at| {
+                format!(
+                    r#"agent_types:
+  default_remote:
+    repository: {}
+    signature_verification_enabled: {}
+    public_key_url: {}"#,
+                    at.repository, at.signature_verification_enabled, at.public_key_url,
+                )
+            })
+            .unwrap_or_default();
+
         let parts: Vec<String> = [
             self.common.build_fleet_control_yaml(),
             self.common.build_agents_yaml(),
             self.common.build_server_yaml(),
             k8s_block,
             secrets_providers_block,
+            agent_types_block,
         ]
         .into_iter()
         .filter(|s| !s.is_empty())

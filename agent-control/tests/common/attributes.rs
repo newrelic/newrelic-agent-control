@@ -1,7 +1,7 @@
-#[cfg(unix)]
 use std::collections::HashSet;
 
 use fake_opamp_server::FakeServer;
+use newrelic_agent_control::opamp::capabilities::CustomCapabilities;
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 
 use opamp_client::opamp::proto::any_value::Value;
@@ -55,17 +55,17 @@ pub fn check_identifying_attributes_contains_expected(
     .map_err(|e| format!("Identifying attributes missing required elements: {e}"))
 }
 
-#[cfg(unix)]
 /// Checks that the latest `CustomCapabilities` match the `expected`
 pub fn check_custom_capabilities_match(
     opamp_server: &FakeServer,
     instance_id: &InstanceID,
-    expected: HashSet<String>,
+    expected: CustomCapabilities,
 ) -> Result<(), String> {
     let current = opamp_server
         .get_custom_capabilities(instance_id.clone())
         .ok_or_else(|| "Custom capabilities not reported yet".to_string())?;
     let current: HashSet<String> = HashSet::from_iter(current.capabilities.clone());
+    let expected: HashSet<String> = expected.as_slice().iter().map(|c| c.to_string()).collect();
     if current != expected {
         return Err(format!(
             "custom capabilities don't match expected.  Expected: {:?}. Found: {:?}",
@@ -75,7 +75,6 @@ pub fn check_custom_capabilities_match(
     Ok(())
 }
 
-#[cfg(unix)]
 /// Checks that the latest `Capabilities` match the `expected`
 pub fn check_capabilities_match_expected(
     opamp_server: &FakeServer,

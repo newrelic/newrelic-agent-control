@@ -37,6 +37,11 @@ impl CustomCapabilities {
     pub fn push(&mut self, capability: CustomCapability) {
         self.0.push(capability);
     }
+
+    pub fn as_slice(&self) -> &[CustomCapability] {
+        self.0.as_slice()
+    }
+
     pub fn extend_from_slice(&mut self, capabilities: &[CustomCapability]) {
         self.0.extend_from_slice(capabilities);
     }

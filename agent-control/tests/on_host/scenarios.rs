@@ -1,3 +1,4 @@
+mod ac_capabilities;
 mod ac_self_update;
 mod attributes;
 mod empty_config;
