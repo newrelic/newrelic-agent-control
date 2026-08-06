@@ -9,7 +9,7 @@ use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::sub_agent_start_settings;
 use crate::sub_agent::SubAgent;
-use crate::sub_agent::agent_renderer::{Renderer, EffectiveAgent};
+use crate::sub_agent::agent_renderer::{EffectiveAgent, Renderer};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::supervisor::SupervisorError;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;

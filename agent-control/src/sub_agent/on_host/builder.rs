@@ -11,7 +11,7 @@ use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::sub_agent_start_settings;
 use crate::package::manager::PackageManager;
 use crate::sub_agent::SubAgent;
-use crate::sub_agent::agent_renderer::{Renderer, EffectiveAgent};
+use crate::sub_agent::agent_renderer::{EffectiveAgent, Renderer};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
