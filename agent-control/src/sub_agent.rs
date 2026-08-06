@@ -1111,7 +1111,7 @@ deployment:
 
         let agent_renderer = Arc::new(AgentRenderer::new(
             Arc::new(TestAgent::agent_type_definition().into()),
-            std::iter::empty(),
+            HashMap::new(),
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),
@@ -1238,7 +1238,7 @@ deployment:
 
         let agent_renderer = Arc::new(AgentRenderer::new(
             Arc::new(Registry::from(TestAgent::agent_type_definition())),
-            std::iter::empty(),
+            HashMap::new(),
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),
@@ -1920,7 +1920,7 @@ deployment:
         // customize the agent_renderer in order to use a different agent type
         sub_agent.agent_renderer = Arc::new(AgentRenderer::new(
             Arc::new(TestAgent::agent_type_definition_with_required_var().into()),
-            std::iter::empty(),
+            HashMap::new(),
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),

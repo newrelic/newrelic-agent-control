@@ -141,14 +141,14 @@ where
     /// constraints, secrets providers, and the remote configuration directory.
     pub fn new(
         registry: Arc<R>,
-        ac_variables: impl Iterator<Item = (String, Variable)>,
+        ac_variables: HashMap<VariableName, Variable>,
         variable_constraints: VariableConstraints,
         secrets_providers: Registry<S>,
         remote_dir: &Path,
     ) -> Self {
         AgentRenderer {
             registry,
-            ac_variables: namespace_agent_control_variables(ac_variables),
+            ac_variables,
             variable_constraints,
             secrets_providers,
             remote_dir: remote_dir.to_path_buf(),
@@ -257,21 +257,6 @@ fn check_all_vars_are_populated(
         return Err(AgentTypeError::ValuesNotPopulated(not_populated));
     }
     Ok(())
-}
-
-/// Namespaces a set of agent-control variables (identified by name) under the
-/// [`Namespace::AgentControl`] namespace.
-pub(crate) fn namespace_agent_control_variables(
-    variables: impl Iterator<Item = (String, Variable)>,
-) -> HashMap<VariableName, Variable> {
-    variables
-        .map(|(name, value)| {
-            (
-                VariableName::new(Namespace::AgentControl, name.as_str()),
-                value,
-            )
-        })
-        .collect()
 }
 
 #[cfg(test)]
@@ -678,7 +663,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
         ]));
         let renderer = AgentRenderer::new(
             Arc::new(registry),
-            std::iter::empty(),
+            HashMap::new(),
             VariableConstraints::default(),
             secrets_providers,
             Path::new(""),
@@ -812,7 +797,7 @@ deployment:
             env_secrets_registry_for_testing(HashMap::from([("my_variable", "my-value")]));
         let renderer = AgentRenderer::new(
             Arc::new(registry),
-            std::iter::empty(),
+            HashMap::new(),
             VariableConstraints::default(),
             secrets_providers,
             Path::new(""),
@@ -847,12 +832,12 @@ deployment:
         );
 
         let agent_control_variables = HashMap::from([(
-            "sa-fake-var".to_string(),
+            VariableName::new(Namespace::AgentControl, "sa-fake-var"),
             Variable::new_final_string_variable("fake_value".to_string()),
         )]);
         let renderer = AgentRenderer::new(
             Arc::new(registry),
-            agent_control_variables.into_iter(),
+            agent_control_variables,
             VariableConstraints::default(),
             Registry::<SecretsProviderType>::default(),
             Path::new(""),
@@ -916,7 +901,7 @@ deployment:
         ]));
         let renderer = AgentRenderer::new(
             Arc::new(registry),
-            std::iter::empty(),
+            HashMap::new(),
             VariableConstraints::default(),
             secrets_providers,
             Path::new(""),

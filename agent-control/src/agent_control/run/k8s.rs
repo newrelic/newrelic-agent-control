@@ -20,6 +20,7 @@ use crate::agent_control::run::{
 };
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::variable::Variable;
+use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use crate::agent_type::version_config::{
     AGENT_CONTROL_VERSION_CHECKER_INITIAL_DELAY, VersionCheckerInterval,
 };
@@ -152,11 +153,11 @@ impl AgentControlRunner {
 
         let agent_control_variables = HashMap::from([
             (
-                NAMESPACE_VARIABLE_NAME.to_string(),
+                VariableName::new(Namespace::AgentControl, NAMESPACE_VARIABLE_NAME),
                 Variable::new_final_string_variable(k8s_config.namespace.clone()),
             ),
             (
-                NAMESPACE_AGENTS_VARIABLE_NAME.to_string(),
+                VariableName::new(Namespace::AgentControl, NAMESPACE_AGENTS_VARIABLE_NAME),
                 Variable::new_final_string_variable(k8s_config.namespace_agents.clone()),
             ),
         ]);
@@ -172,7 +173,7 @@ impl AgentControlRunner {
 
         let agent_renderer = Arc::new(AgentRenderer::new(
             self.agent_type_registry.clone(),
-            agent_control_variables.into_iter(),
+            agent_control_variables,
             self.bootstrap_config.agent_type_var_constraints,
             secrets_providers,
             &self.base_paths.remote_dir,

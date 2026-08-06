@@ -10,6 +10,7 @@ use super::LocalRegistry;
 use crate::agent_control::run::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_VARIABLE_NAME};
 use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
 use crate::agent_type::variable::constraints::VariableConstraints;
+use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use crate::environment::Environment;
 use crate::sub_agent::agent_renderer::{
     AgentRenderer, Renderer, tests::env_secrets_registry_for_testing,
@@ -934,21 +935,21 @@ fn iterate_test_cases(environment: Environment) {
     let registry = Arc::new(LocalRegistry::embedded_only(environment));
 
     // Agent-control variables with specifics for the environment
-    let ac_variables: Vec<(String, Variable)> = match environment {
-        Environment::K8s => vec![
+    let ac_variables: HashMap<VariableName, Variable> = match environment {
+        Environment::K8s => HashMap::from([
             (
-                NAMESPACE_VARIABLE_NAME.to_string(),
+                VariableName::new(Namespace::AgentControl, NAMESPACE_VARIABLE_NAME),
                 Variable::new_final_string_variable("test-namespace".to_string()),
             ),
             (
-                NAMESPACE_AGENTS_VARIABLE_NAME.to_string(),
+                VariableName::new(Namespace::AgentControl, NAMESPACE_AGENTS_VARIABLE_NAME),
                 Variable::new_final_string_variable("test-namespace-agents".to_string()),
             ),
-        ],
-        Environment::Linux | Environment::Windows => vec![(
-            HOST_ID_VARIABLE_NAME.to_string(),
+        ]),
+        Environment::Linux | Environment::Windows => HashMap::from([(
+            VariableName::new(Namespace::AgentControl, HOST_ID_VARIABLE_NAME),
             Variable::new_final_string_variable("my-namespace".to_string()),
-        )],
+        )]),
     };
 
     #[cfg(windows)]
@@ -973,7 +974,7 @@ fn iterate_test_cases(environment: Environment) {
 
         let renderer = AgentRenderer::new(
             registry.clone(),
-            ac_variables.clone().into_iter(),
+            ac_variables.clone(),
             VariableConstraints::default(),
             env_secrets_registry_for_testing(values.additional_env.clone()),
             &remote_dir,

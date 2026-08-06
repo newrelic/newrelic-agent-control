@@ -19,6 +19,7 @@ use crate::agent_control::run::{
 use crate::agent_control::version_updater::on_host::OnHostACUpdater;
 use crate::agent_control::version_updater::on_host::verify::ProcessVerifyExecutor;
 use crate::agent_type::variable::Variable;
+use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use crate::checkers::health::noop::NoOpHealthChecker;
 use crate::environment::Environment;
 use crate::event::channel::{EventConsumer, pub_sub};
@@ -108,7 +109,7 @@ impl AgentControlRunner {
         let identifiers = ac_identifiers(&agent_control_config)?;
 
         let agent_control_variables = HashMap::from([(
-            HOST_ID_VARIABLE_NAME.to_string(),
+            VariableName::new(Namespace::AgentControl, HOST_ID_VARIABLE_NAME),
             Variable::new_final_string_variable(identifiers.host_id.clone()),
         )]);
 
@@ -190,7 +191,7 @@ impl AgentControlRunner {
 
         let agent_renderer = Arc::new(AgentRenderer::new(
             self.agent_type_registry.clone(),
-            agent_control_variables.into_iter(),
+            agent_control_variables,
             self.bootstrap_config.agent_type_var_constraints,
             secrets_providers,
             &remote_dir,
