@@ -273,7 +273,7 @@ impl Templateable for FilesystemEntry {
 fn filesystem_agent_dir(variables: &Variables) -> Result<String, AgentTypeError> {
     let key = VariableName::new(
         Namespace::SubAgent,
-        AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
+        AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
     );
     match variables.get(&key).and_then(Variable::get_final_value) {
         Some(TrivialValue::String(s)) => Ok(s.clone()),
@@ -285,7 +285,7 @@ fn filesystem_agent_dir(variables: &Variables) -> Result<String, AgentTypeError>
 fn shared_filesystem_dir(variables: &Variables) -> Result<String, AgentTypeError> {
     let key = VariableName::new(
         Namespace::SubAgent,
-        AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR,
+        AgentAttributes::NR_SUB_SHARED_FILESYSTEM_DIR,
     );
     match variables.get(&key).and_then(Variable::get_final_value) {
         Some(TrivialValue::String(s)) => Ok(s.clone()),
@@ -296,7 +296,7 @@ fn shared_filesystem_dir(variables: &Variables) -> Result<String, AgentTypeError
 /// The root a `copy_from_file` source must stay within: the sub-agent's AC data dir
 /// (`${nr-sub:remote_dir}`), which contains packages and the per-agent and shared filesystem dirs.
 fn copy_source_base(variables: &Variables) -> Result<PathBuf, AgentTypeError> {
-    let key = VariableName::new(Namespace::SubAgent, AgentAttributes::VARIABLE_REMOTE_DIR);
+    let key = VariableName::new(Namespace::SubAgent, AgentAttributes::NR_SUB_REMOTE_DIR);
     match variables.get(&key).and_then(Variable::get_final_value) {
         Some(TrivialValue::String(s)) => Ok(PathBuf::from(s)),
         _ => Err(AgentTypeError::MissingValue(key.to_string())),
@@ -413,7 +413,7 @@ mod tests {
         let variables = Variables::from_iter(vec![(
             VariableName::new(
                 Namespace::SubAgent,
-                AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
+                AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
             ),
             Variable::new_final_string_variable("/base/dir"),
         )]);
@@ -469,12 +469,12 @@ nri-redis:
             (
                 VariableName::new(
                     Namespace::SubAgent,
-                    AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
+                    AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
                 Variable::new_final_string_variable(agent_dir.to_string_lossy()),
             ),
             (
-                VariableName::new(Namespace::SubAgent, AgentAttributes::VARIABLE_REMOTE_DIR),
+                VariableName::new(Namespace::SubAgent, AgentAttributes::NR_SUB_REMOTE_DIR),
                 Variable::new_final_string_variable(remote_dir.to_string_lossy()),
             ),
         ])
@@ -563,7 +563,7 @@ nri-redis:
         let variables = Variables::from_iter(vec![(
             VariableName::new(
                 Namespace::SubAgent,
-                AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
+                AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
             ),
             Variable::new_final_string_variable("/base/dir"),
         )]);
@@ -634,7 +634,7 @@ nri-redis:
                 "missing value for key: {}",
                 VariableName::new(
                     Namespace::SubAgent,
-                    AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR
+                    AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR
                 )
             )
         );
@@ -707,7 +707,7 @@ agent:
             (
                 VariableName::new(
                     Namespace::SubAgent,
-                    AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
+                    AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
                 Variable::new_final_string_variable(base_dir),
             ),
@@ -844,7 +844,7 @@ projected:
             (
                 VariableName::new(
                     Namespace::SubAgent,
-                    AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
+                    AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
                 Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
             ),
@@ -888,7 +888,7 @@ projected:
             (
                 VariableName::new(
                     Namespace::SubAgent,
-                    AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
+                    AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
                 Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
             ),
@@ -964,7 +964,7 @@ logging.d:
             (
                 VariableName::new(
                     Namespace::SubAgent,
-                    AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
+                    AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
                 Variable::new_final_string_variable(base.to_string_lossy()),
             ),
@@ -999,7 +999,7 @@ logging.d:
             (
                 VariableName::new(
                     Namespace::SubAgent,
-                    AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
+                    AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
                 Variable::new_final_string_variable(base.to_string_lossy()),
             ),
@@ -1040,12 +1040,12 @@ logging.d:
             (
                 VariableName::new(
                     Namespace::SubAgent,
-                    AgentAttributes::VARIABLE_SHARED_FILESYSTEM_DIR,
+                    AgentAttributes::NR_SUB_SHARED_FILESYSTEM_DIR,
                 ),
                 Variable::new_final_string_variable(shared_dir.to_string_lossy()),
             ),
             (
-                VariableName::new(Namespace::SubAgent, AgentAttributes::VARIABLE_REMOTE_DIR),
+                VariableName::new(Namespace::SubAgent, AgentAttributes::NR_SUB_REMOTE_DIR),
                 Variable::new_final_string_variable(remote_dir.to_string_lossy()),
             ),
         ])

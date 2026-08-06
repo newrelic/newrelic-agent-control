@@ -196,23 +196,27 @@ where
             .get(&agent_identity.agent_type_id)?
             .with_constraints(&self.variable_constraints);
 
-        let agent_variables = AgentAttributes::get_agent_variables(
-            agent_identity.id.to_owned(),
-            self.remote_dir.to_path_buf(),
-        )
-        .map_err(|e| AgentRendererError::Generic(e.to_string()))?;
+        let agent_attributes =
+            AgentAttributes::try_new(agent_identity.id.to_owned(), self.remote_dir.to_path_buf())
+                .map_err(|e| AgentRendererError::Generic(e.to_string()))?;
 
         let secrets = self.load_secrets(&agent_type.runtime_config, values.clone())?;
 
         let (variable_tree, runtime_config) = (agent_type.variables, agent_type.runtime_config);
 
         // Expand user values
-        let expanded_user_variables = get_expanded_user_variables(variable_tree, values, &secrets)?;
+        let user_expansion_variables: HashMap<VariableName, Variable> = secrets
+            .clone()
+            .into_iter()
+            .chain(agent_attributes.nr_path_variables())
+            .collect();
+        let expanded_user_variables =
+            get_expanded_user_variables(variable_tree, values, &user_expansion_variables)?;
 
         // Join all available namespaced variables to
         let ns_variables = expanded_user_variables
             .into_iter()
-            .chain(agent_variables)
+            .chain(agent_attributes.nr_sub_variables())
             .chain(secrets)
             .chain(self.ac_variables.clone())
             .collect::<HashMap<VariableName, Variable>>();
@@ -229,11 +233,11 @@ where
 fn get_expanded_user_variables(
     variable_tree: VariableTree,
     values: YAMLConfig,
-    secrets: &HashMap<VariableName, Variable>,
+    user_expansion_variables: &HashMap<VariableName, Variable>,
 ) -> Result<HashMap<VariableName, Variable>, AgentTypeError> {
     // Values are expanded substituting all ${nr-env, nr-values} performing double expansions.
     // Notice that only data coming from secrets providers taken into consideration (no other vars for example)
-    let values_expanded = values.template_with(secrets)?;
+    let values_expanded = values.template_with(user_expansion_variables)?;
 
     // Fill agent data in the variables tree
     let flat_variable_tree = variable_tree.fill_with_values(values_expanded)?.flatten();
@@ -274,7 +278,10 @@ pub(crate) mod tests {
     };
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
+    use fs::directory_manager::DirectoryManagerFs;
+    use fs::file::LocalFile;
     use mockall::mock;
+    use tempfile::TempDir;
 
     mock! {
         pub AgentRenderer {}
@@ -933,6 +940,95 @@ values:
         let k8s = rendered_agent.get_k8s_config().unwrap();
         let spec = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
         assert_eq!(&expected_spec, spec);
+    }
+
+    #[test]
+    fn test_render_expand_user_values_with_nr_path_agent_dir() {
+        let (registry, agent_identity) = registry_for_testing(
+            r#"
+name: first
+namespace: newrelic
+version: 0.1.0
+platform: host
+operating_system: linux
+variables:
+  config:
+    description: ""
+    type: string
+    required: true
+  extra_configs:
+    description: ""
+    type: string_map
+    required: true
+deployment:
+  filesystem:
+    extra_configs:
+      kind: dir_content_from_map
+      source: ${nr-var:extra_configs}
+    config.toml:
+      kind: file
+      text: ${nr-var:config}
+  executables:
+    - id: first
+      path: /opt/first
+      args:
+        - --config
+        - ${nr-sub:filesystem_agent_dir}/config.toml
+"#,
+        );
+
+        // A real temp dir gives an absolute, platform-native remote dir, needed so the
+        // filesystem entries can actually be written and read back below.
+        let tmp_dir = TempDir::new().unwrap();
+        let remote_dir = tmp_dir.path().to_path_buf();
+        let renderer = AgentRenderer::new(
+            Arc::new(registry),
+            std::iter::empty(),
+            VariableConstraints::default(),
+            Registry::<SecretsProviderType>::default(),
+            &remote_dir,
+        );
+
+        let values = testing_values(
+            r#"
+config: |
+  extra = ${nr-path:agent_dir}/extra_configs/extra.txt
+
+extra_configs:
+  extra.txt: |
+    SOME CONTENT
+"#,
+        );
+
+        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let on_host = effective_agent.get_onhost_config().unwrap();
+
+        // `nr-path:agent_dir` is resolved while expanding user values, so it must show up
+        // already substituted in the written file contents.
+        on_host
+            .filesystem
+            .write(&LocalFile, &DirectoryManagerFs)
+            .unwrap();
+
+        // Only `${nr-path:agent_dir}` is substituted with a native path; the rest of the
+        // template (`/extra_configs/extra.txt`) is literal text, not a path join, so it keeps
+        // its forward slashes on every platform. This is not an issue because there are specific
+        // agent types for each platform.
+        let expected_agent_dir = remote_dir.join("filesystem").join("some-agent-id");
+        let config_content =
+            std::fs::read_to_string(expected_agent_dir.join("config.toml")).unwrap();
+        assert_eq!(
+            format!(
+                "extra = {}/extra_configs/extra.txt\n",
+                expected_agent_dir.to_string_lossy()
+            ),
+            config_content
+        );
+
+        let extra_content =
+            std::fs::read_to_string(expected_agent_dir.join("extra_configs").join("extra.txt"))
+                .unwrap();
+        assert_eq!("SOME CONTENT\n", extra_content);
     }
 
     // Agent Type and Values definitions
