@@ -2,12 +2,12 @@
 //! its YAML config, resolving the agent type, variables, and secrets.
 
 use crate::agent_type::agent_attributes::AgentAttributes;
-use crate::agent_type::definition::{AgentType, VariableTree};
+use crate::agent_type::definition::VariableTree;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::registry::{AgentTypeRegistry, AgentTypeRegistryError};
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::rendered::OnHost;
-use crate::agent_type::runtime_config::rendered;
+use crate::agent_type::runtime_config::{Runtime, rendered};
 use crate::agent_type::templates::Templateable;
 use crate::agent_type::variable::Variable;
 use crate::agent_type::variable::constraints::VariableConstraints;
@@ -154,6 +154,29 @@ where
             remote_dir: remote_dir.to_path_buf(),
         }
     }
+
+    // Loads all secret variables referenced in the provided runtime and values.
+    fn load_secrets(
+        &self,
+        runtime_config: &Runtime,
+        values: YAMLConfig,
+    ) -> Result<HashMap<VariableName, Variable>, AgentRendererError> {
+        let user_values: String = values
+            .clone()
+            .try_into()
+            .map_err(|e: YAMLConfigError| SecretVariablesError::YamlParseError(e.to_string()))?;
+        let runtime: String = serde_json::to_string(runtime_config)
+            .map_err(|e| SecretVariablesError::YamlParseError(e.to_string()))?;
+
+        let secret_variables_values = SecretVariables::from(user_values.as_str());
+        let secret_variables_runtime = SecretVariables::from(runtime.as_str());
+
+        let mut secrets: HashMap<VariableName, Variable> = HashMap::new();
+        secrets.extend(secret_variables_values.load_secrets(&self.secrets_providers)?);
+        secrets.extend(secret_variables_runtime.load_secrets(&self.secrets_providers)?);
+
+        Ok(secrets)
+    }
 }
 
 impl<R, S> AgentRenderer for DefaultAgentRenderer<R, S>
@@ -179,57 +202,28 @@ where
         )
         .map_err(|e| AgentRendererError::Generic(e.to_string()))?;
 
-        let user_values: String = values
-            .clone()
-            .try_into()
-            .map_err(|e: YAMLConfigError| SecretVariablesError::YamlParseError(e.to_string()))?;
-        let runtime: String = serde_json::to_string(&agent_type.runtime_config)
-            .map_err(|e| SecretVariablesError::YamlParseError(e.to_string()))?;
+        let secrets = self.load_secrets(&agent_type.runtime_config, values.clone())?;
 
-        let secret_variables_values = SecretVariables::from(user_values.as_str());
-        let secret_variables_runtime = SecretVariables::from(runtime.as_str());
+        let (variable_tree, runtime_config) = (agent_type.variables, agent_type.runtime_config);
 
-        let mut secrets: HashMap<VariableName, Variable> = HashMap::new();
-        secrets.extend(secret_variables_values.load_secrets(&self.secrets_providers)?);
-        secrets.extend(secret_variables_runtime.load_secrets(&self.secrets_providers)?);
+        // Expand user values
+        let expanded_user_variables = get_expanded_user_variables(variable_tree, values, &secrets)?;
 
-        let runtime_config = render_runtime_config(
-            agent_type,
-            values,
-            agent_variables,
-            secrets,
-            self.ac_variables.clone(),
-        )?;
+        // Join all available namespaced variables to
+        let ns_variables = expanded_user_variables
+            .into_iter()
+            .chain(agent_variables)
+            .chain(secrets)
+            .chain(self.ac_variables.clone())
+            .collect::<HashMap<VariableName, Variable>>();
 
-        Ok(EffectiveAgent::new(agent_identity.clone(), runtime_config))
+        let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
+
+        Ok(EffectiveAgent::new(
+            agent_identity.clone(),
+            rendered_runtime_config,
+        ))
     }
-}
-
-/// Renders an [`AgentType`] together with user values into a runtime configuration for a sub-agent.
-fn render_runtime_config(
-    agent_type: AgentType,
-    values: YAMLConfig,
-    agent_variables: HashMap<VariableName, Variable>,
-    secrets: HashMap<VariableName, Variable>,
-    ac_variables: HashMap<VariableName, Variable>,
-) -> Result<rendered::Runtime, AgentTypeError> {
-    // Get empty variables and runtime_config from the agent-type
-    let (variable_tree, runtime_config) = (agent_type.variables, agent_type.runtime_config);
-
-    let expanded_user_variables = get_expanded_user_variables(variable_tree, values, &secrets)?;
-
-    // Join all variables together, namespaced
-    let ns_variables = expanded_user_variables
-        .into_iter()
-        .chain(agent_variables)
-        .chain(secrets)
-        .chain(ac_variables)
-        .collect::<HashMap<VariableName, Variable>>();
-
-    // Render runtime config
-    let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
-
-    Ok(rendered_runtime_config)
 }
 
 fn get_expanded_user_variables(
@@ -280,10 +274,6 @@ pub(crate) fn namespace_agent_control_variables(
         .collect()
 }
 
-////////////////////////////////////////////////////////////////////////////////////
-// Tests
-////////////////////////////////////////////////////////////////////////////////////
-
 #[cfg(test)]
 #[allow(missing_docs)]
 pub(crate) mod tests {
@@ -291,16 +281,16 @@ pub(crate) mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::definition::AgentTypeDefinition;
+    use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
     use crate::agent_type::registry::tests::MockAgentTypeRegistry;
     use crate::agent_type::runtime_config::on_host::executable::rendered as exec_rendered;
     use crate::agent_type::runtime_config::restart_policy::{
         BackoffDelay, BackoffLastRetryInterval, BackoffStrategyType, MaxRetries,
     };
+    use crate::agent_type::trivial_value::TrivialValue;
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
     use mockall::mock;
-    use std::str::FromStr;
 
     mock! {
         pub AgentRenderer {}
@@ -499,70 +489,55 @@ deployment:
         - ${nr-var:config.var}
 "#;
 
-    pub fn testing_agent_attributes(agent_id: &AgentID) -> HashMap<VariableName, Variable> {
-        #[cfg(windows)]
-        let root = "C:\\";
-        #[cfg(not(windows))]
-        let root = "/";
-
-        AgentAttributes::get_agent_variables(agent_id.clone(), PathBuf::from_str(root).unwrap())
-            .unwrap()
-    }
-
     fn testing_values(yaml_values: &str) -> YAMLConfig {
         serde_saphyr::from_str(yaml_values).unwrap()
     }
 
+    /// Builds a [MockAgentTypeRegistry] that resolves the given yaml definition and an
+    /// [AgentIdentity] pointing at it, ready to be used with [AgentRenderer::render_agent].
+    fn registry_for_testing(yaml_definition: &str) -> (MockAgentTypeRegistry, AgentIdentity) {
+        let agent_type_definition =
+            serde_saphyr::from_str::<AgentTypeDefinition>(yaml_definition).unwrap();
+        let agent_type_id = agent_type_definition.metadata.id.clone();
+        let agent_identity = AgentIdentity::from((
+            AgentID::try_from("some-agent-id").unwrap(),
+            agent_type_id.clone(),
+        ));
+
+        let mut registry = MockAgentTypeRegistry::new();
+        registry.should_get(agent_type_id, &agent_type_definition);
+
+        (registry, agent_identity)
+    }
+
     #[test]
     fn test_render() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE);
         let values = testing_values(SIMPLE_AGENT_VALUES);
-        let attributes = testing_agent_attributes(&agent_id);
 
-        let runtime_config = render_runtime_config(
-            agent_type,
-            values,
-            attributes,
-            HashMap::new(),
-            HashMap::new(),
-        )
-        .unwrap();
+        let ns_variables =
+            get_expanded_user_variables(agent_type.variables, values, &HashMap::new()).unwrap();
 
-        let mut bin_stack = vec!["/opt/first", "/opt/second"].into_iter();
-        runtime_config
-            .deployment
-            .on_host()
-            .executables
-            .iter()
-            .for_each(|exec| {
-                assert_eq!(bin_stack.next().unwrap(), exec.path.clone());
-                assert_eq!(
-                    exec_rendered::Args(vec!(
-                        "--config_path".to_string(),
-                        "/some/path/config".to_string(),
-                        "--foo".to_string(),
-                        "bar".to_string()
-                    )),
-                    exec.args.clone()
-                );
-            });
+        assert_eq!(
+            ns_variables
+                .get(&VariableName::new(Namespace::Variable, "config_path"))
+                .and_then(Variable::get_final_value),
+            Some(TrivialValue::String("/some/path/config".to_string()))
+        );
+        assert_eq!(
+            ns_variables
+                .get(&VariableName::new(Namespace::Variable, "config_argument"))
+                .and_then(Variable::get_final_value),
+            Some(TrivialValue::String("bar".to_string()))
+        );
     }
 
     #[test]
     fn test_render_with_empty_but_required_values() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE);
         let values = YAMLConfig::default();
-        let attributes = testing_agent_attributes(&agent_id);
 
-        let result = render_runtime_config(
-            agent_type,
-            values,
-            attributes,
-            HashMap::new(),
-            HashMap::new(),
-        );
+        let result = get_expanded_user_variables(agent_type.variables, values, &HashMap::new());
         assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
             assert_eq!(vars, vec!["config_path".to_string()])
         })
@@ -570,18 +545,10 @@ deployment:
 
     #[test]
     fn test_render_with_missing_values() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE);
         let values = testing_values(SIMPLE_AGENT_VALUES_REQUIRED_MISSING);
-        let attributes = testing_agent_attributes(&agent_id);
 
-        let result = render_runtime_config(
-            agent_type,
-            values,
-            attributes,
-            HashMap::new(),
-            HashMap::new(),
-        );
+        let result = get_expanded_user_variables(agent_type.variables, values, &HashMap::new());
         assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
             assert_eq!(vars, vec!["config_path".to_string()])
         })
@@ -589,21 +556,12 @@ deployment:
 
     #[test]
     fn test_render_agent_type_with_backoff_config() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type = AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF);
+        let (registry, agent_identity) = registry_for_testing(AGENT_TYPE_WITH_BACKOFF);
+        let renderer = DefaultAgentRenderer::new_for_testing(registry);
         let values = testing_values(BACKOFF_VALUES_YAML);
-        let attributes = testing_agent_attributes(&agent_id);
 
-        let runtime_config = render_runtime_config(
-            agent_type,
-            values,
-            attributes,
-            HashMap::new(),
-            HashMap::new(),
-        )
-        .unwrap();
-
-        let on_host_deployment = runtime_config.deployment.on_host();
+        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let on_host_deployment = effective_agent.get_onhost_config().unwrap();
 
         let backoff_strategy = &on_host_deployment
             .executables
@@ -628,21 +586,12 @@ deployment:
 
     #[test]
     fn test_render_agent_type_with_backoff_config_and_string_durations() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type = AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF);
+        let (registry, agent_identity) = registry_for_testing(AGENT_TYPE_WITH_BACKOFF);
+        let renderer = DefaultAgentRenderer::new_for_testing(registry);
         let values = testing_values(BACKOFF_VALUES_STRING_DURATION);
-        let attributes = testing_agent_attributes(&agent_id);
 
-        let runtime_config = render_runtime_config(
-            agent_type,
-            values,
-            attributes,
-            HashMap::new(),
-            HashMap::new(),
-        )
-        .unwrap();
-
-        let on_host_deployment = runtime_config.deployment.on_host();
+        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let on_host_deployment = effective_agent.get_onhost_config().unwrap();
         let backoff_strategy = &on_host_deployment
             .executables
             .first()
@@ -691,10 +640,9 @@ deployment:
 
     #[test]
     fn test_render_k8s_config_with_yaml_variables() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type = AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES);
+        let (registry, agent_identity) = registry_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES);
+        let renderer = DefaultAgentRenderer::new_for_testing(registry);
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
-        let attributes = testing_agent_attributes(&agent_id);
 
         let expected_spec_yaml = r#"
 values:
@@ -712,16 +660,8 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
         let expected_spec_value: serde_json::Value =
             serde_saphyr::from_str(expected_spec_yaml).unwrap();
 
-        let runtime_config = render_runtime_config(
-            agent_type,
-            values,
-            attributes,
-            HashMap::new(),
-            HashMap::new(),
-        )
-        .unwrap();
-
-        let k8s = runtime_config.deployment.k8s();
+        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let k8s = effective_agent.get_k8s_config().unwrap();
         let cr1 = k8s.objects.get("cr1").unwrap();
 
         assert_eq!("group/version".to_string(), cr1.api_version);
@@ -733,21 +673,20 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 
     #[test]
     fn test_render_with_env_variables() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type = AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES);
+        let (registry, agent_identity) =
+            registry_for_testing(K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES);
+        let secrets_providers = env_secrets_registry_for_testing(HashMap::from([
+            ("MY_VARIABLE", "my-value"),
+            ("MY_VARIABLE_2", "my-value-2"),
+        ]));
+        let renderer = DefaultAgentRenderer::new(
+            Arc::new(registry),
+            std::iter::empty(),
+            VariableConstraints::default(),
+            secrets_providers,
+            Path::new(""),
+        );
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
-        let attributes = testing_agent_attributes(&agent_id);
-
-        let env_vars = HashMap::from([
-            (
-                VariableName::new(Namespace::EnvironmentVariable, "MY_VARIABLE"),
-                Variable::new_final_string_variable("my-value".to_string()),
-            ),
-            (
-                VariableName::new(Namespace::EnvironmentVariable, "MY_VARIABLE_2"),
-                Variable::new_final_string_variable("my-value-2".to_string()),
-            ),
-        ]);
 
         let expected_spec_yaml = r#"
 values:
@@ -767,10 +706,8 @@ substituted_2: my-value-2
         let expected_spec_value: serde_json::Value =
             serde_saphyr::from_str(expected_spec_yaml).unwrap();
 
-        let runtime_config =
-            render_runtime_config(agent_type, values, attributes, env_vars, HashMap::new());
-
-        let k8s = runtime_config.unwrap().deployment.k8s();
+        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let k8s = effective_agent.get_k8s_config().unwrap();
         let cr1 = k8s.objects.get("cr1").unwrap();
 
         assert_eq!("group/version".to_string(), cr1.api_version);
@@ -782,7 +719,6 @@ substituted_2: my-value-2
 
     #[test]
     fn test_render_double_expansion_with_env_variables() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES);
         let values = testing_values(
             r#"
@@ -795,7 +731,6 @@ config:
     key-2: ${nr-env:DOUBLE_EXPANSION_2}
 "#,
         );
-        let attributes = testing_agent_attributes(&agent_id);
 
         let secrets = HashMap::from([
             (
@@ -808,51 +743,46 @@ config:
             ),
         ]);
 
-        let expected_spec_yaml = r#"
-values:
-  key: test
-  key-2: test-2
-from_sub_agent: some-agent-id
-text_values: "key: value\nkey2: ${UNTOUCHED}\n\n"
-collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
-"#;
+        let ns_variables =
+            get_expanded_user_variables(agent_type.variables, values, &secrets).unwrap();
 
-        let expected_spec_value: serde_json::Value =
-            serde_saphyr::from_str(expected_spec_yaml).unwrap();
+        let expected_values: serde_json::Value = serde_saphyr::from_str(
+            r#"
+key: test
+key-2: test-2
+"#,
+        )
+        .unwrap();
 
-        let runtime_config =
-            render_runtime_config(agent_type, values, attributes, secrets, HashMap::new());
+        let actual_values = ns_variables
+            .get(&VariableName::new(Namespace::Variable, "config.values"))
+            .and_then(Variable::get_final_value)
+            .and_then(|v| v.to_yaml_value())
+            .unwrap();
 
-        let k8s = runtime_config.unwrap().deployment.k8s();
-        let values = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
-        assert_eq!(expected_spec_value, values.clone());
+        assert_eq!(expected_values, actual_values);
     }
 
     #[test]
     fn test_render_with_env_variables_not_found() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type = AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES);
+        let (registry, agent_identity) =
+            registry_for_testing(K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES);
+        let renderer = DefaultAgentRenderer::new_for_testing(registry);
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
-        let attributes = testing_agent_attributes(&agent_id);
 
-        let runtime_config = render_runtime_config(
-            agent_type,
-            values,
-            attributes,
-            HashMap::new(),
-            HashMap::new(),
-        );
+        // No secrets provider is registered, so `${nr-env:MY_VARIABLE}` and
+        // `${nr-env:MY_VARIABLE_2}` in the runtime config are never resolved.
+        let result = renderer.render_agent(&agent_identity, values);
 
         assert_matches!(
-            runtime_config.unwrap_err(),
-            AgentTypeError::MissingTemplateKey(_)
+            result.unwrap_err(),
+            AgentRendererError::AgentTypeError(AgentTypeError::MissingTemplateKey(_))
         );
     }
 
     #[test]
     fn test_render_with_env_variables_are_case_sensitive() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let agent_type = AgentType::build_for_testing(
+        let (registry, agent_identity) = registry_for_testing(
             r#"
 name: k8s_agent_type
 namespace: newrelic
@@ -879,28 +809,30 @@ deployment:
       substituted: ${nr-env:MY_VARIABLE}
 "#,
         );
+        // The template references `MY_VARIABLE` (uppercase); the provider only knows the
+        // lowercase path, so secret loading itself fails before templating is ever reached.
+        let secrets_providers =
+            env_secrets_registry_for_testing(HashMap::from([("my_variable", "my-value")]));
+        let renderer = DefaultAgentRenderer::new(
+            Arc::new(registry),
+            std::iter::empty(),
+            VariableConstraints::default(),
+            secrets_providers,
+            Path::new(""),
+        );
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
-        let attributes = testing_agent_attributes(&agent_id);
 
-        let env_vars = HashMap::from([(
-            VariableName::new(Namespace::EnvironmentVariable, "my_variable"),
-            Variable::new_final_string_variable("my-value".to_string()),
-        )]);
-
-        let runtime_config =
-            render_runtime_config(agent_type, values, attributes, env_vars, HashMap::new());
+        let result = renderer.render_agent(&agent_identity, values);
 
         assert_matches!(
-            runtime_config.unwrap_err(),
-            AgentTypeError::MissingTemplateKey(_)
+            result.unwrap_err(),
+            AgentRendererError::SecretVariablesError(_)
         );
     }
 
     #[test]
     fn test_render_expand_agent_control_variables() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
-
-        let agent_type = AgentType::build_for_testing(
+        let (registry, agent_identity) = registry_for_testing(
             r#"
 namespace: newrelic
 name: first
@@ -916,37 +848,32 @@ deployment:
         - "${nr-ac:sa-fake-var}"
 "#,
         );
-        let values = testing_values("");
-        let attributes = testing_agent_attributes(&agent_id);
 
         let agent_control_variables = HashMap::from([(
             "sa-fake-var".to_string(),
             Variable::new_final_string_variable("fake_value".to_string()),
         )]);
-        let ac_variables = namespace_agent_control_variables(agent_control_variables.into_iter());
+        let renderer = DefaultAgentRenderer::new(
+            Arc::new(registry),
+            agent_control_variables.into_iter(),
+            VariableConstraints::default(),
+            Registry::<SecretsProviderType>::default(),
+            Path::new(""),
+        );
+        let values = testing_values("");
 
-        let runtime_config =
-            render_runtime_config(agent_type, values, attributes, HashMap::new(), ac_variables)
-                .unwrap();
+        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let on_host = effective_agent.get_onhost_config().unwrap();
+
         assert_eq!(
             exec_rendered::Args(vec!("fake_value".to_string())),
-            runtime_config
-                .deployment
-                .on_host()
-                .executables
-                .first()
-                .unwrap()
-                .args
-                .clone()
+            on_host.executables.first().unwrap().args.clone()
         );
     }
 
     #[test]
     fn test_render_env_in_runtime_and_all_secrets_expand_user_values() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
-        let attributes = testing_agent_attributes(&agent_id);
-
-        let agent_type = AgentType::build_for_testing(
+        let (registry, agent_identity) = registry_for_testing(
             r#"
 name: k8s_agent_type
 namespace: newrelic
@@ -973,6 +900,31 @@ deployment:
 "#,
         );
 
+        let mut vault = MockFixedSecretsProvider::new();
+        vault
+            .expect_get_secret()
+            .returning(|_| Ok("vault-value".to_string()));
+        let mut env = MockFixedSecretsProvider::new();
+        env.expect_get_secret()
+            .returning(|_| Ok("env-value".to_string()));
+        let mut kubesec = MockFixedSecretsProvider::new();
+        kubesec
+            .expect_get_secret()
+            .returning(|_| Ok("kubesec-value".to_string()));
+
+        let secrets_providers = Registry::from(HashMap::from([
+            (Namespace::Vault, vault),
+            (Namespace::EnvironmentVariable, env),
+            (Namespace::K8sSecret, kubesec),
+        ]));
+        let renderer = DefaultAgentRenderer::new(
+            Arc::new(registry),
+            std::iter::empty(),
+            VariableConstraints::default(),
+            secrets_providers,
+            Path::new(""),
+        );
+
         let values = testing_values(
             r#"
 my_yaml:
@@ -981,21 +933,6 @@ my_yaml:
   env_field: ${nr-env:ENV}
 "#,
         );
-
-        let secrets = HashMap::from([
-            (
-                VariableName::new(Namespace::EnvironmentVariable, "ENV"),
-                Variable::new_final_string_variable("env-value".to_string()),
-            ),
-            (
-                VariableName::new(Namespace::Vault, "V_KEY"),
-                Variable::new_final_string_variable("vault-value".to_string()),
-            ),
-            (
-                VariableName::new(Namespace::K8sSecret, "K_KEY"),
-                Variable::new_final_string_variable("kubesec-value".to_string()),
-            ),
-        ]);
 
         let expected_spec_yaml = r#"
 vault_field: vault-value
@@ -1008,9 +945,8 @@ values:
 "#;
         let expected_spec: serde_json::Value = serde_saphyr::from_str(expected_spec_yaml).unwrap();
 
-        let rendered =
-            render_runtime_config(agent_type, values, attributes, secrets, HashMap::new()).unwrap();
-        let k8s = rendered.deployment.k8s();
+        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let k8s = effective_agent.get_k8s_config().unwrap();
         let spec = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
         assert_eq!(&expected_spec, spec);
     }
