@@ -12,7 +12,7 @@ use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::environment::Environment;
 use crate::sub_agent::agent_renderer::{
-    AgentRenderer, DefaultAgentRenderer, tests::env_secrets_registry_for_testing,
+    AgentRenderer, Renderer, tests::env_secrets_registry_for_testing,
 };
 use crate::sub_agent::identity::AgentIdentity;
 use crate::{
@@ -971,7 +971,7 @@ fn iterate_test_cases(environment: Environment) {
             AgentTypeID::try_from(case.agent_type).unwrap(),
         ));
 
-        let renderer = DefaultAgentRenderer::new(
+        let renderer = AgentRenderer::new(
             registry.clone(),
             ac_variables.clone().into_iter(),
             VariableConstraints::default(),

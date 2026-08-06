@@ -36,7 +36,7 @@ use crate::values::config::{Config, RemoteConfig};
 use crate::values::config_repository::ConfigRepository;
 use crate::values::yaml_config::YAMLConfig;
 use agent_renderer::AgentRendererError;
-use agent_renderer::{AgentRenderer, EffectiveAgent};
+use agent_renderer::{EffectiveAgent, Renderer};
 use crossbeam::channel::never;
 use crossbeam::select;
 use error::SubAgentStopError;
@@ -110,7 +110,7 @@ where
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
-    A: AgentRenderer + Send + Sync + 'static,
+    A: Renderer + Send + Sync + 'static,
 {
     pub(super) identity: AgentIdentity,
     pub(super) maybe_opamp_client: Option<C>,
@@ -130,7 +130,7 @@ where
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
-    A: AgentRenderer + Send + Sync + 'static,
+    A: Renderer + Send + Sync + 'static,
 {
     /// Creates a new sub-agent from its identity, optional OpAMP client, supervisor builder,
     /// event channels, remote-config parser, config repository, and agent renderer.
@@ -790,7 +790,7 @@ where
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
-    A: AgentRenderer + Send + Sync + 'static,
+    A: Renderer + Send + Sync + 'static,
 {
     type StartedSubAgent = SubAgentStopper;
 
@@ -810,7 +810,7 @@ where
 pub mod tests {
     use super::*;
 
-    use super::super::sub_agent::agent_renderer::DefaultAgentRenderer;
+    use super::super::sub_agent::agent_renderer::AgentRenderer;
     use super::super::sub_agent::remote_config_parser::AgentRemoteConfigParser;
     use super::super::sub_agent::supervisor::tests::{
         MockSupervisor, MockSupervisorBuilder, MockSupervisorStarter, TestingSupervisorError,
@@ -844,7 +844,7 @@ pub mod tests {
         MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>>,
         AgentRemoteConfigParser<MockRemoteConfigValidator>,
         InMemoryConfigRepository,
-        DefaultAgentRenderer<Registry>,
+        AgentRenderer<Registry>,
     >;
 
     mock! {
@@ -1112,7 +1112,7 @@ deployment:
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
 
-        let agent_renderer = Arc::new(DefaultAgentRenderer::new(
+        let agent_renderer = Arc::new(AgentRenderer::new(
             Arc::new(TestAgent::agent_type_definition().into()),
             std::iter::empty(),
             VariableConstraints::default(),
@@ -1239,7 +1239,7 @@ deployment:
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
 
-        let agent_renderer = Arc::new(DefaultAgentRenderer::new(
+        let agent_renderer = Arc::new(AgentRenderer::new(
             Arc::new(Registry::from(TestAgent::agent_type_definition())),
             std::iter::empty(),
             VariableConstraints::default(),
@@ -1921,7 +1921,7 @@ deployment:
         let mut sub_agent =
             test_sub_agent(Some(opamp_client), supervisor_builder, config_repository);
         // customize the agent_renderer in order to use a different agent type
-        sub_agent.agent_renderer = Arc::new(DefaultAgentRenderer::new(
+        sub_agent.agent_renderer = Arc::new(AgentRenderer::new(
             Arc::new(TestAgent::agent_type_definition_with_required_var().into()),
             std::iter::empty(),
             VariableConstraints::default(),

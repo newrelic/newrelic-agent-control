@@ -11,7 +11,7 @@ use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::sub_agent_start_settings;
 use crate::package::manager::PackageManager;
 use crate::sub_agent::SubAgent;
-use crate::sub_agent::agent_renderer::{AgentRenderer, EffectiveAgent};
+use crate::sub_agent::agent_renderer::{Renderer, EffectiveAgent};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
@@ -35,7 +35,7 @@ where
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
-    A: AgentRenderer + Send + Sync + 'static,
+    A: Renderer + Send + Sync + 'static,
 {
     pub(crate) opamp_builder: Option<O>,
     pub(crate) instance_id_getter: I,
@@ -53,7 +53,7 @@ where
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
-    A: AgentRenderer + Send + Sync + 'static,
+    A: Renderer + Send + Sync + 'static,
 {
     type NotStartedSubAgent = SubAgent<O::Client, B, R, Y, A>;
 

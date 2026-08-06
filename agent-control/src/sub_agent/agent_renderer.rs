@@ -103,7 +103,7 @@ impl TryFrom<EffectiveAgent> for K8s {
 }
 
 /// Renders an [EffectiveAgent] from an agent identity and its YAML configuration.
-pub trait AgentRenderer {
+pub trait Renderer {
     /// Renders an [EffectiveAgent] from an [AgentIdentity]. The implementer is responsible for
     /// getting the AgentType and all needed values to render the Runtime config.
     fn render_agent(
@@ -113,14 +113,14 @@ pub trait AgentRenderer {
     ) -> Result<EffectiveAgent, AgentRendererError>;
 }
 
-/// Implements [AgentRenderer] and is responsible for:
+/// Implements [Renderer] and is responsible for:
 /// - Getting [`AgentType`](crate::agent_type::definition::AgentType) from [AgentTypeRegistry]
 /// - Getting Local or Remote configs from [`ConfigRepository`](crate::values::config_repository::ConfigRepository)
 /// - Rendering the [`Runtime`] configuration of an Agent
 ///
 /// Important: Rendering an Agent may mutate the state of external resources by creating
 /// or removing configs when the `Runtime` is rendered.
-pub struct DefaultAgentRenderer<R, S = SecretsProviderType>
+pub struct AgentRenderer<R, S = SecretsProviderType>
 where
     R: AgentTypeRegistry,
     S: SecretsProvider,
@@ -132,7 +132,7 @@ where
     remote_dir: PathBuf,
 }
 
-impl<R, S> DefaultAgentRenderer<R, S>
+impl<R, S> AgentRenderer<R, S>
 where
     R: AgentTypeRegistry,
     S: SecretsProvider,
@@ -146,7 +146,7 @@ where
         secrets_providers: Registry<S>,
         remote_dir: &Path,
     ) -> Self {
-        DefaultAgentRenderer {
+        AgentRenderer {
             registry,
             ac_variables: namespace_agent_control_variables(ac_variables),
             variable_constraints,
@@ -179,7 +179,7 @@ where
     }
 }
 
-impl<R, S> AgentRenderer for DefaultAgentRenderer<R, S>
+impl<R, S> Renderer for AgentRenderer<R, S>
 where
     R: AgentTypeRegistry,
     S: SecretsProvider,
@@ -295,7 +295,7 @@ pub(crate) mod tests {
     mock! {
         pub AgentRenderer {}
 
-        impl AgentRenderer for AgentRenderer {
+        impl Renderer for AgentRenderer {
             fn render_agent(
                 &self,
                 agent_identity:&AgentIdentity,
@@ -343,11 +343,8 @@ pub(crate) mod tests {
         Registry::from(HashMap::from([(Namespace::EnvironmentVariable, provider)]))
     }
 
-    impl<R> DefaultAgentRenderer<R>
-    where
-        R: AgentTypeRegistry,
-    {
-        pub fn new_for_testing(registry: R) -> Self {
+    impl AgentRenderer<MockAgentTypeRegistry> {
+        pub fn new_for_testing(registry: MockAgentTypeRegistry) -> Self {
             Self {
                 registry: Arc::new(registry),
                 ac_variables: HashMap::new(),
@@ -378,7 +375,7 @@ pub(crate) mod tests {
             &agent_type_definition,
         );
 
-        let renderer = DefaultAgentRenderer::new_for_testing(registry);
+        let renderer = AgentRenderer::new_for_testing(registry);
 
         let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
 
@@ -398,7 +395,7 @@ pub(crate) mod tests {
 
         //Expectations
         registry.expect_get_not_found(AgentTypeID::try_from("namespace/name:0.0.1").unwrap());
-        let renderer = DefaultAgentRenderer::new_for_testing(registry);
+        let renderer = AgentRenderer::new_for_testing(registry);
 
         let result = renderer.render_agent(&agent_identity, YAMLConfig::default());
 
@@ -557,7 +554,7 @@ deployment:
     #[test]
     fn test_render_agent_type_with_backoff_config() {
         let (registry, agent_identity) = registry_for_testing(AGENT_TYPE_WITH_BACKOFF);
-        let renderer = DefaultAgentRenderer::new_for_testing(registry);
+        let renderer = AgentRenderer::new_for_testing(registry);
         let values = testing_values(BACKOFF_VALUES_YAML);
 
         let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
@@ -587,7 +584,7 @@ deployment:
     #[test]
     fn test_render_agent_type_with_backoff_config_and_string_durations() {
         let (registry, agent_identity) = registry_for_testing(AGENT_TYPE_WITH_BACKOFF);
-        let renderer = DefaultAgentRenderer::new_for_testing(registry);
+        let renderer = AgentRenderer::new_for_testing(registry);
         let values = testing_values(BACKOFF_VALUES_STRING_DURATION);
 
         let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
@@ -641,7 +638,7 @@ deployment:
     #[test]
     fn test_render_k8s_config_with_yaml_variables() {
         let (registry, agent_identity) = registry_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES);
-        let renderer = DefaultAgentRenderer::new_for_testing(registry);
+        let renderer = AgentRenderer::new_for_testing(registry);
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
 
         let expected_spec_yaml = r#"
@@ -679,7 +676,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
             ("MY_VARIABLE", "my-value"),
             ("MY_VARIABLE_2", "my-value-2"),
         ]));
-        let renderer = DefaultAgentRenderer::new(
+        let renderer = AgentRenderer::new(
             Arc::new(registry),
             std::iter::empty(),
             VariableConstraints::default(),
@@ -767,7 +764,7 @@ key-2: test-2
     fn test_render_with_env_variables_not_found() {
         let (registry, agent_identity) =
             registry_for_testing(K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES);
-        let renderer = DefaultAgentRenderer::new_for_testing(registry);
+        let renderer = AgentRenderer::new_for_testing(registry);
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
 
         // No secrets provider is registered, so `${nr-env:MY_VARIABLE}` and
@@ -813,7 +810,7 @@ deployment:
         // lowercase path, so secret loading itself fails before templating is ever reached.
         let secrets_providers =
             env_secrets_registry_for_testing(HashMap::from([("my_variable", "my-value")]));
-        let renderer = DefaultAgentRenderer::new(
+        let renderer = AgentRenderer::new(
             Arc::new(registry),
             std::iter::empty(),
             VariableConstraints::default(),
@@ -853,7 +850,7 @@ deployment:
             "sa-fake-var".to_string(),
             Variable::new_final_string_variable("fake_value".to_string()),
         )]);
-        let renderer = DefaultAgentRenderer::new(
+        let renderer = AgentRenderer::new(
             Arc::new(registry),
             agent_control_variables.into_iter(),
             VariableConstraints::default(),
@@ -917,7 +914,7 @@ deployment:
             (Namespace::EnvironmentVariable, env),
             (Namespace::K8sSecret, kubesec),
         ]));
-        let renderer = DefaultAgentRenderer::new(
+        let renderer = AgentRenderer::new(
             Arc::new(registry),
             std::iter::empty(),
             VariableConstraints::default(),

@@ -9,7 +9,7 @@ use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::sub_agent_start_settings;
 use crate::sub_agent::SubAgent;
-use crate::sub_agent::agent_renderer::{AgentRenderer, EffectiveAgent};
+use crate::sub_agent::agent_renderer::{Renderer, EffectiveAgent};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::supervisor::SupervisorError;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
@@ -33,7 +33,7 @@ where
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
-    A: AgentRenderer + Send + Sync + 'static,
+    A: Renderer + Send + Sync + 'static,
 {
     pub(crate) opamp_builder: Option<O>,
     pub(crate) instance_id_getter: I,
@@ -52,7 +52,7 @@ where
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
-    A: AgentRenderer + Send + Sync + 'static,
+    A: Renderer + Send + Sync + 'static,
 {
     type NotStartedSubAgent = SubAgent<O::Client, B, R, Y, A>;
 

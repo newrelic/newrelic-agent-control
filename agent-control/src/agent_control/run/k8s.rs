@@ -43,7 +43,7 @@ use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::opamp::secret_retriever::k8s::retrieve::K8sSecretRetriever;
 use crate::secrets_provider::SecretsProviders;
 use crate::secrets_provider::k8s_secret::K8sSecretProvider;
-use crate::sub_agent::agent_renderer::DefaultAgentRenderer;
+use crate::sub_agent::agent_renderer::AgentRenderer;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
@@ -170,7 +170,7 @@ impl AgentControlRunner {
                 .map_err(|e| RunError(format!("failed to load secrets providers: {e}")))?;
         }
 
-        let agent_renderer = Arc::new(DefaultAgentRenderer::new(
+        let agent_renderer = Arc::new(AgentRenderer::new(
             self.agent_type_registry.clone(),
             agent_control_variables.into_iter(),
             self.bootstrap_config.agent_type_var_constraints,
