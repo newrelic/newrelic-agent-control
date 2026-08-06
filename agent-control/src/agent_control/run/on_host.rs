@@ -346,7 +346,7 @@ pub fn build_ac_opamp_start_settings(
     Ok(StartSettings {
         instance_uid: instance_id.into(),
         capabilities: default_capabilities(),
-        custom_capabilities: Some(default_custom_capabilities()),
+        custom_capabilities: Some(default_custom_capabilities().into()),
         agent_description,
     })
 }

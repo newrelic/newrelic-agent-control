@@ -3,6 +3,7 @@
 pub mod attributes;
 pub mod auth;
 pub mod callbacks;
+pub mod capabilities;
 pub mod client_builder;
 pub mod effective_config;
 pub mod http;

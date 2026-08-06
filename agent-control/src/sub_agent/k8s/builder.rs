@@ -378,7 +378,7 @@ pub mod tests {
         let start_settings = StartSettings {
             instance_uid: instance_id.clone().into(),
             capabilities: default_capabilities(),
-            custom_capabilities: Some(default_custom_capabilities()),
+            custom_capabilities: Some(default_custom_capabilities().into()),
             agent_description,
         };
 
