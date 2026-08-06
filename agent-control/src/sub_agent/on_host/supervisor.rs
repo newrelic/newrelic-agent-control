@@ -22,7 +22,7 @@ use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::opamp::attributes::publish_update_attributes_event;
 use crate::package::manager::{PackageData, PackageManager};
-use crate::sub_agent::agent_renderer::{AgentRendererError, EffectiveAgent};
+use crate::sub_agent::agent_renderer::{AgentRendererError, RenderedAgent};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::command_os::{CommandOSNotStarted, CommandOSStarted};
 use crate::sub_agent::on_host::command::error::CommandError;
@@ -147,9 +147,9 @@ where
     type ApplyError = SupervisorError;
     type StopError = ThreadContextStopperError;
 
-    fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, Self::ApplyError> {
+    fn apply(self, rendered_agent: RenderedAgent) -> Result<Self, Self::ApplyError> {
         // Get configuration from effective agent
-        let onhost_config = effective_agent
+        let onhost_config = rendered_agent
             .get_onhost_config()
             .map_err(SupervisorError::RuntimeConfig)?
             .clone();
@@ -681,7 +681,7 @@ pub mod tests {
     };
     use crate::event::channel::pub_sub;
     use crate::package::manager::tests::MockPackageManager;
-    use crate::sub_agent::agent_renderer::EffectiveAgent;
+    use crate::sub_agent::agent_renderer::RenderedAgent;
     use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use crate::sub_agent::supervisor::Supervisor;
@@ -1443,10 +1443,10 @@ declared-dir:
             deployment: Deployment::Host(on_host_config.clone()),
         };
 
-        let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);
+        let rendered_agent = RenderedAgent::new(agent_identity.clone(), runtime);
 
         let started_supervisor = started_supervisor
-            .apply(effective_agent)
+            .apply(rendered_agent)
             .expect("failed to apply");
 
         // Wait a bit for the process to run and write logs
@@ -1575,10 +1575,10 @@ declared-dir:
             deployment: Deployment::Host(on_host_config.clone()),
         };
 
-        let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);
+        let rendered_agent = RenderedAgent::new(agent_identity.clone(), runtime);
 
         let started_supervisor = started_supervisor
-            .apply(effective_agent)
+            .apply(rendered_agent)
             .expect("failed to apply");
 
         std::thread::sleep(Duration::from_secs(2));
@@ -1705,10 +1705,10 @@ declared-dir:
             deployment: Deployment::Host(on_host_config.clone()),
         };
 
-        let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);
+        let rendered_agent = RenderedAgent::new(agent_identity.clone(), runtime);
 
         let started_supervisor = started_supervisor
-            .apply(effective_agent)
+            .apply(rendered_agent)
             .expect("failed to apply");
 
         std::thread::sleep(Duration::from_secs(2));
@@ -1890,10 +1890,10 @@ declared-dir:
             deployment: Deployment::Host(on_host_config.clone()),
         };
 
-        let effective_agent = EffectiveAgent::new(agent_identity.clone(), runtime);
+        let rendered_agent = RenderedAgent::new(agent_identity.clone(), runtime);
 
         let started_supervisor = started_supervisor
-            .apply(effective_agent)
+            .apply(rendered_agent)
             .expect("failed to apply");
 
         std::thread::sleep(Duration::from_secs(2));

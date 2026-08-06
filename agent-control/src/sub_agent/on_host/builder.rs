@@ -11,7 +11,7 @@ use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::sub_agent_start_settings;
 use crate::package::manager::PackageManager;
 use crate::sub_agent::SubAgent;
-use crate::sub_agent::agent_renderer::{EffectiveAgent, Renderer};
+use crate::sub_agent::agent_renderer::{RenderedAgent, Renderer};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
@@ -137,15 +137,15 @@ where
 
     fn build_supervisor(
         &self,
-        effective_agent: EffectiveAgent,
+        rendered_agent: RenderedAgent,
     ) -> Result<Self::Starter, Self::Error> {
         debug!(
             "Building Executable supervisors {}",
-            effective_agent.get_agent_identity(),
+            rendered_agent.get_agent_identity(),
         );
-        let agent_identity = effective_agent.get_agent_identity().clone();
+        let agent_identity = rendered_agent.get_agent_identity().clone();
 
-        let on_host = effective_agent
+        let on_host = rendered_agent
             .get_onhost_config()
             .map_err(SupervisorError::RuntimeConfig)?
             .clone();

@@ -1,4 +1,4 @@
-//! Renders an [EffectiveAgent] (rendered runtime configuration) from an agent identity and
+//! Renders an [RenderedAgent] (rendered runtime configuration) from an agent identity and
 //! its YAML config, resolving the agent type, variables, and secrets.
 
 use crate::agent_type::agent_attributes::AgentAttributes;
@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use thiserror::Error;
 
-/// Errors produced while rendering an [EffectiveAgent].
+/// Errors produced while rendering an [RenderedAgent].
 #[derive(Error, Debug)]
 pub enum AgentRendererError {
     /// A generic rendering failure with a descriptive message.
@@ -47,18 +47,18 @@ pub enum AgentRendererError {
 
 /// An agent with its identity and fully rendered runtime configuration.
 #[derive(Clone, Debug, PartialEq)]
-pub struct EffectiveAgent {
+pub struct RenderedAgent {
     agent_identity: AgentIdentity,
     runtime_config: rendered::Runtime,
 }
 
-impl Display for EffectiveAgent {
+impl Display for RenderedAgent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.agent_identity.id.to_string())
     }
 }
 
-impl EffectiveAgent {
+impl RenderedAgent {
     pub(crate) fn new(agent_identity: AgentIdentity, runtime_config: rendered::Runtime) -> Self {
         Self {
             agent_identity,
@@ -89,10 +89,10 @@ impl EffectiveAgent {
     }
 }
 
-impl TryFrom<EffectiveAgent> for K8s {
+impl TryFrom<RenderedAgent> for K8s {
     type Error = AgentRendererError;
 
-    fn try_from(value: EffectiveAgent) -> Result<Self, Self::Error> {
+    fn try_from(value: RenderedAgent) -> Result<Self, Self::Error> {
         match value.runtime_config.deployment {
             rendered::Deployment::K8s(k8s) => Ok(k8s),
             rendered::Deployment::Host(_) => Err(AgentRendererError::Generic(
@@ -102,15 +102,15 @@ impl TryFrom<EffectiveAgent> for K8s {
     }
 }
 
-/// Renders an [EffectiveAgent] from an agent identity and its YAML configuration.
+/// Renders an [RenderedAgent] from an agent identity and its YAML configuration.
 pub trait Renderer {
-    /// Renders an [EffectiveAgent] from an [AgentIdentity]. The implementer is responsible for
+    /// Renders an [RenderedAgent] from an [AgentIdentity]. The implementer is responsible for
     /// getting the AgentType and all needed values to render the Runtime config.
     fn render_agent(
         &self,
         agent_identity: &AgentIdentity,
         yaml_config: YAMLConfig,
-    ) -> Result<EffectiveAgent, AgentRendererError>;
+    ) -> Result<RenderedAgent, AgentRendererError>;
 }
 
 /// Implements [Renderer] and is responsible for:
@@ -188,7 +188,7 @@ where
         &self,
         agent_identity: &AgentIdentity,
         values: YAMLConfig,
-    ) -> Result<EffectiveAgent, AgentRendererError> {
+    ) -> Result<RenderedAgent, AgentRendererError> {
         // Load the parsed definition and apply the AC-wide variable constraints to materialize
         // an [AgentType] ready for the renderer.
         let agent_type = self
@@ -219,7 +219,7 @@ where
 
         let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
 
-        Ok(EffectiveAgent::new(
+        Ok(RenderedAgent::new(
             agent_identity.clone(),
             rendered_runtime_config,
         ))
@@ -300,7 +300,7 @@ pub(crate) mod tests {
                 &self,
                 agent_identity:&AgentIdentity,
                 yaml_config: YAMLConfig,
-            ) -> Result<EffectiveAgent, AgentRendererError>;
+            ) -> Result<RenderedAgent, AgentRendererError>;
 
         }
     }
@@ -377,9 +377,9 @@ pub(crate) mod tests {
 
         let renderer = AgentRenderer::new_for_testing(registry);
 
-        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let rendered_agent = renderer.render_agent(&agent_identity, values).unwrap();
 
-        assert_eq!(agent_identity, effective_agent.agent_identity);
+        assert_eq!(agent_identity, rendered_agent.agent_identity);
     }
 
     #[test]
@@ -557,8 +557,8 @@ deployment:
         let renderer = AgentRenderer::new_for_testing(registry);
         let values = testing_values(BACKOFF_VALUES_YAML);
 
-        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
-        let on_host_deployment = effective_agent.get_onhost_config().unwrap();
+        let rendered_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let on_host_deployment = rendered_agent.get_onhost_config().unwrap();
 
         let backoff_strategy = &on_host_deployment
             .executables
@@ -587,8 +587,8 @@ deployment:
         let renderer = AgentRenderer::new_for_testing(registry);
         let values = testing_values(BACKOFF_VALUES_STRING_DURATION);
 
-        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
-        let on_host_deployment = effective_agent.get_onhost_config().unwrap();
+        let rendered_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let on_host_deployment = rendered_agent.get_onhost_config().unwrap();
         let backoff_strategy = &on_host_deployment
             .executables
             .first()
@@ -657,8 +657,8 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
         let expected_spec_value: serde_json::Value =
             serde_saphyr::from_str(expected_spec_yaml).unwrap();
 
-        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
-        let k8s = effective_agent.get_k8s_config().unwrap();
+        let rendered_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let k8s = rendered_agent.get_k8s_config().unwrap();
         let cr1 = k8s.objects.get("cr1").unwrap();
 
         assert_eq!("group/version".to_string(), cr1.api_version);
@@ -703,8 +703,8 @@ substituted_2: my-value-2
         let expected_spec_value: serde_json::Value =
             serde_saphyr::from_str(expected_spec_yaml).unwrap();
 
-        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
-        let k8s = effective_agent.get_k8s_config().unwrap();
+        let rendered_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let k8s = rendered_agent.get_k8s_config().unwrap();
         let cr1 = k8s.objects.get("cr1").unwrap();
 
         assert_eq!("group/version".to_string(), cr1.api_version);
@@ -859,8 +859,8 @@ deployment:
         );
         let values = testing_values("");
 
-        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
-        let on_host = effective_agent.get_onhost_config().unwrap();
+        let rendered_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let on_host = rendered_agent.get_onhost_config().unwrap();
 
         assert_eq!(
             exec_rendered::Args(vec!("fake_value".to_string())),
@@ -942,8 +942,8 @@ values:
 "#;
         let expected_spec: serde_json::Value = serde_saphyr::from_str(expected_spec_yaml).unwrap();
 
-        let effective_agent = renderer.render_agent(&agent_identity, values).unwrap();
-        let k8s = effective_agent.get_k8s_config().unwrap();
+        let rendered_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let k8s = rendered_agent.get_k8s_config().unwrap();
         let spec = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
         assert_eq!(&expected_spec, spec);
     }

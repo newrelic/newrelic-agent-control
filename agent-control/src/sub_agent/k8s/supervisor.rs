@@ -16,7 +16,7 @@ use crate::k8s::annotations::Annotations;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::k8s::labels::Labels;
 use crate::k8s::utils::retain_not_null;
-use crate::sub_agent::agent_renderer::{AgentRendererError, EffectiveAgent};
+use crate::sub_agent::agent_renderer::{AgentRendererError, RenderedAgent};
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::supervisor::{Supervisor, SupervisorStarter};
 use crate::utils::thread_context::{
@@ -303,9 +303,9 @@ impl<C: K8sClient> Supervisor for StartedSupervisorK8s<C> {
     type ApplyError = SupervisorError;
     type StopError = ThreadContextStopperError;
 
-    fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, Self::ApplyError> {
+    fn apply(self, rendered_agent: RenderedAgent) -> Result<Self, Self::ApplyError> {
         // Retrieve config, if unchanged do nothing
-        let new_k8s_config: K8s = effective_agent
+        let new_k8s_config: K8s = rendered_agent
             .try_into()
             .map_err(SupervisorError::IncomingConfig)?;
 
@@ -586,7 +586,7 @@ pub mod tests {
             .expect("supervisor started");
 
         // Apply new config
-        let effective_agent = EffectiveAgent::new(
+        let rendered_agent = RenderedAgent::new(
             AgentIdentity::from((
                 AgentID::try_from(TEST_AGENT_ID).unwrap(),
                 AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
@@ -596,7 +596,7 @@ pub mod tests {
             },
         );
 
-        let Ok(started) = started.apply(effective_agent) else {
+        let Ok(started) = started.apply(rendered_agent) else {
             // We need to do this because the started supervisor does not implement `Debug`!
             // We could implement that but we'd need to also do it for the nested types which
             // might not have sensible implementations (e.g. thread contexts).

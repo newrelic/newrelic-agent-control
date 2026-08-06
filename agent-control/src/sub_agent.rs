@@ -36,7 +36,7 @@ use crate::values::config::{Config, RemoteConfig};
 use crate::values::config_repository::ConfigRepository;
 use crate::values::yaml_config::YAMLConfig;
 use agent_renderer::AgentRendererError;
-use agent_renderer::{EffectiveAgent, Renderer};
+use agent_renderer::{RenderedAgent, Renderer};
 use crossbeam::channel::never;
 use crossbeam::select;
 use error::SubAgentStopError;
@@ -201,16 +201,16 @@ where
         let config = maybe_persisted_config?;
 
         // The error is merely shown in logs and the unhealthy message
-        let effective_agent: Result<EffectiveAgent, String> = self
-            .effective_agent(config.get_yaml_config().clone())
+        let rendered_agent: Result<RenderedAgent, String> = self
+            .rendered_agent(config.get_yaml_config().clone())
             .map_err(|err| {
                 error!("Failed to create effective agent: {err}");
                 format!("effective agent cannot be rendered from YAML config: {err}")
             });
 
-        let not_started_supervisor = effective_agent.and_then(|effective_agent| {
+        let not_started_supervisor = rendered_agent.and_then(|rendered_agent| {
             self.supervisor_builder
-                .build_supervisor(effective_agent)
+                .build_supervisor(rendered_agent)
                 .map_err(|err| {
                     error!("Failed to create supervisor: {err}");
                     format!("could not build the supervisor: {err}")
@@ -466,8 +466,8 @@ where
         old_supervisor: Option<AgentSupervisor<B>>,
         opamp_client: &C,
     ) -> Option<AgentSupervisor<B>> {
-        match self.effective_agent(yaml_config) {
-            Ok(effective_agent) => {
+        match self.rendered_agent(yaml_config) {
+            Ok(rendered_agent) => {
                 // Store remote config if there is any
                 if let Some(remote_config) = maybe_remote_config {
                     let _ = self
@@ -488,12 +488,12 @@ where
                         opamp_client,
                         hash,
                         previous_supervisor,
-                        effective_agent,
+                        rendered_agent,
                     )
                 } else {
                     // Try to build a new supervisor otherwise
-                    self.build_and_start_supervisor_from_effective_agent(
-                        effective_agent,
+                    self.build_and_start_supervisor_from_rendered_agent(
+                        rendered_agent,
                         hash,
                         opamp_client,
                     )
@@ -565,13 +565,13 @@ where
     /// Helper to build and start from an effective agent.
     /// It reports/stores the corresponding data. Remote config is only persisted if provided, `maybe_remote_config`
     ///  should be None when handling local configuration.
-    fn build_and_start_supervisor_from_effective_agent(
+    fn build_and_start_supervisor_from_rendered_agent(
         &self,
-        effective_agent: EffectiveAgent,
+        rendered_agent: RenderedAgent,
         hash: &Hash,
         opamp_client: &C,
     ) -> Option<AgentSupervisor<B>> {
-        match self.supervisor_builder.build_supervisor(effective_agent) {
+        match self.supervisor_builder.build_supervisor(rendered_agent) {
             Ok(supervisor_starter) => self.start_new_supervisor_reporting_config_and_state(
                 opamp_client,
                 hash,
@@ -608,7 +608,7 @@ where
         None
     }
 
-    /// Helper to apply a configuration represented as [EffectiveAgent] to the provided supervisor.
+    /// Helper to apply a configuration represented as [RenderedAgent] to the provided supervisor.
     /// It reports configuration and state and returns the [AgentSupervisor] resulting of such apply
     /// operation.
     fn apply_config_to_existing_supervisor(
@@ -616,14 +616,14 @@ where
         opamp_client: &C,
         hash: &Hash,
         supervisor: AgentSupervisor<B>,
-        effective_agent: EffectiveAgent,
+        rendered_agent: RenderedAgent,
     ) -> Option<AgentSupervisor<B>> {
         let _ = opamp_client
             .update_effective_config()
             .inspect_err(|e| error!("Effective config update failed: {e}"));
 
         supervisor
-            .apply(effective_agent)
+            .apply(rendered_agent)
             // Report Applied and return the updated supervisor when apply is successful
             .inspect(|_| {
                 self.report_and_persist_state(ConfigState::Applied, hash);
@@ -690,10 +690,7 @@ where
         true
     }
 
-    fn effective_agent(
-        &self,
-        yaml_config: YAMLConfig,
-    ) -> Result<EffectiveAgent, AgentRendererError> {
+    fn rendered_agent(&self, yaml_config: YAMLConfig) -> Result<RenderedAgent, AgentRendererError> {
         // Render the new agent
         self.agent_renderer
             .render_agent(&self.identity, yaml_config)
@@ -1210,8 +1207,8 @@ deployment:
         supervisor_builder
             .expect_build_supervisor()
             .once()
-            .withf(move |effective_agent| {
-                effective_agent
+            .withf(move |rendered_agent| {
+                rendered_agent
                     .get_onhost_config()
                     .unwrap()
                     .executables
