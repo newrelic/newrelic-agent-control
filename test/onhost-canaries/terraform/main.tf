@@ -90,7 +90,7 @@ locals {
       threshold     = 0.06
       duration      = 3600
       operator      = "above"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+      template_name = "./alert_nrql_templates/generic_metric_max.tftpl"
     },
     {
       name          = "Read bytes rate"
@@ -98,7 +98,7 @@ locals {
       threshold     = 500000
       duration      = 300
       operator      = "above"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+      template_name = "./alert_nrql_templates/generic_metric_max.tftpl"
     },
     {
       name          = "Written bytes rate"
@@ -106,7 +106,7 @@ locals {
       threshold     = 20000
       duration      = 300
       operator      = "above"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+      template_name = "./alert_nrql_templates/generic_metric_max.tftpl"
     },
     {
       name          = "Agent Control metrics presence"
@@ -148,7 +148,7 @@ locals {
         threshold     = 42000000
         duration      = 600
         operator      = "above"
-        template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+        template_name = "./alert_nrql_templates/generic_metric_max.tftpl"
       },
       {
         # This alert should detect slow memory leaks.
@@ -170,7 +170,7 @@ locals {
         threshold          = 210000
         duration           = 21600
         operator           = "above"
-        template_name      = "./alert_nrql_templates/generic_metric_derivative.tftpl"
+        template_name      = "./alert_nrql_templates/generic_metric_plain.tftpl"
       }
     ],
     windows = [
@@ -182,7 +182,7 @@ locals {
         threshold     = 35000000
         duration      = 600
         operator      = "above"
-        template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+        template_name = "./alert_nrql_templates/generic_metric_max.tftpl"
       },
       {
         # This alert should detect slow memory leaks.
@@ -206,7 +206,7 @@ locals {
         threshold          = 210000
         duration           = 21600
         operator           = "above"
-        template_name      = "./alert_nrql_templates/generic_metric_derivative.tftpl"
+        template_name      = "./alert_nrql_templates/generic_metric_plain.tftpl"
       }
     ]
   }
