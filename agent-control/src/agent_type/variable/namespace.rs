@@ -46,8 +46,11 @@ pub enum Namespace {
     /// Attributes related to the agent-control.
     AgentControl,
 
+    /// Variables exposing particular paths when expanding user values.
+    Path,
+
     // Below variables are "secret" variables.
-    // These are loaded every time a remote config is received.
+    // These are loaded bye secret providers every time a remote config is received.
     /// Environment variables.
     EnvironmentVariable,
     /// Secrets retrieved from a HashiCorp Vault.
@@ -70,6 +73,9 @@ impl Namespace {
     /// Encapsulates attributes related to the agent-control
     const AC: &'static str = "ac";
 
+    /// Encapsulates paths available to expanded user values
+    const PATH: &'static str = "path";
+
     /// Encapsulates the environment variables
     const ENVIRONMENT_VARIABLE: &'static str = "env";
     /// Encapsulates the secrets retrieved from a HashiCorp Vault
@@ -88,7 +94,10 @@ impl Namespace {
     /// Whether this namespace holds "secret" variables (loaded on every remote config fetch).
     fn is_secret(&self) -> bool {
         match self {
-            Namespace::Variable | Namespace::SubAgent | Namespace::AgentControl => false,
+            Namespace::Variable
+            | Namespace::SubAgent
+            | Namespace::AgentControl
+            | Namespace::Path => false,
             Namespace::EnvironmentVariable
             | Namespace::Vault
             | Namespace::File
@@ -103,6 +112,7 @@ impl Display for Namespace {
             Self::Variable => Self::VARIABLE,
             Self::SubAgent => Self::SUB_AGENT,
             Self::AgentControl => Self::AC,
+            Self::Path => Self::PATH,
             Self::EnvironmentVariable => Self::ENVIRONMENT_VARIABLE,
             Self::Vault => Self::VAULT_SECRET,
             Self::File => Self::FILE_SECRET,

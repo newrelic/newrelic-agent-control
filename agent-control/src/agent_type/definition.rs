@@ -337,19 +337,17 @@ pub fn include_packages_variables(
         return Ok(variables);
     }
 
-    let remote_dir = &get_sub_agent_variable(&variables, AgentAttributes::VARIABLE_REMOTE_DIR)
+    let remote_dir = &get_sub_agent_variable(&variables, AgentAttributes::NR_SUB_REMOTE_DIR)
         .ok_or(AgentTypeError::RenderingTemplate(format!(
             "Agent variable not found {}",
-            AgentAttributes::VARIABLE_REMOTE_DIR
+            AgentAttributes::NR_SUB_REMOTE_DIR
         )))?;
 
-    let agent_id_string =
-        get_sub_agent_variable(&variables, AgentAttributes::VARIABLE_SUB_AGENT_ID).ok_or(
-            AgentTypeError::RenderingTemplate(format!(
-                "Agent variable not found {}",
-                AgentAttributes::VARIABLE_SUB_AGENT_ID
-            )),
-        )?;
+    let agent_id_string = get_sub_agent_variable(&variables, AgentAttributes::NR_SUB_AGENT_ID)
+        .ok_or(AgentTypeError::RenderingTemplate(format!(
+            "Agent variable not found {}",
+            AgentAttributes::NR_SUB_AGENT_ID
+        )))?;
 
     let agent_id = AgentID::try_from(agent_id_string)
         .map_err(|e| AgentTypeError::RenderingTemplate(format!("Invalid sub-agent ID: {}", e)))?;
