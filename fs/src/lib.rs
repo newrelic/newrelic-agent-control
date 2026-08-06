@@ -11,7 +11,7 @@
 pub mod directory_manager;
 /// Reading, writing, renaming and deleting files on disk.
 pub mod file;
-/// Path validation and the shared filesystem error type.
+/// Path validation.
 pub mod utils;
 /// Windows-only helpers for restricting file permissions via ACLs.
 #[cfg(target_family = "windows")]

@@ -14,6 +14,9 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+### enhancement
+- Removed the unused `fs::utils::FsError` type; `validate_path` already returns `io::Error` and had no callers relying on the dead enum.
+
 ## v1.20.0 - 2026-07-29
 
 ### 🚀 Enhancements
