@@ -983,7 +983,7 @@ deployment:
         let remote_dir = tmp_dir.path().to_path_buf();
         let renderer = AgentRenderer::new(
             Arc::new(registry),
-            std::iter::empty(),
+            HashMap::new(),
             VariableConstraints::default(),
             Registry::<SecretsProviderType>::default(),
             &remote_dir,
