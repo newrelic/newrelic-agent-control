@@ -1,68 +1,87 @@
 use std::os::windows::ffi::OsStrExt;
-use std::path::Path;
-use std::ptr;
-use windows_sys::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE, GetLastError};
-use windows_sys::Win32::Security::Authorization::{
-    EXPLICIT_ACCESS_W, SE_FILE_OBJECT, SET_ACCESS, SetEntriesInAclW, SetNamedSecurityInfoW,
-    TRUSTEE_IS_SID, TRUSTEE_W,
+use std::path::{Path, PathBuf};
+use std::{ffi, fmt, fs, io, mem, ptr};
+use tracing::{debug, info, trace, warn};
+use windows::Win32::Security::Authorization::{
+    EXPLICIT_ACCESS_W, GetNamedSecurityInfoW, SE_FILE_OBJECT, SET_ACCESS, SetEntriesInAclW,
+    SetNamedSecurityInfoW, TRUSTEE_IS_SID, TRUSTEE_W,
 };
-use windows_sys::Win32::Security::{
-    ACL, CreateWellKnownSid, DACL_SECURITY_INFORMATION, NO_INHERITANCE,
-    PROTECTED_DACL_SECURITY_INFORMATION, SECURITY_MAX_SID_SIZE, WinBuiltinAdministratorsSid,
+use windows::Win32::Security::{
+    ACCESS_ALLOWED_ACE, ACL, ACL_SIZE_INFORMATION, AclSizeInformation, CONTAINER_INHERIT_ACE,
+    CreateWellKnownSid, DACL_SECURITY_INFORMATION, EqualSid, GetAce, GetAclInformation,
+    OBJECT_INHERIT_ACE, PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID,
+    SECURITY_MAX_SID_SIZE, WinBuiltinAdministratorsSid,
 };
-use windows_sys::Win32::Storage::FileSystem::DELETE;
+use windows::Win32::Storage::FileSystem::{
+    DELETE, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
+};
+use windows::core::{PCWSTR, PWSTR};
 
-/// Error returned when setting Windows file permissions (ACLs) fails.
-#[derive(Debug, thiserror::Error)]
-#[error("{0}")]
-pub struct PermissionError(String);
-
-fn get_administrator_sid() -> Result<Vec<u8>, PermissionError> {
+fn get_administrator_sid() -> io::Result<Vec<u8>> {
     let mut sid_size = SECURITY_MAX_SID_SIZE;
     let mut sid: Vec<u8> = vec![0; sid_size as usize];
 
     unsafe {
         // We define the buffer with the right size to be retrieved avoiding an error 122 (ERROR_INSUFICIENT_BUFFER)
-
-        if CreateWellKnownSid(
+        CreateWellKnownSid(
             WinBuiltinAdministratorsSid,
-            ptr::null_mut(),
-            sid.as_mut_ptr() as *mut _,
+            None,
+            Some(PSID(sid.as_mut_ptr() as *mut ffi::c_void)),
             &mut sid_size,
-        ) == 0
-        {
-            return Err(PermissionError(format!(
-                "Failed to create administrator SID. Error: {}",
-                GetLastError()
-            )));
-        }
+        )
+        .map_err(|e| io::Error::other(format!("failed to create administrator SID: {e}")))?;
     }
 
     Ok(sid)
 }
 
-/// set_file_permissions_for_administrator removes any other ACL from a file only granting
-/// read, write, and delete to Administrators. DELETE is needed so the same Administrator that
-/// wrote the file can later remove it during filesystem reconciliation.
-pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), PermissionError> {
+/// Removes any other ACL from a file only granting
+/// read, write, execute, and delete to Administrators. DELETE is needed so the same Administrator
+/// that wrote the file can later remove it during filesystem reconciliation. Execute is needed so
+/// executables placed under a managed directory (e.g. sub-agent assets) can be spawned and so
+/// managed directories stay traversable.
+///
+/// The Administrators ACE is made inheritable (`OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE`) so
+/// that files and subdirectories a sub-agent creates at runtime inside an AC-managed directory
+/// (e.g. `newrelic-infra.log` under `NRIA_APP_DATA_DIR`) inherit this access. Without the inherit
+/// flags, and with the DACL protected from parent inheritance below, such runtime-created files
+/// would be created with an empty DACL and be inaccessible even to the Administrator/LocalSystem
+/// process that created them ("Access is denied"). Inheritance keeps everything Administrators-only.
+pub(crate) fn set_file_permissions_for_administrator(path: &Path) -> io::Result<()> {
     // Conversion to UTF-16 format (native string representation in Windows OS)
     let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
 
     let admin_sid = get_administrator_sid()
-        .map_err(|e| PermissionError(format!("Failed to get administrator sid: {}", e)))?;
+        .map_err(|e| io::Error::other(format!("failed to get administrator SID: {e}")))?;
 
     // Define the trustee (windows ACL entity) with the current user SID
     let trustee = TRUSTEE_W {
         TrusteeForm: TRUSTEE_IS_SID,
-        ptstrName: admin_sid.as_ptr() as *mut _,
+        ptstrName: PWSTR(admin_sid.as_ptr() as *mut u16),
         ..Default::default()
     };
 
     // Define the access entry to allow read, write, and delete for the trustee.
+    // The ACE is inheritable (`OBJECT_INHERIT_ACE` | `CONTAINER_INHERIT_ACE`) so child files and
+    // subdirectories created later at runtime inherit Administrators access. On a leaf file these
+    // inheritance flags are a no-op (Windows strips them); on a directory they are what lets a
+    // sub-agent manipulate the assets it creates inside AC-managed directories.
+    //
+    // Rights are the already-mapped specific rights (`FILE_GENERIC_*`), not the `GENERIC_*` aliases.
+    //
+    // `FILE_GENERIC_EXECUTE` is included so that executables Agent Control places inside a managed
+    // directory (notably the new binary the self-updater downloads and spawns for its dry-run verify)
+    // inherit execute rights — and so the directory itself is traversable.
+    //
+    // Everything stays Administrators-only, so this is not a privilege widening.
     let access_entry = EXPLICIT_ACCESS_W {
-        grfAccessPermissions: GENERIC_READ | GENERIC_WRITE | DELETE,
+        grfAccessPermissions: (FILE_GENERIC_READ
+            | FILE_GENERIC_WRITE
+            | FILE_GENERIC_EXECUTE
+            | DELETE)
+            .0,
         grfAccessMode: SET_ACCESS,
-        grfInheritance: NO_INHERITANCE,
+        grfInheritance: OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE,
         Trustee: trustee,
     };
 
@@ -70,48 +89,314 @@ pub fn set_file_permissions_for_administrator(path: &Path) -> Result<(), Permiss
     let mut acl: *mut ACL = ptr::null_mut();
     unsafe {
         // https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setentriesinaclw
-        // creates a new ACL by merging new ACL into the AC provided in the 3rd parameter
-        // we set it to null because we overwrite the old ACL
-        let result = SetEntriesInAclW(1, &access_entry, ptr::null_mut(), &mut acl);
-
-        if result != 0 {
-            return Err(PermissionError("Failed to set entries in ACL".to_string()));
-        }
+        // creates a new ACL by merging new ACL into the AC provided in the 2nd parameter.
+        // We pass None because we overwrite the old ACL
+        SetEntriesInAclW(Some(&[access_entry]), None, &mut acl)
+            .ok()
+            .map_err(|e| io::Error::other(format!("failed to set entries in ACL: {e}")))?;
 
         // https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setnamedsecurityinfow
         // Set the security descriptor with the new ACL.
         // PROTECTED_DACL_SECURITY_INFORMATION is removing inheritance so the ACL will only
         // apply to administrators.
-        let result = SetNamedSecurityInfoW(
-            path_wstr.as_ptr(),
+        SetNamedSecurityInfoW(
+            PCWSTR(path_wstr.as_ptr()),
             SE_FILE_OBJECT,
             DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            acl,
-            ptr::null_mut(),
-        );
+            None,
+            None,
+            Some(acl as *const ACL),
+            None,
+        )
+        .ok()
+        .map_err(|e| io::Error::other(format!("failed to set security descriptor: {e}")))?;
 
-        if result != 0 {
-            return Err(PermissionError(
-                "Failed to set security descriptor".to_string(),
-            ));
-        }
-
+        trace!(path = %path.display(), "applied Administrators-only DACL");
         Ok(())
     }
+}
+
+/// True iff `ace` is an `Allow` ACE for `admin_sid` granting the full managed rights
+/// (`FILE_GENERIC_READ | WRITE | EXECUTE | DELETE`, i.e. Modify) and, when `require_inheritable`
+/// (the entry is a directory), inheritable (`OI|CI`). This is the policy that
+/// `permissions_need_repair` scans a DACL for; the only FFI it performs is the SID comparison.
+fn grants_managed_admin_access(
+    ace: &ACCESS_ALLOWED_ACE,
+    admin_sid: &[u8],
+    require_inheritable: bool,
+) -> bool {
+    let expected_mask = (FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE).0;
+    let required_inherit = (OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE).0 as u8;
+
+    // ACCESS_ALLOWED_ACE_TYPE == 0; only `Allow` ACEs grant access.
+    let is_allow = ace.Header.AceType == 0;
+    // EqualSid returns Ok only when the SIDs match; Err is the normal "different principal" signal,
+    // so a non-Administrators ACE simply fails this conjunct rather than being an error.
+    let is_admin = unsafe {
+        EqualSid(
+            PSID(&ace.SidStart as *const u32 as *mut ffi::c_void),
+            PSID(admin_sid.as_ptr() as *mut ffi::c_void),
+        )
+    }
+    .is_ok();
+    let has_rights = ace.Mask & expected_mask == expected_mask;
+    let inheritable =
+        !require_inheritable || ace.Header.AceFlags & required_inherit == required_inherit;
+
+    is_allow && is_admin && has_rights && inheritable
+}
+
+/// Returns whether `path`'s DACL must be re-stamped by the recursive repair.
+///
+/// It needs repair unless it contains an `Allow` ACE for `BUILTIN\Administrators` whose mask includes
+/// the full managed rights (`FILE_GENERIC_READ | WRITE | EXECUTE | DELETE`, i.e. Modify) and — for a
+/// directory — is inheritable (`OI|CI`). This catches every state:
+///   - an **empty** DACL (zero ACEs, denies everyone incl. SYSTEM);
+///   - a **NULL** DACL (grants everyone) or an unreadable one;
+///   - a **populated but insufficient** DACL, e.g. the old `Administrators:(R,W)` (mask `0x12019f`,
+///     no `DELETE`) that leaves stored remote configs undeletable on decommission, or a
+///     non-inheritable directory ACE (NR-601065).
+///
+/// A conforming entry returns `false`, so a healthy tree is not rewritten on every startup. Only the
+/// entries that actually lack the managed access are repaired.
+///
+/// Caveat: this looks for *any* matching Administrators `Allow` ACE with a sufficient mask, without
+/// regard to ACE order. It does not check whether an earlier `Deny` ACE in the same DACL would negate
+/// that `Allow` at Windows' actual access-check time — so a DACL with e.g. `[Deny Administrators:
+/// Delete][Allow Administrators: Modify]` would be reported as conforming even though delete is
+/// effectively denied. Not currently reachable: every DACL this code writes fully replaces the
+/// existing one (`SetEntriesInAclW` is called with no old ACL to merge), so
+/// `set_file_permissions_for_administrator` can never itself leave behind a stray `Deny` ACE for this
+/// function to misread. Noted here as a defense-in-depth gap in case a `Deny` ACE is ever introduced
+/// by something other than this code path (e.g. third-party security tooling).
+fn permissions_need_repair(path: &Path) -> bool {
+    let Ok(admin_sid) = get_administrator_sid() else {
+        // Can't even build the Administrators SID to compare against; err on the side of repairing.
+        return true;
+    };
+
+    let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+
+    unsafe {
+        let mut dacl: *mut ACL = ptr::null_mut();
+        let mut security_descriptor = PSECURITY_DESCRIPTOR::default();
+        if let Err(err) = GetNamedSecurityInfoW(
+            PCWSTR(path_wstr.as_ptr()),
+            SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION,
+            None,
+            None,
+            Some(&mut dacl),
+            None,
+            &mut security_descriptor,
+        )
+        .ok()
+        {
+            trace!(path = %path.display(), error = %err.message(), "cannot read DACL, flagging permissions for repair");
+            return true;
+        }
+        if dacl.is_null() {
+            // A NULL DACL grants everyone; re-stamp to lock it back down to Administrators-only.
+            trace!(path = %path.display(), "NULL DACL (grants everyone), flagging permissions for repair");
+            return true;
+        }
+        let mut acl_size_info: ACL_SIZE_INFORMATION = std::mem::zeroed();
+        if let Err(err) = GetAclInformation(
+            dacl,
+            &mut acl_size_info as *mut _ as *mut _,
+            mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
+            AclSizeInformation,
+        ) {
+            trace!(path = %path.display(), error = %err.message(), "cannot read ACL info, flagging permissions for repair");
+            return true;
+        }
+
+        // Conforming iff some `Allow` ACE already grants Administrators the full managed rights (and,
+        // on a directory, is inheritable) — the policy lives in `grants_managed_admin_access`. If no
+        // ACE qualifies (empty DACL, missing DELETE/execute, non-inheritable directory), repair.
+        let conforming = (0..acl_size_info.AceCount).any(|i| {
+            let mut ace_ptr: *mut ffi::c_void = ptr::null_mut();
+            if let Err(err) = GetAce(dacl, i, &mut ace_ptr) {
+                trace!(path = %path.display(), index = i, error = %err.message(), "GetAce failed while scanning DACL, skipping this ACE");
+                return false;
+            }
+            let Some(ace) = ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE) else {
+                return false;
+            };
+            grants_managed_admin_access(&*ace.as_ptr(), &admin_sid, path.is_dir())
+        });
+
+        if !conforming {
+            trace!(path = %path.display(), ace_count = acl_size_info.AceCount, "DACL lacks a conforming Administrators ACE (empty, or missing DELETE/execute/inheritance), flagging permissions for repair");
+        }
+        !conforming
+    }
+}
+
+/// Outcome of a best-effort permissions repair walk: which entries it re-stamped and which it could
+/// not fix.
+///
+/// The walk never aborts, so it always returns a report rather than a `Result`; `#[must_use]` keeps
+/// the caller from silently dropping it. Call [`RepairReport::log`] to emit the outcome — that method
+/// owns the "how to report" decision so callers don't hand-roll (and risk contradictory) log lines.
+#[derive(Debug, Default)]
+#[must_use]
+pub struct RepairReport {
+    repaired: Vec<PathBuf>,
+    failed: Vec<(PathBuf, io::Error)>,
+}
+
+impl RepairReport {
+    /// Whether any entry could not be repaired. (Mainly for tests to assert a clean run.)
+    pub fn has_failed(&self) -> bool {
+        !self.failed.is_empty()
+    }
+
+    /// Emits a single tracing record summarizing the outcome, so the two states never print as
+    /// separate, seemingly-contradictory lines:
+    /// - **any failures** → one `warn` (with the repaired/failed counts and the per-entry failures),
+    ///   since that's the actionable state — startup continues regardless;
+    /// - **only repairs, no failures** → one `info` with the repaired count (a healed machine is
+    ///   worth surfacing, but it's not a problem);
+    /// - **nothing to repair** → silent (the per-entry `trace` "intact, skipping" lines already
+    ///   cover a healthy tree).
+    ///
+    /// Per-entry detail (which path was repaired, or why one was flagged) is logged during the walk
+    /// at `debug`/`trace`; this is only the summary.
+    pub fn log(&self) {
+        if !self.failed.is_empty() {
+            warn!(
+                repaired = self.repaired.len(),
+                failed = self.failed.len(),
+                failures = %FailedEntries(&self.failed),
+                "some managed permissions could not be repaired; continuing startup"
+            );
+        } else if !self.repaired.is_empty() {
+            info!(
+                repaired = self.repaired.len(),
+                "repaired managed permissions on startup"
+            );
+        }
+    }
+
+    /// Records a successfully re-stamped entry, logging it at `debug`.
+    fn record_repaired(&mut self, path: &Path) {
+        debug!(path = %path.display(), "repaired managed permissions");
+        self.repaired.push(path.to_path_buf());
+    }
+
+    /// Records an entry that could not be repaired (or listed), logging its specific error at
+    /// `debug` so the cause is visible during the walk — even without the aggregate `warn`.
+    fn record_failure(&mut self, path: &Path, error: io::Error) {
+        debug!(path = %path.display(), %error, "could not repair managed entry");
+        self.failed.push((path.to_path_buf(), error));
+    }
+}
+
+/// `Display` adapter for the failed entries — a `path: reason` list, so [`RepairReport::log`] can
+/// render them on one line without allocating or exposing the inner `Vec`. The count/framing lives
+/// in the log message and fields, so this carries only the per-entry detail.
+struct FailedEntries<'a>(&'a [(PathBuf, io::Error)]);
+
+impl fmt::Display for FailedEntries<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.iter().enumerate().try_for_each(|(i, (path, e))| {
+            if i > 0 {
+                write!(f, "; ")?;
+            }
+            write!(f, "{}: {e}", path.display())
+        })
+    }
+}
+
+/// Best-effort recursive repair worker: walks `path` and everything beneath it, re-stamping the
+/// broken entries and recording the outcome in `report` — the repaired path on success, `(path,
+/// reason)` on failure — before continuing. It never short-circuits, which is what makes the walk
+/// exhaustive and lets [`ensure_managed_permissions`] report *all* outcomes, not just the first
+/// failure.
+fn repair_tree(path: &Path, report: &mut RepairReport) {
+    if !path.exists() {
+        return;
+    }
+
+    if permissions_need_repair(path) {
+        match set_file_permissions_for_administrator(path) {
+            Ok(()) => report.record_repaired(path),
+            Err(e) => report.record_failure(path, e),
+        }
+    } else {
+        trace!(path = %path.display(), "managed permissions intact, skipping");
+    }
+
+    if path.is_dir() {
+        match fs::read_dir(path) {
+            Ok(entries) => {
+                entries.for_each(|entry| match entry {
+                    Ok(entry) => repair_tree(&entry.path(), report),
+                    Err(e) => report.record_failure(
+                        path,
+                        io::Error::other(format!("failed to read a directory entry: {e}")),
+                    ),
+                });
+            }
+            Err(e) => report.record_failure(
+                path,
+                io::Error::other(format!("failed to list directory: {e}")),
+            ),
+        }
+    }
+}
+
+/// Checks and repairs the managed Administrators-only permissions across each root in `roots` and
+/// everything beneath it (e.g. a sub-agent's `filesystem/`, stored remote configs under
+/// `fleet-data/`, local data), re-stamping only the entries that are actually broken.
+///
+/// For each entry it checks (via `permissions_need_repair`) whether the DACL already grants the
+/// managed Administrators access, and re-stamps only entries whose ACE is empty/`NULL`, unreadable,
+/// or populated-but-insufficient (e.g. the old `Administrators:(R,W)` with no `DELETE`, or a
+/// non-inheritable directory ACE). Conforming entries are left untouched, so a healthy tree is not
+/// rewritten on every startup. A broken directory is stamped *before* its contents are listed so it
+/// becomes listable first. Agent Control owns these files, so the rewrite succeeds even on an empty
+/// DACL.
+///
+/// Best-effort: the walk never short-circuits, so it always completes and returns a [`RepairReport`]
+/// describing everything it repaired and everything (across every root) it could not — never a fatal
+/// error. It is up to the caller how to react (the on-host runner logs and continues). A missing root
+/// is not an error.
+///
+/// Caveats (not currently hit in practice, but worth knowing before extending this):
+///
+/// - This walks the *whole* tree on every call, i.e. on every Agent Control startup, not just once
+///   after an upgrade. `permissions_need_repair` keeps each individual check cheap (no re-stamping
+///   of conforming entries), but a fleet with very large `filesystem/`/`fleet-data` trees still pays
+///   one ACL read per entry on every restart, indefinitely.
+/// - `path.is_dir()` and `read_dir` follow reparse points/symlinks, so a symlink planted inside a
+///   managed tree would be traversed and re-ACL'd rather than skipped. Low risk given the tree is
+///   Administrators-only to begin with, but there is no explicit guard against it.
+pub fn ensure_managed_permissions<'a>(roots: impl IntoIterator<Item = &'a Path>) -> RepairReport {
+    let mut report = RepairReport::default();
+    for root in roots {
+        debug!(path = %root.display(), "ensuring correct ACL for managed root");
+        repair_tree(root, &mut report);
+    }
+    report
 }
 
 #[cfg(test)]
 #[allow(missing_docs)] // test-support code
 pub mod tests {
-    use windows_sys::Win32::{
+    use std::fs;
+
+    use windows::Win32::{
         Foundation::ERROR_SUCCESS,
         Security::{
             ACCESS_ALLOWED_ACE, ACL_SIZE_INFORMATION, AclSizeInformation,
-            Authorization::GetNamedSecurityInfoW, EqualSid, GetAce, GetAclInformation,
+            Authorization::GetNamedSecurityInfoW, CONTAINER_INHERIT_ACE, EqualSid, GetAce,
+            GetAclInformation, INHERITED_ACE, NO_INHERITANCE, OBJECT_INHERIT_ACE,
         },
-        Storage::FileSystem::{DELETE, FILE_GENERIC_READ, FILE_GENERIC_WRITE},
+        Storage::FileSystem::{
+            DELETE, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
+        },
     };
 
     use super::*;
@@ -128,67 +413,508 @@ pub mod tests {
 
         unsafe {
             // Get Administrator SID
-            let sid_result = CreateWellKnownSid(
+            CreateWellKnownSid(
                 WinBuiltinAdministratorsSid,
-                ptr::null_mut(),
-                admin_sid.as_mut_ptr() as *mut _,
+                None,
+                Some(PSID(admin_sid.as_mut_ptr() as *mut ffi::c_void)),
                 &mut admin_sid_size,
-            );
-            assert_ne!(sid_result, 0, "Failed to create administrator SID");
+            )
+            .expect("failed to create administrator SID");
 
             // Get file's DACL
             let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
             let mut dacl: *mut ACL = ptr::null_mut();
-            let mut security_descriptor: *mut std::ffi::c_void = ptr::null_mut();
+            let mut security_descriptor = PSECURITY_DESCRIPTOR::default();
 
             let result = GetNamedSecurityInfoW(
-                path_wstr.as_ptr(),
+                PCWSTR(path_wstr.as_ptr()),
                 SE_FILE_OBJECT,
                 DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                &mut dacl,
-                ptr::null_mut(),
+                None,
+                None,
+                Some(&mut dacl),
+                None,
                 &mut security_descriptor,
             );
 
-            assert_eq!(result, ERROR_SUCCESS, "Failed to get security info");
+            assert_eq!(result, ERROR_SUCCESS, "failed to get security info");
             assert!(!dacl.is_null(), "DACL should not be null");
 
             // Verify exactly 1 ACE
             let mut acl_size_info: ACL_SIZE_INFORMATION = std::mem::zeroed();
-            let info_result = GetAclInformation(
+            GetAclInformation(
                 dacl,
                 &mut acl_size_info as *mut _ as *mut _,
-                std::mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
+                mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
                 AclSizeInformation,
-            );
-
-            assert_ne!(info_result, 0, "Failed to get ACL information");
+            )
+            .expect("failed to get ACL information");
             assert_eq!(
                 acl_size_info.AceCount, 1,
-                "Should have exactly 1 ACE (Administrators only)"
+                "should have exactly 1 ACE (Administrators only)"
             );
 
             // Verify ACE is for Administrators with Read/Write permissions
-            let mut ace_ptr: *mut std::ffi::c_void = ptr::null_mut();
-            let ace_result = GetAce(dacl, 0, &mut ace_ptr);
-            assert_ne!(ace_result, 0, "Failed to get ACE");
+            let mut ace_ptr: *mut ffi::c_void = ptr::null_mut();
+            GetAce(dacl, 0, &mut ace_ptr).expect("failed to get ACE");
 
-            let ace_ptr = std::ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE)
+            let ace_ptr = ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE)
                 .expect("ACE pointer should not be null");
             let ace = &*ace_ptr.as_ptr();
-            let sid_in_ace = &ace.SidStart as *const u32 as *mut std::ffi::c_void;
-            let sids_equal = EqualSid(sid_in_ace, admin_sid.as_mut_ptr() as *mut _);
-            assert_ne!(sids_equal, 0, "ACE SID should match Administrators SID");
+            let sid_in_ace = PSID(&ace.SidStart as *const u32 as *mut ffi::c_void);
+            assert!(
+                EqualSid(sid_in_ace, PSID(admin_sid.as_mut_ptr() as *mut ffi::c_void)).is_ok(),
+                "ACE SID should match Administrators SID"
+            );
 
-            // FILE_GENERIC_READ and FILE_GENERIC_WRITE are what GENERIC_READ/WRITE map to;
-            // DELETE is a specific right and stays as-is in the ACE mask.
-            let expected_mask = FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE;
+            // The ACE grants the specific file rights read/write/execute plus DELETE. Execute is
+            // required so executables inheriting this ACE (e.g. the self-update binary) can be spawned.
+            let expected_mask =
+                (FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE).0;
             assert_eq!(
                 ace.Mask, expected_mask,
-                "ACE should have FILE_GENERIC_READ, FILE_GENERIC_WRITE, and DELETE permissions"
+                "ACE should have FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_GENERIC_EXECUTE, and DELETE permissions"
+            );
+
+            // Inheritance flags only make sense on containers: for a directory the ACE must be
+            // inheritable so e.g. files and subdirectories a sub-agent creates at runtime inside it
+            // (e.g. newrelic-infra.log) inherit Administrators access instead of getting an empty
+            // DACL that denies everyone. Windows strips OI|CI from ACEs on leaf files, so this is
+            // asserted for directories only.
+            if path.is_dir() {
+                let expected_flags = (OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE).0 as u8;
+                assert_eq!(
+                    ace.Header.AceFlags & expected_flags,
+                    expected_flags,
+                    "directory ACE should be inheritable by child objects and containers (OI|CI)"
+                );
+            }
+        }
+    }
+
+    /// Asserts the object at `path` has at least one ACE that was **inherited** from its parent and
+    /// grants Administrators. e.g. a file a sub-agent creates
+    /// at runtime inside a managed directory inherits Administrators access.
+    fn assert_inherited_admin_ace(path: &Path) {
+        let mut admin_sid_size = SECURITY_MAX_SID_SIZE;
+        let mut admin_sid: Vec<u8> = vec![0; admin_sid_size as usize];
+
+        unsafe {
+            CreateWellKnownSid(
+                WinBuiltinAdministratorsSid,
+                None,
+                Some(PSID(admin_sid.as_mut_ptr() as *mut ffi::c_void)),
+                &mut admin_sid_size,
+            )
+            .expect("failed to create administrator SID");
+
+            let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+            let mut dacl: *mut ACL = ptr::null_mut();
+            let mut security_descriptor = PSECURITY_DESCRIPTOR::default();
+            let result = GetNamedSecurityInfoW(
+                PCWSTR(path_wstr.as_ptr()),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                None,
+                None,
+                Some(&mut dacl),
+                None,
+                &mut security_descriptor,
+            );
+            assert_eq!(result, ERROR_SUCCESS, "failed to get child security info");
+            assert!(!dacl.is_null(), "child DACL should not be null");
+
+            let mut acl_size_info: ACL_SIZE_INFORMATION = mem::zeroed();
+            GetAclInformation(
+                dacl,
+                &mut acl_size_info as *mut _ as *mut _,
+                mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
+                AclSizeInformation,
+            )
+            .expect("failed to get child ACL information");
+
+            let mut inherited_admin = false;
+            for i in 0..acl_size_info.AceCount {
+                let mut ace_ptr: *mut ffi::c_void = ptr::null_mut();
+                if GetAce(dacl, i, &mut ace_ptr).is_err() {
+                    continue;
+                }
+                // Guard the raw pointer with NonNull before dereferencing (mirrors
+                // assert_windows_permissions and satisfies CodeQL's invalid-pointer check).
+                let Some(ace_ptr) = ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE) else {
+                    continue;
+                };
+                let ace = &*ace_ptr.as_ptr();
+                let is_inherited = (ace.Header.AceFlags & (INHERITED_ACE.0 as u8)) != 0;
+                let sid_in_ace = PSID(&ace.SidStart as *const u32 as *mut ffi::c_void);
+                let is_admin =
+                    EqualSid(sid_in_ace, PSID(admin_sid.as_mut_ptr() as *mut ffi::c_void)).is_ok();
+                if is_inherited && is_admin {
+                    inherited_admin = true;
+                    break;
+                }
+            }
+            assert!(
+                inherited_admin,
+                "child must have an INHERITED Administrators ACE — proof it inherited the managed \
+                 directory's access. Pre-fix (non-inheritable) code inherits nothing, so this fails."
             );
         }
+    }
+
+    /// Asserts the object at `path` has a present-but-**empty** DACL (zero ACEs) — the state that
+    /// denies every principal, including the LocalSystem process that created the file. This is the
+    /// exact broken state older versions left runtime-created children in (measured on the canary as
+    /// SDDL `O:BAG:SYD:AI`). A *null* DACL is explicitly rejected: that grants everyone and would be a
+    /// different (non-reproducing) state, so we fail loudly rather than pass on it.
+    fn assert_dacl_is_empty(path: &Path) {
+        unsafe {
+            let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+            let mut dacl: *mut ACL = ptr::null_mut();
+            let mut security_descriptor = PSECURITY_DESCRIPTOR::default();
+            GetNamedSecurityInfoW(
+                PCWSTR(path_wstr.as_ptr()),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                None,
+                None,
+                Some(&mut dacl),
+                None,
+                &mut security_descriptor,
+            )
+            .ok()
+            .expect("failed to get child security info");
+            assert!(
+                !dacl.is_null(),
+                "expected a present (empty) DACL; a null DACL would grant everyone — the repro is wrong"
+            );
+
+            let mut acl_size_info: ACL_SIZE_INFORMATION = mem::zeroed();
+            GetAclInformation(
+                dacl,
+                &mut acl_size_info as *mut _ as *mut _,
+                mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
+                AclSizeInformation,
+            )
+            .expect("failed to get child ACL information");
+            assert_eq!(
+                acl_size_info.AceCount, 0,
+                "expected an EMPTY DACL (0 ACEs) reproducing the pre-fix propagation wipe; found {} ACE(s)",
+                acl_size_info.AceCount
+            );
+        }
+    }
+
+    /// Reproduces the hardening an **older (pre-fix) Agent Control** applied: a PROTECTED,
+    /// Administrators-only DACL whose ACE is **non-inheritable** (`NO_INHERITANCE`). Kept in the test
+    /// module only, to recreate on disk the exact state older versions left behind so we can prove the
+    /// current (inheritable) fix heals it. The specific rights granted are irrelevant to the bug —
+    /// `PROTECTED` + `NO_INHERITANCE` is the invariant that makes an existing inherited-only child
+    /// collapse to an empty DACL under `SetNamedSecurityInfoW` propagation.
+    fn legacy_harden_non_inheritable(path: &Path) {
+        let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+        let admin_sid = get_administrator_sid().expect("failed to get administrator SID");
+        let trustee = TRUSTEE_W {
+            TrusteeForm: TRUSTEE_IS_SID,
+            ptstrName: PWSTR(admin_sid.as_ptr() as *mut u16),
+            ..Default::default()
+        };
+        let access_entry = EXPLICIT_ACCESS_W {
+            grfAccessPermissions: (FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE).0,
+            grfAccessMode: SET_ACCESS,
+            grfInheritance: NO_INHERITANCE,
+            Trustee: trustee,
+        };
+        unsafe {
+            let mut acl: *mut ACL = ptr::null_mut();
+            SetEntriesInAclW(Some(&[access_entry]), None, &mut acl)
+                .ok()
+                .expect("legacy SetEntriesInAclW failed");
+            SetNamedSecurityInfoW(
+                PCWSTR(path_wstr.as_ptr()),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                None,
+                None,
+                Some(acl as *const ACL),
+                None,
+            )
+            .ok()
+            .expect("legacy SetNamedSecurityInfoW failed");
+        }
+    }
+
+    /// Reproduces the permissions an *even older* agent-control applied to stored configs: a PROTECTED
+    /// Administrators-only ACE granting only read+write (mask `0x12019f`) with **no DELETE** and no
+    /// execute. This is the state that leaves a stored remote config undeletable on decommission
+    /// (NR-601065). Non-inheritable, matching what was observed in the field.
+    fn legacy_harden_read_write_only(path: &Path) {
+        let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+        let admin_sid = get_administrator_sid().expect("failed to get administrator SID");
+        let trustee = TRUSTEE_W {
+            TrusteeForm: TRUSTEE_IS_SID,
+            ptstrName: PWSTR(admin_sid.as_ptr() as *mut u16),
+            ..Default::default()
+        };
+        let access_entry = EXPLICIT_ACCESS_W {
+            grfAccessPermissions: (FILE_GENERIC_READ | FILE_GENERIC_WRITE).0, // no DELETE, no EXECUTE
+            grfAccessMode: SET_ACCESS,
+            grfInheritance: NO_INHERITANCE,
+            Trustee: trustee,
+        };
+        unsafe {
+            let mut acl: *mut ACL = ptr::null_mut();
+            SetEntriesInAclW(Some(&[access_entry]), None, &mut acl)
+                .ok()
+                .expect("legacy SetEntriesInAclW failed");
+            SetNamedSecurityInfoW(
+                PCWSTR(path_wstr.as_ptr()),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                None,
+                None,
+                Some(acl as *const ACL),
+                None,
+            )
+            .ok()
+            .expect("legacy SetNamedSecurityInfoW failed");
+        }
+    }
+
+    /// Agent Control hardens a directory, then at runtime a sub-agent creates files inside it (e.g.
+    /// `newrelic-infra.log`) with no permissions of their own — they must *inherit* access from the
+    /// directory. Before the ACE was made inheritable, such a child inherited nothing, which on the
+    /// real system left the sub-agent unable to open its log ("Access is denied").
+    ///
+    /// The other tests only assert the ACL of objects `set_file_permissions_for_administrator` was
+    /// called on directly, so inheritance to a runtime-created child was never exercised — which is
+    /// why this went uncaught. Note we assert the child *inherited* the Administrators ACE rather
+    /// than a functional read/write: in the CI admin context an un-inherited child still gets a
+    /// permissive token-default DACL, so functional access alone cannot distinguish the bug.
+    #[test]
+    fn child_created_in_managed_directory_inherits_admin_access() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let managed_dir = tempdir.path().join("nr-infra");
+        fs::create_dir(&managed_dir).unwrap();
+
+        // Harden the directory the way Agent Control does for its managed filesystem.
+        set_file_permissions_for_administrator(&managed_dir)
+            .expect("hardening the directory should succeed");
+
+        // A sub-agent creates its log inside the managed directory (no permissions of its own).
+        let child = managed_dir.join("newrelic-infra.log");
+        fs::write(&child, b"heartbeat").expect("creating the child file should succeed");
+
+        // It must have inherited the Administrators ACE from the directory. Pre-fix this fails
+        // because the directory's ACE was not inheritable.
+        assert_inherited_admin_ace(&child);
+    }
+
+    /// Regression test for the **repairing permissions** path:
+    /// a runtime-created child left with an empty DACL by an
+    /// older (pre-fix) Agent Control must regain Administrators access after the fix runs.
+    ///
+    /// This reproduces the true production state through the genuine pre-fix mechanism
+    /// (`legacy_harden_non_inheritable`, which wipes the inherited-only child to an empty DACL), then
+    /// proves the repair heals it. The repair is `ensure_managed_permissions`, which re-stamps the
+    /// Administrators DACL directly onto every existing entry — it does NOT rely on inheritance
+    /// propagation reaching an already-empty child. The `assert_dacl_is_empty` checkpoint guarantees we actually
+    /// recreated the empty-DACL state and did not silently fall back to the token-default path.
+    #[test]
+    fn recursive_repair_heals_existing_empty_dacl_child_from_older_version() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let managed_dir = tempdir.path().join("nr-infra");
+        fs::create_dir(&managed_dir).unwrap();
+
+        // Start from the fixed state so the child is created inheritance-accepting (D:AI,
+        // inherited-only) — the precondition for the propagation wipe. Creating the child after a
+        // *non*-inheritable harden would instead give it an explicit token-default DACL, which never
+        // collapses to empty.
+        set_file_permissions_for_administrator(&managed_dir)
+            .expect("initial (fixed) hardening should succeed");
+        let child = managed_dir.join("newrelic-infra.log");
+        fs::write(&child, b"heartbeat").expect("creating the child file should succeed");
+        assert_inherited_admin_ace(&child); // healthy start: inherited the directory's Administrators ACE
+
+        // Reproduce what an older Agent Control version did: re-harden the directory with a
+        // non-inheritable, protected ACE. `SetNamedSecurityInfoW` propagation recomputes the existing
+        // inherited-only child from a parent that now has nothing inheritable, collapsing its DACL to
+        // empty — denying everyone.
+        legacy_harden_non_inheritable(&managed_dir);
+        assert_dacl_is_empty(&child);
+        assert!(
+            fs::OpenOptions::new().write(true).open(&child).is_err(),
+            "an empty-DACL child must be unopenable for write ('Access is denied')"
+        );
+
+        // The fix: recursively re-stamp the managed permissions. This rewrites the empty child's DACL
+        // directly (Agent Control owns it, so this works even on an empty DACL) — no reliance on
+        // inheritance propagation reaching the child.
+        assert!(
+            !ensure_managed_permissions([managed_dir.as_path()]).has_failed(),
+            "recursive permission repair should succeed"
+        );
+        assert_windows_permissions(&child); // child now carries its own Administrators entry
+        assert!(
+            fs::OpenOptions::new().write(true).open(&child).is_ok(),
+            "after the repair the child must grant Administrators access and be openable"
+        );
+    }
+
+    /// `permissions_need_repair` is the gate that keeps the startup repair from re-stamping a healthy
+    /// tree on every boot. It must treat healthy entries as fine and flag only broken (empty) ones.
+    #[test]
+    fn permissions_need_repair_flags_only_broken_entries() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let dir = tempdir.path().join("nr-infra");
+        fs::create_dir(&dir).unwrap();
+        set_file_permissions_for_administrator(&dir).expect("hardening should succeed");
+
+        // A freshly-hardened directory, and a child that inherits its ACE, are both healthy.
+        assert!(
+            !permissions_need_repair(&dir),
+            "a freshly-hardened directory must not be flagged for repair"
+        );
+        let child = dir.join("newrelic-infra.log");
+        fs::write(&child, b"heartbeat").expect("creating child should succeed");
+        assert!(
+            !permissions_need_repair(&child),
+            "a child inheriting the Administrators ACE must not be flagged for repair"
+        );
+
+        // Reproduce the older-version wipe; the now-empty child must be flagged.
+        legacy_harden_non_inheritable(&dir);
+        assert_dacl_is_empty(&child);
+        assert!(
+            permissions_need_repair(&child),
+            "an empty-DACL child must be flagged for repair"
+        );
+    }
+
+    /// The production wipe hit *directories* (`data`, `user_data`) and files nested beneath the
+    /// managed root, not just a direct child. This proves the recursive repair (a) re-stamps an
+    /// empty-DACL directory and can then *list* it to descend, and (b) reaches a file nested below.
+    #[test]
+    fn recursive_repair_heals_nested_empty_dacl_directory_and_file() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let managed_dir = tempdir.path().join("nr-infra");
+        fs::create_dir(&managed_dir).unwrap();
+        set_file_permissions_for_administrator(&managed_dir).expect("hardening should succeed");
+
+        // A sub-agent creates a nested data directory with a file inside; both inherit (healthy).
+        let subdir = managed_dir.join("newrelic-infra");
+        fs::create_dir(&subdir).unwrap();
+        let nested_file = subdir.join("newrelic-infra.log");
+        fs::write(&nested_file, b"heartbeat").expect("creating nested file should succeed");
+
+        // An older version re-hardens the managed dir non-inheritably; propagation wipes the whole
+        // inherited-only subtree — the nested directory *and* the file within it — to empty DACLs.
+        legacy_harden_non_inheritable(&managed_dir);
+        assert_dacl_is_empty(&subdir);
+        assert_dacl_is_empty(&nested_file);
+
+        assert!(
+            !ensure_managed_permissions([managed_dir.as_path()]).has_failed(),
+            "recursive permission repair should succeed"
+        );
+
+        // The empty directory was repaired (hence listable, so recursion could descend into it), and
+        // the file nested beneath it was healed too.
+        assert_windows_permissions(&subdir);
+        assert_windows_permissions(&nested_file);
+        assert!(
+            fs::OpenOptions::new()
+                .write(true)
+                .open(&nested_file)
+                .is_ok(),
+            "the nested file must be openable after the recursive repair"
+        );
+    }
+
+    /// The decommission-cleanup fix relies on the repair restoring DELETE: an empty-DACL file grants
+    /// delete to no one, so removing the managed tree fails ("Access is denied") until it is repaired.
+    #[test]
+    fn repair_restores_delete_so_managed_tree_is_removable() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let managed_dir = tempdir.path().join("nr-infra");
+        fs::create_dir(&managed_dir).unwrap();
+        set_file_permissions_for_administrator(&managed_dir).expect("hardening should succeed");
+        let child = managed_dir.join("newrelic-infra.log");
+        fs::write(&child, b"heartbeat").expect("creating child should succeed");
+
+        // Older-version wipe: the child's DACL is now empty (grants DELETE to no one).
+        legacy_harden_non_inheritable(&managed_dir);
+        assert_dacl_is_empty(&child);
+
+        // The repair re-stamps DELETE (via the Administrators ACE) across the tree.
+        assert!(
+            !ensure_managed_permissions([managed_dir.as_path()]).has_failed(),
+            "recursive permission repair should succeed"
+        );
+
+        // Cleanup now succeeds where a decommission previously failed with os error 5.
+        fs::remove_dir_all(&managed_dir)
+            .expect("managed tree must be removable after the permission repair");
+        assert!(!managed_dir.exists());
+    }
+
+    /// Regression for the decommission-cleanup failure (NR-601065): a stored remote config left by an
+    /// older version with `Administrators:(R,W)` and **no DELETE** cannot be removed (`os error 5`),
+    /// even though its DACL is non-empty. The repair must detect it as insufficient (not just empty)
+    /// and re-stamp the full managed rights, restoring DELETE.
+    #[test]
+    fn repair_reinstates_delete_on_read_write_only_file_from_older_version() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let managed_dir = tempdir.path().join("fleet-data");
+        fs::create_dir(&managed_dir).unwrap();
+        set_file_permissions_for_administrator(&managed_dir).expect("hardening should succeed");
+        let cfg = managed_dir.join("remote_config.yaml");
+        fs::write(&cfg, b"config: value").expect("creating config should succeed");
+
+        // An older agent-control stamped it read/write only (no DELETE) - the field state.
+        legacy_harden_read_write_only(&cfg);
+        // Populated but insufficient: the empty-only check missed this; it must now be flagged.
+        assert!(
+            permissions_need_repair(&cfg),
+            "a read/write-only config lacking DELETE must be flagged for repair"
+        );
+
+        // The repair re-stamps the full managed rights (Modify, which includes DELETE).
+        assert!(
+            !ensure_managed_permissions([managed_dir.as_path()]).has_failed(),
+            "recursive permission repair should succeed"
+        );
+        assert_windows_permissions(&cfg); // now Administrators Modify (read/write/execute/delete)
+
+        // And the config is now deletable, so decommission cleanup succeeds.
+        fs::remove_file(&cfg).expect("config must be deletable after the repair");
+    }
+
+    /// A managed *directory* an older version hardened non-inheritably (`Administrators:(R,W,D)`, no
+    /// `OI|CI`, mask `0x13019f`) is not empty, so the empty-only check skipped it — yet it is exactly
+    /// what leaves runtime children unable to inherit access. The broadened repair must flag it (a
+    /// directory's managed ACE must grant the full rights *and* be inheritable) and re-stamp it, so
+    /// future runtime children inherit administrator access.
+    #[test]
+    fn repair_makes_a_non_inheritable_managed_directory_inheritable() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let dir = tempdir.path().join("newrelic-infra");
+        fs::create_dir(&dir).unwrap();
+
+        // Older version: protected Administrators (R,W,D) but NON-inheritable (no OI|CI).
+        legacy_harden_non_inheritable(&dir);
+        assert!(
+            permissions_need_repair(&dir),
+            "a non-inheritable managed directory must be flagged for repair"
+        );
+
+        assert!(
+            !ensure_managed_permissions([dir.as_path()]).has_failed(),
+            "recursive permission repair should succeed"
+        );
+
+        // assert_windows_permissions requires a directory's ACE to grant the full managed rights AND
+        // be inheritable (OI|CI), so this proves the directory was normalized.
+        assert_windows_permissions(&dir);
     }
 }

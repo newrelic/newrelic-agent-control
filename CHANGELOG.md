@@ -15,9 +15,11 @@ Remember that the keywords that you can use are the following:
 ## Unreleased
 
 ### enhancement
-- Removed the direct `windows-sys` dependency from `agent-control` and `resource-detection`, migrating Windows FFI calls to the higher-level `windows`/`windows-registry` crates.
-- Removed the unused `fs::utils::FsError` type; `validate_path` already returns `io::Error` and had no callers relying on the dead enum.
+- Windows filesystem: Removed unused code and use higher-level APIs for Windows interaction.
 - Reports the `com.newrelic.remoteAgentTypeRepoReachable` OpAMP custom capability when the configured Agent Type OCI repository is reachable at startup.
+
+### bugfix
+- Windows: fixed files under Agent Control's managed directories being left with permissions it could not use. Managed directories now use an inheritable Administrators ACE, and Agent Control tries to repair ACEs on startup.
 
 ## v1.20.0 - 2026-07-29
 
