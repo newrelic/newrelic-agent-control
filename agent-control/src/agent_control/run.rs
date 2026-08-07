@@ -163,7 +163,7 @@ impl AgentControlRunner {
                     .unwrap_or(RegistryAuth::Anonymous),
             )
             .inspect(|_| debug!("Agent type registry reachability probe succeeded"))
-            .inspect_err(|err| debug!(%err, "Agent type registry reachability probe failed"));
+            .inspect_err(|err| debug!("Agent type registry reachability probe failed: {err}"));
 
         let signature_validator = context
             .bootstrap_config
