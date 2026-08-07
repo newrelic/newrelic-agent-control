@@ -204,7 +204,9 @@ where
 
         let (variable_tree, runtime_config) = (agent_type.variables, agent_type.runtime_config);
 
-        // Expand user values
+        // Expand user values: raw values can themselves reference other variables (e.g.
+        // ${nr-env:...}, ${nr-path:...}, ${nr-vault:...}), so resolve those before using
+        // the values to fill the agent type's variable tree.
         let user_expansion_variables: HashMap<VariableName, Variable> = secrets
             .clone()
             .into_iter()
@@ -213,7 +215,8 @@ where
         let expanded_user_variables =
             get_expanded_user_variables(variable_tree, values, &user_expansion_variables)?;
 
-        // Join all available namespaced variables to
+        // Join all available namespaced variables into a single lookup set of namespaced
+        // variables used to template the runtime config.
         let ns_variables = expanded_user_variables
             .into_iter()
             .chain(agent_attributes.nr_sub_variables())
