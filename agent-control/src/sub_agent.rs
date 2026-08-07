@@ -5,8 +5,8 @@
 //! This module defines the [NotStartedSubAgent]/[StartedSubAgent] traits, the [SubAgent]
 //! implementation, and the platform-agnostic remote-config handling that drives the supervisor.
 
+pub mod agent_renderer;
 pub mod collection;
-pub mod effective_agents_assembler;
 pub mod error;
 pub(crate) mod event_handler;
 pub mod health_checker;
@@ -35,10 +35,10 @@ use crate::utils::threads::spawn_named_thread;
 use crate::values::config::{Config, RemoteConfig};
 use crate::values::config_repository::ConfigRepository;
 use crate::values::yaml_config::YAMLConfig;
+use agent_renderer::AgentRendererError;
+use agent_renderer::{RenderedAgent, Renderer};
 use crossbeam::channel::never;
 use crossbeam::select;
-use effective_agents_assembler::EffectiveAgentsAssemblerError;
-use effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use error::SubAgentStopError;
 use error::{SubAgentBuilderError, SubAgentError};
 use event_handler::on_health::on_health;
@@ -110,7 +110,7 @@ where
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
-    A: EffectiveAgentsAssembler + Send + Sync + 'static,
+    A: Renderer + Send + Sync + 'static,
 {
     pub(super) identity: AgentIdentity,
     pub(super) maybe_opamp_client: Option<C>,
@@ -121,7 +121,7 @@ where
     remote_config_parser: Arc<R>,
     supervisor_builder: Arc<B>,
     config_repository: Arc<Y>,
-    effective_agent_assembler: Arc<A>,
+    agent_renderer: Arc<A>,
 }
 
 impl<C, B, R, Y, A> SubAgent<C, B, R, Y, A>
@@ -130,10 +130,10 @@ where
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
-    A: EffectiveAgentsAssembler + Send + Sync + 'static,
+    A: Renderer + Send + Sync + 'static,
 {
     /// Creates a new sub-agent from its identity, optional OpAMP client, supervisor builder,
-    /// event channels, remote-config parser, config repository, and effective-agent assembler.
+    /// event channels, remote-config parser, config repository, and agent renderer.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         identity: AgentIdentity,
@@ -147,7 +147,7 @@ where
         ),
         remote_config_parser: Arc<R>,
         config_repository: Arc<Y>,
-        effective_agent_assembler: Arc<A>,
+        agent_renderer: Arc<A>,
     ) -> Self {
         Self {
             identity,
@@ -159,7 +159,7 @@ where
             sub_agent_internal_consumer,
             remote_config_parser,
             config_repository,
-            effective_agent_assembler,
+            agent_renderer,
         }
     }
 
@@ -169,7 +169,7 @@ where
     /// though it does not cancel the operation if the hash is failed as we can still have a valid configuration (either
     /// a previous valid remote configuration or a local configuration).
     ///
-    /// Any failure to assemble the effective agent or the supervisor, or failure to start the
+    /// Any failure to render the effective agent or to build the supervisor, or failure to start the
     /// supervisor will be mark the existing hash as failed and report the error if there's an
     /// OpAMP client present in the sub-agent.
     fn init_supervisor(&self) -> Option<AgentSupervisor<B>> {
@@ -201,16 +201,16 @@ where
         let config = maybe_persisted_config?;
 
         // The error is merely shown in logs and the unhealthy message
-        let effective_agent: Result<EffectiveAgent, String> = self
-            .effective_agent(config.get_yaml_config().clone())
+        let rendered_agent: Result<RenderedAgent, String> = self
+            .rendered_agent(config.get_yaml_config().clone())
             .map_err(|err| {
                 error!("Failed to create effective agent: {err}");
-                format!("effective agent cannot be assembled from YAML config: {err}")
+                format!("effective agent cannot be rendered from YAML config: {err}")
             });
 
-        let not_started_supervisor = effective_agent.and_then(|effective_agent| {
+        let not_started_supervisor = rendered_agent.and_then(|rendered_agent| {
             self.supervisor_builder
-                .build_supervisor(effective_agent)
+                .build_supervisor(rendered_agent)
                 .map_err(|err| {
                     error!("Failed to create supervisor: {err}");
                     format!("could not build the supervisor: {err}")
@@ -454,10 +454,10 @@ where
     }
 
     /// Applies configuration to an existing supervisor or builds and starts a new one.
-    /// - Attempts to assemble an effective agent from the provided YAML configuration.
+    /// - Attempts to render an effective agent from the provided YAML configuration.
     /// - If there is an existing supervisor, applies the configuration to it.
     /// - If there is no supervisor, builds and starts a new one from the effective agent.
-    /// - Reports configuration state as failed to OpAMP if effective agent assembly fails.
+    /// - Reports configuration state as failed to OpAMP if rendering the effective agent fails.
     fn apply_or_build_and_start_supervisor(
         &self,
         yaml_config: YAMLConfig,
@@ -466,8 +466,8 @@ where
         old_supervisor: Option<AgentSupervisor<B>>,
         opamp_client: &C,
     ) -> Option<AgentSupervisor<B>> {
-        match self.effective_agent(yaml_config) {
-            Ok(effective_agent) => {
+        match self.rendered_agent(yaml_config) {
+            Ok(rendered_agent) => {
                 // Store remote config if there is any
                 if let Some(remote_config) = maybe_remote_config {
                     let _ = self
@@ -488,12 +488,12 @@ where
                         opamp_client,
                         hash,
                         previous_supervisor,
-                        effective_agent,
+                        rendered_agent,
                     )
                 } else {
                     // Try to build a new supervisor otherwise
-                    self.build_and_start_supervisor_from_effective_agent(
-                        effective_agent,
+                    self.build_and_start_supervisor_from_rendered_agent(
+                        rendered_agent,
                         hash,
                         opamp_client,
                     )
@@ -565,13 +565,13 @@ where
     /// Helper to build and start from an effective agent.
     /// It reports/stores the corresponding data. Remote config is only persisted if provided, `maybe_remote_config`
     ///  should be None when handling local configuration.
-    fn build_and_start_supervisor_from_effective_agent(
+    fn build_and_start_supervisor_from_rendered_agent(
         &self,
-        effective_agent: EffectiveAgent,
+        rendered_agent: RenderedAgent,
         hash: &Hash,
         opamp_client: &C,
     ) -> Option<AgentSupervisor<B>> {
-        match self.supervisor_builder.build_supervisor(effective_agent) {
+        match self.supervisor_builder.build_supervisor(rendered_agent) {
             Ok(supervisor_starter) => self.start_new_supervisor_reporting_config_and_state(
                 opamp_client,
                 hash,
@@ -608,7 +608,7 @@ where
         None
     }
 
-    /// Helper to apply a configuration represented as [EffectiveAgent] to the provided supervisor.
+    /// Helper to apply a configuration represented as [RenderedAgent] to the provided supervisor.
     /// It reports configuration and state and returns the [AgentSupervisor] resulting of such apply
     /// operation.
     fn apply_config_to_existing_supervisor(
@@ -616,14 +616,14 @@ where
         opamp_client: &C,
         hash: &Hash,
         supervisor: AgentSupervisor<B>,
-        effective_agent: EffectiveAgent,
+        rendered_agent: RenderedAgent,
     ) -> Option<AgentSupervisor<B>> {
         let _ = opamp_client
             .update_effective_config()
             .inspect_err(|e| error!("Effective config update failed: {e}"));
 
         supervisor
-            .apply(effective_agent)
+            .apply(rendered_agent)
             // Report Applied and return the updated supervisor when apply is successful
             .inspect(|_| {
                 self.report_and_persist_state(ConfigState::Applied, hash);
@@ -690,13 +690,10 @@ where
         true
     }
 
-    fn effective_agent(
-        &self,
-        yaml_config: YAMLConfig,
-    ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
-        // Assemble the new agent
-        self.effective_agent_assembler
-            .assemble_agent(&self.identity, yaml_config)
+    fn rendered_agent(&self, yaml_config: YAMLConfig) -> Result<RenderedAgent, AgentRendererError> {
+        // Render the new agent
+        self.agent_renderer
+            .render_agent(&self.identity, yaml_config)
     }
 
     fn report_state(&self, state: ConfigState, hash: &Hash) {
@@ -790,7 +787,7 @@ where
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
-    A: EffectiveAgentsAssembler + Send + Sync + 'static,
+    A: Renderer + Send + Sync + 'static,
 {
     type StartedSubAgent = SubAgentStopper;
 
@@ -810,7 +807,7 @@ where
 pub mod tests {
     use super::*;
 
-    use super::super::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
+    use super::super::sub_agent::agent_renderer::AgentRenderer;
     use super::super::sub_agent::remote_config_parser::AgentRemoteConfigParser;
     use super::super::sub_agent::supervisor::tests::{
         MockSupervisor, MockSupervisorBuilder, MockSupervisorStarter, TestingSupervisorError,
@@ -819,7 +816,6 @@ pub mod tests {
     use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::registry::Registry;
-    use crate::agent_type::render::TemplateRenderer;
     use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::checkers::health::health_checker::{Healthy, Unhealthy};
     use crate::event::channel::pub_sub;
@@ -845,7 +841,7 @@ pub mod tests {
         MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>>,
         AgentRemoteConfigParser<MockRemoteConfigValidator>,
         InMemoryConfigRepository,
-        LocalEffectiveAgentsAssembler<Registry>,
+        AgentRenderer<Registry>,
     >;
 
     mock! {
@@ -1064,7 +1060,7 @@ deployment:
             )
         }
 
-        /// The effective agent cannot be assembled
+        /// The effective agent cannot be rendered
         fn invalid_remote_config() -> OpampRemoteConfig {
             OpampRemoteConfig::new(
                 Self::id(),
@@ -1113,9 +1109,9 @@ deployment:
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
 
-        let effective_agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
+        let agent_renderer = Arc::new(AgentRenderer::new(
             Arc::new(TestAgent::agent_type_definition().into()),
-            TemplateRenderer::default(),
+            HashMap::new(),
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),
@@ -1132,7 +1128,7 @@ deployment:
                 vec![],
             )),
             config_repository,
-            effective_agents_assembler,
+            agent_renderer,
         )
     }
 
@@ -1211,8 +1207,8 @@ deployment:
         supervisor_builder
             .expect_build_supervisor()
             .once()
-            .withf(move |effective_agent| {
-                effective_agent
+            .withf(move |rendered_agent| {
+                rendered_agent
                     .get_onhost_config()
                     .unwrap()
                     .executables
@@ -1240,9 +1236,9 @@ deployment:
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
 
-        let effective_agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
+        let agent_renderer = Arc::new(AgentRenderer::new(
             Arc::new(Registry::from(TestAgent::agent_type_definition())),
-            TemplateRenderer::default(),
+            HashMap::new(),
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),
@@ -1259,7 +1255,7 @@ deployment:
                 vec![],
             )),
             config_repository,
-            effective_agents_assembler,
+            agent_renderer,
         );
 
         sub_agent.run().stop().unwrap();
@@ -1909,7 +1905,7 @@ deployment:
     }
 
     #[test]
-    fn test_bootstrap_fail_to_assemble_agent_from_local_config() {
+    fn test_bootstrap_fail_to_render_agent_from_local_config() {
         let (config_repository, opamp_client) = test_mocks();
 
         let config = YAMLConfig::try_from("{}").unwrap(); // missing mandatory value
@@ -1921,10 +1917,10 @@ deployment:
 
         let mut sub_agent =
             test_sub_agent(Some(opamp_client), supervisor_builder, config_repository);
-        // customize the effective_agent_assembler in order to use a different agent type
-        sub_agent.effective_agent_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
+        // customize the agent_renderer in order to use a different agent type
+        sub_agent.agent_renderer = Arc::new(AgentRenderer::new(
             Arc::new(TestAgent::agent_type_definition_with_required_var().into()),
-            TemplateRenderer::default(),
+            HashMap::new(),
             VariableConstraints::default(),
             SecretsProviders::default(),
             PathBuf::default().as_path(),

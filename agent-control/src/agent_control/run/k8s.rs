@@ -19,8 +19,8 @@ use crate::agent_control::run::{
     AgentControlRunner, GracefulShutdownReason, RunError, setup_config_repository_and_store,
 };
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
-use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
+use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use crate::agent_type::version_config::{
     AGENT_CONTROL_VERSION_CHECKER_INITIAL_DELAY, VersionCheckerInterval,
 };
@@ -44,7 +44,7 @@ use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::opamp::secret_retriever::k8s::retrieve::K8sSecretRetriever;
 use crate::secrets_provider::SecretsProviders;
 use crate::secrets_provider::k8s_secret::K8sSecretProvider;
-use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
+use crate::sub_agent::agent_renderer::AgentRenderer;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
@@ -153,17 +153,14 @@ impl AgentControlRunner {
 
         let agent_control_variables = HashMap::from([
             (
-                NAMESPACE_VARIABLE_NAME.to_string(),
+                VariableName::new(Namespace::AgentControl, NAMESPACE_VARIABLE_NAME),
                 Variable::new_final_string_variable(k8s_config.namespace.clone()),
             ),
             (
-                NAMESPACE_AGENTS_VARIABLE_NAME.to_string(),
+                VariableName::new(Namespace::AgentControl, NAMESPACE_AGENTS_VARIABLE_NAME),
                 Variable::new_final_string_variable(k8s_config.namespace_agents.clone()),
             ),
         ]);
-
-        let template_renderer = TemplateRenderer::default()
-            .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
         let mut secrets_providers = SecretsProviders::default()
             .with_env()
@@ -174,9 +171,9 @@ impl AgentControlRunner {
                 .map_err(|e| RunError(format!("failed to load secrets providers: {e}")))?;
         }
 
-        let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
+        let agent_renderer = Arc::new(AgentRenderer::new(
             self.agent_type_registry.clone(),
-            template_renderer,
+            agent_control_variables,
             self.bootstrap_config.agent_type_var_constraints,
             secrets_providers,
             &self.base_paths.remote_dir,
@@ -202,7 +199,7 @@ impl AgentControlRunner {
             supervisor_builder: Arc::new(supervisor_builder),
             remote_config_parser: Arc::new(remote_config_parser),
             config_repository: yaml_config_repository.clone(),
-            effective_agents_assembler: agents_assembler,
+            agent_renderer,
             sub_agent_publisher: self.sub_agent_publisher,
         };
 

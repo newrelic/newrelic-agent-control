@@ -872,8 +872,8 @@ docker run --rm -v "$(pwd)":/data newrelic/newrelic-agent-control-cli:latest \
 The first time it runs, whether it's using static configs or when already running and receiving remote configuration values from FC, AC will create an internal entity called a *supervisor* for each of the declared sub-agents. Each of these supervisors have the following responsibilities:
 
 1. Retrieve the configuration available for it, either locally or by listening for remote if FC is enabled.
-2. Attempt to assemble the actual, effective config that the sub-agent will have.
-3. If the assembly is successful, attempt to deploy (spawn process or create Kubernetes resources) the sub-agent using the effective config.
+2. Attempt to render the actual, effective config that the sub-agent will have.
+3. If the render is successful, attempt to deploy (spawn process or create Kubernetes resources) the sub-agent using the effective config.
 4. Once the sub-agent is deployed:
   - Perform regular health checks.
   - Restart it if it crashes, according to the configured restart policy (for on-host).
@@ -881,7 +881,7 @@ The first time it runs, whether it's using static configs or when already runnin
 5. If Fleet Control is enabled, the supervisor will listen for incoming remote configs different from the one currently in use:
   - When receiving one, the supervisor will stop its workload and restart from step 1 again.
   - If an empty config is passed it means that this agent should be retired, so the supervisor will just stop its workload and exit.
-6. On failure of assembly or deployment, the supervisor will be kept alive, but will report itself as unhealthy. If FC is enabled, this offers the user the possibility of pushing a new remote config, in case the sub-agent was left in a bad state due to receiving an invalid one.
+6. On failure of rendering or deployment, the supervisor will be kept alive, but will report itself as unhealthy. If FC is enabled, this offers the user the possibility of pushing a new remote config, in case the sub-agent was left in a bad state due to receiving an invalid one.
 
 Agent Control itself shares much of the behavior of a supervisor, that's how, if FC is enabled, it can receive remote configs (mainly the desired list of sub-agents) and apply them.
 
@@ -906,8 +906,8 @@ flowchart TB
     C@{ shape: doc, label: "Sub-agent config values
       (local or remote)"}
     T@{ shape: doc, label: Agent type definition}
-    A@{ shape: diamond, label: Assemble }
-    G@{ shape: lean-r, label: Assembled Agent }
+    A@{ shape: diamond, label: Render }
+    G@{ shape: lean-r, label: Rendered Agent }
     P@{ label: Config assets }
     D@{ shape: diamond, label: Deploy }
     DA@{ label: Deployed Agent }

@@ -11,7 +11,7 @@
 //!
 //! ```rust,ignore
 //! // Build
-//! let supervisor_starter = builder.build_supervisor(effective_agent)?;
+//! let supervisor_starter = builder.build_supervisor(rendered_agent)?;
 //!
 //! // Start
 //! let supervisor = supervisor_starter.start(event_publisher)?;
@@ -24,7 +24,7 @@
 
 use crate::{
     event::{SubAgentInternalEvent, channel::EventPublisher},
-    sub_agent::effective_agents_assembler::EffectiveAgent,
+    sub_agent::agent_renderer::RenderedAgent,
 };
 
 use std::{error::Error, marker::Sized};
@@ -48,16 +48,14 @@ pub trait SupervisorBuilder {
     ///
     /// # Arguments
     ///
-    /// * `effective_agent` - The desired agent configuration to supervise
+    /// * `rendered_agent` - The desired agent configuration to supervise
     ///
     /// # Returns
     ///
     /// * `Ok(Self::Starter)` - A starter ready to launch the supervisor
     /// * `Err(Self::Error)` - If the configuration is invalid or resources cannot be prepared
-    fn build_supervisor(
-        &self,
-        effective_agent: EffectiveAgent,
-    ) -> Result<Self::Starter, Self::Error>;
+    fn build_supervisor(&self, rendered_agent: RenderedAgent)
+    -> Result<Self::Starter, Self::Error>;
 }
 
 /// Launches a supervisor and returns a handle for managing it.
@@ -125,14 +123,14 @@ pub trait Supervisor: Sized {
     ///
     /// # Arguments
     ///
-    /// * `effective_agent` - The new desired agent configuration to apply
+    /// * `rendered_agent` - The new desired agent configuration to apply
     ///
     /// # Returns
     ///
     /// * `Ok(Self)` - A supervisor instance with the new configuration applied
     /// * `Err(Self::ApplyError)` - If there is an error applying the configuration.
     ///
-    fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, Self::ApplyError>;
+    fn apply(self, rendered_agent: RenderedAgent) -> Result<Self, Self::ApplyError>;
 
     /// Stops the supervisor and cleans up all associated resources.
     ///
@@ -164,7 +162,7 @@ pub(crate) mod tests {
             type Starter = A;
             type Error = TestingSupervisorError;
 
-            fn build_supervisor(&self, effective_agent: EffectiveAgent) -> Result<A, TestingSupervisorError>;
+            fn build_supervisor(&self, rendered_agent: RenderedAgent) -> Result<A, TestingSupervisorError>;
         }
 
     }
@@ -186,7 +184,7 @@ pub(crate) mod tests {
             type ApplyError = TestingSupervisorError;
             type StopError = TestingSupervisorError;
 
-            fn apply(self, effective_agent: EffectiveAgent) -> Result<Self, TestingSupervisorError>;
+            fn apply(self, rendered_agent: RenderedAgent) -> Result<Self, TestingSupervisorError>;
 
             fn stop(self) -> Result<(), TestingSupervisorError>;
         }

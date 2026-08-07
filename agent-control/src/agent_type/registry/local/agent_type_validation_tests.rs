@@ -10,22 +10,23 @@ use super::LocalRegistry;
 use crate::agent_control::run::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_VARIABLE_NAME};
 use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
 use crate::agent_type::variable::constraints::VariableConstraints;
+use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use crate::environment::Environment;
+use crate::sub_agent::agent_renderer::{
+    AgentRenderer, Renderer, tests::env_secrets_registry_for_testing,
+};
+use crate::sub_agent::identity::AgentIdentity;
 use crate::{
     agent_control::agent_id::AgentID,
-    agent_type::{
-        agent_type_id::AgentTypeID,
-        registry::AgentTypeRegistry,
-        render::{TemplateRenderer, tests::testing_agent_attributes},
-        variable::{
-            Variable,
-            namespace::{Namespace, VariableName},
-        },
-    },
+    agent_type::{agent_type_id::AgentTypeID, variable::Variable},
     values::yaml_config::YAMLConfig,
 };
 use std::collections::HashSet;
-use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
+use std::{
+    collections::HashMap,
+    ops::Deref,
+    sync::{Arc, LazyLock},
+};
 
 type CaseDescription = &'static str;
 type YamlContents = &'static str;
@@ -41,7 +42,7 @@ struct AgentTypeValuesTestCase {
 #[derive(Debug, Default)]
 struct AgentTypeValues {
     cases: HashMap<CaseDescription, YamlContents>,
-    additional_env: HashMap<VariableName, Variable>,
+    additional_env: HashMap<&'static str, &'static str>,
 }
 
 static AGENT_TYPE_APM_DOTNET: LazyLock<AgentTypeValuesTestCase> =
@@ -193,26 +194,11 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
                 ),
             ]),
             additional_env: HashMap::from([
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
-                    Variable::new_final_string_variable("abcd1234".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
-                    Variable::new_final_string_variable("my-test-cluster".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_STAGING"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_LOW_DATA_MODE"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_VERBOSE_LOG"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
+                ("NR_LICENSE_KEY", "abcd1234"),
+                ("NR_CLUSTER_NAME", "my-test-cluster"),
+                ("NR_STAGING", "true"),
+                ("NR_LOW_DATA_MODE", "true"),
+                ("NR_VERBOSE_LOG", "true"),
             ]),
         }
         .into(),
@@ -274,14 +260,8 @@ static AGENT_TYPE_K8S_AGENT_OPERATOR: LazyLock<AgentTypeValuesTestCase> =
                 ),
             ]),
             additional_env: HashMap::from([
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
-                    Variable::new_final_string_variable("abcd1234".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
-                    Variable::new_final_string_variable("my-test-cluster".to_string()),
-                ),
+                ("NR_LICENSE_KEY", "abcd1234"),
+                ("NR_CLUSTER_NAME", "my-test-cluster"),
             ]),
         }
         .into(),
@@ -306,26 +286,11 @@ static AGENT_TYPE_PROMETHEUS: LazyLock<AgentTypeValuesTestCase> =
                 ),
             ]),
             additional_env: HashMap::from([
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
-                    Variable::new_final_string_variable("abcd1234".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
-                    Variable::new_final_string_variable("my-test-cluster".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_STAGING"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_LOW_DATA_MODE"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_VERBOSE_LOG"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
+                ("NR_LICENSE_KEY", "abcd1234"),
+                ("NR_CLUSTER_NAME", "my-test-cluster"),
+                ("NR_STAGING", "true"),
+                ("NR_LOW_DATA_MODE", "true"),
+                ("NR_VERBOSE_LOG", "true"),
             ]),
         }
         .into(),
@@ -350,22 +315,10 @@ static AGENT_TYPE_FLUENTBIT: LazyLock<AgentTypeValuesTestCase> =
                 ),
             ]),
             additional_env: HashMap::from([
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
-                    Variable::new_final_string_variable("abcd1234".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
-                    Variable::new_final_string_variable("my-test-cluster".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_STAGING"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_LOW_DATA_MODE"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
+                ("NR_LICENSE_KEY", "abcd1234"),
+                ("NR_CLUSTER_NAME", "my-test-cluster"),
+                ("NR_STAGING", "true"),
+                ("NR_LOW_DATA_MODE", "true"),
             ]),
         }
         .into(),
@@ -390,26 +343,11 @@ static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
                 ),
             ]),
             additional_env: HashMap::from([
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
-                    Variable::new_final_string_variable("abcd1234".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
-                    Variable::new_final_string_variable("my-test-cluster".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_STAGING"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_LOW_DATA_MODE"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_VERBOSE_LOG"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
+                ("NR_LICENSE_KEY", "abcd1234"),
+                ("NR_CLUSTER_NAME", "my-test-cluster"),
+                ("NR_STAGING", "true"),
+                ("NR_LOW_DATA_MODE", "true"),
+                ("NR_VERBOSE_LOG", "true"),
             ]),
         }
         .into(),
@@ -467,26 +405,11 @@ static AGENT_TYPE_OTEL_COLLECTOR_OLD: LazyLock<AgentTypeValuesTestCase> =
                 ),
             ]),
             additional_env: HashMap::from([
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
-                    Variable::new_final_string_variable("abcd1234".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
-                    Variable::new_final_string_variable("my-test-cluster".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_STAGING"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_LOW_DATA_MODE"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_VERBOSE_LOG"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
+                ("NR_LICENSE_KEY", "abcd1234"),
+                ("NR_CLUSTER_NAME", "my-test-cluster"),
+                ("NR_STAGING", "true"),
+                ("NR_LOW_DATA_MODE", "true"),
+                ("NR_VERBOSE_LOG", "true"),
             ]),
         }
         .into(),
@@ -528,26 +451,11 @@ static AGENT_TYPE_PIPELINE_CONTROL_GATEWAY: LazyLock<AgentTypeValuesTestCase> =
                 ),
             ]),
             additional_env: HashMap::from([
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
-                    Variable::new_final_string_variable("abcd1234".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
-                    Variable::new_final_string_variable("my-test-cluster".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_STAGING"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_LOW_DATA_MODE"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_VERBOSE_LOG"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
+                ("NR_LICENSE_KEY", "abcd1234"),
+                ("NR_CLUSTER_NAME", "my-test-cluster"),
+                ("NR_STAGING", "true"),
+                ("NR_LOW_DATA_MODE", "true"),
+                ("NR_VERBOSE_LOG", "true"),
             ]),
         }
         .into(),
@@ -646,22 +554,10 @@ static AGENT_TYPE_EBPF: LazyLock<AgentTypeValuesTestCase> =
                 ),
             ]),
             additional_env: HashMap::from([
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_LICENSE_KEY"),
-                    Variable::new_final_string_variable("abcd1234".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_CLUSTER_NAME"),
-                    Variable::new_final_string_variable("my-test-cluster".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_STAGING"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
-                (
-                    VariableName::new(Namespace::EnvironmentVariable, "NR_VERBOSE_LOG"),
-                    Variable::new_final_string_variable("true".to_string()),
-                ),
+                ("NR_LICENSE_KEY", "abcd1234"),
+                ("NR_CLUSTER_NAME", "my-test-cluster"),
+                ("NR_STAGING", "true"),
+                ("NR_VERBOSE_LOG", "true"),
             ]),
         }
         .into(),
@@ -1036,7 +932,31 @@ fn all_agent_type_definitions_are_resilient_windows() {
 }
 
 fn iterate_test_cases(environment: Environment) {
-    let registry = LocalRegistry::embedded_only(environment);
+    let registry = Arc::new(LocalRegistry::embedded_only(environment));
+
+    // Agent-control variables with specifics for the environment
+    let ac_variables: HashMap<VariableName, Variable> = match environment {
+        Environment::K8s => HashMap::from([
+            (
+                VariableName::new(Namespace::AgentControl, NAMESPACE_VARIABLE_NAME),
+                Variable::new_final_string_variable("test-namespace".to_string()),
+            ),
+            (
+                VariableName::new(Namespace::AgentControl, NAMESPACE_AGENTS_VARIABLE_NAME),
+                Variable::new_final_string_variable("test-namespace-agents".to_string()),
+            ),
+        ]),
+        Environment::Linux | Environment::Windows => HashMap::from([(
+            VariableName::new(Namespace::AgentControl, HOST_ID_VARIABLE_NAME),
+            Variable::new_final_string_variable("my-namespace".to_string()),
+        )]),
+    };
+
+    #[cfg(windows)]
+    let remote_dir = std::path::PathBuf::from("C:\\");
+    #[cfg(not(windows))]
+    let remote_dir = std::path::PathBuf::from("/");
+
     for case in get_agent_type_test_cases() {
         // Skip cases where values for the environment are not provided
         let Some(values) = (match environment {
@@ -1047,44 +967,23 @@ fn iterate_test_cases(environment: Environment) {
             continue;
         };
 
-        let agent_id = AgentID::try_from("random-agent-id").unwrap();
+        let agent_identity = AgentIdentity::from((
+            AgentID::try_from("random-agent-id").unwrap(),
+            AgentTypeID::try_from(case.agent_type).unwrap(),
+        ));
 
-        // Create the renderer with specifics for the environment
-        let renderer = match environment {
-            Environment::K8s => TemplateRenderer::default().with_agent_control_variables(
-                HashMap::from([
-                    (
-                        NAMESPACE_VARIABLE_NAME.to_string(),
-                        Variable::new_final_string_variable("test-namespace".to_string()),
-                    ),
-                    (
-                        NAMESPACE_AGENTS_VARIABLE_NAME.to_string(),
-                        Variable::new_final_string_variable("test-namespace-agents".to_string()),
-                    ),
-                ])
-                .into_iter(),
-            ),
-            Environment::Linux | Environment::Windows => TemplateRenderer::default()
-                .with_agent_control_variables(iter::once((
-                    HOST_ID_VARIABLE_NAME.to_string(),
-                    Variable::new_final_string_variable("my-namespace".to_string()),
-                ))),
-        };
+        let renderer = AgentRenderer::new(
+            registry.clone(),
+            ac_variables.clone(),
+            VariableConstraints::default(),
+            env_secrets_registry_for_testing(values.additional_env.clone()),
+            &remote_dir,
+        );
 
         values.cases.iter().for_each(|(scenario, yaml)| {
-            let definition = registry
-                .get(&AgentTypeID::try_from(case.agent_type).unwrap())
-                .unwrap();
-            let agent_type = definition.with_constraints(&VariableConstraints::default());
-            let attributes = testing_agent_attributes(&agent_id);
-            let variables = serde_saphyr::from_str::<YAMLConfig>(yaml).unwrap();
+            let yaml_config = serde_saphyr::from_str::<YAMLConfig>(yaml).unwrap();
 
-            let result = renderer.render(
-                agent_type,
-                variables,
-                attributes,
-                values.additional_env.clone(),
-            );
+            let result = renderer.render_agent(&agent_identity, yaml_config);
 
             assert!(
                 result.is_ok(),

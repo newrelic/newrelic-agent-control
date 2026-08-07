@@ -8,7 +8,6 @@ pub mod guid_config;
 pub mod oci;
 pub mod protocol_version;
 pub mod registry;
-pub mod render;
 pub mod runtime_config;
 pub mod templates;
 pub mod templates_function;

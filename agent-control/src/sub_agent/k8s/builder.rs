@@ -9,7 +9,7 @@ use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::sub_agent_start_settings;
 use crate::sub_agent::SubAgent;
-use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
+use crate::sub_agent::agent_renderer::{RenderedAgent, Renderer};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::supervisor::SupervisorError;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
@@ -33,7 +33,7 @@ where
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
-    A: EffectiveAgentsAssembler + Send + Sync + 'static,
+    A: Renderer + Send + Sync + 'static,
 {
     pub(crate) opamp_builder: Option<O>,
     pub(crate) instance_id_getter: I,
@@ -41,7 +41,7 @@ where
     pub(crate) supervisor_builder: Arc<B>,
     pub(crate) remote_config_parser: Arc<R>,
     pub(crate) config_repository: Arc<Y>,
-    pub(crate) effective_agents_assembler: Arc<A>,
+    pub(crate) agent_renderer: Arc<A>,
     pub(crate) sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
 }
 
@@ -52,7 +52,7 @@ where
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
-    A: EffectiveAgentsAssembler + Send + Sync + 'static,
+    A: Renderer + Send + Sync + 'static,
 {
     type NotStartedSubAgent = SubAgent<O::Client, B, R, Y, A>;
 
@@ -105,7 +105,7 @@ where
             pub_sub(),
             self.remote_config_parser.clone(),
             self.config_repository.clone(),
-            self.effective_agents_assembler.clone(),
+            self.agent_renderer.clone(),
         ))
     }
 }
@@ -132,12 +132,12 @@ impl<C: K8sClient> SupervisorBuilder for SupervisorBuilderK8s<C> {
 
     fn build_supervisor(
         &self,
-        effective_agent: EffectiveAgent,
+        rendered_agent: RenderedAgent,
     ) -> Result<Self::Starter, Self::Error> {
-        let agent_identity = effective_agent.get_agent_identity();
+        let agent_identity = rendered_agent.get_agent_identity();
         debug!("Building supervisors {}", agent_identity,);
 
-        let k8s_objects = effective_agent
+        let k8s_objects = rendered_agent
             .get_k8s_config()
             .map_err(SupervisorError::RuntimeConfig)?;
 
@@ -185,7 +185,7 @@ pub mod tests {
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
     use crate::opamp::operations::agent_description;
-    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
+    use crate::sub_agent::agent_renderer::tests::MockAgentRenderer;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::tests::{MockSupervisor, MockSupervisorBuilder};
@@ -221,7 +221,7 @@ pub mod tests {
             MockSupervisorBuilder::<MockSupervisorStarter<MockSupervisor>>::new();
         let remote_config_parser = MockRemoteConfigParser::new();
 
-        let effective_agents_assembler = MockEffectiveAgentAssembler::new();
+        let agent_renderer = MockAgentRenderer::new();
 
         let builder = K8sSubAgentBuilder {
             opamp_builder: Some(opamp_builder),
@@ -230,7 +230,7 @@ pub mod tests {
             supervisor_builder: Arc::new(supervisor_assembler),
             remote_config_parser: Arc::new(remote_config_parser),
             config_repository: Arc::new(MockConfigRepository::new()),
-            effective_agents_assembler: Arc::new(effective_agents_assembler),
+            agent_renderer: Arc::new(agent_renderer),
             sub_agent_publisher: UnboundedBroadcast::default(),
         };
 
@@ -257,7 +257,7 @@ pub mod tests {
             MockSupervisorBuilder::<MockSupervisorStarter<MockSupervisor>>::new();
         let remote_config_parser = MockRemoteConfigParser::new();
 
-        let effective_agents_assembler = MockEffectiveAgentAssembler::new();
+        let agent_renderer = MockAgentRenderer::new();
 
         let builder = K8sSubAgentBuilder {
             opamp_builder: Some(opamp_builder),
@@ -266,7 +266,7 @@ pub mod tests {
             supervisor_builder: Arc::new(supervisor_assembler),
             remote_config_parser: Arc::new(remote_config_parser),
             config_repository: Arc::new(MockConfigRepository::new()),
-            effective_agents_assembler: Arc::new(effective_agents_assembler),
+            agent_renderer: Arc::new(agent_renderer),
             sub_agent_publisher: UnboundedBroadcast::default(),
         };
 
@@ -284,7 +284,7 @@ pub mod tests {
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
-        let effective_agent = EffectiveAgent::new(
+        let rendered_agent = RenderedAgent::new(
             agent_identity,
             Runtime {
                 deployment: Deployment::K8s(k8s_sample_runtime_config(true)),
@@ -293,9 +293,7 @@ pub mod tests {
 
         let supervisor_builder = testing_supervisor_builder();
 
-        supervisor_builder
-            .build_supervisor(effective_agent)
-            .unwrap();
+        supervisor_builder.build_supervisor(rendered_agent).unwrap();
     }
 
     #[test]
@@ -305,7 +303,7 @@ pub mod tests {
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
-        let effective_agent = EffectiveAgent::new(
+        let rendered_agent = RenderedAgent::new(
             agent_identity,
             Runtime {
                 deployment: Deployment::K8s(k8s_sample_runtime_config(false)),
@@ -314,7 +312,7 @@ pub mod tests {
 
         let supervisor_builder = testing_supervisor_builder();
 
-        let result = supervisor_builder.build_supervisor(effective_agent);
+        let result = supervisor_builder.build_supervisor(rendered_agent);
         assert_matches!(
             result,
             Err(SupervisorError::UnsupportedK8sObject {
