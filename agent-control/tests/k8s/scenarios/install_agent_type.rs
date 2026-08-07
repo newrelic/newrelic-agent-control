@@ -1,4 +1,3 @@
-#![cfg(target_family = "unix")]
 use crate::common::agent_control::{StartedAgentControl, start_agent_control_with_custom_config};
 use crate::common::attributes::{
     check_identifying_attributes_contains_expected, convert_to_vec_key_value,

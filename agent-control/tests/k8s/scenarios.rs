@@ -1,3 +1,4 @@
+mod ac_capabilities;
 mod ac_restarts;
 mod attributes;
 mod config_signature;

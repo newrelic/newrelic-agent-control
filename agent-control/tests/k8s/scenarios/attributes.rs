@@ -1,4 +1,3 @@
-#![cfg(target_family = "unix")]
 use crate::common::attributes::{
     check_capabilities_match_expected, check_custom_capabilities_match,
     check_latest_identifying_attributes_match_expected,
@@ -19,11 +18,10 @@ use newrelic_agent_control::agent_control::defaults::{
     OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
     OPAMP_SUPERVISOR_KEY, PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities,
 };
-use newrelic_agent_control::opamp::capabilities::CustomCapability;
+use newrelic_agent_control::opamp::capabilities::{CustomCapabilities, CustomCapability};
 use nix::unistd::gethostname;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
-use std::collections::HashSet;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -132,11 +130,6 @@ agents:
             ac_expected_non_identifying_attributes.clone(),
         )?;
         check_capabilities_match_expected(&server, &instance_id, default_capabilities().into())?;
-        check_custom_capabilities_match(
-            &server,
-            &instance_id,
-            HashSet::from([CustomCapability::Signature.to_string()]),
-        )?;
         Ok(())
     });
 
@@ -200,44 +193,7 @@ agents:
         check_custom_capabilities_match(
             &server,
             &instance_id_sub_agent,
-            HashSet::from([CustomCapability::Signature.to_string()]),
-        )?;
-        Ok(())
-    })
-}
-
-/// When `cd_enabled` is set to `false` in the k8s config, Agent Control must report the
-/// `com.newrelic.k8s_config_only_agents` custom capability through OpAMP. This signals to
-/// Fleet Control that this AC is not paired with an agent-control-cd deployment.
-#[test]
-#[ignore = "needs a k8s cluster"]
-fn k8s_test_custom_capabilities_when_cd_disabled() {
-    let server = FakeServer::start(tokio_runtime().handle());
-
-    let mut k8s = block_on(K8sEnv::new());
-    let namespace = block_on(k8s.test_namespace());
-    let tmp_dir = tempdir().expect("failed to create local temp dir");
-
-    K8sAgentControlConfigBuilder::new(&namespace)
-        .with_fleet(server.endpoint(), server.jwks_endpoint())
-        .with_cd_enabled(false)
-        .write(k8s.client.clone(), tmp_dir.path());
-
-    K8sCustomAgentTypeBuilder::default().write(tmp_dir.path());
-    let _ac = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());
-
-    let instance_id =
-        instance_id::get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
-
-    retry(60, Duration::from_secs(5), || {
-        check_capabilities_match_expected(&server, &instance_id, default_capabilities().into())?;
-        check_custom_capabilities_match(
-            &server,
-            &instance_id,
-            HashSet::from([
-                CustomCapability::Signature.to_string(),
-                CustomCapability::K8sConfigOnlyAgents.to_string(),
-            ]),
+            CustomCapabilities::from(vec![CustomCapability::Signature]),
         )?;
         Ok(())
     })

@@ -17,6 +17,7 @@ use crate::environment::Environment;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
 use crate::oci;
+use crate::opamp::capabilities::CustomCapability;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
 use crate::values::ConfigRepo;
 use oci_client::client::ClientConfig;
@@ -25,7 +26,7 @@ use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tracing::debug;
+use tracing::{debug, info};
 
 /// Error returned when running Agent Control fails.
 #[derive(Debug, thiserror::Error)]
@@ -87,6 +88,7 @@ pub struct AgentControlRunner {
 
     agent_type_registry: Arc<Registry>,
     oci_client: oci::Client,
+    dynamic_custom_capabilities: Vec<CustomCapability>,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
     sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
@@ -143,10 +145,10 @@ impl AgentControlRunner {
             oci_client.clone(),
         )?);
 
+        let mut dynamic_custom_capabilities = Vec::new();
         // Performs a reachability probe against the configured Agent Type repository
         // so FC can limit the use of remote agent types for existing customers.
-        // WIP: following PRs will wire this to custom capabilities.
-        let _ = oci_client
+        if oci_client
             .reachability_probe(
                 &context.bootstrap_config.oci.registry,
                 &context
@@ -162,8 +164,13 @@ impl AgentControlRunner {
                     .map(RegistryAuth::from)
                     .unwrap_or(RegistryAuth::Anonymous),
             )
-            .inspect(|_| debug!("Agent type registry reachability probe succeeded"))
-            .inspect_err(|err| debug!("Agent type registry reachability probe failed: {err}"));
+            // TODO switch this log to warn/error whenever remote agent types are supported by FC
+            .inspect_err(|err| debug!("Agent type registry is unreachable: {err}"))
+            .is_ok()
+        {
+            info!("Agent type registry reachability probe succeeded");
+            dynamic_custom_capabilities.push(CustomCapability::RemoteAgentTypeRepoReachable);
+        }
 
         let signature_validator = context
             .bootstrap_config
@@ -184,6 +191,7 @@ impl AgentControlRunner {
             runtime,
             agent_type_registry,
             oci_client,
+            dynamic_custom_capabilities,
             application_event_consumer: context.application_event_consumer,
             agent_control_publisher,
             sub_agent_publisher,

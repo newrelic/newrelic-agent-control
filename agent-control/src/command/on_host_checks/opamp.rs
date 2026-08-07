@@ -53,8 +53,12 @@ pub fn check_connectivity(
     let agent_identity = AgentIdentity::new_agent_control_identity();
     let agent_description =
         build_ac_onhost_agent_description(&agent_identity, &identifiers, RunningMode::Verify);
-    let start_settings =
-        build_ac_opamp_start_settings(&instance_id_getter, &agent_identity, agent_description)?;
+    let start_settings = build_ac_opamp_start_settings(
+        &instance_id_getter,
+        &agent_identity,
+        agent_description,
+        &[],
+    )?;
     let (client, _consumer) =
         start_ac_opamp_client(&opamp_client_builder, agent_identity, start_settings)?;
     client.stop()?;

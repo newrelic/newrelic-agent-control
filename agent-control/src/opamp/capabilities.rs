@@ -7,6 +7,8 @@ use std::fmt;
 pub enum CustomCapability {
     /// Support for remote config signature verification.
     Signature,
+    /// The configured Agent Type OCI repository was reachable at startup.
+    RemoteAgentTypeRepoReachable,
     /// This Agent Control is not managed by an agent-control-cd deployment.
     K8sConfigOnlyAgents,
 }
@@ -15,6 +17,7 @@ impl CustomCapability {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Signature => "com.newrelic.security.configSignature",
+            Self::RemoteAgentTypeRepoReachable => "com.newrelic.remoteAgentTypeRepoReachable",
             Self::K8sConfigOnlyAgents => "com.newrelic.k8s_config_only_agents",
         }
     }
@@ -33,6 +36,14 @@ pub struct CustomCapabilities(Vec<CustomCapability>);
 impl CustomCapabilities {
     pub fn push(&mut self, capability: CustomCapability) {
         self.0.push(capability);
+    }
+
+    pub fn as_slice(&self) -> &[CustomCapability] {
+        self.0.as_slice()
+    }
+
+    pub fn extend_from_slice(&mut self, capabilities: &[CustomCapability]) {
+        self.0.extend_from_slice(capabilities);
     }
 }
 
