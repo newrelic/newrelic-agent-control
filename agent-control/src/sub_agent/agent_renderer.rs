@@ -272,7 +272,6 @@ pub(crate) mod tests {
     use crate::agent_type::runtime_config::restart_policy::{
         BackoffDelay, BackoffLastRetryInterval, BackoffStrategyType, MaxRetries,
     };
-    use crate::agent_type::trivial_value::TrivialValue;
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
     use mockall::mock;
@@ -493,47 +492,55 @@ deployment:
     }
 
     #[test]
-    fn test_render() {
-        let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE);
+    fn test_render_agent_with_default_and_provided_values() {
+        let (registry, agent_identity) = registry_for_testing(SIMPLE_AGENT_TYPE);
+        let renderer = AgentRenderer::new_for_testing(registry);
         let values = testing_values(SIMPLE_AGENT_VALUES);
 
-        let ns_variables =
-            get_expanded_user_variables(agent_type.variables, values, &HashMap::new()).unwrap();
+        let rendered_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let on_host = rendered_agent.get_onhost_config().unwrap();
 
         assert_eq!(
-            ns_variables
-                .get(&VariableName::new(Namespace::Variable, "config_path"))
-                .and_then(Variable::get_final_value),
-            Some(TrivialValue::String("/some/path/config".to_string()))
-        );
-        assert_eq!(
-            ns_variables
-                .get(&VariableName::new(Namespace::Variable, "config_argument"))
-                .and_then(Variable::get_final_value),
-            Some(TrivialValue::String("bar".to_string()))
+            exec_rendered::Args(vec![
+                "--config_path".to_string(),
+                "/some/path/config".to_string(),
+                "--foo".to_string(),
+                "bar".to_string(),
+            ]),
+            on_host.executables.first().unwrap().args.clone()
         );
     }
 
     #[test]
-    fn test_render_with_empty_but_required_values() {
-        let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE);
+    fn test_render_agent_error_on_required_value_missing_from_empty_values() {
+        let (registry, agent_identity) = registry_for_testing(SIMPLE_AGENT_TYPE);
+        let renderer = AgentRenderer::new_for_testing(registry);
         let values = YAMLConfig::default();
 
-        let result = get_expanded_user_variables(agent_type.variables, values, &HashMap::new());
-        assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
-            assert_eq!(vars, vec!["config_path".to_string()])
-        })
+        let result = renderer.render_agent(&agent_identity, values);
+
+        assert_matches!(
+            result.unwrap_err(),
+            AgentRendererError::AgentTypeError(AgentTypeError::ValuesNotPopulated(vars)) => {
+                assert_eq!(vars, vec!["config_path".to_string()])
+            }
+        )
     }
 
     #[test]
-    fn test_render_with_missing_values() {
-        let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE);
+    fn test_render_agent_error_on_required_value_missing_from_provided_values() {
+        let (registry, agent_identity) = registry_for_testing(SIMPLE_AGENT_TYPE);
+        let renderer = AgentRenderer::new_for_testing(registry);
         let values = testing_values(SIMPLE_AGENT_VALUES_REQUIRED_MISSING);
 
-        let result = get_expanded_user_variables(agent_type.variables, values, &HashMap::new());
-        assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
-            assert_eq!(vars, vec!["config_path".to_string()])
-        })
+        let result = renderer.render_agent(&agent_identity, values);
+
+        assert_matches!(
+            result.unwrap_err(),
+            AgentRendererError::AgentTypeError(AgentTypeError::ValuesNotPopulated(vars)) => {
+                assert_eq!(vars, vec!["config_path".to_string()])
+            }
+        )
     }
 
     #[test]
@@ -700,8 +707,19 @@ substituted_2: my-value-2
     }
 
     #[test]
-    fn test_render_double_expansion_with_env_variables() {
-        let agent_type = AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES);
+    fn test_render_agent_double_expansion_with_env_variables() {
+        let (registry, agent_identity) = registry_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES);
+        let secrets_providers = env_secrets_registry_for_testing(HashMap::from([
+            ("DOUBLE_EXPANSION", "test"),
+            ("DOUBLE_EXPANSION_2", "test-2"),
+        ]));
+        let renderer = AgentRenderer::new(
+            Arc::new(registry),
+            HashMap::new(),
+            VariableConstraints::default(),
+            secrets_providers,
+            Path::new(""),
+        );
         let values = testing_values(
             r#"
 config:
@@ -714,19 +732,9 @@ config:
 "#,
         );
 
-        let secrets = HashMap::from([
-            (
-                VariableName::new(Namespace::EnvironmentVariable, "DOUBLE_EXPANSION"),
-                Variable::new_final_string_variable("test".to_string()),
-            ),
-            (
-                VariableName::new(Namespace::EnvironmentVariable, "DOUBLE_EXPANSION_2"),
-                Variable::new_final_string_variable("test-2".to_string()),
-            ),
-        ]);
-
-        let ns_variables =
-            get_expanded_user_variables(agent_type.variables, values, &secrets).unwrap();
+        let rendered_agent = renderer.render_agent(&agent_identity, values).unwrap();
+        let k8s = rendered_agent.get_k8s_config().unwrap();
+        let spec = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
 
         let expected_values: serde_json::Value = serde_saphyr::from_str(
             r#"
@@ -736,13 +744,7 @@ key-2: test-2
         )
         .unwrap();
 
-        let actual_values = ns_variables
-            .get(&VariableName::new(Namespace::Variable, "config.values"))
-            .and_then(Variable::get_final_value)
-            .and_then(|v| v.to_yaml_value())
-            .unwrap();
-
-        assert_eq!(expected_values, actual_values);
+        assert_eq!(expected_values, spec.get("values").cloned().unwrap());
     }
 
     #[test]
