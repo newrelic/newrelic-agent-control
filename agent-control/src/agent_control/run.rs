@@ -2,7 +2,7 @@
 
 use super::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
-    DYNAMIC_AGENT_TYPES_DIR,
+    DYNAMIC_AGENT_TYPES_DIR, default_capabilities, default_custom_capabilities,
 };
 use crate::agent_control::config::{
     AgentControlConfig, AgentControlConfigError, AgentTypeConfig, OciConfig,
@@ -18,10 +18,13 @@ use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
 use crate::oci;
 use crate::opamp::capabilities::CustomCapability;
+use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
+use crate::sub_agent::identity::AgentIdentity;
 use crate::values::ConfigRepo;
 use oci_client::client::ClientConfig;
 use oci_client::secrets::RegistryAuth;
+use opamp_client::operation::settings::{AgentDescription, StartSettings};
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -260,4 +263,28 @@ pub fn setup_config_repository_and_store<D: DataStore + Send + Sync + 'static>(
     let repository = Arc::new(repository);
     let store = Arc::new(AgentControlConfigStore::new(repository.clone()));
     (repository, store)
+}
+
+/// Builds the OpAMP [StartSettings] for Agent Control.
+/// `dynamic_custom_capabilities` are additional custom capabilities computed by the caller
+/// (e.g. from startup probes, or environment-specific config), appended to the default custom capabilities.
+pub fn build_ac_opamp_start_settings(
+    instance_id_getter: &impl InstanceIDGetter,
+    agent_identity: &AgentIdentity,
+    agent_description: AgentDescription,
+    dynamic_custom_capabilities: &[CustomCapability],
+) -> Result<StartSettings, RunError> {
+    let instance_id = instance_id_getter
+        .get(&agent_identity.id)
+        .map_err(|err| RunError(format!("error getting instance id: {err}")))?;
+
+    let mut custom_capabilities = default_custom_capabilities();
+    custom_capabilities.extend_from_slice(dynamic_custom_capabilities);
+
+    Ok(StartSettings {
+        instance_uid: instance_id.into(),
+        capabilities: default_capabilities(),
+        custom_capabilities: Some(custom_capabilities.into()),
+        agent_description,
+    })
 }

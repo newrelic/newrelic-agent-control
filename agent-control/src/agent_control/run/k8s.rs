@@ -9,14 +9,14 @@ use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, CD_EXTERNAL_ENABLED_ATTRIBUTE_KEY,
     CD_REMOTE_UPDATE_ENABLED_ATTRIBUTE_KEY, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
     HOST_NAME_ATTRIBUTE_KEY, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY, default_capabilities,
-    default_custom_capabilities,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY,
 };
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
 use crate::agent_control::run::{
-    AgentControlRunner, GracefulShutdownReason, RunError, setup_config_repository_and_store,
+    AgentControlRunner, GracefulShutdownReason, RunError, build_ac_opamp_start_settings,
+    setup_config_repository_and_store,
 };
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::variable::Variable;
@@ -35,7 +35,7 @@ use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilder;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
-use crate::opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter};
+use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
 use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::agent_description;
@@ -50,7 +50,7 @@ use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::thread_context::StartedThreadContext;
 use crate::{k8s::configmap_store::ConfigMapStore, sub_agent::k8s::builder::K8sSubAgentBuilder};
-use opamp_client::operation::settings::{AgentDescription, DescriptionValueType, StartSettings};
+use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::get_hostname;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -136,12 +136,15 @@ impl AgentControlRunner {
             .as_ref()
             .map(|builder| -> Result<_, RunError> {
                 info!("Starting Agent Control OpAMP client");
+                let mut custom_capabilities = self.dynamic_custom_capabilities.clone();
+                if !k8s_config.cd_enabled {
+                    custom_capabilities.push(CustomCapability::K8sConfigOnlyAgents);
+                }
                 let opamp_start_settings = build_ac_opamp_start_settings(
                     &instance_id_getter,
                     &agent_identity,
                     agent_description,
-                    &k8s_config,
-                    &self.dynamic_custom_capabilities,
+                    &custom_capabilities,
                 )?;
                 builder
                     .build_and_start(agent_identity, opamp_start_settings)
@@ -312,36 +315,6 @@ fn start_cd_version_checker(
     )
 }
 
-/// Builds the OpAMP [StartSettings] for Agent Control on Kubernetes.
-/// When `k8s_config.cd_remote_update` is false, the `k8s_config_only_agents` custom capability
-/// is added to signal that this agent is not managed by an agent-control-cd deployment.
-/// `dynamic_custom_capabilities` are additional custom capabilities computed from startup probes
-/// (e.g. Agent Type repository reachability), appended to the default custom capabilities.
-pub fn build_ac_opamp_start_settings(
-    instance_id_getter: &impl InstanceIDGetter,
-    agent_identity: &AgentIdentity,
-    agent_description: AgentDescription,
-    k8s_config: &K8sConfig,
-    dynamic_custom_capabilities: &[CustomCapability],
-) -> Result<StartSettings, RunError> {
-    let instance_id = instance_id_getter
-        .get(&agent_identity.id)
-        .map_err(|err| RunError(format!("error getting instance id: {err}")))?;
-
-    let mut custom_capabilities = default_custom_capabilities();
-    if !k8s_config.cd_enabled {
-        custom_capabilities.push(CustomCapability::K8sConfigOnlyAgents);
-    }
-    custom_capabilities.extend_from_slice(dynamic_custom_capabilities);
-
-    Ok(StartSettings {
-        instance_uid: instance_id.into(),
-        capabilities: default_capabilities(),
-        custom_capabilities: Some(custom_capabilities.into()),
-        agent_description,
-    })
-}
-
 /// Builds the OpAMP non-identifying attributes for Agent Control on Kubernetes (hostname, fleet id,
 /// cluster name and CD-related flags).
 pub fn agent_control_opamp_non_identifying_attributes(
@@ -402,75 +375,6 @@ fn agent_control_additional_opamp_identifying_attributes(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::opamp::instance_id::InstanceID;
-    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
-
-    fn agent_description() -> AgentDescription {
-        AgentDescription {
-            identifying_attributes: Default::default(),
-            non_identifying_attributes: Default::default(),
-        }
-    }
-
-    fn instance_id_getter() -> MockInstanceIDGetter {
-        let instance_id = InstanceID::create();
-        let mut getter = MockInstanceIDGetter::new();
-        getter.should_get(&AgentIdentity::new_agent_control_identity().id, instance_id);
-        getter
-    }
-
-    #[test]
-    fn test_start_settings_cd_enabled_false_adds_k8s_config_only_capability() {
-        let k8s_config = K8sConfig {
-            cd_enabled: false,
-            ..Default::default()
-        };
-        let agent_identity = AgentIdentity::new_agent_control_identity();
-        let getter = instance_id_getter();
-
-        let settings = build_ac_opamp_start_settings(
-            &getter,
-            &agent_identity,
-            agent_description(),
-            &k8s_config,
-            &[],
-        )
-        .unwrap();
-
-        let caps = settings.custom_capabilities.unwrap();
-        assert!(
-            caps.capabilities
-                .contains(&CustomCapability::K8sConfigOnlyAgents.to_string()),
-            "expected k8s_config_only_agents capability when cd_remote_update=false"
-        );
-    }
-
-    #[test]
-    fn test_start_settings_cd_remote_update_true_does_not_add_k8s_config_only_capability() {
-        let k8s_config = K8sConfig {
-            cd_enabled: true,
-            ..Default::default()
-        };
-        let agent_identity = AgentIdentity::new_agent_control_identity();
-        let getter = instance_id_getter();
-
-        let settings = build_ac_opamp_start_settings(
-            &getter,
-            &agent_identity,
-            agent_description(),
-            &k8s_config,
-            &[],
-        )
-        .unwrap();
-
-        let caps = settings.custom_capabilities.unwrap();
-        assert!(
-            !caps
-                .capabilities
-                .contains(&CustomCapability::K8sConfigOnlyAgents.to_string()),
-            "expected no k8s_config_only_agents capability when cd_remote_update=true"
-        );
-    }
 
     #[test]
     fn test_agent_control_additional_opamp_identifying_attributes_chart_version_unset() {
