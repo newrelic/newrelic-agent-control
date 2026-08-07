@@ -20,6 +20,7 @@ use crate::oci;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
 use crate::values::ConfigRepo;
 use oci_client::client::ClientConfig;
+use oci_client::secrets::RegistryAuth;
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -141,6 +142,28 @@ impl AgentControlRunner {
             &context.base_paths.local_dir,
             oci_client.clone(),
         )?);
+
+        // Performs a reachability probe against the configured Agent Type repository
+        // so FC can limit the use of remote agent types for existing customers.
+        // WIP: following PRs will wire this to custom capabilities.
+        let _ = oci_client
+            .reachability_probe(
+                &context.bootstrap_config.oci.registry,
+                &context
+                    .bootstrap_config
+                    .agent_types
+                    .default_remote
+                    .repository,
+                context
+                    .bootstrap_config
+                    .oci
+                    .auth
+                    .as_ref()
+                    .map(RegistryAuth::from)
+                    .unwrap_or(RegistryAuth::Anonymous),
+            )
+            .inspect(|_| debug!("Agent type registry reachability probe succeeded"))
+            .inspect_err(|err| debug!("Agent type registry reachability probe failed: {err}"));
 
         let signature_validator = context
             .bootstrap_config

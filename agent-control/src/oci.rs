@@ -4,7 +4,8 @@ use std::num::NonZeroUsize;
 use std::time::Duration;
 use std::{path::Path, sync::Arc};
 
-use crate::agent_control::config::OciAuth;
+use crate::agent_control::config::{OciAuth, Registry};
+use crate::agent_type::runtime_config::on_host::package::rendered::Repository;
 use crate::utils::retry::{BackoffPolicy, retry_with_backoff};
 use crate::{http::config::ProxyConfig, signature::public_key_fetcher::PublicKeyFetcher};
 
@@ -37,7 +38,7 @@ const DEFAULT_NO_RETRY_POLICY: BackoffPolicy = BackoffPolicy {
 /// Default timeout for establishing the connection to the registry.
 const DEFAULT_OCI_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Default read timeout applied to every OCI operation..
+/// Default read timeout applied to every OCI operation.
 const DEFAULT_OCI_READ_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// [oci_client::Client] wrapper with extended functionality.
@@ -161,6 +162,26 @@ impl Client {
             }
             Ok(blob)
         })
+    }
+
+    /// Checks whether the repository is reachable and accessible by listing tags.
+    pub fn reachability_probe(
+        &self,
+        registry: &Registry,
+        repository: &Repository,
+        auth: RegistryAuth,
+    ) -> Result<(), OciClientError> {
+        let reference = Reference::with_tag(
+            registry.to_string(),
+            repository.to_string(),
+            // This tag is just used to build the reference.
+            "unused-tag".to_string(),
+        );
+        // Tags are discarded so we just ask for 1.
+        self.runtime
+            .block_on(self.client.list_tags(&reference, &auth, Some(1), None))
+            .map_err(|err| OciClientError::ListTags(err.into()))?;
+        Ok(())
     }
 
     /// Verifies the Cosign signature of an OCI artifact.
@@ -441,6 +462,47 @@ pub mod tests {
 
     fn create_fetcher() -> OciArtifactFetcher {
         OciArtifactFetcher::new(create_test_client(), None)
+    }
+
+    fn mock_tags_list(server: &MockServer, repo: &str, status: u16) {
+        server.mock(|when, then| {
+            when.method(GET).path(format!("/v2/{repo}/tags/list"));
+            then.status(status)
+                .header("Content-Type", "application/json")
+                .json_body(serde_json::json!({"name": repo, "tags": []}));
+        });
+    }
+
+    #[rstest]
+    #[case::reachable(200, true)]
+    #[case::not_found(404, false)]
+    #[case::unauthorized(401, false)]
+    fn test_reachability_probe_status_mapping(#[case] status: u16, #[case] expect_reachable: bool) {
+        let server = MockServer::start();
+        mock_tags_list(&server, "repo", status);
+        let registry: Registry = server.address().to_string().parse().unwrap();
+        let repository: Repository = "repo".parse().unwrap();
+
+        let client = create_test_client();
+        let result = client.reachability_probe(&registry, &repository, RegistryAuth::Anonymous);
+
+        assert_eq!(result.is_ok(), expect_reachable);
+        if !expect_reachable {
+            assert_matches!(result, Err(OciClientError::ListTags(_)));
+        }
+    }
+
+    #[test]
+    fn test_reachability_probe_fails_when_registry_is_unreachable() {
+        // Port 1 is privileged and unused, so the connection is refused without waiting for the
+        // connect timeout.
+        let registry: Registry = "127.0.0.1:1".parse().unwrap();
+        let repository: Repository = "repo".parse().unwrap();
+
+        let client = create_test_client();
+        let result = client.reachability_probe(&registry, &repository, RegistryAuth::Anonymous);
+
+        assert_matches!(result, Err(OciClientError::ListTags(_)));
     }
 
     #[test]
