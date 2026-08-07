@@ -175,7 +175,7 @@ mod tests {
         #[case] bin: &'static str,
         #[case] args: Vec<&'static str>,
     ) {
-        let executor = ProcessVerifyExecutor::default();
+        let executor = ProcessVerifyExecutor::new(Duration::from_secs(60));
         assert!(executor.execute(Path::new(bin), &args).is_ok());
     }
 
@@ -187,7 +187,7 @@ mod tests {
         #[case] bin: &'static str,
         #[case] args: Vec<&'static str>,
     ) {
-        let executor = ProcessVerifyExecutor::default();
+        let executor = ProcessVerifyExecutor::new(Duration::from_secs(60));
         let err = executor.execute(Path::new(bin), &args).unwrap_err();
         assert_matches!(err, VerifyError::UnexpectedFailure);
 
@@ -203,7 +203,7 @@ mod tests {
         #[case] bin: &'static str,
         #[case] args: Vec<&'static str>,
     ) {
-        let executor = ProcessVerifyExecutor::default();
+        let executor = ProcessVerifyExecutor::new(Duration::from_secs(60));
         let err = executor.execute(Path::new(bin), &args).unwrap_err();
         assert_matches!(err, VerifyError::VerificationFailed(msg) if msg == "pre-flight check failed");
     }
