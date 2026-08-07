@@ -9,6 +9,11 @@ variables:
     description: "nri-postgresql integration YAML consumed by the infra-agent"
     type: yaml
     required: true
+  custom_queries:
+    description: "nri-postgresql custom query files"
+    type: string_map
+    required: false
+    default: {}
   version:
     description: "Agent version"
     type: string
@@ -44,3 +49,22 @@ deployment:
         nri-postgresql:
           kind: file
           copy_from_file: ${nr-sub:packages.nri-postgresql.dir}/nri-postgresql
+  # Allows setting up additional files to be used as `CUSTOM_METRICS_CONFIG` on nri-postgresql configuration
+  # It can be references as follows in values:
+  #
+  # ```
+  # custom_queries:
+  #   postgresql-custom-query.yaml: |
+  #     <CUSTOM-QUERIES-CONTENT>
+  #
+  # config:
+  #    integrations:
+  #      - name: nri-postgresql
+  #        env:
+  #          # ...
+  #          CUSTOM_METRICS_CONFIG: ${nr-path:agent_dir}/custom_queries/postgresql-custom-query.yaml
+  # ```
+  filesystem:
+    custom_queries:
+      kind: dir_content_from_map
+      source: ${nr-var:custom_queries}
