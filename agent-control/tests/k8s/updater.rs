@@ -66,6 +66,16 @@ fn k8s_run_updater_for_cd_and_ac() {
         .apply_dynamic_object(&cd_dynamic_object)
         .expect("no error should occur during the creation of the helm release");
 
+    // The updater reads HelmReleases through the k8s client's watch-based cache, which is
+    // populated asynchronously and can lag behind the `apply_dynamic_object` calls above.
+    // Wait until both releases are visible before triggering the update, otherwise it can
+    // spuriously fail with a "not found" error.
+    retry(15, Duration::from_secs(2), || {
+        helm_release_exists(&k8s_client, &test_ns, TEST_AC_RELEASE_NAME)?;
+        helm_release_exists(&k8s_client, &test_ns, TEST_CD_RELEASE_NAME)?;
+        Ok(())
+    });
+
     updater
         .update(config_to_update)
         .expect("no error should occur during update");
@@ -89,6 +99,23 @@ fn k8s_run_updater_for_cd_and_ac() {
 
         Ok(())
     })
+}
+
+fn helm_release_exists(
+    k8s_client: &Arc<SyncK8sClient>,
+    namespace: &str,
+    release_name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    k8s_client
+        .get_dynamic_object(
+            &helmrelease_v2_type_meta(),
+            K8sObjectKey {
+                name: release_name,
+                namespace,
+            },
+        )?
+        .ok_or_else(|| format!("HelmRelease '{release_name}' not yet visible"))?;
+    Ok(())
 }
 
 fn verify_helm_release_state(
