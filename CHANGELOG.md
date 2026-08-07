@@ -20,7 +20,7 @@ Remember that the keywords that you can use are the following:
 - Reports the `com.newrelic.remoteAgentTypeRepoReachable` OpAMP custom capability when the configured Agent Type OCI repository is reachable at startup.
 
 ### bugfix
-- Windows: fixed files under Agent Control's managed directories being left with permissions it could not use. This could block a range of operations: a sub-agent could not modify its own assets (e.g. log rotation for the infrastructure-agent), and Agent Control could not delete a sub-agent's stored remote config or data when decommissioning it ("Access is denied"). Managed directories now use an inheritable Administrators ACE so runtime-created files inherit access, and Agent Control repairs already-affected installs on startup by re-stamping any managed entry that does not already grant the required access. This startup repair is best-effort and never blocks startup — entries it cannot fix are logged, and a later self-update can also heal permissions.
+- Windows: fixed files under Agent Control's managed directories being left with permissions it could not use, which blocked a sub-agent from modifying its own assets (e.g. infrastructure-agent log rotation) and Agent Control from deleting a sub-agent's stored config on decommission ("Access is denied"). Managed directories now use an inheritable Administrators ACE, and Agent Control repairs already-affected installs on startup (best-effort: failures are logged and never block startup).
 
 ## v1.20.0 - 2026-07-29
 

@@ -1718,7 +1718,6 @@ dependencies = [
  "encoding_rs",
  "mockall",
  "tempfile",
- "thiserror",
  "tracing",
  "windows",
 ]
