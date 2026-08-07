@@ -1,0 +1,71 @@
+name: Download artifact with retry
+description: >
+  Downloads artifacts from this workflow run, trying again a few times if the
+  download fails (GitHub sometimes drops the connection).
+inputs:
+  name:
+    description: Name of a single artifact to download
+    required: false
+    default: ""
+  pattern:
+    description: Glob pattern to match multiple artifact names
+    required: false
+    default: ""
+  path:
+    description: Destination directory
+    required: true
+  merge-multiple:
+    description: Flatten multiple matched artifacts into one directory
+    required: false
+    default: "false"
+  attempts:
+    description: Number of download attempts before giving up
+    required: false
+    default: "5"
+  delay-seconds:
+    description: Seconds to wait between attempts
+    required: false
+    default: "10"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        DL_NAME: ${{ inputs.name }}
+        DL_PATTERN: ${{ inputs.pattern }}
+        DL_PATH: ${{ inputs.path }}
+        DL_MERGE_MULTIPLE: ${{ inputs.merge-multiple }}
+        DL_ATTEMPTS: ${{ inputs.attempts }}
+        DL_DELAY_SECONDS: ${{ inputs.delay-seconds }}
+      run: |
+        set -u
+        mkdir -p "$DL_PATH"
+
+        args=(--repo "${{ github.repository }}" --dir "$DL_PATH")
+        if [ -n "$DL_NAME" ]; then
+          args+=(--name "$DL_NAME")
+        fi
+        if [ -n "$DL_PATTERN" ]; then
+          args+=(--pattern "$DL_PATTERN")
+        fi
+
+        success=false
+        for i in $(seq 1 "$DL_ATTEMPTS"); do
+          if gh run download "${{ github.run_id }}" "${args[@]}"; then
+            success=true
+            break
+          fi
+          echo "download-artifact failed (attempt $i/$DL_ATTEMPTS), retrying in ${DL_DELAY_SECONDS}s..."
+          sleep "$DL_DELAY_SECONDS"
+        done
+
+        if [ "$success" != "true" ]; then
+          echo "::error::Failed to download artifact(s) after $DL_ATTEMPTS attempts"
+          exit 1
+        fi
+
+        if [ "$DL_MERGE_MULTIPLE" = "true" ]; then
+          find "$DL_PATH" -mindepth 2 -type f -exec mv -t "$DL_PATH" {} +
+          find "$DL_PATH" -mindepth 1 -type d -empty -delete
+        fi

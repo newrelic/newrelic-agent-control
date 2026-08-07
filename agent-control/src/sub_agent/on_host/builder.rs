@@ -276,7 +276,7 @@ mod tests {
         StartSettings {
             instance_uid: sub_agent_instance_id.into(),
             capabilities: default_capabilities(),
-            custom_capabilities: Some(default_custom_capabilities()),
+            custom_capabilities: Some(default_custom_capabilities().into()),
             agent_description: AgentDescription {
                 identifying_attributes,
                 non_identifying_attributes: HashMap::from([

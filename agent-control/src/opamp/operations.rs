@@ -32,7 +32,7 @@ pub fn sub_agent_start_settings<IG: InstanceIDGetter>(
     Ok(StartSettings {
         instance_uid: instance_id_getter.get(&agent_identity.id)?.into(),
         capabilities: default_capabilities(),
-        custom_capabilities: Some(default_custom_capabilities()),
+        custom_capabilities: Some(default_custom_capabilities().into()),
         agent_description: agent_description(
             agent_identity,
             additional_identifying_attributes,

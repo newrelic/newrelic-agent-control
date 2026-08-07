@@ -2,9 +2,9 @@
 //! attribute keys, OCI registry defaults, filesystem paths and store keys.
 
 use crate::data_store::StoreKey;
-use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
+use crate::opamp::capabilities::{CustomCapabilities, CustomCapability};
 use opamp_client::capabilities;
-use opamp_client::opamp::proto::{AgentCapabilities, CustomCapabilities};
+use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 
 /// Reserved identifier of the Agent Control itself.
@@ -174,11 +174,9 @@ pub fn default_capabilities() -> Capabilities {
     )
 }
 
-/// Returns the default OpAMP [`CustomCapabilities`] advertised by Agent Control.
+/// Returns the default custom capabilities advertised by Agent Control.
 pub fn default_custom_capabilities() -> CustomCapabilities {
-    CustomCapabilities {
-        capabilities: vec![SIGNATURE_CUSTOM_CAPABILITY.to_string()],
-    }
+    vec![CustomCapability::Signature].into()
 }
 
 /// Agent type name of the New Relic infrastructure agent.

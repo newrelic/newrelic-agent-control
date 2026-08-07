@@ -1488,7 +1488,7 @@ dependencies = [
  "reqwest",
  "semver",
  "serde",
- "serde-saphyr 1.0.0",
+ "serde-saphyr 1.0.1",
  "serde_json",
  "tempfile",
  "tokio",
@@ -3057,7 +3057,7 @@ dependencies = [
  "self-replacer",
  "semver",
  "serde",
- "serde-saphyr 1.0.0",
+ "serde-saphyr 1.0.1",
  "serde_json",
  "serial_test",
  "strum 0.28.0",
@@ -3275,7 +3275,7 @@ dependencies = [
  "http 1.5.0",
  "oci-client",
  "serde",
- "serde-saphyr 1.0.0",
+ "serde-saphyr 1.0.1",
  "serde_json",
  "tar",
  "tempfile",
@@ -4408,12 +4408,12 @@ dependencies = [
 
 [[package]]
 name = "serde-saphyr"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bb49c0aa8a5bb88c00b833c11bae50d1611fb89e01336f53b05f7c643b1c883"
+checksum = "af2c6921c8ce48fb1b052b457619d008834039d80325992ed3bc55bbe6c155ad"
 dependencies = [
  "annotate-snippets",
- "base64 0.22.1",
+ "base64 0.23.1",
  "encoding_rs_io",
  "granit-parser 1.0.0",
  "nohash-hasher",

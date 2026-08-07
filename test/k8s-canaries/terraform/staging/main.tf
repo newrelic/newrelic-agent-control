@@ -32,7 +32,7 @@ module "alerts" {
       threshold     = 0.06 # +50% of observed value https://staging.onenr.io/0VRVAJrmJwa
       duration      = 3600
       operator      = "above"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+      template_name = "./alert_nrql_templates/generic_metric_max.tftpl"
     },
     {
       name          = "Memory usage (bytes)"
@@ -41,7 +41,7 @@ module "alerts" {
       threshold     = 16000000 # +25% of observed value https://staging.onenr.io/0dQeV0JdVwe
       duration      = 600
       operator      = "above"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+      template_name = "./alert_nrql_templates/generic_metric_max.tftpl"
     },
     {
       name          = "Storage usage (bytes)"
@@ -50,7 +50,7 @@ module "alerts" {
       threshold     = 10000 # 10 KB
       duration      = 3600
       operator      = "above"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+      template_name = "./alert_nrql_templates/generic_metric_max.tftpl"
     },
     # Trigger alert if no metrics
     {
@@ -60,7 +60,7 @@ module "alerts" {
       threshold     = 0
       duration      = 3600
       operator      = "below_or_equals"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+      template_name = "./alert_nrql_templates/generic_metric_max.tftpl"
     },
     {
       name          = "Memory usage (bytes)"
@@ -69,7 +69,7 @@ module "alerts" {
       threshold     = 0
       duration      = 600
       operator      = "below_or_equals"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+      template_name = "./alert_nrql_templates/generic_metric_max.tftpl"
     },
     {
       # This alert should detect slow memory leaks.
@@ -92,7 +92,7 @@ module "alerts" {
       threshold          = 210000
       duration           = 21600
       operator           = "above"
-      template_name      = "./alert_nrql_templates/generic_metric_derivative.tftpl"
+      template_name      = "./alert_nrql_templates/generic_metric_plain.tftpl"
     },
     {
       name          = "Agent Control container"

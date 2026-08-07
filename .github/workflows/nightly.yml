@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   build-packages:
@@ -60,7 +61,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      - uses: ./.github/actions/download-artifact-retry
         with:
           name: built-binaries-0.100.${{ github.run_id }}
           path: ./
@@ -222,10 +223,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      - uses: ./.github/actions/download-artifact-retry
         with:
           pattern: e2e-result-*
-          merge-multiple: true
+          merge-multiple: "true"
           path: e2e-results/
 
       - name: Send e2e summary to Slack

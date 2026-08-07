@@ -19,8 +19,7 @@ use newrelic_agent_control::agent_control::defaults::{
     OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
     OPAMP_SUPERVISOR_KEY, PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities,
 };
-use newrelic_agent_control::agent_control::run::k8s::K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY;
-use newrelic_agent_control::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
+use newrelic_agent_control::opamp::capabilities::CustomCapability;
 use nix::unistd::gethostname;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
@@ -120,8 +119,7 @@ agents:
     ]));
 
     // Check attributes and capabilities of Agent Control. With cd_release_name set and
-    // cd_enabled defaulting to true, the K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY must NOT
-    // be reported.
+    // cd_enabled defaulting to true, the k8s_config_only_agents capability must NOT be reported.
     retry(60, Duration::from_secs(5), || {
         check_latest_identifying_attributes_match_expected(
             &server,
@@ -137,7 +135,7 @@ agents:
         check_custom_capabilities_match(
             &server,
             &instance_id,
-            HashSet::from([SIGNATURE_CUSTOM_CAPABILITY.to_string()]),
+            HashSet::from([CustomCapability::Signature.to_string()]),
         )?;
         Ok(())
     });
@@ -202,7 +200,7 @@ agents:
         check_custom_capabilities_match(
             &server,
             &instance_id_sub_agent,
-            HashSet::from([SIGNATURE_CUSTOM_CAPABILITY.to_string()]),
+            HashSet::from([CustomCapability::Signature.to_string()]),
         )?;
         Ok(())
     })
@@ -237,8 +235,8 @@ fn k8s_test_custom_capabilities_when_cd_disabled() {
             &server,
             &instance_id,
             HashSet::from([
-                SIGNATURE_CUSTOM_CAPABILITY.to_string(),
-                K8S_CONFIG_ONLY_AGENTS_CUSTOM_CAPABILITY.to_string(),
+                CustomCapability::Signature.to_string(),
+                CustomCapability::K8sConfigOnlyAgents.to_string(),
             ]),
         )?;
         Ok(())
