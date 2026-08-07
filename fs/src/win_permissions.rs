@@ -29,7 +29,7 @@ fn get_administrator_sid() -> io::Result<Vec<u8>> {
             Some(PSID(sid.as_mut_ptr() as *mut ffi::c_void)),
             &mut sid_size,
         )
-        .map_err(|e| io::Error::other(format!("Failed to create administrator SID: {e}")))?;
+        .map_err(|e| io::Error::other(format!("failed to create administrator SID: {e}")))?;
     }
 
     Ok(sid)
@@ -52,7 +52,7 @@ pub(crate) fn set_file_permissions_for_administrator(path: &Path) -> io::Result<
     let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
 
     let admin_sid = get_administrator_sid()
-        .map_err(|e| io::Error::other(format!("Failed to get administrator sid: {}", e)))?;
+        .map_err(|e| io::Error::other(format!("failed to get administrator SID: {e}")))?;
 
     // Define the trustee (windows ACL entity) with the current user SID
     let trustee = TRUSTEE_W {
@@ -93,7 +93,7 @@ pub(crate) fn set_file_permissions_for_administrator(path: &Path) -> io::Result<
         // We pass None because we overwrite the old ACL
         SetEntriesInAclW(Some(&[access_entry]), None, &mut acl)
             .ok()
-            .map_err(|e| io::Error::other(format!("Failed to set entries in ACL: {e}")))?;
+            .map_err(|e| io::Error::other(format!("failed to set entries in ACL: {e}")))?;
 
         // https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setnamedsecurityinfow
         // Set the security descriptor with the new ACL.
@@ -109,7 +109,7 @@ pub(crate) fn set_file_permissions_for_administrator(path: &Path) -> io::Result<
             None,
         )
         .ok()
-        .map_err(|e| io::Error::other(format!("Failed to set security descriptor: {e}")))?;
+        .map_err(|e| io::Error::other(format!("failed to set security descriptor: {e}")))?;
 
         trace!(path = %path.display(), "applied Administrators-only DACL");
         Ok(())
@@ -335,13 +335,14 @@ fn repair_tree(path: &Path, report: &mut RepairReport) {
                     Ok(entry) => repair_tree(&entry.path(), report),
                     Err(e) => report.record_failure(
                         path,
-                        io::Error::other(format!("reading a directory entry: {e}")),
+                        io::Error::other(format!("failed to read a directory entry: {e}")),
                     ),
                 });
             }
-            Err(e) => {
-                report.record_failure(path, io::Error::other(format!("listing directory: {e}")))
-            }
+            Err(e) => report.record_failure(
+                path,
+                io::Error::other(format!("failed to list directory: {e}")),
+            ),
         }
     }
 }
@@ -418,7 +419,7 @@ pub mod tests {
                 Some(PSID(admin_sid.as_mut_ptr() as *mut ffi::c_void)),
                 &mut admin_sid_size,
             )
-            .expect("Failed to create administrator SID");
+            .expect("failed to create administrator SID");
 
             // Get file's DACL
             let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
@@ -436,7 +437,7 @@ pub mod tests {
                 &mut security_descriptor,
             );
 
-            assert_eq!(result, ERROR_SUCCESS, "Failed to get security info");
+            assert_eq!(result, ERROR_SUCCESS, "failed to get security info");
             assert!(!dacl.is_null(), "DACL should not be null");
 
             // Verify exactly 1 ACE
@@ -447,15 +448,15 @@ pub mod tests {
                 mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
                 AclSizeInformation,
             )
-            .expect("Failed to get ACL information");
+            .expect("failed to get ACL information");
             assert_eq!(
                 acl_size_info.AceCount, 1,
-                "Should have exactly 1 ACE (Administrators only)"
+                "should have exactly 1 ACE (Administrators only)"
             );
 
             // Verify ACE is for Administrators with Read/Write permissions
             let mut ace_ptr: *mut ffi::c_void = ptr::null_mut();
-            GetAce(dacl, 0, &mut ace_ptr).expect("Failed to get ACE");
+            GetAce(dacl, 0, &mut ace_ptr).expect("failed to get ACE");
 
             let ace_ptr = ptr::NonNull::new(ace_ptr as *mut ACCESS_ALLOWED_ACE)
                 .expect("ACE pointer should not be null");
@@ -505,7 +506,7 @@ pub mod tests {
                 Some(PSID(admin_sid.as_mut_ptr() as *mut ffi::c_void)),
                 &mut admin_sid_size,
             )
-            .expect("Failed to create administrator SID");
+            .expect("failed to create administrator SID");
 
             let path_wstr: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
             let mut dacl: *mut ACL = ptr::null_mut();
@@ -520,7 +521,7 @@ pub mod tests {
                 None,
                 &mut security_descriptor,
             );
-            assert_eq!(result, ERROR_SUCCESS, "Failed to get child security info");
+            assert_eq!(result, ERROR_SUCCESS, "failed to get child security info");
             assert!(!dacl.is_null(), "child DACL should not be null");
 
             let mut acl_size_info: ACL_SIZE_INFORMATION = mem::zeroed();
@@ -530,7 +531,7 @@ pub mod tests {
                 mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
                 AclSizeInformation,
             )
-            .expect("Failed to get child ACL information");
+            .expect("failed to get child ACL information");
 
             let mut inherited_admin = false;
             for i in 0..acl_size_info.AceCount {
@@ -582,7 +583,7 @@ pub mod tests {
                 &mut security_descriptor,
             )
             .ok()
-            .expect("Failed to get child security info");
+            .expect("failed to get child security info");
             assert!(
                 !dacl.is_null(),
                 "expected a present (empty) DACL; a null DACL would grant everyone — the repro is wrong"
@@ -595,7 +596,7 @@ pub mod tests {
                 mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
                 AclSizeInformation,
             )
-            .expect("Failed to get child ACL information");
+            .expect("failed to get child ACL information");
             assert_eq!(
                 acl_size_info.AceCount, 0,
                 "expected an EMPTY DACL (0 ACEs) reproducing the pre-fix propagation wipe; found {} ACE(s)",
