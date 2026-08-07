@@ -1,10 +1,7 @@
-use std::ffi;
-use std::io;
-use std::mem;
 use std::os::windows::ffi::OsStrExt;
-use std::path::Path;
-use std::ptr;
-use tracing::{debug, trace};
+use std::path::{Path, PathBuf};
+use std::{ffi, fmt, fs, io, mem, ptr};
+use tracing::{debug, info, trace, warn};
 use windows::Win32::Security::Authorization::{
     EXPLICIT_ACCESS_W, GetNamedSecurityInfoW, SE_FILE_OBJECT, SET_ACCESS, SetEntriesInAclW,
     SetNamedSecurityInfoW, TRUSTEE_IS_SID, TRUSTEE_W,
@@ -252,21 +249,135 @@ pub fn permissions_need_repair(path: &Path) -> bool {
     }
 }
 
-/// Checks and repairs the managed Administrators-only permissions across `path` and everything
-/// beneath it, re-stamping only the entries that are actually broken.
+/// Outcome of a best-effort permissions repair walk: which entries it re-stamped and which it could
+/// not fix.
+///
+/// The walk never aborts, so it always returns a report rather than a `Result`; `#[must_use]` keeps
+/// the caller from silently dropping it. Call [`RepairReport::log`] to emit the outcome — that method
+/// owns the "how to report" decision so callers don't hand-roll (and risk contradictory) log lines.
+#[derive(Debug, Default)]
+#[must_use]
+pub struct RepairReport {
+    repaired: Vec<PathBuf>,
+    failed: Vec<(PathBuf, io::Error)>,
+}
+
+impl RepairReport {
+    /// Whether any entry could not be repaired. (Mainly for tests to assert a clean run.)
+    pub fn has_failed(&self) -> bool {
+        !self.failed.is_empty()
+    }
+
+    /// Emits a single tracing record summarizing the outcome, so the two states never print as
+    /// separate, seemingly-contradictory lines:
+    /// - **any failures** → one `warn` (with the repaired/failed counts and the per-entry failures),
+    ///   since that's the actionable state — startup continues regardless;
+    /// - **only repairs, no failures** → one `info` with the repaired count (a healed machine is
+    ///   worth surfacing, but it's not a problem);
+    /// - **nothing to repair** → silent (the per-entry `trace` "intact, skipping" lines already
+    ///   cover a healthy tree).
+    ///
+    /// Per-entry detail (which path was repaired, or why one was flagged) is logged during the walk
+    /// at `debug`/`trace`; this is only the summary.
+    pub fn log(&self) {
+        if !self.failed.is_empty() {
+            warn!(
+                repaired = self.repaired.len(),
+                failed = self.failed.len(),
+                failures = %FailedEntries(&self.failed),
+                "some managed permissions could not be repaired; continuing startup"
+            );
+        } else if !self.repaired.is_empty() {
+            info!(
+                repaired = self.repaired.len(),
+                "repaired managed permissions on startup"
+            );
+        }
+    }
+
+    /// Records a successfully re-stamped entry, logging it at `debug`.
+    fn record_repaired(&mut self, path: &Path) {
+        debug!(path = %path.display(), "repaired managed permissions");
+        self.repaired.push(path.to_path_buf());
+    }
+
+    /// Records an entry that could not be repaired (or listed), logging its specific error at
+    /// `debug` so the cause is visible during the walk — even without the aggregate `warn`.
+    fn record_failure(&mut self, path: &Path, error: io::Error) {
+        debug!(path = %path.display(), %error, "could not repair managed entry");
+        self.failed.push((path.to_path_buf(), error));
+    }
+}
+
+/// `Display` adapter for the failed entries — a `path: reason` list, so [`RepairReport::log`] can
+/// render them on one line without allocating or exposing the inner `Vec`. The count/framing lives
+/// in the log message and fields, so this carries only the per-entry detail.
+struct FailedEntries<'a>(&'a [(PathBuf, io::Error)]);
+
+impl fmt::Display for FailedEntries<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.iter().enumerate().try_for_each(|(i, (path, e))| {
+            if i > 0 {
+                write!(f, "; ")?;
+            }
+            write!(f, "{}: {e}", path.display())
+        })
+    }
+}
+
+/// Best-effort recursive repair worker: walks `path` and everything beneath it, re-stamping the
+/// broken entries and recording the outcome in `report` — the repaired path on success, `(path,
+/// reason)` on failure — before continuing. It never short-circuits, which is what makes the walk
+/// exhaustive and lets [`ensure_managed_permissions`] report *all* outcomes, not just the first
+/// failure.
+fn repair_tree(path: &Path, report: &mut RepairReport) {
+    if !path.exists() {
+        return;
+    }
+
+    if permissions_need_repair(path) {
+        match set_file_permissions_for_administrator(path) {
+            Ok(()) => report.record_repaired(path),
+            Err(e) => report.record_failure(path, e.into()),
+        }
+    } else {
+        trace!(path = %path.display(), "managed permissions intact, skipping");
+    }
+
+    if path.is_dir() {
+        match fs::read_dir(path) {
+            Ok(entries) => {
+                entries.for_each(|entry| match entry {
+                    Ok(entry) => repair_tree(&entry.path(), report),
+                    Err(e) => report.record_failure(
+                        path,
+                        io::Error::other(format!("reading a directory entry: {e}")),
+                    ),
+                });
+            }
+            Err(e) => {
+                report.record_failure(path, io::Error::other(format!("listing directory: {e}")))
+            }
+        }
+    }
+}
+
+/// Checks and repairs the managed Administrators-only permissions across each root in `roots` and
+/// everything beneath it (e.g. a sub-agent's `filesystem/`, stored remote configs under
+/// `fleet-data/`, local data), re-stamping only the entries that are actually broken.
 ///
 /// For each entry it checks (via [`permissions_need_repair`]) whether the DACL already grants the
-/// managed Administrators access. It attempts to re-stamp only entries whose ACE are:
+/// managed Administrators access, and re-stamps only entries whose ACE is empty/`NULL`, unreadable,
+/// or populated-but-insufficient (e.g. the old `Administrators:(R,W)` with no `DELETE`, or a
+/// non-inheritable directory ACE). Conforming entries are left untouched, so a healthy tree is not
+/// rewritten on every startup. A broken directory is stamped *before* its contents are listed so it
+/// becomes listable first. Agent Control owns these files, so the rewrite succeeds even on an empty
+/// DACL.
 ///
-/// - Empty (denies everyone incl. `SYSTEM`) or `NULL`.
-/// - Unreadable.
-/// - Populated but insufficient (e.g. the old `Administrators:(R,W)` with no `DELETE` that blocks
-///   decommission, or a non-inheritable directory ACE).
-///
-/// Conforming entries are left untouched, so a healthy tree is not rewritten on every startup. It
-/// always recurses into directories to find broken children, and a broken directory is stamped
-/// *before* its contents are listed so it becomes listable first. Agent Control owns these files, so
-/// the rewrite succeeds even on an empty DACL.
+/// Best-effort: the walk never short-circuits, so it always completes and returns a [`RepairReport`]
+/// describing everything it repaired and everything (across every root) it could not — never a fatal
+/// error. It is up to the caller how to react (the on-host runner logs and continues). A missing root
+/// is not an error.
 ///
 /// Caveats (not currently hit in practice, but worth knowing before extending this):
 ///
@@ -277,43 +388,13 @@ pub fn permissions_need_repair(path: &Path) -> bool {
 /// - `path.is_dir()` and `read_dir` follow reparse points/symlinks, so a symlink planted inside a
 ///   managed tree would be traversed and re-ACL'd rather than skipped. Low risk given the tree is
 ///   Administrators-only to begin with, but there is no explicit guard against it.
-pub fn ensure_permissions_recursive(path: &Path) -> io::Result<()> {
-    if !path.exists() {
-        return Ok(());
-    }
-
-    if permissions_need_repair(path) {
-        debug!(path = %path.display(), "repairing managed permissions");
-        set_file_permissions_for_administrator(path).map_err(|err| {
-            io::Error::other(format!(
-                "setting windows permissions for {}: {err}",
-                path.display()
-            ))
-        })?;
-    } else {
-        trace!(path = %path.display(), "managed permissions intact, skipping");
-    }
-
-    if path.is_dir() {
-        std::fs::read_dir(path)?
-            .try_for_each(|entry| ensure_permissions_recursive(&entry?.path()))?;
-    }
-
-    Ok(())
-}
-
-/// Runs [`ensure_permissions_recursive`] over each root in `roots`, repairing the managed
-/// Administrators-only permissions across every root's tree (e.g. a sub-agent `filesystem/`, stored
-/// remote configs under `fleet-data/`, local data).
-///
-/// Fails fast: the first root — or any entry within it — that cannot be repaired aborts the whole
-/// call with that error, on the principle that a caller should not run on a data tree it cannot fully
-/// access. A missing root is not an error.
-pub fn ensure_managed_permissions<'a>(roots: impl IntoIterator<Item = &'a Path>) -> io::Result<()> {
-    roots.into_iter().try_for_each(|root| {
+pub fn ensure_managed_permissions<'a>(roots: impl IntoIterator<Item = &'a Path>) -> RepairReport {
+    let mut report = RepairReport::default();
+    for root in roots {
         debug!(path = %root.display(), "ensuring correct ACL for managed root");
-        ensure_permissions_recursive(root)
-    })
+        repair_tree(root, &mut report);
+    }
+    report
 }
 
 #[cfg(test)]
@@ -613,7 +694,7 @@ pub mod tests {
     ///
     /// This reproduces the true production state through the genuine pre-fix mechanism
     /// (`legacy_harden_non_inheritable`, which wipes the inherited-only child to an empty DACL), then
-    /// proves the repair heals it. The repair is `ensure_permissions_recursive`, which re-stamps the
+    /// proves the repair heals it. The repair is `ensure_managed_permissions`, which re-stamps the
     /// Administrators DACL directly onto every existing entry — it does NOT rely on inheritance
     /// propagation reaching an already-empty child. The `assert_dacl_is_empty` checkpoint guarantees we actually
     /// recreated the empty-DACL state and did not silently fall back to the token-default path.
@@ -647,8 +728,10 @@ pub mod tests {
         // The fix: recursively re-stamp the managed permissions. This rewrites the empty child's DACL
         // directly (Agent Control owns it, so this works even on an empty DACL) — no reliance on
         // inheritance propagation reaching the child.
-        ensure_permissions_recursive(&managed_dir)
-            .expect("recursive permission repair should succeed");
+        assert!(
+            !ensure_managed_permissions([managed_dir.as_path()]).has_failed(),
+            "recursive permission repair should succeed"
+        );
         assert_windows_permissions(&child); // child now carries its own Administrators entry
         assert!(
             fs::OpenOptions::new().write(true).open(&child).is_ok(),
@@ -708,8 +791,10 @@ pub mod tests {
         assert_dacl_is_empty(&subdir);
         assert_dacl_is_empty(&nested_file);
 
-        ensure_permissions_recursive(&managed_dir)
-            .expect("recursive permission repair should succeed");
+        assert!(
+            !ensure_managed_permissions([managed_dir.as_path()]).has_failed(),
+            "recursive permission repair should succeed"
+        );
 
         // The empty directory was repaired (hence listable, so recursion could descend into it), and
         // the file nested beneath it was healed too.
@@ -740,8 +825,10 @@ pub mod tests {
         assert_dacl_is_empty(&child);
 
         // The repair re-stamps DELETE (via the Administrators ACE) across the tree.
-        ensure_permissions_recursive(&managed_dir)
-            .expect("recursive permission repair should succeed");
+        assert!(
+            !ensure_managed_permissions([managed_dir.as_path()]).has_failed(),
+            "recursive permission repair should succeed"
+        );
 
         // Cleanup now succeeds where a decommission previously failed with os error 5.
         fs::remove_dir_all(&managed_dir)
@@ -808,8 +895,10 @@ pub mod tests {
         );
 
         // The repair re-stamps the full managed rights (Modify, which includes DELETE).
-        ensure_permissions_recursive(&managed_dir)
-            .expect("recursive permission repair should succeed");
+        assert!(
+            !ensure_managed_permissions([managed_dir.as_path()]).has_failed(),
+            "recursive permission repair should succeed"
+        );
         assert_windows_permissions(&cfg); // now Administrators Modify (read/write/execute/delete)
 
         // And the config is now deletable, so decommission cleanup succeeds.
@@ -834,7 +923,10 @@ pub mod tests {
             "a non-inheritable managed directory must be flagged for repair"
         );
 
-        ensure_permissions_recursive(&dir).expect("recursive permission repair should succeed");
+        assert!(
+            !ensure_managed_permissions([dir.as_path()]).has_failed(),
+            "recursive permission repair should succeed"
+        );
 
         // assert_windows_permissions requires a directory's ACE to grant the full managed rights AND
         // be inheritable (OI|CI), so this proves the directory was normalized.

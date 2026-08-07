@@ -95,19 +95,16 @@ impl AgentControlRunner {
         let local_dir = self.base_paths.local_dir;
         let remote_dir = self.base_paths.remote_dir;
 
-        // Windows-only: check and repair the managed data tree before anything reads/writes/deletes
-        // it (see NR-601065). Fails early — we cannot ensure proper AC operation if permissions
-        // aren't right.
+        // Windows-only: best-effort repair of the managed data tree before anything reads/writes/
+        // deletes it (see NR-601065). Any entries that could not be repaired are logged as a warning
+        // and do NOT stop startup — a self-update can still heal permissions, so blocking here would
+        // risk locking AC out of the very update that would fix it.
         #[cfg(target_family = "windows")]
         fs::win_permissions::ensure_managed_permissions([
             remote_dir.as_path(),
             local_dir.as_path(),
         ])
-        .map_err(|e| {
-            RunError(format!(
-                "ensuring correct ACL for the managed data root: {e}"
-            ))
-        })?;
+        .log();
 
         let file_store = Arc::new(FileStore::new_local_fs(
             local_dir.clone(),
