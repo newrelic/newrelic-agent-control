@@ -7,6 +7,10 @@ on:
         description: 'The message to include in the Slack notification'
         required: true
         type: string
+    secrets:
+      slack_webhook_url:
+        description: 'Slack webhook URL (optional; falls back to AC_SLACK_WEBHOOK via secrets: inherit)'
+        required: false
 
 permissions:
   contents: read
@@ -24,5 +28,5 @@ jobs:
               "text": ":warning: [${{ inputs.message }}] @hero check <${{ env.GITHUB_JOB_URL }}>"
             }
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
+          SLACK_WEBHOOK_URL: ${{ secrets.slack_webhook_url || secrets.AC_SLACK_WEBHOOK }}
           GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
