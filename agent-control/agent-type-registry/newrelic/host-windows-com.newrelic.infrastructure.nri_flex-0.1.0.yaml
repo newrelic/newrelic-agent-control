@@ -13,6 +13,11 @@ variables:
     description: "Agent version"
     type: string
     required: true
+  files:
+    description: "nri-flex additional files that can be references from configuration"
+    type: string_map
+    required: false
+    default: {}
   oci:
     repository:
       description: "OCI repository name for nri-flex"
@@ -30,6 +35,28 @@ deployment:
           repository: ${nr-var:oci.repository}
           version: ${nr-var:version}
           public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nri-flex/jwks.json
+  # Allows setting up additional files to be referenced from nri-flex configuration.
+  # Example in values:
+  #
+  # ```
+  # files:
+  #   my_script.ps1: |
+  #     <SCRIPT-CONTENT>
+  #
+  # config:
+  #    integrations:
+  #      - name: nri-flex
+  #        interval: 60s
+  #        config:
+  #          - event_type: CustomEvent
+  #            shell: powershell
+  #            commands:
+  #              run ${nr-path:agent_dir}\files\my_script.ps1
+  # ```
+  filesystem:
+    files:
+      kind: dir_content_from_map
+      source: ${nr-var:files}
   shared_filesystem:
     infra-agent-ohi-configs:
       kind: dir
