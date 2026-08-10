@@ -5,10 +5,10 @@ use tracing::info;
 
 use crate::{
     agent_control::run::{
-        RunningMode,
+        RunningMode, build_ac_opamp_start_settings,
         on_host::{
-            ac_identifiers, build_ac_onhost_agent_description, build_ac_opamp_start_settings,
-            opamp_client_builder, start_ac_opamp_client,
+            ac_identifiers, build_ac_onhost_agent_description, opamp_client_builder,
+            start_ac_opamp_client,
         },
     },
     command::on_host_checks::config::VerifiedConfig,
