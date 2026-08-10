@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: read # required by the nested 'verify-windows-signatures' job's download-artifact-retry action
 
 jobs:
   build-packages:
