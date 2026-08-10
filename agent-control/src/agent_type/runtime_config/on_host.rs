@@ -278,16 +278,16 @@ packages:
         vars.insert(
             VariableName::new(
                 Namespace::SubAgent,
-                AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
+                AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
             ),
             Variable::new_final_string_variable("/filesystem"),
         );
         vars.insert(
-            VariableName::new(Namespace::SubAgent, AgentAttributes::VARIABLE_REMOTE_DIR),
+            VariableName::new(Namespace::SubAgent, AgentAttributes::NR_SUB_REMOTE_DIR),
             Variable::new_final_string_variable("remote"),
         );
         vars.insert(
-            VariableName::new(Namespace::SubAgent, AgentAttributes::VARIABLE_SUB_AGENT_ID),
+            VariableName::new(Namespace::SubAgent, AgentAttributes::NR_SUB_AGENT_ID),
             Variable::new_final_string_variable("agent-id"),
         );
 
@@ -419,7 +419,7 @@ executables:
         vars.insert(
             VariableName::new(
                 Namespace::SubAgent,
-                AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
+                AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
             ),
             Variable::new_final_string_variable("/tmp/auto/filesystem"),
         );
@@ -451,16 +451,16 @@ packages:
         vars.insert(
             VariableName::new(
                 Namespace::SubAgent,
-                AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
+                AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
             ),
             Variable::new_final_string_variable("/tmp/auto/filesystem"),
         );
         vars.insert(
-            VariableName::new(Namespace::SubAgent, AgentAttributes::VARIABLE_REMOTE_DIR),
+            VariableName::new(Namespace::SubAgent, AgentAttributes::NR_SUB_REMOTE_DIR),
             Variable::new_final_string_variable("/tmp/auto"),
         );
         vars.insert(
-            VariableName::new(Namespace::SubAgent, AgentAttributes::VARIABLE_SUB_AGENT_ID),
+            VariableName::new(Namespace::SubAgent, AgentAttributes::NR_SUB_AGENT_ID),
             Variable::new_final_string_variable("agent-id"),
         );
 

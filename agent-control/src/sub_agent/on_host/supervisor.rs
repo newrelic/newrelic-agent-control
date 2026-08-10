@@ -914,7 +914,7 @@ declared-dir:
         let variables = Variables::from_iter(vec![(
             VariableName::new(
                 Namespace::SubAgent,
-                AgentAttributes::VARIABLE_FILESYSTEM_AGENT_DIR,
+                AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
             ),
             Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
         )]);
