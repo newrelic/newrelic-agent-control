@@ -111,7 +111,7 @@ pub(crate) fn set_file_permissions_for_administrator(path: &Path) -> io::Result<
         .ok()
         .map_err(|e| io::Error::other(format!("failed to set security descriptor: {e}")))?;
 
-        trace!(path = %path.display(), "applied Administrators-only DACL");
+        trace!(path = %path.display(), "Applied Administrators-only DACL");
         Ok(())
     }
 }
@@ -192,7 +192,7 @@ fn permissions_need_repair(path: &Path) -> bool {
         )
         .ok()
         {
-            trace!(path = %path.display(), error = %err.message(), "cannot read DACL, flagging permissions for repair");
+            trace!(path = %path.display(), error = %err.message(), "Cannot read DACL, flagging permissions for repair");
             return true;
         }
         if dacl.is_null() {
@@ -207,7 +207,7 @@ fn permissions_need_repair(path: &Path) -> bool {
             mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
             AclSizeInformation,
         ) {
-            trace!(path = %path.display(), error = %err.message(), "cannot read ACL info, flagging permissions for repair");
+            trace!(path = %path.display(), error = %err.message(), "Cannot read ACL info, flagging permissions for repair");
             return true;
         }
 
@@ -269,26 +269,26 @@ impl RepairReport {
                 repaired = self.repaired.len(),
                 failed = self.failed.len(),
                 failures = %FailedEntries(&self.failed),
-                "some managed permissions could not be repaired; continuing startup"
+                "Some managed permissions could not be repaired; continuing startup"
             );
         } else if !self.repaired.is_empty() {
             info!(
                 repaired = self.repaired.len(),
-                "repaired managed permissions on startup"
+                "Repaired managed permissions on startup"
             );
         }
     }
 
     /// Records a successfully re-stamped entry, logging it at `debug`.
     fn record_repaired(&mut self, path: &Path) {
-        debug!(path = %path.display(), "repaired managed permissions");
+        debug!(path = %path.display(), "Repaired managed permissions");
         self.repaired.push(path.to_path_buf());
     }
 
     /// Records an entry that could not be repaired (or listed), logging its specific error at
     /// `debug` so the cause is visible during the walk — even without the aggregate `warn`.
     fn record_failure(&mut self, path: &Path, error: io::Error) {
-        debug!(path = %path.display(), %error, "could not repair managed entry");
+        debug!(path = %path.display(), %error, "Could not repair managed entry");
         self.failed.push((path.to_path_buf(), error));
     }
 }
@@ -325,7 +325,7 @@ fn repair_tree(path: &Path, report: &mut RepairReport) {
             Err(e) => report.record_failure(path, e),
         }
     } else {
-        trace!(path = %path.display(), "managed permissions intact, skipping");
+        trace!(path = %path.display(), "Managed permissions intact, skipping");
     }
 
     if path.is_dir() {
@@ -376,7 +376,7 @@ fn repair_tree(path: &Path, report: &mut RepairReport) {
 pub fn ensure_managed_permissions<'a>(roots: impl IntoIterator<Item = &'a Path>) -> RepairReport {
     let mut report = RepairReport::default();
     for root in roots {
-        debug!(path = %root.display(), "ensuring correct ACL for managed root");
+        debug!(path = %root.display(), "Ensuring correct ACL for managed root");
         repair_tree(root, &mut report);
     }
     report
