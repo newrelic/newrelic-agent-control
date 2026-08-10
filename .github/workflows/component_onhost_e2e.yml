@@ -169,7 +169,7 @@ jobs:
             --apache-version "${{ env.HOST_E2E_APACHE_VERSION }}" `
             --nginx-version "${{ env.HOST_E2E_NGINX_VERSION }}" `
             --memcached-version "${{ env.HOST_E2E_MEMCACHED_VERSION }}" `
-            --redis-version "${{ env.HOST_E2E_REDIS_VERSION }}"
+            --redis-version "${{ env.HOST_E2E_REDIS_VERSION }}"  `
             --flex-version "${{ env.HOST_E2E_FLEX_VERSION }}"
 
       - name: Report test result to New Relic

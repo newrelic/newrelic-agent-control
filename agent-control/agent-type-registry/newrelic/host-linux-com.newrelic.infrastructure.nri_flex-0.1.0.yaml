@@ -44,13 +44,15 @@ deployment:
   #     <SCRIPT-CONTENT>
   #
   # config:
-  #    integrations:
-  #      - name: nri-flex
-  #        interval: 60s
-  #        config:
-  #          - event_type: CustomEvent
-  #            commands:
-  #              run ${nr-path:agent_dir}/files/my_script.sh
+  #   integrations:
+  #     - name: nri-flex
+  #       interval: 60s
+  #       config:
+  #         name: my-flex
+  #         apis:
+  #           - event_type: CustomEvent
+  #             commands:
+  #               - run: bash ${nr-path:agent_dir}/files/my_script.sh
   # ```
   filesystem:
     files:

@@ -44,14 +44,18 @@ deployment:
   #     <SCRIPT-CONTENT>
   #
   # config:
-  #    integrations:
-  #      - name: nri-flex
-  #        interval: 60s
-  #        config:
-  #          - event_type: CustomEvent
-  #            shell: powershell
-  #            commands:
-  #              run ${nr-path:agent_dir}\files\my_script.ps1
+  #   integrations:
+  #     - name: nri-flex
+  #       interval: 60s
+  #       config:
+  #         name: my-flex
+  #         apis:
+  #           - event_type: CustomEvent
+  #             shell: powershell
+  #             commands:
+  #               # The agent dir can contain spaces (e.g. "New Relic"), so quote the path and
+  #               # use the call operator "&" rather than referencing it as a bare command.
+  #               - run: '& "${nr-path:agent_dir}\files\my_script.ps1"'
   # ```
   filesystem:
     files:

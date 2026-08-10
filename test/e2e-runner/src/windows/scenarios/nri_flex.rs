@@ -1,5 +1,4 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
-use crate::common::http_stub::JsonStub;
 use crate::common::nrql;
 use crate::common::ohi::{
     EMBEDDED_WINDOWS_OHI_BINARIES, SHARED_WINDOWS_FILESYSTEM_DIR, check_ohi_shared_filesystem,
@@ -12,8 +11,6 @@ use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, t
 use crate::windows::service::{STATUS_RUNNING, restart_service};
 use std::time::Duration;
 use tracing::info;
-
-const STUB_BODY: &str = r#"{"value": 42}"#;
 
 // TODO: Remove once flex is published
 // Dev OCI packages pre-populated on ghcr.io.
@@ -40,8 +37,6 @@ pub fn test_nri_flex(args: InstallationArgs) {
     };
     let _clean_up = CleanUp::new(tear_down_test);
     install_agent_control_from_recipe(&recipe_data);
-
-    let stub = JsonStub::start(STUB_BODY);
 
     update_config(
         windows::DEFAULT_AC_CONFIG_PATH,
@@ -82,11 +77,19 @@ oci:
         ),
     );
 
-    let stub_port = stub.port();
+    // Exercises the nri-flex `files` variable: two independent files are rendered by AC under
+    // ${{nr-path:agent_dir}}\files\ and each is wired into its own `commands` API below. This
+    // proves both that multiple map entries land on disk and that each is independently usable
+    // from the integration config.
     write_agent_local_config(
         &windows::local_config_path("nr-flex"),
         format!(
             r#"
+files:
+  metric_one.ps1: |
+    Write-Output '{{"metric_one_value": 111}}'
+  metric_two.ps1: |
+    Write-Output '{{"metric_two_value": 222}}'
 config:
   integrations:
     - name: nri-flex
@@ -95,7 +98,15 @@ config:
         name: e2e-flex
         apis:
           - event_type: FlexE2ESample
-            url: http://127.0.0.1:{stub_port}/metrics
+            shell: powershell
+            commands:
+              - run: '& "${{nr-path:agent_dir}}\files\metric_one.ps1"'
+            custom_attributes:
+              test.id: {test_id}
+          - event_type: FlexE2ESample
+            shell: powershell
+            commands:
+              - run: '& "${{nr-path:agent_dir}}\files\metric_two.ps1"'
             custom_attributes:
               test.id: {test_id}
 version: {flex_version}
@@ -107,12 +118,32 @@ oci:
 
     restart_service(SERVICE_NAME, STATUS_RUNNING);
 
-    let nrql_query =
-        format!(r#"SELECT * FROM FlexE2ESample WHERE `test.id` = '{test_id}' LIMIT 1"#);
-    info!(nrql = nrql_query, "Waiting for FlexE2ESample data in NRDB");
-    retry_panic(60, Duration::from_secs(10), "FlexE2ESample NRQL", || {
-        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
-    });
+    let metric_one_query = format!(
+        r#"SELECT * FROM FlexE2ESample WHERE `test.id` = '{test_id}' AND metric_one_value IS NOT NULL LIMIT 1"#
+    );
+    let metric_two_query = format!(
+        r#"SELECT * FROM FlexE2ESample WHERE `test.id` = '{test_id}' AND metric_two_value IS NOT NULL LIMIT 1"#
+    );
+    info!(
+        nrql = metric_one_query,
+        "Waiting for FlexE2ESample data sourced from files.metric_one.ps1"
+    );
+    retry_panic(
+        60,
+        Duration::from_secs(10),
+        "FlexE2ESample from metric_one.ps1",
+        || nrql::check_query_results_are_not_empty(&recipe_data.args, &metric_one_query),
+    );
+    info!(
+        nrql = metric_two_query,
+        "Waiting for FlexE2ESample data sourced from files.metric_two.ps1"
+    );
+    retry_panic(
+        60,
+        Duration::from_secs(10),
+        "FlexE2ESample from metric_two.ps1",
+        || nrql::check_query_results_are_not_empty(&recipe_data.args, &metric_two_query),
+    );
 
     info!("Verifying shared-filesystem files were populated by AC");
     let expected_binaries = [EMBEDDED_WINDOWS_OHI_BINARIES.as_slice(), &["nri-flex.exe"]].concat();
