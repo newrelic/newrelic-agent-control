@@ -172,7 +172,6 @@ jobs:
     if: |
       needs.build.outputs.binary-size-warnings != '' &&
       contains(fromJSON('["schedule", "workflow_dispatch", "release"]'), github.event_name)
-    continue-on-error: true
     uses: ./.github/workflows/component_send_warning_via_slack.yml
     with:
       message: ${{ needs.build.outputs.binary-size-warnings }}
