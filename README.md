@@ -6,7 +6,7 @@ designed to be lightweight and efficient, and it can be configured to collect a 
 traces, logs, and events.
 
 The agent has a modular architecture, with a generic supervisor that is responsible for orchestrating the configured
-agents. It also integrates with New Relic fleet manager.
+agents. It also integrates with New Relic fleet man ager.
 
 - [Getting started](#getting-started)
 - [Documentation](#documentation)
