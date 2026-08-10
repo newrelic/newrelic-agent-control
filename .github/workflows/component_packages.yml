@@ -22,6 +22,18 @@ on:
       pfx_passphrase:
         description: 'Passphrase of the PFX certificate'
         required: false
+      nr_account_id:
+        description: 'New Relic account ID for binary size reporting (optional)'
+        required: false
+      nr_license_key:
+        description: 'New Relic license key, Events API ingest key (optional)'
+        required: false
+      nr_user_api_key:
+        description: 'New Relic User API key for the growth check via NerdGraph (optional)'
+        required: false
+      slack_webhook_url:
+        description: 'Slack webhook for binary size growth warnings (optional)'
+        required: false
     inputs:
       pre-release:
         description: 'set to true if running a real pre-release'
@@ -41,6 +53,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     name: Build and upload
+    outputs:
+      binary-size-warnings: ${{ steps.binary-size.outputs.warnings }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -117,6 +131,29 @@ jobs:
           GORELEASER_CURRENT_TAG: ${{ inputs.tag_name }}
           SKIP_WINDOWS_SIGN: ${{ env.SKIP_WINDOWS_SIGN }}
 
+      - name: Report binary sizes to New Relic
+        id: binary-size
+        env:
+          BINARY_VERSION: ${{ inputs.tag_name }}
+          NR_ACCOUNT_ID: ${{ secrets.nr_account_id }}
+          NR_LICENSE_KEY: ${{ secrets.nr_license_key }}
+          NR_USER_API_KEY: ${{ secrets.nr_user_api_key }}
+          WARNINGS_FILE: binary-size-warnings.txt
+        run: |
+          : > "$WARNINGS_FILE"
+          for path in dist/*/newrelic-agent-control dist/*/newrelic-agent-control-cli dist/*/newrelic-agent-control.exe dist/*/newrelic-agent-control-cli.exe; do
+            [ -f "$path" ] || continue
+            export BINARY_PATH="$path"
+            bash .github/workflows/scripts/report_binary_size.sh
+          done
+          if [ -s "$WARNINGS_FILE" ]; then
+            {
+              echo "warnings<<EOF"
+              cat "$WARNINGS_FILE"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload assets to pipeline
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -125,6 +162,22 @@ jobs:
           path: |
             ./bin/*
             ./dist/*
+
+  notify-binary-size-growth:
+    name: Warn on binary size growth
+    needs: build
+    # Keep this event allow-list in sync with TRACKED_TRIGGER_EVENTS in report_binary_size.sh:
+    # only nightly (schedule/workflow_dispatch) and real pre-releases (release) build comparable
+    # binaries. Explicit here too so a PR run can never trigger this, even if warnings weren't empty.
+    if: |
+      needs.build.outputs.binary-size-warnings != '' &&
+      contains(fromJSON('["schedule", "workflow_dispatch", "release"]'), github.event_name)
+    continue-on-error: true
+    uses: ./.github/workflows/component_send_warning_via_slack.yml
+    with:
+      message: ${{ needs.build.outputs.binary-size-warnings }}
+    secrets:
+      slack_webhook_url: ${{ secrets.slack_webhook_url }}
 
   verify-windows-signatures:
     runs-on: windows-latest
