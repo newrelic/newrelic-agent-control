@@ -50,7 +50,7 @@ jobs:
         with:
           version: 0.15.2
 
-      - uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
+      - uses: taiki-e/install-action@7f4eb899022d8fe70b20c4f3de697aa85c309026 # v2.85.11
         with:
           tool: cargo-zigbuild@0.20.1
 
@@ -67,7 +67,7 @@ jobs:
 
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
         with:
-          version: v0.36.0
+          version: v0.36.1
 
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
