@@ -43,6 +43,20 @@ variables:
     description: "Agent version"
     type: string
     required: true
+  nrjmx:
+    version:
+      description: "nrjmx version"
+      type: string
+      required: true
+    oci:
+      repository:
+        description: "OCI repository name for nrjmx"
+        type: string
+        required: false
+        default: newrelic/nrjmx-artifacts
+        variants:
+          ac_config_field: "oci_repository_urls"
+          values: [ "newrelic/nrjmx-artifacts" ]
 deployment:
   enable_file_logging: ${nr-var:enable_file_logging}
   health:
@@ -54,6 +68,7 @@ deployment:
       - kind: Http
         path: "/v1/status/health"
         port: ${nr-var:health_port}
+  reported_version_package: infra-agent
   packages:
     infra-agent:
       download:
@@ -61,6 +76,12 @@ deployment:
           repository: ${nr-var:oci.repository}
           version: ${nr-var:version}
           public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrinfraagent/jwks.json
+    nrjmx:
+      download:
+        oci:
+          repository: ${nr-var:nrjmx.oci.repository}
+          version: ${nr-var:nrjmx.version}
+          public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrjmx/jwks.json
   filesystem:
     config:
       kind: dir
@@ -105,6 +126,14 @@ deployment:
         nri-prometheus:
           kind: file
           copy_from_file: ${nr-sub:packages.infra-agent.dir}/integrations/nri-prometheus
+    # nrjmx binary, a JMX bridge used by JMX-based OHIs.
+    # Integrations that need it should declare NR_JMX_TOOL pointing to this folder's nrjmx binary.
+    jmx-tool:
+      kind: dir
+      entries:
+        nrjmx:
+          kind: file
+          copy_from_file: ${nr-sub:packages.nrjmx.dir}/nrjmx
   executables:
     - id: newrelic-infra
       path: ${nr-sub:packages.infra-agent.dir}/newrelic-infra
