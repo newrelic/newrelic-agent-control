@@ -110,6 +110,10 @@ pub struct InstallationArgs {
     /// Version of the nri-memcached OCI image to use in tests
     #[arg(long)]
     pub memcached_version: Option<String>,
+
+    /// Version of the nri-flex OCI image to use in tests
+    #[arg(long)]
+    pub flex_version: Option<String>,
 }
 
 /// Arguments for Fleet Control scenarios that also install Agent Control
