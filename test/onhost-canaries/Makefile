@@ -88,6 +88,8 @@ test/onhost-canaries/infra-plan:
 	TF_VAR_emails="${EMAILS}" \
 	terraform -chdir=$(ONHOST_TF_DIR) plan -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
+# -parallelism=1: the alerts module is for_each'd per canary host, and New Relic's API
+# rejects concurrent mutations against the same account with ENTITY_IN_USE.
 .PHONY: test/onhost-canaries/infra-apply
 test/onhost-canaries/infra-apply:
 	@$(call check_env_vars_infra)
@@ -97,8 +99,9 @@ test/onhost-canaries/infra-apply:
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
 	TF_VAR_emails="${EMAILS}" \
-	terraform -chdir=$(ONHOST_TF_DIR) apply -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
+	terraform -chdir=$(ONHOST_TF_DIR) apply -auto-approve -parallelism=1 -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
+# -parallelism=1: same ENTITY_IN_USE risk as infra-apply, see comment above.
 .PHONY: test/onhost-canaries/infra-destroy
 test/onhost-canaries/infra-destroy:
 	@$(call check_env_vars_infra)
@@ -108,7 +111,7 @@ test/onhost-canaries/infra-destroy:
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
 	TF_VAR_emails="${EMAILS}" \
-	terraform -chdir=$(ONHOST_TF_DIR) destroy -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
+	terraform -chdir=$(ONHOST_TF_DIR) destroy -auto-approve -parallelism=1 -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
 .PHONY: test/onhost-canaries/ansible-install
 test/onhost-canaries/ansible-install:
