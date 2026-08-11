@@ -15,24 +15,25 @@
 # ---------------------------------------------------------------------------
 # USAGE
 # ---------------------------------------------------------------------------
-#   ./fleet_deployment.sh <agent-spec> [<agent-spec> ...]
+#   ./fleet_deployment.sh <fleet_id> <environment> <agent-spec> [<agent-spec> ...]
+#
+#   <fleet_id>    Fleet entity GUID
+#   <environment> "staging" or "production"
 #
 #   Each <agent-spec> has the form:
 #     <agentType>:<version>:<configVersionId>
 #
 #   Examples:
 #     # Single agent
-#     ./fleet_deployment.sh "NRInfra:1.76.1:NjQyNTg2NX..."
+#     ./fleet_deployment.sh "NjQyNTg2NX..." production "NRInfra:1.76.1:NjQyNTg2NX..."
 #
 #     # Two agents (Fleet Control reconciles additions/removals automatically)
-#     ./fleet_deployment.sh "NRInfra:1.76.1:NjQyNTg2NX..." "com.newrelic.prometheus:1.3.0:abc123..."
+#     ./fleet_deployment.sh "NjQyNTg2NX..." production "NRInfra:1.76.1:NjQyNTg2NX..." "com.newrelic.prometheus:1.3.0:abc123..."
 #
 # ---------------------------------------------------------------------------
 # REQUIRED environment variables
 # ---------------------------------------------------------------------------
 #   NEW_RELIC_API_KEY   NerdGraph User API key (NRAK-...)
-#   FLEET_ID            Fleet entity GUID
-#   ENVIRONMENT         "staging" or "production"
 #
 # Note: the deployment scope (organization) is derived automatically by the CLI from the API key
 
@@ -41,22 +42,26 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Validate required environment variables
 # ---------------------------------------------------------------------------
-REQUIRED_VARS=(NEW_RELIC_API_KEY FLEET_ID ENVIRONMENT)
-for var in "${REQUIRED_VARS[@]}"; do
-  if [[ -z "${!var:-}" ]]; then
-    echo "ERROR: Required environment variable '${var}' is not set." >&2
-    exit 1
-  fi
-done
-
-if [[ "${ENVIRONMENT}" != "staging" && "${ENVIRONMENT}" != "production" ]]; then
-  echo "ERROR: ENVIRONMENT must be 'staging' or 'production', got '${ENVIRONMENT}'" >&2
+if [[ -z "${NEW_RELIC_API_KEY:-}" ]]; then
+  echo "ERROR: Required environment variable 'NEW_RELIC_API_KEY' is not set." >&2
   exit 1
 fi
 
-if [[ $# -eq 0 ]]; then
-  echo "ERROR: At least one agent spec is required." >&2
-  echo "Usage: $0 <agentType>:<version>:<configVersionId> [...]" >&2
+# ---------------------------------------------------------------------------
+# Parse positional arguments
+# ---------------------------------------------------------------------------
+if [[ $# -lt 3 ]]; then
+  echo "ERROR: At least three arguments are required." >&2
+  echo "Usage: $0 <fleet_id> <environment> <agentType>:<version>:<configVersionId> [...]" >&2
+  exit 1
+fi
+
+FLEET_ID="$1"
+ENVIRONMENT="$2"
+shift 2
+
+if [[ "${ENVIRONMENT}" != "staging" && "${ENVIRONMENT}" != "production" ]]; then
+  echo "ERROR: <environment> must be 'staging' or 'production', got '${ENVIRONMENT}'" >&2
   exit 1
 fi
 

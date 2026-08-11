@@ -91,10 +91,10 @@ jobs:
       - name: Create and deploy fleet deployment
         env:
           NEW_RELIC_API_KEY: ${{ matrix.environment == 'production' && secrets.AC_PROD_E2E_API_KEY || secrets.AC_FC_STAG_E2E_API_KEY }}
-          FLEET_ID: ${{ steps.target.outputs.fleet_id }}
-          ENVIRONMENT: ${{ matrix.environment }}
         run: |
           chmod +x test/scripts/fleet_deployment.sh
           test/scripts/fleet_deployment.sh \
+            "${{ steps.target.outputs.fleet_id }}" \
+            "${{ matrix.environment }}" \
             "${{ steps.target.outputs.infra_spec }}" \
             "${{ steps.target.outputs.rotating_spec }}"
