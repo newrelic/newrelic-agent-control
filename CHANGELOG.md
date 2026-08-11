@@ -14,12 +14,25 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
-### enhancement
+## v1.21.0 - 2026-08-11
+
+### 🚀 Enhancements
 - Windows filesystem: Removed unused code and use higher-level APIs for Windows interaction.
 - Reports the `com.newrelic.remoteAgentTypeRepoReachable` OpAMP custom capability when the configured Agent Type OCI repository is reachable at startup.
 
-### bugfix
+### 🐞 Bug fixes
 - Windows: fixed files under Agent Control's managed directories being left with permissions it could not use. Managed directories now use an inheritable Administrators ACE, and Agent Control tries to repair ACEs on startup.
+
+### ⛓️ Dependencies
+- Updated rust crate http to 1.5.0
+- Updated rust crate clap to 4.6.6
+- Updated rust crate serde-saphyr to 1.0.1
+- Updated rust crate base64 to 0.23.1
+- Updated rust crate aws-lc-rs to 1.18.0
+- Updated rust crate thiserror to 2.0.20
+- Updated rust crate async-trait to 0.1.92
+- Updated rust crate actix-web to 4.14.1
+- Updated rust crate rcgen to 0.14.9
 
 ## v1.20.0 - 2026-07-29
 
