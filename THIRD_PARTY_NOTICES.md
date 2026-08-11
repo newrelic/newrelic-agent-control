@@ -466,13 +466,6 @@ Distributed under the following license(s):
 
 * MIT
 
-## concurrent-queue <https://crates.io/crates/concurrent-queue>
-
-Distributed under the following license(s):
-
-* Apache-2.0
-* MIT
-
 ## config <https://crates.io/crates/config>
 
 Distributed under the following license(s):
