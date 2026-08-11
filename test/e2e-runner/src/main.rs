@@ -49,12 +49,11 @@ enum LinuxScenarios {
     /// Tests self-update functionality by installing Agent Control from current branch and verifying that AC updates itself,
     /// when instructed via OpAMP, to the latest published tag.
     SelfUpdateCurrentToLatest(InstallationArgs),
-    /// Installs Agent Control with a mirrored infra-agent OCI and a custom nri-redis OCI,
-    /// spins up a local Redis instance, and verifies that RedisSample data lands in NRDB.
+    /// Installs Agent Control with the infra-agent and nri-redis, spins up a local Redis instance, and verifies that
+    /// RedisSample data lands in NRDB.
     NriRedis(InstallationArgs),
-    /// Installs Agent Control with a mirrored infra-agent OCI and a custom nri-flex OCI,
-    /// points Flex's `url` API at a local HTTP stub, and verifies that FlexE2ESample data
-    /// lands in NRDB.
+    /// Installs Agent Control with the infra-agent and nri-flex.
+    /// Checks that data reported by nri-flex lands in NRDB.
     NriFlex(InstallationArgs),
     /// Installs Agent Control with the infra-agent and every OHI sub-agent side-by-side
     /// but does NOT start any monitored service. Verifies from the AC log that the
@@ -93,12 +92,11 @@ enum WindowsScenarios {
     /// This is useful when Agent Control is already deployed and you only need to trigger and monitor Fleet Control tests.
     /// Requires --fleet-id and --fleet-control-token arguments.
     FleetControlApi(FleetControlApiArgs),
-    /// Installs Agent Control with a mirrored infra-agent OCI and a custom nri-redis OCI,
-    /// spins up a local Redis instance, and verifies that RedisSample data lands in NRDB.
+    /// Installs Agent Control with the infra-agent and nri-redis, spins up a local Redis instance, and verifies that
+    /// RedisSample data lands in NRDB.
     NriRedis(InstallationArgs),
-    /// Installs Agent Control with a mirrored infra-agent OCI and a custom nri-flex OCI,
-    /// points Flex's `url` API at a local HTTP stub, and verifies that FlexE2ESample data
-    /// lands in NRDB.
+    /// Installs Agent Control with the infra-agent and nri-flex.
+    /// Checks that data reported by nri-flex lands in NRDB.
     NriFlex(InstallationArgs),
     /// Installs Agent Control with the infra-agent and every OHI sub-agent side-by-side
     /// but does NOT start any monitored service. Verifies from the AC log that the
