@@ -42,7 +42,7 @@ impl DirectoryManager for DirectoryManagerFs {
         #[cfg(target_family = "windows")]
         crate::win_permissions::set_file_permissions_for_administrator(path).map_err(|err| {
             io::Error::other(format!(
-                "Failed to set windows permissions for {}: {}",
+                "failed to set Windows permissions for {}: {}",
                 path.display(),
                 err
             ))
