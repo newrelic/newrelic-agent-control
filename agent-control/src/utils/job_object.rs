@@ -5,10 +5,11 @@ use std::process::Child;
 use tracing::error;
 use windows::Win32::Foundation::HANDLE;
 use windows::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-    SetInformationJobObject, TerminateJobObject,
+    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_JOB_MEMORY,
+    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JobObjectExtendedLimitInformation, SetInformationJobObject, TerminateJobObject,
 };
+use windows::Win32::System::Threading::GetCurrentProcess;
 
 /// Error produced by a Windows Job Object operation.
 #[derive(thiserror::Error, Debug)]
@@ -37,6 +38,44 @@ impl JobObject {
                 std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
             )
             .map_err(|e| JobObjectError(format!("setting JobObject information: {e}")))?;
+
+            Ok(Self { handle })
+        }
+    }
+
+    /// Creates a Job Object assigned to the current process with an aggregate virtual-memory limit.
+    ///
+    /// Children spawned by the current process inherit this job automatically (Windows 8+).
+    /// On failure the caller should log a warning and continue.
+    pub fn new_with_aggregate_limit(limit_bytes: usize) -> Result<Self, JobObjectError> {
+        let job = Self::new_with_memory_limit(limit_bytes)?;
+        unsafe {
+            AssignProcessToJobObject(job.handle, GetCurrentProcess()).map_err(|e| {
+                JobObjectError(format!("assigning current process to JobObject: {e}"))
+            })?;
+        }
+        Ok(job)
+    }
+
+    /// Configures a Job Object with a virtual-memory limit without assigning any process to it.
+    ///
+    /// Used by [`new_with_aggregate_limit`] and exposed for testing.
+    fn new_with_memory_limit(limit_bytes: usize) -> Result<Self, JobObjectError> {
+        unsafe {
+            let handle = CreateJobObjectW(None, None)
+                .map_err(|e| JobObjectError(format!("creating JobObject: {e}")))?;
+
+            let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+            limits.BasicLimitInformation.LimitFlags =
+                JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_JOB_MEMORY;
+            limits.JobMemoryLimit = limit_bytes;
+            SetInformationJobObject(
+                handle,
+                JobObjectExtendedLimitInformation,
+                &limits as *const _ as *const _,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            )
+            .map_err(|e| JobObjectError(format!("setting aggregate memory limit: {e}")))?;
 
             Ok(Self { handle })
         }
@@ -78,6 +117,47 @@ mod tests {
     use crate::utils::retry::retry;
     use std::process::Command;
     use std::time::Duration;
+    use windows::Win32::System::JobObjects::QueryInformationJobObject;
+
+    impl JobObject {
+        fn query_extended_limits(
+            &self,
+        ) -> Result<JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectError> {
+            unsafe {
+                let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+                QueryInformationJobObject(
+                    Some(self.handle),
+                    JobObjectExtendedLimitInformation,
+                    &mut info as *mut _ as *mut _,
+                    std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                    None,
+                )
+                .map_err(|e| JobObjectError(format!("querying job limits: {e}")))?;
+                Ok(info)
+            }
+        }
+    }
+
+    #[test]
+    fn test_new_with_memory_limit_sets_correct_limits() {
+        const LIMIT: usize = 100 * 1024 * 1024;
+        let job = JobObject::new_with_memory_limit(LIMIT)
+            .expect("Failed to create job with memory limit");
+
+        let limits = job
+            .query_extended_limits()
+            .expect("Failed to query job limits");
+
+        assert_eq!(limits.JobMemoryLimit, LIMIT);
+        assert_eq!(
+            limits.BasicLimitInformation.LimitFlags & JOB_OBJECT_LIMIT_JOB_MEMORY,
+            JOB_OBJECT_LIMIT_JOB_MEMORY
+        );
+        assert_eq!(
+            limits.BasicLimitInformation.LimitFlags & JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        );
+    }
 
     #[test]
     fn test_job_object_kills_process() {

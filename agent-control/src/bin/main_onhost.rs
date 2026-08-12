@@ -28,6 +28,19 @@ fn main() -> ExitCode {
         dhat::Profiler::new_ad_hoc()
     };
 
+    // Enforce an aggregate memory limit on the entire AC process tree (AC + all child agents).
+    // Declared here so main() owns the JobObject: Drop runs after all cleanup is done, at the
+    // very end of main(), which is equivalent to process exit. See
+    // build/package/newrelic-agent-control.service for the breakdown of the limit value.
+    #[cfg(target_os = "windows")]
+    let _aggregate_limit = {
+        use newrelic_agent_control::utils::job_object::JobObject;
+        const MEMORY_LIMIT: usize = 2400 * 1024 * 1024;
+        JobObject::new_with_aggregate_limit(MEMORY_LIMIT)
+            .inspect_err(|e| eprintln!("Could not apply aggregate memory limit: {e}"))
+            .ok()
+    };
+
     #[cfg(target_family = "unix")]
     {
         Command::execute(AGENT_CONTROL_MODE_ON_HOST, _main)
