@@ -32,20 +32,20 @@ env:
   # NRInfra spec — always included in every deployment to not break the alerts.
   # (canaries-k8s-infra-config)
   # ---------------------------------------------------------------------------
-  INFRA_SPEC_PRODUCTION: "NRInfra:*:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0OC1iNGVmLTc1NDUtYWFiMS1mMTY2YzVhZTlmYTk"
-  INFRA_SPEC_STAGING: "NRInfra:*:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmE0MGItNTM2MS03ZDllLTgyZTMtNTI4YWVlYjI5ZTA3"
+  INFRA_SPEC_PRODUCTION: "NRInfra:8.0.14:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0OC1iNGVmLTc1NDUtYWFiMS1mMTY2YzVhZTlmYTk"
+  INFRA_SPEC_STAGING: "NRInfra:8.0.14:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmE0MGItNTM2MS03ZDllLTgyZTMtNTI4YWVlYjI5ZTA3"
 
   # ---------------------------------------------------------------------------
   # Rotating companion specs — one is picked per run and deployed alongside NRInfra.
-  #   First  -> FluentBit          * (canaries-k8s-fluentbit-config)
-  #   Second -> NRPrometheusAgent  * (canaries-k8s-prom-config)
+  #   First  -> FluentBit          (canaries-k8s-fluentbit-config)
+  #   Second -> NRPrometheusAgent  (canaries-k8s-prom-config)
   # ---------------------------------------------------------------------------
   AGENT_SPECS_PRODUCTION: >-
-    FluentBit:*:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0YS0xODE2LTcyMDEtYTIwNi00ZTQ4ZTA3ZjUxYzI
-    NRPrometheusAgent:*:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0OS03YjFjLTcyZGEtYWQ1Yi03OGQ1M2VjY2FlM2Q
+    FluentBit:1.40.0:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0YS0xODE2LTcyMDEtYTIwNi00ZTQ4ZTA3ZjUxYzI
+    NRPrometheusAgent:2.13.1:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0OS03YjFjLTcyZGEtYWQ1Yi03OGQ1M2VjY2FlM2Q
   AGENT_SPECS_STAGING: >-
-    FluentBit:*:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmE0MTktMTA2MS03YWJkLWFkMzgtMmU3ZjU2YTM5MGM2
-    NRPrometheusAgent:*:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmE0MTUtNDc1Zi03MTg5LThiYmUtNTc5NDUwNjA4NjBj
+    FluentBit:1.40.0:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmE0MTktMTA2MS03YWJkLWFkMzgtMmU3ZjU2YTM5MGM2
+    NRPrometheusAgent:2.13.1:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmE0MTUtNDc1Zi03MTg5LThiYmUtNTc5NDUwNjA4NjBj
 
 jobs:
   rotate-config-deployment:
