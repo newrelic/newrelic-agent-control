@@ -16,6 +16,15 @@ RestartSec=5
 StartLimitIntervalSec=60
 StartLimitBurst=5
 Type=simple
+# Hard memory limit for the entire Agent Control process tree (AC + all child agents).
+# Breakdown:
+#   350M  - Agent Control itself + headroom for unexpected growth
+#   1024M - infra-agent + Fluent Bit + integrations (hard limit)
+#   1024M - eBPF agent (hard limit)
+#   nrdot  - 100M default, configurable via NEW_RELIC_MEMORY_LIMIT_MIB
+# Note: infra-agent and nrdot cannot run together, so the 1024M infra-agent budget
+# already covers the nrdot case.
+MemoryMax=2400M
 
 [Install]
 WantedBy=multi-user.target
