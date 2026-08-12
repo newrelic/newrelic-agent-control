@@ -28,6 +28,13 @@ jobs:
   infra_tf:
     name: Prepare fleet infra
     runs-on: ubuntu-latest
+    # Serializes all callers (nightly, prerelease, PR-plan, on-demand) against each other per
+    # canary_dir, since they all read/write the same Terraform state and would otherwise race
+    # for the DynamoDB state lock. Note: a top-level `concurrency` key here would be ignored,
+    # since GitHub Actions only honors `concurrency` at the job level in called workflows.
+    concurrency:
+      group: "fleet-canary-alerts-infra-${{ inputs.canary_dir }}"
+      cancel-in-progress: false
     steps:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6
