@@ -198,6 +198,7 @@ See [variants documentation](/docs/INTEGRATING_AGENTS.md#variants-optional) for 
 ### secrets_providers
 
 The `secrets_providers` configuration field sets the configuration for the supported secrets providers. Users can use the values stored in secrets in their remote configurations.
+See [all possible providers](/docs/VARIABLE_INTERPOLATION.md#secrets-providers)
 
 ```yaml
 secrets_providers:
@@ -207,7 +208,7 @@ secrets_providers:
         url: https://vault1.url # Vault url for the source
         token: secret-token-1 # token for authentication
         engine: kv1 # engine (kv1 and kv2 are supported)
-      source1:
+      source2:
         url: https://vault2.url
         token: secret-token-2
         engine: kv2
