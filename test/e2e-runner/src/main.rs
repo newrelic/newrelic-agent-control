@@ -59,6 +59,10 @@ enum LinuxScenarios {
     /// but does NOT start any monitored service. Verifies from the AC log that the
     /// infra-agent invoked each OHI binary with the expected config
     AllOhisNoService(InstallationArgs),
+    /// Installs a pinned older Agent Control release, then upgrades it via the OS package
+    /// manager (not the OCI self-update path) to the version under test, and verifies the
+    /// service is still enabled and running afterward. Regression test for the preremove.sh fix.
+    PackageUpgrade(InstallationArgs),
 }
 
 #[derive(Debug, clap::Subcommand)]
