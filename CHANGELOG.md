@@ -14,6 +14,9 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+### enhancement
+- On-host: enforce a 2400 MiB hard memory limit on the Agent Control process tree (AC + all child agents) via systemd `MemoryMax` on Linux.
+
 ## v1.21.0 - 2026-08-11
 
 ### 🚀 Enhancements
