@@ -388,6 +388,10 @@ jobs:
       - name: Run tests agent control lib excluding root-required tests (on-host)
         run: make -C agent-control test/onhost
 
+      - name: Unit test preremove.sh upgrade-vs-removal behavior
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: bash build/package/preremove_test.sh
+
       - name: Run tests agent control integration_test excluding root-required tests (on-host)
         run: make -C agent-control test/onhost/integration
 
