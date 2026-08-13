@@ -160,7 +160,9 @@ jobs:
       - uses: ./.github/actions/install-rust-toolchain
         with:
           targets: >-
-            x86_64-unknown-linux-musl
+            x86_64-unknown-linux-musl,
+            aarch64-unknown-linux-musl,
+            x86_64-pc-windows-msvc
 
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
@@ -183,12 +185,33 @@ jobs:
         with:
           tool: cargo-zigbuild@0.20.1
 
-      - name: Build k8s in release mode
-        run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control-k8s --target x86_64-unknown-linux-musl
-      - name: Build onhost in release mode
-        run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control --target x86_64-unknown-linux-musl
-      - name: Build onhost CLI in release mode
-        run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control-cli --target x86_64-unknown-linux-musl
+      - name: Install Windows cross-compilation dependencies
+        run: sudo apt-get install -y llvm
+
+      - name: Install cargo-xwin
+        run: cargo install --locked cargo-xwin --version 0.22.0 --force
+
+      - name: Build release binaries for all supported targets
+        run: |
+          set -euo pipefail
+          # target:build-command pairs, one per OS/Arch we release for (see .goreleaser.yml).
+          # k8s binary is linux-only (no Windows k8s builds, see component_image.yml).
+          targets=(
+            "x86_64-unknown-linux-musl:zigbuild"
+            "aarch64-unknown-linux-musl:zigbuild"
+            "x86_64-pc-windows-msvc:xwin build"
+          )
+          for entry in "${targets[@]}"; do
+            target="${entry%%:*}"
+            cmd="${entry#*:}"
+            echo "::group::Build $target"
+            cargo $cmd --release --package newrelic_agent_control --bin newrelic-agent-control --target "$target"
+            cargo $cmd --release --package newrelic_agent_control --bin newrelic-agent-control-cli --target "$target"
+            if [[ "$target" != *windows* ]]; then
+              cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control-k8s --target "$target"
+            fi
+            echo "::endgroup::"
+          done
 
       - name: Find latest baseline run on main
         id: baseline-run
@@ -213,11 +236,27 @@ jobs:
       - name: Measure binary sizes
         id: sizes
         run: |
-          dir="target/x86_64-unknown-linux-musl/release"
           mkdir -p binary-size
           : > binary-size/current.txt
-          for name in newrelic-agent-control newrelic-agent-control-cli; do
-            stat -c%s "$dir/$name" | xargs -I{} echo "$name {}" >> binary-size/current.txt
+
+          declare -A target_label=(
+            [x86_64-unknown-linux-musl]="linux/amd64"
+            [aarch64-unknown-linux-musl]="linux/arm64"
+            [x86_64-pc-windows-msvc]="windows/amd64"
+          )
+
+          for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl x86_64-pc-windows-msvc; do
+            dir="target/$target/release"
+            ext=""
+            bins=(newrelic-agent-control newrelic-agent-control-cli)
+            if [[ "$target" == *windows* ]]; then
+              ext=".exe"
+            else
+              bins+=(newrelic-agent-control-k8s)
+            fi
+            for name in "${bins[@]}"; do
+              stat -c%s "$dir/$name$ext" | xargs -I{} echo "$name $target {}" >> binary-size/current.txt
+            done
           done
 
           baseline_file="binary-size/baseline/current.txt"
@@ -225,28 +264,29 @@ jobs:
             echo "report<<EOF"
             echo "## 📦 Binary size"
             if [ -f "$baseline_file" ]; then
-              echo "| Binary | main | PR | Δ |"
-              echo "|---|---|---|---|"
+              echo "| Binary | Target | main | PR | Δ |"
+              echo "|---|---|---|---|---|"
             else
-              echo "| Binary | Size |"
-              echo "|---|---|"
+              echo "| Binary | Target | Size |"
+              echo "|---|---|---|"
             fi
-            while read -r name bytes; do
+            while read -r name target bytes; do
+              label="${target_label[$target]}"
               human=$(awk -v b="$bytes" 'BEGIN { printf "%.2f MB", b / 1000000 }')
               if [ -f "$baseline_file" ]; then
-                base_bytes=$(awk -v n="$name" '$1==n {print $2}' "$baseline_file")
+                base_bytes=$(awk -v n="$name" -v t="$target" '$1==n && $2==t {print $3}' "$baseline_file")
                 if [ -n "$base_bytes" ]; then
                   base_human=$(awk -v b="$base_bytes" 'BEGIN { printf "%.2f MB", b / 1000000 }')
                   delta=$((bytes - base_bytes))
                   delta_mb=$(awk -v d="$delta" 'BEGIN { printf (d>=0?"+%.2f":"%.2f"), d/1000000 }')
                   pct=$(awk -v d="$delta" -v b="$base_bytes" 'BEGIN { printf "%.2f", (b==0)?0:(d*100.0/b) }')
                   icon="➡️"; [ "$delta" -gt 0 ] && icon="⬆️"; [ "$delta" -lt 0 ] && icon="⬇️"
-                  echo "| $name | $base_human | $human | $icon ${delta_mb} MB (${pct}%) |"
+                  echo "| $name | $label | $base_human | $human | $icon ${delta_mb} MB (${pct}%) |"
                 else
-                  echo "| $name | _no baseline_ | $human | — |"
+                  echo "| $name | $label | _no baseline_ | $human | — |"
                 fi
               else
-                echo "| $name | $human |"
+                echo "| $name | $label | $human |"
               fi
             done < binary-size/current.txt
             if [ ! -f "$baseline_file" ] && [ "${{ github.event_name }}" = "pull_request" ]; then
