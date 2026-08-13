@@ -6,9 +6,9 @@ use crate::agent_control::config_repository::repository::AgentControlConfigLoade
 use crate::agent_control::config_validator::on_host::SharedFilesystemPathValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, AGENT_FILESYSTEM_FOLDER_NAME, EXECUTION_MODE_ATTRIBUTE_KEY,
-    FLEET_ID_ATTRIBUTE_KEY, FOLDER_NAME_FLEET_DATA, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
-    SHARED_FILESYSTEM_FOLDER_NAME,
+    FLEET_ID_ATTRIBUTE_KEY, FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA, HOST_ID_ATTRIBUTE_KEY,
+    HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY,
+    OS_ATTRIBUTE_VALUE, SHARED_FILESYSTEM_FOLDER_NAME,
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::on_host::OnHostCleaner;
@@ -145,6 +145,7 @@ impl AgentControlRunner {
 
         let agent_filesystem_base = remote_dir.join(AGENT_FILESYSTEM_FOLDER_NAME);
         let fleet_data_base = remote_dir.join(FOLDER_NAME_FLEET_DATA);
+        let local_data_base = local_dir.join(FOLDER_NAME_LOCAL_DATA);
         let shared_filesystem_base = remote_dir.join(SHARED_FILESYSTEM_FOLDER_NAME);
         let dir_manager = Arc::new(DirectoryManagerFs);
         let resource_cleaner = OnHostCleaner::new(
@@ -152,6 +153,8 @@ impl AgentControlRunner {
             yaml_config_repository.clone(),
             agent_filesystem_base,
             fleet_data_base,
+            local_data_base,
+            self.base_paths.log_dir.clone(),
             dir_manager,
             agents_package_manager.clone(),
             self.agent_type_registry.clone(),
