@@ -36,7 +36,7 @@ env:
   HOST_E2E_APACHE_VERSION: "1.17.3"
   HOST_E2E_MEMCACHED_VERSION: "2.9.3"
   HOST_E2E_EBPF_AGENT_VERSION: "1.5.0"
-  HOST_E2E_FLEX_VERSION: "0.0.1" # TODO: use packaged version when ready
+  HOST_E2E_FLEX_VERSION: "1.18.10" # TODO: use packaged version when ready
 
 jobs:
   build-packages:
