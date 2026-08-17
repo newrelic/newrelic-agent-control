@@ -95,6 +95,14 @@ jobs:
           cargo install --locked cargo-xwin --version 0.22.0 --force
           go install github.com/tc-hib/go-winres@v0.3.3
 
+      - name: Warm up cargo-xwin MSVC CRT/SDK cache
+        # GoReleaser builds newrelic-agent-control and newrelic-agent-control-cli for Windows in
+        # parallel, each invoking `cargo xwin build`. cargo-xwin's SDK download/unpack step isn't
+        # safe for concurrent invocations against the same cache dir (~/.cache/cargo-xwin), so we
+        # populate it once here, sequentially, before GoReleaser starts. `check` is used instead of
+        # `build` since it triggers the same SDK setup without the cost of a full compile.
+        run: cargo xwin check --release --target=x86_64-pc-windows-msvc --package=newrelic_agent_control --bin=newrelic-agent-control
+
       - name: If pre-release, set tag and verify it matches Cargo.toml version
         if: ${{ inputs.pre-release}}
         run: |
