@@ -42,24 +42,22 @@ pub enum VariableNameError {
 /// `[A-Za-z0-9_-]`, starting with an ASCII letter — see module docs for the rationale.
 pub(crate) fn validate_variable_name(name: &str) -> Result<(), VariableNameError> {
     if name.is_empty() {
-        return Err(VariableNameError::Empty);
-    }
-    if name.len() > VARIABLE_NAME_MAX_LENGTH {
-        return Err(VariableNameError::TooLong {
+        Err(VariableNameError::Empty)
+    } else if name.len() > VARIABLE_NAME_MAX_LENGTH {
+        Err(VariableNameError::TooLong {
             length: name.len(),
             max: VARIABLE_NAME_MAX_LENGTH,
-        });
-    }
-    if !name.starts_with(|c: char| c.is_ascii_alphabetic()) {
-        return Err(VariableNameError::InvalidStart);
-    }
-    if let Some(invalid) = name
+        })
+    } else if !name.starts_with(|c: char| c.is_ascii_alphabetic()) {
+        Err(VariableNameError::InvalidStart)
+    } else if let Some(invalid) = name
         .chars()
         .find(|c| !(c.is_ascii_alphanumeric() || *c == '_' || *c == '-'))
     {
-        return Err(VariableNameError::InvalidCharacter(invalid));
+        Err(VariableNameError::InvalidCharacter(invalid))
+    } else {
+        Ok(())
     }
-    Ok(())
 }
 
 #[cfg(test)]

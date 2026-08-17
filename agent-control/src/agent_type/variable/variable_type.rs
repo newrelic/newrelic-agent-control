@@ -133,19 +133,20 @@ fn parse_string_map(value: serde_json::Value) -> Result<HashMap<String, String>,
     map.into_iter()
         .map(|(key, value)| {
             if key.contains(':') {
-                return Err(AgentTypeError::Parse(format!(
+                Err(AgentTypeError::Parse(format!(
                     "invalid character ':' in string_map key '{key}'"
-                )));
+                )))
+            } else {
+                let value = match value {
+                    serde_json::Value::String(s) => s,
+                    other => serde_saphyr::to_string(&other).map_err(|e| {
+                        AgentTypeError::Parse(format!(
+                            "could not encode string_map value for '{key}': {e}"
+                        ))
+                    })?,
+                };
+                Ok((key, value))
             }
-            let value = match value {
-                serde_json::Value::String(s) => s,
-                other => serde_saphyr::to_string(&other).map_err(|e| {
-                    AgentTypeError::Parse(format!(
-                        "could not encode string_map value for '{key}': {e}"
-                    ))
-                })?,
-            };
-            Ok((key, value))
         })
         .collect()
 }
