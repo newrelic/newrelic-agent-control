@@ -8,6 +8,7 @@
 
 pub mod constraints;
 pub mod fields;
+pub mod name;
 pub mod namespace;
 pub mod secret_variables;
 pub mod tree;
