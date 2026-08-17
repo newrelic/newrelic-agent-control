@@ -46,7 +46,7 @@ jobs:
           echo "GIT_BRANCH=$GIT_BRANCH" >> "$GITHUB_ENV"
 
       - name: Execute infrastructure ${{ inputs.operation }}
-        uses: newrelic/fargate-runner-action@121b96de1a4d7135204fd8a510927b0463df1b6b # main
+        uses: newrelic/fargate-runner-action@8955938e6043114624462e6cd4e1cbbbcc54a691 # main
         with:
           aws_region: us-east-2
           container_make_target: "ENVIRONMENT=${{ inputs.environment }} EMAILS=${{ vars.EMAILS }} SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }} AC_CANARY_WINDOWS_PASSWORD=${{ secrets.AC_CANARY_WINDOWS_PASSWORD }} test/onhost-canaries/infra-${{ inputs.operation }}"
