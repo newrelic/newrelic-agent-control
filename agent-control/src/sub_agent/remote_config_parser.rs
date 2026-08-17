@@ -94,6 +94,10 @@ where
 ///   with the configuration taken from the
 ///   [AGENT_CONFIG_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_PREFIX) identifier.
 ///   The override configuration takes precedence, therefore key collisions are not errors in this case.
+/// - Applies any per-variable overrides identified by
+///   [AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX),
+///   setting the value at the dot-separated variable path (creating missing intermediate mappings as needed).
+///   These are applied last and therefore take precedence over both the base and the blob-level override configs.
 /// - Returns `None` if the final merged configuration is empty.
 ///
 /// # Example
@@ -104,23 +108,26 @@ where
 ///   "<AGENT_CONFIG_PREFIX>-1": "key1: value1",
 ///   "<AGENT_CONFIG_PREFIX>-2": "key2: value2",
 ///   "<AGENT_CONFIG_PREFIX>-3": "key3: value3",
-///   "<AGENT_CONFIG_OVERRIDE_PREFIX>": "key2: overridden"
+///   "<AGENT_CONFIG_OVERRIDE_PREFIX>": "key2: overridden",
+///   "<AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX>.key3": "overridden3"
 /// }
 /// ```
 /// **Output:**
 /// ```yaml
 /// key1: value1
 /// key2: overridden
-/// key3: value3
+/// key3: overridden3
 /// ```
 ///
 /// # Errors
 ///
 /// Returns [RemoteConfigParserError] if:
-/// - Any configuration entry contains invalid YAML, including the override config.
+/// - Any configuration entry contains invalid YAML, including the override configs.
 /// - Duplicate keys are found when merging configurations.
 /// - There is more than one configuration starting with
 ///   [AGENT_CONFIG_OVERRIDE_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_PREFIX)
+/// - A per-variable override path is empty, or an intermediate segment of its path already holds a
+///   non-mapping value.
 pub fn extract_remote_config_values(
     opamp_remote_config: &OpampRemoteConfig,
 ) -> Result<Option<RemoteConfig>, RemoteConfigParserError> {
@@ -147,6 +154,12 @@ pub fn extract_remote_config_values(
         config = YAMLConfig::merge_override(config, override_config);
     }
 
+    for (path, value) in opamp_remote_config.agent_config_override_variables_iter() {
+        config.set_override_path(path, value).map_err(|err| {
+            RemoteConfigParserError::InvalidValues(format!("overriding variable '{path}': {err}"))
+        })?;
+    }
+
     if config.is_empty() {
         return Ok(None);
     }
@@ -167,7 +180,8 @@ pub mod tests {
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
     use crate::opamp::remote_config::{
-        AGENT_CONFIG_OVERRIDE_PREFIX, AGENT_CONFIG_PREFIX, ConfigurationMap, OpampRemoteConfig,
+        AGENT_CONFIG_OVERRIDE_PREFIX, AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX, AGENT_CONFIG_PREFIX,
+        ConfigurationMap, OpampRemoteConfig,
     };
     use crate::sub_agent::identity::AgentIdentity;
     use crate::values::config::RemoteConfig;
@@ -283,6 +297,15 @@ pub mod tests {
     #[case::multiple_override_configs(
         json!({AGENT_CONFIG_PREFIX: "key: value", AGENT_CONFIG_OVERRIDE_PREFIX: "key: value2", format!("{AGENT_CONFIG_OVERRIDE_PREFIX}-2"): "key: value3"})
     )]
+    #[case::invalid_override_variable_yaml(
+        json!({AGENT_CONFIG_PREFIX: "key: value", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key"): "[unterminated"})
+    )]
+    #[case::override_variable_empty_path(
+        json!({AGENT_CONFIG_PREFIX: "key: value", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}."): "value"})
+    )]
+    #[case::override_variable_type_conflict(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1.nested"): "value2"})
+    )]
     fn test_invalid_agent_configs_remote_values(#[case] config: serde_json::Value) {
         let agent_identity = AgentIdentity::default();
 
@@ -356,6 +379,26 @@ pub mod tests {
     #[case::inner_values_are_not_merged(
         json!({AGENT_CONFIG_PREFIX: r#"key1: {"key1_1": "value_1_1"}"#, AGENT_CONFIG_OVERRIDE_PREFIX: r#"key1: {"overridden_key": "overridden_value"}"#}),
         r#"key1: {"overridden_key": "overridden_value"}"#
+    )]
+    #[case::override_variable_top_level_key(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1\nkey2: value2", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key2"): "overridden2"}),
+        "key1: value1\nkey2: overridden2"
+    )]
+    #[case::override_variable_nested_path(
+        json!({AGENT_CONFIG_PREFIX: "foo:\n  bar: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar"): "overridden"}),
+        "foo:\n  bar: overridden"
+    )]
+    #[case::override_variable_creates_missing_path(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar"): "value"}),
+        "key1: value1\nfoo:\n  bar: value"
+    )]
+    #[case::override_variable_applies_after_blob_override(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", AGENT_CONFIG_OVERRIDE_PREFIX: "key1: blob_override", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1"): "variable_override"}),
+        "key1: variable_override"
+    )]
+    #[case::override_variable_non_scalar_value(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key2"): "- a\n- b"}),
+        "key1: value1\nkey2:\n  - a\n  - b"
     )]
     fn test_valid_remote_config_values(
         #[case] config: serde_json::Value,
