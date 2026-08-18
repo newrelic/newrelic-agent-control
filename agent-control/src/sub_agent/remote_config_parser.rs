@@ -155,6 +155,9 @@ pub fn extract_remote_config_values(
     }
 
     for (path, value) in opamp_remote_config.agent_config_override_variables_iter() {
+        let value = parse_yaml_value(value).map_err(|err| {
+            RemoteConfigParserError::InvalidValues(format!("overriding variable '{path}': {err}"))
+        })?;
         config.set_override_path(path, value).map_err(|err| {
             RemoteConfigParserError::InvalidValues(format!("overriding variable '{path}': {err}"))
         })?;
@@ -171,12 +174,27 @@ pub fn extract_remote_config_values(
     }))
 }
 
+/// Parses a raw YAML fragment into a [serde_json::Value], unlike [YAMLConfig] the root is not
+/// required to be a mapping.
+///
+/// Used to parse the value of a per-variable override, which can be a scalar, list, or mapping.
+fn parse_yaml_value(value: &str) -> Result<serde_json::Value, serde_saphyr::Error> {
+    serde_saphyr::from_str_with_options(
+        value,
+        serde_saphyr::options! {
+            duplicate_keys: serde_saphyr::DuplicateKeyPolicy::LastWins,
+        },
+    )
+}
+
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod tests {
     use std::collections::HashMap;
 
-    use super::{AgentRemoteConfigParser, RemoteConfigParser, RemoteConfigParserError};
+    use super::{
+        AgentRemoteConfigParser, RemoteConfigParser, RemoteConfigParserError, parse_yaml_value,
+    };
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
     use crate::opamp::remote_config::{
@@ -456,5 +474,19 @@ pub mod tests {
         let result = handler.parse(agent_identity.clone(), &opamp_remote_config);
 
         assert!(result.unwrap().is_none());
+    }
+
+    #[rstest]
+    #[case::string("plain string", json!("plain string"))]
+    #[case::mapping("key: value", json!({"key": "value"}))]
+    #[case::list("[1, 2, 3]", json!([1, 2, 3]))]
+    #[case::null("null", serde_json::Value::Null)]
+    fn test_parse_yaml_value(#[case] input: &str, #[case] expected: serde_json::Value) {
+        assert_eq!(parse_yaml_value(input).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_parse_yaml_value_invalid_yaml_errors() {
+        assert!(parse_yaml_value("[unterminated").is_err());
     }
 }

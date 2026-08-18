@@ -71,28 +71,25 @@ impl YAMLConfig {
     /// # use newrelic_agent_control::values::yaml_config::YAMLConfig;
     /// # use serde_json::json;
     /// let mut config: YAMLConfig = serde_json::from_value(json!({"foo": {"bar": "value1"}})).unwrap();
-    /// config.set_override_path("foo.bar", "overridden").unwrap();
-    /// config.set_override_path("foo.baz", "new").unwrap();
+    /// config.set_override_path("foo.bar", json!("overridden")).unwrap();
+    /// config.set_override_path("foo.baz", json!("new")).unwrap();
     /// assert_eq!(config, serde_json::from_value(json!({"foo": {"bar": "overridden", "baz": "new"}})).unwrap());
     /// ```
     /// # Errors
-    /// Returns an error if the value cannot be encoded as yaml value, if `path` is empty, or if an
-    /// intermediate segment already holds a non-mapping value.
+    /// Returns an error if `path` is empty, or if an intermediate segment already holds a
+    /// non-mapping value.
     ///
     /// ```
     /// # use newrelic_agent_control::values::yaml_config::YAMLConfig;
     /// # use serde_json::json;
     /// let mut config: YAMLConfig = serde_json::from_value(json!({"foo": {"bar": "value1"}})).unwrap();
-    /// let err = config.set_override_path("foo.bar.baz", "new").unwrap_err();
+    /// let err = config.set_override_path("foo.bar.baz", json!("new")).unwrap_err();
     /// assert_eq!(
     ///     err.to_string(),
     ///     "cannot override nested variable path 'foo.bar.baz': segment 'foo.bar' is not a mapping"
     /// );
     /// ```
-    pub fn set_override_path(&mut self, path: &str, value: &str) -> Result<(), YAMLConfigError> {
-        let value = parse_yaml_value(value).map_err(|err| {
-            YAMLConfigError(format!("decoding override variable '{path}': {err}"))
-        })?;
+    pub fn set_override_path(&mut self, path: &str, value: Value) -> Result<(), YAMLConfigError> {
         let mut segments = path.split('.');
         let first = segments
             .next()
@@ -182,18 +179,6 @@ impl TryFrom<&AgentControlDynamicConfig> for YAMLConfig {
 }
 
 fn parse_yaml_config(value: &str) -> Result<YAMLConfig, serde_saphyr::Error> {
-    serde_saphyr::from_str_with_options(
-        value,
-        serde_saphyr::options! {
-            duplicate_keys: serde_saphyr::DuplicateKeyPolicy::LastWins,
-        },
-    )
-}
-
-/// Parses a raw YAML fragment into a [Value], unlike [YAMLConfig] the root is not required to be a mapping.
-///
-/// Used to parse the value of a per-variable override, which can be a scalar, list, or mapping.
-fn parse_yaml_value(value: &str) -> Result<Value, serde_saphyr::Error> {
     serde_saphyr::from_str_with_options(
         value,
         serde_saphyr::options! {
@@ -525,43 +510,43 @@ deployment: {}
     #[case::top_level_new_key(
         json!({"key1": "value1"}),
         "key2",
-        "value2",
+        json!("value2"),
         json!({"key1": "value1", "key2": "value2"})
     )]
     #[case::top_level_overwrite(
         json!({"key1": "value1"}),
         "key1",
-        "overridden",
+        json!("overridden"),
         json!({"key1": "overridden"})
     )]
     #[case::nested_overwrite(
         json!({"foo": {"bar": "value1"}}),
         "foo.bar",
-        "overridden",
+        json!("overridden"),
         json!({"foo": {"bar": "overridden"}})
     )]
     #[case::nested_new_key_sibling_untouched(
         json!({"foo": {"bar": "value1"}}),
         "foo.baz",
-        "new",
+        json!("new"),
         json!({"foo": {"bar": "value1", "baz": "new"}})
     )]
     #[case::auto_creates_missing_intermediates(
         json!({}),
         "foo.bar.baz",
-        "value",
+        json!("value"),
         json!({"foo": {"bar": {"baz": "value"}}})
     )]
     #[case::non_string_value(
         json!({}),
         "foo",
-        "nested: [1, 2]",
+        json!({"nested": [1, 2]}),
         json!({"foo": {"nested": [1, 2]}})
     )]
     fn test_set_override_path_success(
         #[case] initial: serde_json::Value,
         #[case] path: &str,
-        #[case] value: &str,
+        #[case] value: serde_json::Value,
         #[case] expected: serde_json::Value,
     ) {
         let mut config = serde_json::from_value::<YAMLConfig>(initial).unwrap();
@@ -573,28 +558,18 @@ deployment: {}
     }
 
     #[rstest]
-    #[case::empty_path(json!({"key1": "value1"}), "", "value")]
-    #[case::type_conflict_top_level(json!({"key1": "value1"}), "key1.nested", "value")]
-    #[case::type_conflict_deeper(json!({"foo": {"bar": "value1"}}), "foo.bar.baz", "value")]
-    #[case::invalid_yaml_value(json!({"foo": {"bar": "value1"}}), "foo.bar.baz", "}]")]
+    #[case::empty_path(json!({"key1": "value1"}), "", json!("value"))]
+    #[case::type_conflict_top_level(json!({"key1": "value1"}), "key1.nested", json!("value"))]
+    #[case::type_conflict_deeper(json!({"foo": {"bar": "value1"}}), "foo.bar.baz", json!("value"))]
     fn test_set_override_path_error(
         #[case] initial: serde_json::Value,
         #[case] path: &str,
-        #[case] value: &str,
+        #[case] value: serde_json::Value,
     ) {
         let mut config = serde_json::from_value::<YAMLConfig>(initial).unwrap();
 
         let result = config.set_override_path(path, value);
 
         assert!(result.is_err());
-    }
-
-    #[rstest]
-    #[case::string("plain string", json!("plain string"))]
-    #[case::mapping("key: value", json!({"key": "value"}))]
-    #[case::list("[1, 2, 3]", json!([1, 2, 3]))]
-    #[case::null("null", Value::Null)]
-    fn test_parse_yaml_value(#[case] input: &str, #[case] expected: serde_json::Value) {
-        assert_eq!(parse_yaml_value(input).unwrap(), expected);
     }
 }
