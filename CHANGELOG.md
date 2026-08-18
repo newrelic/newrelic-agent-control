@@ -14,8 +14,18 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
-### enhancement
+## v1.22.0 - 2026-08-18
+
+### 🚀 Enhancements
 - On-host: enforce a 2400 MiB hard memory limit on the Agent Control process tree (AC + all child agents) via systemd `MemoryMax` on Linux.
+
+### 🐞 Bug fixes
+- Linux: prevent systemd service disable after RPM package update
+
+### ⛓️ Dependencies
+- Updated rust crate futures to 0.3.34
+- Updated alpine/helm to v4.2.4
+- Updated rust crate serde-saphyr to 1.1.0
 
 ## v1.21.0 - 2026-08-11
 
@@ -25,7 +35,6 @@ Remember that the keywords that you can use are the following:
 
 ### 🐞 Bug fixes
 - Windows: fixed files under Agent Control's managed directories being left with permissions it could not use. Managed directories now use an inheritable Administrators ACE, and Agent Control tries to repair ACEs on startup.
-- Linux: prevent systemd service disable after RPM package update
 
 ### ⛓️ Dependencies
 - Updated rust crate http to 1.5.0
