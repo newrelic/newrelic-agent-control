@@ -26,13 +26,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## actix-macros <https://crates.io/crates/actix-macros>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## actix-router <https://crates.io/crates/actix-router>
 
 Distributed under the following license(s):
@@ -69,13 +62,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## actix-web <https://crates.io/crates/actix-web>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## actix-web-codegen <https://crates.io/crates/actix-web-codegen>
 
 Distributed under the following license(s):
 
@@ -123,18 +109,6 @@ Distributed under the following license(s):
 
 * Unlicense
 * MIT
-
-## alloc-no-stdlib <https://crates.io/crates/alloc-no-stdlib>
-
-Distributed under the following license(s):
-
-* BSD-3-Clause
-
-## alloc-stdlib <https://crates.io/crates/alloc-stdlib>
-
-Distributed under the following license(s):
-
-* BSD-3-Clause
 
 ## allocator-api2 <https://crates.io/crates/allocator-api2>
 
@@ -322,20 +296,6 @@ Distributed under the following license(s):
 
 * MIT
 
-## brotli <https://crates.io/crates/brotli>
-
-Distributed under the following license(s):
-
-* BSD-3-Clause
-* MIT
-
-## brotli-decompressor <https://crates.io/crates/brotli-decompressor>
-
-Distributed under the following license(s):
-
-* BSD-3-Clause
-* MIT
-
 ## bumpalo <https://crates.io/crates/bumpalo>
 
 Distributed under the following license(s):
@@ -389,13 +349,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
-
-## chacha20 <https://crates.io/crates/chacha20>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
 
 ## chrono <https://crates.io/crates/chrono>
 
@@ -531,13 +484,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
-
-## cookie <https://crates.io/crates/cookie>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
 
 ## core-foundation <https://crates.io/crates/core-foundation>
 
@@ -1497,13 +1443,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * Unicode-3.0
-
-## local-channel <https://crates.io/crates/local-channel>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
 
 ## local-waker <https://crates.io/crates/local-waker>
 

@@ -14,8 +14,15 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
-### enhancement
+## v1.22.0 - 2026-08-18
+
+### 🚀 Enhancements
 - On-host: enforce a 2400 MiB hard memory limit on the Agent Control process tree (AC + all child agents) via systemd `MemoryMax` on Linux.
+
+### ⛓️ Dependencies
+- Updated rust crate futures to 0.3.34
+- Updated alpine/helm to v4.2.4
+- Updated rust crate serde-saphyr to 1.1.0
 
 ## v1.21.0 - 2026-08-11
 
