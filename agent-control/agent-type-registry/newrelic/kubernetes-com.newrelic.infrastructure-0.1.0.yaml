@@ -123,6 +123,8 @@ deployment:
             enabled: false
           newrelic-k8s-metrics-adapter:
             enabled: false
+          nr-ebpf-agent:
+            enabled: false
     # Flux [HelmRelease](https://fluxcd.io/flux/components/helmreleases/) that installs the nri-bundle chart.
     release:
       apiVersion: helm.toolkit.fluxcd.io/v2
