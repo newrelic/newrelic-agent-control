@@ -25,6 +25,7 @@ Remember that the keywords that you can use are the following:
 
 ### 🐞 Bug fixes
 - Windows: fixed files under Agent Control's managed directories being left with permissions it could not use. Managed directories now use an inheritable Administrators ACE, and Agent Control tries to repair ACEs on startup.
+- Linux: prevent systemd service disable after RPM package update
 
 ### ⛓️ Dependencies
 - Updated rust crate http to 1.5.0
