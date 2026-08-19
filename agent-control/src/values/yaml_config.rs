@@ -89,8 +89,12 @@ impl YAMLConfig {
     ///     "cannot override nested variable path 'foo.bar.baz': segment 'foo.bar' is not a mapping"
     /// );
     /// ```
-    pub fn set_override_path(&mut self, path: &str, value: Value) -> Result<(), YAMLConfigError> {
-        let mut segments = path.split('.');
+    pub fn override_variable_value(
+        &mut self,
+        variable_path: &str,
+        value: Value,
+    ) -> Result<(), YAMLConfigError> {
+        let mut segments = variable_path.split('.');
         let first = segments
             .next()
             .filter(|s| !s.is_empty())
@@ -111,7 +115,7 @@ impl YAMLConfig {
         let mut visited_path = first.to_string();
         let not_a_mapping_err = |visited_path: &str| {
             YAMLConfigError(format!(
-                "cannot override nested variable path '{path}': segment '{visited_path}' is not a mapping"
+                "cannot override nested variable path '{variable_path}': segment '{visited_path}' is not a mapping"
             ))
         };
 
@@ -552,7 +556,7 @@ deployment: {}
         let mut config = serde_json::from_value::<YAMLConfig>(initial).unwrap();
         let expected_config = serde_json::from_value::<YAMLConfig>(expected).unwrap();
 
-        config.set_override_path(path, value).unwrap();
+        config.override_variable_value(path, value).unwrap();
 
         assert_eq!(config, expected_config);
     }
@@ -568,7 +572,7 @@ deployment: {}
     ) {
         let mut config = serde_json::from_value::<YAMLConfig>(initial).unwrap();
 
-        let result = config.set_override_path(path, value);
+        let result = config.override_variable_value(path, value);
 
         assert!(result.is_err());
     }
