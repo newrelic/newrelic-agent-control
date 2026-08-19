@@ -9,7 +9,6 @@ use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
-use newrelic_agent_control::opamp::remote_config::AGENT_CONFIG_PREFIX;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -59,9 +58,17 @@ fn onhost_ac_multiconfig_agents_append() {
     opamp_server.set_multi_config_response(
         ac_instance_id.clone(),
         HashMap::from([
-            (format!("{AGENT_CONFIG_PREFIX}-a"), agent_a),
-            (format!("{AGENT_CONFIG_PREFIX}-b"), agent_b),
+            ("agentConfig-a".to_string(), agent_a),
+            ("agentConfig-b".to_string(), agent_b),
             ("new-feature-coming".to_string(), "oh-yeah".to_string()),
+            (
+                "override.agentConfig".to_string(),
+                "ignored as not supported for AC".to_string(),
+            ),
+            (
+                "overrideVariable.agentConfig".to_string(),
+                "ignored as not supported for AC".to_string(),
+            ),
         ]),
     );
 
@@ -108,8 +115,8 @@ fn onhost_ac_multiconfig_agents_append_fails() {
         ac_instance_id.clone(),
         HashMap::from([
             // Both configs define agent-a, causing a conflict.
-            (format!("{AGENT_CONFIG_PREFIX}-a"), config.clone()),
-            (format!("{AGENT_CONFIG_PREFIX}-b"), config),
+            ("agentConfig-a".to_string(), config.clone()),
+            ("agentConfig-b".to_string(), config),
         ]),
     );
 
@@ -133,14 +140,23 @@ fn onhost_sub_agent_multiconfig() {
     let sleep_agent_type = OnHostCustomAgentTypeBuilder::default()
         .with_variables(
             r#"
-    var_a:
-      description: "foo"
-      type: "string"
-      required: true
-    var_b:
-      description: "bar"
-      type: "string"
-      required: true
+var_a:
+  description: "a"
+  type: "string"
+  required: true
+var_b:
+  description: "b"
+  type: "string"
+  required: true
+var_c:
+  description: "c"
+  type: "string"
+  required: true
+var_d:
+  description: "d"
+  type: "string"
+  required: true
+
     "#,
         )
         .write(dirs.local_dir());
@@ -163,16 +179,27 @@ fn onhost_sub_agent_multiconfig() {
     let sub_agent_instance_id =
         get_instance_id(&AgentID::try_from(agent_id).unwrap(), dirs.base_paths());
 
-    let var_a = "var_a: a".to_string();
-    let var_b = "var_b: b".to_string();
-    let expected_config = "var_a: a\nvar_b: b";
+    let expected_config = r#"
+var_a: a
+var_b: b
+var_c: overridden_c
+var_d: overridden_var_d
+"#;
 
     opamp_server.set_multi_config_response(
         sub_agent_instance_id.clone(),
         HashMap::from([
-            (format!("{AGENT_CONFIG_PREFIX}-a"), var_a),
-            (format!("{AGENT_CONFIG_PREFIX}-b"), var_b),
-            ("new-feature-coming".to_string(), "oh-yeah".to_string()),
+            ("agentConfig-a".to_string(), "var_a: a".to_string()),
+            ("agentConfig-b".to_string(), "var_b: b".to_string()),
+            ("agentConfig-c".to_string(), "var_c: c".to_string()),
+            (
+                "override.agentConfig".to_string(),
+                "var_c: overridden_c".to_string(),
+            ),
+            (
+                "overrideVariable.agentConfig.var_d".to_string(),
+                "overridden_var_d".to_string(),
+            ),
         ]),
     );
 
