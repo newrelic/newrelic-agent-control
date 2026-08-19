@@ -23,10 +23,8 @@ env:
   # ---------------------------------------------------------------------------
   # Fleet IDs
   # ---------------------------------------------------------------------------
-  # AC Staging Account `k8s-canaries-staging-1` fleet
-  FLEET_ID_STAGING: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk1ZDE1NC1iNTI0LTdhMTYtYWExYS0wYzQ2Y2VhOGFiMzg"
-  # AC US Production Account `k8s-canaries-production` fleet
-  FLEET_ID_PRODUCTION: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVlYzZhLTYwNjItNzZiZS1iOWE0LTA4MzZlZmE2MGY4YQ"
+  FLEET_ID_STAGING: ${{ vars.K8S_FLEET_ID_STAGING }}
+  FLEET_ID_PRODUCTION: ${{ vars.K8S_FLEET_ID_PRODUCTION }}
 
   # ---------------------------------------------------------------------------
   # NRInfra spec — always included in every deployment to not break the alerts.
