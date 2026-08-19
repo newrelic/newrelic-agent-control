@@ -1,5 +1,6 @@
 //! Remote configuration received via OpAMP: its model, configuration map, hashes, and validators.
 use crate::agent_control::agent_id::AgentID;
+use crate::agent_type::templates::TEMPLATE_KEY_SEPARATOR;
 use crate::opamp::remote_config::hash::ConfigState;
 use crate::opamp::remote_config::{hash::Hash, signature::SignatureData};
 use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, EffectiveConfig};
@@ -127,7 +128,7 @@ impl OpampRemoteConfig {
     pub fn agent_config_override_variables_iter(&self) -> impl Iterator<Item = (&str, &String)> {
         self.configs_iter().filter_map(|(k, v)| {
             k.strip_prefix(AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX)?
-                .strip_prefix('.')
+                .strip_prefix(TEMPLATE_KEY_SEPARATOR)
                 .map(|path| (path, v))
         })
     }
