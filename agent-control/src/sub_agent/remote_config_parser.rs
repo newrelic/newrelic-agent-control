@@ -120,21 +120,78 @@ where
 ///
 /// # Example
 ///
-/// **Input**:
-/// ```json
-/// {
-///   "<AGENT_CONFIG_PREFIX>-1": "key1: value1",
-///   "<AGENT_CONFIG_PREFIX>-2": "key2: value2",
-///   "<AGENT_CONFIG_PREFIX>-3": "key3: value3",
-///   "<AGENT_CONFIG_OVERRIDE_PREFIX>": "key2: overridden",
-///   "<AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX>.key3": "overridden3"
-/// }
+/// Three `AGENT_CONFIG_PREFIX` entries are merged, `key2` is then replaced by the blob-level
+/// override, and `key3` is replaced last by the per-variable override:
+///
 /// ```
-/// **Output:**
-/// ```yaml
-/// key1: value1
-/// key2: overridden
-/// key3: overridden3
+/// # use newrelic_agent_control::agent_control::agent_id::AgentID;
+/// # use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
+/// # use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
+/// # use newrelic_agent_control::agent_type::protocol_version::SUPPORTED_PROTOCOL_VERSION;
+/// # use newrelic_agent_control::agent_type::registry::{AgentTypeRegistry, AgentTypeRegistryError};
+/// # use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
+/// # use newrelic_agent_control::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
+/// # use newrelic_agent_control::sub_agent::identity::AgentIdentity;
+/// # use newrelic_agent_control::sub_agent::remote_config_parser::extract_remote_config_values;
+/// # use std::collections::HashMap;
+/// #
+/// # // A registry that always resolves `key3` as a `yaml`-typed variable.
+/// # struct DocRegistry(AgentTypeDefinition);
+/// # impl AgentTypeRegistry for DocRegistry {
+/// #     fn get(&self, _: &AgentTypeID) -> Result<AgentTypeDefinition, AgentTypeRegistryError> {
+/// #         Ok(self.0.clone())
+/// #     }
+/// # }
+/// # let agent_type_yaml = format!(
+/// #     r#"namespace: newrelic
+/// # name: testagent
+/// # version: 0.1.0
+/// # platform: host
+/// # operating_system: linux
+/// # protocol_version: "{SUPPORTED_PROTOCOL_VERSION}"
+/// # variables:
+/// #   key3:
+/// #     description: "d"
+/// #     type: yaml
+/// #     required: false
+/// # deployment: {{}}
+/// # "#
+/// # );
+/// # let registry = DocRegistry(AgentTypeDefinition::from_slice(agent_type_yaml.as_bytes()).unwrap());
+/// # let agent_identity = AgentIdentity::from((
+/// #     AgentID::try_from("my-agent").unwrap(),
+/// #     AgentTypeID::try_from("newrelic/testagent:0.1.0").unwrap(),
+/// # ));
+/// #
+/// let config_map = serde_json::from_value::<HashMap<String, String>>(serde_json::json!(
+/// {
+///     "agentConfig-1": "key1: value1",
+///     "agentConfig-2": "key2: value2",
+///     "agentConfig-3": "key3: value3",
+///     "override.agentConfig": "key2: overridden2",
+///     "overrideVariable.agentConfig.key3": "overridden3",
+/// }
+/// )).unwrap();
+/// let opamp_remote_config = OpampRemoteConfig::new(
+///     AgentID::try_from("my-agent").unwrap(),
+///     Hash::from("some-hash"),
+///     ConfigState::Applying,
+///     ConfigurationMap::new(config_map),
+/// );
+///
+/// let remote_config =
+///     extract_remote_config_values(&opamp_remote_config, &agent_identity, &registry)
+///         .unwrap()
+///         .unwrap();
+/// assert_eq!(
+///     remote_config.config,
+///     serde_json::from_value(serde_json::json!({
+///         "key1": "value1",
+///         "key2": "overridden2",
+///         "key3": "overridden3",
+///     }))
+///     .unwrap()
+/// );
 /// ```
 ///
 /// # Errors

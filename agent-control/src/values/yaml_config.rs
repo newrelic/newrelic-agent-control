@@ -63,27 +63,27 @@ impl YAMLConfig {
         })
     }
 
-    /// Sets `value` at the given dot-separated `path`, creating any missing intermediate mappings and
-    /// overwriting the value at the final segment.
+    /// Sets `value` at the given dot-separated `variable_path`, creating any missing intermediate
+    /// mappings and overwriting the value at the final segment.
     ///
     /// # Example
     /// ```
     /// # use newrelic_agent_control::values::yaml_config::YAMLConfig;
     /// # use serde_json::json;
     /// let mut config: YAMLConfig = serde_json::from_value(json!({"foo": {"bar": "value1"}})).unwrap();
-    /// config.set_override_path("foo.bar", json!("overridden")).unwrap();
-    /// config.set_override_path("foo.baz", json!("new")).unwrap();
+    /// config.override_variable_value("foo.bar", json!("overridden")).unwrap();
+    /// config.override_variable_value("foo.baz", json!("new")).unwrap();
     /// assert_eq!(config, serde_json::from_value(json!({"foo": {"bar": "overridden", "baz": "new"}})).unwrap());
     /// ```
     /// # Errors
-    /// Returns an error if `path` is empty, or if an intermediate segment already holds a
+    /// Returns an error if `variable_path` is empty, or if an intermediate segment already holds a
     /// non-mapping value.
     ///
     /// ```
     /// # use newrelic_agent_control::values::yaml_config::YAMLConfig;
     /// # use serde_json::json;
     /// let mut config: YAMLConfig = serde_json::from_value(json!({"foo": {"bar": "value1"}})).unwrap();
-    /// let err = config.set_override_path("foo.bar.baz", json!("new")).unwrap_err();
+    /// let err = config.override_variable_value("foo.bar.baz", json!("new")).unwrap_err();
     /// assert_eq!(
     ///     err.to_string(),
     ///     "cannot override nested variable path 'foo.bar.baz': segment 'foo.bar' is not a mapping"
