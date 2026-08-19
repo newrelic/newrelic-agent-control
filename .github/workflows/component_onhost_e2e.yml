@@ -65,6 +65,7 @@ jobs:
           - nri-redis
           - nri-flex
           - all-ohis-no-service
+          - package-upgrade
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"

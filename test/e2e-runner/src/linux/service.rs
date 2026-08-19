@@ -81,3 +81,21 @@ pub fn get_service_status(service_name: &str) -> String {
         .trim()
         .to_string()
 }
+
+pub const ENABLED: &str = "enabled";
+
+/// Gets whether a service is enabled to start on boot (`systemctl show --property=UnitFileState`).
+pub fn get_unit_file_state(service_name: &str) -> String {
+    let cmd = format!("systemctl show --property=UnitFileState {service_name} | cut -d= -f2");
+    let output = exec_bash_command(&cmd).unwrap_or_else(|err| {
+        panic!("could not get unit file state of '{service_name}' service: {err}")
+    });
+
+    output
+        .lines()
+        .find(|line| line.starts_with("Stdout: "))
+        .and_then(|line| line.strip_prefix("Stdout: "))
+        .unwrap_or("")
+        .trim()
+        .to_string()
+}
