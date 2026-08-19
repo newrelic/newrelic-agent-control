@@ -28,7 +28,7 @@ pub enum RemoteConfigParserError {
     #[error("remote configuration with invalid values: {0}")]
     InvalidValues(String),
     /// Could not load the Agent Type
-    #[error("could not load the Agent Type '{agent_type_id}': {err}")]
+    #[error("could not load the agent type '{agent_type_id}': {err}")]
     AgentTypeLoad { agent_type_id: String, err: String },
 }
 
@@ -299,7 +299,7 @@ fn parse_override_value(
             // Using explicit parsing for each type instead of `matches!` in case a new type is added.
             // Strings don't need yaml parsing.
             VariableTypeDefinition::String(_) => Ok(serde_json::Value::String(value.to_string())),
-            // Other types needsto be a valid yaml
+            // Other types need to be a valid yaml
             VariableTypeDefinition::Bool(_)
             | VariableTypeDefinition::Number(_)
             | VariableTypeDefinition::StringMap(_)

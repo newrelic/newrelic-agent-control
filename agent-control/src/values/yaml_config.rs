@@ -1,9 +1,11 @@
 //! The [`YAMLConfig`] type wrapping a YAML mapping that Agent Control can read and store.
 
-use crate::agent_control::config::AgentControlDynamicConfig;
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
+use crate::{
+    agent_control::config::AgentControlDynamicConfig, agent_type::templates::TEMPLATE_KEY_SEPARATOR,
+};
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
@@ -94,7 +96,7 @@ impl YAMLConfig {
         variable_path: &str,
         value: Value,
     ) -> Result<(), YAMLConfigError> {
-        let mut segments = variable_path.split('.');
+        let mut segments = variable_path.split(TEMPLATE_KEY_SEPARATOR);
         let first = segments
             .next()
             .filter(|s| !s.is_empty())
