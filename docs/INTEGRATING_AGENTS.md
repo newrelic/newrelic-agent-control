@@ -100,7 +100,7 @@ When referencing these variables elsewhere, as you will see in the [deployment](
 
 The variables can theoretically be nested this way indefinitely, but for usability purposes we advise to keep this at a reasonable level.
 
-Each variable name (i.e. every key in the tree, at every level) must match `[A-Za-z0-9_-]` and start with a letter, with a maximum length of 64 characters. In particular, `.` and `:` are not allowed: `.` is reserved for separating nesting levels (as shown above), and `:` is reserved for namespace prefixes when referencing variables (e.g. `${nr-var:variable_name}`, see [Environment variable expansion on configuration values](#environment-variable-expansion-on-configuration-values) below) — allowing either in a variable name would make it ambiguous with those.
+Each variable name (i.e. every key in the tree, at every level) must match `[A-Za-z0-9_-]` and start with a letter, with a maximum length of 64 characters. In particular, `.` and `:` are not allowed: `.` is reserved for separating nesting levels (as shown above), and `:` is reserved for namespace prefixes when referencing variables (e.g. `${nr-var:variable_name}`, see [Environment variable expansion on configuration values](#environment-variable-expansion-on-configuration-values) below).
 
 #### Variable definition
 
