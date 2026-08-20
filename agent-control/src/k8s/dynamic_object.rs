@@ -17,7 +17,11 @@ use kube::{
     core::GroupVersion,
     discovery::pinned_kind,
 };
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    str::FromStr,
+    sync::Arc,
+};
 use tokio::sync::Mutex;
 use tracing::debug;
 
@@ -81,7 +85,10 @@ impl DynamicObjectManager {
                 if obj_old.metadata.labels != obj.metadata.labels {
                     return Ok(true);
                 }
-                if obj_old.metadata.annotations != obj.metadata.annotations {
+                if desired_annotations_out_of_sync(
+                    obj.metadata.annotations.as_ref(),
+                    obj_old.metadata.annotations.as_ref(),
+                ) {
                     return Ok(true);
                 }
                 Ok(false)
@@ -105,10 +112,13 @@ impl DynamicObjectManager {
                 // We are updating just particular metadata fields, the ones that are supported currently by the config.
                 // Moreover, if you add a new one you need to consider them in the `has_changed` method.
                 obj_old.metadata.labels.clone_from(&obj.metadata.labels);
-                obj_old
-                    .metadata
-                    .annotations
-                    .clone_from(&obj.metadata.annotations);
+                if let Some(new_annotations) = &obj.metadata.annotations {
+                    obj_old
+                        .metadata
+                        .annotations
+                        .get_or_insert_default()
+                        .extend(new_annotations.clone());
+                }
             })
             .or_insert(|| obj.clone())
             .commit(&PostParams::default())
@@ -254,6 +264,25 @@ impl DynamicObjectManagers {
     }
 }
 
+/// Returns true if any annotation key present in `desired` is missing or has a different value in
+/// `live`. Extra keys in `live` that are not in `desired` are ignored, this allows third-party
+/// annotations (e.g. `reconcile.fluxcd.io/requestedAt`) to coexist without being treated as drift.
+fn desired_annotations_out_of_sync(
+    desired: Option<&BTreeMap<String, String>>,
+    live: Option<&BTreeMap<String, String>>,
+) -> bool {
+    let Some(desired) = desired else {
+        // No desired annotations, nothing to enforce.
+        return false;
+    };
+    let Some(live) = live else {
+        // Live object has no annotations at all, it should be synced (ex. manually removed).
+        return true;
+    };
+    // Returns true if at least 1 desired annotation is absent or has a wrong value in the live obj.
+    desired.keys().any(|k| desired.get(k) != live.get(k))
+}
+
 /// Checks if the content of two dynamic objects are considered equal. The order matters since the
 /// object `from_manifest` can be different from the object `from_cluster` and still have equivalent
 /// content. Metadata is not considered.
@@ -392,6 +421,42 @@ mod tests {
                 &make_configmap(manifest_data, manifest_binary_data),
                 &make_configmap(cluster_data, cluster_binary_data),
             ),
+            expected
+        );
+    }
+
+    fn btree(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+
+    #[rstest]
+    #[case::no_desired_none_live(None, None, false)]
+    #[case::no_desired_some_live(None, Some(vec![("k", "v")]), false)]
+    #[case::all_present_correct(Some(vec![("k", "v")]), Some(vec![("k", "v")]), false)]
+    // Regression: a third-party annotation (e.g. reconcile.fluxcd.io/requestedAt) added to the
+    // live object by patch_dynamic_object must not be seen as drift by has_changed, otherwise
+    // the reconcile loop will re-apply and drop it.
+    #[case::extra_annotation_in_live_not_treated_as_drift(
+        Some(vec![("newrelic.io/owned-by", "sub-agent")]),
+        Some(vec![("newrelic.io/owned-by", "sub-agent"), ("reconcile.fluxcd.io/requestedAt", "1786978668")]),
+        false
+    )]
+    #[case::desired_present_live_none(Some(vec![("k", "v")]), None, true)]
+    #[case::key_missing_from_live(Some(vec![("k", "v")]), Some(vec![("other", "v")]), true)]
+    #[case::wrong_value_in_live(Some(vec![("k", "v")]), Some(vec![("k", "wrong")]), true)]
+    #[case::one_of_two_keys_wrong(Some(vec![("a", "1"), ("b", "2")]), Some(vec![("a", "1"), ("b", "X")]), true)]
+    fn test_desired_annotations_out_of_sync(
+        #[case] desired: Option<Vec<(&str, &str)>>,
+        #[case] live: Option<Vec<(&str, &str)>>,
+        #[case] expected: bool,
+    ) {
+        let desired = desired.map(|v| btree(v.as_slice()));
+        let live = live.map(|v| btree(v.as_slice()));
+        assert_eq!(
+            desired_annotations_out_of_sync(desired.as_ref(), live.as_ref()),
             expected
         );
     }

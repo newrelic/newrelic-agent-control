@@ -2,6 +2,9 @@
 use crate::agent_type::agent_type_id::AgentTypeID;
 use std::collections::BTreeMap;
 
+/// Flux annotation that triggers immediate reconciliation of a HelmRelease.
+pub const FLUX_RECONCILE_ANNOTATION_KEY: &str = "reconcile.fluxcd.io/requestedAt";
+
 const AGENT_TYPE_ID_ANNOTATION_KEY: &str = "newrelic.io/agent-type-id";
 const OWNED_BY_ANNOTATION_KEY: &str = "newrelic.io/owned-by";
 
