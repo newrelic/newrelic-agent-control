@@ -142,6 +142,16 @@ These are the endpoints the AC process itself directly communicates with at runt
 
 AC uses OCI registries as storage for different types of artifacts, including on-host agent packages, and other AC custom artifacts, having the default registry set to `docker.io`. By default, AC will pull these artifacts from the newrelic namespace on Docker Hub (`docker.io/newrelic`).
 
+Pulling from Docker Hub involves more than the `docker.io` hostname itself. The table below lists the endpoints Docker Hub pulls typically go through:
+
+| Endpoint | Port | Protocol | Purpose |
+|---|---|---|---|
+| `registry-1.docker.io` | 443 | HTTPS | Docker Hub registry API (image manifests and layers) |
+| `auth.docker.io` | 443 | HTTPS | Docker Hub authentication (pull tokens) |
+| `production.cloudfront.docker.com` | 443 | HTTPS | Docker Hub layer storage (CDN-backed blob storage) |
+
+> **Note:** these endpoints are owned and operated by Docker, not New Relic, and are subject to change without notice on Docker's end. For the authoritative, up-to-date list, refer to [Docker's own allowlist documentation](https://docs.docker.com/desktop/setup/allow-list/).
+
 #### Signature validation — always required
 
 AC fetches public keys (JWKS) from these endpoints to verify the signatures of New Relic-issued artifacts, including remote configurations and OCI agent packages.
