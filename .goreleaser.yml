@@ -191,7 +191,6 @@ nfpms: # deb and rpm are only built for linux targets
       - nr-otel-collector
 
     recommends:
-      - td-agent-bit #To be removed on removal of the ff fluent_bit_19
       - fluent-bit
 
     id: newrelic-agent-control
