@@ -117,15 +117,15 @@ jobs:
         env:
           NEW_RELIC_API_KEY: ${{ matrix.environment == 'production' && secrets.AC_PROD_E2E_API_KEY || secrets.AC_FC_STAG_E2E_API_KEY }}
         run: |
-          chmod +x test/onhost-canaries/scripts/fleet_deployment.sh
+          chmod +x test/scripts/fleet_deployment.sh
           if [ -n "${{ steps.target.outputs.rotating_spec }}" ]; then
-            test/onhost-canaries/scripts/fleet_deployment.sh \
+            test/scripts/fleet_deployment.sh \
               "${{ steps.target.outputs.fleet_id }}" \
               "${{ matrix.environment }}" \
               "${{ steps.target.outputs.infra_spec }}" \
               "${{ steps.target.outputs.rotating_spec }}"
           else
-            test/onhost-canaries/scripts/fleet_deployment.sh \
+            test/scripts/fleet_deployment.sh \
               "${{ steps.target.outputs.fleet_id }}" \
               "${{ matrix.environment }}" \
               "${{ steps.target.outputs.infra_spec }}"
