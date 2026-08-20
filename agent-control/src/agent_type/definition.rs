@@ -65,6 +65,10 @@ impl<'de> Deserialize<'de> for RawAgentTypeDefinition {
         }
 
         let fields = Fields::deserialize(deserializer)?;
+        fields
+            .variables
+            .validate_names()
+            .map_err(D::Error::custom)?;
 
         let deployment = match fields.metadata.environment {
             Environment::Linux | Environment::Windows => {
@@ -671,6 +675,63 @@ platform: host
         assert_matches!(
             AgentTypeDefinition::from_slice(yaml.as_bytes()),
             Err(AgentTypeDefinitionParseError::Definition(_))
+        );
+    }
+
+    #[rstest]
+    #[case::dot_in_top_level_variable_name(
+        r#"
+  "foo.bar":
+    description: "some description"
+    type: string
+    required: true
+"#,
+        "foo.bar"
+    )]
+    #[case::colon_in_top_level_variable_name(
+        r#"
+  "foo:bar":
+    description: "some description"
+    type: string
+    required: true
+"#,
+        "foo:bar"
+    )]
+    #[case::invalid_key_several_levels_deep(
+        r#"
+  common:
+    two:
+      "three.four":
+        description: "some description"
+        type: string
+        required: true
+"#,
+        "common.two.three.four"
+    )]
+    fn parse_rejects_invalid_variable_names(
+        #[case] variables_yaml: &str,
+        #[case] expected_path: &str,
+    ) {
+        let supported = protocol_version::SUPPORTED_PROTOCOL_VERSION;
+        let yaml = format!(
+            r#"
+namespace: ns
+name: test
+version: 0.0.0
+protocol_version: "{supported}"
+platform: host
+operating_system: linux
+variables:{variables_yaml}
+deployment: {{}}
+"#
+        );
+
+        let err = AgentTypeDefinition::from_slice(yaml.as_bytes()).unwrap_err();
+
+        assert_matches!(err, AgentTypeDefinitionParseError::Definition(_));
+        assert!(
+            err.to_string().contains(expected_path),
+            "expected error to reference path '{expected_path}', got: {err}"
         );
     }
 

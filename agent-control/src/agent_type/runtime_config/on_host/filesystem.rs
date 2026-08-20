@@ -354,14 +354,14 @@ fn validate_file_entry_path(path: &Path) -> Result<(), String> {
 /// Escaping components (`..`, root, Windows prefixes) are handled by `check_basedir_escape_safety`.
 fn check_single_segment(path: &Path) -> Result<(), String> {
     let mut components = path.components();
-    if let (Some(Component::Normal(_)), None) = (components.next(), components.next()) {
-        return Ok(());
+    match (components.next(), components.next()) {
+        (Some(Component::Normal(_)), None) => Ok(()),
+        _ => Err(format!(
+            "path `{}` must be a single path segment (a leaf); declare nested directories \
+             explicitly with `kind: dir` and `entries:`",
+            path.display()
+        )),
     }
-    Err(format!(
-        "path `{}` must be a single path segment (a leaf); declare nested directories \
-         explicitly with `kind: dir` and `entries:`",
-        path.display()
-    ))
 }
 
 /// Rejects paths that traverse outside their base directory (e.g. `./../../some_path`) so that
