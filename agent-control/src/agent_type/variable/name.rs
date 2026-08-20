@@ -41,20 +41,22 @@ pub enum VariableNameError {
 /// separator) and `:` (the namespace separator), and more generally anything outside
 /// `[A-Za-z0-9_-]`, starting with an ASCII letter — see module docs for the rationale.
 pub(crate) fn validate_variable_name(name: &str) -> Result<(), VariableNameError> {
-    match name.as_bytes() {
-        [] => Err(VariableNameError::Empty),
-        _ if name.len() > VARIABLE_NAME_MAX_LENGTH => Err(VariableNameError::TooLong {
+    if name.is_empty() {
+        Err(VariableNameError::Empty)
+    } else if name.len() > VARIABLE_NAME_MAX_LENGTH {
+        Err(VariableNameError::TooLong {
             length: name.len(),
             max: VARIABLE_NAME_MAX_LENGTH,
-        }),
-        [first, ..] if !first.is_ascii_alphabetic() => Err(VariableNameError::InvalidStart),
-        _ if let Some(invalid) = name
-            .chars()
-            .find(|c| !(c.is_ascii_alphanumeric() || *c == '_' || *c == '-')) =>
-        {
-            Err(VariableNameError::InvalidCharacter(invalid))
-        }
-        _ => Ok(()),
+        })
+    } else if !name.starts_with(|c: char| c.is_ascii_alphabetic()) {
+        Err(VariableNameError::InvalidStart)
+    } else if let Some(invalid) = name
+        .chars()
+        .find(|c| !(c.is_ascii_alphanumeric() || *c == '_' || *c == '-'))
+    {
+        Err(VariableNameError::InvalidCharacter(invalid))
+    } else {
+        Ok(())
     }
 }
 
