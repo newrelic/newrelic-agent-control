@@ -143,9 +143,11 @@ common:
         r#"
 "foo.bar":
 "#,
-        "foo.bar",
-        "foo.bar",
-        VariableNameError::InvalidCharacter('.')
+        VariableNameTreeError {
+            path: "foo.bar".to_string(),
+            segment: "foo.bar".to_string(),
+            source: VariableNameError::InvalidCharacter('.'),
+        }
     )]
     #[case::nested_three_levels_deep(
         r#"
@@ -153,29 +155,25 @@ common:
   two:
     "three:x":
 "#,
-        "common.two.three:x",
-        "three:x",
-        VariableNameError::InvalidCharacter(':')
+        VariableNameTreeError {
+            path: "common.two.three:x".to_string(),
+            segment: "three:x".to_string(),
+            source: VariableNameError::InvalidCharacter(':'),
+        }
     )]
     #[case::intermediate_mapping_key(
         r#"
 "a.b":
   c:
 "#,
-        "a.b",
-        "a.b",
-        VariableNameError::InvalidCharacter('.')
+        VariableNameTreeError {
+            path: "a.b".to_string(),
+            segment: "a.b".to_string(),
+            source: VariableNameError::InvalidCharacter('.'),
+        }
     )]
-    fn invalid_trees_are_rejected(
-        #[case] yaml: &str,
-        #[case] expected_path: &str,
-        #[case] expected_segment: &str,
-        #[case] expected_source: VariableNameError,
-    ) {
+    fn invalid_trees_are_rejected(#[case] yaml: &str, #[case] expected: VariableNameTreeError) {
         let tree: VarTree<()> = serde_saphyr::from_str(yaml).unwrap();
-        let err = tree.validate_names().unwrap_err();
-        assert_eq!(err.path, expected_path);
-        assert_eq!(err.segment, expected_segment);
-        assert_eq!(err.source, expected_source);
+        assert_eq!(tree.validate_names(), Err(expected));
     }
 }

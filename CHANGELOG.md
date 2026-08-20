@@ -16,7 +16,7 @@ Remember that the keywords that you can use are the following:
 
 ### enhancement
 - On-host: enforce a 2400 MiB hard memory limit on the Agent Control process tree (AC + all child agents) via systemd `MemoryMax` on Linux.
-- Agent type: reject `.` and `:` (and other special characters) in variable names, to avoid ambiguity with the templating and namespace separators.
+- Agent type: enforce variable name format to `[A-Za-z0-9_-]` starting with a letter and maximum length of 64 characters.
 
 ## v1.21.0 - 2026-08-11
 
