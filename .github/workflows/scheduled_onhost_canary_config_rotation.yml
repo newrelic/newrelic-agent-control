@@ -1,0 +1,132 @@
+name: 🔁🐤 Scheduled on host canary config rotation
+
+# Every 6 hours, alternate between two states for the canary fleet:
+#   add    → NRInfra + nri-flex
+#   remove → NRInfra only (nri-flex absent, Fleet Control reconciles removal)
+# NRInfra is always present so process and infra metrics keep flowing.
+
+on:
+  schedule:
+    # Every 6 hours (UTC). Minute offset from :00 to dodge the top-of-hour
+    # scheduler backlog that delays cron workflows on GitHub-hosted runners.
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never overlap rotation runs (each run already deploys every environment/platform combination).
+  group: scheduled-onhost-canary-config-rotation
+  cancel-in-progress: false
+
+env:
+  FLEET_ID_STAGING: ${{ vars.ONHOST_FLEET_ID_STAGING }}
+  WINDOWS_FLEET_ID_STAGING: ${{ vars.ONHOST_WINDOWS_FLEET_ID_STAGING }}
+  FLEET_ID_PRODUCTION: ${{ vars.ONHOST_FLEET_ID_PRODUCTION }}
+  WINDOWS_FLEET_ID_PRODUCTION: ${{ vars.ONHOST_WINDOWS_FLEET_ID_PRODUCTION }}
+
+  CANARY_NRI_INFRA_VERSION: "1.79.0"
+  CANARY_NRI_FLEX_VERSION: "1.18.10"
+
+  # ---------------------------------------------------------------------------
+  # NRInfra spec always included in every deployment so process and infra
+  # metrics keep flowing regardless of which OHI is the rotating companion.
+  # ---------------------------------------------------------------------------
+  # AC US Production Account `canaries-infra-config` config
+  INFRA_SPEC_LINUX_PRODUCTION: "NRInfra:$CANARY_NRI_INFRA_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmNGM3Yi1lYjAyLTc1MmQtOGViOC0zNDYyMWM2ZDRkMzQ"
+  # AC US Production Account `canaries-infra-config-windows` config
+  INFRA_SPEC_WINDOWS_PRODUCTION: "NRInfra:$CANARY_NRI_INFRA_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmNGNjNC0zNmU1LTdmMmQtYjIyMS1mM2ZjY2QzOTAwOTg"
+  # AC Staging Account `canaries-infra-config` config
+  INFRA_SPEC_LINUX_STAGING: "NRInfra:$CANARY_NRI_INFRA_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZjViZTItYjdkYy03YmM5LTg0OTUtYTIyMmI5NTYyZDAy"
+  # AC Staging Account `canaries-infra-config-windows` config
+  INFRA_SPEC_WINDOWS_STAGING: "NRInfra:$CANARY_NRI_INFRA_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZjViZTMtNmU3YS03NzA0LWI0NjgtOTAwMDY1NjgyMWJj"
+
+  # ---------------------------------------------------------------------------
+  # nri-flex companion spec per platform/environment. Each run toggles:
+  #   Odd  runs (run_number % 2 == 1) -> NRInfra + nri-flex  (add)
+  #   Even runs (run_number % 2 == 0) -> NRInfra only        (remove)
+  # ---------------------------------------------------------------------------
+  # AC US Production Account `canaries-linux-flex-config` config
+  FLEX_SPEC_LINUX_PRODUCTION: "nri-flex:$CANARY_NRI_FLEX_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMWEwMTU3ZC0yOGYwLTc5ZDgtODkzZi1mNWUwMzY0ZWFkNzA"
+  # AC US Production Account `canaries-windows-flex-config` config
+  FLEX_SPEC_WINDOWS_PRODUCTION: "nri-flex:$CANARY_NRI_FLEX_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMWEwMTU3YS1iZWFlLTdiZWMtYTI1NC0wNDQyNjdlZmNlN2Q"
+  # AC Staging Account `canaries-linux-flex-config` config
+  FLEX_SPEC_LINUX_STAGING: "nri-flex:$CANARY_NRI_FLEX_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmViZjItNjJjNi03MDU4LTk2OTAtZWFlYWYxMTcyYzI2"
+  # AC Staging Account `canaries-windows-flex-config` config
+  FLEX_SPEC_WINDOWS_STAGING: "nri-flex:$CANARY_NRI_FLEX_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmVjMDAtYmU3Ni03NWEyLWExODMtM2EwNGJiYTRjOTgx"
+
+jobs:
+  rotate-config-deployment:
+    name: Deploy next config in rotation (${{ matrix.environment }} / ${{ matrix.platform }})
+    runs-on: linux-4-core-nr-control
+    strategy:
+      # Every run deploys all environment/platform combinations; a failure on one
+      # must not skip the others.
+      fail-fast: false
+      matrix:
+        environment: [staging, production]
+        platform: [linux, windows]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Resolve fleet and select rotating companion spec
+        id: target
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ENVIRONMENT: ${{ matrix.environment }}
+        run: |
+          if [ "${PLATFORM}" = "windows" ]; then
+            if [ "${ENVIRONMENT}" = "production" ]; then
+              FLEET_ID="${WINDOWS_FLEET_ID_PRODUCTION}"
+              INFRA_SPEC="${INFRA_SPEC_WINDOWS_PRODUCTION}"
+              FLEX_SPEC="${FLEX_SPEC_WINDOWS_PRODUCTION}"
+            else
+              FLEET_ID="${WINDOWS_FLEET_ID_STAGING}"
+              INFRA_SPEC="${INFRA_SPEC_WINDOWS_STAGING}"
+              FLEX_SPEC="${FLEX_SPEC_WINDOWS_STAGING}"
+            fi
+          else
+            if [ "${ENVIRONMENT}" = "production" ]; then
+              FLEET_ID="${FLEET_ID_PRODUCTION}"
+              INFRA_SPEC="${INFRA_SPEC_LINUX_PRODUCTION}"
+              FLEX_SPEC="${FLEX_SPEC_LINUX_PRODUCTION}"
+            else
+              FLEET_ID="${FLEET_ID_STAGING}"
+              INFRA_SPEC="${INFRA_SPEC_LINUX_STAGING}"
+              FLEX_SPEC="${FLEX_SPEC_LINUX_STAGING}"
+            fi
+          fi
+          INFRA_SPEC=$(echo "$INFRA_SPEC" | envsubst '$CANARY_NRI_INFRA_VERSION')
+          FLEX_SPEC=$(echo "$FLEX_SPEC"   | envsubst '$CANARY_NRI_FLEX_VERSION')
+
+          # Odd run numbers add nri-flex; even run numbers deploy NRInfra only.
+          RUN_NUMBER=${{ github.run_number }}
+          if [ $(( RUN_NUMBER % 2 )) -eq 1 ]; then
+            echo "[${PLATFORM}] run #${RUN_NUMBER} -> NRInfra + nri-flex (add)"
+            ROTATING_SPEC="${FLEX_SPEC}"
+          else
+            echo "[${PLATFORM}] run #${RUN_NUMBER} -> NRInfra only (nri-flex removed)"
+            ROTATING_SPEC=""
+          fi
+
+          echo "fleet_id=${FLEET_ID}"             >> "$GITHUB_OUTPUT"
+          echo "infra_spec=${INFRA_SPEC}"         >> "$GITHUB_OUTPUT"
+          echo "rotating_spec=${ROTATING_SPEC}"   >> "$GITHUB_OUTPUT"
+
+      - name: Create and deploy fleet deployment
+        env:
+          NEW_RELIC_API_KEY: ${{ matrix.environment == 'production' && secrets.AC_PROD_E2E_API_KEY || secrets.AC_FC_STAG_E2E_API_KEY }}
+        run: |
+          chmod +x test/onhost-canaries/scripts/fleet_deployment.sh
+          if [ -n "${{ steps.target.outputs.rotating_spec }}" ]; then
+            test/onhost-canaries/scripts/fleet_deployment.sh \
+              "${{ steps.target.outputs.fleet_id }}" \
+              "${{ matrix.environment }}" \
+              "${{ steps.target.outputs.infra_spec }}" \
+              "${{ steps.target.outputs.rotating_spec }}"
+          else
+            test/onhost-canaries/scripts/fleet_deployment.sh \
+              "${{ steps.target.outputs.fleet_id }}" \
+              "${{ matrix.environment }}" \
+              "${{ steps.target.outputs.infra_spec }}"
+          fi
