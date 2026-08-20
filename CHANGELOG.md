@@ -19,6 +19,7 @@ Remember that the keywords that you can use are the following:
 
 ### bugfix
 - K8s supervisor: force a Flux reconciliation on stalled HelmReleases (e.g. after exhausting install/upgrade retries) when a new remote config
+- On-host: report the actual last failure (launch error or non-zero exit) in the `lastErrorMessage` of the unhealthy status once the restart policy is exceeded, instead of the generic "Restart policy exceeded" message.
 
 ## v1.22.0 - 2026-08-18
 
