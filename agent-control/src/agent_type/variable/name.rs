@@ -71,6 +71,7 @@ mod tests {
     #[case::camel_case("agentConfigMap")]
     #[case::snake_case("health_imagePullPolicy")]
     #[case::kebab_case("k8s-agents-operator")]
+    #[case::contains_digits("agent2Config9")]
     #[case::single_letter("a")]
     #[case::max_length(&"a".repeat(VARIABLE_NAME_MAX_LENGTH))]
     fn valid_names_are_accepted(#[case] name: &str) {

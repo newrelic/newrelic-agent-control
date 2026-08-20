@@ -354,20 +354,14 @@ fn validate_file_entry_path(path: &Path) -> Result<(), String> {
 /// Escaping components (`..`, root, Windows prefixes) are handled by `check_basedir_escape_safety`.
 fn check_single_segment(path: &Path) -> Result<(), String> {
     let mut components = path.components();
-    match (components.next(), components.next()) {
-        (Some(Component::Normal(name)), None) if name.to_str().is_some_and(|s| s.contains(':')) => {
-            Err(format!(
-                "path `{}` contains invalid character ':'",
-                path.display()
-            ))
-        }
-        (Some(Component::Normal(_)), None) => Ok(()),
-        _ => Err(format!(
-            "path `{}` must be a single path segment (a leaf); declare nested directories \
-         explicitly with `kind: dir` and `entries:`",
-            path.display()
-        )),
+    if let (Some(Component::Normal(_)), None) = (components.next(), components.next()) {
+        return Ok(());
     }
+    Err(format!(
+        "path `{}` must be a single path segment (a leaf); declare nested directories \
+         explicitly with `kind: dir` and `entries:`",
+        path.display()
+    ))
 }
 
 /// Rejects paths that traverse outside their base directory (e.g. `./../../some_path`) so that
@@ -655,7 +649,6 @@ nri-redis:
     #[case::dot_segment("agent/./data", false)]
     #[case::absolute("/etc", false)]
     #[case::dotdot("agent/../escape", false)]
-    #[case::contains_colon("foo:bar", false)]
     fn safe_path_parsing(#[case] path: &str, #[case] should_parse: bool) {
         let yaml = format!(
             r#"

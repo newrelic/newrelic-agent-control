@@ -132,21 +132,15 @@ fn parse_string_map(value: serde_json::Value) -> Result<HashMap<String, String>,
     let map: HashMap<String, serde_json::Value> = serde_json::from_value(value)?;
     map.into_iter()
         .map(|(key, value)| {
-            if key.contains(':') {
-                Err(AgentTypeError::Parse(format!(
-                    "invalid character ':' in string_map key '{key}'"
-                )))
-            } else {
-                let value = match value {
-                    serde_json::Value::String(s) => s,
-                    other => serde_saphyr::to_string(&other).map_err(|e| {
-                        AgentTypeError::Parse(format!(
-                            "could not encode string_map value for '{key}': {e}"
-                        ))
-                    })?,
-                };
-                Ok((key, value))
-            }
+            let value = match value {
+                serde_json::Value::String(s) => s,
+                other => serde_saphyr::to_string(&other).map_err(|e| {
+                    AgentTypeError::Parse(format!(
+                        "could not encode string_map value for '{key}': {e}"
+                    ))
+                })?,
+            };
+            Ok((key, value))
         })
         .collect()
 }
@@ -154,7 +148,6 @@ fn parse_string_map(value: serde_json::Value) -> Result<HashMap<String, String>,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use assert_matches::assert_matches;
 
     impl From<StringFields> for VariableType {
         fn from(fields: StringFields) -> Self {
@@ -222,16 +215,5 @@ mod tests {
             panic!("expected a MapStringString value");
         };
         assert_eq!(map.get("logging.yml"), Some(&expected_content));
-    }
-
-    #[test]
-    fn string_map_merge_rejects_key_with_colon() {
-        let mut variable_type = empty_string_map();
-
-        let err = variable_type
-            .merge_with_yaml_value(serde_json::json!({ "file:txt": "hello" }))
-            .unwrap_err();
-
-        assert_matches!(err, AgentTypeError::Parse(msg) if msg.contains("file:txt"));
     }
 }

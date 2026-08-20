@@ -118,62 +118,64 @@ impl<T: Clone> VarTree<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    fn leaf() -> Tree<()> {
-        Tree::End(())
-    }
-
-    #[test]
-    fn valid_single_level_tree_passes() {
-        let tree = VarTree(HashMap::from([("foo".to_string(), leaf())]));
+    #[rstest]
+    #[case::single_level(
+        r#"
+foo:
+"#
+    )]
+    #[case::nested(
+        r#"
+common:
+  two:
+    three:
+"#
+    )]
+    fn valid_trees_pass(#[case] yaml: &str) {
+        let tree: VarTree<()> = serde_saphyr::from_str(yaml).unwrap();
         assert_eq!(tree.validate_names(), Ok(()));
     }
 
-    #[test]
-    fn valid_nested_tree_passes() {
-        let tree = VarTree(HashMap::from([(
-            "common".to_string(),
-            Tree::Mapping(HashMap::from([(
-                "two".to_string(),
-                Tree::Mapping(HashMap::from([("three".to_string(), leaf())])),
-            )])),
-        )]));
-        assert_eq!(tree.validate_names(), Ok(()));
-    }
-
-    #[test]
-    fn invalid_top_level_leaf_key_is_rejected() {
-        let tree = VarTree(HashMap::from([("foo.bar".to_string(), leaf())]));
+    #[rstest]
+    #[case::top_level_leaf_key(
+        r#"
+"foo.bar":
+"#,
+        "foo.bar",
+        "foo.bar",
+        VariableNameError::InvalidCharacter('.')
+    )]
+    #[case::nested_three_levels_deep(
+        r#"
+common:
+  two:
+    "three:x":
+"#,
+        "common.two.three:x",
+        "three:x",
+        VariableNameError::InvalidCharacter(':')
+    )]
+    #[case::intermediate_mapping_key(
+        r#"
+"a.b":
+  c:
+"#,
+        "a.b",
+        "a.b",
+        VariableNameError::InvalidCharacter('.')
+    )]
+    fn invalid_trees_are_rejected(
+        #[case] yaml: &str,
+        #[case] expected_path: &str,
+        #[case] expected_segment: &str,
+        #[case] expected_source: VariableNameError,
+    ) {
+        let tree: VarTree<()> = serde_saphyr::from_str(yaml).unwrap();
         let err = tree.validate_names().unwrap_err();
-        assert_eq!(err.path, "foo.bar");
-        assert_eq!(err.segment, "foo.bar");
-        assert_eq!(err.source, VariableNameError::InvalidCharacter('.'));
-    }
-
-    #[test]
-    fn invalid_key_nested_three_levels_deep_is_rejected() {
-        let tree = VarTree(HashMap::from([(
-            "common".to_string(),
-            Tree::Mapping(HashMap::from([(
-                "two".to_string(),
-                Tree::Mapping(HashMap::from([("three:x".to_string(), leaf())])),
-            )])),
-        )]));
-        let err = tree.validate_names().unwrap_err();
-        assert_eq!(err.path, "common.two.three:x");
-        assert_eq!(err.segment, "three:x");
-        assert_eq!(err.source, VariableNameError::InvalidCharacter(':'));
-    }
-
-    #[test]
-    fn invalid_intermediate_mapping_key_is_rejected() {
-        let tree = VarTree(HashMap::from([(
-            "a.b".to_string(),
-            Tree::Mapping(HashMap::from([("c".to_string(), leaf())])),
-        )]));
-        let err = tree.validate_names().unwrap_err();
-        assert_eq!(err.path, "a.b");
-        assert_eq!(err.segment, "a.b");
-        assert_eq!(err.source, VariableNameError::InvalidCharacter('.'));
+        assert_eq!(err.path, expected_path);
+        assert_eq!(err.segment, expected_segment);
+        assert_eq!(err.source, expected_source);
     }
 }
