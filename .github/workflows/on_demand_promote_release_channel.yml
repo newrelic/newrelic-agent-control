@@ -1,0 +1,63 @@
+name: ⏯️ Promote Version to Release Channel
+
+# Manually promotes an already-published agent-control version onto a release
+# channel (e.g. REGULAR) in instrumentation metadata. This does not publish
+# metadata itself - the version must already exist (see post-release-agent-metadata.yml).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Agent-control version to promote (e.g. 1.22.0). Must already be published to instrumentation-metadata.'
+        required: true
+        type: string
+      channel:
+        description: 'Release channel to promote the version to.'
+        required: true
+        type: choice
+        options:
+          - REGULAR
+        default: REGULAR
+      platform:
+        description: 'Target platform for the promotion.'
+        required: true
+        type: choice
+        options:
+          - HOST
+          - KUBERNETESCLUSTER
+      operating-system:
+        description: 'Target operating system. Required when platform is HOST.'
+        required: false
+        type: choice
+        options:
+          - ''
+          - LINUX
+          - WINDOWS
+        default: ''
+      note:
+        description: 'Optional note describing why this promotion was made (audit trail only).'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Promote Release Channel
+    runs-on: ubuntu-latest
+
+    steps:
+      # TODO: pin to a tagged release once feature/promote-channel-action lands on main.
+      - name: Promote version to release channel
+        uses: newrelic/agent-metadata-action/promote-release-channel@feature/promote-channel-action
+        with:
+          agent-type: NRAgentControl
+          version: ${{ inputs.version }}
+          channel: ${{ inputs.channel }}
+          platform: ${{ inputs.platform }}
+          operating-system: ${{ inputs.operating-system }}
+          note: ${{ inputs.note }}
+          newrelic-client-id: ${{ secrets.AC_NEWRELIC_CLIENT_ID }}
+          newrelic-private-key: ${{ secrets.AC_NEWRELIC_PRIVATE_KEY }}
+          apm-control-nr-license-key: ${{ secrets.APM_CONTROL_NR_LICENSE_KEY }}
