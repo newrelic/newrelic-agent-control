@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Unreleased section should follow [Release Toolkit](https://github.com/newrelic/release-toolkit/blob/main/README.md).
 
-Remember that the keywords that you can use are the following:
+Remember that the keywords that you can use under Unreleased section are:
  - breaking    => Major
  - security    => Minor
  - enhancement => Minor
@@ -20,6 +20,7 @@ Remember that the keywords that you can use are the following:
 ### bugfix
 - K8s supervisor: force a Flux reconciliation on stalled HelmReleases (e.g. after exhausting install/upgrade retries) when a new remote config
 - On-host: report the actual last failure (launch error or non-zero exit) in the `lastErrorMessage` of the unhealthy status once the restart policy is exceeded, instead of the generic "Restart policy exceeded" message.
+- On-host: persist fluent-bit's home directory (`fb.db`) across infra-agent package updates instead of storing it in the replaced package directory
 
 ## v1.22.0 - 2026-08-18
 
