@@ -73,7 +73,10 @@ impl PublicKey {
             PubKeyError::ValidatingSignature(format!("with key id {}", self.key_id,))
         })?;
 
-        debug!(%self.key_id, "signature verification succeeded");
+        debug!(
+            signature_key_id = self.key_id,
+            "Signature verification succeeded"
+        );
 
         Ok(())
     }
