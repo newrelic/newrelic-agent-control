@@ -1,5 +1,6 @@
 //! Kubernetes supervisor: applies an agent's k8s objects and runs its health, version, and GUID checkers.
 
+use crate::agent_control::config::helmrelease_v2_type_meta;
 use crate::agent_control::defaults::{
     APM_APPLICATION_ID, OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
 };
@@ -12,8 +13,8 @@ use crate::checkers::version::k8s::checkers::{K8sAgentVersionChecker, spawn_vers
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
-use crate::k8s::annotations::Annotations;
-use crate::k8s::client::{K8sClient, SyncK8sClient};
+use crate::k8s::annotations::{Annotations, FLUX_RECONCILE_ANNOTATION_KEY};
+use crate::k8s::client::{K8sClient, K8sObjectKey, SyncK8sClient};
 use crate::k8s::labels::Labels;
 use crate::k8s::utils::retain_not_null;
 use crate::sub_agent::agent_renderer::{AgentRendererError, RenderedAgent};
@@ -27,7 +28,7 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 use tracing::{debug, info, info_span, trace, warn};
 
@@ -168,6 +169,16 @@ impl<C: K8sClient> NotStartedSupervisorK8s<C> {
         })
     }
 
+    fn helm_release_keys(&self) -> Vec<(String, String)> {
+        let tm = helmrelease_v2_type_meta();
+        self.k8s_config
+            .objects
+            .values()
+            .filter(|obj| obj.api_version == tm.api_version && obj.kind == tm.kind)
+            .map(|obj| (obj.metadata.name.clone(), obj.metadata.namespace.clone()))
+            .collect()
+    }
+
     pub(super) fn start_k8s_objects_supervisor(
         &self,
         resources: Arc<Vec<DynamicObject>>,
@@ -175,26 +186,97 @@ impl<C: K8sClient> NotStartedSupervisorK8s<C> {
         let k8s_client = self.k8s_client.clone();
         let interval = self.interval;
         let agent_id = self.agent_identity.id.clone();
+        let helm_release_type_meta = helmrelease_v2_type_meta();
+        let mut helm_releases = Some(self.helm_release_keys());
 
-        let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
-            let span = info_span!(
-                "reconcile_resources",
-                { ID_ATTRIBUTE_NAME } = %agent_id
-            );
-            let _guard = span.enter();
+        let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
+            loop {
+                let span = info_span!(
+                    "reconcile_resources",
+                    { ID_ATTRIBUTE_NAME } = %agent_id
+                );
+                let _guard = span.enter();
 
-            // Check and apply k8s objects
-            if let Err(err) = Self::apply_resources(resources.iter(), &k8s_client) {
-                warn!(%err, "K8s resources apply failed");
-            }
+                // Check and apply k8s objects
+                if let Err(err) = Self::apply_resources(resources.iter(), &k8s_client) {
+                    warn!("K8s resources apply failed: {err}");
+                }
 
-            // Check the cancellation signal
-            if stop_consumer.is_cancelled_with_timeout(interval) {
-                break;
+                // Only run on first iteration
+                if let Some(releases) = helm_releases.take() {
+                    Self::annotate_stalled_releases(
+                        &k8s_client,
+                        &helm_release_type_meta,
+                        &releases,
+                    );
+                }
+
+                // Check the cancellation signal
+                if stop_consumer.is_cancelled_with_timeout(interval) {
+                    break;
+                }
             }
         };
 
         NotStartedThreadContext::new(SUPERVISOR_THREAD_NAME, callback).start()
+    }
+
+    /// Returns true if the live HelmRelease has a `Stalled=True` status condition.
+    fn helmrelease_is_stalled(
+        k8s_client: &C,
+        helm_release_type_meta: &TypeMeta,
+        name: &str,
+        namespace: &str,
+    ) -> bool {
+        k8s_client
+            .get_dynamic_object(helm_release_type_meta, K8sObjectKey { name, namespace })
+            .ok()
+            .flatten()
+            .is_some_and(|hr| {
+                hr.data
+                    .get("status")
+                    .and_then(|s| s.get("conditions"))
+                    .and_then(|c| c.as_array())
+                    .is_some_and(|conditions| {
+                        conditions.iter().any(|c| {
+                            c.get("type").and_then(|v| v.as_str()) == Some("Stalled")
+                                && c.get("status").and_then(|v| v.as_str()) == Some("True")
+                        })
+                    })
+            })
+    }
+
+    /// Patches `reconcile.fluxcd.io/requestedAt` on each stalled HelmRelease to force Flux out of
+    /// its exhausted-retries state. Non-stalled releases are skipped because Flux already reacts to
+    /// any resource change from apply_resources (HelmRelease spec, valuesFrom Secrets/ConfigMaps,
+    /// HelmRepository); annotating them would trigger a redundant Helm upgrade.
+    fn annotate_stalled_releases(
+        k8s_client: &C,
+        helm_release_type_meta: &TypeMeta,
+        helm_releases_to_annotate: &Vec<(String, String)>,
+    ) {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+            .to_string();
+        for (name, namespace) in helm_releases_to_annotate {
+            if !Self::helmrelease_is_stalled(k8s_client, helm_release_type_meta, name, namespace) {
+                debug!(name = %name, "HelmRelease is not stalled, skipping reconcile annotation");
+                continue;
+            }
+
+            let patch = serde_json::json!({
+                "metadata": { "annotations": { FLUX_RECONCILE_ANNOTATION_KEY: timestamp } }
+            });
+            _ = k8s_client.patch_dynamic_object(
+                helm_release_type_meta,
+                K8sObjectKey { name, namespace },
+                patch,
+            )
+            .inspect(|_| info!(name = %name, "Annotated stalled HelmRelease to force Flux reconciliation"))
+            .inspect_err(|e| warn!(name = %name, "Failed to annotate HelmRelease for reconcile: {e}"))
+        }
     }
 
     /// Spawns the health checker thread, or returns `None` if health checks are disabled or unsupported.
@@ -605,6 +687,131 @@ pub mod tests {
         Supervisor::stop(started).expect("stopped");
     }
 
+    #[test]
+    fn test_annotates_stalled_helm_releases_for_reconcile_on_config_change() {
+        let (sub_agent_internal_publisher, _) = pub_sub();
+
+        let initial_config = K8s {
+            objects: HashMap::from([("obj".to_string(), k8s_object())]),
+            ..K8s::default()
+        };
+        let new_config = K8s {
+            objects: HashMap::from([("hr".to_string(), helm_release_object())]),
+            ..K8s::default()
+        };
+
+        let mut mock_client = MockK8sClient::default();
+        mock_client
+            .expect_apply_dynamic_object_if_changed()
+            .returning(|_| Ok(()));
+        mock_client
+            .expect_get_dynamic_object()
+            .returning(|_, _| Ok(Some(Arc::new(stalled_helm_release()))));
+        mock_client
+            .expect_patch_dynamic_object()
+            .withf(|tm, key, patch| {
+                tm.api_version == "helm.toolkit.fluxcd.io/v2"
+                    && tm.kind == "HelmRelease"
+                    && key.name == "nr-infra"
+                    && key.namespace == "newrelic"
+                    && patch
+                        .pointer("/metadata/annotations/reconcile.fluxcd.io~1requestedAt")
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|v| !v.is_empty())
+            })
+            .times(1)
+            .returning(|_, _, _| {
+                Ok(DynamicObject {
+                    types: None,
+                    metadata: ObjectMeta::default(),
+                    data: json!({}),
+                })
+            });
+
+        let not_started = NotStartedSupervisorK8s::<MockK8sClient>::new(
+            AgentIdentity::from((
+                AgentID::try_from(TEST_AGENT_ID).unwrap(),
+                AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
+            )),
+            Arc::new(mock_client),
+            initial_config,
+        );
+
+        let started = SupervisorStarter::start(not_started, sub_agent_internal_publisher)
+            .expect("supervisor started");
+
+        let rendered_agent = RenderedAgent::new(
+            AgentIdentity::from((
+                AgentID::try_from(TEST_AGENT_ID).unwrap(),
+                AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
+            )),
+            Runtime {
+                deployment: Deployment::K8s(new_config),
+            },
+        );
+
+        let Ok(started) = started.apply(rendered_agent) else {
+            panic!("supervisor applied");
+        };
+        Supervisor::stop(started).expect("stopped");
+    }
+
+    #[test]
+    fn test_skips_annotation_for_non_stalled_helm_releases_on_config_change() {
+        let (sub_agent_internal_publisher, _) = pub_sub();
+
+        let initial_config = K8s {
+            objects: HashMap::from([("obj".to_string(), k8s_object())]),
+            ..K8s::default()
+        };
+        let new_config = K8s {
+            objects: HashMap::from([("hr".to_string(), helm_release_object())]),
+            ..K8s::default()
+        };
+
+        let mut mock_client = MockK8sClient::default();
+        mock_client
+            .expect_apply_dynamic_object_if_changed()
+            .returning(|_| Ok(()));
+        // HelmRelease exists but is not stalled.
+        mock_client.expect_get_dynamic_object().returning(|_, _| {
+            Ok(Some(Arc::new(DynamicObject {
+                types: None,
+                metadata: ObjectMeta::default(),
+                data: json!({"status": {"conditions": [{"type": "Ready", "status": "True"}]}}),
+            })))
+        });
+        // patch_dynamic_object must NOT be called.
+        mock_client.expect_patch_dynamic_object().times(0);
+
+        let not_started = NotStartedSupervisorK8s::<MockK8sClient>::new(
+            AgentIdentity::from((
+                AgentID::try_from(TEST_AGENT_ID).unwrap(),
+                AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
+            )),
+            Arc::new(mock_client),
+            initial_config,
+        );
+
+        let started = SupervisorStarter::start(not_started, sub_agent_internal_publisher)
+            .expect("supervisor started");
+
+        let rendered_agent = RenderedAgent::new(
+            AgentIdentity::from((
+                AgentID::try_from(TEST_AGENT_ID).unwrap(),
+                AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
+            )),
+            Runtime {
+                deployment: Deployment::K8s(new_config),
+            },
+        );
+
+        let Ok(started) = started.apply(rendered_agent) else {
+            panic!("supervisor applied");
+        };
+        Supervisor::stop(started).expect("stopped");
+    }
+
     fn k8s_object() -> K8sObject {
         K8sObject {
             api_version: TEST_API_VERSION.to_string(),
@@ -636,6 +843,31 @@ pub mod tests {
                 ..Default::default()
             },
             data: json!({}),
+        }
+    }
+
+    fn helm_release_object() -> K8sObject {
+        K8sObject {
+            api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
+            kind: "HelmRelease".to_string(),
+            metadata: K8sObjectMeta {
+                name: "nr-infra".to_string(),
+                namespace: "newrelic".to_string(),
+                labels: BTreeMap::new(),
+            },
+            ..Default::default()
+        }
+    }
+
+    fn stalled_helm_release() -> DynamicObject {
+        DynamicObject {
+            types: None,
+            metadata: ObjectMeta::default(),
+            data: json!({
+                "status": {
+                    "conditions": [{"type": "Stalled", "status": "True"}]
+                }
+            }),
         }
     }
 

@@ -146,6 +146,59 @@ pub async fn check_helmrelease_chart_version(
     Ok(())
 }
 
+/// Check if the `HelmRelease` has a specific `status.conditions` entry matching
+/// `condition_type` and `expected_status` (e.g. `"Stalled"`, `"True"`).
+pub async fn check_helmrelease_condition(
+    k8s_client: Client,
+    namespace: &str,
+    name: &str,
+    condition_type: &str,
+    expected_status: &str,
+) -> Result<(), Box<dyn Error>> {
+    let api = helmrelease_api(k8s_client, namespace).await;
+    let hr = api.get(name).await?;
+    let found = hr
+        .data
+        .get("status")
+        .and_then(|s| s.get("conditions"))
+        .and_then(|c| c.as_array())
+        .is_some_and(|conditions| {
+            conditions.iter().any(|c| {
+                c.get("type").and_then(|v| v.as_str()) == Some(condition_type)
+                    && c.get("status").and_then(|v| v.as_str()) == Some(expected_status)
+            })
+        });
+    if found {
+        Ok(())
+    } else {
+        Err(format!(
+            "HelmRelease {name} does not have condition {condition_type}={expected_status}"
+        )
+        .into())
+    }
+}
+
+/// Check if the `HelmRelease` has a specific annotation set.
+pub async fn check_helmrelease_has_annotation(
+    k8s_client: Client,
+    namespace: &str,
+    name: &str,
+    annotation_key: &str,
+) -> Result<(), Box<dyn Error>> {
+    let api = helmrelease_api(k8s_client, namespace).await;
+    let hr = api.get(name).await?;
+    let has = hr
+        .metadata
+        .annotations
+        .as_ref()
+        .is_some_and(|a| a.contains_key(annotation_key));
+    if has {
+        Ok(())
+    } else {
+        Err(format!("HelmRelease {name} does not have annotation {annotation_key}").into())
+    }
+}
+
 /// Delete the helm release with "name" and from "namespace"
 pub async fn delete_helm_release(
     k8s_client: Client,
