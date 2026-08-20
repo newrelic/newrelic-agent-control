@@ -353,15 +353,16 @@ fn validate_file_entry_path(path: &Path) -> Result<(), String> {
 /// `kind: dir` + `entries:`) and also non-canonical single-segment spellings such as `./config`.
 /// Escaping components (`..`, root, Windows prefixes) are handled by `check_basedir_escape_safety`.
 fn check_single_segment(path: &Path) -> Result<(), String> {
-    let mut components = path.components();
-    if let (Some(Component::Normal(_)), None) = (components.next(), components.next()) {
-        return Ok(());
-    }
-    Err(format!(
-        "path `{}` must be a single path segment (a leaf); declare nested directories \
+    let components = path.components();
+    if components.len() == 1 && matches!(components.last(), Some(Component::Normal(_))) {
+        Ok(())
+    } else {
+        Err(format!(
+            "path `{}` must be a single path segment (a leaf); declare nested directories \
          explicitly with `kind: dir` and `entries:`",
-        path.display()
-    ))
+            path.display()
+        ))
+    }
 }
 
 /// Rejects paths that traverse outside their base directory (e.g. `./../../some_path`) so that
