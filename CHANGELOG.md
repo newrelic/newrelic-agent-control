@@ -14,6 +14,9 @@ Remember that the keywords that you can use are the following:
 
 ## Unreleased
 
+### enhancement
+- Add a manually-invoked workflow to promote an already-published version to a release channel (e.g. REGULAR) in instrumentation metadata.
+
 ### bugfix
 - K8s supervisor: force a Flux reconciliation on stalled HelmReleases (e.g. after exhausting install/upgrade retries) when a new remote config
 
