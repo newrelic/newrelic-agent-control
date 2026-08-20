@@ -81,6 +81,7 @@ mod tests {
     #[rstest]
     #[case::empty("", VariableNameError::Empty)]
     #[case::starts_with_digit("1abc", VariableNameError::InvalidStart)]
+    #[case::starts_with_digit_contains_more_digits("9a2b3", VariableNameError::InvalidStart)]
     #[case::starts_with_dash("-abc", VariableNameError::InvalidStart)]
     #[case::starts_with_underscore("_abc", VariableNameError::InvalidStart)]
     #[case::contains_dot("foo.bar", VariableNameError::InvalidCharacter('.'))]
