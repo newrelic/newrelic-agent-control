@@ -10,6 +10,7 @@ use crate::sub_agent::identity::AgentIdentity;
 use serde::Deserialize;
 use std::time::Duration;
 use thiserror::Error;
+use tracing::debug;
 use tracing::info;
 use tracing::warn;
 use url::Url;
@@ -121,14 +122,15 @@ impl RemoteConfigValidator for SignatureValidator {
         };
 
         // Iterate over all remote configs and verify signatures
-        for (config_name, config_content) in opamp_remote_config.configs_iter() {
-            let signature = opamp_remote_config.signature(config_name).map_err(|e| {
+        for (config_key, config_content) in opamp_remote_config.configs_iter() {
+            let signature = opamp_remote_config.signature(config_key).map_err(|e| {
                 SignatureValidatorError::VerifySignature(format!(
                     "getting signature for config '{}' config signature: {}",
-                    config_name, e
+                    config_key, e
                 ))
             })?;
 
+            debug!(%config_key, "Verifying signature for config");
             public_key_store
                 .verify_signature(
                     signature.key_id(),
@@ -138,7 +140,7 @@ impl RemoteConfigValidator for SignatureValidator {
                 .map_err(|e| {
                     SignatureValidatorError::VerifySignature(format!(
                         "verifying signature for config '{}': {}",
-                        config_name, e
+                        config_key, e
                     ))
                 })?;
         }

@@ -92,11 +92,6 @@ impl VerifierStore {
             .verify_signature(msg.as_bytes(), &decoded_signature)
             .map_err(|e| VerifierStoreError::VerifySignature(e.to_string()))?;
 
-        debug!(
-            key_id = verifier.key_id(),
-            "signature verification succeeded"
-        );
-
         Ok(())
     }
 }
