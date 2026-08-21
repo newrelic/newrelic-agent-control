@@ -1,23 +1,10 @@
 #!/bin/sh
 
 ######################################################################################
-# Infra Agent
-# C&P https://github.com/newrelic/infrastructure-agent/blob/master/build/package/after-remove.sh
+# Delete config and running files
 ######################################################################################
 
-runDir=/var/run/newrelic-infra
-installDir=/var/db/newrelic-infra
-logDir=/var/log/newrelic-infra
-configDir=/etc/newrelic-infra
-
-case "$1" in
-  purge)
-    # dpkg does not remove non empty directories
-    rm -rf ${runDir}
-    rm -rf ${installDir}
-    rm -rf ${logDir}
-    rm -rf ${configDir}
-  ;;
-  *)
-  ;;
-esac
+# Outside agent-control's filesystem; deleted on uninstall since a standalone newrelic-infra would recreate it.
+rm -rf /var/run/newrelic-infra
+rm -rf /etc/newrelic-agent-control
+rm -rf /var/lib/newrelic-agent-control

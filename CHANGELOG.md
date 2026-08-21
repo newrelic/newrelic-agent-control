@@ -16,9 +16,11 @@ Remember that the keywords that you can use are the following:
 
 ### enhancement
 - Add a manually-invoked workflow to promote an already-published version to a release channel (e.g. REGULAR) in instrumentation metadata.
+- Linux: added `uninstall.sh` script bundled in the package that auto-detects the package manager (apt, yum, zypper) and removes `newrelic-agent-control`.
 
 ### bugfix
 - K8s supervisor: force a Flux reconciliation on stalled HelmReleases (e.g. after exhausting install/upgrade retries) when a new remote config
+- Linux: `postremove` script now correctly removes `newrelic-agent-control` directories on any uninstall (not only on `apt purge`), and targets the right paths (`/etc/newrelic-agent-control`, `/var/lib/newrelic-agent-control`, `/var/run/newrelic-infra`) instead of the old infra-agent ones.
 
 ## v1.22.0 - 2026-08-18
 
