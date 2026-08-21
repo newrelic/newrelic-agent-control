@@ -254,26 +254,15 @@ fn parse_override_value(
             VariableTypeDefinition::Bool(_)
             | VariableTypeDefinition::Number(_)
             | VariableTypeDefinition::StringMap(_)
-            | VariableTypeDefinition::Yaml(_) => parse_yaml_value(value).map_err(|err| {
+            | VariableTypeDefinition::Yaml(_) => serde_saphyr::from_str(value).map_err(|err| {
                 RemoteConfigParserError::InvalidValues(format!(
-                    "could not decode the override value for variable '{variable_path}': {err}"
+                    "could not decode the override value for variable '{}': {}",
+                    variable_path,
+                    err.render_with_formatter(&serde_saphyr::UserMessageFormatter)
                 ))
             }),
         })
         .transpose()
-}
-
-/// Parses a raw YAML fragment into a [serde_json::Value], unlike [YAMLConfig] the root is not
-/// required to be a mapping.
-///
-/// Used to parse the value of a per-variable override, which can be a scalar, list, or mapping.
-fn parse_yaml_value(value: &str) -> Result<serde_json::Value, serde_saphyr::Error> {
-    serde_saphyr::from_str_with_options(
-        value,
-        serde_saphyr::options! {
-            duplicate_keys: serde_saphyr::DuplicateKeyPolicy::LastWins,
-        },
-    )
 }
 
 #[cfg(test)]
@@ -773,19 +762,5 @@ pub mod tests {
                 assert_eq!(agent_type_id, agent_identity.agent_type_id.to_string())
             }
         );
-    }
-
-    #[rstest]
-    #[case::string("plain string", json!("plain string"))]
-    #[case::mapping("key: value", json!({"key": "value"}))]
-    #[case::list("[1, 2, 3]", json!([1, 2, 3]))]
-    #[case::null("null", serde_json::Value::Null)]
-    fn test_parse_yaml_value(#[case] input: &str, #[case] expected: serde_json::Value) {
-        assert_eq!(parse_yaml_value(input).unwrap(), expected);
-    }
-
-    #[test]
-    fn test_parse_yaml_value_invalid_yaml_errors() {
-        assert!(parse_yaml_value("[unterminated").is_err());
     }
 }
