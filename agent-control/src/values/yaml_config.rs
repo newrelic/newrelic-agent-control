@@ -108,13 +108,13 @@ impl TryFrom<&AgentControlDynamicConfig> for YAMLConfig {
     }
 }
 
-fn parse_yaml_config(value: &str) -> Result<YAMLConfig, serde_saphyr::Error> {
-    serde_saphyr::from_str_with_options(
-        value,
-        serde_saphyr::options! {
-            duplicate_keys: serde_saphyr::DuplicateKeyPolicy::LastWins,
-        },
-    )
+fn parse_yaml_config(value: &str) -> Result<YAMLConfig, YAMLConfigError> {
+    serde_saphyr::from_str(value).map_err(|e| {
+        YAMLConfigError(format!(
+            "decoding config: {}",
+            e.render_with_formatter(&serde_saphyr::UserMessageFormatter)
+        ))
+    })
 }
 
 impl TryFrom<String> for YAMLConfig {
@@ -122,14 +122,13 @@ impl TryFrom<String> for YAMLConfig {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         parse_yaml_config(value.as_str())
-            .map_err(|e| YAMLConfigError(format!("decoding config: {e}")))
     }
 }
 impl TryFrom<&str> for YAMLConfig {
     type Error = YAMLConfigError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        parse_yaml_config(value).map_err(|e| YAMLConfigError(format!("decoding config: {e}")))
+        parse_yaml_config(value)
     }
 }
 

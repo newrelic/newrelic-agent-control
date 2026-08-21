@@ -98,7 +98,7 @@ pub enum AgentTypeDefinitionParseError {
     #[error("incompatible protocol version: {0}")]
     ProtocolVersion(#[from] ProtocolVersionError),
     /// The content is not valid YAML.
-    #[error("invalid agent type yaml: {0}")]
+    #[error("invalid agent type yaml: {}", .0.render_with_formatter(&serde_saphyr::UserMessageFormatter))]
     Yaml(#[from] serde_saphyr::Error),
     /// The YAML is valid but does not form a valid agent type definition.
     #[error("invalid agent type definition: {0}")]
