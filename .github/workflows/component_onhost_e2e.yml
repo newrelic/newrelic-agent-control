@@ -36,7 +36,9 @@ env:
   HOST_E2E_APACHE_VERSION: "1.17.3"
   HOST_E2E_MEMCACHED_VERSION: "2.9.3"
   HOST_E2E_EBPF_AGENT_VERSION: "1.5.0"
-  HOST_E2E_FLEX_VERSION: "0.0.1" # TODO: use packaged version when ready
+  HOST_E2E_FLEX_VERSION: "1.18.10"
+  HOST_E2E_MYSQL_VERSION: "1.23.2"
+  HOST_E2E_POSTGRESQL_VERSION: "2.29.0"
 
 jobs:
   build-packages:
@@ -97,6 +99,8 @@ jobs:
             --nginx-version "${{ env.HOST_E2E_NGINX_VERSION }}" \
             --memcached-version "${{ env.HOST_E2E_MEMCACHED_VERSION }}" \
             --flex-version "${{ env.HOST_E2E_FLEX_VERSION }}" \
+            --mysql-version "${{ env.HOST_E2E_MYSQL_VERSION }}" \
+            --postgresql-version "${{ env.HOST_E2E_POSTGRESQL_VERSION }}" \
             --ebpf-agent-version "${{ env.HOST_E2E_EBPF_AGENT_VERSION }}"
 
       - name: Report test result to New Relic
@@ -170,7 +174,9 @@ jobs:
             --nginx-version "${{ env.HOST_E2E_NGINX_VERSION }}" `
             --memcached-version "${{ env.HOST_E2E_MEMCACHED_VERSION }}" `
             --redis-version "${{ env.HOST_E2E_REDIS_VERSION }}"  `
-            --flex-version "${{ env.HOST_E2E_FLEX_VERSION }}"
+            --flex-version "${{ env.HOST_E2E_FLEX_VERSION }}" `
+            --mysql-version "${{ env.HOST_E2E_MYSQL_VERSION }}" `
+            --postgresql-version "${{ env.HOST_E2E_POSTGRESQL_VERSION }}"
 
       - name: Report test result to New Relic
         if: always()

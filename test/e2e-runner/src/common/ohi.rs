@@ -91,6 +91,18 @@ pub fn get_all_ohi_to_test(args: &InstallationArgs) -> Vec<Ohi> {
         .memcached_version
         .clone()
         .expect("--memcached-version is required for this scenario");
+    let flex_version = args
+        .flex_version
+        .clone()
+        .expect("--flex-version is required for this scenario");
+    let mysql_version = args
+        .mysql_version
+        .clone()
+        .expect("--mysql-version is required for this scenario");
+    let postgresql_version = args
+        .postgresql_version
+        .clone()
+        .expect("--postgresql-version is required for this scenario");
 
     vec![
         Ohi {
@@ -112,6 +124,21 @@ pub fn get_all_ohi_to_test(args: &InstallationArgs) -> Vec<Ohi> {
             name: "nri-memcached",
             agent_type_id: "newrelic/com.newrelic.infrastructure.nri_memcached:0.1.0",
             version: memcached_version,
+        },
+        Ohi {
+            name: "nri-flex",
+            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_flex:0.1.0",
+            version: flex_version,
+        },
+        Ohi {
+            name: "nri-mysql",
+            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_mysql:0.1.0",
+            version: mysql_version,
+        },
+        Ohi {
+            name: "nri-postgresql",
+            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_postgresql:0.1.0",
+            version: postgresql_version,
         },
     ]
 }
