@@ -183,7 +183,7 @@ jobs:
 
       - uses: taiki-e/install-action@288e746965032cfcc232e09af2daf5f23c14d780 # v2.86.1
         with:
-          tool: cargo-zigbuild@0.20.1
+          tool: cargo-zigbuild@0.23.0
 
       - name: Install Windows cross-compilation dependencies
         run: sudo apt-get install -y llvm
@@ -485,7 +485,7 @@ jobs:
 
       - uses: taiki-e/install-action@288e746965032cfcc232e09af2daf5f23c14d780 # v2.86.1
         with:
-          tool: cargo-zigbuild@0.20.1
+          tool: cargo-zigbuild@0.23.0
 
       - name: Fetch cargo dependencies
         run: |
