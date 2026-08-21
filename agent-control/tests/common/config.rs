@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Default)]
 pub struct AgentControlCommonConfigBuilder {
     pub opamp_endpoint: Option<String>,
@@ -44,7 +46,9 @@ impl AgentControlCommonConfigBuilder {
 
     pub fn build_agents_yaml(&self) -> String {
         let agents = self.agents.as_deref().unwrap_or("{}");
-        format!("agents: {agents}")
+        let agents: serde_json::Value = serde_saphyr::from_str(agents).unwrap();
+        let agents_config = HashMap::from([("agents".to_string(), agents)]);
+        serde_saphyr::to_string(&agents_config).unwrap()
     }
 
     pub fn build_server_yaml(&self) -> String {
