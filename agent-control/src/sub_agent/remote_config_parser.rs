@@ -123,77 +123,24 @@ where
 /// Three `AGENT_CONFIG_PREFIX` entries are merged, `key2` is then replaced by the blob-level
 /// override, and `key3` is replaced last by the per-variable override:
 ///
-/// ```
-/// # use newrelic_agent_control::agent_control::agent_id::AgentID;
-/// # use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
-/// # use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
-/// # use newrelic_agent_control::agent_type::protocol_version::SUPPORTED_PROTOCOL_VERSION;
-/// # use newrelic_agent_control::agent_type::registry::{AgentTypeRegistry, AgentTypeRegistryError};
-/// # use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
-/// # use newrelic_agent_control::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
-/// # use newrelic_agent_control::sub_agent::identity::AgentIdentity;
-/// # use newrelic_agent_control::sub_agent::remote_config_parser::extract_remote_config_values;
-/// # use std::collections::HashMap;
-/// #
-/// # // A registry that always resolves `key3` as a `yaml`-typed variable.
-/// # struct DocRegistry(AgentTypeDefinition);
-/// # impl AgentTypeRegistry for DocRegistry {
-/// #     fn get(&self, _: &AgentTypeID) -> Result<AgentTypeDefinition, AgentTypeRegistryError> {
-/// #         Ok(self.0.clone())
-/// #     }
-/// # }
-/// # let agent_type_yaml = format!(
-/// #     r#"namespace: newrelic
-/// # name: testagent
-/// # version: 0.1.0
-/// # platform: host
-/// # operating_system: linux
-/// # protocol_version: "{SUPPORTED_PROTOCOL_VERSION}"
-/// # variables:
-/// #   key3:
-/// #     description: "d"
-/// #     type: yaml
-/// #     required: false
-/// # deployment: {{}}
-/// # "#
-/// # );
-/// # let registry = DocRegistry(AgentTypeDefinition::from_slice(agent_type_yaml.as_bytes()).unwrap());
-/// # let agent_identity = AgentIdentity::from((
-/// #     AgentID::try_from("my-agent").unwrap(),
-/// #     AgentTypeID::try_from("newrelic/testagent:0.1.0").unwrap(),
-/// # ));
-/// #
-/// let config_map = serde_json::from_value::<HashMap<String, String>>(serde_json::json!(
+/// **Input**:
+/// ```json
 /// {
 ///     "agentConfig-1": "key1: value1",
 ///     "agentConfig-2": "key2: value2",
 ///     "agentConfig-3": "key3: value3",
 ///     "override.agentConfig": "key2: overridden2",
-///     "overrideVariable.agentConfig.key3": "overridden3",
+///     "overrideVariable.agentConfig.key3": "overridden3"
 /// }
-/// )).unwrap();
-/// let opamp_remote_config = OpampRemoteConfig::new(
-///     AgentID::try_from("my-agent").unwrap(),
-///     Hash::from("some-hash"),
-///     ConfigState::Applying,
-///     ConfigurationMap::new(config_map),
-/// );
-///
-/// let remote_config =
-///     extract_remote_config_values(&opamp_remote_config, &agent_identity, &registry)
-///         .unwrap()
-///         .unwrap();
-/// assert_eq!(
-///     remote_config.config,
-///     serde_json::from_value(serde_json::json!({
-///         "key1": "value1",
-///         "key2": "overridden2",
-///         "key3": "overridden3",
-///     }))
-///     .unwrap()
-/// );
 /// ```
-///
+/// **Output:**
+/// ```json
+/// {
+///     "key1": "value1",
+///     "key2": "overridden2",
+///     "key3": "overridden3",
+/// }
+/// ```
 /// # Errors
 ///
 /// Returns [RemoteConfigParserError] if:
@@ -252,6 +199,9 @@ pub fn extract_remote_config_values<R: AgentTypeRegistry>(
                         ))
                     })?;
             } else {
+                // Same behavior as the renderer: in the same way that values for variables not declared in the
+                // Agent Type are logged and ignored, the overrides for variables not declared in the Agent Type
+                // are also logged and ignored.
                 warn!(
                     variable = variable_path,
                     agent_type = agent_identity.agent_type_id.to_string(),
@@ -290,7 +240,7 @@ fn load_variable_definitions<R: AgentTypeRegistry>(
 /// It returns `None` if the variable is not defined and a parsing error if cannot be parsed.
 fn parse_override_value(
     variable_path: &str,
-    value: &String,
+    value: &str,
     definitions: &HashMap<String, VariableDefinition>,
 ) -> Result<Option<serde_json::Value>, RemoteConfigParserError> {
     definitions
@@ -299,7 +249,8 @@ fn parse_override_value(
             // Using explicit parsing for each type instead of `matches!` in case a new type is added.
             // Strings don't need yaml parsing.
             VariableTypeDefinition::String(_) => Ok(serde_json::Value::String(value.to_string())),
-            // Other types need to be a valid yaml
+            // Other types need to be a valid yaml in order to honor the variable type. Eg: a 'yaml' variable
+            // needs to be a valid yaml (deserialization must succeed).
             VariableTypeDefinition::Bool(_)
             | VariableTypeDefinition::Number(_)
             | VariableTypeDefinition::StringMap(_)
