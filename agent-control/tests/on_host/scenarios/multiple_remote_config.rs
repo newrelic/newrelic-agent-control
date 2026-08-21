@@ -189,7 +189,7 @@ var_d: overridden_var_d
     opamp_server.set_multi_config_response(
         sub_agent_instance_id.clone(),
         HashMap::from([
-            ("agentConfig-a".to_string(), "var_a: a".to_string()),
+            ("agentConfig".to_string(), "var_a: a".to_string()),
             ("agentConfig-b".to_string(), "var_b: b".to_string()),
             ("agentConfig-c".to_string(), "var_c: c".to_string()),
             (
