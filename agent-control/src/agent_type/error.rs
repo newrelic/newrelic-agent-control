@@ -5,7 +5,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum AgentTypeError {
     /// Serializing a value to YAML failed.
-    #[error("serialization error: {0}")]
+    #[error("serialization error: {}", .0.render_with_formatter(&serde_saphyr::UserMessageFormatter))]
     Serialization(#[from] serde_saphyr::Error),
     /// Converting a JSON value to the expected type failed.
     #[error("value conversion error: {0}")]

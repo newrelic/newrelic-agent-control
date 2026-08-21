@@ -142,16 +142,14 @@ where
         trace!("Loading data from path '{}'", key.display());
         self.load_file_if_present(&key).and_then(|maybe_values| {
             maybe_values
-                .map(|s| {
-                    serde_saphyr::from_str_with_options(
-                        &s,
-                        serde_saphyr::options! {
-                            duplicate_keys: serde_saphyr::DuplicateKeyPolicy::LastWins,
-                        },
+                .map(|s| serde_saphyr::from_str(&s))
+                .transpose()
+                .map_err(|err: serde_saphyr::Error| {
+                    Error::new(
+                        ErrorKind::InvalidData,
+                        err.render_with_formatter(&serde_saphyr::UserMessageFormatter),
                     )
                 })
-                .transpose()
-                .map_err(|err| Error::new(ErrorKind::InvalidData, err))
         })
     }
 }

@@ -32,7 +32,7 @@ pub enum AgentRendererError {
     #[error("retrieving agent type: {0}")]
     Registry(#[from] AgentTypeRegistryError),
     /// YAML (de)serialization failed.
-    #[error("deserializing yaml: {0}")]
+    #[error("deserializing yaml: {}", .0.render_with_formatter(&serde_saphyr::UserMessageFormatter))]
     SerializationError(#[from] serde_saphyr::Error),
     /// A value could not be converted to/from JSON.
     #[error("converting value to json: {0}")]
