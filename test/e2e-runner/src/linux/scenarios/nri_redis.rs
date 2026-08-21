@@ -41,8 +41,6 @@ pub fn test_nri_redis(args: InstallationArgs) {
 
     let _redis = Redis::start();
 
-    // Point AC at the dev packages on ghcr.io. Signature verification is disabled because the
-    // dev packages are not signed with New Relic's production key.
     update_config(
         linux::DEFAULT_AC_CONFIG_PATH,
         format!(
