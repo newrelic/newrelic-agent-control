@@ -839,7 +839,7 @@ pub mod tests {
     type TestSubAgent = SubAgent<
         MockStartedOpAMPClient,
         MockSupervisorBuilder<MockSupervisorStarter<MockSupervisor>>,
-        AgentRemoteConfigParser<MockRemoteConfigValidator>,
+        AgentRemoteConfigParser<MockRemoteConfigValidator, Registry>,
         InMemoryConfigRepository,
         AgentRenderer<Registry>,
     >;
@@ -1109,8 +1109,11 @@ deployment:
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
 
+        let agent_type_registry: Arc<Registry> =
+            Arc::new(TestAgent::agent_type_definition().into());
+
         let agent_renderer = Arc::new(AgentRenderer::new(
-            Arc::new(TestAgent::agent_type_definition().into()),
+            agent_type_registry.clone(),
             HashMap::new(),
             VariableConstraints::default(),
             SecretsProviders::default(),
@@ -1124,9 +1127,12 @@ deployment:
             UnboundedBroadcast::default(),
             Some(sub_agent_opamp_consumer),
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
-            Arc::new(AgentRemoteConfigParser::<MockRemoteConfigValidator>::new(
-                vec![],
-            )),
+            Arc::new(
+                AgentRemoteConfigParser::<MockRemoteConfigValidator, Registry>::new(
+                    vec![],
+                    agent_type_registry,
+                ),
+            ),
             config_repository,
             agent_renderer,
         )
@@ -1236,8 +1242,11 @@ deployment:
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
 
+        let agent_type_registry: Arc<Registry> =
+            Arc::new(Registry::from(TestAgent::agent_type_definition()));
+
         let agent_renderer = Arc::new(AgentRenderer::new(
-            Arc::new(Registry::from(TestAgent::agent_type_definition())),
+            agent_type_registry.clone(),
             HashMap::new(),
             VariableConstraints::default(),
             SecretsProviders::default(),
@@ -1251,9 +1260,12 @@ deployment:
             UnboundedBroadcast::default(),
             None,
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
-            Arc::new(AgentRemoteConfigParser::<MockRemoteConfigValidator>::new(
-                vec![],
-            )),
+            Arc::new(
+                AgentRemoteConfigParser::<MockRemoteConfigValidator, Registry>::new(
+                    vec![],
+                    agent_type_registry,
+                ),
+            ),
             config_repository,
             agent_renderer,
         );

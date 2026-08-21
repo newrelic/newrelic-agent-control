@@ -52,6 +52,11 @@ impl VariableDefinition {
             variable_type: self.variable_type.with_config(constraints),
         }
     }
+
+    /// Returns the variable's declared type.
+    pub fn kind(&self) -> &VariableTypeDefinition {
+        &self.variable_type
+    }
 }
 
 impl Variable {
@@ -157,6 +162,23 @@ mod tests {
                 .into(),
             }
         }
+    }
+
+    #[test]
+    fn variable_definition_kind_returns_declared_type() {
+        let variable_type = VariableTypeDefinition::String(StringFieldsDefinition {
+            inner: FieldsDefinition {
+                required: false,
+                default: None,
+            },
+            variants: Default::default(),
+        });
+        let definition = VariableDefinition {
+            description: "some description".to_string(),
+            variable_type: variable_type.clone(),
+        };
+
+        assert_eq!(definition.kind(), &variable_type);
     }
 
     #[test]
