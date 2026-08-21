@@ -271,9 +271,7 @@ pub mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    use super::{
-        AgentRemoteConfigParser, RemoteConfigParser, RemoteConfigParserError, parse_yaml_value,
-    };
+    use super::{AgentRemoteConfigParser, RemoteConfigParser, RemoteConfigParserError};
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::protocol_version::SUPPORTED_PROTOCOL_VERSION;
     use crate::agent_type::registry::tests::MockAgentTypeRegistry;
