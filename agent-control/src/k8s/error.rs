@@ -62,7 +62,7 @@ pub enum K8sError {
     ParseDynamic(String, String),
 
     /// A YAML document could not be parsed.
-    #[error("failed to parse yaml: {0}")]
+    #[error("failed to parse yaml: {}", .0.render_with_formatter(&serde_saphyr::UserMessageFormatter))]
     FailedToParseYaml(#[from] serde_saphyr::Error),
     /// A YAML value could not be converted into the target type.
     #[error("failed to convert yaml value: {0}")]
