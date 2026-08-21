@@ -18,7 +18,7 @@ Remember that the keywords that you can use are the following:
 - Removed the direct `windows-sys` dependency from `agent-control` and `resource-detection`, migrating Windows FFI calls to the higher-level `windows`/`windows-registry` crates.
 - Removed the unused `fs::utils::FsError` type; `validate_path` already returns `io::Error` and had no callers relying on the dead enum.
 - Reports the `com.newrelic.remoteAgentTypeRepoReachable` OpAMP custom capability when the configured Agent Type OCI repository is reachable at startup.
-- On-host: bundled `nrjmx` as a second OCI package in the infra-agent Agent Type, exposing its binary on the shared filesystem for JMX-based OHIs to consume via `NR_JMX_TOOL`.
+- On-host: exposed `nrjmx.jar` (now bundled inside the infra-agent OCI package) on the shared filesystem for JMX-based OHIs to consume via `NR_JMX_TOOL: "java -jar ..."`.
 
 ## v1.20.0 - 2026-07-29
 

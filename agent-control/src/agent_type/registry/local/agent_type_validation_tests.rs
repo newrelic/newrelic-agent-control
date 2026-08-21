@@ -204,14 +204,7 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
         .into(),
         values_linux: AgentTypeValues {
             cases: HashMap::from([
-                (
-                    "mandatory fields only",
-                    r#"
-                version: "some-version"
-                nrjmx:
-                    version: "some-version"
-                "#,
-                ),
+                ("mandatory fields only", r#"version: "some-version""#),
                 (
                     "check all value types are correct",
                     r#"
@@ -222,8 +215,6 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
                 backoff_delay: "10s"
                 enable_file_logging: true
                 health_port: 12345
-                nrjmx:
-                    version: "some-version"
                 "#,
                 ),
             ]),
@@ -232,14 +223,7 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
         .into(),
         values_windows: AgentTypeValues {
             cases: HashMap::from([
-                (
-                    "mandatory fields only",
-                    r#"
-                version: "some-version"
-                nrjmx:
-                    version: "some-version"
-                "#,
-                ),
+                ("mandatory fields only", r#"version: "some-version""#),
                 (
                     "check all value types are correct",
                     r#"
@@ -250,8 +234,6 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
                 backoff_delay: "10s"
                 enable_file_logging: true
                 health_port: 12345
-                nrjmx:
-                    version: "some-version"
                 "#,
                 ),
             ]),
