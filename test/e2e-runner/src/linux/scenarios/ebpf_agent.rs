@@ -45,8 +45,6 @@ pub fn test_ebpf_agent(args: InstallationArgs) {
     );
 
     info!("Setup Agent Control config with eBPF");
-    // Point AC at the dev packages on ghcr.io. Signature verification is disabled because the
-    // dev packages are not signed with New Relic's production key.
     let config = format!(
         r#"
 host_id: {test_id}
