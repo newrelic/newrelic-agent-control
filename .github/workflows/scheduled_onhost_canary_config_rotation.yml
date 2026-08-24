@@ -1,8 +1,8 @@
 name: 🔁🐤 Scheduled on host canary config rotation
 
 # Every 6 hours, alternate between two states for the canary fleet:
-#   add    → NRInfra + nri-flex
-#   remove → NRInfra only (nri-flex absent, Fleet Control reconciles removal)
+#   add    → NRInfra + NRIFlex
+#   remove → NRInfra only (NRIFlex absent, Fleet Control reconciles removal)
 # NRInfra is always present so process and infra metrics keep flowing.
 
 on:
@@ -42,18 +42,18 @@ env:
   INFRA_SPEC_WINDOWS_STAGING: "NRInfra:$CANARY_NRI_INFRA_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZjViZTMtNmU3YS03NzA0LWI0NjgtOTAwMDY1NjgyMWJj"
 
   # ---------------------------------------------------------------------------
-  # nri-flex companion spec per platform/environment. Each run toggles:
-  #   Odd  runs (run_number % 2 == 1) -> NRInfra + nri-flex  (add)
+  # NRIFlex companion spec per platform/environment. Each run toggles:
+  #   Odd  runs (run_number % 2 == 1) -> NRInfra + NRIFlex  (add)
   #   Even runs (run_number % 2 == 0) -> NRInfra only        (remove)
   # ---------------------------------------------------------------------------
   # AC US Production Account `canaries-linux-flex-config` config
-  FLEX_SPEC_LINUX_PRODUCTION: "nri-flex:$CANARY_NRI_FLEX_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMWEwMTU3ZC0yOGYwLTc5ZDgtODkzZi1mNWUwMzY0ZWFkNzA"
+  FLEX_SPEC_LINUX_PRODUCTION: "NRIFlex:$CANARY_NRI_FLEX_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMWEwMTU3ZC0yOGYwLTc5ZDgtODkzZi1mNWUwMzY0ZWFkNzA"
   # AC US Production Account `canaries-windows-flex-config` config
-  FLEX_SPEC_WINDOWS_PRODUCTION: "nri-flex:$CANARY_NRI_FLEX_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMWEwMTU3YS1iZWFlLTdiZWMtYTI1NC0wNDQyNjdlZmNlN2Q"
+  FLEX_SPEC_WINDOWS_PRODUCTION: "NRIFlex:$CANARY_NRI_FLEX_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMWEwMTU3YS1iZWFlLTdiZWMtYTI1NC0wNDQyNjdlZmNlN2Q"
   # AC Staging Account `canaries-linux-flex-config` config
-  FLEX_SPEC_LINUX_STAGING: "nri-flex:$CANARY_NRI_FLEX_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmViZjItNjJjNi03MDU4LTk2OTAtZWFlYWYxMTcyYzI2"
+  FLEX_SPEC_LINUX_STAGING: "NRIFlex:$CANARY_NRI_FLEX_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmViZjItNjJjNi03MDU4LTk2OTAtZWFlYWYxMTcyYzI2"
   # AC Staging Account `canaries-windows-flex-config` config
-  FLEX_SPEC_WINDOWS_STAGING: "nri-flex:$CANARY_NRI_FLEX_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmVjMDAtYmU3Ni03NWEyLWExODMtM2EwNGJiYTRjOTgx"
+  FLEX_SPEC_WINDOWS_STAGING: "NRIFlex:$CANARY_NRI_FLEX_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmVjMDAtYmU3Ni03NWEyLWExODMtM2EwNGJiYTRjOTgx"
 
 jobs:
   rotate-config-deployment:
@@ -99,13 +99,13 @@ jobs:
           INFRA_SPEC=$(echo "$INFRA_SPEC" | envsubst '$CANARY_NRI_INFRA_VERSION')
           FLEX_SPEC=$(echo "$FLEX_SPEC"   | envsubst '$CANARY_NRI_FLEX_VERSION')
 
-          # Odd run numbers add nri-flex; even run numbers deploy NRInfra only.
+          # Odd run numbers add NRIFlex; even run numbers deploy NRInfra only.
           RUN_NUMBER=${{ github.run_number }}
           if [ $(( RUN_NUMBER % 2 )) -eq 1 ]; then
-            echo "[${PLATFORM}] run #${RUN_NUMBER} -> NRInfra + nri-flex (add)"
+            echo "[${PLATFORM}] run #${RUN_NUMBER} -> NRInfra + NRIFlex (add)"
             ROTATING_SPEC="${FLEX_SPEC}"
           else
-            echo "[${PLATFORM}] run #${RUN_NUMBER} -> NRInfra only (nri-flex removed)"
+            echo "[${PLATFORM}] run #${RUN_NUMBER} -> NRInfra only (NRIFlex removed)"
             ROTATING_SPEC=""
           fi
 
