@@ -29,7 +29,7 @@ permissions:
 # versions of the packages in our E2E tests. If you change the names or move these values outside
 # the GitHub workflows please update `renovate.json` accordingly to avoid breaking the automation!
 env:
-  HOST_E2E_INFRA_AGENT_VERSION: "1.79.0"
+  HOST_E2E_INFRA_AGENT_VERSION: "1.80.0"
   HOST_E2E_NRDOT_VERSION: "2.0.0"
   HOST_E2E_REDIS_VERSION: "1.15.2"
   HOST_E2E_NGINX_VERSION: "3.8.3"
