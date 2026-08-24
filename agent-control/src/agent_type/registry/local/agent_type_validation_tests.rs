@@ -215,6 +215,10 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
                 backoff_delay: "10s"
                 enable_file_logging: true
                 health_port: 12345
+                docker_config:
+                    integrations:
+                        - name: nri-docker
+                          interval: 30s
                 "#,
                 ),
             ]),
