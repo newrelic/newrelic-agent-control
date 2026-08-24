@@ -26,6 +26,7 @@ Remember that the keywords that you can use are the following:
 ### 🚀 Enhancements
 - On-host: enforce a 2400 MiB hard memory limit on the Agent Control process tree (AC + all child agents) via systemd `MemoryMax` on Linux.
 - Agent type: enforce variable name format to `[A-Za-z0-9_-]` starting with a letter and maximum length of 64 characters.
+- On-Host: enable self-update capability by default. Self updates are only executed when commanded by Fleet Control. 
 
 ### 🐞 Bug fixes
 - Linux: prevent systemd service disable after RPM package update

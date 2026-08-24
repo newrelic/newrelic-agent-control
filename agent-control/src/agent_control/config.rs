@@ -142,8 +142,8 @@ impl SelfUpdateConfig {
     }
 }
 
-const DEFAULT_SELF_UPDATE_CONFIG_ENABLED: bool = false;
-/// Whether the self-update mechanism is enabled (defaults to `false`).
+const DEFAULT_SELF_UPDATE_CONFIG_ENABLED: bool = true;
+/// Whether the self-update mechanism is enabled.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_SELF_UPDATE_CONFIG_ENABLED)]
 pub struct SelfUpdateConfigEnabled(bool);
