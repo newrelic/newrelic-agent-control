@@ -8,6 +8,7 @@ use signature::Signatures;
 use std::collections::HashMap;
 use std::string::FromUtf8Error;
 use thiserror::Error;
+use tracing::warn;
 
 pub mod hash;
 pub mod report;
@@ -29,6 +30,13 @@ pub const AGENT_CONFIG_OVERRIDE_PREFIX: &str = "override.agentConfig";
 /// implementation at [extract_remote_config_values](crate::sub_agent::remote_config_parser::extract_remote_config_values)
 /// for details.
 pub const AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX: &str = "variable.agentConfig";
+
+/// Separator between a per-variable override's dot-separated path and an optional map-entry key,
+/// e.g. `variable.agentConfig.config_integrations:file1.yaml`. Only meaningful for
+/// `string_map`-typed variables; see the parsing implementation at
+/// [extract_remote_config_values](crate::sub_agent::remote_config_parser::extract_remote_config_values)
+/// for details.
+pub const AGENT_CONFIG_OVERRIDE_VARIABLE_MAP_KEY_SEPARATOR: char = ':';
 
 /// This structure represents the remote configuration that we would retrieve from a server via OpAMP.
 /// Contains identifying metadata and the actual configuration values
@@ -102,34 +110,54 @@ impl OpampRemoteConfig {
             .any(|(k, v)| k.starts_with(AGENT_CONFIG_PREFIX) && !v.is_empty())
     }
 
-    /// Returns the configuration override identified by [AGENT_CONFIG_OVERRIDE_PREFIX] if any. Only one configuration
-    /// override is supported, therefore any remote configuration with more than one entry starting
-    /// by [AGENT_CONFIG_OVERRIDE_PREFIX] will be invalid.
-    pub fn agent_config_override(&self) -> Result<Option<&String>, OpampRemoteConfigError> {
-        let mut override_configs = self
-            .configs_iter()
-            .filter_map(|(k, v)| k.starts_with(AGENT_CONFIG_OVERRIDE_PREFIX).then_some(v));
+    /// Classifies every override recognized in the config map into an [Overrides] view — see its
+    /// fields for the recognized kinds. Fails if more than one blob-level override (identified by
+    /// [AGENT_CONFIG_OVERRIDE_PREFIX]) is found, since only one is supported.
+    pub fn overrides(&self) -> Result<Overrides<'_>, OpampRemoteConfigError> {
+        let mut blob = None;
+        let mut variables = Vec::new();
+        let mut map_entries = Vec::new();
 
-        let override_config = override_configs.next(); // Keep the first item if any
-
-        // fail if there are multiple items
-        if override_configs.next().is_some() {
-            return Err(OpampRemoteConfigError::InvalidConfig(
-                self.hash.to_string(),
-                format!("multiple configurations with '{AGENT_CONFIG_OVERRIDE_PREFIX}' prefix"),
-            ));
+        for (k, v) in self.configs_iter() {
+            if k.starts_with(AGENT_CONFIG_OVERRIDE_PREFIX) {
+                if blob.is_some() {
+                    return Err(OpampRemoteConfigError::InvalidConfig(
+                        self.hash.to_string(),
+                        format!(
+                            "multiple configurations with '{AGENT_CONFIG_OVERRIDE_PREFIX}' prefix"
+                        ),
+                    ));
+                }
+                blob = Some(v);
+                continue;
+            }
+            let Some((variable_path, map_key)) = parse_override_variable_key(k) else {
+                if !k.starts_with(AGENT_CONFIG_PREFIX) {
+                    // Supports forward compatibility.
+                    warn!(
+                        key = k,
+                        "Config-map key matched no recognized override format"
+                    );
+                }
+                continue;
+            };
+            let Some(map_key) = map_key else {
+                variables.push((variable_path, v));
+                continue;
+            };
+            if map_key.is_empty() {
+                return Err(OpampRemoteConfigError::InvalidConfig(
+                    self.hash.to_string(),
+                    format!("empty map-entry key for override variable '{variable_path}'"),
+                ));
+            }
+            map_entries.push((variable_path, map_key, v));
         }
 
-        Ok(override_config)
-    }
-
-    /// Returns an iterator over per-variable overrides identified by [AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX].
-    /// Each item is the dot-separated variable path (with the prefix stripped) and its raw override value.
-    pub fn agent_config_override_variables_iter(&self) -> impl Iterator<Item = (&str, &String)> {
-        self.configs_iter().filter_map(|(k, v)| {
-            k.strip_prefix(AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX)?
-                .strip_prefix(TEMPLATE_KEY_SEPARATOR)
-                .map(|path| (path, v))
+        Ok(Overrides {
+            blob,
+            variables,
+            map_entries,
         })
     }
 
@@ -153,6 +181,60 @@ impl OpampRemoteConfig {
                 )
             })
     }
+}
+
+/// The overrides recognized in a remote config's map, as classified by
+/// [OpampRemoteConfig::overrides].
+#[derive(Debug)]
+pub struct Overrides<'a> {
+    blob: Option<&'a String>,
+    variables: Vec<(&'a str, &'a String)>,
+    map_entries: Vec<(&'a str, &'a str, &'a String)>,
+}
+
+impl<'a> Overrides<'a> {
+    /// The blob-level override identified by [AGENT_CONFIG_OVERRIDE_PREFIX], if present. It
+    /// overrides the whole merged agent configuration.
+    pub fn blob(&self) -> Option<&String> {
+        self.blob
+    }
+
+    /// Whole-variable overrides identified by [AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX] with no
+    /// `:map-key` suffix. Each item is the dot-separated variable path (with the prefix stripped)
+    /// and its raw override value, overriding the value at that path entirely.
+    pub fn variables(&self) -> &[(&'a str, &'a String)] {
+        &self.variables
+    }
+
+    /// Map-entry overrides identified by [AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX] with a
+    /// [AGENT_CONFIG_OVERRIDE_VARIABLE_MAP_KEY_SEPARATOR]-delimited suffix. Each item is the
+    /// dot-separated variable path, the map-entry key (the text after the separator, verbatim),
+    /// and the raw override value, overriding a single entry of the `string_map` variable living
+    /// at that path.
+    pub fn map_entries(&self) -> &[(&'a str, &'a str, &'a String)] {
+        &self.map_entries
+    }
+
+    /// True if there is at least one whole-variable or map-entry override to apply.
+    pub fn has_variable_overrides(&self) -> bool {
+        !self.variables.is_empty() || !self.map_entries.is_empty()
+    }
+}
+
+/// Parses a single config-map key that starts with [AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX] into
+/// its dot-separated variable path and, if present, its map-entry key (the text after the first
+/// [AGENT_CONFIG_OVERRIDE_VARIABLE_MAP_KEY_SEPARATOR] in the remainder). Returns `None` if `key`
+/// doesn't match the prefix at all.
+fn parse_override_variable_key(key: &str) -> Option<(&str, Option<&str>)> {
+    let path = key
+        .strip_prefix(AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX)?
+        .strip_prefix(TEMPLATE_KEY_SEPARATOR)?;
+    Some(
+        match path.split_once(AGENT_CONFIG_OVERRIDE_VARIABLE_MAP_KEY_SEPARATOR) {
+            Some((variable_path, map_key)) => (variable_path, Some(map_key)),
+            None => (path, None),
+        },
+    )
 }
 
 /// This structure represents the actual configuration values that are stored in the remote config.
@@ -258,18 +340,21 @@ mod tests {
     #[case::no_override(json!({"agentConfig": "key: value"}), None)]
     #[case::no_suffix(json!({"agentConfig": "key: value", "override.agentConfig": "key: value2"}), Some("key: value2"))]
     #[case::suffix(json!({"agentConfig": "key: value", "override.agentConfig-1": "key: value2"}), Some("key: value2"))]
-    fn test_agent_config_override(
-        #[case] config_map: serde_json::Value,
-        #[case] expected: Option<&str>,
-    ) {
+    fn test_overrides_blob(#[case] config_map: serde_json::Value, #[case] expected: Option<&str>) {
         let opamp_config = testing_agent_config(config_map);
-        assert_eq!(
-            opamp_config
-                .agent_config_override()
-                .expect("no error expected")
-                .map(|k| k.as_str()),
-            expected
+        let overrides = opamp_config.overrides().expect("no error expected");
+        assert_eq!(overrides.blob().map(|v| v.as_str()), expected);
+    }
+
+    #[test]
+    fn test_overrides_blob_multiple_errors() {
+        let opamp_config = testing_agent_config(
+            json!({"override.agentConfig": "key: value", "override.agentConfig-1": "key: value1"}),
         );
+        let result = opamp_config.overrides();
+        assert_matches!(result, Err(OpampRemoteConfigError::InvalidConfig(_, s)) => {
+            assert!(s.contains("multiple configurations with 'override.agentConfig' prefix"));
+        });
     }
 
     #[rstest]
@@ -293,33 +378,94 @@ mod tests {
         json!({"variable.agentConfig": "value1"}),
         json!({})
     )]
-    fn test_agent_config_override_variables_iter(
+    #[case::ignores_map_entry_overrides(
+        json!({"variable.agentConfig.key1": "value1", "variable.agentConfig.config_integrations:file1.yaml": "content: whatever-1"}),
+        json!({"key1": "value1"})
+    )]
+    fn test_overrides_variables(
         #[case] config_map: serde_json::Value,
         #[case] expected: serde_json::Value,
     ) {
         let opamp_config = testing_agent_config(config_map);
 
-        let result: HashMap<&str, &String> = opamp_config
-            .agent_config_override_variables_iter()
+        let result: HashMap<&str, &str> = opamp_config
+            .overrides()
+            .expect("no error expected")
+            .variables()
+            .iter()
+            .map(|&(path, value)| (path, value.as_str()))
             .collect();
         let expected: HashMap<String, String> = serde_json::from_value(expected).unwrap();
 
         assert_eq!(result.len(), expected.len());
         for (expected_key, expected_value) in &expected {
             assert_eq!(
-                result.get(expected_key.as_str()).map(|v| v.as_str()),
+                result.get(expected_key.as_str()).copied(),
                 Some(expected_value.as_str())
             );
         }
     }
 
+    #[rstest]
+    #[case::map_entry_override(
+        json!({"variable.agentConfig.config_integrations:file1.yaml": "content: whatever-1"}),
+        json!({"config_integrations": {"file1.yaml": "content: whatever-1"}})
+    )]
+    #[case::map_entry_nested_path(
+        json!({"variable.agentConfig.foo.bar:baz.yaml": "value1"}),
+        json!({"foo.bar": {"baz.yaml": "value1"}})
+    )]
+    #[case::map_entry_only_first_colon_is_delimiter(
+        json!({"variable.agentConfig.key1:file:name.yaml": "value1"}),
+        json!({"key1": {"file:name.yaml": "value1"}})
+    )]
+    #[case::ignores_whole_variable_overrides(
+        json!({"variable.agentConfig.key1": "value1", "variable.agentConfig.config_integrations:file1.yaml": "content: whatever-1"}),
+        json!({"config_integrations": {"file1.yaml": "content: whatever-1"}})
+    )]
+    #[case::ignores_malformed_missing_separator(
+        json!({"variable.agentConfig": "value1"}),
+        json!({})
+    )]
+    fn test_overrides_map_entries(
+        #[case] config_map: serde_json::Value,
+        #[case] expected: serde_json::Value,
+    ) {
+        let opamp_config = testing_agent_config(config_map);
+
+        let result: HashMap<&str, HashMap<&str, &str>> = opamp_config
+            .overrides()
+            .expect("no error expected")
+            .map_entries()
+            .iter()
+            .fold(HashMap::new(), |mut acc, &(path, map_key, value)| {
+                acc.entry(path).or_default().insert(map_key, value.as_str());
+                acc
+            });
+        let expected: HashMap<String, HashMap<String, String>> =
+            serde_json::from_value(expected).unwrap();
+
+        assert_eq!(result.len(), expected.len());
+        for (expected_path, expected_entries) in &expected {
+            let actual_entries = result
+                .get(expected_path.as_str())
+                .expect("variable path not found");
+            assert_eq!(actual_entries.len(), expected_entries.len());
+            for (expected_key, expected_value) in expected_entries {
+                assert_eq!(
+                    actual_entries.get(expected_key.as_str()).copied(),
+                    Some(expected_value.as_str())
+                );
+            }
+        }
+    }
+
     #[test]
-    fn test_agent_config_override_error() {
-        let opamp_config = testing_agent_config(
-            json!({"override.agentConfig": "key: value", "override.agentConfig-1": "key: value1"}),
-        );
-        assert_matches!(opamp_config.agent_config_override(), Err(OpampRemoteConfigError::InvalidConfig(_, s)) => {
-            assert!(s.contains("multiple configurations with 'override.agentConfig' prefix"));
+    fn test_overrides_map_entry_empty_key_errors() {
+        let opamp_config = testing_agent_config(json!({"variable.agentConfig.key1:": "value1"}));
+        let result = opamp_config.overrides();
+        assert_matches!(result, Err(OpampRemoteConfigError::InvalidConfig(_, s)) => {
+            assert!(s.contains("empty map-entry key for override variable 'key1'"));
         });
     }
 }

@@ -110,12 +110,18 @@ where
 /// - Applies any per-variable overrides identified by
 ///   [AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX),
 ///   setting the value at the dot-separated variable path (creating missing intermediate mappings as needed).
-///   These are applied last and therefore take precedence over both the base and the blob-level override configs.
-///   The `agent_identity`'s agent type is resolved through `agent_type_registry` (only when at
+///   These are applied after the base and blob-level override configs, and therefore take precedence over
+///   both. The `agent_identity`'s agent type is resolved through `agent_type_registry` (only when at
 ///   least one such override is present) to look up each path's declared variable type: `string`-typed
 ///   variables store the override text as-is, every other declared type still requires it to be
 ///   valid YAML. A path that doesn't match any declared variable is ignored with a `warn!` log,
 ///   matching how an unrecognized key is already handled when filling an agent type's variables.
+/// - Applies any map-entry overrides, identified by a
+///   [AGENT_CONFIG_OVERRIDE_VARIABLE_MAP_KEY_SEPARATOR](crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_VARIABLE_MAP_KEY_SEPARATOR)-delimited
+///   suffix on the variable path, by merging the parsed value into the mapping living at that
+///   path. These are applied last, after all whole-variable overrides, so a whole-variable
+///   override and one or more map-entry overrides for the same path in the same payload compose
+///   rather than conflict. Requires the target variable to be declared `string_map`.
 /// - Returns `None` if the final merged configuration is empty.
 ///
 /// # Example
@@ -152,6 +158,8 @@ where
 ///   non-mapping value.
 /// - The agent's type cannot be resolved from `agent_type_registry` while at least one per-variable
 ///   override is present.
+/// - A map-entry override (`:<map-key>` suffix) targets a variable that is not declared as
+///   `string_map`, or uses an empty map key.
 pub fn extract_remote_config_values<R: AgentTypeRegistry>(
     opamp_remote_config: &OpampRemoteConfig,
     agent_identity: &AgentIdentity,
@@ -170,44 +178,45 @@ pub fn extract_remote_config_values<R: AgentTypeRegistry>(
         },
     )?;
 
-    let maybe_override_config = opamp_remote_config.agent_config_override().map_err(|err| {
+    let overrides = opamp_remote_config.overrides().map_err(|err| {
         RemoteConfigParserError::InvalidValues(format!("getting override values: {err}"))
     })?;
-    if let Some(override_content) = maybe_override_config {
+
+    if let Some(override_content) = overrides.blob() {
         let override_config = YAMLConfig::try_from(override_content.as_str()).map_err(|err| {
             RemoteConfigParserError::InvalidValues(format!("decoding override values: {err}"))
         })?;
         config = YAMLConfig::merge_override(config, override_config);
     }
 
-    let mut override_variables = opamp_remote_config
-        .agent_config_override_variables_iter()
-        .peekable();
-    if override_variables.peek().is_some() {
+    if overrides.has_variable_overrides() {
         let variable_definitions =
             load_variable_definitions(agent_type_registry, &agent_identity.agent_type_id)?;
 
-        for (variable_path, raw_value) in override_variables {
-            if let Some(value) =
-                parse_override_value(variable_path, raw_value, &variable_definitions)?
-            {
-                config
-                    .override_variable_value(variable_path, value)
-                    .map_err(|err| {
-                        RemoteConfigParserError::InvalidValues(format!(
-                            "overriding variable '{variable_path}': {err}"
-                        ))
-                    })?;
-            } else {
-                // Same behavior as the renderer: in the same way that values for variables not declared in the
-                // Agent Type are logged and ignored, the overrides for variables not declared in the Agent Type
-                // are also logged and ignored.
-                warn!(
-                    variable = variable_path,
-                    agent_type = agent_identity.agent_type_id.to_string(),
-                    "Ignoring override for variable not declared in the Agent Type"
-                );
-            }
+        for &(variable_path, raw_value) in overrides.variables() {
+            let value = parse_override_value(variable_path, raw_value, &variable_definitions)?;
+            apply_variable_override(
+                &mut config,
+                &agent_identity.agent_type_id,
+                variable_path,
+                value,
+            )?;
+        }
+
+        for &(variable_path, map_key, raw_value) in overrides.map_entries() {
+            let value = parse_override_map_entry_value(
+                variable_path,
+                map_key,
+                raw_value,
+                &variable_definitions,
+            )?;
+            apply_map_entry_override(
+                &mut config,
+                &agent_identity.agent_type_id,
+                variable_path,
+                map_key,
+                value,
+            )?;
         }
     }
 
@@ -234,6 +243,60 @@ fn load_variable_definitions<R: AgentTypeRegistry>(
         }
     })?;
     Ok(agent_type.variables.flatten())
+}
+
+/// Applies a whole-variable override's already-parsed `value`, or logs and skips it if the
+/// variable was not declared in the Agent Type (`value` is `None`).
+fn apply_variable_override(
+    config: &mut YAMLConfig,
+    agent_type_id: &AgentTypeID,
+    variable_path: &str,
+    value: Option<serde_json::Value>,
+) -> Result<(), RemoteConfigParserError> {
+    let Some(value) = value else {
+        // Ignored to support forward compatibility
+        warn!(
+            variable = variable_path,
+            agent_type = agent_type_id.to_string(),
+            "Ignoring override for variable not declared in the Agent Type"
+        );
+        return Ok(());
+    };
+    config
+        .override_variable_value(variable_path, value)
+        .map_err(|err| {
+            RemoteConfigParserError::InvalidValues(format!(
+                "overriding variable '{variable_path}': {err}"
+            ))
+        })
+}
+
+/// Applies a map-entry override's already-parsed `value`, or logs and skips it if the variable
+/// was not declared in the Agent Type (`value` is `None`).
+fn apply_map_entry_override(
+    config: &mut YAMLConfig,
+    agent_type_id: &AgentTypeID,
+    variable_path: &str,
+    map_key: &str,
+    value: Option<serde_json::Value>,
+) -> Result<(), RemoteConfigParserError> {
+    let Some(value) = value else {
+        // Ignored to support forward compatibility.
+        warn!(
+            variable = variable_path,
+            map_key,
+            agent_type = agent_type_id.to_string(),
+            "Ignoring override for variable not declared in the Agent Type"
+        );
+        return Ok(());
+    };
+    config
+        .override_variable_map_entry(variable_path, map_key, value)
+        .map_err(|err| {
+            RemoteConfigParserError::InvalidValues(format!(
+                "overriding variable '{variable_path}:{map_key}': {err}"
+            ))
+        })
 }
 
 /// Parses the provided value to override considering the variable type defined in the corresponding definitions.
@@ -263,6 +326,47 @@ fn parse_override_value(
             }),
         })
         .transpose()
+}
+
+/// Parses the provided value for a map-entry override (`variable_path:map_key`), enforcing that
+/// the target variable is declared as `string_map`. Returns `None` if the variable is not
+/// defined (ignored, consistent with whole-variable overrides), and an error if it is defined but
+/// not a `string_map`.
+fn parse_override_map_entry_value(
+    variable_path: &str,
+    map_key: &str,
+    value: &str,
+    definitions: &HashMap<String, VariableDefinition>,
+) -> Result<Option<serde_json::Value>, RemoteConfigParserError> {
+    let Some(definition) = definitions.get(variable_path) else {
+        return Ok(None);
+    };
+    if !matches!(definition.kind(), VariableTypeDefinition::StringMap(_)) {
+        return Err(RemoteConfigParserError::InvalidValues(format!(
+            "overriding variable '{variable_path}:{map_key}': the ':<map-key>' override syntax is only supported for 'string_map' variables"
+        )));
+    }
+
+    Ok(Some(parse_yaml_value(value).unwrap_or_else(|_| {
+        // Covers the case where the file content is not a valid YAML.
+        // For example the following config:
+        // may_string_map_config:
+        //   my_file.non_yaml: "["
+        serde_json::Value::String(value.to_string())
+    })))
+}
+
+/// Parses a raw YAML fragment into a [serde_json::Value], unlike [YAMLConfig] the root is not
+/// required to be a mapping.
+///
+/// Used to parse the value of a per-variable override, which can be a scalar, list, or mapping.
+fn parse_yaml_value(value: &str) -> Result<serde_json::Value, serde_saphyr::Error> {
+    serde_saphyr::from_str_with_options(
+        value,
+        serde_saphyr::options! {
+            duplicate_keys: serde_saphyr::DuplicateKeyPolicy::LastWins,
+        },
+    )
 }
 
 #[cfg(test)]
@@ -305,6 +409,9 @@ pub mod tests {
     const STRING_VAR: &str = "description: \"d\"\ntype: string\nrequired: true";
     /// A `yaml`-typed variable declaration snippet, for use with [agent_type_definition_with_variable].
     const YAML_VAR: &str = "description: \"d\"\ntype: yaml\nrequired: false";
+    /// A `string_map`-typed variable declaration snippet, for use with [agent_type_definition_with_variable].
+    const STRING_MAP_VAR: &str =
+        "description: \"d\"\ntype: string_map\nrequired: false\ndefault: {}";
 
     /// Builds an [AgentTypeDefinition] declaring a single variable at `path` (dot-separated,
     /// creating intermediate mappings as needed) with the given type declaration snippet
@@ -487,6 +594,14 @@ pub mod tests {
         json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1"): "]"}),
         Some(("key1", YAML_VAR))
     )]
+    #[case::override_variable_map_entry_wrong_type(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1:file1.yaml"): "content: v1"}),
+        Some(("key1", YAML_VAR))
+    )]
+    #[case::override_variable_map_entry_conflicts_with_non_mapping(
+        json!({AGENT_CONFIG_PREFIX: "key1: not-a-map", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1:file1.yaml"): "content: v1"}),
+        Some(("key1", STRING_MAP_VAR))
+    )]
     fn test_invalid_agent_configs_remote_values(
         #[case] config: serde_json::Value,
         #[case] agent_type_declared_variable: Option<(&str, &str)>,
@@ -509,6 +624,36 @@ pub mod tests {
 
         let result = handler.parse(agent_identity.clone(), &remote_config);
         assert_matches!(result, Err(RemoteConfigParserError::InvalidValues(_)));
+    }
+
+    #[test]
+    fn test_override_variable_map_entry_empty_key_errors_before_registry_lookup() {
+        let agent_identity = AgentIdentity::default();
+
+        let hash = Hash::from("some-hash");
+        let state = ConfigState::Applying;
+        let config_map = ConfigurationMap::new(HashMap::from([
+            (AGENT_CONFIG_PREFIX.to_string(), "key1: value1".to_string()),
+            (
+                format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1:"),
+                "content: v1".to_string(),
+            ),
+        ]));
+        let remote_config =
+            OpampRemoteConfig::new(agent_identity.id.clone(), hash, state, config_map);
+
+        let mut registry = MockAgentTypeRegistry::new();
+        registry.expect_get().never();
+
+        let handler = AgentRemoteConfigParser::<MockRemoteConfigValidator, _>::new(
+            Vec::new(),
+            Arc::new(registry),
+        );
+
+        let result = handler.parse(agent_identity.clone(), &remote_config);
+        assert_matches!(result, Err(RemoteConfigParserError::InvalidValues(s)) => {
+            assert!(s.contains("empty map-entry key for override variable 'key1'"));
+        });
     }
 
     #[rstest]
@@ -626,6 +771,44 @@ pub mod tests {
         json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1"): "]"}),
         Some(("key1", STRING_VAR)),
         "key1: \"]\""
+    )]
+    #[case::override_variable_map_entry_accepts_raw_text(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.foo"): "]"}),
+        Some(("string_map_var", STRING_MAP_VAR)),
+        "key1: value1\nstring_map_var:\n  file1.foo: \"]\""
+    )]
+    #[case::override_variable_map_entry_invalid_yaml_falls_back_to_raw_text(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.yaml"): "[unterminated"}),
+        Some(("string_map_var", STRING_MAP_VAR)),
+        "key1: value1\nstring_map_var:\n  file1.yaml: \"[unterminated\""
+    )]
+    #[case::override_variable_map_entry_creates_map(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.yaml"): "content: whatever-1"}),
+        Some(("string_map_var", STRING_MAP_VAR)),
+        "key1: value1\nstring_map_var:\n  file1.yaml:\n    content: whatever-1"
+    )]
+    #[case::override_variable_map_entry_multiple_files_merge(
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.yaml"): "content: whatever-1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file2.yaml"): "content: whatever-2"
+        }),
+        Some(("string_map_var", STRING_MAP_VAR)),
+        "key1: value1\nstring_map_var:\n  file1.yaml:\n    content: whatever-1\n  file2.yaml:\n    content: whatever-2"
+    )]
+    #[case::override_variable_whole_then_map_entry_merges(
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var"): "file1.yaml:\n  content: old\nfile3.yaml:\n  content: keep",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.yaml"): "content: new"
+        }),
+        Some(("string_map_var", STRING_MAP_VAR)),
+        "key1: value1\nstring_map_var:\n  file1.yaml:\n    content: new\n  file3.yaml:\n    content: keep"
+    )]
+    #[case::override_variable_map_entry_unknown_path_is_ignored(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.unknown:file1.yaml"): "content: v1"}),
+        None,
+        "key1: value1"
     )]
     fn test_valid_remote_config_values(
         #[case] config: serde_json::Value,
