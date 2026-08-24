@@ -15,7 +15,7 @@ Remember that the keywords that you can use are the following:
 ## Unreleased
 
 ### enhancement
-- Add support for variables override through `overrideVariable.agentConfig` syntax in Remote Configuration keys.
+- Add support for variables override through `variable.agentConfig` syntax in Remote Configuration keys.
 
 ### bugfix
 - K8s supervisor: force a Flux reconciliation on stalled HelmReleases (e.g. after exhausting install/upgrade retries) when a new remote config

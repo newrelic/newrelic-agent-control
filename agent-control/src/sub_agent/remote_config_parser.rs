@@ -130,7 +130,7 @@ where
 ///     "agentConfig-2": "key2: value2",
 ///     "agentConfig-3": "key3: value3",
 ///     "override.agentConfig": "key2: overridden2",
-///     "overrideVariable.agentConfig.key3": "overridden3"
+///     "variable.agentConfig.key3": "overridden3"
 /// }
 /// ```
 /// **Output:**

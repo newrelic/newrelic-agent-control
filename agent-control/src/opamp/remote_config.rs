@@ -25,10 +25,10 @@ pub const AGENT_CONFIG_PREFIX: &str = "agentConfig";
 pub const AGENT_CONFIG_OVERRIDE_PREFIX: &str = "override.agentConfig";
 
 /// Prefix that identifies an override for a single, possibly nested, configuration variable. The variable path
-/// follows the prefix separated by a dot, e.g. `overrideVariable.agentConfig.foo.bar`. See the parsing
+/// follows the prefix separated by a dot, e.g. `variable.agentConfig.foo.bar`. See the parsing
 /// implementation at [extract_remote_config_values](crate::sub_agent::remote_config_parser::extract_remote_config_values)
 /// for details.
-pub const AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX: &str = "overrideVariable.agentConfig";
+pub const AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX: &str = "variable.agentConfig";
 
 /// This structure represents the remote configuration that we would retrieve from a server via OpAMP.
 /// Contains identifying metadata and the actual configuration values
@@ -274,23 +274,23 @@ mod tests {
 
     #[rstest]
     #[case::single_override(
-        json!({"overrideVariable.agentConfig.key1": "value1"}),
+        json!({"variable.agentConfig.key1": "value1"}),
         json!({"key1": "value1"})
     )]
     #[case::nested_override(
-        json!({"overrideVariable.agentConfig.foo.bar": "value1"}),
+        json!({"variable.agentConfig.foo.bar": "value1"}),
         json!({"foo.bar": "value1"})
     )]
     #[case::multiple_overrides(
-        json!({"overrideVariable.agentConfig.key1": "value1", "overrideVariable.agentConfig.key2": "value2"}),
+        json!({"variable.agentConfig.key1": "value1", "variable.agentConfig.key2": "value2"}),
         json!({"key1": "value1", "key2": "value2"})
     )]
     #[case::ignores_non_matching(
-        json!({"agentConfig": "key: value", "override.agentConfig": "key: value2", "overrideVariable.agentConfig.key1": "value1"}),
+        json!({"agentConfig": "key: value", "override.agentConfig": "key: value2", "variable.agentConfig.key1": "value1"}),
         json!({"key1": "value1"})
     )]
     #[case::ignores_malformed_missing_separator(
-        json!({"overrideVariable.agentConfig": "value1"}),
+        json!({"variable.agentConfig": "value1"}),
         json!({})
     )]
     fn test_agent_config_override_variables_iter(

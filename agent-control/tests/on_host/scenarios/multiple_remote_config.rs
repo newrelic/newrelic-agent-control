@@ -66,7 +66,7 @@ fn onhost_ac_multiconfig_agents_append() {
                 "ignored as not supported for AC".to_string(),
             ),
             (
-                "overrideVariable.agentConfig".to_string(),
+                "variable.agentConfig".to_string(),
                 "ignored as not supported for AC".to_string(),
             ),
         ]),
@@ -197,7 +197,7 @@ var_d: overridden_var_d
                 "var_c: overridden_c".to_string(),
             ),
             (
-                "overrideVariable.agentConfig.var_d".to_string(),
+                "variable.agentConfig.var_d".to_string(),
                 "overridden_var_d".to_string(),
             ),
         ]),
