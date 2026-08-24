@@ -1,7 +1,6 @@
 //! Parsing and validation of OpAMP remote configurations into a [RemoteConfig].
 
 use crate::agent_type::variable::VariableDefinition;
-use crate::agent_type::variable::variable_type::VariableTypeDefinition;
 use crate::agent_type::{agent_type_id::AgentTypeID, registry::AgentTypeRegistry};
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
@@ -193,30 +192,56 @@ pub fn extract_remote_config_values<R: AgentTypeRegistry>(
         let variable_definitions =
             load_variable_definitions(agent_type_registry, &agent_identity.agent_type_id)?;
 
-        for &(variable_path, raw_value) in overrides.variables() {
-            let value = parse_override_value(variable_path, raw_value, &variable_definitions)?;
-            apply_variable_override(
-                &mut config,
-                &agent_identity.agent_type_id,
-                variable_path,
-                value,
-            )?;
+        for variable_override in overrides.variables() {
+            let Some(value) = variable_override
+                .parse(&variable_definitions)
+                .map_err(RemoteConfigParserError::InvalidValues)?
+            else {
+                // Ignored to support forward compatibility
+                warn!(
+                    variable = variable_override.path(),
+                    agent_type = agent_identity.agent_type_id.to_string(),
+                    "Ignoring override for variable not declared in the Agent Type"
+                );
+                continue;
+            };
+            config
+                .override_variable_value(variable_override.path(), value)
+                .map_err(|err| {
+                    RemoteConfigParserError::InvalidValues(format!(
+                        "overriding variable '{}': {err}",
+                        variable_override.path()
+                    ))
+                })?;
         }
 
-        for &(variable_path, map_key, raw_value) in overrides.map_entries() {
-            let value = parse_override_map_entry_value(
-                variable_path,
-                map_key,
-                raw_value,
-                &variable_definitions,
-            )?;
-            apply_map_entry_override(
-                &mut config,
-                &agent_identity.agent_type_id,
-                variable_path,
-                map_key,
-                value,
-            )?;
+        for map_entry_override in overrides.map_entries() {
+            let Some(value) = map_entry_override
+                .parse(&variable_definitions)
+                .map_err(RemoteConfigParserError::InvalidValues)?
+            else {
+                // Ignored to support forward compatibility.
+                warn!(
+                    variable = map_entry_override.path(),
+                    map_key = map_entry_override.map_key(),
+                    agent_type = agent_identity.agent_type_id.to_string(),
+                    "Ignoring override for variable not declared in the Agent Type"
+                );
+                continue;
+            };
+            config
+                .override_variable_map_entry(
+                    map_entry_override.path(),
+                    map_entry_override.map_key(),
+                    value,
+                )
+                .map_err(|err| {
+                    RemoteConfigParserError::InvalidValues(format!(
+                        "overriding variable '{}:{}': {err}",
+                        map_entry_override.path(),
+                        map_entry_override.map_key()
+                    ))
+                })?;
         }
     }
 
@@ -243,130 +268,6 @@ fn load_variable_definitions<R: AgentTypeRegistry>(
         }
     })?;
     Ok(agent_type.variables.flatten())
-}
-
-/// Applies a whole-variable override's already-parsed `value`, or logs and skips it if the
-/// variable was not declared in the Agent Type (`value` is `None`).
-fn apply_variable_override(
-    config: &mut YAMLConfig,
-    agent_type_id: &AgentTypeID,
-    variable_path: &str,
-    value: Option<serde_json::Value>,
-) -> Result<(), RemoteConfigParserError> {
-    let Some(value) = value else {
-        // Ignored to support forward compatibility
-        warn!(
-            variable = variable_path,
-            agent_type = agent_type_id.to_string(),
-            "Ignoring override for variable not declared in the Agent Type"
-        );
-        return Ok(());
-    };
-    config
-        .override_variable_value(variable_path, value)
-        .map_err(|err| {
-            RemoteConfigParserError::InvalidValues(format!(
-                "overriding variable '{variable_path}': {err}"
-            ))
-        })
-}
-
-/// Applies a map-entry override's already-parsed `value`, or logs and skips it if the variable
-/// was not declared in the Agent Type (`value` is `None`).
-fn apply_map_entry_override(
-    config: &mut YAMLConfig,
-    agent_type_id: &AgentTypeID,
-    variable_path: &str,
-    map_key: &str,
-    value: Option<serde_json::Value>,
-) -> Result<(), RemoteConfigParserError> {
-    let Some(value) = value else {
-        // Ignored to support forward compatibility.
-        warn!(
-            variable = variable_path,
-            map_key,
-            agent_type = agent_type_id.to_string(),
-            "Ignoring override for variable not declared in the Agent Type"
-        );
-        return Ok(());
-    };
-    config
-        .override_variable_map_entry(variable_path, map_key, value)
-        .map_err(|err| {
-            RemoteConfigParserError::InvalidValues(format!(
-                "overriding variable '{variable_path}:{map_key}': {err}"
-            ))
-        })
-}
-
-/// Parses the provided value to override considering the variable type defined in the corresponding definitions.
-/// It returns `None` if the variable is not defined and a parsing error if cannot be parsed.
-fn parse_override_value(
-    variable_path: &str,
-    value: &str,
-    definitions: &HashMap<String, VariableDefinition>,
-) -> Result<Option<serde_json::Value>, RemoteConfigParserError> {
-    definitions
-        .get(variable_path)
-        .map(|definition| match definition.kind() {
-            // Using explicit parsing for each type instead of `matches!` in case a new type is added.
-            // Strings don't need yaml parsing.
-            VariableTypeDefinition::String(_) => Ok(serde_json::Value::String(value.to_string())),
-            // Other types need to be a valid yaml in order to honor the variable type. Eg: a 'yaml' variable
-            // needs to be a valid yaml (deserialization must succeed).
-            VariableTypeDefinition::Bool(_)
-            | VariableTypeDefinition::Number(_)
-            | VariableTypeDefinition::StringMap(_)
-            | VariableTypeDefinition::Yaml(_) => serde_saphyr::from_str(value).map_err(|err| {
-                RemoteConfigParserError::InvalidValues(format!(
-                    "could not decode the override value for variable '{}': {}",
-                    variable_path,
-                    err.render_with_formatter(&serde_saphyr::UserMessageFormatter)
-                ))
-            }),
-        })
-        .transpose()
-}
-
-/// Parses the provided value for a map-entry override (`variable_path:map_key`), enforcing that
-/// the target variable is declared as `string_map`. Returns `None` if the variable is not
-/// defined (ignored, consistent with whole-variable overrides), and an error if it is defined but
-/// not a `string_map`.
-fn parse_override_map_entry_value(
-    variable_path: &str,
-    map_key: &str,
-    value: &str,
-    definitions: &HashMap<String, VariableDefinition>,
-) -> Result<Option<serde_json::Value>, RemoteConfigParserError> {
-    let Some(definition) = definitions.get(variable_path) else {
-        return Ok(None);
-    };
-    if !matches!(definition.kind(), VariableTypeDefinition::StringMap(_)) {
-        return Err(RemoteConfigParserError::InvalidValues(format!(
-            "overriding variable '{variable_path}:{map_key}': the ':<map-key>' override syntax is only supported for 'string_map' variables"
-        )));
-    }
-
-    Ok(Some(parse_yaml_value(value).unwrap_or_else(|_| {
-        // Covers the case where the file content is not a valid YAML.
-        // For example the following config:
-        // may_string_map_config:
-        //   my_file.non_yaml: "["
-        serde_json::Value::String(value.to_string())
-    })))
-}
-
-/// Parses a raw YAML fragment into a [serde_json::Value], unlike [YAMLConfig] the root is not
-/// required to be a mapping.
-///
-/// Used to parse the value of a per-variable override, which can be a scalar, list, or mapping.
-fn parse_yaml_value(value: &str) -> Result<serde_json::Value, serde_saphyr::Error> {
-    serde_saphyr::from_str_with_options(
-        value,
-        serde_saphyr::options! {
-            duplicate_keys: serde_saphyr::DuplicateKeyPolicy::LastWins,
-        },
-    )
 }
 
 #[cfg(test)]

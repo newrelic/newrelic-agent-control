@@ -1,6 +1,8 @@
 //! Remote configuration received via OpAMP: its model, configuration map, hashes, and validators.
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::templates::TEMPLATE_KEY_SEPARATOR;
+use crate::agent_type::variable::VariableDefinition;
+use crate::agent_type::variable::variable_type::VariableTypeDefinition;
 use crate::opamp::remote_config::hash::ConfigState;
 use crate::opamp::remote_config::{hash::Hash, signature::SignatureData};
 use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, EffectiveConfig};
@@ -142,7 +144,10 @@ impl OpampRemoteConfig {
                 continue;
             };
             let Some(map_key) = map_key else {
-                variables.push((variable_path, v));
+                variables.push(VariableOverride {
+                    path: variable_path,
+                    raw_value: v.as_str(),
+                });
                 continue;
             };
             if map_key.is_empty() {
@@ -151,7 +156,11 @@ impl OpampRemoteConfig {
                     format!("empty map-entry key for override variable '{variable_path}'"),
                 ));
             }
-            map_entries.push((variable_path, map_key, v));
+            map_entries.push(MapEntryOverride {
+                path: variable_path,
+                map_key,
+                raw_value: v.as_str(),
+            });
         }
 
         Ok(Overrides {
@@ -188,8 +197,8 @@ impl OpampRemoteConfig {
 #[derive(Debug)]
 pub struct Overrides<'a> {
     blob: Option<&'a String>,
-    variables: Vec<(&'a str, &'a String)>,
-    map_entries: Vec<(&'a str, &'a str, &'a String)>,
+    variables: Vec<VariableOverride<'a>>,
+    map_entries: Vec<MapEntryOverride<'a>>,
 }
 
 impl<'a> Overrides<'a> {
@@ -200,24 +209,129 @@ impl<'a> Overrides<'a> {
     }
 
     /// Whole-variable overrides identified by [AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX] with no
-    /// `:map-key` suffix. Each item is the dot-separated variable path (with the prefix stripped)
-    /// and its raw override value, overriding the value at that path entirely.
-    pub fn variables(&self) -> &[(&'a str, &'a String)] {
+    /// `:map-key` suffix, overriding the value at their path entirely.
+    pub fn variables(&self) -> &[VariableOverride<'a>] {
         &self.variables
     }
 
     /// Map-entry overrides identified by [AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX] with a
-    /// [AGENT_CONFIG_OVERRIDE_VARIABLE_MAP_KEY_SEPARATOR]-delimited suffix. Each item is the
-    /// dot-separated variable path, the map-entry key (the text after the separator, verbatim),
-    /// and the raw override value, overriding a single entry of the `string_map` variable living
-    /// at that path.
-    pub fn map_entries(&self) -> &[(&'a str, &'a str, &'a String)] {
+    /// [AGENT_CONFIG_OVERRIDE_VARIABLE_MAP_KEY_SEPARATOR]-delimited suffix, each overriding a
+    /// single entry of the `string_map` variable living at their path.
+    pub fn map_entries(&self) -> &[MapEntryOverride<'a>] {
         &self.map_entries
     }
 
     /// True if there is at least one whole-variable or map-entry override to apply.
     pub fn has_variable_overrides(&self) -> bool {
         !self.variables.is_empty() || !self.map_entries.is_empty()
+    }
+}
+
+/// A whole-variable override identified by [AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX] with no
+/// `:map-key` suffix: the dot-separated variable path (with the prefix stripped) and its raw
+/// override value.
+#[derive(Debug)]
+pub struct VariableOverride<'a> {
+    path: &'a str,
+    raw_value: &'a str,
+}
+
+impl<'a> VariableOverride<'a> {
+    /// The dot-separated variable path this override targets.
+    pub fn path(&self) -> &'a str {
+        self.path
+    }
+
+    /// The raw override value, as received over OpAMP.
+    pub fn raw_value(&self) -> &'a str {
+        self.raw_value
+    }
+
+    /// Parses this override's raw value considering the variable type defined in `definitions`.
+    /// Returns `None` if the variable is not defined, and an error message if it is defined but
+    /// its raw value cannot be parsed according to its declared type.
+    pub fn parse(
+        &self,
+        definitions: &HashMap<String, VariableDefinition>,
+    ) -> Result<Option<serde_json::Value>, String> {
+        definitions
+            .get(self.path)
+            .map(|definition| match definition.kind() {
+                // Using explicit parsing for each type instead of `matches!` in case a new type is added.
+                // Strings don't need yaml parsing.
+                VariableTypeDefinition::String(_) => {
+                    Ok(serde_json::Value::String(self.raw_value.to_string()))
+                }
+                // Other types need to be a valid yaml in order to honor the variable type. Eg: a 'yaml' variable
+                // needs to be a valid yaml (deserialization must succeed).
+                VariableTypeDefinition::Bool(_)
+                | VariableTypeDefinition::Number(_)
+                | VariableTypeDefinition::StringMap(_)
+                | VariableTypeDefinition::Yaml(_) => serde_saphyr::from_str(self.raw_value)
+                    .map_err(|err| {
+                        format!(
+                            "could not decode the override value for variable '{}': {}",
+                            self.path,
+                            err.render_with_formatter(&serde_saphyr::UserMessageFormatter)
+                        )
+                    }),
+            })
+            .transpose()
+    }
+}
+
+/// A map-entry override identified by [AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX] with a
+/// [AGENT_CONFIG_OVERRIDE_VARIABLE_MAP_KEY_SEPARATOR]-delimited suffix: the dot-separated variable
+/// path, the map-entry key (the text after the separator, verbatim), and the raw override value.
+#[derive(Debug)]
+pub struct MapEntryOverride<'a> {
+    path: &'a str,
+    map_key: &'a str,
+    raw_value: &'a str,
+}
+
+impl<'a> MapEntryOverride<'a> {
+    /// The dot-separated variable path this override targets.
+    pub fn path(&self) -> &'a str {
+        self.path
+    }
+
+    /// The map-entry key (the text after the [AGENT_CONFIG_OVERRIDE_VARIABLE_MAP_KEY_SEPARATOR]), verbatim.
+    pub fn map_key(&self) -> &'a str {
+        self.map_key
+    }
+
+    /// Parses this override's raw value, enforcing that the target variable is declared as
+    /// `string_map`. Returns `None` if the variable is not defined (ignored, consistent with
+    /// whole-variable overrides), and an error message if it is defined but not a `string_map`.
+    pub fn parse(
+        &self,
+        definitions: &HashMap<String, VariableDefinition>,
+    ) -> Result<Option<serde_json::Value>, String> {
+        let Some(definition) = definitions.get(self.path) else {
+            return Ok(None);
+        };
+        if !matches!(definition.kind(), VariableTypeDefinition::StringMap(_)) {
+            return Err(format!(
+                "overriding variable '{}:{}': the ':<map-key>' override syntax is only supported for 'string_map' variables",
+                self.path, self.map_key
+            ));
+        }
+
+        Ok(Some(serde_saphyr::from_str(self.raw_value).unwrap_or_else(
+            |_| {
+                // Covers the case where the file content is not a valid YAML.
+                // For example the following config:
+                // may_string_map_config:
+                //   my_file.non_yaml: "["
+                serde_json::Value::String(self.raw_value.to_string())
+            },
+        )))
+    }
+
+    /// The raw override value, as received over OpAMP.
+    pub fn raw_value(&self) -> &'a str {
+        self.raw_value
     }
 }
 
@@ -393,7 +507,7 @@ mod tests {
             .expect("no error expected")
             .variables()
             .iter()
-            .map(|&(path, value)| (path, value.as_str()))
+            .map(|variable_override| (variable_override.path(), variable_override.raw_value()))
             .collect();
         let expected: HashMap<String, String> = serde_json::from_value(expected).unwrap();
 
@@ -438,8 +552,10 @@ mod tests {
             .expect("no error expected")
             .map_entries()
             .iter()
-            .fold(HashMap::new(), |mut acc, &(path, map_key, value)| {
-                acc.entry(path).or_default().insert(map_key, value.as_str());
+            .fold(HashMap::new(), |mut acc, map_entry_override| {
+                acc.entry(map_entry_override.path())
+                    .or_default()
+                    .insert(map_entry_override.map_key(), map_entry_override.raw_value());
                 acc
             });
         let expected: HashMap<String, HashMap<String, String>> =
