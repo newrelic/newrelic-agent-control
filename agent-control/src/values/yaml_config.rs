@@ -1,9 +1,11 @@
 //! The [`YAMLConfig`] type wrapping a YAML mapping that Agent Control can read and store.
 
-use crate::agent_control::config::AgentControlDynamicConfig;
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
+use crate::{
+    agent_control::config::AgentControlDynamicConfig, agent_type::templates::TEMPLATE_KEY_SEPARATOR,
+};
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
@@ -61,6 +63,80 @@ impl YAMLConfig {
             result.0.insert(k, v);
             result
         })
+    }
+
+    /// Sets `value` at the given dot-separated `variable_path`, creating any missing intermediate
+    /// mappings and overwriting the value at the final segment.
+    ///
+    /// # Example
+    /// ```
+    /// # use newrelic_agent_control::values::yaml_config::YAMLConfig;
+    /// # use serde_json::json;
+    /// let mut config: YAMLConfig = serde_json::from_value(json!({"foo": {"bar": "value1"}})).unwrap();
+    /// config.override_variable_value("foo.bar", json!("overridden")).unwrap();
+    /// config.override_variable_value("foo.baz", json!("new")).unwrap();
+    /// assert_eq!(config, serde_json::from_value(json!({"foo": {"bar": "overridden", "baz": "new"}})).unwrap());
+    /// ```
+    /// # Errors
+    /// Returns an error if `variable_path` is empty, or if an intermediate segment already holds a
+    /// non-mapping value.
+    ///
+    /// ```
+    /// # use newrelic_agent_control::values::yaml_config::YAMLConfig;
+    /// # use serde_json::json;
+    /// let mut config: YAMLConfig = serde_json::from_value(json!({"foo": {"bar": "value1"}})).unwrap();
+    /// let err = config.override_variable_value("foo.bar.baz", json!("new")).unwrap_err();
+    /// assert_eq!(
+    ///     err.to_string(),
+    ///     "cannot override nested variable path 'foo.bar.baz': segment 'foo.bar' is not a mapping"
+    /// );
+    /// ```
+    pub fn override_variable_value(
+        &mut self,
+        variable_path: &str,
+        value: Value,
+    ) -> Result<(), YAMLConfigError> {
+        let mut segments = variable_path.split(TEMPLATE_KEY_SEPARATOR);
+        let first = segments
+            .next()
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| YAMLConfigError("cannot override an empty variable path".to_string()))?;
+
+        let rest: Vec<&str> = segments.collect();
+
+        let Some((last, middle)) = rest.split_last() else {
+            self.0.insert(first.to_string(), value);
+            return Ok(());
+        };
+
+        let mut current = self
+            .0
+            .entry(first.to_string())
+            .or_insert_with(|| Value::Object(Default::default()));
+
+        let mut visited_path = first.to_string();
+        let not_a_mapping_err = |visited_path: &str| {
+            YAMLConfigError(format!(
+                "cannot override nested variable path '{variable_path}': segment '{visited_path}' is not a mapping"
+            ))
+        };
+
+        for segment in middle {
+            let Value::Object(map) = current else {
+                return Err(not_a_mapping_err(&visited_path));
+            };
+            current = map
+                .entry(segment.to_string())
+                .or_insert_with(|| Value::Object(Default::default()));
+            visited_path = format!("{visited_path}.{segment}");
+        }
+
+        let Value::Object(map) = current else {
+            return Err(not_a_mapping_err(&visited_path));
+        };
+        map.insert(last.to_string(), value);
+
+        Ok(())
     }
 }
 
@@ -434,5 +510,72 @@ deployment: {}
 
         let result = YAMLConfig::merge_override(config_a, config_b);
         assert_eq!(result, expected_config);
+    }
+
+    #[rstest]
+    #[case::top_level_new_key(
+        json!({"key1": "value1"}),
+        "key2",
+        json!("value2"),
+        json!({"key1": "value1", "key2": "value2"})
+    )]
+    #[case::top_level_overwrite(
+        json!({"key1": "value1"}),
+        "key1",
+        json!("overridden"),
+        json!({"key1": "overridden"})
+    )]
+    #[case::nested_overwrite(
+        json!({"foo": {"bar": "value1"}}),
+        "foo.bar",
+        json!("overridden"),
+        json!({"foo": {"bar": "overridden"}})
+    )]
+    #[case::nested_new_key_sibling_untouched(
+        json!({"foo": {"bar": "value1"}}),
+        "foo.baz",
+        json!("new"),
+        json!({"foo": {"bar": "value1", "baz": "new"}})
+    )]
+    #[case::auto_creates_missing_intermediates(
+        json!({}),
+        "foo.bar.baz",
+        json!("value"),
+        json!({"foo": {"bar": {"baz": "value"}}})
+    )]
+    #[case::non_string_value(
+        json!({}),
+        "foo",
+        json!({"nested": [1, 2]}),
+        json!({"foo": {"nested": [1, 2]}})
+    )]
+    fn test_set_override_path_success(
+        #[case] initial: serde_json::Value,
+        #[case] path: &str,
+        #[case] value: serde_json::Value,
+        #[case] expected: serde_json::Value,
+    ) {
+        let mut config = serde_json::from_value::<YAMLConfig>(initial).unwrap();
+        let expected_config = serde_json::from_value::<YAMLConfig>(expected).unwrap();
+
+        config.override_variable_value(path, value).unwrap();
+
+        assert_eq!(config, expected_config);
+    }
+
+    #[rstest]
+    #[case::empty_path(json!({"key1": "value1"}), "", json!("value"))]
+    #[case::type_conflict_top_level(json!({"key1": "value1"}), "key1.nested", json!("value"))]
+    #[case::type_conflict_deeper(json!({"foo": {"bar": "value1"}}), "foo.bar.baz", json!("value"))]
+    fn test_set_override_path_error(
+        #[case] initial: serde_json::Value,
+        #[case] path: &str,
+        #[case] value: serde_json::Value,
+    ) {
+        let mut config = serde_json::from_value::<YAMLConfig>(initial).unwrap();
+
+        let result = config.override_variable_value(path, value);
+
+        assert!(result.is_err());
     }
 }

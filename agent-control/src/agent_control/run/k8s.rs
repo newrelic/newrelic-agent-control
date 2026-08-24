@@ -191,7 +191,10 @@ impl AgentControlRunner {
             SupportedRemoteConfigValidator::Regex(RegexValidator::default()),
         ];
 
-        let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
+        let remote_config_parser = AgentRemoteConfigParser::new(
+            remote_config_validators,
+            self.agent_type_registry.clone(),
+        );
 
         let opamp_builder =
             opamp_client_builder.map(|builder| builder.with_startup_check_disabled());

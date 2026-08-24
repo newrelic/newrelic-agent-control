@@ -1,5 +1,6 @@
 //! Remote configuration received via OpAMP: its model, configuration map, hashes, and validators.
 use crate::agent_control::agent_id::AgentID;
+use crate::agent_type::templates::TEMPLATE_KEY_SEPARATOR;
 use crate::opamp::remote_config::hash::ConfigState;
 use crate::opamp::remote_config::{hash::Hash, signature::SignatureData};
 use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, EffectiveConfig};
@@ -22,6 +23,12 @@ pub const AGENT_CONFIG_PREFIX: &str = "agentConfig";
 /// See the parsing implementation at [extract_remote_config_values](crate::sub_agent::remote_config_parser::extract_remote_config_values)
 /// for details.
 pub const AGENT_CONFIG_OVERRIDE_PREFIX: &str = "override.agentConfig";
+
+/// Prefix that identifies an override for a single, possibly nested, configuration variable. The variable path
+/// follows the prefix separated by a dot, e.g. `variable.agentConfig.foo.bar`. See the parsing
+/// implementation at [extract_remote_config_values](crate::sub_agent::remote_config_parser::extract_remote_config_values)
+/// for details.
+pub const AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX: &str = "variable.agentConfig";
 
 /// This structure represents the remote configuration that we would retrieve from a server via OpAMP.
 /// Contains identifying metadata and the actual configuration values
@@ -114,6 +121,16 @@ impl OpampRemoteConfig {
         }
 
         Ok(override_config)
+    }
+
+    /// Returns an iterator over per-variable overrides identified by [AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX].
+    /// Each item is the dot-separated variable path (with the prefix stripped) and its raw override value.
+    pub fn agent_config_override_variables_iter(&self) -> impl Iterator<Item = (&str, &String)> {
+        self.configs_iter().filter_map(|(k, v)| {
+            k.strip_prefix(AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX)?
+                .strip_prefix(TEMPLATE_KEY_SEPARATOR)
+                .map(|path| (path, v))
+        })
     }
 
     /// Get the signature data for a config key
@@ -253,6 +270,47 @@ mod tests {
                 .map(|k| k.as_str()),
             expected
         );
+    }
+
+    #[rstest]
+    #[case::single_override(
+        json!({"variable.agentConfig.key1": "value1"}),
+        json!({"key1": "value1"})
+    )]
+    #[case::nested_override(
+        json!({"variable.agentConfig.foo.bar": "value1"}),
+        json!({"foo.bar": "value1"})
+    )]
+    #[case::multiple_overrides(
+        json!({"variable.agentConfig.key1": "value1", "variable.agentConfig.key2": "value2"}),
+        json!({"key1": "value1", "key2": "value2"})
+    )]
+    #[case::ignores_non_matching(
+        json!({"agentConfig": "key: value", "override.agentConfig": "key: value2", "variable.agentConfig.key1": "value1"}),
+        json!({"key1": "value1"})
+    )]
+    #[case::ignores_malformed_missing_separator(
+        json!({"variable.agentConfig": "value1"}),
+        json!({})
+    )]
+    fn test_agent_config_override_variables_iter(
+        #[case] config_map: serde_json::Value,
+        #[case] expected: serde_json::Value,
+    ) {
+        let opamp_config = testing_agent_config(config_map);
+
+        let result: HashMap<&str, &String> = opamp_config
+            .agent_config_override_variables_iter()
+            .collect();
+        let expected: HashMap<String, String> = serde_json::from_value(expected).unwrap();
+
+        assert_eq!(result.len(), expected.len());
+        for (expected_key, expected_value) in &expected {
+            assert_eq!(
+                result.get(expected_key.as_str()).map(|v| v.as_str()),
+                Some(expected_value.as_str())
+            );
+        }
     }
 
     #[test]
