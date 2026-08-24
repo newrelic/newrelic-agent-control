@@ -402,6 +402,7 @@ where
             let exec_id = exec_data.id.clone();
 
             let mut i = 0;
+            let mut last_error: Option<String>;
             loop {
                 // Check if we need to cancel the process before even getting started.
                 // Otherwise, we would always execute the command at least once. This
@@ -435,7 +436,8 @@ where
 
                 match executable_result {
                     Ok((exit_status, was_cancelled)) => {
-                        handle_exit(&agent_id, &exec_data, &exit_status, &health_handler);
+                        last_error =
+                            handle_exit(&agent_id, &exec_data, &exit_status, &health_handler);
 
                         if was_cancelled {
                             break;
@@ -444,7 +446,9 @@ where
                     Err(err) => {
                         warn!(%agent_id, %exec_id, "Launching executable: {err}");
                         debug!(%agent_id, %exec_id, "Error launching executable, marking as unhealthy");
-                        health_handler.publish_unhealthy(format!("Error launching process: {err}"));
+                        let error = format!("Error launching process: {err}");
+                        health_handler.publish_unhealthy(error.clone());
+                        last_error = Some(error);
                     }
                 }
 
@@ -453,7 +457,11 @@ where
                 if !restart_policy.should_retry() {
                     warn!(%agent_id, %exec_id, "Restart policy exceeded, executable won't restart anymore");
                     debug!(%agent_id, %exec_id, "Restart policy exceeded, marking as unhealthy");
-                    health_handler.publish_unhealthy("Restart policy exceeded".to_string());
+                    let final_message = match &last_error {
+                        Some(err) => format!("Restart policy exceeded: {err}"),
+                        None => "Restart policy exceeded".to_string(),
+                    };
+                    health_handler.publish_unhealthy(final_message);
                     break;
                 }
 
@@ -595,15 +603,16 @@ fn wait_restart(
     cancelled
 }
 
-/// Executes operations based on the exit status of the command
+/// Executes operations based on the exit status of the command.
+/// Returns the error message published as unhealthy, if any.
 fn handle_exit(
     agent_id: &AgentID,
     exec_data: &ExecutableData,
     exit_status: &ExitStatus,
     health_handler: &HealthHandler,
-) {
+) -> Option<String> {
     if exit_status.success() {
-        return;
+        return None;
     }
 
     let ExecutableData { bin, args, .. } = &exec_data;
@@ -616,7 +625,8 @@ fn handle_exit(
         "process exited with code: {}",
         exit_status.code().unwrap_or_default()
     );
-    health_handler.publish_unhealthy_with_status(error, status);
+    health_handler.publish_unhealthy_with_status(error.clone(), status);
+    Some(error)
 }
 
 #[derive(Clone)]
@@ -1266,6 +1276,83 @@ declared-dir:
             .collect::<Vec<_>>();
 
         assert_eq!(actual_ordered_events, expected_ordered_events);
+    }
+
+    #[test]
+    fn test_supervisor_health_events_on_breaking_backoff_reports_last_error() {
+        let backoff = Backoff::default()
+            .with_initial_delay(Duration::new(0, 100))
+            .with_max_retries(2)
+            .with_last_retry_interval(Duration::new(30, 0));
+
+        let exec_id = "failing-process";
+
+        let executables = vec![
+            #[cfg(target_family = "unix")]
+            build_test_exec_data(r#"{"id":"failing-process","path":"false","args":[]}"#)
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
+            #[cfg(target_family = "windows")]
+            build_test_exec_data(
+                r#"{"id":"failing-process","path":"cmd","args":["/C","exit","1"]}"#,
+            )
+            .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
+        ];
+
+        let agent_identity = AgentIdentity::from((
+            exec_id.to_owned().try_into().unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            None,
+            get_empty_packages(),
+            None,
+            MockPackageManager::new_arc(),
+            SubAgentFileLoggingConfig::default(),
+            FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
+        );
+
+        let (health_publisher, health_consumer) = pub_sub();
+
+        let executables_clone = agent.executables.clone();
+
+        let executable_thread_contexts = executables_clone
+            .iter()
+            .map(|e| agent.start_process_thread(e, health_publisher.clone()));
+
+        for thread_context in executable_thread_contexts {
+            while !thread_context.is_thread_finished() {
+                thread::sleep(Duration::from_millis(15));
+            }
+        }
+
+        let last_event = health_consumer
+            .as_ref()
+            .try_iter()
+            .last()
+            .expect("expected at least one health event");
+
+        let Health::Unhealthy(unhealthy) = last_event.1.into() else {
+            panic!("expected the final health event to be Unhealthy");
+        };
+
+        // The final unhealthy message must carry the actual failure, not just the
+        // generic "Restart policy exceeded" placeholder.
+        assert!(
+            unhealthy
+                .last_error()
+                .starts_with("Restart policy exceeded: "),
+            "unexpected last_error: {}",
+            unhealthy.last_error()
+        );
+        assert!(
+            unhealthy.last_error().contains("failed with"),
+            "unexpected last_error: {}",
+            unhealthy.last_error()
+        );
     }
 
     #[test]
