@@ -405,9 +405,8 @@ checks:
 
     let agents = format!(
         r#"
-agents:
-  no-executables:
-    agent_type: "{agent_type_wo_exec}"
+no-executables:
+  agent_type: "{agent_type_wo_exec}"
 "#
     );
 

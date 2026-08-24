@@ -101,9 +101,8 @@ duration-2:
 
     let agents = format!(
         r#"
-agents:
-  test-agent:
-    agent_type: "{agent_type}"
+test-agent:
+  agent_type: "{agent_type}"
 "#
     );
 

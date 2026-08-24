@@ -41,9 +41,8 @@ fn test_no_orphan_processes_after_agent_control_stops() {
 
     let agents = format!(
         r#"
-agents:
-  test-agent:
-    agent_type: "{agent_type}"
+test-agent:
+  agent_type: "{agent_type}"
 "#
     );
 
