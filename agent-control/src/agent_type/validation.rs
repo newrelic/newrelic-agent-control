@@ -10,7 +10,7 @@ use strum::IntoEnumIterator;
 
 #[derive(Error, Debug)]
 pub enum ValidationError {
-    #[error("invalid agent type yaml: {0}")]
+    #[error("invalid agent type yaml: {}", .0.render_with_formatter(&serde_saphyr::UserMessageFormatter))]
     Deserialize(#[from] serde_saphyr::Error),
     #[error("invalid agent type definition: {0}")]
     Definition(#[from] AgentTypeDefinitionParseError),

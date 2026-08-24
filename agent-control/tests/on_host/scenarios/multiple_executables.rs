@@ -36,7 +36,6 @@ fn onhost_subagent_multiple_executables_some_failed_launching() {
 
     let agents = format!(
         r#"
-agents:
   nr-sleep-agent:
     agent_type: "{sleep_agent_type}"
 "#
@@ -84,9 +83,8 @@ fn onhost_subagent_multiple_executables_some_commands_failed_after_max_retries()
 
     let agents = format!(
         r#"
-agents:
-  nr-sleep-agent:
-    agent_type: "{sleep_agent_type}"
+nr-sleep-agent:
+  agent_type: "{sleep_agent_type}"
 "#
     );
 
