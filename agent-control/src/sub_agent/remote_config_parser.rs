@@ -307,18 +307,36 @@ pub mod tests {
     }
 
     /// A `string`-typed variable declaration snippet, for use with [agent_type_definition_with_variable].
-    const STRING_VAR: &str = "description: \"d\"\ntype: string\nrequired: true";
+    const STRING_VAR: &str = r#"
+description: "d"
+type: string
+required: true"#;
     /// A `yaml`-typed variable declaration snippet, for use with [agent_type_definition_with_variable].
-    const YAML_VAR: &str = "description: \"d\"\ntype: yaml\nrequired: false";
+    const YAML_VAR: &str = r#"
+description: "d"
+type: yaml
+required: false"#;
     /// A `string_map`-typed variable declaration snippet, for use with [agent_type_definition_with_variable].
-    const STRING_MAP_VAR: &str =
-        "description: \"d\"\ntype: string_map\nrequired: false\ndefault: {}";
+    const STRING_MAP_VAR: &str = r#"
+description: "d"
+type: string_map
+required: false
+default: {}"#;
 
     /// Builds an [AgentTypeDefinition] whose `variables:` section is exactly `variables_yaml`
     /// (already including whatever indentation/nesting it needs).
     fn agent_type_definition_with_variables_yaml(variables_yaml: &str) -> AgentTypeDefinition {
         let yaml = format!(
-            "namespace: newrelic\nname: testagent\nversion: 0.1.0\nplatform: host\noperating_system: linux\nprotocol_version: \"{SUPPORTED_PROTOCOL_VERSION}\"\nvariables:\n{variables_yaml}deployment: {{}}\n"
+            r#"
+namespace: newrelic
+name: testagent
+version: 0.1.0
+platform: host
+operating_system: linux
+protocol_version: "{SUPPORTED_PROTOCOL_VERSION}"
+variables:
+{variables_yaml}deployment: {{}}
+"#
         );
         AgentTypeDefinition::from_slice(yaml.as_bytes()).unwrap()
     }
@@ -505,7 +523,13 @@ pub mod tests {
         Some(("key1", YAML_VAR))
     )]
     #[case::override_variable_map_entry_wrong_type_nested_path(
-        json!({AGENT_CONFIG_PREFIX: "common:\n  two:\n    three: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.common.two.three:key1"): "value2"}),
+        json!({
+            AGENT_CONFIG_PREFIX: r#"
+common:
+  two:
+    three: value1"#,
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.common.two.three:key1"): "value2"
+        }),
         Some(("common.two.three", YAML_VAR))
     )]
     #[case::override_variable_map_entry_conflicts_with_non_mapping(
@@ -575,7 +599,9 @@ pub mod tests {
     #[case::multiple_agent_configs(
         json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_PREFIX}-2"): "key2: value2"}),
         None,
-        "key1: value1\nkey2: value2"
+        r#"
+key1: value1
+key2: value2"#
     )]
     #[case::multiple_agent_configs_empty_config(
         json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_PREFIX}-empty"): ""}),
@@ -588,29 +614,49 @@ pub mod tests {
         "key1: value1"
     )]
     #[case::override_single_key(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1\nkey2: value2", AGENT_CONFIG_OVERRIDE_PREFIX: "key2: overridden"}),
+        json!({AGENT_CONFIG_PREFIX: r#"
+key1: value1
+key2: value2"#, AGENT_CONFIG_OVERRIDE_PREFIX: "key2: overridden"}),
         None,
-        "key1: value1\nkey2: overridden"
+        r#"
+key1: value1
+key2: overridden"#
     )]
     #[case::override_adds_new_key(
         json!({AGENT_CONFIG_PREFIX: "key1: value1", AGENT_CONFIG_OVERRIDE_PREFIX: "key2: value2"}),
         None,
-        "key1: value1\nkey2: value2"
+        r#"
+key1: value1
+key2: value2"#
     )]
     #[case::override_multiple_keys(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1\nkey2: value2\nkey3: value3", AGENT_CONFIG_OVERRIDE_PREFIX: "key2: overridden2\nkey3: overridden3"}),
+        json!({AGENT_CONFIG_PREFIX: r#"
+key1: value1
+key2: value2
+key3: value3"#, AGENT_CONFIG_OVERRIDE_PREFIX: r#"
+key2: overridden2
+key3: overridden3"#}),
         None,
-        "key1: value1\nkey2: overridden2\nkey3: overridden3"
+        r#"
+key1: value1
+key2: overridden2
+key3: overridden3"#
     )]
     #[case::override_with_multiple_agent_configs(
         json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_PREFIX}-2"): "key2: value2", AGENT_CONFIG_OVERRIDE_PREFIX: "key1: overridden"}),
         None,
-        "key1: overridden\nkey2: value2"
+        r#"
+key1: overridden
+key2: value2"#
     )]
     #[case::override_with_suffix(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1\nkey2: value2", format!("{AGENT_CONFIG_OVERRIDE_PREFIX}-1"): "key2: overridden"}),
+        json!({AGENT_CONFIG_PREFIX: r#"
+key1: value1
+key2: value2"#, format!("{AGENT_CONFIG_OVERRIDE_PREFIX}-1"): "key2: overridden"}),
         None,
-        "key1: value1\nkey2: overridden"
+        r#"
+key1: value1
+key2: overridden"#
     )]
     #[case::override_empty(
         json!({AGENT_CONFIG_PREFIX: "key: value", AGENT_CONFIG_OVERRIDE_PREFIX: ""}),
@@ -623,12 +669,18 @@ pub mod tests {
         "key1: overridden"
     )]
     #[case::override_null_does_not_remove_key_keeps_null(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1\nkey2: value2", AGENT_CONFIG_OVERRIDE_PREFIX: "key2: null"}),
+        json!({AGENT_CONFIG_PREFIX: r#"
+key1: value1
+key2: value2"#, AGENT_CONFIG_OVERRIDE_PREFIX: "key2: null"}),
         None,
-        "key1: value1\nkey2: null"
+        r#"
+key1: value1
+key2: null"#
     )]
     #[case::override_empty_does_not_remove_key_keeps_empty(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1\nkey2: value2", AGENT_CONFIG_OVERRIDE_PREFIX: "key2:\n"}),
+        json!({AGENT_CONFIG_PREFIX: r#"
+key1: value1
+key2: value2"#, AGENT_CONFIG_OVERRIDE_PREFIX: "key2:\n"}),
         None,
         "key1: value1\nkey2:\n"
     )]
@@ -638,19 +690,30 @@ pub mod tests {
         r#"key1: {"overridden_key": "overridden_value"}"#
     )]
     #[case::override_variable_top_level_key(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1\nkey2: value2", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key2"): "overridden2"}),
+        json!({AGENT_CONFIG_PREFIX: r#"
+key1: value1
+key2: value2"#, format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key2"): "overridden2"}),
         Some(("key2", YAML_VAR)),
-        "key1: value1\nkey2: overridden2"
+        r#"
+key1: value1
+key2: overridden2"#
     )]
     #[case::override_variable_nested_path(
-        json!({AGENT_CONFIG_PREFIX: "foo:\n  bar: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar"): "overridden"}),
+        json!({AGENT_CONFIG_PREFIX: r#"
+foo:
+  bar: value1"#, format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar"): "overridden"}),
         Some(("foo.bar", YAML_VAR)),
-        "foo:\n  bar: overridden"
+        r#"
+foo:
+  bar: overridden"#
     )]
     #[case::override_variable_creates_missing_path(
         json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar"): "value"}),
         Some(("foo.bar", YAML_VAR)),
-        "key1: value1\nfoo:\n  bar: value"
+        r#"
+key1: value1
+foo:
+  bar: value"#
     )]
     #[case::override_variable_applies_after_blob_override(
         json!({AGENT_CONFIG_PREFIX: "key1: value1", AGENT_CONFIG_OVERRIDE_PREFIX: "key1: blob_override", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1"): "variable_override"}),
@@ -658,14 +721,26 @@ pub mod tests {
         "key1: variable_override"
     )]
     #[case::override_variable_nested_path_applies_after_blob_override(
-        json!({AGENT_CONFIG_PREFIX: "foo:\n  bar: value1", AGENT_CONFIG_OVERRIDE_PREFIX: "foo:\n  bar: blob_override", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar"): "variable_override"}),
+        json!({AGENT_CONFIG_PREFIX: r#"
+foo:
+  bar: value1"#, AGENT_CONFIG_OVERRIDE_PREFIX: r#"
+foo:
+  bar: blob_override"#, format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar"): "variable_override"}),
         Some(("foo.bar", YAML_VAR)),
-        "foo:\n  bar: variable_override"
+        r#"
+foo:
+  bar: variable_override"#
     )]
     #[case::override_variable_non_scalar_value(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key2"): "- a\n- b"}),
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key2"): r#"
+- a
+- b"#}),
         Some(("key2", YAML_VAR)),
-        "key1: value1\nkey2:\n  - a\n  - b"
+        r#"
+key1: value1
+key2:
+  - a
+  - b"#
     )]
     #[case::override_variable_empty_path_is_ignored(
         json!({AGENT_CONFIG_PREFIX: "key: value", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}."): "value"}),
@@ -685,27 +760,45 @@ pub mod tests {
     #[case::override_variable_map_entry_accepts_raw_text(
         json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.foo"): "]"}),
         Some(("string_map_var", STRING_MAP_VAR)),
-        "key1: value1\nstring_map_var:\n  file1.foo: \"]\""
+        r#"
+key1: value1
+string_map_var:
+  file1.foo: "]""#
     )]
     #[case::override_variable_map_entry_invalid_yaml_falls_back_to_raw_text(
         json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.yaml"): "[unterminated"}),
         Some(("string_map_var", STRING_MAP_VAR)),
-        "key1: value1\nstring_map_var:\n  file1.yaml: \"[unterminated\""
+        r#"
+key1: value1
+string_map_var:
+  file1.yaml: "[unterminated""#
     )]
     #[case::override_variable_map_entry_creates_map(
         json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.yaml"): "content: whatever-1"}),
         Some(("string_map_var", STRING_MAP_VAR)),
-        "key1: value1\nstring_map_var:\n  file1.yaml:\n    content: whatever-1"
+        r#"
+key1: value1
+string_map_var:
+  file1.yaml:
+    content: whatever-1"#
     )]
     #[case::override_variable_map_entry_key_with_colon(
         json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:with:colon.txt"): "some-content"}),
         Some(("string_map_var", STRING_MAP_VAR)),
-        "key1: value1\nstring_map_var:\n  \"with:colon.txt\":\n    some-content"
+        r#"
+key1: value1
+string_map_var:
+  "with:colon.txt":
+    some-content"#
     )]
     #[case::override_variable_map_entry_key_special_characters(
         json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file:€$p3c|@l.chars"): "some-content"}),
         Some(("string_map_var", STRING_MAP_VAR)),
-        "key1: value1\nstring_map_var:\n  \"file:€$p3c|@l.chars\":\n    some-content"
+        r#"
+key1: value1
+string_map_var:
+  "file:€$p3c|@l.chars":
+    some-content"#
     )]
     #[case::override_variable_map_entry_multiple_files_merge(
         json!({
@@ -714,16 +807,32 @@ pub mod tests {
             format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file2.yaml"): "content: whatever-2"
         }),
         Some(("string_map_var", STRING_MAP_VAR)),
-        "key1: value1\nstring_map_var:\n  file1.yaml:\n    content: whatever-1\n  file2.yaml:\n    content: whatever-2"
+        r#"
+key1: value1
+string_map_var:
+  file1.yaml:
+    content: whatever-1
+  file2.yaml:
+    content: whatever-2"#
     )]
     #[case::override_variable_whole_then_map_entry_merges(
         json!({
             AGENT_CONFIG_PREFIX: "key1: value1",
-            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var"): "file1.yaml:\n  content: old\nfile3.yaml:\n  content: keep",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var"): r#"
+file1.yaml:
+  content: old
+file3.yaml:
+  content: keep"#,
             format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.yaml"): "content: new"
         }),
         Some(("string_map_var", STRING_MAP_VAR)),
-        "key1: value1\nstring_map_var:\n  file1.yaml:\n    content: new\n  file3.yaml:\n    content: keep"
+        r#"
+key1: value1
+string_map_var:
+  file1.yaml:
+    content: new
+  file3.yaml:
+    content: keep"#
     )]
     #[case::override_variable_map_entry_unknown_path_is_ignored(
         json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.unknown:file1.yaml"): "content: v1"}),
@@ -733,12 +842,21 @@ pub mod tests {
     #[case::override_variable_map_entry_nested_path_creates_map(
         json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar:file1.yaml"): "content: v1"}),
         Some(("foo.bar", STRING_MAP_VAR)),
-        "key1: value1\nfoo:\n  bar:\n    file1.yaml:\n      content: v1"
+        r#"
+key1: value1
+foo:
+  bar:
+    file1.yaml:
+      content: v1"#
     )]
     #[case::override_variable_top_level_key_string_type_unknown_intermediate_path_is_ignored(
-        json!({AGENT_CONFIG_PREFIX: "foo:\n  bar: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo"): "ignored"}),
+        json!({AGENT_CONFIG_PREFIX: r#"
+foo:
+  bar: value1"#, format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo"): "ignored"}),
         Some(("foo.bar", YAML_VAR)),
-        "foo:\n  bar: value1"
+        r#"
+foo:
+  bar: value1"#
     )]
     fn test_valid_remote_config_values(
         #[case] config: serde_json::Value,
@@ -789,13 +907,35 @@ pub mod tests {
         let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
 
-        let variables_yaml = "  common:\n    one:\n      description: \"d\"\n      type: string\n      required: true\n    two:\n      three:\n        description: \"d\"\n        type: string\n        required: true\n    four:\n      description: \"d\"\n      type: string_map\n      required: false\n      default: {}\n";
+        let variables_yaml = r#"
+  common:
+    one:
+      description: "d"
+      type: string
+      required: true
+    two:
+      three:
+        description: "d"
+        type: string
+        required: true
+    four:
+      description: "d"
+      type: string_map
+      required: false
+      default: {}
+"#;
         let definition = agent_type_definition_with_variables_yaml(variables_yaml);
 
         let config_map = ConfigurationMap::new(HashMap::from([
             (
                 AGENT_CONFIG_PREFIX.to_string(),
-                "common:\n  one: value1\n  two:\n    three: value2\n  four:\n    existing: keep"
+                r#"
+common:
+  one: value1
+  two:
+    three: value2
+  four:
+    existing: keep"#
                     .to_string(),
             ),
             (
@@ -816,7 +956,10 @@ pub mod tests {
             ),
             (
                 format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.common.four"),
-                "key1: whole1\nkey2: whole2".to_string(),
+                r#"
+key1: whole1
+key2: whole2"#
+                    .to_string(),
             ),
             (
                 format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.common.four:key1"),
@@ -838,7 +981,15 @@ pub mod tests {
 
         let handler = AgentRemoteConfigParser::new(vec![validator], Arc::new(registry));
 
-        let expected_yaml = "common:\n  one: overridden1\n  two:\n    three: overridden3\n  four:\n    key1: mapentry1\n    key2: whole2\n";
+        let expected_yaml = r#"
+common:
+  one: overridden1
+  two:
+    three: overridden3
+  four:
+    key1: mapentry1
+    key2: whole2
+"#;
         let expected = RemoteConfig {
             config: serde_saphyr::from_str(expected_yaml).unwrap(),
             hash,
