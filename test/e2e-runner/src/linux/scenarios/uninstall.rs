@@ -8,6 +8,9 @@ const UNINSTALL_SCRIPT: &str = "/usr/lib/newrelic-agent-control/uninstall.sh";
 const BINARY_PATH: &str = "/usr/bin/newrelic-agent-control";
 const STATIC_CONFIG_DIR: &str = "/etc/newrelic-agent-control";
 const RUNTIME_DATA_DIR: &str = "/var/lib/newrelic-agent-control";
+// Only created when file logging is explicitly enabled (log.file.enabled: true for AC itself,
+// or enable_file_logging: true per sub-agent). Not created by the package installer or by default.
+const LOG_DIR: &str = "/var/log/newrelic-agent-control";
 
 pub fn test_uninstall_script(args: InstallationArgs) {
     let recipe_data = RecipeData {
@@ -18,6 +21,11 @@ pub fn test_uninstall_script(args: InstallationArgs) {
     let _clean_up = CleanUp::new(tear_down_test);
 
     install_agent_control_from_recipe(&recipe_data);
+
+    // File logging is not enabled by default, so the log directory is not guaranteed to exist.
+    // Seed it here to test that postremove.sh cleans it up when present.
+    exec_bash_command(&format!("mkdir -p '{LOG_DIR}'"))
+        .expect("should be able to create log directory");
 
     info!("Running uninstall script at {UNINSTALL_SCRIPT}");
     exec_bash_command(&format!("bash {UNINSTALL_SCRIPT}"))
@@ -42,6 +50,10 @@ pub fn test_uninstall_script(args: InstallationArgs) {
     info!("Asserting runtime data directory is removed");
     exec_bash_command(&format!("test ! -d '{RUNTIME_DATA_DIR}'"))
         .expect("runtime data directory should be removed after uninstall");
+
+    info!("Asserting log directory is removed");
+    exec_bash_command(&format!("test ! -d '{LOG_DIR}'"))
+        .expect("log directory should be removed after uninstall");
 
     info!("Uninstall assertions passed");
 }

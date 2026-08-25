@@ -8,3 +8,4 @@
 rm -rf /var/run/newrelic-infra
 rm -rf /etc/newrelic-agent-control
 rm -rf /var/lib/newrelic-agent-control
+rm -rf /var/log/newrelic-agent-control
