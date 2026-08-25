@@ -314,9 +314,18 @@ pub mod tests {
     const STRING_MAP_VAR: &str =
         "description: \"d\"\ntype: string_map\nrequired: false\ndefault: {}";
 
+    /// Builds an [AgentTypeDefinition] whose `variables:` section is exactly `variables_yaml`
+    /// (already including whatever indentation/nesting it needs).
+    fn agent_type_definition_with_variables_yaml(variables_yaml: &str) -> AgentTypeDefinition {
+        let yaml = format!(
+            "namespace: newrelic\nname: testagent\nversion: 0.1.0\nplatform: host\noperating_system: linux\nprotocol_version: \"{SUPPORTED_PROTOCOL_VERSION}\"\nvariables:\n{variables_yaml}deployment: {{}}\n"
+        );
+        AgentTypeDefinition::from_slice(yaml.as_bytes()).unwrap()
+    }
+
     /// Builds an [AgentTypeDefinition] declaring a single variable at `path` (dot-separated,
     /// creating intermediate mappings as needed) with the given type declaration snippet
-    /// (one of [STRING_VAR]/[YAML_VAR]).
+    /// (one of [STRING_VAR]/[YAML_VAR]/[STRING_MAP_VAR]).
     fn agent_type_definition_with_variable(path: &str, type_snippet: &str) -> AgentTypeDefinition {
         let segments: Vec<&str> = path.split('.').collect();
         let mut variables_yaml = String::new();
@@ -331,11 +340,7 @@ pub mod tests {
             variables_yaml.push_str(line);
             variables_yaml.push('\n');
         }
-
-        let yaml = format!(
-            "namespace: newrelic\nname: testagent\nversion: 0.1.0\nplatform: host\noperating_system: linux\nprotocol_version: \"{SUPPORTED_PROTOCOL_VERSION}\"\nvariables:\n{variables_yaml}deployment: {{}}\n"
-        );
-        AgentTypeDefinition::from_slice(yaml.as_bytes()).unwrap()
+        agent_type_definition_with_variables_yaml(&variables_yaml)
     }
 
     /// Builds a registry mock for `config`: if `config` carries no
@@ -498,6 +503,10 @@ pub mod tests {
     #[case::override_variable_map_entry_wrong_type(
         json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1:file1.yaml"): "content: v1"}),
         Some(("key1", YAML_VAR))
+    )]
+    #[case::override_variable_map_entry_wrong_type_nested_path(
+        json!({AGENT_CONFIG_PREFIX: "common:\n  two:\n    three: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.common.two.three:key1"): "value2"}),
+        Some(("common.two.three", YAML_VAR))
     )]
     #[case::override_variable_map_entry_conflicts_with_non_mapping(
         json!({AGENT_CONFIG_PREFIX: "key1: not-a-map", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1:file1.yaml"): "content: v1"}),
@@ -721,6 +730,16 @@ pub mod tests {
         None,
         "key1: value1"
     )]
+    #[case::override_variable_map_entry_nested_path_creates_map(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar:file1.yaml"): "content: v1"}),
+        Some(("foo.bar", STRING_MAP_VAR)),
+        "key1: value1\nfoo:\n  bar:\n    file1.yaml:\n      content: v1"
+    )]
+    #[case::override_variable_top_level_key_string_type_unknown_intermediate_path_is_ignored(
+        json!({AGENT_CONFIG_PREFIX: "foo:\n  bar: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo"): "ignored"}),
+        Some(("foo.bar", YAML_VAR)),
+        "foo:\n  bar: value1"
+    )]
     fn test_valid_remote_config_values(
         #[case] config: serde_json::Value,
         #[case] agent_type_declared_variable: Option<(&str, &str)>,
@@ -746,6 +765,80 @@ pub mod tests {
 
         let handler = AgentRemoteConfigParser::new(vec![validator], Arc::new(registry));
 
+        let expected = RemoteConfig {
+            config: serde_saphyr::from_str(expected_yaml).unwrap(),
+            hash,
+            state,
+        };
+
+        let result = handler.parse(agent_identity.clone(), &opamp_remote_config);
+        assert_matches!(result, Ok(Some(yaml_config)) => {
+            assert_eq!(yaml_config, expected);
+        });
+    }
+
+    /// Exercises a variable tree with sibling leaves at different depths (`common.one`,
+    /// `common.two.three`, `common.four`): overrides on the actual leaves apply, overrides on the
+    /// intermediate mapping paths (`common`, `common.two`) are ignored since they are not
+    /// themselves declared variables, and a whole-variable override composes with a map-entry
+    /// override on the same `string_map` leaf.
+    #[test]
+    fn test_override_variable_nested_tree_siblings_and_map_entries() {
+        let agent_identity = AgentIdentity::default();
+
+        let hash = Hash::from("some-hash");
+        let state = ConfigState::Applying;
+
+        let variables_yaml = "  common:\n    one:\n      description: \"d\"\n      type: string\n      required: true\n    two:\n      three:\n        description: \"d\"\n        type: string\n        required: true\n    four:\n      description: \"d\"\n      type: string_map\n      required: false\n      default: {}\n";
+        let definition = agent_type_definition_with_variables_yaml(variables_yaml);
+
+        let config_map = ConfigurationMap::new(HashMap::from([
+            (
+                AGENT_CONFIG_PREFIX.to_string(),
+                "common:\n  one: value1\n  two:\n    three: value2\n  four:\n    existing: keep"
+                    .to_string(),
+            ),
+            (
+                format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.common.one"),
+                "overridden1".to_string(),
+            ),
+            (
+                format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.common.two.three"),
+                "overridden3".to_string(),
+            ),
+            (
+                format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.common"),
+                "ignored_whole".to_string(),
+            ),
+            (
+                format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.common.two"),
+                "ignored_two".to_string(),
+            ),
+            (
+                format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.common.four"),
+                "key1: whole1\nkey2: whole2".to_string(),
+            ),
+            (
+                format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.common.four:key1"),
+                "mapentry1".to_string(),
+            ),
+        ]));
+        let opamp_remote_config = OpampRemoteConfig::new(
+            agent_identity.id.clone(),
+            hash.clone(),
+            state.clone(),
+            config_map,
+        );
+
+        let mut registry = MockAgentTypeRegistry::new();
+        registry.should_get(agent_identity.agent_type_id.clone(), &definition);
+
+        let mut validator = MockRemoteConfigValidator::new();
+        validator.should_validate(&agent_identity, &opamp_remote_config, Ok(()));
+
+        let handler = AgentRemoteConfigParser::new(vec![validator], Arc::new(registry));
+
+        let expected_yaml = "common:\n  one: overridden1\n  two:\n    three: overridden3\n  four:\n    key1: mapentry1\n    key2: whole2\n";
         let expected = RemoteConfig {
             config: serde_saphyr::from_str(expected_yaml).unwrap(),
             hash,
