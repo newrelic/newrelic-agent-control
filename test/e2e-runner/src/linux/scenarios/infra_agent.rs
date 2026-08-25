@@ -12,6 +12,7 @@ use crate::{
     linux::{
         self,
         install::{install_agent_control_from_recipe, tear_down_test},
+        redis::Redis,
     },
 };
 use std::time::Duration;
@@ -34,6 +35,9 @@ pub fn test_installation_with_infra_agent(args: InstallationArgs) {
     let _clean_up = CleanUp::new(tear_down_test);
 
     install_agent_control_from_recipe(&recipe_data);
+
+    // Start a docker container so that we can check nri-docker is working properly
+    let _redis = Redis::start();
 
     let test_id = format!(
         "onhost-e2e-infra-agent_{}",
@@ -63,6 +67,8 @@ agents:
 config_agent:
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
   staging: {staging}
+  custom_attributes:
+    test.id: {test_id}
 config_logging:
     logging.yml:
       logs:
@@ -108,6 +114,17 @@ version: {}
             )
         },
     );
+
+    let nrql_query =
+        format!(r#"SELECT * FROM ContainerSample WHERE `test.id` = '{test_id}' LIMIT 1"#);
+    info!(
+        nrql = nrql_query,
+        "Checking results of NRQL to check ContainerSample"
+    );
+    let retries = 30;
+    retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
+        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
+    });
 
     info!("Test completed successfully");
 }
