@@ -14,15 +14,24 @@ Remember that the keywords that you can use under Unreleased section are:
 
 ## Unreleased
 
-### enhancement
+## v1.23.0 - 2026-08-25
+
+### 🚀 Enhancements
 - Add support for variables override through `variable.agentConfig` syntax in Remote Configuration keys.
 - Add support for a single entry of a `string_map` variable override through `variable.agentConfig.<variable>:<map-key>` syntax in Remote Configuration keys.
 - On-host infrastructure agent type (linux): expose the `nri-docker` integration configuration through a new `config_docker` variable.
 
-### bugfix
+### 🐞 Bug fixes
 - K8s supervisor: force a Flux reconciliation on stalled HelmReleases (e.g. after exhausting install/upgrade retries) when a new remote config
 - On-host: report the actual last failure (launch error or non-zero exit) in the `lastErrorMessage` of the unhealthy status once the restart policy is exceeded, instead of the generic "Restart policy exceeded" message.
 - On-host: persist fluent-bit's home directory (`fb.db`) across infra-agent package updates instead of storing it in the replaced package directory
+
+### ⛓️ Dependencies
+- Updated rust crate either to 1.18.0
+- Updated rust to v1.98.0
+- Updated rust crate actix-web to 4.15.0
+- Updated alpine/kubectl to v1.36.4
+- Updated rust crate syn to 3.0.4
 
 ## v1.22.0 - 2026-08-18
 
