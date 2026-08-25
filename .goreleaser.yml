@@ -158,10 +158,6 @@ nfpms: # deb and rpm are only built for linux targets
         type: dir
         file_info:
           mode: 0700
-      - dst: /var/lib/newrelic-agent-control/filesystem
-        type: dir
-        file_info:
-          mode: 0700
 
     scripts:
       postinstall: build/package/postinstall.sh
