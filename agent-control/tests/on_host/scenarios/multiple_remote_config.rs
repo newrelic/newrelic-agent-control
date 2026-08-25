@@ -156,6 +156,11 @@ var_d:
   description: "d"
   type: "string"
   required: true
+var_e:
+  description: "map of file names to their contents"
+  type: string_map
+  required: false
+  default: { }
 
     "#,
         )
@@ -184,6 +189,13 @@ var_a: a
 var_b: b
 var_c: overridden_c
 var_d: overridden_var_d
+var_e:
+  file1.yaml:
+    content: new
+  file2.yaml:
+    content: added
+  file3.yaml:
+    content: keep
 "#;
 
     opamp_server.set_multi_config_response(
@@ -199,6 +211,18 @@ var_d: overridden_var_d
             (
                 "variable.agentConfig.var_d".to_string(),
                 "overridden_var_d".to_string(),
+            ),
+            (
+                "variable.agentConfig.var_e".to_string(),
+                "file1.yaml:\n  content: old\nfile3.yaml:\n  content: keep".to_string(),
+            ),
+            (
+                "variable.agentConfig.var_e:file1.yaml".to_string(),
+                "content: new".to_string(),
+            ),
+            (
+                "variable.agentConfig.var_e:file2.yaml".to_string(),
+                "content: added".to_string(),
             ),
         ]),
     );

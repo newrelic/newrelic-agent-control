@@ -96,34 +96,92 @@ impl YAMLConfig {
         variable_path: &str,
         value: Value,
     ) -> Result<(), YAMLConfigError> {
+        let Some((parent_path, last_segment)) = variable_path.rsplit_once(TEMPLATE_KEY_SEPARATOR)
+        else {
+            if variable_path.is_empty() {
+                return Err(YAMLConfigError(
+                    "cannot override an empty variable path".to_string(),
+                ));
+            }
+            // Overrides a single variable case.
+            self.0.insert(variable_path.to_string(), value);
+            return Ok(());
+        };
+
+        let Value::Object(map) = self.get_or_insert_mut(parent_path).map_err(|err| {
+            YAMLConfigError(format!(
+                "cannot override nested variable path '{variable_path}': {err}"
+            ))
+        })?
+        else {
+            return Err(YAMLConfigError(format!(
+                "cannot override nested variable path '{variable_path}': segment '{parent_path}' is not a mapping"
+            )));
+        };
+        map.insert(last_segment.to_string(), value);
+
+        Ok(())
+    }
+
+    /// Sets the value `value` inside the specific mapping (`map_key`) living at the given dot-separated
+    /// `variable_path`, creating any missing intermediate mappings and preserving any other entries
+    /// already present there.
+    ///
+    /// # Errors
+    /// Returns an error if `variable_path` or `map_key` is empty, if an intermediate segment of
+    /// `variable_path` already holds a non-mapping value, or if `variable_path` itself already
+    /// holds a non-mapping value.
+    pub fn override_variable_map_entry(
+        &mut self,
+        variable_path: &str,
+        map_key: &str,
+        value: Value,
+    ) -> Result<(), YAMLConfigError> {
+        if map_key.is_empty() {
+            return Err(YAMLConfigError(
+                "cannot override a map entry with an empty key".to_string(),
+            ));
+        }
+
+        let Value::Object(map) = self.get_or_insert_mut(variable_path).map_err(|err| {
+            YAMLConfigError(format!(
+                "cannot set map entry '{map_key}' at variable path '{variable_path}': {err}"
+            ))
+        })?
+        else {
+            return Err(YAMLConfigError(format!(
+                "cannot set map entry '{map_key}' at variable path '{variable_path}': value is not a mapping"
+            )));
+        };
+        map.insert(map_key.to_string(), value);
+
+        Ok(())
+    }
+
+    /// Walks the given dot-separated `variable_path`, creating any missing intermediate mappings,
+    /// and returns a mutable reference to the [Value] living at that path.
+    ///
+    /// # Errors
+    /// Returns an error if `variable_path` is empty, or if a segment along the way already holds
+    /// a non-mapping value.
+    fn get_or_insert_mut(&mut self, variable_path: &str) -> Result<&mut Value, YAMLConfigError> {
         let mut segments = variable_path.split(TEMPLATE_KEY_SEPARATOR);
         let first = segments
             .next()
             .filter(|s| !s.is_empty())
             .ok_or_else(|| YAMLConfigError("cannot override an empty variable path".to_string()))?;
 
-        let rest: Vec<&str> = segments.collect();
-
-        let Some((last, middle)) = rest.split_last() else {
-            self.0.insert(first.to_string(), value);
-            return Ok(());
-        };
-
         let mut current = self
             .0
             .entry(first.to_string())
             .or_insert_with(|| Value::Object(Default::default()));
-
         let mut visited_path = first.to_string();
-        let not_a_mapping_err = |visited_path: &str| {
-            YAMLConfigError(format!(
-                "cannot override nested variable path '{variable_path}': segment '{visited_path}' is not a mapping"
-            ))
-        };
 
-        for segment in middle {
+        for segment in segments {
             let Value::Object(map) = current else {
-                return Err(not_a_mapping_err(&visited_path));
+                return Err(YAMLConfigError(format!(
+                    "cannot override nested variable path '{variable_path}': segment '{visited_path}' is not a mapping"
+                )));
             };
             current = map
                 .entry(segment.to_string())
@@ -131,12 +189,7 @@ impl YAMLConfig {
             visited_path = format!("{visited_path}.{segment}");
         }
 
-        let Value::Object(map) = current else {
-            return Err(not_a_mapping_err(&visited_path));
-        };
-        map.insert(last.to_string(), value);
-
-        Ok(())
+        Ok(current)
     }
 }
 
@@ -574,6 +627,80 @@ deployment: {}
         let mut config = serde_json::from_value::<YAMLConfig>(initial).unwrap();
 
         let result = config.override_variable_value(path, value);
+
+        assert!(result.is_err());
+    }
+
+    #[rstest]
+    #[case::creates_new_map(
+        json!({}),
+        "config_integrations",
+        "file1.yaml",
+        json!("content"),
+        json!({"config_integrations": {"file1.yaml": "content"}})
+    )]
+    #[case::merges_preserving_siblings(
+        json!({"config_integrations": {"file1.yaml": "old", "file3.yaml": "keep"}}),
+        "config_integrations",
+        "file1.yaml",
+        json!("new"),
+        json!({"config_integrations": {"file1.yaml": "new", "file3.yaml": "keep"}})
+    )]
+    #[case::nested_variable_path(
+        json!({}),
+        "foo.bar",
+        "file1.yaml",
+        json!("content"),
+        json!({"foo": {"bar": {"file1.yaml": "content"}}})
+    )]
+    #[case::map_key_with_dot_stays_a_single_key(
+        json!({}),
+        "config_integrations",
+        "file1.yaml",
+        json!({"nested": "value"}),
+        json!({"config_integrations": {"file1.yaml": {"nested": "value"}}})
+    )]
+    fn test_override_variable_map_entry_success(
+        #[case] initial: serde_json::Value,
+        #[case] variable_path: &str,
+        #[case] map_key: &str,
+        #[case] value: serde_json::Value,
+        #[case] expected: serde_json::Value,
+    ) {
+        let mut config = serde_json::from_value::<YAMLConfig>(initial).unwrap();
+        let expected_config = serde_json::from_value::<YAMLConfig>(expected).unwrap();
+
+        config
+            .override_variable_map_entry(variable_path, map_key, value)
+            .unwrap();
+
+        assert_eq!(config, expected_config);
+    }
+
+    #[rstest]
+    #[case::empty_variable_path(json!({}), "", "file1.yaml", json!("value"))]
+    #[case::empty_map_key(json!({}), "config_integrations", "", json!("value"))]
+    #[case::intermediate_segment_not_a_mapping(
+        json!({"foo": "scalar"}),
+        "foo.bar",
+        "file1.yaml",
+        json!("value")
+    )]
+    #[case::final_value_not_a_mapping(
+        json!({"config_integrations": "not-a-map"}),
+        "config_integrations",
+        "file1.yaml",
+        json!("value")
+    )]
+    fn test_override_variable_map_entry_error(
+        #[case] initial: serde_json::Value,
+        #[case] variable_path: &str,
+        #[case] map_key: &str,
+        #[case] value: serde_json::Value,
+    ) {
+        let mut config = serde_json::from_value::<YAMLConfig>(initial).unwrap();
+
+        let result = config.override_variable_map_entry(variable_path, map_key, value);
 
         assert!(result.is_err());
     }
