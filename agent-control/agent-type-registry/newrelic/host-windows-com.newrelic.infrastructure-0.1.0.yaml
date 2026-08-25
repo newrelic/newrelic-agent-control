@@ -68,16 +68,13 @@ deployment:
     logging.d:
       kind: dir_content_from_map
       source: ${nr-var:config_logging}
-    # Where fluent bit .db are created. They must be persisted during the whole agent lifecycle.
-    logging-home:
-      kind: dir
     # Agent data root (NRIA_AGENT_DIR).
     newrelic-infra:
       kind: dir
       entries:
         tmp:
           kind: dir
-        # Logging integration directory expected by fluentBit.
+        # Where fluent bit .db are created. They must be persisted during the whole agent lifecycle.
         newrelic-integrations:
           kind: dir
           entries:
@@ -132,7 +129,7 @@ deployment:
         # Config folders where integrations and logging configs parsed from local/remote values are stored and looked for.
         NRIA_PLUGIN_DIR: "${nr-sub:shared_filesystem_dir}\\infra-agent-ohi-configs"
         # Where several fb db are created on runtime, must be persisted location.
-        NRIA_LOGGING_HOME_DIR: "${nr-sub:filesystem_agent_dir}\\logging-home"
+        NRIA_LOGGING_HOME_DIR: "${nr-sub:filesystem_agent_dir}\\newrelic-infra\\newrelic-integrations\\logging"
         # Path containing the logging configs that infra-agent reads (from top level path only), and uses as fluent bit configs
         # after decoration. The decorated temporal configs used by fluent bit are created under NRIA_AGENT_TEMP_DIR/fb/*.
         NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:filesystem_agent_dir}\\logging.d"
