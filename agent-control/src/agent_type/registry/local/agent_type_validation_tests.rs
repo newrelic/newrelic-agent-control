@@ -212,13 +212,13 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
                 config_agent: "some file contents"
                 config_logging:
                     map_string: "some file contents"
-                backoff_delay: "10s"
-                enable_file_logging: true
-                health_port: 12345
-                docker_config:
+                config_docker:
                     integrations:
                         - name: nri-docker
                           interval: 30s
+                backoff_delay: "10s"
+                enable_file_logging: true
+                health_port: 12345
                 "#,
                 ),
             ]),

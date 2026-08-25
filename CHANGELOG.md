@@ -17,7 +17,7 @@ Remember that the keywords that you can use are the following:
 ### enhancement
 - Add support for variables override through `variable.agentConfig` syntax in Remote Configuration keys.
 - Add support for a single entry of a `string_map` variable override through `variable.agentConfig.<variable>:<map-key>` syntax in Remote Configuration keys.
-- On-host infrastructure agent type (linux): expose the `nri-docker` integration configuration through a new `docker_config` variable.
+- On-host infrastructure agent type (linux): expose the `nri-docker` integration configuration through a new `config_docker` variable.
 
 ### bugfix
 - K8s supervisor: force a Flux reconciliation on stalled HelmReleases (e.g. after exhausting install/upgrade retries) when a new remote config

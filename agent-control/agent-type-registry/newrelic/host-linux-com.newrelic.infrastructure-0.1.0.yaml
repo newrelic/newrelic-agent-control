@@ -15,6 +15,17 @@ variables:
     type: string_map
     required: false
     default: { }
+  config_docker:
+    description: "nri-docker configuration"
+    type: yaml
+    required: false
+    default:
+      integrations:
+        - name: nri-docker
+          when:
+            feature: docker_enabled
+            file_exists: /var/run/docker.sock
+          interval: 15s
   backoff_delay:
     description: "seconds until next retry if agent fails to start"
     type: string
@@ -43,17 +54,6 @@ variables:
     description: "Agent version"
     type: string
     required: true
-  docker_config:
-    description: "nri-docker configuration"
-    type: yaml
-    required: false
-    default:
-      integrations:
-        - name: nri-docker
-          when:
-            feature: docker_enabled
-            file_exists: /var/run/docker.sock
-          interval: 15s
 deployment:
   enable_file_logging: ${nr-var:enable_file_logging}
   health:
@@ -98,7 +98,7 @@ deployment:
         docker-config.yml:
           kind: file
           text: |
-            ${nr-var:docker_config}
+            ${nr-var:config_docker}
     # OHIs binaries folder.
     # infra-agent is configured through NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR and NRIA_SAFE_BIN_DIR,
     # to read binaries from this folder.
