@@ -688,6 +688,11 @@ pub mod tests {
         Some(("string_map_var", STRING_MAP_VAR)),
         "key1: value1\nstring_map_var:\n  file1.yaml:\n    content: whatever-1"
     )]
+    #[case::override_variable_map_entry_key_with_colon(
+        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:with:colon.txt"): "some-content"}),
+        Some(("string_map_var", STRING_MAP_VAR)),
+        "key1: value1\nstring_map_var:\n  \"with:colon.txt\":\n    some-content"
+    )]
     #[case::override_variable_map_entry_multiple_files_merge(
         json!({
             AGENT_CONFIG_PREFIX: "key1: value1",
