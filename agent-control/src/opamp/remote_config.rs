@@ -139,7 +139,7 @@ impl OpampRemoteConfig {
                 continue;
             }
             match parse_override_variable_key(k) {
-                None => warn!(key = k, "Config-map key not recognized",),
+                None => warn!(key = k, "Config-map key not recognized"),
                 Some((variable_path, None)) => {
                     variables.push(VariableOverride {
                         path: variable_path,

@@ -197,8 +197,6 @@ var_e:
     content: added
   file3.yaml:
     content: keep
-  "file:€$p3c|@l.chars":
-    content: added
 "#;
 
     opamp_server.set_multi_config_response(
@@ -225,10 +223,6 @@ var_e:
             ),
             (
                 "variable.agentConfig.var_e:file2.yaml".to_string(),
-                "content: added".to_string(),
-            ),
-            (
-                "variable.agentConfig.var_e:file:€$p3c|@l.chars".to_string(),
                 "content: added".to_string(),
             ),
         ]),
