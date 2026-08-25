@@ -120,7 +120,12 @@ impl OpampRemoteConfig {
         let mut variables = Vec::new();
         let mut map_entries = Vec::new();
 
-        for (k, v) in self.configs_iter() {
+        // agentConfig keys are not overrides
+        let configs = self
+            .configs_iter()
+            .filter(|(key, _)| !key.starts_with(AGENT_CONFIG_PREFIX));
+
+        for (k, v) in configs {
             if k.starts_with(AGENT_CONFIG_OVERRIDE_PREFIX) {
                 if blob.is_some() {
                     return Err(OpampRemoteConfigError::InvalidConfig(
@@ -133,34 +138,28 @@ impl OpampRemoteConfig {
                 blob = Some(v);
                 continue;
             }
-            let Some((variable_path, map_key)) = parse_override_variable_key(k) else {
-                if !k.starts_with(AGENT_CONFIG_PREFIX) {
-                    // Supports forward compatibility.
-                    warn!(
-                        key = k,
-                        "Config-map key matched no recognized override format"
-                    );
+            match parse_override_variable_key(k) {
+                None => warn!(key = k, "Config-map key not recognized"),
+                Some((variable_path, None)) => {
+                    variables.push(VariableOverride {
+                        path: variable_path,
+                        raw_value: v.as_str(),
+                    });
                 }
-                continue;
-            };
-            let Some(map_key) = map_key else {
-                variables.push(VariableOverride {
-                    path: variable_path,
-                    raw_value: v.as_str(),
-                });
-                continue;
-            };
-            if map_key.is_empty() {
-                return Err(OpampRemoteConfigError::InvalidConfig(
-                    self.hash.to_string(),
-                    format!("empty map-entry key for override variable '{variable_path}'"),
-                ));
+                Some((variable_path, Some(""))) => {
+                    return Err(OpampRemoteConfigError::InvalidConfig(
+                        self.hash.to_string(),
+                        format!("empty map-entry key for override variable '{variable_path}'"),
+                    ));
+                }
+                Some((variable_path, Some(map_key))) => {
+                    map_entries.push(MapEntryOverride {
+                        path: variable_path,
+                        map_key,
+                        raw_value: v.as_str(),
+                    });
+                }
             }
-            map_entries.push(MapEntryOverride {
-                path: variable_path,
-                map_key,
-                raw_value: v.as_str(),
-            });
         }
 
         Ok(Overrides {
