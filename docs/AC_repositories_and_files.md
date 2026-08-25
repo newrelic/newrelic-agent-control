@@ -151,3 +151,28 @@ C:\ProgramData\New Relic\newrelic-agent-control
         └───__temp_packages
             └───infra-agent
 ```
+
+## Uninstalling Agent Control
+
+Uninstall scripts are bundled with the OS packages and placed in the Agent Control installation directory. They must be run with elevated privileges.
+
+### Linux (`uninstall.sh`)
+
+Requires root. Detects the system package manager (`apt`, `yum`, or `zypper`) and removes the `newrelic-agent-control` package through it, including its static configuration plus runtime data under `/var/lib/newrelic-agent-control` (packages, fleet-data, logs). The script self-deletes after completion.
+
+```bash
+sudo /path/to/uninstall.sh
+```
+
+### Windows (`uninstall.ps1`)
+
+Requires Administrator. Run from a PowerShell session with elevated rights:
+
+```powershell
+.\uninstall.ps1
+```
+
+The script:
+1. Stops and deletes the `newrelic-agent-control` Windows service.
+2. Removes the `Program Files\New Relic\newrelic-agent-control` directory (binary, keys, install marker).
+3. Removes the `ProgramData\New Relic\newrelic-agent-control` directory (logs, rendered sub-agent configs, `local-data`).

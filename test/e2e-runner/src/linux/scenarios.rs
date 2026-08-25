@@ -8,3 +8,4 @@ pub mod nri_redis;
 pub mod proxy;
 pub mod remote_config;
 pub mod self_update;
+pub mod uninstall;
