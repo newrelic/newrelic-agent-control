@@ -352,10 +352,11 @@ default: {}"#;
     /// snippet (one of [STRING_VAR]/[YAML_VAR]/[STRING_MAP_VAR]).
     fn single_variable(path: &str, type_snippet: &str) -> String {
         let type_value: serde_json::Value = serde_saphyr::from_str(type_snippet).unwrap();
-        let nested = path
-            .split('.')
-            .rev()
-            .fold(type_value, |value, segment| json!({ segment: value }));
+        let nested = path.split('.').rev().fold(type_value, |value, segment| {
+            json!({
+                segment: value
+            })
+        });
         serde_saphyr::to_string(&nested).unwrap()
     }
 
@@ -466,51 +467,86 @@ default: {}"#;
 
     #[rstest]
     #[case::invalid_yaml_config_single_value(
-        json!({AGENT_CONFIG_PREFIX: "single-value"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "single-value"
+        }),
         NO_VARIABLES
     )]
     #[case::invalid_yaml_config_array(
-        json!({AGENT_CONFIG_PREFIX: "[1, 2, 3]"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "[1, 2, 3]"
+        }),
         NO_VARIABLES
     )]
     #[case::mutiple_configs_duplicated_keys(
-        json!({format!("{AGENT_CONFIG_PREFIX}-1"): "key: value", format!("{AGENT_CONFIG_PREFIX}-2"): "key: value2"}),
+        json!({
+            format!("{AGENT_CONFIG_PREFIX}-1"): "key: value",
+            format!("{AGENT_CONFIG_PREFIX}-2"): "key: value2"
+        }),
         NO_VARIABLES
     )]
     #[case::mutiple_configs_config_single_value(
-        json!({format!("{AGENT_CONFIG_PREFIX}-1"): "key: value", format!("{AGENT_CONFIG_PREFIX}-2"): "single-value"}),
+        json!({
+            format!("{AGENT_CONFIG_PREFIX}-1"): "key: value",
+            format!("{AGENT_CONFIG_PREFIX}-2"): "single-value"
+        }),
         NO_VARIABLES
     )]
     #[case::mutiple_configs_config_array(
-        json!({format!("{AGENT_CONFIG_PREFIX}-1"): "key: value", format!("{AGENT_CONFIG_PREFIX}-2"): "[1, 2, 3]"}),
+        json!({
+            format!("{AGENT_CONFIG_PREFIX}-1"): "key: value",
+            format!("{AGENT_CONFIG_PREFIX}-2"): "[1, 2, 3]"
+        }),
         NO_VARIABLES
     )]
     #[case::invalid_override_yaml_single_value(
-        json!({AGENT_CONFIG_PREFIX: "key: value", AGENT_CONFIG_OVERRIDE_PREFIX: "single-value"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key: value",
+            AGENT_CONFIG_OVERRIDE_PREFIX: "single-value"
+        }),
         NO_VARIABLES
     )]
     #[case::invalid_override_yaml_array(
-        json!({AGENT_CONFIG_PREFIX: "key: value", AGENT_CONFIG_OVERRIDE_PREFIX: "[1, 2, 3]"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key: value",
+            AGENT_CONFIG_OVERRIDE_PREFIX: "[1, 2, 3]"
+        }),
         NO_VARIABLES
     )]
     #[case::multiple_override_configs(
-        json!({AGENT_CONFIG_PREFIX: "key: value", AGENT_CONFIG_OVERRIDE_PREFIX: "key: value2", format!("{AGENT_CONFIG_OVERRIDE_PREFIX}-2"): "key: value3"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key: value",
+            AGENT_CONFIG_OVERRIDE_PREFIX: "key: value2",
+            format!("{AGENT_CONFIG_OVERRIDE_PREFIX}-2"): "key: value3"
+        }),
         NO_VARIABLES
     )]
     #[case::invalid_override_variable_yaml(
-        json!({AGENT_CONFIG_PREFIX: "key: value", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key"): "[unterminated"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key: value",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key"): "[unterminated"
+        }),
         &single_variable("key", YAML_VAR)
     )]
     #[case::override_variable_type_conflict(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1.nested"): "value2"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1.nested"): "value2"
+        }),
         &single_variable("key1.nested", YAML_VAR)
     )]
     #[case::override_variable_yaml_type_rejects_invalid_text(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1"): "]"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1"): "]"
+        }),
         &single_variable("key1", YAML_VAR)
     )]
     #[case::override_variable_map_entry_wrong_type(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1:file1.yaml"): "content: v1"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1:file1.yaml"): "content: v1"
+        }),
         &single_variable("key1", YAML_VAR)
     )]
     #[case::override_variable_map_entry_wrong_type_nested_path(
@@ -524,7 +560,10 @@ common:
         &single_variable("common.two.three", YAML_VAR)
     )]
     #[case::override_variable_map_entry_conflicts_with_non_mapping(
-        json!({AGENT_CONFIG_PREFIX: "key1: not-a-map", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1:file1.yaml"): "content: v1"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: not-a-map",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1:file1.yaml"): "content: v1"
+        }),
         &single_variable("key1", STRING_MAP_VAR)
     )]
     fn test_invalid_agent_configs_remote_values(
@@ -583,50 +622,70 @@ common:
 
     #[rstest]
     #[case::single_agent_config(
-        json!({AGENT_CONFIG_PREFIX: "key: value"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key: value"
+        }),
         NO_VARIABLES,
         "key: value"
     )]
     #[case::multiple_agent_configs(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_PREFIX}-2"): "key2: value2"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_PREFIX}-2"): "key2: value2"
+        }),
         NO_VARIABLES,
         r#"
 key1: value1
 key2: value2"#
     )]
     #[case::multiple_agent_configs_empty_config(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_PREFIX}-empty"): ""}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_PREFIX}-empty"): ""
+        }),
         NO_VARIABLES,
         "key1: value1"
     )]
     #[case::multiple_config(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", "non-agent-config": "key2: value2"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            "non-agent-config": "key2: value2"
+        }),
         NO_VARIABLES,
         "key1: value1"
     )]
     #[case::override_single_key(
-        json!({AGENT_CONFIG_PREFIX: r#"
+        json!({
+            AGENT_CONFIG_PREFIX: r#"
 key1: value1
-key2: value2"#, AGENT_CONFIG_OVERRIDE_PREFIX: "key2: overridden"}),
+key2: value2"#,
+            AGENT_CONFIG_OVERRIDE_PREFIX: "key2: overridden"
+        }),
         NO_VARIABLES,
         r#"
 key1: value1
 key2: overridden"#
     )]
     #[case::override_adds_new_key(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", AGENT_CONFIG_OVERRIDE_PREFIX: "key2: value2"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            AGENT_CONFIG_OVERRIDE_PREFIX: "key2: value2"
+        }),
         NO_VARIABLES,
         r#"
 key1: value1
 key2: value2"#
     )]
     #[case::override_multiple_keys(
-        json!({AGENT_CONFIG_PREFIX: r#"
+        json!({
+            AGENT_CONFIG_PREFIX: r#"
 key1: value1
 key2: value2
-key3: value3"#, AGENT_CONFIG_OVERRIDE_PREFIX: r#"
+key3: value3"#,
+            AGENT_CONFIG_OVERRIDE_PREFIX: r#"
 key2: overridden2
-key3: overridden3"#}),
+key3: overridden3"#
+        }),
         NO_VARIABLES,
         r#"
 key1: value1
@@ -634,72 +693,102 @@ key2: overridden2
 key3: overridden3"#
     )]
     #[case::override_with_multiple_agent_configs(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_PREFIX}-2"): "key2: value2", AGENT_CONFIG_OVERRIDE_PREFIX: "key1: overridden"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_PREFIX}-2"): "key2: value2",
+            AGENT_CONFIG_OVERRIDE_PREFIX: "key1: overridden"
+        }),
         NO_VARIABLES,
         r#"
 key1: overridden
 key2: value2"#
     )]
     #[case::override_with_suffix(
-        json!({AGENT_CONFIG_PREFIX: r#"
+        json!({
+            AGENT_CONFIG_PREFIX: r#"
 key1: value1
-key2: value2"#, format!("{AGENT_CONFIG_OVERRIDE_PREFIX}-1"): "key2: overridden"}),
+key2: value2"#,
+            format!("{AGENT_CONFIG_OVERRIDE_PREFIX}-1"): "key2: overridden"
+        }),
         NO_VARIABLES,
         r#"
 key1: value1
 key2: overridden"#
     )]
     #[case::override_empty(
-        json!({AGENT_CONFIG_PREFIX: "key: value", AGENT_CONFIG_OVERRIDE_PREFIX: ""}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key: value",
+            AGENT_CONFIG_OVERRIDE_PREFIX: ""
+        }),
         NO_VARIABLES,
         "key: value"
     )]
     #[case::override_only(
-        json!({AGENT_CONFIG_OVERRIDE_PREFIX: "key1: overridden"}),
+        json!({
+            AGENT_CONFIG_OVERRIDE_PREFIX: "key1: overridden"
+        }),
         NO_VARIABLES,
         "key1: overridden"
     )]
     #[case::override_null_does_not_remove_key_keeps_null(
-        json!({AGENT_CONFIG_PREFIX: r#"
+        json!({
+            AGENT_CONFIG_PREFIX: r#"
 key1: value1
-key2: value2"#, AGENT_CONFIG_OVERRIDE_PREFIX: "key2: null"}),
+key2: value2"#,
+            AGENT_CONFIG_OVERRIDE_PREFIX: "key2: null"
+        }),
         NO_VARIABLES,
         r#"
 key1: value1
 key2: null"#
     )]
     #[case::override_empty_does_not_remove_key_keeps_empty(
-        json!({AGENT_CONFIG_PREFIX: r#"
+        json!({
+            AGENT_CONFIG_PREFIX: r#"
 key1: value1
-key2: value2"#, AGENT_CONFIG_OVERRIDE_PREFIX: "key2:\n"}),
+key2: value2"#,
+            AGENT_CONFIG_OVERRIDE_PREFIX: "key2:\n"
+        }),
         NO_VARIABLES,
         "key1: value1\nkey2:\n"
     )]
     #[case::inner_values_are_not_merged(
-        json!({AGENT_CONFIG_PREFIX: r#"key1: {"key1_1": "value_1_1"}"#, AGENT_CONFIG_OVERRIDE_PREFIX: r#"key1: {"overridden_key": "overridden_value"}"#}),
+        json!({
+            AGENT_CONFIG_PREFIX: r#"key1: {"key1_1": "value_1_1"}"#,
+            AGENT_CONFIG_OVERRIDE_PREFIX: r#"key1: {"overridden_key": "overridden_value"}"#
+        }),
         NO_VARIABLES,
         r#"key1: {"overridden_key": "overridden_value"}"#
     )]
     #[case::override_variable_top_level_key(
-        json!({AGENT_CONFIG_PREFIX: r#"
+        json!({
+            AGENT_CONFIG_PREFIX: r#"
 key1: value1
-key2: value2"#, format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key2"): "overridden2"}),
+key2: value2"#,
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key2"): "overridden2"
+        }),
         &single_variable("key2", YAML_VAR),
         r#"
 key1: value1
 key2: overridden2"#
     )]
     #[case::override_variable_nested_path(
-        json!({AGENT_CONFIG_PREFIX: r#"
+        json!({
+            AGENT_CONFIG_PREFIX: r#"
 foo:
-  bar: value1"#, format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar"): "overridden"}),
+  bar: value1"#,
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar"): "overridden"
+        }),
         &single_variable("foo.bar", YAML_VAR),
         r#"
 foo:
   bar: overridden"#
     )]
     #[case::override_variable_creates_missing_path(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar"): "value"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar"): "value"
+        }),
         &single_variable("foo.bar", YAML_VAR),
         r#"
 key1: value1
@@ -707,25 +796,36 @@ foo:
   bar: value"#
     )]
     #[case::override_variable_applies_after_blob_override(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", AGENT_CONFIG_OVERRIDE_PREFIX: "key1: blob_override", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1"): "variable_override"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            AGENT_CONFIG_OVERRIDE_PREFIX: "key1: blob_override",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1"): "variable_override"
+        }),
         &single_variable("key1", YAML_VAR),
         "key1: variable_override"
     )]
     #[case::override_variable_nested_path_applies_after_blob_override(
-        json!({AGENT_CONFIG_PREFIX: r#"
+        json!({
+            AGENT_CONFIG_PREFIX: r#"
 foo:
-  bar: value1"#, AGENT_CONFIG_OVERRIDE_PREFIX: r#"
+  bar: value1"#,
+            AGENT_CONFIG_OVERRIDE_PREFIX: r#"
 foo:
-  bar: blob_override"#, format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar"): "variable_override"}),
+  bar: blob_override"#,
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar"): "variable_override"
+        }),
         &single_variable("foo.bar", YAML_VAR),
         r#"
 foo:
   bar: variable_override"#
     )]
     #[case::override_variable_non_scalar_value(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key2"): r#"
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key2"): r#"
 - a
-- b"#}),
+- b"#
+        }),
         &single_variable("key2", YAML_VAR),
         r#"
 key1: value1
@@ -734,22 +834,34 @@ key2:
   - b"#
     )]
     #[case::override_variable_empty_path_is_ignored(
-        json!({AGENT_CONFIG_PREFIX: "key: value", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}."): "value"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key: value",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}."): "value"
+        }),
         NO_VARIABLES,
         "key: value"
     )]
     #[case::override_variable_unknown_path_is_ignored(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.unknown"): "ignored"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.unknown"): "ignored"
+        }),
         NO_VARIABLES,
         "key1: value1"
     )]
     #[case::override_variable_string_type_accepts_raw_text(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1"): "]"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.key1"): "]"
+        }),
         &single_variable("key1", STRING_VAR),
         "key1: \"]\""
     )]
     #[case::override_variable_map_entry_accepts_raw_text(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.foo"): "]"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.foo"): "]"
+        }),
         &single_variable("string_map_var", STRING_MAP_VAR),
         r#"
 key1: value1
@@ -757,7 +869,10 @@ string_map_var:
   file1.foo: "]""#
     )]
     #[case::override_variable_map_entry_invalid_yaml_falls_back_to_raw_text(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.yaml"): "[unterminated"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.yaml"): "[unterminated"
+        }),
         &single_variable("string_map_var", STRING_MAP_VAR),
         r#"
 key1: value1
@@ -765,7 +880,10 @@ string_map_var:
   file1.yaml: "[unterminated""#
     )]
     #[case::override_variable_map_entry_creates_map(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.yaml"): "content: whatever-1"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file1.yaml"): "content: whatever-1"
+        }),
         &single_variable("string_map_var", STRING_MAP_VAR),
         r#"
 key1: value1
@@ -774,7 +892,10 @@ string_map_var:
     content: whatever-1"#
     )]
     #[case::override_variable_map_entry_key_with_colon(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:with:colon.txt"): "some-content"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:with:colon.txt"): "some-content"
+        }),
         &single_variable("string_map_var", STRING_MAP_VAR),
         r#"
 key1: value1
@@ -783,7 +904,10 @@ string_map_var:
     some-content"#
     )]
     #[case::override_variable_map_entry_key_special_characters(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file:€$p3c|@l.chars"): "some-content"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.string_map_var:file:€$p3c|@l.chars"): "some-content"
+        }),
         &single_variable("string_map_var", STRING_MAP_VAR),
         r#"
 key1: value1
@@ -826,12 +950,18 @@ string_map_var:
     content: keep"#
     )]
     #[case::override_variable_map_entry_unknown_path_is_ignored(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.unknown:file1.yaml"): "content: v1"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.unknown:file1.yaml"): "content: v1"
+        }),
         NO_VARIABLES,
         "key1: value1"
     )]
     #[case::override_variable_map_entry_nested_path_creates_map(
-        json!({AGENT_CONFIG_PREFIX: "key1: value1", format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar:file1.yaml"): "content: v1"}),
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: value1",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo.bar:file1.yaml"): "content: v1"
+        }),
         &single_variable("foo.bar", STRING_MAP_VAR),
         r#"
 key1: value1
@@ -841,9 +971,12 @@ foo:
       content: v1"#
     )]
     #[case::override_variable_top_level_key_string_type_unknown_intermediate_path_is_ignored(
-        json!({AGENT_CONFIG_PREFIX: r#"
+        json!({
+            AGENT_CONFIG_PREFIX: r#"
 foo:
-  bar: value1"#, format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo"): "ignored"}),
+  bar: value1"#,
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.foo"): "ignored"
+        }),
         &single_variable("foo.bar", YAML_VAR),
         r#"
 foo:
