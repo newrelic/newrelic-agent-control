@@ -1,6 +1,6 @@
 # Merging remote configuration entries
 
-Agent Control receives remote configuration for Agents as [`OpAMP's AgentConfigMap`](https://github.com/open-telemetry/opamp-spec/blob/db1e1fcf14e834469f822496f2fa1ed0512141be/specification.md#agentremoteconfigconfig_map), a flat map of string keys to string bodies. Agent Control decides what each entry means purely from its **key**: entries are recognized by prefix, and the recognized prefixes let a single remote config payload combine a base configuration, a full-blob override, and fine-grained per-variable overrides.
+Agent Control receives remote configuration for Agents as [`OpAMP's AgentConfigMap`](https://github.com/open-telemetry/opamp-spec/blob/db1e1fcf14e834469f822496f2fa1ed0512141be/specification.md#configuration-files), a flat map of string keys to string bodies. The role of each entry is determined entirely by its key: Agent Control matches each key against  a set of known prefixes, and those prefixes allow a single payload to carry a base configuration, a full blob-level override, and per-variable overrides all at once.
 
 Agent Control's own configuration follows a different, much simpler set of rules that is described at [Agent Control's own remote configuration](#agent-controls-own-remote-configuration).
 
