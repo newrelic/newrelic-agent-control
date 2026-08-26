@@ -148,7 +148,6 @@ pub struct RecipeData {
     pub fleet_enabled: bool,
     pub recipe_list: String,
     pub proxy_url: String,
-    pub monitoring_source: String,
 }
 
 impl Default for RecipeData {
@@ -159,7 +158,6 @@ impl Default for RecipeData {
             proxy_url: Default::default(),
             fleet_enabled: false,
             recipe_list: "agent-control".to_string(),
-            monitoring_source: "infra-agent".to_string(),
         }
     }
 }

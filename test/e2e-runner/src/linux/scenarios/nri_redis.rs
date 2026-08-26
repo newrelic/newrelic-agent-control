@@ -33,7 +33,6 @@ pub fn test_nri_redis(args: InstallationArgs) {
 
     let recipe_data = RecipeData {
         args: args.clone(),
-        monitoring_source: "infra-agent".to_string(),
         ..Default::default()
     };
     let _clean_up = CleanUp::new(tear_down_test);

@@ -28,7 +28,6 @@ pub fn test_installation_with_infra_agent(args: InstallationArgs) {
 
     let recipe_data = RecipeData {
         args,
-        monitoring_source: "infra-agent".to_string(),
         ..Default::default()
     };
 

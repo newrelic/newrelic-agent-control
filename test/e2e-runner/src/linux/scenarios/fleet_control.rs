@@ -31,7 +31,6 @@ pub fn test_fleet_control(args: FleetControlInstallationArgs) {
 
     let recipe_data = RecipeData {
         args: args.installation,
-        monitoring_source: "infra-agent".to_string(),
         fleet_enabled: true,
         fleet_id: fleet_id.clone(),
         ..Default::default()

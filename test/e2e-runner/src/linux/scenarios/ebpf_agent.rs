@@ -30,7 +30,6 @@ pub fn test_ebpf_agent(args: InstallationArgs) {
 
     let recipe_data = RecipeData {
         args,
-        monitoring_source: "infra-agent".to_string(),
         recipe_list: "agent-control".to_string(),
         ..Default::default()
     };

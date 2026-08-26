@@ -73,10 +73,8 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
   NEW_RELIC_AUTH_PRIVATE_KEY_PATH={} \
   NEW_RELIC_AGENT_VERSION={} \
   NEW_RELIC_REGION={} \
-  NEW_RELIC_AGENT_CONTROL_HOST_MONITORING_SOURCE={} \
   NR_CLI_FLEET_ID={} \
   NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED={} \
-  NEW_RELIC_AGENT_CONTROL=true \
   NEW_RELIC_AGENT_CONTROL_PROXY_URL={} \
   HTTPS_PROXY={} \
   /usr/local/bin/newrelic install \
@@ -90,7 +88,6 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
         data.args.agent_control_private_key,
         data.args.agent_control_version,
         data.args.nr_region,
-        data.monitoring_source,
         data.fleet_id,
         data.fleet_enabled,
         data.proxy_url,
@@ -121,7 +118,6 @@ curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh |
   NEW_RELIC_REGION={} \
   NR_CLI_FLEET_ID={} \
   NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED={} \
-  NEW_RELIC_AGENT_CONTROL=true \
   /usr/local/bin/newrelic install \
   -n {}
 "#,

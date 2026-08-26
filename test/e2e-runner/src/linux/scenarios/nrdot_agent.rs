@@ -19,7 +19,6 @@ pub fn test_nrdot_agent(args: InstallationArgs) {
 
     let recipe_data = RecipeData {
         args,
-        monitoring_source: "otel".to_string(),
         recipe_list: "agent-control".to_string(),
         ..Default::default()
     };

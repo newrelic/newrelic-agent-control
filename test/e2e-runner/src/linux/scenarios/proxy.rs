@@ -68,7 +68,6 @@ pub fn test_agent_control_proxy(args: InstallationArgs) {
     info!("Installing Agent Control with proxy configuration");
     let recipe_data = RecipeData {
         args,
-        monitoring_source: "infra-agent".to_string(),
         proxy_url: PROXY_URL.to_string(),
         fleet_enabled: true,
         fleet_id,

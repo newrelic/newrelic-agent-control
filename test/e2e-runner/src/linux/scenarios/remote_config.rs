@@ -18,9 +18,6 @@ const FLEET_ID_STAGING: &str =
 
 const ENV_VARS_FILE: &str = "/etc/newrelic-agent-control/environment_variables.yaml";
 
-// We pin and old version so the remote config always makes an upgrade.
-const INFRA_AGENT_VERSION: &str = "1.72.1";
-
 pub fn test_remote_config_is_applied(args: InstallationArgs) {
     let fleet_id = match args.nr_region {
         Region::Staging => FLEET_ID_STAGING.to_string(),
@@ -29,7 +26,6 @@ pub fn test_remote_config_is_applied(args: InstallationArgs) {
 
     let recipe_data = RecipeData {
         args,
-        monitoring_source: "infra-agent".to_string(),
         fleet_enabled: true,
         fleet_id,
         ..Default::default()
@@ -50,33 +46,7 @@ pub fn test_remote_config_is_applied(args: InstallationArgs) {
     info!("Setup Agent Control config for debug logging");
     config::update_config_for_debug_logging(linux::DEFAULT_AC_CONFIG_PATH);
 
-    info!("Setup infra-agent config");
-    config::write_agent_local_config(
-        &linux::local_config_path("nr-infra"),
-        format!(
-            r#"
-config_agent:
-  status_server_enabled: true
-  status_server_port: 18003
-  license_key: {{{{NEW_RELIC_LICENSE_KEY}}}}
-  custom_attributes:
-    config_origin: local
-    test_id: {{{{TEST_ID}}}}
-version: {}
-"#,
-            INFRA_AGENT_VERSION
-        ),
-    );
-
     linux::service::restart_service(linux::SERVICE_NAME);
-
-    info!("Check infra agent is reporting");
-    let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `test_id` = '{test_id}' LIMIT 1"#);
-    info!(nrql = nrql_query, "Checking results of NRQL");
-    let retries = 60;
-    retry_panic(retries, Duration::from_secs(5), "nrql assertion", || {
-        nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
-    });
 
     info!("Check that remote configuration has been applied");
 
