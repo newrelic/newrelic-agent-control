@@ -29,7 +29,6 @@ pub fn test_remote_config_is_applied(args: InstallationArgs) {
 
     let recipe_data = RecipeData {
         args,
-        monitoring_source: "infra-agent".to_string(),
         fleet_enabled: true,
         fleet_id,
         ..Default::default()
