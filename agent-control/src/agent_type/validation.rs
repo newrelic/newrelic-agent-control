@@ -249,6 +249,29 @@ deployment:
       path: ${nr-var:bin|indent 2}
 "#;
 
+    // Guards NR-602859: an unrecognized field on a variable (e.g. the `classification` field
+    // proposed for Fleet Control's config/multiconfig routing) must not fail validation.
+    const HOST_VARIABLE_WITH_UNKNOWN_FIELD_YAML: &str = r#"
+namespace: newrelic
+name: test
+version: 0.0.1
+protocol_version: "1.0"
+platform: host
+operating_system: linux
+variables:
+  bin:
+    description: "binary path"
+    type: string
+    required: true
+    classification: multi-config
+    metadata:
+      some: nested-value
+deployment:
+  executables:
+    - id: fake_binary
+      path: ${nr-var:bin}/fake_binary
+"#;
+
     const MISSING_REQUIRED_FIELD_YAML: &str = r#"
 namespace: newrelic
 name: test
@@ -351,6 +374,7 @@ deployment:
     #[case::host_unused_variable_is_allowed(HOST_UNUSED_VARIABLE_IS_ALLOWED_YAML)]
     #[case::host_ignores_other_namespaces(HOST_IGNORES_OTHER_NAMESPACES_YAML)]
     #[case::host_ignores_pipe_function_suffix(HOST_WITH_PIPE_FUNCTION_YAML)]
+    #[case::host_ignores_unknown_variable_field(HOST_VARIABLE_WITH_UNKNOWN_FIELD_YAML)]
     fn test_validate_accepts_valid_definitions(#[case] yaml: &str) {
         assert_matches!(validate(yaml.as_bytes()), Ok(_));
     }
