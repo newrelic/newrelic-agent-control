@@ -50,106 +50,110 @@ The following shows the directory structure used by Agent Control, assuming an e
 ```console
 /
 ├── etc
-│   └── newrelic-agent-control
-│       ├── keys
-│       │    └── agent-control-identity.key
-│       └── local-data
+│    └── newrelic-agent-control
+│         ├── keys
+│         │    └── agent-control-identity.key
+│         └── local-data
 │              ├── agent-control
 │              │    └── local_config.yaml
 │              └── nr-infra
 │                   └── local_config.yaml
-└── var
-    ├── lib
-    │   └── newrelic-agent-control
-    │       ├── packages
-    │       │    └── nr-infra
-    │       │         ├──  __temp_packages  
-    │       │         └── stored_packages
-    │       │              └── infra-agent
-    │       │                   └── oci_ghcr_io__newrelic__testing_infra_agent_v1_71_3
-    │       │                        │   newrelic-infra
-    │       │                        └── integrations
-    │       │                             └── nri-docker
-    │       ├── fleet-data
-    │       │    ├── agent-control
-    │       │    │    ├── instance_id.yaml
-    │       │    │    └── remote_config.yaml
-    │       │    └── nr-infra
-    │       │         ├── instance_id.yaml
-    │       │         └── remote_config.yaml 
-    │       ├── filesystem
-    │       │    └── nr-infra
-    │       │        └── config
-    │       │              └── newrelic-infra.yml
-    │       └── shared-filesystem
-    │            ├── infra-agent-ohi-configs
-    │            │    └── nri-redis.yaml
-    │            └── infra-agent-ohi-binaries
-    │                 ├── nri-flex
-    │                 ├── nri-docker
-    │                 └── nri-prometheus
-    └── log
-        └── newrelic-agent-control
-            |── agent-control
-            |   └── newrelic-agent-control.log.2025-01-15-23
-            └── nr-infra
-                ├── stdout.log.2025-01-15-23
-                └── stderr.log.2025-01-15-23
+├── var
+│    ├── lib
+│    │    └── newrelic-agent-control
+│    │         ├── packages
+│    │         │    └── nr-infra
+│    │         │         ├── __temp_packages  
+│    │         │         └── stored_packages
+│    │         │              └── infra-agent
+│    │         │                   └── oci_ghcr_io__newrelic__testing_infra_agent_v1_71_3
+│    │         │                        ├── newrelic-infra
+│    │         │                        └── integrations
+│    │         │                             └── nri-docker
+│    │         ├── fleet-data
+│    │         │    ├── agent-control
+│    │         │    │    ├── instance_id.yaml
+│    │         │    │    └── remote_config.yaml
+│    │         │    └── nr-infra
+│    │         │         ├── instance_id.yaml
+│    │         │         └── remote_config.yaml 
+│    │         ├── filesystem
+│    │         │    └── nr-infra
+│    │         │         └── config
+│    │         │              └── newrelic-infra.yml
+│    │         └── shared-filesystem
+│    │              ├── infra-agent-ohi-configs
+│    │              │    └── nri-redis.yaml
+│    │              └── infra-agent-ohi-binaries
+│    │                   ├── nri-flex
+│    │                   ├── nri-docker
+│    │                   └── nri-prometheus
+│    └── log
+│         └── newrelic-agent-control
+│              |── agent-control
+│              |    └── newrelic-agent-control.log.2025-01-15-23
+│              └── nr-infra
+│                   ├── stdout.log.2025-01-15-23
+│                   └── stderr.log.2025-01-15-23
+└── usr
+     └── lib
+          └── newrelic-agent-control
+               └── uninstall.sh
 ```
 
 ### Windows
 
 ```console
 C:\Program Files\New Relic\newrelic-agent-control
-│   environment_variables.yaml
-│   newrelic-agent-control.exe
-├───keys
-│       agent-control-identity.key
-└───local-data
-    ├───agent-control
-    │       local_config.yaml
-    │
-    └───nr-infra
-            local_config.yaml
+├── environment_variables.yaml
+├── newrelic-agent-control.exe
+├── uninstall.ps1
+├── keys
+│    └── agent-control-identity.key
+└── local-data
+     ├── agent-control
+     │    └── local_config.yaml
+     └───nr-infra
+          └── local_config.yaml
 
 C:\ProgramData\New Relic\newrelic-agent-control
 ├───filesystem
-│   └───nr-infra
-│       ├───newrelic-infra
-│       │    └─── [...] Data files created by the infra agent
-│       └── config
+│   └── nr-infra
+│        ├── newrelic-infra
+│        │    └─── [...] Data files created by the infra agent
+│        └── config
 │             └── newrelic-infra.yml
 ├───shared-filesystem
 │   ├───infra-agent-ohi-configs
-│   │       nri-redis.yaml
+│   │    └── nri-redis.yaml
 │   └───infra-agent-ohi-binaries
-│           nri-flex.exe
-│           nri-prometheus.exe
-│           nr-winpkg.exe
-│           nri-winservices.exe
-│           windows_exporter.exe
+│        └── nri-flex.exe
+│        └── nri-prometheus.exe
+│        └── nr-winpkg.exe
+│        └── nri-winservices.exe
+│        └── windows_exporter.exe
 ├───fleet-data
 │   ├───agent-control
-│   │       instance_id.yaml
-│   │       remote_config.yaml
+│   │    └── instance_id.yaml
+│   │    └── remote_config.yaml
 │   └───nr-infra
-│           instance_id.yaml
-│           remote_config.yaml
+│        └── instance_id.yaml
+│        └── remote_config.yaml
 ├───log
 │   |───agent-control
-│   |       newrelic-agent-control.log.2025-01-15-23
-│   └───nr-infra
-│           stderr.log.2026-01-19-22
+│   |    └── newrelic-agent-control.log.2025-01-15-23
+│   └── nr-infra
+│        └── stderr.log.2026-01-19-22
 └───packages
-    └───nr-infra
-        ├───stored_packages
-        │   └───infra-agent
-        │       └───oci_ghcr_io__newrelic__testing_infra_agent_v1_71_4
-        │           │   newrelic-infra.exe
-        │           └───integrations
-        │                   nri-docker.exe
-        └───__temp_packages
-            └───infra-agent
+    └── nr-infra
+         ├── stored_packages
+         │   └── infra-agent
+         │       └── oci_ghcr_io__newrelic__testing_infra_agent_v1_71_4
+         │           │   newrelic-infra.exe
+         │           └── integrations
+         │                   nri-docker.exe
+         └── __temp_packages
+              └── infra-agent
 ```
 
 ## Uninstalling Agent Control
@@ -161,7 +165,7 @@ Uninstall scripts are bundled with the OS packages and placed in the Agent Contr
 Requires root. Detects the system package manager (`apt`, `yum`, or `zypper`) and removes the `newrelic-agent-control` package through it, including its static configuration plus runtime data under `/var/lib/newrelic-agent-control` (packages, fleet-data, logs). The script self-deletes after completion.
 
 ```bash
-sudo /path/to/uninstall.sh
+sudo /usr/lib/newrelic-agent-control/uninstall.sh
 ```
 
 ### Windows (`uninstall.ps1`)
@@ -169,7 +173,7 @@ sudo /path/to/uninstall.sh
 Requires Administrator. Run from a PowerShell session with elevated rights:
 
 ```powershell
-.\uninstall.ps1
+C:\Program Files\New Relic\newrelic-agent-control\uninstall.ps1
 ```
 
 The script:
