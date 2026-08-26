@@ -59,6 +59,9 @@ enum LinuxScenarios {
     /// but does NOT start any monitored service. Verifies from the AC log that the
     /// infra-agent invoked each OHI binary with the expected config
     AllOhisNoService(InstallationArgs),
+    /// Installs Agent Control and runs the bundled uninstall.sh script, then asserts that
+    /// the binary, service unit, static config and runtime data are fully removed.
+    Uninstall(InstallationArgs),
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -102,6 +105,9 @@ enum WindowsScenarios {
     /// but does NOT start any monitored service. Verifies from the AC log that the
     /// infra-agent invoked each OHI binary with the expected config
     AllOhisNoService(InstallationArgs),
+    /// Installs Agent Control and runs the bundled uninstall.ps1 script, then asserts that
+    /// the service, install directory, and runtime data directory are fully removed.
+    Uninstall(InstallationArgs),
 }
 
 #[derive(Parser)]

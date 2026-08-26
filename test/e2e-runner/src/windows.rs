@@ -76,5 +76,8 @@ pub fn run_windows_e2e() {
         WindowsScenarios::AllOhisNoService(args) => {
             scenarios::all_ohis_no_service::test_all_ohis_no_service(args);
         }
+        WindowsScenarios::Uninstall(args) => {
+            scenarios::uninstall::test_uninstall_script(args);
+        }
     }
 }

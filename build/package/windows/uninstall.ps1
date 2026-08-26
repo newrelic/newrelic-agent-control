@@ -10,10 +10,7 @@ if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Adm
 
 $serviceName = "newrelic-agent-control"
 $acDir = [IO.Path]::Combine($env:ProgramFiles, 'New Relic\newrelic-agent-control')
-$acExecPath = [IO.Path]::Combine($acDir, 'newrelic-agent-control.exe')
-$acKeysDir = [IO.Path]::Combine($acDir, 'keys')
 
-$markerPath = [IO.Path]::Combine($acDir, '.nr-ac-install')
 
 # Stop and remove the service if exists
 $existingService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
@@ -28,21 +25,12 @@ if ($existingService) {
     }
 }
 
-# Remove the executable if exists
-if (Test-Path $acExecPath) {
-    Write-Host "Deleting $acExecPath..."
-    Remove-Item -Path $acExecPath -Force
-}
+# Remove ProgramFiles install directory (exe, keys/, install marker, and this script).
+# Also acts as a fallback if the service removal above was skipped.
+Remove-Item -Path $acDir -Recurse -Force -ErrorAction SilentlyContinue
 
-# Remove the keys directory if exists
-if (Test-Path $acKeysDir) {
-    Write-Host "Removing keys directory..."
-    Remove-Item -Path $acKeysDir -Recurse -Force
-}
+# Remove ProgramData runtime directory (logs, rendered sub-agent configs, local-data/).
+# These are created at runtime and are not part of the installer, so the steps above never touch them.
+Remove-Item -Path (Join-Path $env:ProgramData "New Relic\newrelic-agent-control") -Recurse -Force -ErrorAction SilentlyContinue
 
-if (Test-Path $markerPath) {
-    Write-Host "Removing installation marker file..."
-    Remove-Item -Path $markerPath -Force
-}
-
-Write-Host "Uninstallation completed!"
+Write-Host "New Relic Agent Control has been removed from this host."

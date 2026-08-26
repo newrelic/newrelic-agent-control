@@ -150,6 +150,10 @@ nfpms: # deb and rpm are only built for linux targets
         type: config|noreplace
         file_info:
           mode: 0600
+      - src: build/package/linux/uninstall.sh
+        dst: /usr/lib/newrelic-agent-control/uninstall.sh
+        file_info:
+          mode: 0755
       - src: LICENSE.md
         dst: /usr/share/doc/newrelic/newrelic-agent-control/LICENSE.md
       - src: THIRD_PARTY_NOTICES.md
