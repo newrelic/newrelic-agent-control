@@ -4,7 +4,7 @@ Agent Control receives remote configuration for Agents as [`OpAMP's AgentConfigM
 
 Agent Control's own configuration follows a different, much simpler set of rules that is described at [Agent Control's own remote configuration](#agent-controls-own-remote-configuration).
 
-For the meaning of the resulting values (agent type variables, their declared `type`, `string_map`, etc.) see [Agent Type Variables](../INTEGRATING_AGENTS.md#agent-type-variables) in [`docs/INTEGRATING_AGENTS.md`](../INTEGRATING_AGENTS.md). For how the merged result is turned into a running sub-agent, see [Applying configurations](../INTEGRATING_AGENTS.md#applying-configurations) in the same document.
+For the meaning of the resulting values (agent type variables, their declared `type`, `string_map`, etc.) see [Agent Type Variables](../INTEGRATING_AGENTS.md#agent-type-variables) in [`docs/INTEGRATING_AGENTS.md`](../INTEGRATING_AGENTS.md). For how the merged result is turned into a running agent, see [Applying configurations](../INTEGRATING_AGENTS.md#applying-configurations) in the same document.
 
 ## Agent remote configuration
 
@@ -118,8 +118,33 @@ Agent Control's own dynamic configuration is also delivered as an `AgentConfigMa
 
 That is where the similarity ends:
 - **`override.agentConfig`, `variable.agentConfig.<path>`, and `variable.agentConfig.<path>:<map-key>` are not recognized at all for AC's own configuration.** Any such key sent alongside AC's `agentConfig*` entries is ignored. There is no blob-level override and no per-variable override mechanism for AC itself, only the base merge.
-- The `agents` key gets special handling that sub-agent configs don't need: instead of being merged as an ordinary YAML value (which would make a duplicate `agents` key across two `agentConfig*` entries an unconditional error), the maps under `agents` from every entry are combined agent-by-agent, and only a duplicate *agent ID* across entries is an error. This is what lets Fleet Control split the desired agent list across multiple `agentConfig*` entries, e.g. one per team or one per templated source.
+- The `agents` key gets special handling: instead of being merged as an ordinary YAML value (which would make a duplicate `agents` key across two `agentConfig*` entries an unconditional error), the maps under `agents` from every entry are combined agent-by-agent, and only a duplicate *agent ID* across entries is an error. This is what lets Fleet Control split the desired agent list across multiple `agentConfig*` entries, e.g. one per team or one per templated source.
 - Every other top-level key (`chart_version`, `cd_chart_version`, etc.) is merged like step 1 for sub-agents: a plain top-level YAML merge where a duplicate key across entries is an error.
+
+Example:
+
+```yaml
+agentConfig-infra: |
+  agents:
+    agentInfra: newrelic/com.newrelic.infrastructure:0.1.0
+agentConfig-nri-redis: |
+  agents:
+    agentNriRedis: newrelic/com.newrelic.infrastructure.nri_redis:0.1.0
+# agentConfig-infra-2: | # This would fail because `agentInfra` would be repeated
+#   agents:
+#     agentInfra: newrelic/com.newrelic.infrastructure:0.1.0
+override.agentConfig: | # This is ignored as any key not prefixed by `agentConfig`
+  agents:
+    testingAgent: namespace/name:0.0.100
+```
+
+Will become a remote configuration for Agent Control:
+
+```yaml
+agents:
+  agentInfra: newrelic/com.newrelic.infrastructure:0.1.0
+  agentNriRedis: newrelic/com.newrelic.infrastructure.nri_redis:0.1.0
+```
 
 ## See also
 
