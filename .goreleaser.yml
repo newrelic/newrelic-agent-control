@@ -1,9 +1,8 @@
 version: 2
 project_name: newrelic-agent-control
 env:
-  # This version should be kept fixed.
-  - NEWRELIC_INFRA_AGENT_VERSION=1.71.1
-  - NR_OTEL_COLLECTOR_VERSION=1.5.0
+  # Wired to the AGENT_CONTROL_VERSION const in the code. 
+  - AGENT_CONTROL_VERSION={{ .Version }}
 builds:
   # Linux builds using cargo zigbuild
   - id: newrelic-agent-control-linux
@@ -17,10 +16,6 @@ builds:
       - --release
       - --package=newrelic_agent_control
       - --bin=newrelic-agent-control
-    env:
-      - AGENT_CONTROL_VERSION={{ .Version }}
-      - NEWRELIC_INFRA_AGENT_VERSION={{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}
-      - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
 
   # Windows builds using cargo xwin
   - id: newrelic-agent-control-windows
@@ -34,10 +29,6 @@ builds:
       - --release
       - --package=newrelic_agent_control
       - --bin=newrelic-agent-control
-    env:
-      - AGENT_CONTROL_VERSION={{ .Version }}
-      - NEWRELIC_INFRA_AGENT_VERSION={{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}
-      - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
     hooks:
       post:
         # Patch the windows metadata (injecting the current year)
@@ -61,8 +52,6 @@ builds:
       - --release
       - --package=newrelic_agent_control
       - --bin=newrelic-agent-control-cli
-    env:
-      - AGENT_CONTROL_VERSION={{ .Version }}
 
   # Windows builds for CLI using cargo xwin
   - id: newrelic-agent-control-cli-windows
@@ -76,8 +65,6 @@ builds:
       - --release
       - --package=newrelic_agent_control
       - --bin=newrelic-agent-control-cli
-    env:
-      - AGENT_CONTROL_VERSION={{ .Version }}
     hooks:
       post:
         # Patch the CLI windows metadata (injecting the current year)
@@ -146,7 +133,6 @@ nfpms: # deb and rpm are only built for linux targets
       {{- if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{- end }}
 
     contents:
-      # Newrelic Agent Control
       - dst: /etc/newrelic-agent-control
         type: dir
         file_info:
@@ -166,11 +152,9 @@ nfpms: # deb and rpm are only built for linux targets
           mode: 0600
       - src: LICENSE.md
         dst: /usr/share/doc/newrelic/newrelic-agent-control/LICENSE.md
+      - src: THIRD_PARTY_NOTICES.md
+        dst: /usr/share/doc/newrelic/newrelic-agent-control/THIRD_PARTY_NOTICES.md
       - dst: /var/lib/newrelic-agent-control
-        type: dir
-        file_info:
-          mode: 0700
-      - dst: /var/lib/newrelic-agent-control/filesystem
         type: dir
         file_info:
           mode: 0700
