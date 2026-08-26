@@ -60,7 +60,7 @@ enum LinuxScenarios {
     /// infra-agent invoked each OHI binary with the expected config
     AllOhisNoService(InstallationArgs),
     /// Installs Agent Control and runs the bundled uninstall.sh script, then asserts that
-    /// the binary, service unit, and static config are removed while runtime data is preserved.
+    /// the binary, service unit, static config and runtime data are fully removed.
     Uninstall(InstallationArgs),
 }
 
