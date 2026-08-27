@@ -125,9 +125,6 @@ cfg_if::cfg_if! {
     }
 }
 
-/// - **On-host**: Used as the filename for the PID file (e.g., `newrelic-agent-control.pid`).
-pub const PID_FILE_NAME: &str = "newrelic-agent-control.pid";
-
 /// - **On-host**: Used as the directory name (e.g., `.../fleet-data/` or `.../local-data/`).
 /// - **k8s**: Used as a ConfigMap prefix, followed by a hyphen (e.g., `local-data-agentid`).
 pub const FOLDER_NAME_LOCAL_DATA: &str = "local-data";

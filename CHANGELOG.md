@@ -14,6 +14,9 @@ Remember that the keywords that you can use under Unreleased section are:
 
 ## Unreleased
 
+### bugfix
+- On-host: fix false "already running" startup error when a stale PID file held a PID reused by an unrelated process.
+
 ## v1.23.0 - 2026-08-25
 
 ### 🚀 Enhancements
