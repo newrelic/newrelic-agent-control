@@ -77,6 +77,8 @@
                 enabled: true
               custom_attributes:
                 host.name: "{{ inventory_hostname }}"
+          self_update:
+            enabled: false
           agents:
             infra:
               agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
