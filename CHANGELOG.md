@@ -14,6 +14,9 @@ Remember that the keywords that you can use under Unreleased section are:
 
 ## Unreleased
 
+### enhancement
+- Add support for a new agentType variable field: `deprecated`. It can be used to mark the variable as deprecated.
+
 ## v1.23.0 - 2026-08-25
 
 ### 🚀 Enhancements
