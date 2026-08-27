@@ -22,7 +22,9 @@ For the current module breakdown inside `agent-control/src/`, run `find agent-co
 
 Building, cross-compilation, running locally, testing (unit, integration, root-required, k8s cluster-required), coverage, and profiling are all documented in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). `agent-control` (the `newrelic_agent_control` package) holds most of the test suite; its onhost/k8s/root-required tests run through the dedicated `make -C agent-control test/...` targets described there, not a single blanket `cargo test`.
 
-Before considering work done, run `cargo clippy --workspace --all-targets` and `cargo build`, plus tests for the modules you touched. This mirrors what CI enforces in [`push_pr_checks_tests.yml`](.github/workflows/push_pr_checks_tests.yml).
+Before considering work done:
+- Always run `cargo clippy --workspace --all-targets` and `cargo build`, plus tests for the modules you touched. This mirrors what CI enforces in [`push_pr_checks_tests.yml`](.github/workflows/push_pr_checks_tests.yml).
+- Always check that the code you write abides the code conventions.
 
 ## Agent type definitions
 
