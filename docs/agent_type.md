@@ -94,6 +94,7 @@ All variables have a few common attributes:
 * `variants`: Represents a defined list of acceptable values for the variable. Only values present in the variants list are considered valid.
 * `default`: The default value for the variable if no value is provided.
 * `required`: Whether the variable is mandatory to be provided or not.
+* `deprecated`: Marks the variable as deprecated. Defaults to `false`.
 
 In terms of variable types, we currently support the following types listed in [this source file](./variable/variable_type.rs#L22):
 

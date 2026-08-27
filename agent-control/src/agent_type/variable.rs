@@ -33,6 +33,8 @@ use variable_type::VariableType;
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct VariableDefinition {
     pub(crate) description: String,
+    #[serde(default)]
+    pub(crate) deprecated: bool,
     #[serde(flatten)]
     variable_type: VariableTypeDefinition,
 }
@@ -41,6 +43,7 @@ pub struct VariableDefinition {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Variable {
     pub(crate) description: String,
+    pub(crate) deprecated: bool,
     variable_type: VariableType,
 }
 
@@ -49,6 +52,7 @@ impl VariableDefinition {
     pub fn with_config(self, constraints: &VariableConstraints) -> Variable {
         Variable {
             description: self.description,
+            deprecated: self.deprecated,
             variable_type: self.variable_type.with_config(constraints),
         }
     }
@@ -64,6 +68,7 @@ impl Variable {
     pub fn new_final_string_variable(final_value: impl ToString) -> Self {
         Self {
             description: String::new(),
+            deprecated: false,
             variable_type: VariableType::String(StringFields {
                 inner: Fields {
                     required: false,
@@ -73,6 +78,11 @@ impl Variable {
                 variants: Default::default(),
             }),
         }
+    }
+
+    /// Returns whether this variable has been marked as deprecated in the agent type definition.
+    pub fn is_deprecated(&self) -> bool {
+        self.deprecated
     }
 
     /// Returns whether this variable must be provided with a value.
@@ -114,6 +124,7 @@ mod tests {
         fn from(kind_value: Fields<serde_json::Value>) -> Self {
             Self {
                 description: String::new(),
+                deprecated: false,
                 variable_type: VariableType::Yaml(kind_value),
             }
         }
@@ -123,6 +134,7 @@ mod tests {
         fn from(kind_value: Fields<HashMap<String, String>>) -> Self {
             Self {
                 description: String::new(),
+                deprecated: false,
                 variable_type: VariableType::StringMap(kind_value),
             }
         }
@@ -141,6 +153,7 @@ mod tests {
         {
             Self {
                 description,
+                deprecated: false,
                 variable_type: Fields::new(required, default, final_value).into(),
             }
         }
@@ -153,6 +166,7 @@ mod tests {
         ) -> Self {
             Self {
                 description,
+                deprecated: false,
                 variable_type: StringFields::new(
                     required,
                     default,
@@ -175,10 +189,50 @@ mod tests {
         });
         let definition = VariableDefinition {
             description: "some description".to_string(),
+            deprecated: false,
             variable_type: variable_type.clone(),
         };
 
         assert_eq!(definition.kind(), &variable_type);
+    }
+
+    #[test]
+    fn variable_definition_deserialize_deprecated_true() {
+        let value = r#"
+description: "some description"
+deprecated: true
+type: string
+required: false
+default: "a"
+"#;
+        let def: VariableDefinition = serde_saphyr::from_str(value).unwrap();
+        assert_eq!(def.description, "some description");
+        assert!(def.deprecated);
+    }
+
+    #[test]
+    fn variable_definition_deserialize_deprecated_absent_defaults_to_false() {
+        let value = r#"
+description: "some description"
+type: string
+required: false
+default: "a"
+"#;
+        let def: VariableDefinition = serde_saphyr::from_str(value).unwrap();
+        assert!(!def.deprecated);
+    }
+
+    #[test]
+    fn variable_definition_deserialize_deprecated_false() {
+        let value = r#"
+description: "some description"
+deprecated: false
+type: string
+required: false
+default: "a"
+"#;
+        let def: VariableDefinition = serde_saphyr::from_str(value).unwrap();
+        assert!(!def.deprecated);
     }
 
     #[test]
@@ -204,6 +258,7 @@ foo:
                     "var_name".to_string(),
                     Tree::End(VariableDefinition {
                         description: "some description".to_string(),
+                        deprecated: false,
                         variable_type: VariableTypeDefinition::String(StringFieldsDefinition {
                             inner: FieldsDefinition {
                                 required: false,

@@ -281,7 +281,12 @@ fn update_specs(
         };
 
         match spec {
-            Tree::End(e) => e.merge_with_yaml_value(value)?,
+            Tree::End(e) => {
+                if e.is_deprecated() {
+                    warn!(%key, "Deprecated variable in the configuration");
+                }
+                e.merge_with_yaml_value(value)?
+            }
             Tree::Mapping(m) => {
                 let v: HashMap<String, serde_json::Value> = serde_json::from_value(value)?;
                 update_specs(v, m)?
@@ -401,6 +406,7 @@ pub mod tests {
     use serde_json::Number;
     use serde_saphyr::Error;
     use std::collections::HashMap as Map;
+    use tracing_test::traced_test;
 
     /// `AgentTypeDefinition` deliberately has no production `Deserialize` impl: production code must go
     /// through the registry boundary so the `protocol_version` is always checked first. This test-only
@@ -1095,5 +1101,58 @@ deployment:
           {unknown}
 "#
         )
+    }
+
+    fn agent_type_yaml_with_variable(maybe_deprecated: &str) -> String {
+        format!(
+            r#"
+name: nrdot
+namespace: newrelic
+version: 0.0.1
+platform: host
+operating_system: linux
+variables:
+  timeout:
+    description: "timeout"
+    {maybe_deprecated}
+    type: string
+    required: false
+    default: "20s"
+deployment:
+  executables: []
+"#
+        )
+    }
+
+    #[traced_test]
+    #[test]
+    fn deprecated_variable_set_from_config_warns() {
+        let yaml = agent_type_yaml_with_variable("deprecated: true");
+        let agent = AgentType::build_for_testing(&yaml);
+        let _ = agent.fill_variables(r#"timeout: "5s""#);
+
+        assert!(logs_contain("Deprecated variable in the configuration"));
+        assert!(logs_contain("key=timeout"));
+    }
+
+    #[traced_test]
+    #[test]
+    fn non_deprecated_variable_set_from_config_does_not_warn() {
+        let yaml = agent_type_yaml_with_variable("deprecated: false");
+        let agent = AgentType::build_for_testing(&yaml);
+        let _ = agent.fill_variables(r#"timeout: "5s""#);
+
+        assert!(!logs_contain("Deprecated variable in the configuration"));
+    }
+
+    #[traced_test]
+    #[test]
+    fn deprecated_variable_left_unset_does_not_warn() {
+        let yaml = agent_type_yaml_with_variable("");
+
+        let agent = AgentType::build_for_testing(&yaml);
+        let _ = agent.fill_variables(r#"{}"#);
+
+        assert!(!logs_contain("Deprecated variable in the configuration"));
     }
 }
