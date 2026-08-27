@@ -12,6 +12,12 @@ Remember that the keywords that you can use under Unreleased section are:
  - enhancement => Minor
  - bugfix      => Patch
 
+Only add an entry if it changes what a user of Agent Control experiences: a new capability, a changed behavior, or a fixed bug. Skip:
+ - Internal refactors with no behavior change
+ - Documentation-only changes
+ - Test-only changes
+ - Pipeline/CI changes, unless they add support for something new (e.g. a new build target)
+
 ## Unreleased
 
 ## v1.23.0 - 2026-08-25
