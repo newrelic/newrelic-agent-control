@@ -235,6 +235,7 @@ impl AgentControlRunner {
             remote_config_parser: Arc::new(remote_config_parser),
             yaml_config_repository,
             agent_renderer,
+            agent_type_registry: self.agent_type_registry.clone(),
             sub_agent_publisher: self.sub_agent_publisher,
         };
 

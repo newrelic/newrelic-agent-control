@@ -26,6 +26,14 @@ pub struct K8s {
     pub guid_checker: K8sGuidCheckerConfig,
 }
 
+impl K8s {
+    /// Whether this deployment declares at least one health check. The `checks` list's shape
+    /// is static (never templated), so this is known without rendering.
+    pub(crate) fn health_check_enabled(&self) -> bool {
+        self.health.as_ref().is_some_and(|h| !h.checks.is_empty())
+    }
+}
+
 /// A K8s object, usually a CR, to be managed by the agent-control.
 #[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct K8sObject {

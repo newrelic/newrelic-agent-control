@@ -25,6 +25,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ### bugfix
 - On-host: fix false "already running" startup error when a stale PID file held a PID reused by an unrelated process.
+- Suppress `Health` reporting (OpAMP and status server) for sub-agents whose agent type defines no `health:` block, including on initial supervisor start failure.
 
 ## v1.23.0 - 2026-08-25
 

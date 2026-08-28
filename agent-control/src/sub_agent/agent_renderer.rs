@@ -296,7 +296,6 @@ pub(crate) mod tests {
                 agent_identity:&AgentIdentity,
                 yaml_config: YAMLConfig,
             ) -> Result<RenderedAgent, AgentRendererError>;
-
         }
     }
 

@@ -126,6 +126,11 @@ impl AgentTypeDefinition {
         &self.metadata.id
     }
 
+    /// Whether this agent type declares at least one health check.
+    pub(crate) fn health_check_enabled(&self) -> bool {
+        self.runtime_config.deployment.health_check_enabled()
+    }
+
     /// Materializes this definition into an [AgentType] by applying the given variable
     /// constraints to the parsed variable tree.
     pub fn with_constraints(self, constraints: &VariableConstraints) -> AgentType {

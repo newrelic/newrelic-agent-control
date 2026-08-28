@@ -3,6 +3,7 @@
 use crate::agent_control::defaults::{
     HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
+use crate::agent_type::registry::AgentTypeRegistry;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
@@ -28,7 +29,7 @@ use std::sync::Arc;
 use tracing::{debug, instrument};
 
 /// Builds [SubAgent]s configured for on-host execution, wiring up the OpAMP client and supervisor.
-pub struct OnHostSubAgentBuilder<O, I, B, R, Y, A>
+pub struct OnHostSubAgentBuilder<O, I, B, R, Y, A, TR>
 where
     O: BuildOpAMPClient,
     I: InstanceIDGetter,
@@ -36,6 +37,7 @@ where
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
     A: Renderer + Send + Sync + 'static,
+    TR: AgentTypeRegistry + Send + Sync + 'static,
 {
     pub(crate) opamp_builder: Option<O>,
     pub(crate) instance_id_getter: I,
@@ -43,10 +45,11 @@ where
     pub(crate) remote_config_parser: Arc<R>,
     pub(crate) yaml_config_repository: Arc<Y>,
     pub(crate) agent_renderer: Arc<A>,
+    pub(crate) agent_type_registry: Arc<TR>,
     pub(crate) sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
 }
 
-impl<O, I, B, R, Y, A> SubAgentBuilder for OnHostSubAgentBuilder<O, I, B, R, Y, A>
+impl<O, I, B, R, Y, A, TR> SubAgentBuilder for OnHostSubAgentBuilder<O, I, B, R, Y, A, TR>
 where
     O: BuildOpAMPClient + Send + Sync + 'static,
     I: InstanceIDGetter,
@@ -54,6 +57,7 @@ where
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
     A: Renderer + Send + Sync + 'static,
+    TR: AgentTypeRegistry + Send + Sync + 'static,
 {
     type NotStartedSubAgent = SubAgent<O::Client, B, R, Y, A>;
 
@@ -63,6 +67,10 @@ where
         agent_identity: &AgentIdentity,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
+
+        let agent_type_definition = self
+            .agent_type_registry
+            .get(&agent_identity.agent_type_id)?;
 
         let hostname = get_hostname()
             .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?
@@ -113,6 +121,7 @@ where
             self.remote_config_parser.clone(),
             self.yaml_config_repository.clone(),
             self.agent_renderer.clone(),
+            agent_type_definition,
         ))
     }
 }
@@ -187,6 +196,8 @@ mod tests {
         PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_custom_capabilities,
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::agent_type::definition::AgentTypeDefinition;
+    use crate::agent_type::registry::tests::MockAgentTypeRegistry;
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilder;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::instance_id::InstanceID;
@@ -235,6 +246,12 @@ mod tests {
         let supervisor_builder =
             MockSupervisorBuilder::<MockSupervisorStarter<MockSupervisor>>::new();
 
+        let mut agent_type_registry = MockAgentTypeRegistry::new();
+        agent_type_registry.should_get(
+            agent_identity.agent_type_id.clone(),
+            &AgentTypeDefinition::empty_with_metadata(agent_identity.agent_type_id.clone()),
+        );
+
         let on_host_builder = OnHostSubAgentBuilder {
             opamp_builder: Some(opamp_builder),
             instance_id_getter,
@@ -242,6 +259,7 @@ mod tests {
             remote_config_parser: Arc::new(MockRemoteConfigParser::new()),
             yaml_config_repository: Arc::new(MockConfigRepository::new()),
             agent_renderer: Arc::new(MockAgentRenderer::new()),
+            agent_type_registry: Arc::new(agent_type_registry),
             sub_agent_publisher: UnboundedBroadcast::default(),
         };
 

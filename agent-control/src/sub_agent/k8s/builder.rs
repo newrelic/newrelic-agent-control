@@ -2,6 +2,7 @@
 
 use crate::agent_control::config::K8sConfig;
 use crate::agent_control::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
+use crate::agent_type::registry::AgentTypeRegistry;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
@@ -26,7 +27,7 @@ use std::sync::Arc;
 use tracing::{debug, instrument};
 
 /// Builds [SubAgent]s configured for Kubernetes, wiring up the OpAMP client and supervisor.
-pub struct K8sSubAgentBuilder<O, I, B, R, Y, A>
+pub struct K8sSubAgentBuilder<O, I, B, R, Y, A, TR>
 where
     O: BuildOpAMPClient,
     I: InstanceIDGetter,
@@ -34,6 +35,7 @@ where
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
     A: Renderer + Send + Sync + 'static,
+    TR: AgentTypeRegistry + Send + Sync + 'static,
 {
     pub(crate) opamp_builder: Option<O>,
     pub(crate) instance_id_getter: I,
@@ -42,10 +44,11 @@ where
     pub(crate) remote_config_parser: Arc<R>,
     pub(crate) config_repository: Arc<Y>,
     pub(crate) agent_renderer: Arc<A>,
+    pub(crate) agent_type_registry: Arc<TR>,
     pub(crate) sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
 }
 
-impl<O, I, B, R, Y, A> SubAgentBuilder for K8sSubAgentBuilder<O, I, B, R, Y, A>
+impl<O, I, B, R, Y, A, TR> SubAgentBuilder for K8sSubAgentBuilder<O, I, B, R, Y, A, TR>
 where
     O: BuildOpAMPClient + Send + Sync + 'static,
     I: InstanceIDGetter,
@@ -53,6 +56,7 @@ where
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
     A: Renderer + Send + Sync + 'static,
+    TR: AgentTypeRegistry + Send + Sync + 'static,
 {
     type NotStartedSubAgent = SubAgent<O::Client, B, R, Y, A>;
 
@@ -62,6 +66,10 @@ where
         agent_identity: &AgentIdentity,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
+
+        let agent_type_definition = self
+            .agent_type_registry
+            .get(&agent_identity.agent_type_id)?;
 
         let opamp_start_settings = sub_agent_start_settings(
             &self.instance_id_getter,
@@ -106,6 +114,7 @@ where
             self.remote_config_parser.clone(),
             self.config_repository.clone(),
             self.agent_renderer.clone(),
+            agent_type_definition,
         ))
     }
 }
@@ -177,6 +186,8 @@ pub mod tests {
         PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_custom_capabilities,
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::agent_type::definition::AgentTypeDefinition;
+    use crate::agent_type::registry::tests::MockAgentTypeRegistry;
     use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
     use crate::opamp::client_builder::OpAMPClientBuilderError;
@@ -223,6 +234,12 @@ pub mod tests {
 
         let agent_renderer = MockAgentRenderer::new();
 
+        let mut agent_type_registry = MockAgentTypeRegistry::new();
+        agent_type_registry.should_get(
+            agent_identity.agent_type_id.clone(),
+            &AgentTypeDefinition::empty_with_metadata(agent_identity.agent_type_id.clone()),
+        );
+
         let builder = K8sSubAgentBuilder {
             opamp_builder: Some(opamp_builder),
             instance_id_getter,
@@ -231,6 +248,7 @@ pub mod tests {
             remote_config_parser: Arc::new(remote_config_parser),
             config_repository: Arc::new(MockConfigRepository::new()),
             agent_renderer: Arc::new(agent_renderer),
+            agent_type_registry: Arc::new(agent_type_registry),
             sub_agent_publisher: UnboundedBroadcast::default(),
         };
 
@@ -259,6 +277,12 @@ pub mod tests {
 
         let agent_renderer = MockAgentRenderer::new();
 
+        let mut agent_type_registry = MockAgentTypeRegistry::new();
+        agent_type_registry.should_get(
+            agent_identity.agent_type_id.clone(),
+            &AgentTypeDefinition::empty_with_metadata(agent_identity.agent_type_id.clone()),
+        );
+
         let builder = K8sSubAgentBuilder {
             opamp_builder: Some(opamp_builder),
             instance_id_getter,
@@ -267,6 +291,7 @@ pub mod tests {
             remote_config_parser: Arc::new(remote_config_parser),
             config_repository: Arc::new(MockConfigRepository::new()),
             agent_renderer: Arc::new(agent_renderer),
+            agent_type_registry: Arc::new(agent_type_registry),
             sub_agent_publisher: UnboundedBroadcast::default(),
         };
 
