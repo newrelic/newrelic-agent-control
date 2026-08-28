@@ -9,7 +9,6 @@ pub mod defaults;
 pub mod error;
 mod health_checker;
 pub mod http_server;
-pub mod pid_cache;
 pub mod resource_cleaner;
 pub mod run;
 pub mod uptime_report;

@@ -70,15 +70,6 @@ fn _main(context: Context) -> Result<(), Box<dyn Error>> {
         return Err("Program must run with elevated permissions".into());
     }
 
-    #[cfg(all(target_family = "unix", not(feature = "multiple-instances")))]
-    if let Err(err) = newrelic_agent_control::agent_control::pid_cache::PIDCache::from_data_dir(
-        &context.ac_runner_context.base_paths.remote_dir,
-    )
-    .store(std::process::id())
-    {
-        return Err(format!("Error saving main process id: {err}").into());
-    }
-
     // Create the actual agent control runner with the rest of required configs
     // and the application_event_consumer and capture the result to report the error in windows
     let run_result = AgentControlRunner::try_new(context.ac_runner_context)
