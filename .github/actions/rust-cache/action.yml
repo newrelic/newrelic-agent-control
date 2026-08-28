@@ -89,8 +89,21 @@ runs:
           target/
         key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     
-    - name: Save rust cache
-      if: ${{ inputs.save-cache == 'true' }}
+    - name: Restore and Save rust cache (nearest match)
+      if: ${{ inputs.save-cache == 'true' && inputs.restore-strategy == 'nearest' }}
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-${{ inputs.identifier }}-cargo-
+
+    - name: Restore and Save rust cache (exact match)
+      if: ${{ inputs.save-cache == 'true' && inputs.restore-strategy == 'exact' }}
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       with:
         path: |
