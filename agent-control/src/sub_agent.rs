@@ -8,7 +8,6 @@
 pub mod agent_renderer;
 pub mod collection;
 pub mod error;
-pub(crate) mod event_handler;
 pub mod health_checker;
 pub mod identity;
 pub mod k8s;
@@ -41,7 +40,6 @@ use crossbeam::channel::never;
 use crossbeam::select;
 use error::SubAgentStopError;
 use error::{SubAgentBuilderError, SubAgentError};
-use event_handler::on_health::on_health;
 use identity::AgentIdentity;
 use opamp_client::StartedClient;
 use remote_config_parser::RemoteConfigParser;
@@ -369,19 +367,16 @@ where
                                     log_health_info(&health_state);
                                 }
                                 previous_health = Some(health_state);
-                                let _ = on_health(
-                                    health,
-                                    self.maybe_opamp_client.as_ref(),
-                                    self.sub_agent_publisher.clone(),
-                                    self.identity.clone(),
-                                )
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "Processing health message"));
+                                let _ = self.maybe_opamp_client.as_ref().map(|c|
+                                    c.set_health(health.clone().into())
+                                      .inspect_err(|e| error!("Processing health message: {e}")));
+                                self.sub_agent_publisher.broadcast(SubAgentEvent::new_health(self.identity.clone(), health));
                             },
                             Ok(SubAgentInternalEvent::AgentAttributesUpdated(attributes)) => {
                                 debug!("Updating SubAgent attributes with: {:?}", attributes);
                                 let _ = self.maybe_opamp_client.as_ref().map(|c|
                                     update_opamp_attributes(c, attributes.clone())
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing update agent attributes message")));
+                                .inspect_err(|e| error!("Processing update agent attributes message: {e}")));
 
                                 self.sub_agent_publisher.broadcast(SubAgentEvent::AgentDescriptionUpdated(self.identity.clone(), attributes));
                             }
