@@ -982,6 +982,22 @@ foo:
 foo:
   bar: value1"#
     )]
+    // configAgent (base)  <  override (blob)  <  override.variable (whole-variable)  <  override.variable:filename (map-entry)
+    #[case::precedence_configagent_lt_override_lt_variable_lt_map_entry(
+        json!({
+            AGENT_CONFIG_PREFIX: "key1: original\nkey2: original\nfiles:\n  first.yaml: from_base\n  second.yaml: from_base",
+            AGENT_CONFIG_OVERRIDE_PREFIX: "key2: from_override\nfiles:\n  my.yaml: from_override",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.files"): "first.yaml: from_var_override\nsecond.yaml: from_var_override",
+            format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.files:second.yaml"): "from_map_entry_override"
+        }),
+        &single_variable("files", STRING_MAP_VAR),
+        r#"
+key1: original
+key2: from_override
+files:
+  first.yaml: from_var_override
+  second.yaml: from_map_entry_override"#
+    )]
     fn test_valid_remote_config_values(
         #[case] config: serde_json::Value,
         #[case] variables_yaml: &str,
