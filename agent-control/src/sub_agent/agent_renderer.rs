@@ -1,5 +1,5 @@
 //! Renders an [RenderedAgent] (rendered runtime configuration) from an agent identity and
-//! its YAML config, resolving the agent type, variables, and secrets.
+//! its YAML config, resolving the agent type, variables, and dynamic values.
 
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::definition::VariableTree;
@@ -11,10 +11,10 @@ use crate::agent_type::runtime_config::{Runtime, rendered};
 use crate::agent_type::templates::Templateable;
 use crate::agent_type::variable::Variable;
 use crate::agent_type::variable::constraints::VariableConstraints;
+use crate::agent_type::variable::dynamic_variables::{DynamicVariables, DynamicVariablesError};
 use crate::agent_type::variable::namespace::{Namespace, VariableName};
-use crate::agent_type::variable::secret_variables::{SecretVariables, SecretVariablesError};
-use crate::secrets_provider::{Registry, SecretsProvider, SecretsProviderType};
 use crate::sub_agent::identity::AgentIdentity;
+use crate::value_provider::{Registry, ValueProvider, ValueProviderType};
 use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -40,9 +40,9 @@ pub enum AgentRendererError {
     /// The agent type definition was invalid.
     #[error("rendering agent type: {0}")]
     AgentTypeError(#[from] AgentTypeError),
-    /// Secret variables could not be loaded.
-    #[error("loading secrets: {0}")]
-    SecretVariablesError(#[from] SecretVariablesError),
+    /// Dynamic variables could not be loaded.
+    #[error("loading dynamic variables: {0}")]
+    DynamicVariablesError(#[from] DynamicVariablesError),
 }
 
 /// An agent with its identity and fully rendered runtime configuration.
@@ -120,43 +120,43 @@ pub trait Renderer {
 ///
 /// Important: Rendering an Agent may mutate the state of external resources by creating
 /// or removing configs when the `Runtime` is rendered.
-pub struct AgentRenderer<R, S = SecretsProviderType>
+pub struct AgentRenderer<R, S = ValueProviderType>
 where
     R: AgentTypeRegistry,
-    S: SecretsProvider,
+    S: ValueProvider,
 {
     registry: Arc<R>,
     ac_variables: HashMap<VariableName, Variable>,
     variable_constraints: VariableConstraints,
-    secrets_providers: Registry<S>,
+    value_providers: Registry<S>,
     remote_dir: PathBuf,
 }
 
 impl<R, S> AgentRenderer<R, S>
 where
     R: AgentTypeRegistry,
-    S: SecretsProvider,
+    S: ValueProvider,
 {
     /// Creates a renderer from an agent-type registry, agent-control variables, variable
-    /// constraints, secrets providers, and the remote configuration directory.
+    /// constraints, value providers, and the remote configuration directory.
     pub fn new(
         registry: Arc<R>,
         ac_variables: HashMap<VariableName, Variable>,
         variable_constraints: VariableConstraints,
-        secrets_providers: Registry<S>,
+        value_providers: Registry<S>,
         remote_dir: &Path,
     ) -> Self {
         AgentRenderer {
             registry,
             ac_variables,
             variable_constraints,
-            secrets_providers,
+            value_providers,
             remote_dir: remote_dir.to_path_buf(),
         }
     }
 
-    // Loads all secret variables referenced in the provided runtime and values.
-    fn load_secrets(
+    // Loads all dynamic variables referenced in the provided runtime and values.
+    fn load_dynamic_variables(
         &self,
         runtime_config: &Runtime,
         values: YAMLConfig,
@@ -164,25 +164,25 @@ where
         let user_values: String = values
             .clone()
             .try_into()
-            .map_err(|e: YAMLConfigError| SecretVariablesError::YamlParseError(e.to_string()))?;
+            .map_err(|e: YAMLConfigError| DynamicVariablesError::YamlParseError(e.to_string()))?;
         let runtime: String = serde_json::to_string(runtime_config)
-            .map_err(|e| SecretVariablesError::YamlParseError(e.to_string()))?;
+            .map_err(|e| DynamicVariablesError::YamlParseError(e.to_string()))?;
 
-        let secret_variables_values = SecretVariables::from(user_values.as_str());
-        let secret_variables_runtime = SecretVariables::from(runtime.as_str());
+        let dynamic_variables_values = DynamicVariables::from(user_values.as_str());
+        let dynamic_variables_runtime = DynamicVariables::from(runtime.as_str());
 
-        let mut secrets: HashMap<VariableName, Variable> = HashMap::new();
-        secrets.extend(secret_variables_values.load_secrets(&self.secrets_providers)?);
-        secrets.extend(secret_variables_runtime.load_secrets(&self.secrets_providers)?);
+        let mut dynamic_variables: HashMap<VariableName, Variable> = HashMap::new();
+        dynamic_variables.extend(dynamic_variables_values.load_values(&self.value_providers)?);
+        dynamic_variables.extend(dynamic_variables_runtime.load_values(&self.value_providers)?);
 
-        Ok(secrets)
+        Ok(dynamic_variables)
     }
 }
 
 impl<R, S> Renderer for AgentRenderer<R, S>
 where
     R: AgentTypeRegistry,
-    S: SecretsProvider,
+    S: ValueProvider,
 {
     fn render_agent(
         &self,
@@ -200,14 +200,15 @@ where
             AgentAttributes::try_new(agent_identity.id.to_owned(), self.remote_dir.to_path_buf())
                 .map_err(|e| AgentRendererError::Generic(e.to_string()))?;
 
-        let secrets = self.load_secrets(&agent_type.runtime_config, values.clone())?;
+        let dynamic_variables =
+            self.load_dynamic_variables(&agent_type.runtime_config, values.clone())?;
 
         let (variable_tree, runtime_config) = (agent_type.variables, agent_type.runtime_config);
 
         // Expand user values: raw values can themselves reference other variables (e.g.
         // ${nr-env:...}, ${nr-path:...}, ${nr-vault:...}), so resolve those before using
         // the values to fill the agent type's variable tree.
-        let user_expansion_variables: HashMap<VariableName, Variable> = secrets
+        let user_expansion_variables: HashMap<VariableName, Variable> = dynamic_variables
             .clone()
             .into_iter()
             .chain(agent_attributes.nr_path_variables())
@@ -220,7 +221,7 @@ where
         let ns_variables = expanded_user_variables
             .into_iter()
             .chain(agent_attributes.nr_sub_variables())
-            .chain(secrets)
+            .chain(dynamic_variables)
             .chain(self.ac_variables.clone())
             .collect::<HashMap<VariableName, Variable>>();
 
@@ -239,7 +240,7 @@ fn get_expanded_user_variables(
     user_expansion_variables: &HashMap<VariableName, Variable>,
 ) -> Result<HashMap<VariableName, Variable>, AgentTypeError> {
     // Values are expanded substituting all ${nr-env, nr-values} performing double expansions.
-    // Notice that only data coming from secrets providers taken into consideration (no other vars for example)
+    // Notice that only data coming from value providers is taken into consideration (no other vars for example)
     let values_expanded = values.template_with(user_expansion_variables)?;
 
     // Fill agent data in the variables tree
@@ -299,39 +300,39 @@ pub(crate) mod tests {
         }
     }
 
-    /// Error returned by [MockFixedSecretsProvider] when no fixed value is registered for a
-    /// requested secret path.
+    /// Error returned by [MockFixedValueProvider] when no fixed value is registered for a
+    /// requested path.
     #[derive(Error, Debug)]
-    #[error("no fixed secret registered for {0}")]
-    pub struct FixedSecretError(String);
+    #[error("no fixed value registered for {0}")]
+    pub struct FixedValueError(String);
 
     mock! {
-        pub FixedSecretsProvider {}
+        pub FixedValueProvider {}
 
-        impl SecretsProvider for FixedSecretsProvider {
-            type Error = FixedSecretError;
+        impl ValueProvider for FixedValueProvider {
+            type Error = FixedValueError;
 
-            fn get_secret(&self, secret_path: &str) -> Result<String, FixedSecretError>;
+            fn get_value(&self, path: &str) -> Result<String, FixedValueError>;
         }
     }
 
     /// Builds a [`Registry`] that resolves `${nr-env:...}` references to the given fixed values,
-    /// without registering the real [`Env`](crate::secrets_provider::env::Env) provider and
+    /// without registering the real [`Env`](crate::value_provider::env::Env) provider and
     /// therefore without touching real process environment variables.
-    pub fn env_secrets_registry_for_testing(
+    pub fn env_value_registry_for_testing(
         values: HashMap<&'static str, &'static str>,
-    ) -> Registry<MockFixedSecretsProvider> {
+    ) -> Registry<MockFixedValueProvider> {
         let values: HashMap<String, String> = values
             .into_iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        let mut provider = MockFixedSecretsProvider::new();
-        provider.expect_get_secret().returning(move |path| {
+        let mut provider = MockFixedValueProvider::new();
+        provider.expect_get_value().returning(move |path| {
             values
                 .get(path)
                 .cloned()
-                .ok_or_else(|| FixedSecretError(path.to_string()))
+                .ok_or_else(|| FixedValueError(path.to_string()))
         });
 
         Registry::from(HashMap::from([(Namespace::EnvironmentVariable, provider)]))
@@ -343,7 +344,7 @@ pub(crate) mod tests {
                 registry: Arc::new(registry),
                 ac_variables: HashMap::new(),
                 variable_constraints: VariableConstraints::default(),
-                secrets_providers: Registry::default(),
+                value_providers: Registry::default(),
                 remote_dir: PathBuf::default(),
             }
         }
@@ -674,7 +675,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
     fn test_render_with_env_variables() {
         let (registry, agent_identity) =
             registry_for_testing(K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES);
-        let secrets_providers = env_secrets_registry_for_testing(HashMap::from([
+        let value_providers = env_value_registry_for_testing(HashMap::from([
             ("MY_VARIABLE", "my-value"),
             ("MY_VARIABLE_2", "my-value-2"),
         ]));
@@ -682,7 +683,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
             Arc::new(registry),
             HashMap::new(),
             VariableConstraints::default(),
-            secrets_providers,
+            value_providers,
             Path::new(""),
         );
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
@@ -719,7 +720,7 @@ substituted_2: my-value-2
     #[test]
     fn test_render_agent_double_expansion_with_env_variables() {
         let (registry, agent_identity) = registry_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES);
-        let secrets_providers = env_secrets_registry_for_testing(HashMap::from([
+        let value_providers = env_value_registry_for_testing(HashMap::from([
             ("DOUBLE_EXPANSION", "test"),
             ("DOUBLE_EXPANSION_2", "test-2"),
         ]));
@@ -727,7 +728,7 @@ substituted_2: my-value-2
             Arc::new(registry),
             HashMap::new(),
             VariableConstraints::default(),
-            secrets_providers,
+            value_providers,
             Path::new(""),
         );
         let values = testing_values(
@@ -764,7 +765,7 @@ key-2: test-2
         let renderer = AgentRenderer::new_for_testing(registry);
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
 
-        // No secrets provider is registered, so `${nr-env:MY_VARIABLE}` and
+        // No value provider is registered, so `${nr-env:MY_VARIABLE}` and
         // `${nr-env:MY_VARIABLE_2}` in the runtime config are never resolved.
         let result = renderer.render_agent(&agent_identity, values);
 
@@ -804,14 +805,14 @@ deployment:
 "#,
         );
         // The template references `MY_VARIABLE` (uppercase); the provider only knows the
-        // lowercase path, so secret loading itself fails before templating is ever reached.
-        let secrets_providers =
-            env_secrets_registry_for_testing(HashMap::from([("my_variable", "my-value")]));
+        // lowercase path, so value loading itself fails before templating is ever reached.
+        let value_providers =
+            env_value_registry_for_testing(HashMap::from([("my_variable", "my-value")]));
         let renderer = AgentRenderer::new(
             Arc::new(registry),
             HashMap::new(),
             VariableConstraints::default(),
-            secrets_providers,
+            value_providers,
             Path::new(""),
         );
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
@@ -820,7 +821,7 @@ deployment:
 
         assert_matches!(
             result.unwrap_err(),
-            AgentRendererError::SecretVariablesError(_)
+            AgentRendererError::DynamicVariablesError(_)
         );
     }
 
@@ -851,7 +852,7 @@ deployment:
             Arc::new(registry),
             agent_control_variables,
             VariableConstraints::default(),
-            Registry::<SecretsProviderType>::default(),
+            Registry::<ValueProviderType>::default(),
             Path::new(""),
         );
         let values = testing_values("");
@@ -894,19 +895,19 @@ deployment:
 "#,
         );
 
-        let mut vault = MockFixedSecretsProvider::new();
+        let mut vault = MockFixedValueProvider::new();
         vault
-            .expect_get_secret()
+            .expect_get_value()
             .returning(|_| Ok("vault-value".to_string()));
-        let mut env = MockFixedSecretsProvider::new();
-        env.expect_get_secret()
+        let mut env = MockFixedValueProvider::new();
+        env.expect_get_value()
             .returning(|_| Ok("env-value".to_string()));
-        let mut kubesec = MockFixedSecretsProvider::new();
+        let mut kubesec = MockFixedValueProvider::new();
         kubesec
-            .expect_get_secret()
+            .expect_get_value()
             .returning(|_| Ok("kubesec-value".to_string()));
 
-        let secrets_providers = Registry::from(HashMap::from([
+        let value_providers = Registry::from(HashMap::from([
             (Namespace::Vault, vault),
             (Namespace::EnvironmentVariable, env),
             (Namespace::K8sSecret, kubesec),
@@ -915,7 +916,7 @@ deployment:
             Arc::new(registry),
             HashMap::new(),
             VariableConstraints::default(),
-            secrets_providers,
+            value_providers,
             Path::new(""),
         );
 
@@ -988,7 +989,7 @@ deployment:
             Arc::new(registry),
             HashMap::new(),
             VariableConstraints::default(),
-            Registry::<SecretsProviderType>::default(),
+            Registry::<ValueProviderType>::default(),
             &remote_dir,
         );
 

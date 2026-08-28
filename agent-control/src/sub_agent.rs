@@ -823,7 +823,7 @@ pub mod tests {
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
     use crate::opamp::remote_config::{AGENT_CONFIG_PREFIX, ConfigurationMap, OpampRemoteConfig};
-    use crate::secrets_provider::SecretsProviders;
+    use crate::value_provider::ValueProviders;
     use crate::values::config::RemoteConfig;
     use crate::values::config_repository::tests::InMemoryConfigRepository;
     use assert_matches::assert_matches;
@@ -1116,7 +1116,7 @@ deployment:
             agent_type_registry.clone(),
             HashMap::new(),
             VariableConstraints::default(),
-            SecretsProviders::default(),
+            ValueProviders::default(),
             PathBuf::default().as_path(),
         ));
 
@@ -1249,7 +1249,7 @@ deployment:
             agent_type_registry.clone(),
             HashMap::new(),
             VariableConstraints::default(),
-            SecretsProviders::default(),
+            ValueProviders::default(),
             PathBuf::default().as_path(),
         ));
 
@@ -1934,7 +1934,7 @@ deployment:
             Arc::new(TestAgent::agent_type_definition_with_required_var().into()),
             HashMap::new(),
             VariableConstraints::default(),
-            SecretsProviders::default(),
+            ValueProviders::default(),
             PathBuf::default().as_path(),
         ));
 

@@ -42,13 +42,13 @@ use crate::opamp::operations::agent_description;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::opamp::secret_retriever::k8s::retrieve::K8sSecretRetriever;
-use crate::secrets_provider::SecretsProviders;
-use crate::secrets_provider::k8s_secret::K8sSecretProvider;
 use crate::sub_agent::agent_renderer::AgentRenderer;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::thread_context::StartedThreadContext;
+use crate::value_provider::ValueProviders;
+use crate::value_provider::k8s_secret::K8sSecretProvider;
 use crate::{k8s::configmap_store::ConfigMapStore, sub_agent::k8s::builder::K8sSubAgentBuilder};
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::get_hostname;
@@ -166,20 +166,20 @@ impl AgentControlRunner {
             ),
         ]);
 
-        let mut secrets_providers = SecretsProviders::default()
+        let mut value_providers = ValueProviders::default()
             .with_env()
             .with_k8s_secret(k8s_client.clone());
         if let Some(config) = &agent_control_config.secrets_providers {
-            secrets_providers = secrets_providers
+            value_providers = value_providers
                 .with_config(config.clone())
-                .map_err(|e| RunError(format!("failed to load secrets providers: {e}")))?;
+                .map_err(|e| RunError(format!("failed to load value providers: {e}")))?;
         }
 
         let agent_renderer = Arc::new(AgentRenderer::new(
             self.agent_type_registry.clone(),
             agent_control_variables,
             self.bootstrap_config.agent_type_var_constraints,
-            secrets_providers,
+            value_providers,
             &self.base_paths.remote_dir,
         ));
 

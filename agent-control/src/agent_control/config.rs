@@ -17,8 +17,8 @@ use crate::opamp::auth::config::AuthConfig;
 use crate::opamp::client_builder::PollInterval;
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
-use crate::secrets_provider::SecretsProvidersConfig;
 use crate::utils::retry::BackoffPolicy;
+use crate::value_provider::ValueProvidersConfig;
 use crate::values::yaml_config::YAMLConfig;
 use crate::{
     agent_type::agent_type_id::AgentTypeID, instrumentation::config::InstrumentationConfig,
@@ -84,9 +84,9 @@ pub struct AgentControlConfig {
     #[serde(default)]
     pub agent_type_var_constraints: VariableConstraints,
 
-    /// configuration for every secrets provider that the current AgentControl instance should be able to access
+    /// configuration for every value provider that the current AgentControl instance should be able to access
     #[serde(default)]
-    pub secrets_providers: Option<SecretsProvidersConfig>,
+    pub secrets_providers: Option<ValueProvidersConfig>,
 
     /// Contains the configuration related to host agent packages
     #[serde(default)]

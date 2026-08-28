@@ -1,4 +1,4 @@
-//! Extraction and loading of secret variables referenced from a sub-agent configuration.
+//! Extraction and loading of dynamic variables referenced from a sub-agent configuration.
 use std::collections::{HashMap, HashSet};
 
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
             namespace::{Namespace, VariableName},
         },
     },
-    secrets_provider::{Registry, SecretsProvider},
+    value_provider::{Registry, ValueProvider},
 };
 
 /// Represents the prefix used for namespaced variables.
@@ -20,7 +20,7 @@ type NamespacePrefix = String;
 /// Example: {"PATH_A", "PATH_B", "sourceA:kv:secrets:password"}.
 type VariablesNamesCollection = HashSet<String>;
 
-/// Represents a collection of secret variables extracted from a sub-agent configuration.
+/// Represents a collection of dynamic variables extracted from a sub-agent configuration.
 ///
 /// It will contain something like:
 /// ```example
@@ -36,13 +36,13 @@ type VariablesNamesCollection = HashSet<String>;
 ///     },
 /// }
 /// ```
-pub struct SecretVariables {
+pub struct DynamicVariables {
     variables: HashMap<NamespacePrefix, VariablesNamesCollection>,
 }
 
-impl From<&str> for SecretVariables {
+impl From<&str> for DynamicVariables {
     fn from(s: &str) -> Self {
-        let mut result = SecretVariables {
+        let mut result = DynamicVariables {
             variables: HashMap::new(),
         };
 
@@ -55,7 +55,7 @@ impl From<&str> for SecretVariables {
             let (_templatable_placeholder, [captured_var, _captured_functions]) =
                 captures.extract();
 
-            if Namespace::is_secret_variable(captured_var) {
+            if Namespace::is_dynamic_variable(captured_var) {
                 result.add_namespaced_variable(captured_var);
             }
         }
@@ -64,13 +64,13 @@ impl From<&str> for SecretVariables {
     }
 }
 
-/// Errors produced while extracting or loading secret variables.
+/// Errors produced while extracting or loading dynamic variables.
 #[derive(thiserror::Error, Debug)]
-pub enum SecretVariablesError {
-    /// A secret could not be loaded from its provider.
-    #[error("failed to load secret {path}: {err_msg}")]
-    SecretsLoadError {
-        /// The secret path that failed to load.
+pub enum DynamicVariablesError {
+    /// A value could not be loaded from its provider.
+    #[error("failed to load value {path}: {err_msg}")]
+    ValueLoadError {
+        /// The path that failed to load.
         path: String,
         /// The underlying error message.
         err_msg: String,
@@ -81,32 +81,32 @@ pub enum SecretVariablesError {
     YamlParseError(String),
 }
 
-impl SecretVariables {
-    /// Loads secrets from all providers.
-    pub fn load_secrets<S: SecretsProvider>(
+impl DynamicVariables {
+    /// Loads values from all providers.
+    pub fn load_values<S: ValueProvider>(
         &self,
-        secrets_providers_registry: &Registry<S>,
-    ) -> Result<HashMap<VariableName, Variable>, SecretVariablesError> {
-        if secrets_providers_registry.is_empty() {
+        value_providers_registry: &Registry<S>,
+    ) -> Result<HashMap<VariableName, Variable>, DynamicVariablesError> {
+        if value_providers_registry.is_empty() {
             return Ok(HashMap::new());
         }
 
         let mut result = HashMap::new();
-        for (namespace, provider) in secrets_providers_registry {
-            let Some(secrets_paths) = self.variables.get(&namespace.to_string()) else {
+        for (namespace, provider) in value_providers_registry {
+            let Some(value_paths) = self.variables.get(&namespace.to_string()) else {
                 continue;
             };
 
-            for secret_path in secrets_paths {
-                let secret_value = provider.get_secret(secret_path).map_err(|e| {
-                    SecretVariablesError::SecretsLoadError {
-                        path: secret_path.to_string(),
+            for value_path in value_paths {
+                let value = provider.get_value(value_path).map_err(|e| {
+                    DynamicVariablesError::ValueLoadError {
+                        path: value_path.to_string(),
                         err_msg: e.to_string(),
                     }
                 })?;
                 result.insert(
-                    VariableName::new(*namespace, secret_path),
-                    Variable::new_final_string_variable(secret_value),
+                    VariableName::new(*namespace, value_path),
+                    Variable::new_final_string_variable(value),
                 );
             }
         }
@@ -141,12 +141,12 @@ mod tests {
     use rstest::rstest;
     use std::collections::HashSet;
 
-    use crate::secrets_provider::{Registry, SecretsProviders, vault::tests::MockVault};
+    use crate::value_provider::{Registry, ValueProviders, vault::tests::MockVault};
 
     use super::*;
 
     #[test]
-    fn test_extract_secrets() {
+    fn test_extract_dynamic_variables() {
         let input = r#"
 data: ${nr-var:var.name|indent 2}
 path:${nr-vault:PATH_A|indent 2|indent 2}
@@ -166,11 +166,11 @@ eof"#;
                 "sourceA:my_database:admin/credentials:username".to_string(),
             ]),
         )]);
-        assert_eq!(SecretVariables::from(input).variables, expected);
+        assert_eq!(DynamicVariables::from(input).variables, expected);
     }
 
     #[rstest]
-    fn test_extract_secrets_when_no_secrets_present_in_string(
+    fn test_extract_dynamic_variables_when_none_present_in_string(
         #[values(
             "test string",
             "${nr-var:var.name}",
@@ -182,12 +182,12 @@ eof"#;
         )]
         input: &str,
     ) {
-        assert!(SecretVariables::from(input).variables.is_empty());
+        assert!(DynamicVariables::from(input).variables.is_empty());
     }
 
     #[test]
-    fn test_load_secrets() {
-        let secrets = SecretVariables {
+    fn test_load_values() {
+        let variables = DynamicVariables {
             variables: HashMap::from([(
                 "nr-vault".to_string(),
                 HashSet::from(["sourceA:my_database:admin/credentials:username".to_string()]),
@@ -196,14 +196,14 @@ eof"#;
 
         let mut mock_vault = MockVault::new();
         mock_vault
-            .expect_get_secret()
+            .expect_get_value()
             .with(predicate::eq(
                 "sourceA:my_database:admin/credentials:username",
             ))
             .returning(|_| Ok("mocked_value_D".to_string()));
 
         let registry = Registry::from(HashMap::from_iter(vec![(Namespace::Vault, mock_vault)]));
-        let result = secrets.load_secrets(&registry).unwrap();
+        let result = variables.load_values(&registry).unwrap();
         assert_eq!(
             result,
             HashMap::from([(
@@ -217,11 +217,11 @@ eof"#;
     }
 
     #[test]
-    fn test_load_secrets_with_empty_registry() {
-        let secrets = SecretVariables {
+    fn test_load_values_with_empty_registry() {
+        let variables = DynamicVariables {
             variables: HashMap::new(),
         };
-        let result = secrets.load_secrets(&SecretsProviders::default()).unwrap();
+        let result = variables.load_values(&ValueProviders::default()).unwrap();
         assert!(result.is_empty());
     }
 }

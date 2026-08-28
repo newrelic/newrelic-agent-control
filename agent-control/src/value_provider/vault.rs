@@ -1,6 +1,6 @@
-//! Secrets provider that reads secrets from HashiCorp Vault (KV1 and KV2 engines).
+//! Value provider that reads secrets from HashiCorp Vault (KV1 and KV2 engines).
 
-use super::SecretsProvider;
+use super::ValueProvider;
 use crate::http::client::{HttpBuildError, HttpClient, HttpResponseError};
 use crate::http::config::{HttpConfig, ProxyConfig};
 use duration_str::deserialize_duration;
@@ -241,11 +241,11 @@ impl Vault {
     }
 }
 
-/// Implements the SecretsProvider trait for Vault, allowing it to retrieve secrets.
-impl SecretsProvider for Vault {
+/// Implements the ValueProvider trait for Vault, allowing it to retrieve secrets.
+impl ValueProvider for Vault {
     type Error = VaultError;
 
-    fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
+    fn get_value(&self, secret_path: &str) -> Result<String, Self::Error> {
         let VaultSecretPath {
             source,
             mount,
@@ -308,7 +308,7 @@ impl SecretsProvider for Vault {
 #[allow(missing_docs)]
 pub mod tests {
     use super::*;
-    use crate::secrets_provider::vault::VaultConfig;
+    use crate::value_provider::vault::VaultConfig;
     use assert_matches::assert_matches;
     use httpmock::Method::GET;
     use httpmock::MockServer;
@@ -317,10 +317,10 @@ pub mod tests {
     mock! {
         pub Vault {}
 
-        impl SecretsProvider for Vault {
+        impl ValueProvider for Vault {
             type Error = VaultError;
 
-            fn get_secret(&self, secret_path: &str) -> Result<String, VaultError>;
+            fn get_value(&self, path: &str) -> Result<String, VaultError>;
         }
     }
 
@@ -396,7 +396,7 @@ client_timeout: 3s
 
         impl TestCase {
             fn run(self, vault: &Vault) {
-                let actual = vault.get_secret(self.secret_path);
+                let actual = vault.get_value(self.secret_path);
                 match self.expected {
                     Ok(expected) => {
                         assert_eq!(
@@ -520,7 +520,7 @@ sources:
         ];
 
         for case in cases {
-            (case.expected_match)(vault.get_secret(case.path));
+            (case.expected_match)(vault.get_value(case.path));
         }
     }
 
@@ -543,7 +543,7 @@ sources:
         };
 
         let vault = Vault::try_build(vault_config).unwrap();
-        let result = vault.get_secret("bad_source:mnt:path:name");
+        let result = vault.get_value("bad_source:mnt:path:name");
 
         assert_matches!(result, Err(VaultError::ConnectionFailed(_)));
     }

@@ -6,7 +6,7 @@ use crate::agent_control::config::OpAMPClientConfig;
 use crate::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
 use crate::opamp::auth::config::ProviderConfig;
 use crate::opamp::secret_retriever::OpampSecretRetriever;
-use crate::secrets_provider::SecretsProvider;
+use crate::value_provider::ValueProvider;
 
 /// Helper struct to determine the path and retrieve the secret using the File provider.
 pub struct OnHostSecretRetriever<P> {
@@ -24,7 +24,7 @@ pub struct OnHostRetrieverError(String);
 
 impl<P> OnHostSecretRetriever<P>
 where
-    P: SecretsProvider,
+    P: ValueProvider,
 {
     /// Creates a retriever that reads the private key file, preferring the path in
     /// `opamp_config` when present and falling back to `local_dir`.
@@ -43,7 +43,7 @@ where
 
 impl<P> OpampSecretRetriever for OnHostSecretRetriever<P>
 where
-    P: SecretsProvider,
+    P: ValueProvider,
 {
     type Error = OnHostRetrieverError;
 
@@ -60,7 +60,7 @@ where
         let secret_path = final_path.to_string_lossy().to_string();
 
         self.provider
-            .get_secret(&secret_path)
+            .get_value(&secret_path)
             .map_err(|e| OnHostRetrieverError(format!("Failed to retrieve file secret: {e}")))
     }
 }
@@ -69,7 +69,7 @@ where
 mod tests {
     use super::*;
     use crate::opamp::auth::config::{AuthConfig, LocalConfig};
-    use crate::opamp::secret_retriever::test_mocks::MockSecretsProvider;
+    use crate::opamp::secret_retriever::test_mocks::MockValueProvider;
     use mockall::predicate::*;
     use std::path::PathBuf;
 
@@ -109,9 +109,9 @@ mod tests {
             .to_string_lossy()
             .to_string();
 
-        let mut mock_provider = MockSecretsProvider::new();
+        let mut mock_provider = MockValueProvider::new();
         mock_provider
-            .expect_get_secret()
+            .expect_get_value()
             .with(eq(expected_path.clone()))
             .times(1)
             .returning(|_| Ok("SECRET_CONTENT".to_string()));
@@ -131,9 +131,9 @@ mod tests {
 
         let opamp_config = create_dummy_opamp_config(Some(custom_path));
 
-        let mut mock_provider = MockSecretsProvider::new();
+        let mut mock_provider = MockValueProvider::new();
         mock_provider
-            .expect_get_secret()
+            .expect_get_value()
             .with(eq(custom_path.to_string()))
             .times(1)
             .returning(|_| Ok("CUSTOM_SECRET".to_string()));
@@ -156,9 +156,9 @@ mod tests {
 
         let opamp_config = create_dummy_opamp_config(None);
 
-        let mut mock_provider = MockSecretsProvider::new();
+        let mut mock_provider = MockValueProvider::new();
         mock_provider
-            .expect_get_secret()
+            .expect_get_value()
             .with(eq(expected_default_path))
             .times(1)
             .returning(|_| Ok("DEFAULT_SECRET".to_string()));
@@ -172,9 +172,9 @@ mod tests {
     #[test]
     fn test_retrieve_handles_provider_errors() {
         let local_dir = PathBuf::from(TEST_LOCAL_DIR);
-        let mut mock_provider = MockSecretsProvider::new();
+        let mut mock_provider = MockValueProvider::new();
 
-        mock_provider.expect_get_secret().returning(|_| {
+        mock_provider.expect_get_value().returning(|_| {
             Err(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 "File not found",
