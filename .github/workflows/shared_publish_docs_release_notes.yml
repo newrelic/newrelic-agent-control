@@ -92,6 +92,7 @@ jobs:
           REPO: ${{ env.PUBLIC_DOCS_REPO }}
         run: |
           sha=$(gh api "repos/$REPO/commits/develop" --jq '.sha')
+          echo "develop is at $sha"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
       - name: Create docs-website branch
