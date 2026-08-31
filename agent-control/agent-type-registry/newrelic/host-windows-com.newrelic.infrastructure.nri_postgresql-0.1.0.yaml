@@ -9,11 +9,13 @@ variables:
     description: "nri-postgresql integration YAML consumed by the infra-agent"
     type: yaml
     required: true
+    classification: config
   custom_queries:
     description: "nri-postgresql custom query files"
     type: string_map
     required: false
     default: {}
+    classification: multi-config
   version:
     description: "Agent version"
     type: string

@@ -9,6 +9,7 @@ variables:
     description: "nri-flex integration YAML consumed by the infra-agent"
     type: yaml
     required: true
+    classification: config
   version:
     description: "Agent version"
     type: string
@@ -18,6 +19,7 @@ variables:
     type: string_map
     required: false
     default: {}
+    classification: multi-config
   oci:
     repository:
       description: "OCI repository name for nri-flex"

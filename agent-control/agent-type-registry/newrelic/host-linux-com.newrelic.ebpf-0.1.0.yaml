@@ -9,6 +9,7 @@ variables:
     description: "ebpf configuration"
     type: yaml
     required: true
+    classification: config
   backoff_delay:
     description: "seconds until next retry if agent fails to start"
     type: string
