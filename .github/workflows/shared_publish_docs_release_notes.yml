@@ -83,7 +83,7 @@ jobs:
       # third-party action. Targets the docs repo, based on its `develop` tip.
       - name: Commit MDX to docs-website branch (signed via API)
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ env.PUBLIC_DOCS_REPO }}
           BRANCH: ${{ steps.meta.outputs.branch_name }}
           MDX_FILE: "agent-control-${{ inputs.version }}.mdx"
