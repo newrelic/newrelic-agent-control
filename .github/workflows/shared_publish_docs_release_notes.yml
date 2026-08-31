@@ -35,7 +35,7 @@ permissions:
 
 env:
   PUBLIC_DOCS_REPO: newrelic/docs-website
-  PUBLIC_DOCS_REPO_NAME: docs-website
+  PUBLIC_DOCS_REPO_NAME: newrelic/docs-website
 
 jobs:
   publish:
@@ -76,9 +76,6 @@ jobs:
           private-key: ${{ secrets.app_private_key }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ env.PUBLIC_DOCS_REPO_NAME }}
-
-      - name: Show granted token permissions
-        run: echo '${{ steps.app-token.outputs.permissions }}'
 
       # Commit the .mdx onto a new branch in the docs repo via the GraphQL
       # `createCommitOnBranch` mutation (same approach as the pre-release PR
