@@ -87,7 +87,7 @@ jobs:
         with:
           version: 0.15.2
 
-      - uses: taiki-e/install-action@288e746965032cfcc232e09af2daf5f23c14d780 # v2.86.1
+      - uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2.87.2
         with:
           tool: cargo-zigbuild@0.23.0
 

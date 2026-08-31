@@ -50,7 +50,7 @@ jobs:
     steps:
       # TODO: pin to a tagged release once feature/promote-channel-action lands on main.
       - name: Promote version to release channel
-        uses: newrelic/agent-metadata-action/promote-release-channel@feature/promote-channel-action
+        uses: newrelic/agent-metadata-action/promote-release-channel@4161b43175c63a647f6524df1dc71d90c5cfd941 # feature/promote-channel-action
         with:
           agent-type: NRAgentControl
           version: ${{ inputs.version }}
