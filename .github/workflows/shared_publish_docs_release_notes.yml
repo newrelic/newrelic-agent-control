@@ -35,7 +35,7 @@ permissions:
 
 env:
   PUBLIC_DOCS_REPO: newrelic/docs-website
-  PUBLIC_DOCS_REPO_NAME: newrelic/docs-website
+  PUBLIC_DOCS_REPO_NAME: docs-website
 
 jobs:
   publish:
