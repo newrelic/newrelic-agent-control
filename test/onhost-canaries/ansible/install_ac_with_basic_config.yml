@@ -241,8 +241,6 @@
           # `service.name = 'agent-control-self-instrumentation'` have data on Windows.
           $oldAgents = "agents: {}"
           $newAgents = @"
-          log:
-            level: debug
           self_instrumentation:
             opentelemetry:
               endpoint: "{{ otlp_endpoint }}"
@@ -252,6 +250,8 @@
                 enabled: true
               custom_attributes:
                 host.name: "{{ inventory_hostname }}"
+          self_update:
+            enabled: false
           agents:
             nr-infra:
               agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
