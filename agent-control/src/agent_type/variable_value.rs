@@ -5,6 +5,31 @@ use std::{
     fmt::{Display, Formatter},
 };
 
+/// The supported values for the `type` field of an Agent Type variable.
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[serde(tag = "type")]
+pub enum VariableType {
+    /// A string-typed variable.
+    #[serde(rename = "string")]
+    String,
+    /// A boolean-typed variable.
+    #[serde(rename = "bool")]
+    Bool,
+    /// A number-typed variable.
+    #[serde(rename = "number")]
+    Number,
+    /// A map of string keys to string values.
+    /// A merged value that isn't already a string is accepted and encoded as its YAML text form.
+    #[serde(rename = "string_map")]
+    StringMap,
+    /// A yaml-typed variable.
+    ///
+    /// When the variable is optional and the user omits `default`, VariableDefinition's deserializer
+    /// fills the default with the YAML `null` value — the natural absence representation for a yaml-typed variable.
+    #[serde(rename = "yaml")]
+    Yaml,
+}
+
 /// Represents all the allowed types for a configuration defined in the spec value.
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
@@ -21,16 +46,6 @@ pub enum VariableValue {
     /// A map of string keys to string values.
     #[serde(skip)]
     MapStringString(Map<String, String>),
-}
-
-impl VariableValue {
-    /// If the trivial value is a yaml, it returns a copy the corresponding [serde_json::Value], returns None otherwise.
-    pub fn to_yaml_value(&self) -> Option<serde_json::Value> {
-        match self {
-            Self::Yaml(yaml) => Some(yaml.clone()),
-            _ => None,
-        }
-    }
 }
 
 impl Display for VariableValue {

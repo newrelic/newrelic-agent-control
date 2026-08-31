@@ -14,13 +14,11 @@
 //! The variables can be referenced with [TEMPLATE_KEY_SEPARATOR] separating names levels. The example variable from above could be used
 //! in agent types as `${nr-var:foo.bar.variable_name}`.
 
-use std::collections::HashMap;
-
-use serde::Deserialize;
-use thiserror::Error;
-
 use crate::agent_type::templates::TEMPLATE_KEY_SEPARATOR;
 use crate::agent_type::variable::name::{VariableNameError, validate_variable_name};
+use serde::Deserialize;
+use std::collections::HashMap;
+use thiserror::Error;
 
 /// This struct assures that variables have at least a name (one level of nested names).
 #[derive(Clone, Debug, Deserialize, PartialEq)]
