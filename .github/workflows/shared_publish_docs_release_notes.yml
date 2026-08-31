@@ -81,25 +81,41 @@ jobs:
       # `createCommitOnBranch` mutation (same approach as the pre-release PR
       # workflow) so the commit is signed automatically and we avoid a
       # third-party action. Targets the docs repo, based on its `develop` tip.
-      - name: Commit MDX to docs-website branch (signed via API)
+      #
+      # Split into separate steps (rather than one script) so a failure points
+      # at exactly which `gh api` call was rejected, instead of an opaque
+      # "Commit MDX..." step failure.
+      - name: Get docs-website develop SHA
+        id: base-sha
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ env.PUBLIC_DOCS_REPO }}
+        run: |
+          sha=$(gh api "repos/$REPO/commits/develop" --jq '.sha')
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Create docs-website branch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REPO: ${{ env.PUBLIC_DOCS_REPO }}
           BRANCH: ${{ steps.meta.outputs.branch_name }}
-          MDX_FILE: "agent-control-${{ inputs.version }}.mdx"
-          MDX_PATH: "src/content/docs/release-notes/agent-control-release-notes/agent-control-${{ inputs.version }}.mdx"
-          VERSION: ${{ inputs.version }}
+          BASE_SHA: ${{ steps.base-sha.outputs.sha }}
         run: |
-          # Base the branch on the current tip of the docs repo's default target
-          # branch (`develop`), not our checkout.
-          BASE_SHA=$(gh api "repos/$REPO/commits/develop" --jq '.sha')
-
-          # Create the branch ref on the docs repo at that commit.
           # Fails with 422 "Reference already exists" if the branch is present.
           gh api -X POST "repos/$REPO/git/refs" \
             -f ref="refs/heads/$BRANCH" \
             -f sha="$BASE_SHA"
 
+      - name: Commit MDX to docs-website branch (signed via API)
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ env.PUBLIC_DOCS_REPO }}
+          BRANCH: ${{ steps.meta.outputs.branch_name }}
+          MDX_FILE: "agent-control-${{ inputs.version }}.mdx"
+          MDX_PATH: "src/content/docs/release-notes/agent-control-release-notes/agent-control-${{ inputs.version }}.mdx"
+          VERSION: ${{ inputs.version }}
+          BASE_SHA: ${{ steps.base-sha.outputs.sha }}
+        run: |
           # Write the mutation to a file and feed it to gh via --input <file>.
           jq -n \
             --rawfile mdx "$MDX_FILE" \
