@@ -1,4 +1,4 @@
-//! Secrets providers: retrieve secrets from various sources (env vars, files, Kubernetes, Vault).
+//! Value providers: retrieve variable values from various sources (env vars, files, Kubernetes, Vault).
 
 pub mod env;
 pub mod file;
@@ -7,21 +7,21 @@ pub mod vault;
 
 use crate::agent_type::variable::namespace::Namespace;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
-use crate::secrets_provider::env::{Env, EnvError};
-use crate::secrets_provider::file::{FileSecretProvider, FileSecretProviderError};
-use crate::secrets_provider::k8s_secret::{K8sSecretProvider, K8sSecretProviderError};
-use crate::secrets_provider::vault::{Vault, VaultConfig, VaultError};
+use crate::value_provider::env::{Env, EnvError};
+use crate::value_provider::file::{FileProvider, FileProviderError};
+use crate::value_provider::k8s_secret::{K8sSecretProvider, K8sSecretProviderError};
+use crate::value_provider::vault::{Vault, VaultConfig, VaultError};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-/// Configuration for supported secrets providers.
+/// Configuration for supported value providers.
 ///
-/// Group of secrets providers configurations, that can be used to retrieve secrets from various sources.
+/// Group of value providers configurations, that can be used to retrieve values from various sources.
 /// All providers should be optional. This allows users to configure only the ones they need.
 /// Besides, there is no lower or upper limit on the number of providers that can be configured.
-/// Users can retrieve secrets from secret provider "A" and secret provider "B" at the same time.
+/// Users can retrieve values from value provider "A" and value provider "B" at the same time.
 ///
 /// The structure is flexible enough to support multiple sources from the same provider.
 /// This is a decision the implementer of the provider must make. This entails creating a "config"
@@ -31,21 +31,21 @@ use std::sync::Arc;
 ///
 /// ```
 /// # use std::collections::HashMap;
-/// struct SecretsProvidersConfig {
+/// struct ValueProvidersConfig {
 ///     new_provider: Option<NewProviderConfig>,
 /// }
 ///
 /// struct NewProviderConfig {}
 /// ```
 #[derive(Debug, Default, Clone, PartialEq, Deserialize)]
-pub struct SecretsProvidersConfig {
+pub struct ValueProvidersConfig {
     /// Optional configuration for the HashiCorp Vault provider.
     pub vault: Option<VaultConfig>,
 }
 
-/// Errors returned by the configured secrets providers.
+/// Errors returned by the configured value providers.
 #[derive(Debug, thiserror::Error)]
-pub enum SecretsProvidersError {
+pub enum ValueProvidersError {
     /// The Vault provider failed.
     #[error("vault provider failed: {0}")]
     VaultError(#[from] VaultError),
@@ -58,79 +58,78 @@ pub enum SecretsProvidersError {
     #[error("env var provider failed: {0}")]
     EnvError(#[from] EnvError),
 
-    /// The file secret provider failed.
-    #[error("file secret provider failed: {0}")]
-    FileError(#[from] FileSecretProviderError),
+    /// The file provider failed.
+    #[error("file provider failed: {0}")]
+    FileError(#[from] FileProviderError),
 }
 
-/// Trait for operating with secrets providers.
+/// Trait for operating with value providers.
 ///
-/// Defines common operations among the different secrets providers.
-pub trait SecretsProvider {
-    /// Error type returned when retrieving a secret fails.
+/// Defines common operations among the different value providers.
+pub trait ValueProvider {
+    /// Error type returned when retrieving a value fails.
     type Error: std::error::Error;
 
-    /// Gets a secret
-    /// By default is recommended to use get_secret_with_retry.
-    fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error>;
+    /// Gets a value.
+    fn get_value(&self, path: &str) -> Result<String, Self::Error>;
 }
 
-/// Supported secrets providers.
+/// Supported value providers.
 ///
-/// Each variant must contain an implementation of the [SecretsProvider] trait.
+/// Each variant must contain an implementation of the [ValueProvider] trait.
 ///
 /// The structure is flexible enough to support multiple sources from the same provider.
 /// This is a decision the implementer of the provider must make. This entails creating a variant
 /// represented as a [HashMap].
-pub enum SecretsProviderType<C: K8sClient = SyncK8sClient> {
-    /// Secrets retrieved from HashiCorp Vault.
+pub enum ValueProviderType<C: K8sClient = SyncK8sClient> {
+    /// Values retrieved from HashiCorp Vault.
     Vault(Vault),
-    /// Secrets retrieved from Kubernetes secrets.
+    /// Values retrieved from Kubernetes secrets.
     K8sSecret(K8sSecretProvider<C>),
-    /// Secrets retrieved from the local filesystem.
-    File(FileSecretProvider),
-    /// Secrets retrieved from environment variables.
+    /// Values retrieved from the local filesystem.
+    File(FileProvider),
+    /// Values retrieved from environment variables.
     Env(Env),
 }
 
-impl<C: K8sClient> SecretsProvider for SecretsProviderType<C> {
-    type Error = SecretsProvidersError;
+impl<C: K8sClient> ValueProvider for ValueProviderType<C> {
+    type Error = ValueProvidersError;
 
-    fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
+    fn get_value(&self, path: &str) -> Result<String, Self::Error> {
         match self {
-            SecretsProviderType::Vault(provider) => Ok(provider.get_secret(secret_path)?),
-            SecretsProviderType::K8sSecret(provider) => Ok(provider.get_secret(secret_path)?),
-            SecretsProviderType::File(provider) => Ok(provider.get_secret(secret_path)?),
-            SecretsProviderType::Env(provider) => Ok(provider.get_secret(secret_path)?),
+            ValueProviderType::Vault(provider) => Ok(provider.get_value(path)?),
+            ValueProviderType::K8sSecret(provider) => Ok(provider.get_value(path)?),
+            ValueProviderType::File(provider) => Ok(provider.get_value(path)?),
+            ValueProviderType::Env(provider) => Ok(provider.get_value(path)?),
         }
     }
 }
 
-/// Collection of [SecretsProviderType]s.
-pub type SecretsProviders<C = SyncK8sClient> = Registry<SecretsProviderType<C>>;
+/// Collection of [ValueProviderType]s.
+pub type ValueProviders<C = SyncK8sClient> = Registry<ValueProviderType<C>>;
 
-/// A collection of secrets providers keyed by [`Namespace`].
-pub struct Registry<S: SecretsProvider>(HashMap<Namespace, S>);
+/// A collection of value providers keyed by [`Namespace`].
+pub struct Registry<S: ValueProvider>(HashMap<Namespace, S>);
 
-impl<S: SecretsProvider> Registry<S> {
+impl<S: ValueProvider> Registry<S> {
     /// Returns `true` if no providers are registered.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 }
 
-impl Default for Registry<SecretsProviderType> {
+impl Default for Registry<ValueProviderType> {
     fn default() -> Self {
         Self(HashMap::new())
     }
 }
 
-impl Registry<SecretsProviderType> {
+impl Registry<ValueProviderType> {
     /// Registers the environment variable provider.
     pub fn with_env(mut self) -> Self {
         self.0.insert(
             Namespace::EnvironmentVariable,
-            SecretsProviderType::Env(Env {}),
+            ValueProviderType::Env(Env {}),
         );
         self
     }
@@ -139,16 +138,16 @@ impl Registry<SecretsProviderType> {
     pub fn with_k8s_secret(mut self, k8s_client: Arc<SyncK8sClient>) -> Self {
         self.0.insert(
             Namespace::K8sSecret,
-            SecretsProviderType::K8sSecret(K8sSecretProvider::new(k8s_client)),
+            ValueProviderType::K8sSecret(K8sSecretProvider::new(k8s_client)),
         );
         self
     }
 
-    /// Registers the file secret provider.
+    /// Registers the file provider.
     pub fn with_file(mut self) -> Self {
         self.0.insert(
             Namespace::File,
-            SecretsProviderType::File(FileSecretProvider::new()),
+            ValueProviderType::File(FileProvider::new()),
         );
         self
     }
@@ -156,18 +155,18 @@ impl Registry<SecretsProviderType> {
     /// Registers providers derived from the given configuration (currently Vault).
     pub fn with_config(
         mut self,
-        config: SecretsProvidersConfig,
-    ) -> Result<Self, SecretsProvidersError> {
+        config: ValueProvidersConfig,
+    ) -> Result<Self, ValueProvidersError> {
         if let Some(vault_config) = config.vault {
             let vault = Vault::try_build(vault_config)?;
             self.0
-                .insert(Namespace::Vault, SecretsProviderType::Vault(vault));
+                .insert(Namespace::Vault, ValueProviderType::Vault(vault));
         }
         Ok(self)
     }
 }
 
-impl<'a, S: SecretsProvider> IntoIterator for &'a Registry<S> {
+impl<'a, S: ValueProvider> IntoIterator for &'a Registry<S> {
     type Item = (&'a Namespace, &'a S);
     type IntoIter = std::collections::hash_map::Iter<'a, Namespace, S>;
 
@@ -177,7 +176,7 @@ impl<'a, S: SecretsProvider> IntoIterator for &'a Registry<S> {
 }
 
 #[cfg(test)]
-impl<S: SecretsProvider> From<HashMap<Namespace, S>> for Registry<S> {
+impl<S: ValueProvider> From<HashMap<Namespace, S>> for Registry<S> {
     fn from(value: HashMap<Namespace, S>) -> Self {
         Self(value)
     }

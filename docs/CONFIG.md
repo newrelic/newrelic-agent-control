@@ -195,13 +195,13 @@ Allows setting up specific constraints in the agent types variables supporting i
 
 See [variants documentation](/docs/INTEGRATING_AGENTS.md#variants-optional) for concrete example.
 
-### secrets_providers
+### value_providers
 
-The `secrets_providers` configuration field sets the configuration for the supported secrets providers. Users can use the values stored in secrets in their remote configurations.
-See [all possible providers](/docs/VARIABLE_INTERPOLATION.md#secrets-providers)
+The `value_providers` configuration field sets the configuration for the supported value providers. Users can use the values stored in secrets in their remote configurations. The legacy key `secrets_providers` is still accepted as an alias for backward compatibility.
+See [all possible providers](/docs/VARIABLE_INTERPOLATION.md#value-providers)
 
 ```yaml
-secrets_providers:
+value_providers:
   vault: # Sets vault sources configuration
     sources: # Each entry identified by the key defines a source with url, token and engine.
       source1:

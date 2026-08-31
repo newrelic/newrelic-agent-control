@@ -17,8 +17,8 @@ use crate::opamp::auth::config::AuthConfig;
 use crate::opamp::client_builder::PollInterval;
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
-use crate::secrets_provider::SecretsProvidersConfig;
 use crate::utils::retry::BackoffPolicy;
+use crate::value_provider::ValueProvidersConfig;
 use crate::values::yaml_config::YAMLConfig;
 use crate::{
     agent_type::agent_type_id::AgentTypeID, instrumentation::config::InstrumentationConfig,
@@ -84,9 +84,10 @@ pub struct AgentControlConfig {
     #[serde(default)]
     pub agent_type_var_constraints: VariableConstraints,
 
-    /// configuration for every secrets provider that the current AgentControl instance should be able to access
-    #[serde(default)]
-    pub secrets_providers: Option<SecretsProvidersConfig>,
+    /// Configuration for every value provider that the current AgentControl instance should be able to access.
+    /// `secrets_providers` is accepted as a legacy alias for backward compatibility.
+    #[serde(default, alias = "secrets_providers")]
+    pub value_providers: Option<ValueProvidersConfig>,
 
     /// Contains the configuration related to host agent packages
     #[serde(default)]
@@ -1097,6 +1098,34 @@ proxy:
   url: http://localhost:8080
 agents: {}
 "#;
+
+    const AGENTCONTROL_VALUE_PROVIDERS: &str = r#"
+value_providers:
+  vault:
+    sources: {}
+agents: {}
+"#;
+
+    const AGENTCONTROL_LEGACY_SECRETS_PROVIDERS: &str = r#"
+secrets_providers:
+  vault:
+    sources: {}
+agents: {}
+"#;
+
+    #[test]
+    fn test_value_providers_accepts_legacy_secrets_providers_alias() {
+        let new_key = serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_VALUE_PROVIDERS)
+            .unwrap()
+            .value_providers;
+        let legacy_key =
+            serde_saphyr::from_str::<AgentControlConfig>(AGENTCONTROL_LEGACY_SECRETS_PROVIDERS)
+                .unwrap()
+                .value_providers;
+
+        assert!(new_key.is_some());
+        assert_eq!(new_key, legacy_key);
+    }
 
     #[test]
     fn basic_parse() {

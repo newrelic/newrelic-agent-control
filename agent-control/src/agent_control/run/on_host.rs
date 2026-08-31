@@ -42,14 +42,14 @@ use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::opamp::secret_retriever::on_host::retrieve::OnHostSecretRetriever;
 use crate::package::oci::downloader::OCIPackageArtifactDownloader;
 use crate::package::oci::package_manager::OCIPackageManager;
-use crate::secrets_provider::SecretsProviders;
-use crate::secrets_provider::file::FileSecretProvider;
 use crate::sub_agent::agent_renderer::AgentRenderer;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::time::SystemClock;
+use crate::value_provider::ValueProviders;
+use crate::value_provider::file::FileProvider;
 use crate::values::ConfigRepo;
 use fs::directory_manager::DirectoryManagerFs;
 use fs::file::LocalFile;
@@ -77,7 +77,7 @@ pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Windows;
 pub const AGENT_CONTROL_MODE_ON_HOST: Environment = Environment::Linux;
 
 type OnHostOpAMPClientBuilder = OpAMPClientBuilder<
-    OpAMPHttpClientBuilder<OnHostSecretRetriever<FileSecretProvider>>,
+    OpAMPHttpClientBuilder<OnHostSecretRetriever<FileProvider>>,
     EffectiveConfigLoaderBuilder<ConfigRepo<FileStore<LocalFile, DirectoryManagerFs>>>,
 >;
 type OnHostOpAMPClient = StartedHttpClient<
@@ -195,18 +195,18 @@ impl AgentControlRunner {
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
-        let mut secrets_providers = SecretsProviders::default().with_env();
-        if let Some(config) = &agent_control_config.secrets_providers {
-            secrets_providers = secrets_providers
+        let mut value_providers = ValueProviders::default().with_env();
+        if let Some(config) = &agent_control_config.value_providers {
+            value_providers = value_providers
                 .with_config(config.clone())
-                .map_err(|e| RunError(format!("failed to load secrets providers: {e}")))?;
+                .map_err(|e| RunError(format!("failed to load value providers: {e}")))?;
         }
 
         let agent_renderer = Arc::new(AgentRenderer::new(
             self.agent_type_registry.clone(),
             agent_control_variables,
             self.bootstrap_config.agent_type_var_constraints,
-            secrets_providers,
+            value_providers,
             &remote_dir,
         ));
 
@@ -336,7 +336,7 @@ pub fn opamp_client_builder(
     let secret_retriever = OnHostSecretRetriever::new(
         Some(opamp_config.clone()),
         local_dir.clone(),
-        FileSecretProvider::new(),
+        FileProvider::new(),
     );
 
     let poll_interval = opamp_config.poll_interval;

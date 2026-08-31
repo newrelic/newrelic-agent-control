@@ -13,7 +13,7 @@ use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use crate::environment::Environment;
 use crate::sub_agent::agent_renderer::{
-    AgentRenderer, Renderer, tests::env_secrets_registry_for_testing,
+    AgentRenderer, Renderer, tests::env_value_registry_for_testing,
 };
 use crate::sub_agent::identity::AgentIdentity;
 use crate::{
@@ -1029,7 +1029,7 @@ fn iterate_test_cases(environment: Environment) {
             registry.clone(),
             ac_variables.clone(),
             VariableConstraints::default(),
-            env_secrets_registry_for_testing(values.additional_env.clone()),
+            env_value_registry_for_testing(values.additional_env.clone()),
             &remote_dir,
         );
 

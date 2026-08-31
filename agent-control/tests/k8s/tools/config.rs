@@ -27,7 +27,7 @@ pub struct K8sAgentControlConfigBuilder {
     current_chart_version: Option<String>,
     secret_private_key_name: Option<String>,
     cr_type_meta: Option<String>,
-    secrets_providers: Option<String>,
+    value_providers: Option<String>,
     agent_types: Option<AgentTypes>,
 }
 
@@ -50,7 +50,7 @@ impl K8sAgentControlConfigBuilder {
             current_chart_version: None,
             secret_private_key_name: None,
             cr_type_meta: None,
-            secrets_providers: None,
+            value_providers: None,
             agent_types: None,
         }
     }
@@ -119,8 +119,8 @@ impl K8sAgentControlConfigBuilder {
         self
     }
 
-    pub fn with_secrets_providers(mut self, secrets_providers: impl Into<String>) -> Self {
-        self.secrets_providers = Some(secrets_providers.into());
+    pub fn with_value_providers(mut self, value_providers: impl Into<String>) -> Self {
+        self.value_providers = Some(value_providers.into());
         self
     }
 
@@ -207,9 +207,9 @@ impl K8sAgentControlConfigBuilder {
             k8s_block.push_str(&format!("\n  cr_type_meta:\n{cr_type_meta}"));
         }
 
-        let secrets_providers_block = self
-            .secrets_providers
-            .map(|sp| format!("secrets_providers:\n{sp}"))
+        let value_providers_block = self
+            .value_providers
+            .map(|vp| format!("value_providers:\n{vp}"))
             .unwrap_or_default();
 
         let agent_types_block = self
@@ -231,7 +231,7 @@ impl K8sAgentControlConfigBuilder {
             self.common.build_agents_yaml(),
             self.common.build_server_yaml(),
             k8s_block,
-            secrets_providers_block,
+            value_providers_block,
             agent_types_block,
         ]
         .into_iter()

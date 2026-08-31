@@ -49,8 +49,8 @@ pub enum Namespace {
     /// Variables exposing particular paths when expanding user values.
     Path,
 
-    // Below variables are "secret" variables.
-    // These are loaded bye secret providers every time a remote config is received.
+    // Below variables are "dynamic": they are resolved by a ValueProvider every time a
+    // remote config is received, unlike the namespaces above which are static.
     /// Environment variables.
     EnvironmentVariable,
     /// Secrets retrieved from a HashiCorp Vault.
@@ -84,15 +84,15 @@ impl Namespace {
     const K8S_SECRET: &'static str = "kubesec";
     const FILE_SECRET: &'static str = "file";
 
-    /// Returns whether the given namespaced name belongs to a secret namespace.
-    pub fn is_secret_variable(s: &str) -> bool {
+    /// Returns whether the given namespaced name belongs to a dynamic namespace.
+    pub fn is_dynamic_variable(s: &str) -> bool {
         Self::iter()
-            .filter(Namespace::is_secret)
+            .filter(Namespace::is_dynamic)
             .any(|ns| s.starts_with(ns.to_string().as_str()))
     }
 
-    /// Whether this namespace holds "secret" variables (loaded on every remote config fetch).
-    fn is_secret(&self) -> bool {
+    /// Whether this namespace holds dynamic variables, resolved via a [`ValueProvider`](crate::value_provider::ValueProvider) on every remote config fetch.
+    fn is_dynamic(&self) -> bool {
         match self {
             Namespace::Variable
             | Namespace::SubAgent

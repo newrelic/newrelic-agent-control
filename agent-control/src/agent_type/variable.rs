@@ -7,10 +7,10 @@
 //! some runtime information. Eg: [Variable].
 
 pub mod constraints;
+pub mod dynamic_variables;
 pub mod fields;
 pub mod name;
 pub mod namespace;
-pub mod secret_variables;
 pub mod tree;
 pub mod variable_type;
 pub mod variants;

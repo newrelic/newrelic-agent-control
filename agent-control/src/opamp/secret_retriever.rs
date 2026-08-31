@@ -19,14 +19,14 @@ pub trait OpampSecretRetriever {
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod test_mocks {
-    use crate::secrets_provider::SecretsProvider;
+    use crate::value_provider::ValueProvider;
     use mockall::mock;
 
     mock! {
-        pub SecretsProvider {}
-        impl SecretsProvider for SecretsProvider {
+        pub ValueProvider {}
+        impl ValueProvider for ValueProvider {
             type Error = std::io::Error;
-            fn get_secret(&self, secret_path: &str) -> Result<String, std::io::Error>;
+            fn get_value(&self, path: &str) -> Result<String, std::io::Error>;
         }
     }
 }

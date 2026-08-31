@@ -2,10 +2,10 @@
 
 use crate::agent_control::config::K8sConfig;
 use crate::opamp::secret_retriever::OpampSecretRetriever;
-use crate::secrets_provider::SecretsProvider;
-use crate::secrets_provider::k8s_secret::K8sSecretProvider;
+use crate::value_provider::ValueProvider;
+use crate::value_provider::k8s_secret::K8sSecretProvider;
 
-/// Retrieves the OpAMP secret from Kubernetes using the given [`SecretsProvider`].
+/// Retrieves the OpAMP secret from Kubernetes using the given [`ValueProvider`].
 pub struct K8sSecretRetriever<P> {
     provider: P,
     config: K8sConfig,
@@ -18,7 +18,7 @@ pub struct K8sRetrieverError(String);
 
 impl<P> K8sSecretRetriever<P>
 where
-    P: SecretsProvider,
+    P: ValueProvider,
 {
     /// Creates a retriever that reads the secret described by `config` via `provider`.
     pub fn new(provider: P, config: K8sConfig) -> Self {
@@ -28,7 +28,7 @@ where
 
 impl<P> OpampSecretRetriever for K8sSecretRetriever<P>
 where
-    P: SecretsProvider,
+    P: ValueProvider,
 {
     type Error = K8sRetrieverError;
 
@@ -39,7 +39,7 @@ where
             &self.config.auth_secret.secret_key_name,
         );
 
-        self.provider.get_secret(&secret_path).map_err(|e| {
+        self.provider.get_value(&secret_path).map_err(|e| {
             K8sRetrieverError(format!(
                 "K8s getting secret from k8s: secret: {secret_path}, error: {e}"
             ))
@@ -56,12 +56,12 @@ mod tests {
     use mockall::*;
 
     mock! {
-        pub SecretsProvider {}
+        pub ValueProvider {}
 
-        impl SecretsProvider for SecretsProvider {
+        impl ValueProvider for ValueProvider {
             type Error = std::io::Error;
 
-            fn get_secret(&self, secret_path: &str) -> Result<String, std::io::Error>;
+            fn get_value(&self, path: &str) -> Result<String, std::io::Error>;
         }
     }
 
@@ -81,10 +81,10 @@ mod tests {
         let config = create_dummy_config();
         let expected_path = "test-ns:my-secret:my-key";
 
-        let mut mock_provider = MockSecretsProvider::new();
+        let mut mock_provider = MockValueProvider::new();
 
         mock_provider
-            .expect_get_secret()
+            .expect_get_value()
             .with(eq(expected_path))
             .times(1)
             .returning(|_| Ok("SUPER_SECRET_TOKEN".to_string()));
@@ -99,10 +99,10 @@ mod tests {
     fn test_retrieve_wraps_provider_error() {
         let config = create_dummy_config();
 
-        let mut mock_provider = MockSecretsProvider::new();
+        let mut mock_provider = MockValueProvider::new();
 
         mock_provider
-            .expect_get_secret()
+            .expect_get_value()
             .with(always())
             .returning(|_| Err(std::io::Error::other("Simulated K8s failure")));
 

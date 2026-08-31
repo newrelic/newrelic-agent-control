@@ -13,15 +13,15 @@ use tempfile::tempdir;
 
 #[test]
 #[ignore = "needs k8s cluster"]
-fn k8s_template_secrets() {
-    let test_name = "k8s_template_secrets";
+fn k8s_template_value_providers() {
+    let test_name = "k8s_template_value_providers";
 
     let mut k8s = block_on(K8sEnv::new());
     k8s.port_forward("vault-0", 8200, 8200);
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
-    let secrets_providers = r#"  vault:
+    let value_providers = r#"  vault:
     sources:
       sourceA:
         url: http://127.0.0.1:8200/v1/
@@ -42,33 +42,33 @@ chart_values:
   default: { }
 "#,
         )
-        .with_objects(Some(
+        .with_objects(Some(&format!(
             r#"
 release:
   apiVersion: helm.toolkit.fluxcd.io/v2
   kind: HelmRelease
   metadata:
-    name: ${nr-sub:agent_id}
-    namespace: ${nr-ac:namespace}
+    name: ${{nr-sub:agent_id}}
+    namespace: ${{nr-ac:namespace}}
     labels:
-      agentTypeEnvVarKey: ${nr-env:k8s_template_secrets_zip4}
+      agentTypeEnvVarKey: ${{nr-env:{test_name}_zip4}}
   spec:
     # we don't want to trigger this in the test to avoid extra load in the cluster
     interval: 10s
-    releaseName: ${nr-sub:agent_id}
-    targetNamespace: ${nr-ac:namespace_agents}
+    releaseName: ${{nr-sub:agent_id}}
+    targetNamespace: ${{nr-ac:namespace_agents}}
     chart:
       spec:
         chart: hello-world
         version: "0.1.0"
         sourceRef:
           kind: HelmRepository
-          name: ${nr-sub:agent_id}
-          namespace: ${nr-ac:namespace}
+          name: ${{nr-sub:agent_id}}
+          namespace: ${{nr-ac:namespace}}
     values:
-      ${nr-var:chart_values}
-"#,
-        ))
+      ${{nr-var:chart_values}}
+"#
+        )))
         .write(tmp_dir.path());
     let agents = format!(
         r#"
@@ -79,7 +79,7 @@ release:
 
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_agents(agents)
-        .with_secrets_providers(secrets_providers)
+        .with_value_providers(value_providers)
         .write(k8s.client.clone(), tmp_dir.path());
 
     block_on(create_config_map(
