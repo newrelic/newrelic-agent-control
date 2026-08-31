@@ -1,8 +1,6 @@
 //! Sub-agent attributes used to build the reserved variables that template an agent type.
-use super::variable::{
-    Variable,
-    namespace::{Namespace, VariableName},
-};
+use super::variable::namespace::{Namespace, VariableName};
+use super::variable_value::VariableValue;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{AGENT_FILESYSTEM_FOLDER_NAME, SHARED_FILESYSTEM_FOLDER_NAME};
 use std::{collections::HashMap, path::PathBuf};
@@ -62,32 +60,32 @@ impl AgentAttributes {
     }
 
     /// Returns the variables from the sub-agent attributes source 'nr-sub'.
-    pub fn nr_sub_variables(&self) -> HashMap<VariableName, Variable> {
+    pub fn nr_sub_variables(&self) -> HashMap<VariableName, VariableValue> {
         HashMap::from([
             (
                 VariableName::new(Namespace::SubAgent, Self::NR_SUB_AGENT_ID),
-                Variable::new_final_string_variable(&self.agent_id),
+                VariableValue::String(self.agent_id.clone()),
             ),
             (
                 VariableName::new(Namespace::SubAgent, Self::NR_SUB_FILESYSTEM_AGENT_DIR),
-                Variable::new_final_string_variable(self.agent_filesystem_dir.to_string_lossy()),
+                VariableValue::String(self.agent_filesystem_dir.to_string_lossy().into_owned()),
             ),
             (
                 VariableName::new(Namespace::SubAgent, Self::NR_SUB_SHARED_FILESYSTEM_DIR),
-                Variable::new_final_string_variable(self.shared_filesystem_dir.to_string_lossy()),
+                VariableValue::String(self.shared_filesystem_dir.to_string_lossy().into_owned()),
             ),
             (
                 VariableName::new(Namespace::SubAgent, Self::NR_SUB_REMOTE_DIR),
-                Variable::new_final_string_variable(self.remote_dir.to_string_lossy()),
+                VariableValue::String(self.remote_dir.to_string_lossy().into_owned()),
             ),
         ])
     }
 
     /// Returns the variables from agent attributes to be exposed as `nr-path`
-    pub fn nr_path_variables(&self) -> HashMap<VariableName, Variable> {
+    pub fn nr_path_variables(&self) -> HashMap<VariableName, VariableValue> {
         HashMap::from([(
             VariableName::new(Namespace::Path, Self::NR_PATH_AGENT_DIR),
-            Variable::new_final_string_variable(self.agent_filesystem_dir.to_string_lossy()),
+            VariableValue::String(self.agent_filesystem_dir.to_string_lossy().into_owned()),
         )])
     }
 }
@@ -99,17 +97,16 @@ mod tests {
     use crate::agent_type::variable_value::VariableValue;
 
     fn final_string(
-        vars: &HashMap<VariableName, Variable>,
+        vars: &HashMap<VariableName, VariableValue>,
         namespace: Namespace,
         name: &str,
     ) -> String {
         let key = VariableName::new(namespace, name);
         match vars
             .get(&key)
-            .and_then(Variable::get_final_value)
             .unwrap_or_else(|| panic!("missing variable {key}"))
         {
-            VariableValue::String(s) => s,
+            VariableValue::String(s) => s.clone(),
             other => panic!("expected string for {key}, got {other:?}"),
         }
     }

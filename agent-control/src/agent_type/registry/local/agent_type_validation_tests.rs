@@ -18,7 +18,7 @@ use crate::sub_agent::agent_renderer::{
 use crate::sub_agent::identity::AgentIdentity;
 use crate::{
     agent_control::agent_id::AgentID,
-    agent_type::{agent_type_id::AgentTypeID, variable::Variable},
+    agent_type::{agent_type_id::AgentTypeID, variable_value::VariableValue},
     values::yaml_config::YAMLConfig,
 };
 use std::collections::HashSet;
@@ -988,20 +988,20 @@ fn iterate_test_cases(environment: Environment) {
     let registry = Arc::new(LocalRegistry::embedded_only(environment));
 
     // Agent-control variables with specifics for the environment
-    let ac_variables: HashMap<VariableName, Variable> = match environment {
+    let ac_variables: HashMap<VariableName, VariableValue> = match environment {
         Environment::K8s => HashMap::from([
             (
                 VariableName::new(Namespace::AgentControl, NAMESPACE_VARIABLE_NAME),
-                Variable::new_final_string_variable("test-namespace".to_string()),
+                VariableValue::String("test-namespace".to_string()),
             ),
             (
                 VariableName::new(Namespace::AgentControl, NAMESPACE_AGENTS_VARIABLE_NAME),
-                Variable::new_final_string_variable("test-namespace-agents".to_string()),
+                VariableValue::String("test-namespace-agents".to_string()),
             ),
         ]),
         Environment::Linux | Environment::Windows => HashMap::from([(
             VariableName::new(Namespace::AgentControl, HOST_ID_VARIABLE_NAME),
-            Variable::new_final_string_variable("my-namespace".to_string()),
+            VariableValue::String("my-namespace".to_string()),
         )]),
     };
 
