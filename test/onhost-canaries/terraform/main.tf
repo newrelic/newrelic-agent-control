@@ -61,7 +61,7 @@ locals {
       python          = "/usr/bin/python3"
     }
     "amd64:windows_2022" = {
-      ami             = "ami-04382be054853bd1f"
+      ami             = "ami-0c8cf460a9c224dfd"
       subnet          = "subnet-00aa02e6d991b478e"
       security_groups = ["sg-04ae18f8c34a11d38"]
       key_name        = "caos-dev-arm"
