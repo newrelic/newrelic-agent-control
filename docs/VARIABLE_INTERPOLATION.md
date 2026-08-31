@@ -26,7 +26,7 @@ Filters are optional post-processing steps applied to the resolved value (e.g. `
 | Path helpers | `nr-path` | OS-native paths (avoids separator issues on Windows) | On-host |
 | Environment variables | `nr-env` | Host environment (`std::env`) | On-host |
 | Vault secrets | `nr-vault` | HashiCorp Vault (KV1 or KV2) | On-host |
-| File secrets | `nr-file` | Local filesystem file contents | On-host |
+| File values | `nr-file` | Local filesystem file contents | On-host |
 | Kubernetes secrets | `nr-kubesec` | Kubernetes Secret objects | K8s |
 
 ---
@@ -133,22 +133,25 @@ env:
 
 ---
 
-## Secrets Providers
+## Value Providers
 
-Secret namespaces (`nr-env`, `nr-vault`, `nr-file`, `nr-kubesec`) are resolved on every remote
-config update, not just at startup. This means secrets are refreshed automatically when a new
+`nr-env`, `nr-vault`, `nr-file`, and `nr-kubesec` are resolved by a value provider on every remote
+config update, not just at startup. This means their values are refreshed automatically when a new
 config is pushed from Fleet Control.
+
+Value providers are configured under the `value_providers:` key in `agentcontrol.yml` (the legacy
+key `secrets_providers:` is still accepted as an alias).
 
 ### `nr-vault` — HashiCorp Vault
 
-Reads a value from a Vault KV secret. Requires `secrets_providers.vault` to be configured in
+Reads a value from a Vault KV secret. Requires `value_providers.vault` to be configured in
 `agentcontrol.yml`.
 
 **Secret path format:** `<source>:<mount>:<path>:<key>`
 
 ```yaml
 # in agentcontrol.yml
-secrets_providers:
+value_providers:
   vault:
     sources:
       prod-vault:
@@ -181,12 +184,12 @@ Multiple sources can be defined under `sources`. Each source is identified by it
 
 ---
 
-### `nr-file` — File secrets
+### `nr-file` — File values
 
 Reads the contents of a local file. The file content is trimmed of leading/trailing whitespace.
 No configuration needed in `agentcontrol.yml`.
 
-**Secret path format:** absolute path to the file
+**Value path format:** absolute path to the file
 
 ```yaml
 env:
@@ -211,13 +214,13 @@ env:
 
 ---
 
-## Configuration reference for secrets providers
+## Configuration reference for value providers
 
 Only `vault` requires explicit configuration in `agentcontrol.yml`. The other providers are
 always available.
 
 ```yaml
-secrets_providers:
+value_providers:
   vault:
     sources:
       <source-name>:

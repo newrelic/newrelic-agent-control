@@ -196,7 +196,7 @@ impl AgentControlRunner {
             .unwrap_or_default();
 
         let mut value_providers = ValueProviders::default().with_env();
-        if let Some(config) = &agent_control_config.secrets_providers {
+        if let Some(config) = &agent_control_config.value_providers {
             value_providers = value_providers
                 .with_config(config.clone())
                 .map_err(|e| RunError(format!("failed to load value providers: {e}")))?;

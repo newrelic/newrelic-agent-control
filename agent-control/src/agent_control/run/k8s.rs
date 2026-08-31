@@ -169,7 +169,7 @@ impl AgentControlRunner {
         let mut value_providers = ValueProviders::default()
             .with_env()
             .with_k8s_secret(k8s_client.clone());
-        if let Some(config) = &agent_control_config.secrets_providers {
+        if let Some(config) = &agent_control_config.value_providers {
             value_providers = value_providers
                 .with_config(config.clone())
                 .map_err(|e| RunError(format!("failed to load value providers: {e}")))?;

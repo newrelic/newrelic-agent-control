@@ -10,6 +10,6 @@ mod http_status_server;
 mod install_agent_type;
 mod no_opamp;
 mod opamp;
-mod secrets_providers;
 mod stalled_helm_release;
+mod value_providers;
 mod without_flux;
