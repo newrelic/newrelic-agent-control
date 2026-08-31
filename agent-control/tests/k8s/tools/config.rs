@@ -64,8 +64,12 @@ impl K8sAgentControlConfigBuilder {
         self
     }
 
-    pub fn with_agents(mut self, agents: impl Into<String>) -> Self {
-        self.common.agents = Some(agents.into());
+    pub fn with_agent(
+        mut self,
+        agent_id: impl Into<String>,
+        agent_type: impl Into<String>,
+    ) -> Self {
+        self.common = self.common.with_agent(agent_id, agent_type);
         self
     }
 

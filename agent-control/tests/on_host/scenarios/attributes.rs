@@ -39,15 +39,11 @@ fn test_attributes_from_non_existing_agent_type() {
     let agent_id = "test-agent";
     let dirs = TempBasePaths::default();
 
-    let agents = format!(
-        r#"
-  {agent_id}:
-    agent_type: "{DEFAULT_NAMESPACE}/{DEFAULT_NAME}:{DEFAULT_VERSION}"
-"#
-    );
-
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents.to_string())
+        .with_agent(
+            agent_id,
+            format!("{DEFAULT_NAMESPACE}/{DEFAULT_NAME}:{DEFAULT_VERSION}"),
+        )
         .write(dirs.local_dir());
 
     let _agent_control =

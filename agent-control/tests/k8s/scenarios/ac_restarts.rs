@@ -32,16 +32,10 @@ fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
     let agent_type_id = K8sCustomAgentTypeBuilder::default().write(tmp_dir.path());
-    let agents = format!(
-        r#"
-  hello-world:
-    agent_type: "{agent_type_id}"
-"#
-    );
 
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
-        .with_agents(&agents)
+        .with_agent("hello-world", agent_type_id.clone())
         .write(k8s.client.clone(), tmp_dir.path());
 
     // This config is intended to be empty
@@ -100,7 +94,7 @@ valid: true
     // start the agent-control with the same configuration
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
-        .with_agents(&agents)
+        .with_agent("hello-world", agent_type_id)
         .write(k8s.client.clone(), tmp_dir.path());
 
     let _sa = start_agent_control(k8s.client.clone(), &namespace, tmp_dir.path());

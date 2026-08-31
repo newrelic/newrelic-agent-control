@@ -30,17 +30,11 @@ fn k8s_signature_disabled() {
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
     let agent_type_id = K8sCustomAgentTypeBuilder::default().write(tmp_dir.path());
-    let agents = format!(
-        r#"
-  hello-world:
-    agent_type: "{agent_type_id}"
-"#
-    );
 
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
         .with_signature_validation_disabled()
-        .with_agents(agents)
+        .with_agent("hello-world", agent_type_id)
         .write(k8s.client.clone(), tmp_dir.path());
 
     // This config is intended to be empty

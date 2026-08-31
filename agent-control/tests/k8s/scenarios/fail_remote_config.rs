@@ -55,16 +55,10 @@ some-resource:
 "#,
         ))
         .write(tmp_dir.path());
-    let agents = format!(
-        r#"
-  fake-agent:
-    agent_type: "{agent_type_id}"
-"#
-    );
 
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
-        .with_agents(agents)
+        .with_agent("fake-agent", agent_type_id)
         .write(k8s.client.clone(), tmp_dir.path());
 
     block_on(create_config_map(

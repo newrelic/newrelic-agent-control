@@ -31,15 +31,9 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
     let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
     let sleep_agent_type = OnHostCustomAgentTypeBuilder::default().write(dirs.local_dir());
-    let agents = format!(
-        r#"
-  {sub_agent_id}:
-    agent_type: "{sleep_agent_type}"
-"#,
-    );
 
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents.to_string())
+        .with_agent(sub_agent_id.to_string(), sleep_agent_type)
         .write(dirs.local_dir());
 
     // And the custom-agent has local config values
@@ -103,13 +97,6 @@ fn test_invalid_config_executable_less_supervisor() {
         .without_deployment()
         .write(dirs.local_dir());
 
-    let agents = format!(
-        r#"
-  {sub_agent_id}:
-    agent_type: "{agent_type}"
-"#
-    );
-
     let local_config = "fake_variable: from local\n";
     create_local_config(
         sub_agent_id.to_string(),
@@ -118,7 +105,7 @@ fn test_invalid_config_executable_less_supervisor() {
     );
 
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents.to_string())
+        .with_agent(sub_agent_id.to_string(), agent_type)
         .write(dirs.local_dir());
 
     let _agent_control =
@@ -176,15 +163,9 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
     let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
     let sleep_agent_type = OnHostCustomAgentTypeBuilder::default().write(dirs.local_dir());
-    let agents = format!(
-        r#"
-  {sub_agent_id}:
-    agent_type: "{sleep_agent_type}"
-"#,
-    );
 
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents.to_string())
+        .with_agent(sub_agent_id.to_string(), sleep_agent_type)
         .write(dirs.local_dir());
 
     // And the custom-agent has local config values
