@@ -2,7 +2,7 @@
 //! the corresponding functionality.
 //!
 //! A [`VariableDefinition`] is the static shape parsed from an Agent Type YAML. Once we have the
-//! AC-wide constraints and the user-supplied values, [`VariableDefinition::resolve_trivial_value`] produces
+//! AC-wide constraints and the user-supplied values, [`VariableDefinition::resolve_variable_value`] produces
 //! the resolved [`VariableValue`] directly — there is no intermediate "runtime variable" wrapper.
 
 pub mod constraints;
@@ -101,7 +101,7 @@ impl VariableDefinition {
     /// Resolves this definition into a fully-populated [`VariableValue`] using the given AC
     /// constraints and an optional user-supplied value. Errors when the user value doesn't match
     /// the declared type/variants, or when the variable is required and no value was provided.
-    pub fn resolve_trivial_value(
+    pub fn resolve_variable_value(
         self,
         constraints: &VariableConstraints,
         user_value: Option<serde_json::Value>,

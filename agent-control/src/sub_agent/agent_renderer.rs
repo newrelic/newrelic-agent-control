@@ -11,7 +11,7 @@ use crate::agent_type::runtime_config::{Runtime, rendered};
 use crate::agent_type::templates::Templateable;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::dynamic_variables::{DynamicVariables, DynamicVariablesError};
-use crate::agent_type::variable::namespace::{Namespace, VariableName};
+use crate::agent_type::variable::namespace::VariableName;
 use crate::agent_type::variable_value::VariableValue;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::value_provider::{Registry, ValueProvider, ValueProviderType};
@@ -246,12 +246,7 @@ fn get_expanded_user_values(
     // Resolve every variable definition against the user values and AC constraints. This is a
     // single step: type/variants validation, default fallback, and required-check happen inline;
     // the returned map is guaranteed to hold a fully-resolved value for every variable.
-    let flat_variable_tree = variable_tree.resolve(constraints, values_expanded)?;
-    // Set the namespaced name to variables
-    Ok(flat_variable_tree
-        .into_iter()
-        .map(|(name, var)| (VariableName::new(Namespace::Variable, &name), var))
-        .collect())
+    variable_tree.resolve(constraints, values_expanded)
 }
 
 #[cfg(test)]
@@ -267,6 +262,7 @@ pub(crate) mod tests {
     use crate::agent_type::runtime_config::restart_policy::{
         BackoffDelay, BackoffLastRetryInterval, BackoffStrategyType, MaxRetries,
     };
+    use crate::agent_type::variable::namespace::Namespace;
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
     use fs::directory_manager::DirectoryManagerFs;

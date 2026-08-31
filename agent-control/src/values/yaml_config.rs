@@ -282,6 +282,8 @@ pub fn has_remote_management(capabilities: &Capabilities) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent_type::variable::constraints::VariableConstraints;
+    use crate::agent_type::variable::namespace::{Namespace, VariableName};
     use crate::agent_type::{definition::AgentTypeDefinition, variable_value::VariableValue};
     use rstest::rstest;
     use serde_json::json;
@@ -406,23 +408,20 @@ deployment: {}
         let input_structure = serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
         let agent_type = AgentTypeDefinition::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE);
 
-        let expected: HashMap<String, VariableValue> = HashMap::from([
+        let expected: HashMap<VariableName, VariableValue> = HashMap::from([
             (
-                "whatever.test.path".to_string(),
+                VariableName::new(Namespace::Variable, "whatever.test.path".to_string()),
                 VariableValue::String("/etc".to_string()),
             ),
             (
-                "whatever.test.args".to_string(),
+                VariableName::new(Namespace::Variable, "whatever.test.args".to_string()),
                 VariableValue::String("--verbose true".to_string()),
             ),
         ]);
 
         let resolved = agent_type
             .variables
-            .resolve(
-                &crate::agent_type::variable::constraints::VariableConstraints::default(),
-                input_structure,
-            )
+            .resolve(&VariableConstraints::default(), input_structure)
             .unwrap();
 
         assert_eq!(expected, resolved);
@@ -444,10 +443,9 @@ deployment: {}
             serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
         let agent_type = AgentTypeDefinition::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE);
 
-        let result = agent_type.variables.resolve(
-            &crate::agent_type::variable::constraints::VariableConstraints::default(),
-            input_structure,
-        );
+        let result = agent_type
+            .variables
+            .resolve(&VariableConstraints::default(), input_structure);
 
         assert!(result.is_err());
         assert!(

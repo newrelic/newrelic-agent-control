@@ -229,12 +229,13 @@ impl VariableTree {
         self,
         constraints: &VariableConstraints,
         values: YAMLConfig,
-    ) -> Result<HashMap<String, VariableValue>, AgentTypeError> {
+    ) -> Result<HashMap<VariableName, VariableValue>, AgentTypeError> {
         let (resolved, mut missing) = resolve_sub_tree(values.into(), self.0, constraints, "")?;
         if !missing.is_empty() {
             missing.sort();
             return Err(AgentTypeError::ValuesNotPopulated(missing));
         }
+
         Ok(resolved)
     }
 }
@@ -244,21 +245,22 @@ fn resolve_sub_tree(
     sub_tree: HashMap<String, Tree<VariableDefinition>>,
     constraints: &VariableConstraints,
     path_prefix: &str,
-) -> Result<(HashMap<String, VariableValue>, Vec<String>), AgentTypeError> {
-    let mut resolved: HashMap<String, VariableValue> = HashMap::new();
+) -> Result<(HashMap<VariableName, VariableValue>, Vec<String>), AgentTypeError> {
+    let mut resolved: HashMap<VariableName, VariableValue> = HashMap::new();
     let mut missing: Vec<String> = Vec::new();
 
     for (key, subtree) in sub_tree.into_iter() {
-        let full_path = prefix_path(path_prefix, &key);
+        let full_variable_path = prefixed_path(path_prefix, &key);
+        let variable_name = VariableName::new(Namespace::Variable, &full_variable_path);
         let user_value = values.remove(&key);
         match subtree {
-            Tree::End(def) => match def.resolve_trivial_value(constraints, user_value) {
-                Ok(variable) => {
-                    resolved.insert(full_path, variable);
+            Tree::End(def) => match def.resolve_variable_value(constraints, user_value) {
+                Ok(variable_value) => {
+                    resolved.insert(variable_name, variable_value);
                 }
                 // Missing required variables are accumulated so we surface every one at once
                 // instead of short-circuiting on the first.
-                Err(AgentTypeError::ValuesNotPopulated(_)) => missing.push(full_path),
+                Err(AgentTypeError::ValuesNotPopulated(_)) => missing.push(full_variable_path),
                 Err(other) => return Err(other),
             },
             Tree::Mapping(children) => {
@@ -267,19 +269,19 @@ fn resolve_sub_tree(
                     None => HashMap::new(),
                 };
                 let (child_resolved, child_missing) =
-                    resolve_sub_tree(inner, children, constraints, &full_path)?;
+                    resolve_sub_tree(inner, children, constraints, &full_variable_path)?;
                 resolved.extend(child_resolved);
                 missing.extend(child_missing);
             }
         }
     }
     for k in values.keys() {
-        warn!(key = %prefix_path(path_prefix, k), "Unexpected variable in the configuration");
+        warn!(key = %prefixed_path(path_prefix, k), "Unexpected variable in the configuration");
     }
     Ok((resolved, missing))
 }
 
-fn prefix_path(prefix: &str, segment: &str) -> String {
+fn prefixed_path(prefix: &str, segment: &str) -> String {
     if prefix.is_empty() {
         segment.to_string()
     } else {
@@ -433,7 +435,10 @@ pub mod tests {
         /// # Panics
         ///
         /// It will panic if the yaml values are not valid or there is any error resolving.
-        pub fn fill_test_variables(&self, yaml_values: &str) -> HashMap<String, VariableValue> {
+        pub fn fill_test_variables(
+            &self,
+            yaml_values: &str,
+        ) -> HashMap<VariableName, VariableValue> {
             let values = serde_saphyr::from_str::<YAMLConfig>(yaml_values).unwrap();
             self.variables
                 .clone()
@@ -799,13 +804,26 @@ status_server_port: 8004
         // Number
         let expected_status_server = VariableValue::Number(Number::from(8004));
 
-        assert_eq!(&expected_config_3, filled_variables.get("config3").unwrap());
+        assert_eq!(
+            &expected_config_3,
+            filled_variables
+                .get(&VariableName::new(Namespace::Variable, "config3"))
+                .unwrap()
+        );
 
         assert_eq!(
             &expected_status_server,
-            filled_variables.get("status_server_port").unwrap()
+            filled_variables
+                .get(&VariableName::new(
+                    Namespace::Variable,
+                    "status_server_port"
+                ))
+                .unwrap()
         );
-        assert!(!filled_variables.contains_key("unknown_variable"))
+        assert!(
+            !filled_variables
+                .contains_key(&VariableName::new(Namespace::Variable, "unknown_variable"))
+        )
     }
 
     const AGENT_TYPE_WITH_VARIANTS: &str = r#"
@@ -847,7 +865,12 @@ restart_policy:
         // Valid variant
         let filled_variables = agent_type.fill_test_variables(VALUES_VALID_VARIANT);
 
-        let var = filled_variables.get("restart_policy.type").unwrap();
+        let var = filled_variables
+            .get(&VariableName::new(
+                Namespace::Variable,
+                "restart_policy.type",
+            ))
+            .unwrap();
         assert_eq!("fixed".to_string(), var.to_string());
 
         // Invalid variant
@@ -865,7 +888,12 @@ restart_policy:
 
         // Default invalid variant is allowed
         let filled_variables_default = agent_type.fill_test_variables("");
-        let var = filled_variables_default.get("restart_policy.type").unwrap();
+        let var = filled_variables_default
+            .get(&VariableName::new(
+                Namespace::Variable,
+                "restart_policy.type",
+            ))
+            .unwrap();
         assert_eq!("exponential".to_string(), var.to_string());
     }
 
