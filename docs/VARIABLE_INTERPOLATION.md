@@ -28,6 +28,7 @@ Filters are optional post-processing steps applied to the resolved value (e.g. `
 | Vault secrets | `nr-vault` | HashiCorp Vault (KV1 or KV2) | On-host |
 | File values | `nr-file` | Local filesystem file contents | On-host |
 | Kubernetes secrets | `nr-kubesec` | Kubernetes Secret objects | K8s |
+| Kubernetes ConfigMaps | `nr-kubecm` | Kubernetes ConfigMap objects | K8s |
 
 ---
 
@@ -135,9 +136,9 @@ env:
 
 ## Value Providers
 
-`nr-env`, `nr-vault`, `nr-file`, and `nr-kubesec` are resolved by a value provider on every remote
-config update, not just at startup. This means their values are refreshed automatically when a new
-config is pushed from Fleet Control.
+`nr-env`, `nr-vault`, `nr-file`, `nr-kubesec`, and `nr-kubecm` are resolved by a value provider on
+every remote config update, not just at startup. This means their values are refreshed
+automatically when a new config is pushed from Fleet Control.
 
 Value providers are configured under the `value_providers:` key in `agentcontrol.yml` (the legacy
 key `secrets_providers:` is still accepted as an alias).
@@ -210,6 +211,21 @@ No configuration needed in `agentcontrol.yml`.
 env:
   DB_PASSWORD: "${nr-kubesec:default:my-db-secret:password}"
   #                         ^ns     ^secret-name ^key
+```
+
+---
+
+### `nr-kubecm` — Kubernetes ConfigMaps
+
+Reads a key from a Kubernetes ConfigMap object. Only available when AC is running on Kubernetes.
+No configuration needed in `agentcontrol.yml`.
+
+**Value path format:** `<namespace>:<configmap-name>:<key>`
+
+```yaml
+env:
+  LOG_LEVEL: "${nr-kubecm:default:my-app-config:log-level}"
+  #                      ^ns     ^configmap-name ^key
 ```
 
 ---

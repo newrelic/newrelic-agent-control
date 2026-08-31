@@ -59,6 +59,8 @@ pub enum Namespace {
     File,
     /// Secrets retrieved from Kubernetes Secrets.
     K8sSecret,
+    /// Values retrieved from Kubernetes ConfigMaps.
+    K8sConfigMap,
 }
 
 impl Namespace {
@@ -82,6 +84,8 @@ impl Namespace {
     const VAULT_SECRET: &'static str = "vault";
     /// Encapsulates the secrets retrieved from K8s Secrets
     const K8S_SECRET: &'static str = "kubesec";
+    /// Encapsulates the values retrieved from K8s ConfigMaps
+    const K8S_CONFIGMAP: &'static str = "kubecm";
     const FILE_SECRET: &'static str = "file";
 
     /// Returns whether the given namespaced name belongs to a dynamic namespace.
@@ -101,7 +105,8 @@ impl Namespace {
             Namespace::EnvironmentVariable
             | Namespace::Vault
             | Namespace::File
-            | Namespace::K8sSecret => true,
+            | Namespace::K8sSecret
+            | Namespace::K8sConfigMap => true,
         }
     }
 }
@@ -117,6 +122,7 @@ impl Display for Namespace {
             Self::Vault => Self::VAULT_SECRET,
             Self::File => Self::FILE_SECRET,
             Self::K8sSecret => Self::K8S_SECRET,
+            Self::K8sConfigMap => Self::K8S_CONFIGMAP,
         };
         write!(f, "{}{ns}", Self::PREFIX)
     }
@@ -150,6 +156,10 @@ mod tests {
         assert_eq!(
             "nr-kubesec:test".to_string(),
             VariableName::new(Namespace::K8sSecret, "test").to_string()
+        );
+        assert_eq!(
+            "nr-kubecm:test".to_string(),
+            VariableName::new(Namespace::K8sConfigMap, "test").to_string()
         );
         assert_eq!(
             "nr-file:test".to_string(),
