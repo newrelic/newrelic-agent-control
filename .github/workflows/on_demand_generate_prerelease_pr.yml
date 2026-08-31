@@ -17,7 +17,7 @@ jobs:
   release-notes:
     uses: ./.github/workflows/shared_publish_docs_release_notes.yml
     with:
-      version: 1.18.0
+      version: 1.19.0
     secrets:
       app_id: ${{ secrets.AGENT_CONTROL_APP_ID }}
       app_private_key: ${{ secrets.AGENT_CONTROL_APP_PKEY }}
