@@ -308,17 +308,14 @@ pub mod tests {
 
     /// A `string`-typed variable declaration snippet, for use with [variable_declaration_yaml].
     const STRING_VAR: &str = r#"
-description: "d"
 type: string
 required: true"#;
     /// A `yaml`-typed variable declaration snippet, for use with [variable_declaration_yaml].
     const YAML_VAR: &str = r#"
-description: "d"
 type: yaml
 required: false"#;
     /// A `string_map`-typed variable declaration snippet, for use with [variable_declaration_yaml].
     const STRING_MAP_VAR: &str = r#"
-description: "d"
 type: string_map
 required: false
 default: {}"#;
@@ -1050,16 +1047,13 @@ files:
         let variables_yaml = r#"
 common:
   one:
-    description: "d"
     type: string
     required: true
   two:
     three:
-      description: "d"
       type: string
       required: true
   four:
-    description: "d"
     type: string_map
     required: false
     default: {}

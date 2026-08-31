@@ -19,8 +19,8 @@ use crate::agent_control::run::{
     setup_config_repository_and_store,
 };
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
-use crate::agent_type::variable::Variable;
 use crate::agent_type::variable::namespace::{Namespace, VariableName};
+use crate::agent_type::variable_value::VariableValue;
 use crate::agent_type::version_config::{
     AGENT_CONTROL_VERSION_CHECKER_INITIAL_DELAY, VersionCheckerInterval,
 };
@@ -158,11 +158,11 @@ impl AgentControlRunner {
         let agent_control_variables = HashMap::from([
             (
                 VariableName::new(Namespace::AgentControl, NAMESPACE_VARIABLE_NAME),
-                Variable::new_final_string_variable(k8s_config.namespace.clone()),
+                VariableValue::String(k8s_config.namespace.clone()),
             ),
             (
                 VariableName::new(Namespace::AgentControl, NAMESPACE_AGENTS_VARIABLE_NAME),
-                Variable::new_final_string_variable(k8s_config.namespace_agents.clone()),
+                VariableValue::String(k8s_config.namespace_agents.clone()),
             ),
         ]);
 

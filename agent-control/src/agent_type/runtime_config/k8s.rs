@@ -210,8 +210,8 @@ mod tests {
         K8s, K8sHealthCheckDefinition, K8sHealthResourceKind,
     };
     use crate::agent_type::templates::Templateable;
-    use crate::agent_type::variable::Variable;
     use crate::agent_type::variable::namespace::{Namespace, VariableName};
+    use crate::agent_type::variable_value::VariableValue;
     use crate::agent_type::version_config::{VersionCheckerInitialDelay, VersionCheckerInterval};
 
     const RUNTIME_WITH_K8S_DEPLOYMENT: &str = r#"
@@ -331,15 +331,15 @@ objects:
         let variables = Variables::from([
             (
                 VariableName::new(Namespace::Variable, "any"),
-                Variable::new_string(true, None, Some(value.to_string())),
+                VariableValue::String(value.to_string()),
             ),
             (
                 VariableName::new(Namespace::SubAgent, "agent_id"),
-                Variable::new_final_string_variable(test_agent_id.to_string()),
+                VariableValue::String(test_agent_id.to_string()),
             ),
             (
                 VariableName::new(Namespace::AgentControl, "namespace"),
-                Variable::new_final_string_variable(test_namespace.to_string()),
+                VariableValue::String(test_namespace.to_string()),
             ),
         ]);
 
@@ -392,15 +392,15 @@ health:
         let variables = Variables::from([
             (
                 VariableName::new(Namespace::SubAgent, "agent_id"),
-                Variable::new_final_string_variable("my-agent".to_string()),
+                VariableValue::String("my-agent".to_string()),
             ),
             (
                 VariableName::new(Namespace::AgentControl, "namespace"),
-                Variable::new_final_string_variable("newrelic".to_string()),
+                VariableValue::String("newrelic".to_string()),
             ),
             (
                 VariableName::new(Namespace::AgentControl, "namespace_agents"),
-                Variable::new_final_string_variable("newrelic-agents".to_string()),
+                VariableValue::String("newrelic-agents".to_string()),
             ),
         ]);
 
