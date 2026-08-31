@@ -21,29 +21,25 @@ use newrelic_agent_control::agent_control::defaults::{
 use newrelic_agent_control::agent_control::run::on_host::{
     AGENT_CONTROL_MODE_ON_HOST, OCI_TEST_REGISTRY_URL,
 };
+use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
 use oci_test_utils::OCISigner;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
 use resource_detection::system::hostname::get_hostname;
 use std::time::Duration;
 
-const DEFAULT_VERSION: &str = "0.3.0";
-const DEFAULT_NAMESPACE: &str = "namespace";
-const DEFAULT_NAME: &str = "name";
-
-/// Given an agent type that we don't know we are going to check if the default
-/// identifying and non identifying attributes are what we expect.
+/// Asserts all attributes are reported for an empty sub-agent.
 #[test]
-fn test_attributes_from_non_existing_agent_type() {
+fn test_attributes() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
     let agent_id = "test-agent";
     let dirs = TempBasePaths::default();
 
+    let agent_type = OnHostCustomAgentTypeBuilder::empty().write(dirs.local_dir());
+    let agent_type_id = AgentTypeID::try_from(agent_type.as_str()).unwrap();
+
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agent(
-            agent_id,
-            format!("{DEFAULT_NAMESPACE}/{DEFAULT_NAME}:{DEFAULT_VERSION}"),
-        )
+        .with_agent(agent_id, agent_type)
         .write(dirs.local_dir());
 
     let _agent_control =
@@ -57,11 +53,11 @@ fn test_attributes_from_non_existing_agent_type() {
     let expected_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
             OPAMP_SERVICE_NAMESPACE,
-            Value::StringValue(DEFAULT_NAMESPACE.to_string()),
+            Value::StringValue(agent_type_id.namespace().to_string()),
         ),
         (
             OPAMP_SERVICE_NAME,
-            Value::StringValue(DEFAULT_NAME.to_string()),
+            Value::StringValue(agent_type_id.name().to_string()),
         ),
         (
             OPAMP_SUPERVISOR_KEY,
@@ -69,7 +65,7 @@ fn test_attributes_from_non_existing_agent_type() {
         ),
         (
             OPAMP_SERVICE_VERSION,
-            Value::StringValue(DEFAULT_VERSION.to_string()),
+            Value::StringValue(agent_type_id.version().to_string()),
         ),
     ]));
 
@@ -103,12 +99,11 @@ fn test_attributes_from_non_existing_agent_type() {
     });
 }
 
-/// Given an agent type that we know we are going to check if the default
-/// identifying and non identifying attributes are what we expect plus
-/// the "agent.version" related with the agent type.
+/// Asserts all attributes are reported whenever the sub agent contains
+/// a package.
 #[test]
 #[ignore = "needs oci registry (use *with_oci_registry suffix)"]
-fn test_attributes_from_an_existing_agent_type_with_oci_registry() {
+fn test_attributes_with_package_with_oci_registry() {
     let signer = OCISigner::start(tokio_runtime().handle().clone());
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
     let dirs = TempBasePaths::default();

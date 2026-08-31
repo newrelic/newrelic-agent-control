@@ -1,6 +1,7 @@
 use crate::common::{
     health::{check_latest_health_status, check_latest_health_status_was_healthy},
-    retry::retry,
+    remote_config_status::check_latest_remote_config_status_is_expected,
+    retry::{retry, retry_never},
     runtime::{block_on, tokio_runtime},
 };
 use fake_opamp_server::FakeServer;
@@ -17,6 +18,7 @@ use k8s_openapi::api::core::v1::{Container, PodSpec, PodTemplateSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, ObjectMeta};
 use kube::{Api, Client, api::PostParams};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
+use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::collections::BTreeMap;
 use std::time::Duration;
 use tempfile::tempdir;
@@ -123,6 +125,141 @@ fn k8s_direct_workload_health_checks_unhealthy() {
 
     retry(60, Duration::from_secs(1), || {
         check_latest_health_status(&server, &sub_agent_instance_id.clone(), |s| !s.healthy)
+    });
+}
+
+/// Given a k8s sub-agent whose agent type declares no `health:` block, but whose initial
+/// supervisor fails to build because a required variable is missing from its config, no
+/// `ComponentHealth` should be reported for it via OpAMP.
+///
+/// `report_unhealthy_from_error` is a second producer of health events besides the
+/// health-checker thread: supervisor build/apply/start failures report unhealthy regardless of
+/// whether a `health:` block is configured, and that report must be suppressed too.
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_no_health_in_agent_type_when_start_failure() {
+    let mut server = FakeServer::start(tokio_runtime().handle());
+
+    let mut k8s = block_on(K8sEnv::new());
+    let ac_ns = block_on(k8s.test_namespace());
+    let agents_ns = block_on(k8s.test_namespace());
+    let tmp_dir = tempdir().expect("failed to create local temp dir");
+
+    let agent_type_id = K8sCustomAgentTypeBuilder::empty()
+        .with_health(None)
+        .with_variables(
+            r#"
+fake_var:
+  description: "Required variable missing from config"
+  type: "string"
+  required: true
+"#,
+        )
+        .write(tmp_dir.path());
+
+    K8sAgentControlConfigBuilder::new(&ac_ns)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_namespace_agents(&agents_ns)
+        .with_agent("hello-world", agent_type_id)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    block_on(create_config_map(
+        k8s.client.clone(),
+        &ac_ns,
+        "local-data-hello-world",
+        "some: broken config".to_string(),
+    ));
+
+    let _ac = start_agent_control(k8s.client.clone(), &ac_ns, tmp_dir.path());
+
+    let sub_agent_instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &ac_ns,
+        &AgentID::try_from("hello-world").unwrap(),
+    );
+
+    server.set_config_response(sub_agent_instance_id.clone(), "some: broken config");
+
+    retry(60, Duration::from_secs(1), || {
+        check_latest_remote_config_status_is_expected(
+            &server,
+            &sub_agent_instance_id,
+            RemoteConfigStatuses::Failed as i32,
+        )
+    });
+
+    // No health status is expected, despite the supervisor start failure.
+    retry_never(10, Duration::from_secs(1), || {
+        match server.get_health_status(sub_agent_instance_id.clone()) {
+            None => Ok(()),
+            Some(health) => Err(format!(
+                "Expected no ComponentHealth for sub-agent without `health:` in agent type, got: {health:?}"
+            )
+            .into()),
+        }
+    });
+}
+
+/// Given a k8s sub-agent whose agent type declares a `health:` block, health should be reported
+/// via OpAMP if its initial supervisor fails to build, same as the case above but with health
+/// enabled.
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_health_in_agent_type_when_start_failure() {
+    let mut server = FakeServer::start(tokio_runtime().handle());
+
+    let mut k8s = block_on(K8sEnv::new());
+    let ac_ns = block_on(k8s.test_namespace());
+    let agents_ns = block_on(k8s.test_namespace());
+    let tmp_dir = tempdir().expect("failed to create local temp dir");
+
+    let agent_type_id = K8sCustomAgentTypeBuilder::empty()
+        .with_variables(
+            r#"
+fake_var:
+  description: "Required variable missing from config"
+  type: "string"
+  required: true
+"#,
+        )
+        .with_health(Some(
+            r#"{"interval": "1s", "initial_delay": "2s", "checks": [{ "namespace": "${nr-ac:namespace_agents}", "name": "${nr-sub:agent_id}", "kind": "Deployment"}]}"#,
+        ))
+        .write(tmp_dir.path());
+
+    K8sAgentControlConfigBuilder::new(&ac_ns)
+        .with_fleet(server.endpoint(), server.jwks_endpoint())
+        .with_namespace_agents(&agents_ns)
+        .with_agent("hello-world", agent_type_id)
+        .write(k8s.client.clone(), tmp_dir.path());
+
+    block_on(create_config_map(
+        k8s.client.clone(),
+        &ac_ns,
+        "local-data-hello-world",
+        "some: broken config".to_string(),
+    ));
+
+    let _ac = start_agent_control(k8s.client.clone(), &ac_ns, tmp_dir.path());
+
+    let sub_agent_instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &ac_ns,
+        &AgentID::try_from("hello-world").unwrap(),
+    );
+
+    server.set_config_response(sub_agent_instance_id.clone(), "some: broken config");
+
+    retry(60, Duration::from_secs(1), || {
+        check_latest_remote_config_status_is_expected(
+            &server,
+            &sub_agent_instance_id,
+            RemoteConfigStatuses::Failed as i32,
+        )?;
+        match server.get_health_status(sub_agent_instance_id.clone()) {
+            Some(_) => Ok(()),
+            None => Err("Expected ComponentHealth for sub-agent".into()),
+        }
     });
 }
 
