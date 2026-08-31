@@ -1,19 +1,16 @@
 //! Value provider that reads values from environment variables.
 
+use std::env::VarError;
+
 use crate::value_provider::ValueProvider;
 
 /// A value provider that retrieves values from environment variables.
-pub struct Env {}
-
-/// Error returned when an environment variable value cannot be retrieved.
-#[derive(Debug, thiserror::Error)]
-#[error("failed to retrieve value from environment variable: {0}")]
-pub struct EnvError(String);
+pub struct Env;
 
 impl ValueProvider for Env {
-    type Error = EnvError;
+    type Error = VarError;
 
     fn get_value(&self, path: &str) -> Result<String, Self::Error> {
-        std::env::var(path).map_err(|e| EnvError(e.to_string()))
+        std::env::var(path)
     }
 }

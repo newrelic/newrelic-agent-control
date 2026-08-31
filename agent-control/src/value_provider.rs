@@ -7,10 +7,10 @@ pub mod vault;
 
 use crate::agent_type::variable::namespace::Namespace;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
-use crate::value_provider::env::{Env, EnvError};
-use crate::value_provider::file::{FileProvider, FileProviderError};
-use crate::value_provider::k8s_secret::{K8sSecretProvider, K8sSecretProviderError};
-use crate::value_provider::vault::{Vault, VaultConfig, VaultError};
+use crate::value_provider::env::Env;
+use crate::value_provider::file::FileProvider;
+use crate::value_provider::k8s_secret::K8sSecretProvider;
+use crate::value_provider::vault::{Vault, VaultConfig};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -45,23 +45,8 @@ pub struct ValueProvidersConfig {
 
 /// Errors returned by the configured value providers.
 #[derive(Debug, thiserror::Error)]
-pub enum ValueProvidersError {
-    /// The Vault provider failed.
-    #[error("vault provider failed: {0}")]
-    VaultError(#[from] VaultError),
-
-    /// The Kubernetes secret provider failed.
-    #[error("k8s secret provider failed: {0}")]
-    K8sSecretProviderError(#[from] K8sSecretProviderError),
-
-    /// The environment variable provider failed.
-    #[error("env var provider failed: {0}")]
-    EnvError(#[from] EnvError),
-
-    /// The file provider failed.
-    #[error("file provider failed: {0}")]
-    FileError(#[from] FileProviderError),
-}
+#[error("{0}")]
+pub struct ValueProvidersError(String);
 
 /// Trait for operating with value providers.
 ///
@@ -97,10 +82,18 @@ impl<C: K8sClient> ValueProvider for ValueProviderType<C> {
 
     fn get_value(&self, path: &str) -> Result<String, Self::Error> {
         match self {
-            ValueProviderType::Vault(provider) => Ok(provider.get_value(path)?),
-            ValueProviderType::K8sSecret(provider) => Ok(provider.get_value(path)?),
-            ValueProviderType::File(provider) => Ok(provider.get_value(path)?),
-            ValueProviderType::Env(provider) => Ok(provider.get_value(path)?),
+            ValueProviderType::Vault(provider) => provider
+                .get_value(path)
+                .map_err(|err| ValueProvidersError(format!("vault provider failed: {err}"))),
+            ValueProviderType::K8sSecret(provider) => provider
+                .get_value(path)
+                .map_err(|err| ValueProvidersError(format!("k8s secret provider failed: {err}"))),
+            ValueProviderType::File(provider) => provider
+                .get_value(path)
+                .map_err(|err| ValueProvidersError(format!("file provider failed: {err}"))),
+            ValueProviderType::Env(provider) => provider
+                .get_value(path)
+                .map_err(|err| ValueProvidersError(format!("env provider failed: {err}"))),
         }
     }
 }
@@ -145,10 +138,8 @@ impl Registry<ValueProviderType> {
 
     /// Registers the file provider.
     pub fn with_file(mut self) -> Self {
-        self.0.insert(
-            Namespace::File,
-            ValueProviderType::File(FileProvider::new()),
-        );
+        self.0
+            .insert(Namespace::File, ValueProviderType::File(FileProvider));
         self
     }
 
@@ -158,7 +149,9 @@ impl Registry<ValueProviderType> {
         config: ValueProvidersConfig,
     ) -> Result<Self, ValueProvidersError> {
         if let Some(vault_config) = config.vault {
-            let vault = Vault::try_build(vault_config)?;
+            let vault = Vault::try_build(vault_config).map_err(|err| {
+                ValueProvidersError(format!("couldn't build vault provider: {err}"))
+            })?;
             self.0
                 .insert(Namespace::Vault, ValueProviderType::Vault(vault));
         }
