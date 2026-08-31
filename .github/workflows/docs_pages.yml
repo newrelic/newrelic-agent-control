@@ -33,7 +33,7 @@ jobs:
       - uses: ./.github/actions/rust-cache
         with:
           identifier: 'docs'
-          restore-strategy: 'nearest'
+          restore-strategy: 'exact'
           save-cache: true
 
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
