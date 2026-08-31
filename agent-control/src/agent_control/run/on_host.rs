@@ -333,11 +333,8 @@ pub fn opamp_client_builder(
     proxy_config: ProxyConfig,
     yaml_config_repository: Arc<ConfigRepo<FileStore<LocalFile, DirectoryManagerFs>>>,
 ) -> OnHostOpAMPClientBuilder {
-    let secret_retriever = OnHostSecretRetriever::new(
-        Some(opamp_config.clone()),
-        local_dir.clone(),
-        FileProvider::new(),
-    );
+    let secret_retriever =
+        OnHostSecretRetriever::new(Some(opamp_config.clone()), local_dir.clone(), FileProvider);
 
     let poll_interval = opamp_config.poll_interval;
     let http_builder = OpAMPHttpClientBuilder::new(opamp_config, proxy_config, secret_retriever);
