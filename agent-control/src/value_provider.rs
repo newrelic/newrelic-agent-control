@@ -2,6 +2,7 @@
 
 pub mod env;
 pub mod file;
+pub mod k8s_configmap;
 pub mod k8s_secret;
 pub mod vault;
 
@@ -9,6 +10,7 @@ use crate::agent_type::variable::namespace::Namespace;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::value_provider::env::Env;
 use crate::value_provider::file::FileProvider;
+use crate::value_provider::k8s_configmap::K8sConfigMapProvider;
 use crate::value_provider::k8s_secret::K8sSecretProvider;
 use crate::value_provider::vault::{Vault, VaultConfig};
 use serde::Deserialize;
@@ -71,6 +73,8 @@ pub enum ValueProviderType<C: K8sClient = SyncK8sClient> {
     Vault(Vault),
     /// Values retrieved from Kubernetes secrets.
     K8sSecret(K8sSecretProvider<C>),
+    /// Values retrieved from Kubernetes ConfigMaps.
+    K8sConfigMap(K8sConfigMapProvider<C>),
     /// Values retrieved from the local filesystem.
     File(FileProvider),
     /// Values retrieved from environment variables.
@@ -88,6 +92,9 @@ impl<C: K8sClient> ValueProvider for ValueProviderType<C> {
             ValueProviderType::K8sSecret(provider) => provider
                 .get_value(path)
                 .map_err(|err| ValueProvidersError(format!("k8s secret provider failed: {err}"))),
+            ValueProviderType::K8sConfigMap(provider) => provider.get_value(path).map_err(|err| {
+                ValueProvidersError(format!("k8s configmap provider failed: {err}"))
+            }),
             ValueProviderType::File(provider) => provider
                 .get_value(path)
                 .map_err(|err| ValueProvidersError(format!("file provider failed: {err}"))),
@@ -132,6 +139,15 @@ impl Registry<ValueProviderType> {
         self.0.insert(
             Namespace::K8sSecret,
             ValueProviderType::K8sSecret(K8sSecretProvider::new(k8s_client)),
+        );
+        self
+    }
+
+    /// Registers the Kubernetes ConfigMap provider backed by the given client.
+    pub fn with_k8s_configmap(mut self, k8s_client: Arc<SyncK8sClient>) -> Self {
+        self.0.insert(
+            Namespace::K8sConfigMap,
+            ValueProviderType::K8sConfigMap(K8sConfigMapProvider::new(k8s_client)),
         );
         self
     }

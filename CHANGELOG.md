@@ -22,6 +22,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ### enhancement
 - Renamed the `secrets_providers` config key to `value_providers`, the old key is kept for backwards compatibility.
+- K8s: add a new `nr-kubecm` value provider to resolve variables from Kubernetes ConfigMaps.
 
 ### bugfix
 - On-host: fix false "already running" startup error when a stale PID file held a PID reused by an unrelated process.

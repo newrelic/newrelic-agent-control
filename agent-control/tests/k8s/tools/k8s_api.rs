@@ -247,3 +247,26 @@ pub fn create_values_secret(
     let _ = block_on(secrets.delete(secret_name, &DeleteParams::default()));
     block_on(secrets.create(&PostParams::default(), &secret)).unwrap();
 }
+
+/// This helper creates a values ConfigMap with the provided `configmap_name`, `values_key` and `values`.
+pub fn create_values_configmap(
+    k8s_client: Client,
+    namespace: &str,
+    configmap_name: &str,
+    values_key: &str,
+    values: String,
+) {
+    let configmap = ConfigMap {
+        metadata: kube::core::ObjectMeta {
+            name: Some(configmap_name.to_string()),
+            namespace: Some(namespace.to_string()),
+            ..Default::default()
+        },
+        data: Some(BTreeMap::from([(values_key.to_string(), values)])),
+        ..Default::default()
+    };
+
+    let configmaps: Api<ConfigMap> = Api::namespaced(k8s_client, namespace);
+    let _ = block_on(configmaps.delete(configmap_name, &DeleteParams::default()));
+    block_on(configmaps.create(&PostParams::default(), &configmap)).unwrap();
+}

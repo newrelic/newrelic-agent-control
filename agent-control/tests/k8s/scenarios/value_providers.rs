@@ -4,7 +4,8 @@ use crate::k8s::tools::agent_control::{create_config_map, start_agent_control};
 use crate::k8s::tools::config::K8sAgentControlConfigBuilder;
 use crate::k8s::tools::custom_agent_type::K8sCustomAgentTypeBuilder;
 use crate::k8s::tools::k8s_api::{
-    check_helmrelease_labels_contains, check_helmrelease_spec_values, create_values_secret,
+    check_helmrelease_labels_contains, check_helmrelease_spec_values, create_values_configmap,
+    create_values_secret,
 };
 use crate::k8s::tools::k8s_env::K8sEnv;
 use std::collections::BTreeMap;
@@ -12,7 +13,7 @@ use std::time::Duration;
 use tempfile::tempdir;
 
 #[test]
-#[ignore = "needs k8s cluster"]
+#[ignore = "needs k8s cluster and vault instance"]
 fn k8s_template_value_providers() {
     let test_name = "k8s_template_value_providers";
 
@@ -85,6 +86,7 @@ release:
   hashicorpVaultV1Key: ${{nr-vault:sourceA:kv-v1:my-secret:foo1}}
   hashicorpVaultV2Key: ${{nr-vault:sourceB:secret:my-secret:foo2}}
   k8sSecretKey: ${{nr-kubesec:{namespace}:pod-secrets:foo3}}
+  k8sConfigMapKey: ${{nr-kubecm:{namespace}:pod-config:foo5}}
   envVarKey: ${{nr-env:{test_name}_foo4}}"#
         ),
     ));
@@ -100,6 +102,18 @@ release:
     let value = "bar3";
     create_values_secret(k8s.client.clone(), &namespace, name, key, value.to_string());
 
+    // K8s configmaps -> created here on demand.
+    let configmap_name = "pod-config";
+    let configmap_key = "foo5";
+    let configmap_value = "bar5";
+    create_values_configmap(
+        k8s.client.clone(),
+        &namespace,
+        configmap_name,
+        configmap_key,
+        configmap_value.to_string(),
+    );
+
     // env var secrets -> created here on demand.
     unsafe {
         std::env::set_var(format!("{test_name}_foo4"), "bar4");
@@ -111,6 +125,7 @@ release:
 hashicorpVaultV1Key: bar1
 hashicorpVaultV2Key: bar2
 k8sSecretKey: bar3
+k8sConfigMapKey: bar5
 envVarKey: bar4
     "#;
 
